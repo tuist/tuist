@@ -17,7 +17,7 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
     override func setUp() {
         super.setUp()
         frameworkMetadataProvider = FrameworkMetadataProvider()
-        subject = CacheFrameworkBuilder(xcodeBuildController: XcodeBuildController())
+        subject = CacheFrameworkBuilder(xcodeBuildController: XcodeBuildController(formatter: Formatter()))
     }
 
     override func tearDown() {

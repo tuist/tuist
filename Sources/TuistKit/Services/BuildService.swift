@@ -43,7 +43,7 @@ final class BuildService {
     let buildGraphInspector: BuildGraphInspecting
 
     init(generator: Generating = Generator(contentHasher: CacheContentHasher()),
-         xcodebuildController: XcodeBuildControlling = XcodeBuildController(),
+         xcodebuildController: XcodeBuildControlling = XcodeBuildController(formatter: Formatter()),
          buildGraphInspector: BuildGraphInspecting = BuildGraphInspector())
     {
         self.generator = generator

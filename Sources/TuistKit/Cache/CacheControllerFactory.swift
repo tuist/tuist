@@ -18,7 +18,7 @@ final class CacheControllerFactory {
     /// - Parameter contentHasher: Content hasher.
     /// - Returns: A cache controller instance.
     func makeForSimulatorFramework(contentHasher: ContentHashing) -> CacheControlling {
-        let frameworkBuilder = CacheFrameworkBuilder(xcodeBuildController: XcodeBuildController())
+        let frameworkBuilder = CacheFrameworkBuilder(xcodeBuildController: XcodeBuildController(formatter: Formatter()))
         return CacheController(cache: cache, artifactBuilder: frameworkBuilder, contentHasher: contentHasher)
     }
 
@@ -26,7 +26,7 @@ final class CacheControllerFactory {
     /// - Parameter contentHasher: Content hasher.
     /// - Returns: Instance of the cache controller.
     func makeForXCFramework(contentHasher: ContentHashing) -> CacheControlling {
-        let frameworkBuilder = CacheXCFrameworkBuilder(xcodeBuildController: XcodeBuildController())
+        let frameworkBuilder = CacheXCFrameworkBuilder(xcodeBuildController: XcodeBuildController(formatter: Formatter()))
         return CacheController(cache: cache, artifactBuilder: frameworkBuilder, contentHasher: contentHasher)
     }
 }

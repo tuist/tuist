@@ -17,7 +17,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
     override func setUp() {
         super.setUp()
         plistDecoder = PropertyListDecoder()
-        subject = CacheXCFrameworkBuilder(xcodeBuildController: XcodeBuildController())
+        subject = CacheXCFrameworkBuilder(xcodeBuildController: XcodeBuildController(formatter: Formatter()))
     }
 
     override func tearDown() {

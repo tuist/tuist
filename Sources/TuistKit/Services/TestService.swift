@@ -53,7 +53,7 @@ final class TestService {
     init(
         testsCacheTemporaryDirectory: TemporaryDirectory,
         testServiceGeneratorFactory: TestServiceGeneratorFactorying,
-        xcodebuildController: XcodeBuildControlling = XcodeBuildController(),
+        xcodebuildController: XcodeBuildControlling = XcodeBuildController(formatter: Formatter()),
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         simulatorController: SimulatorControlling = SimulatorController(),
         contentHasher: ContentHashing = ContentHasher()

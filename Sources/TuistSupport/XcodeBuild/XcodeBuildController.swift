@@ -80,16 +80,10 @@ public final class XcodeBuildController: XcodeBuildControlling {
     private let formatter: Formatting
     private let environment: Environmenting
 
-    public convenience init() {
-        self.init(
-            formatter: Formatter(),
-            environment: Environment.shared
-        )
-    }
-
-    init(formatter: Formatting,
-         environment: Environmenting)
-    {
+    public init(
+        formatter: Formatting,
+        environment: Environmenting = Environment.shared
+    ) {
         self.formatter = formatter
         self.environment = environment
     }

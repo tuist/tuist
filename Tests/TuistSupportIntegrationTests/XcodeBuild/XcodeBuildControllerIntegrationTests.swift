@@ -3,23 +3,25 @@ import RxBlocking
 import RxSwift
 import TSCBasic
 import TuistCore
-import TuistSupport
 import XCTest
 
-@testable import TuistAutomation
+@testable import TuistSupport
 @testable import TuistSupportTesting
 
 final class XcodeBuildControllerIntegrationTests: TuistTestCase {
     var subject: XcodeBuildController!
+    var formatter: MockFormatter!
 
     override func setUp() {
         super.setUp()
-        subject = XcodeBuildController()
+        formatter = MockFormatter()
+        subject = XcodeBuildController(formatter: formatter)
     }
 
     override func tearDown() {
         super.tearDown()
         subject = nil
+        formatter = nil
     }
 
     func test_showBuildSettings() throws {

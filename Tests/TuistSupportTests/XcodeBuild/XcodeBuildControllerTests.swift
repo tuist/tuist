@@ -8,15 +8,18 @@ import XCTest
 
 final class XcodeBuildControllerTests: TuistUnitTestCase {
     var subject: XcodeBuildController!
+    var formatter: Formatting!
 
     override func setUp() {
         super.setUp()
-        subject = XcodeBuildController()
+        formatter = MockFormatter()
+        subject = XcodeBuildController(formatter: formatter)
     }
 
     override func tearDown() {
         super.tearDown()
         subject = nil
+        formatter = nil
     }
 
     func test_build() throws {
