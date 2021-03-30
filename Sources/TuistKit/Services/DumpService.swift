@@ -19,15 +19,8 @@ final class DumpService {
         } else {
             projectPath = AbsolutePath.current
         }
-        let configLoader = ConfigLoader(
-            manifestLoader: manifestLoader,
-            rootDirectoryLocator: RootDirectoryLocator(),
-            fileHandler: FileHandler.shared
-        )
-        let pluginsService = PluginService(manifestLoader: manifestLoader)
-        let config = try configLoader.loadConfig(path: projectPath)
-        let plugins = try pluginsService.loadPlugins(using: config)
-        manifestLoader.register(plugins: plugins)
+        let manifestGraphLoader = ManifestGraphLoader(manifestLoader: manifestLoader)
+        try manifestGraphLoader.loadPlugins(at: projectPath)
         let project = try manifestLoader.loadProject(at: projectPath)
         let json: JSON = try project.toJSON()
         logger.notice("\(json.toString(prettyPrint: true))")
