@@ -1,5 +1,5 @@
 {
-  "name": "tuist-website",
+  "name": "website",
   "description": "Tuist website",
   "private": true,
   "version": "0.1.0",
@@ -103,5 +103,10 @@
   },
   "resolutions": {
     "sharp": "0.23.1"
+  },
+  "workspaces": {
+    "nohoist": [
+      "**/*"
+    ]
   }
 }

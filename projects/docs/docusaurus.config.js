@@ -1,4 +1,7 @@
 /** @type {import('@docusaurus/types').DocusaurusConfig} */
+const remarkEmoji = require('remark-emoji')
+const remarkExternalLinks = require('remark-external-links')
+
 module.exports = {
   title: 'Tuist Documentation',
   tagline: 'Documentation about how to use and contribute to the tool.',
@@ -88,7 +91,8 @@ module.exports = {
         docs: {
           routeBasePath: '/',
           sidebarPath: require.resolve('./sidebars.js'),
-          editUrl: 'https://github.com/tuist/tuist/blob/main/projects/',
+          editUrl: 'https://github.com/tuist/tuist/blob/main/projects/docs/',
+          remarkPlugins: [remarkEmoji, remarkExternalLinks],
         },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),

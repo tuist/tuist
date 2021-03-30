@@ -93,14 +93,11 @@ exports.onCreateNode = ({ node, getNode, actions }) => {
       createNodeField({ node, name: `path`, value: fileNode.relativePath })
     } else {
       const filename = createFilePath({ node, getNode })
-      if (node.frontmatter.migrated) {
+      if (node.frontmatter.migrated_path) {
         // To redirect to the pages that have been moved to docusaurus
-        const toPath = `https://docs.tuist.io/${filename
-          .replace('/docs/', '')
-          .replace('contribution', 'contributors')}`
         createRedirect({
           fromPath: filename,
-          toPath: toPath,
+          toPath: `https://docs.tuist.io${node.frontmatter.migrated_path}`,
           isPermanent: true,
         })
       }
@@ -204,7 +201,7 @@ exports.createPages = ({ graphql, actions }) => {
         allMdx(
           filter: {
             fileAbsolutePath: { regex: "/docs/.*/" }
-            frontmatter: { migrated: { ne: true } }
+            frontmatter: { migrated_path: { eq: null } }
           }
         ) {
           nodes {
