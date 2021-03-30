@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Fixed
+
+- Fixed running `tuist dump` for projects with plugins [#2700](https://github.com/tuist/tuist/pull/2700) by [@danyf90](https://github.com/danyf90)
+
 ## 1.39.1
 
 ### Fixed

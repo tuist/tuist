@@ -1,6 +1,8 @@
 import Foundation
 import TSCBasic
+import TuistCore
 import TuistLoader
+import TuistPlugin
 import TuistSupport
 
 final class DumpService {
@@ -17,6 +19,8 @@ final class DumpService {
         } else {
             projectPath = AbsolutePath.current
         }
+        let manifestGraphLoader = ManifestGraphLoader(manifestLoader: manifestLoader)
+        try manifestGraphLoader.loadPlugins(at: projectPath)
         let project = try manifestLoader.loadProject(at: projectPath)
         let json: JSON = try project.toJSON()
         logger.notice("\(json.toString(prettyPrint: true))")
