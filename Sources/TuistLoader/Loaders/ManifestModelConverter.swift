@@ -8,7 +8,11 @@ import TuistSupport
 /// A component responsible for converting Manifests (`ProjectDescription`) to Models (`TuistCore`)
 public protocol ManifestModelConverting {
     func convert(manifest: ProjectDescription.Workspace, path: AbsolutePath) throws -> TuistGraph.Workspace
-    func convert(manifest: ProjectDescription.Project, path: AbsolutePath) throws -> TuistGraph.Project
+    func convert(
+        manifest: ProjectDescription.Project,
+        path: AbsolutePath,
+        plugins: Plugins
+    ) throws -> TuistGraph.Project
 }
 
 public final class ManifestModelConverter: ManifestModelConverting {

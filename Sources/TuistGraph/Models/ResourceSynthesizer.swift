@@ -1,7 +1,8 @@
 import Foundation
+import TSCBasic
 
 public struct ResourceSynthesizer: Equatable, Hashable {
-    public let pluginName: String?
+    public let templatePath: AbsolutePath?
     public let parser: Parser
     public let extensions: Set<String>
     public let templateName: String
@@ -14,12 +15,12 @@ public struct ResourceSynthesizer: Equatable, Hashable {
     }
     
     public init(
-        pluginName: String?,
+        templatePath: AbsolutePath?,
         parser: Parser,
         extensions: Set<String>,
         templateName: String
     ) {
-        self.pluginName = pluginName
+        self.templatePath = templatePath
         self.parser = parser
         self.extensions = extensions
         self.templateName = templateName
