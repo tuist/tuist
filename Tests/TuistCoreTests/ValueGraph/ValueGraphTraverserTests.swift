@@ -1119,7 +1119,22 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: project.path, name: unitTests.name).sorted()
 
         // Then
-        XCTAssertTrue(got.isEmpty)
+        XCTAssertEqual(got, [
+            .product(
+                target: "LocallyBuiltFramework",
+                productName: "LocallyBuiltFramework.framework"
+            ),
+            .framework(
+                path: "/test/test.framework",
+                binaryPath: "/test/test.framework/test",
+                isCarthage: false,
+                dsymPath: nil,
+                bcsymbolmapPaths: [],
+                linking: .dynamic,
+                architectures: [.arm64],
+                product: .framework
+            )
+        ])
     }
 
     func test_embeddableDependencies_whenHostedTestTarget_transitiveDepndencies() throws {
