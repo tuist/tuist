@@ -13,4 +13,3 @@ public extension ResourceSynthesizerPlugin {
         )
     }
 }
-

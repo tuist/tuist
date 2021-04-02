@@ -11,23 +11,23 @@ import XCTest
 
 final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
     private var pluginsHelper: MockPluginsHelper!
-    
+
     override func setUp() {
         super.setUp()
-        
+
         pluginsHelper = MockPluginsHelper()
     }
-    
+
     override func tearDown() {
         pluginsHelper = nil
-        
+
         super.tearDown()
     }
-    
+
     func test_from_when_default_strings() throws {
         // Given
         let manifestDirectory = try temporaryPath()
-        
+
         // When
         let got = try ResourceSynthesizer.from(
             manifest: .strings(),
@@ -35,7 +35,7 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
             plugins: .none,
             pluginsHelper: pluginsHelper
         )
-        
+
         // Then
         XCTAssertEqual(
             got,
@@ -46,11 +46,11 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
             )
         )
     }
-    
+
     func test_from_when_plists_file() throws {
         // Given
         let manifestDirectory = try temporaryPath()
-        
+
         // When
         let got = try ResourceSynthesizer.from(
             manifest: .plists(templatePath: "Template.stencil"),
@@ -58,7 +58,7 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
             plugins: .none,
             pluginsHelper: pluginsHelper
         )
-        
+
         // Then
         XCTAssertEqual(
             got,
@@ -69,7 +69,7 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
             )
         )
     }
-    
+
     func test_from_when_assets_plugin() throws {
         // Given
         let manifestDirectory = try temporaryPath()
@@ -82,19 +82,19 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
             invokedResourceSynthesizerPlugins.append(contentsOf: resourceSynthesizerPlugins)
             return manifestDirectory.appending(component: "PluginTemplate.stencil")
         }
-        
+
         // When
         let got = try ResourceSynthesizer.from(
             manifest: .assets(plugin: "Plugin"),
             generatorPaths: GeneratorPaths(manifestDirectory: manifestDirectory),
             plugins: .test(
                 resourceSynthesizers: [
-                    .test(name: "Plugin")
+                    .test(name: "Plugin"),
                 ]
             ),
             pluginsHelper: pluginsHelper
         )
-        
+
         // Then
         XCTAssertEqual(
             got,

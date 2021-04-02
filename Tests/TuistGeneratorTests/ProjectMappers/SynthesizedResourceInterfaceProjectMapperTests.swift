@@ -94,7 +94,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 .file(path: lottieFile),
             ]
         )
-        
+
         let resourceSynthesizers: [ResourceSynthesizer] = [
             .init(
                 parser: .assets,
@@ -120,7 +120,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 parser: .json,
                 extensions: ["lottie"],
                 template: .file(lottieTemplatePath)
-            )
+            ),
         ]
 
         let project = Project.test(
@@ -171,7 +171,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                         path: derivedSourcesPath.appending(component: "LottieAnimation.swift"),
                         contents: "LottieAnimation.lottie".data(using: .utf8)
                     )
-                )
+                ),
             ]
         )
         XCTAssertEqual(

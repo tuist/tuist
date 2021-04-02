@@ -29,7 +29,7 @@ extension TuistGraph.Project {
                 generatorPaths: generatorPaths,
                 plugins: plugins,
                 pluginsHelper: pluginsHelper
-            )            
+            )
         }
         return Project(
             path: generatorPaths.manifestDirectory,

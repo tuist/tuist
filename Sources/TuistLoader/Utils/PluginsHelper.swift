@@ -1,8 +1,8 @@
 import Foundation
 import TSCBasic
 import TuistCore
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 protocol PluginsHelping {
     func templatePath(
@@ -15,7 +15,7 @@ protocol PluginsHelping {
 enum PluginsHelperError: FatalError, Equatable {
     case pluginNotFound(String, [String])
     case resourceTemplateNotFound(name: String, plugin: String)
-    
+
     var type: ErrorType {
         switch self {
         case .pluginNotFound,
@@ -23,7 +23,7 @@ enum PluginsHelperError: FatalError, Equatable {
             return .abort
         }
     }
-    
+
     var description: String {
         switch self {
         case let .pluginNotFound(name, availablePlugins):
@@ -43,13 +43,13 @@ final class PluginsHelper: PluginsHelping {
         guard
             let plugin = resourceSynthesizerPlugins.first(where: { $0.name == pluginName })
         else { throw PluginsHelperError.pluginNotFound(pluginName, resourceSynthesizerPlugins.map(\.name)) }
-        
+
         let resourceTemplatePath = plugin.path
             .appending(components: "\(resourceName).stencil")
         guard
             FileHandler.shared.exists(resourceTemplatePath)
         else { throw PluginsHelperError.resourceTemplateNotFound(name: "\(resourceName).stencil", plugin: plugin.name) }
-        
+
         return resourceTemplatePath
     }
 }

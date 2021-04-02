@@ -11,7 +11,7 @@ public struct ResourceSynthesizer: Codable, Equatable {
     public let templateType: TemplateType
     public let parser: Parser
     public let extensions: Set<String>
-    
+
     /// Templates can be either a local template file, from a plugin, or a default template from tuist
     public enum TemplateType: Codable, Equatable {
         /// Local template file at a given path
@@ -23,20 +23,20 @@ public struct ResourceSynthesizer: Codable, Equatable {
         /// Default template defined in tuist
         /// `resourceName` is used for the name of the resulting `.swift` file
         case defaultTemplate(resourceName: String)
-        
+
         public enum CodingKeys: String, CodingKey {
             case type
             case path
             case name
             case resourceName
         }
-        
+
         private enum TypeName: String, Codable {
             case file
             case plugin
             case defaultTemplate
         }
-        
+
         public init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             let type = try container.decode(TypeName.self, forKey: .type)
@@ -53,7 +53,7 @@ public struct ResourceSynthesizer: Codable, Equatable {
                 self = .defaultTemplate(resourceName: resourceName)
             }
         }
-        
+
         public func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
             switch self {
@@ -70,7 +70,7 @@ public struct ResourceSynthesizer: Codable, Equatable {
             }
         }
     }
-    
+
     /// There are multiple parsers you can choose from
     /// Each parser will give you different metadata from a file
     /// You can read more about available parsers and how to use their metadata here: https://github.com/SwiftGen/SwiftGen#available-parsers
@@ -84,12 +84,12 @@ public struct ResourceSynthesizer: Codable, Equatable {
         case json
         case yaml
     }
-    
+
     /// Default strings synthesizer
     public static func strings() -> Self {
         .strings(templateType: .defaultTemplate(resourceName: "Strings"))
     }
-    
+
     /// Strings synthesizer defined in a plugin
     public static func strings(plugin: String) -> Self {
         .strings(
@@ -112,12 +112,12 @@ public struct ResourceSynthesizer: Codable, Equatable {
             extensions: ["strings", "stringsdict"]
         )
     }
-    
+
     /// Default assets synthesizer
     public static func assets() -> Self {
         .strings(templateType: .defaultTemplate(resourceName: "Assets"))
     }
-    
+
     /// Assets synthesizer defined in a plugin
     public static func assets(plugin: String) -> Self {
         .assets(
@@ -140,12 +140,12 @@ public struct ResourceSynthesizer: Codable, Equatable {
             extensions: ["xcassets"]
         )
     }
-    
+
     /// Default fonts synthesizer
     public static func fonts() -> Self {
         .fonts(templateType: .defaultTemplate(resourceName: "Fonts"))
     }
-    
+
     /// Fonts synthesizer defined in a plugin
     public static func fonts(plugin: String) -> Self {
         .fonts(
@@ -168,12 +168,12 @@ public struct ResourceSynthesizer: Codable, Equatable {
             extensions: ["otf", "ttc", "ttf"]
         )
     }
-    
+
     /// Default plists synthesizer
     public static func plists() -> Self {
         .plists(templateType: .defaultTemplate(resourceName: "Plists"))
     }
-    
+
     /// Plists synthesizer defined in a plugin
     public static func plists(plugin: String) -> Self {
         .plists(
@@ -196,7 +196,7 @@ public struct ResourceSynthesizer: Codable, Equatable {
             extensions: ["plist"]
         )
     }
-    
+
     /// CoreData synthesizer defined in a plugin
     public static func coreData(plugin: String) -> Self {
         .coreData(
@@ -219,7 +219,7 @@ public struct ResourceSynthesizer: Codable, Equatable {
             extensions: ["xcdatamodeld"]
         )
     }
-    
+
     /// InterfaceBuilder synthesizer defined in a plugin
     public static func interfaceBuilder(plugin: String) -> Self {
         .interfaceBuilder(
@@ -242,7 +242,7 @@ public struct ResourceSynthesizer: Codable, Equatable {
             extensions: ["storyboard"]
         )
     }
-    
+
     /// JSON synthesizer defined in a plugin
     public static func json(plugin: String) -> Self {
         .coreData(
@@ -265,7 +265,7 @@ public struct ResourceSynthesizer: Codable, Equatable {
             extensions: ["json"]
         )
     }
-    
+
     /// YAML synthesizer defined in a plugin
     public static func yaml(plugin: String) -> Self {
         .yaml(
@@ -288,7 +288,7 @@ public struct ResourceSynthesizer: Codable, Equatable {
             extensions: ["yml"]
         )
     }
-    
+
     /// Custom synthesizer from a plugin
     /// - Parameters:
     ///     - plugin: Name of a plugin where resource synthesizer template is located
@@ -307,7 +307,7 @@ public struct ResourceSynthesizer: Codable, Equatable {
             extensions: extensions
         )
     }
-    
+
     /// Custom local synthesizer
     /// - Parameters:
     ///     - path: Path to the template

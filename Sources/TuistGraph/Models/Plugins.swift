@@ -8,7 +8,7 @@ public struct Plugins: Equatable {
 
     /// List of paths to template definitions.
     public let templateDirectories: [AbsolutePath]
-    
+
     /// List of paths pointing to resource templates
     public let resourceSynthesizers: [ResourceSynthesizerPlugin]
 

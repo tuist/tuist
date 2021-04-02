@@ -1,20 +1,20 @@
 import Foundation
+import SwiftGenKit
 import TSCBasic
 import TuistCore
 import TuistGraph
 import TuistSupport
-import SwiftGenKit
 
 enum SynthesizedResourceInterfaceProjectMapperError: FatalError, Equatable {
     case defaultTemplateNotAvailable(ResourceSynthesizer.Parser)
-    
+
     var type: ErrorType {
         switch self {
         case .defaultTemplateNotAvailable:
             return .bug
         }
     }
-    
+
     var description: String {
         switch self {
         case let .defaultTemplateNotAvailable(parser):
@@ -69,7 +69,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         var target = target
 
         var sideEffects: [SideEffectDescriptor] = []
-        
+
         try project.resourceSynthesizers
             .map { resourceSynthesizer throws -> (ResourceSynthesizer, String) in
                 switch resourceSynthesizer.template {
@@ -111,7 +111,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
 
         let paths = try self.paths(for: resourceSynthesizer, target: target)
             .filter(isResourceEmpty)
-        
+
         let templateName: String
         switch resourceSynthesizer.template {
         case let .defaultTemplate(name):
@@ -208,7 +208,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
     ) -> [AbsolutePath] {
         let resourcesPaths = target.resources
             .map(\.path)
-        
+
         var seen: Set<String> = []
         return resourcesPaths
             .filter { $0.extension.map(resourceSynthesizer.extensions.contains) ?? false }

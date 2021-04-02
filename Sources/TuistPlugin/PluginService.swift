@@ -86,7 +86,7 @@ public final class PluginService: PluginServicing {
                 .filter(FileHandler.shared.exists)
         )
         .map(ResourceSynthesizerPlugin.init)
-        
+
         return Plugins(
             projectDescriptionHelpers: localProjectDescriptionHelperPlugins + remoteProjectDescriptionHelperPlugins,
             templatePaths: templatePaths,

@@ -9,8 +9,6 @@ import TuistScaffold
 import TuistScaffoldTesting
 import TuistSupport
 import TuistSupportTesting
-import TuistScaffold
-import TuistScaffoldTesting
 import XCTest
 
 @testable import TuistPlugin
@@ -90,35 +88,35 @@ final class PluginServiceTests: TuistTestCase {
         let expectedPlugins = Plugins.test(projectDescriptionHelpers: [.init(name: pluginName, path: expectedHelpersPath, location: .remote)])
         XCTAssertEqual(plugins, expectedPlugins)
     }
-    
+
     func test_loadPlugins_when_localResourceSynthesizer() throws {
         // Given
         let pluginPath = try temporaryPath()
         let pluginName = "TestPlugin"
         let resourceTemplatesPath = pluginPath.appending(components: "ResourceTemplates")
-        
+
         try makeDirectories(resourceTemplatesPath)
-        
+
         manifestLoader.loadConfigStub = { _ in
             .test(plugins: [.local(path: .relativeToRoot(pluginPath.pathString))])
         }
-        
+
         manifestLoader.loadPluginStub = { _ in
             ProjectDescription.Plugin(name: pluginName)
         }
-        
+
         let config = mockConfig(plugins: [TuistGraph.PluginLocation.local(path: pluginPath.pathString)])
-        
+
         // When
         let plugins = try subject.loadPlugins(using: config)
         let expectedPlugins = Plugins.test(
             resourceSynthesizers: [
-                ResourceSynthesizerPlugin(name: pluginName, path: resourceTemplatesPath)
+                ResourceSynthesizerPlugin(name: pluginName, path: resourceTemplatesPath),
             ]
         )
         XCTAssertEqual(plugins, expectedPlugins)
     }
-    
+
     func test_loadPlugins_when_remoteResourceSynthesizer() throws {
         // Given
         let pluginGitUrl = "https://url/to/repo.git"
@@ -127,9 +125,9 @@ final class PluginServiceTests: TuistTestCase {
         let cachedPluginPath = environment.cacheDirectory.appending(components: Constants.pluginsDirectoryName, pluginFingerprint)
         let pluginName = "TestPlugin"
         let resourceTemplatesPath = cachedPluginPath.appending(components: "ResourceTemplates")
-        
+
         try makeDirectories(resourceTemplatesPath)
-        
+
         manifestLoader.loadConfigStub = { _ in
             .test(plugins: [ProjectDescription.PluginLocation.git(url: pluginGitUrl, tag: pluginGitId)])
         }
@@ -139,12 +137,12 @@ final class PluginServiceTests: TuistTestCase {
         }
 
         let config = mockConfig(plugins: [TuistGraph.PluginLocation.gitWithTag(url: pluginGitUrl, tag: pluginGitId)])
-        
+
         // When
         let plugins = try subject.loadPlugins(using: config)
         let expectedPlugins = Plugins.test(
             resourceSynthesizers: [
-                ResourceSynthesizerPlugin(name: pluginName, path: resourceTemplatesPath)
+                ResourceSynthesizerPlugin(name: pluginName, path: resourceTemplatesPath),
             ]
         )
         XCTAssertEqual(plugins, expectedPlugins)

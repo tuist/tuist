@@ -9,19 +9,19 @@ import XCTest
 
 final class PluginsHelperTests: TuistUnitTestCase {
     private var subject: PluginsHelper!
-    
+
     override func setUp() {
         super.setUp()
-        
+
         subject = PluginsHelper()
     }
-    
+
     override func tearDown() {
         subject = nil
-        
+
         super.tearDown()
     }
-    
+
     func test_templatePath_when_plugin_not_found() throws {
         XCTAssertThrowsSpecific(
             try subject.templatePath(
@@ -32,7 +32,7 @@ final class PluginsHelperTests: TuistUnitTestCase {
             PluginsHelperError.pluginNotFound("A", ["B", "C"])
         )
     }
-    
+
     func test_templatePath_when_template_does_not_exist() throws {
         XCTAssertThrowsSpecific(
             try subject.templatePath(
@@ -43,13 +43,13 @@ final class PluginsHelperTests: TuistUnitTestCase {
             PluginsHelperError.resourceTemplateNotFound(name: "Strings.stencil", plugin: "A")
         )
     }
-    
+
     func test_templatePath_when_template_exists() throws {
         // Given
         let pluginPath = try temporaryPath()
         let templatePath = pluginPath.appending(component: "Strings.stencil")
         try fileHandler.touch(templatePath)
-        
+
         // When / Then
         XCTAssertEqual(
             try subject.templatePath(
@@ -59,20 +59,20 @@ final class PluginsHelperTests: TuistUnitTestCase {
                     .test(
                         name: "A",
                         path: pluginPath
-                    )
+                    ),
                 ]
             ),
             templatePath
         )
     }
-    
+
     func test_resourceTemplateNotFound_error() {
         XCTAssertEqual(
             PluginsHelperError.resourceTemplateNotFound(name: "Strings.stencil", plugin: "A").description,
             "No template Strings.stencil found in a plugin A"
         )
     }
-    
+
     func test_pluginNotFound_error() {
         XCTAssertEqual(
             PluginsHelperError.pluginNotFound("A", ["B", "C"]).description,

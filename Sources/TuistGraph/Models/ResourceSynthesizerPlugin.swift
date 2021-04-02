@@ -7,7 +7,7 @@ public struct ResourceSynthesizerPlugin: Equatable {
     public let name: String
     /// Path to `ResourceTemplates` directory where all resource templates are located
     public let path: AbsolutePath
-    
+
     public init(
         name: String,
         path: AbsolutePath

@@ -2,8 +2,8 @@ import PathKit
 import StencilSwiftKit
 import SwiftGenKit
 import TSCBasic
-import TuistSupport
 import TuistGraph
+import TuistSupport
 
 protocol SynthesizedResourceInterfacesGenerating {
     func render(
@@ -25,7 +25,7 @@ final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterface
             templateString: templateString,
             environment: stencilSwiftEnvironment()
         )
-        
+
         let parser = try self.parser(for: parser)
 
         try paths.forEach { try parser.parse(path: Path($0.pathString), relativeTo: Path("")) }
@@ -41,7 +41,7 @@ final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterface
     }
 
     // MARK: - Helpers
-    
+
     private func parser(for parser: ResourceSynthesizer.Parser) throws -> Parser {
         switch parser {
         case .assets:

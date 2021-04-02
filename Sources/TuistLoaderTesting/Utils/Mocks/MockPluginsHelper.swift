@@ -5,7 +5,7 @@ import TuistGraph
 
 public final class MockPluginsHelper: PluginsHelping {
     public init() {}
-    
+
     public var templatePathStub: ((String, String, [ResourceSynthesizerPlugin]) throws -> AbsolutePath)?
     public func templatePath(
         for pluginName: String,
