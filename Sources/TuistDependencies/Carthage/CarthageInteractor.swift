@@ -168,7 +168,7 @@ public final class CarthageInteractor: CarthageInteracting {
         logger.debug("\(cartfileContent)")
     }
 
-    /// Saves lockfile resolved depedencies in `Tuist/Depedencies` directory.
+    /// Saves lockfile and resolved dependencies in `Tuist/Dependencies` directory.
     private func saveDepedencies(pathsProvider: CarthagePathsProvider) throws {
         // validation
         guard fileHandler.exists(pathsProvider.temporaryCarfileResolvedPath) else {

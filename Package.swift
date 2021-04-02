@@ -536,9 +536,13 @@ let package = Package(
         ),
         .target(
             name: "TuistDependencies",
-            dependencies: ["TuistCore",
-                           "TuistGraph",
-                           "TuistSupport"]
+            dependencies: [
+                "TuistCore",
+                "TuistGraph",
+                "TuistSupport",
+                rxSwiftDependency,
+                rxBlockingDependency,
+            ]
         ),
         .target(
             name: "TuistDependenciesTesting",

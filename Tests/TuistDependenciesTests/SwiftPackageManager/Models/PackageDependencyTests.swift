@@ -73,4 +73,17 @@ final class PackageDependencyTests: TuistUnitTestCase {
         let expected = Set([subject1, subject2, subject3, subject4, subject5])
         XCTAssertEqual(got, expected)
     }
+    
+    func test_absolutePath() {
+        // Given
+        let path = "/path/to/dependency"
+        let subject = PackageDependency.test(path: path)
+        
+        // When
+        let got = subject.absolutePath
+        
+        // Then
+        let expected = AbsolutePath(path)
+        XCTAssertEqual(got, expected)
+    }
 }

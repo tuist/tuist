@@ -33,24 +33,55 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         }
     }
 
-    var archiveStub: ((XcodeBuildTarget, String, Bool, AbsolutePath, [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>>)?
+    var invokedArchive = false
+    var invokedArchiveCount = 0
+    var invokedArchiveParameters: ArchiveParameters?
+    var invokedArchiveParametersList = [ArchiveParameters]()
+    var archiveStub: ((ArchiveParameters) -> Observable<SystemEvent<XcodeBuildOutput>>)?
     func archive(_ target: XcodeBuildTarget,
                  scheme: String,
                  clean: Bool,
                  archivePath: AbsolutePath,
                  arguments: [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>>
     {
+        let parameters = ArchiveParameters(
+            target: target,
+            scheme: scheme,
+            clean: clean,
+            archivePath: archivePath,
+            arguments: arguments
+        )
+        
+        invokedArchive = true
+        invokedArchiveCount += 1
+        invokedArchiveParameters = parameters
+        invokedArchiveParametersList.append(parameters)
+        
         if let archiveStub = archiveStub {
-            return archiveStub(target, scheme, clean, archivePath, arguments)
+            return archiveStub(parameters)
         } else {
             return Observable.error(TestError("\(String(describing: MockXcodeBuildController.self)) received an unexpected call to archive"))
         }
     }
 
-    var createXCFrameworkStub: (([AbsolutePath], AbsolutePath) -> Observable<SystemEvent<XcodeBuildOutput>>)?
+    var invokedCreateXCFramework = false
+    var invokedCreateXCFrameworkCount = 0
+    var invokedCreateXCFrameworkParameters: CreateXCFrameworkParameters?
+    var invokedCreateXCFrameworkParametersList = [CreateXCFrameworkParameters]()
+    var createXCFrameworkStub: ((CreateXCFrameworkParameters) -> Observable<SystemEvent<XcodeBuildOutput>>)?
     func createXCFramework(frameworks: [AbsolutePath], output: AbsolutePath) -> Observable<SystemEvent<XcodeBuildOutput>> {
+        let parameters = CreateXCFrameworkParameters(
+            frameworks: frameworks,
+            output: output
+        )
+        
+        invokedCreateXCFramework = true
+        invokedCreateXCFrameworkCount += 1
+        invokedCreateXCFrameworkParameters = parameters
+        invokedCreateXCFrameworkParametersList.append(parameters)
+        
         if let createXCFrameworkStub = createXCFrameworkStub {
-            return createXCFrameworkStub(frameworks, output)
+            return createXCFrameworkStub(parameters)
         } else {
             return Observable.error(TestError("\(String(describing: MockXcodeBuildController.self)) received an unexpected call to createXCFramework"))
         }
@@ -62,6 +93,43 @@ final class MockXcodeBuildController: XcodeBuildControlling {
             return showBuildSettingsStub(target, scheme, configuration)
         } else {
             return Single.error(TestError("\(String(describing: MockXcodeBuildController.self)) received an unexpected call to showBuildSettings"))
+        }
+    }
+}
+
+extension MockXcodeBuildController {
+    struct ArchiveParameters: Equatable {
+        let target: XcodeBuildTarget
+        let scheme: String
+        let clean: Bool
+        let archivePath: AbsolutePath
+        let arguments: [XcodeBuildArgument]
+        
+        init(
+            target: XcodeBuildTarget,
+            scheme: String,
+            clean: Bool,
+            archivePath: AbsolutePath,
+            arguments: [XcodeBuildArgument]
+        ) {
+            self.target = target
+            self.scheme = scheme
+            self.clean = clean
+            self.archivePath = archivePath
+            self.arguments = arguments
+        }
+    }
+    
+    struct CreateXCFrameworkParameters: Equatable {
+        let frameworks: [AbsolutePath]
+        let output: AbsolutePath
+        
+        init(
+            frameworks: [AbsolutePath],
+            output: AbsolutePath
+        ) {
+            self.frameworks = frameworks
+            self.output = output
         }
     }
 }

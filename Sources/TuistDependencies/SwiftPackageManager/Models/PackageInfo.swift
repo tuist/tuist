@@ -12,8 +12,13 @@ public struct PackageInfo: Equatable, Codable {
 
 extension PackageInfo {
     /// Returns a main scheme name from project that was generated using `swift package generate-xcodeproj` command.
-    var schemeName: String {
+    var scheme: String {
         name + "-Package"
+    }
+    
+    /// Returns a name of project that was generated using `swift package generate-xcodeproj` command.
+    var xcodeProjectName: String {
+        name + ".xcodeproj"
     }
     
     /// Returns platforms that the package supports.

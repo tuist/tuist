@@ -14,6 +14,7 @@ public protocol SwiftPackageManaging {
     ///   - path: Directory where the `Package.swift` is defined.
     ///   - outputPath: Path where the Xcode project should be generated
     func generateXcodeProject(at path: AbsolutePath, outputPath: AbsolutePath) throws
+    #warning("`packagePath` instead of `at`")
     
     /// Loads a `Package.swift` manifest file info.
     /// - Parameter path: Directory where the `Package.swift` is defined.

@@ -16,15 +16,27 @@ final class PackageInfoTests: TuistUnitTestCase {
         XCTAssertCodable(subject)
     }
     
-    func test_schemeName() {
+    func test_scheme() {
         // Given
         let subject = PackageInfo.test(name: "RxSwift")
         
         // When
-        let got = subject.schemeName
+        let got = subject.scheme
         
         //Then
         let expected = "RxSwift-Package"
+        XCTAssertEqual(got, expected)
+    }
+    
+    func test_xcodeProjectName() {
+        // Given
+        let subject = PackageInfo.test(name: "RxSwift")
+        
+        // When
+        let got = subject.xcodeProjectName
+        
+        //Then
+        let expected = "RxSwift.xcodeproj"
         XCTAssertEqual(got, expected)
     }
     

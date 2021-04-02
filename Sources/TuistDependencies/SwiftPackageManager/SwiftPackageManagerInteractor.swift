@@ -1,6 +1,7 @@
 import TSCBasic
 import TuistGraph
 import TuistSupport
+import TuistCore
 
 // MARK: - Swift Package Manager Interactor Errors
 
@@ -54,13 +55,16 @@ public protocol SwiftPackageManagerInteracting {
 public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
     private let fileHandler: FileHandling
     private let swiftPackageManager: SwiftPackageManaging
+    private let xcframeworkBuilder: XCFrameworkBuilding
 
     public init(
         fileHandler: FileHandling = FileHandler.shared,
-        swiftPackageManager: SwiftPackageManaging = SwiftPackageManager()
+        swiftPackageManager: SwiftPackageManaging = SwiftPackageManager(),
+        xcframeworkBuilder: XCFrameworkBuilding = XCFrameworkBuilder()
     ) {
         self.fileHandler = fileHandler
         self.swiftPackageManager = swiftPackageManager
+        self.xcframeworkBuilder = xcframeworkBuilder
     }
 
     public func fetch(
@@ -82,9 +86,38 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
 
             // run `Swift Package Manager`
             try swiftPackageManager.resolve(at: temporaryDirectoryPath)
-
+            
+            // build xcframeworks from fetched dependencies
+            let xcFrameworksPaths = try swiftPackageManager
+                .loadDependencies(at: temporaryDirectoryPath)
+                .uniqueDependencies()
+                .flatMap { dependencyInfo -> [AbsolutePath] in
+                    let packageInfo = try swiftPackageManager.loadPackageInfo(at: dependencyInfo.absolutePath)
+                    guard
+                        !packageInfo.supportedPlatforms.isDisjoint(with: platforms)
+                    else {
+                        logger.info("\(dependencyInfo.name) does not support requested platforms. Building XCFramemork has been skipped.")
+                        return []
+                    }
+                    
+                    let outputDirectory = temporaryDirectoryPath.appending(component: packageInfo.name)
+                    try fileHandler.createFolder(outputDirectory)
+                    
+                    try swiftPackageManager.generateXcodeProject(
+                        at: dependencyInfo.absolutePath,
+                        outputPath: outputDirectory
+                    )
+                    
+                    return try xcframeworkBuilder
+                        .buildXCFrameworks(
+                            using: packageInfo,
+                            platforms: platforms,
+                            outputDirectory: outputDirectory
+                        )
+                }
+            
             // post installation
-            try saveDepedencies(pathsProvider: pathsProvider)
+            try saveDepedencies(pathsProvider: pathsProvider, xcframeworksPaths: xcFrameworksPaths)
         }
 
         logger.info("Packages resolved and fetched successfully.", metadata: .subsection)
@@ -130,8 +163,8 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         logger.debug("\(packageManifestContent)")
     }
 
-    /// Saves lockfile resolved depedencies in `Tuist/Depedencies` directory.
-    private func saveDepedencies(pathsProvider: SwiftPackageManagerPathsProvider) throws {
+    /// Saves lockfile, resolved dependencies and built XCFrameworks in `Tuist/Dependencies` directory.
+    private func saveDepedencies(pathsProvider: SwiftPackageManagerPathsProvider, xcframeworksPaths: [AbsolutePath]) throws {
         // validation
         guard fileHandler.exists(pathsProvider.temporaryPackageResolvedPath) else {
             throw SwiftPackageManagerInteractorError.packageResolvedNotFound
@@ -139,6 +172,9 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         guard fileHandler.exists(pathsProvider.temporarySwiftPackageManagerBuildDirectory) else {
             throw SwiftPackageManagerInteractorError.buildDirectoryNotFound
         }
+        
+        // remove old state
+        try fileHandler.delete(pathsProvider.destinationSwiftPackageManagerXCFrameworksDirectory)
 
         // save `Package.resolved`
         try copy(
@@ -151,6 +187,14 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
             from: pathsProvider.temporarySwiftPackageManagerBuildDirectory,
             to: pathsProvider.destinationSwiftPackageManagerBuildDirectory
         )
+        
+        // save XCFrameworks
+        try xcframeworksPaths.forEach { xcframeworksPath in
+            try copy(
+                from: xcframeworksPath,
+                to: pathsProvider.destinationSwiftPackageManagerXCFrameworksDirectory.appending(component: xcframeworksPath.basename)
+            )
+        }
     }
 
     // MARK: - Helpers
@@ -173,6 +217,7 @@ private struct SwiftPackageManagerPathsProvider {
 
     let destinationPackageResolvedPath: AbsolutePath
     let destinationSwiftPackageManagerBuildDirectory: AbsolutePath
+    let destinationSwiftPackageManagerXCFrameworksDirectory: AbsolutePath
 
     let temporaryPackageResolvedPath: AbsolutePath
     let temporarySwiftPackageManagerBuildDirectory: AbsolutePath
@@ -187,6 +232,8 @@ private struct SwiftPackageManagerPathsProvider {
         destinationSwiftPackageManagerBuildDirectory = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
             .appending(component: ".build")
+        destinationSwiftPackageManagerXCFrameworksDirectory = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
 
         temporaryPackageResolvedPath = temporaryDirectoryPath
             .appending(component: Constants.DependenciesDirectory.packageResolvedName)
