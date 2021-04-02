@@ -16,6 +16,10 @@ public struct ResourceSynthesizer: Equatable, Hashable {
         case assets
         case plists
         case fonts
+        case coreData
+        case interfaceBuilder
+        case json
+        case yaml
     }
     
     public init(

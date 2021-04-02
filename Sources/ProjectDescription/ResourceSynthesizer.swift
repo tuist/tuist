@@ -76,6 +76,13 @@ public struct ResourceSynthesizer: Codable, Equatable {
     /// You can read more about available parsers and how to use their metadata here: https://github.com/SwiftGen/SwiftGen#available-parsers
     public enum Parser: String, Codable {
         case strings
+        case assets
+        case plists
+        case fonts
+        case coreData
+        case interfaceBuilder
+        case json
+        case yaml
     }
     
     /// Default strings synthesizer
@@ -98,6 +105,190 @@ public struct ResourceSynthesizer: Codable, Equatable {
         .strings(templateType: .file(templatePath))
     }
 
+    private static func strings(templateType: TemplateType) -> Self {
+        .init(
+            templateType: templateType,
+            parser: .strings,
+            extensions: ["strings", "stringsdict"]
+        )
+    }
+    
+    /// Default assets synthesizer
+    public static func assets() -> Self {
+        .strings(templateType: .defaultTemplate(resourceName: "Assets"))
+    }
+    
+    /// Assets synthesizer defined in a plugin
+    public static func assets(plugin: String) -> Self {
+        .assets(
+            templateType: .plugin(
+                name: plugin,
+                resourceName: "Assets"
+            )
+        )
+    }
+
+    /// Assets synthesizer with a template defined in `templatePath`
+    public static func assets(templatePath: Path) -> Self {
+        .assets(templateType: .file(templatePath))
+    }
+
+    private static func assets(templateType: TemplateType) -> Self {
+        .init(
+            templateType: templateType,
+            parser: .assets,
+            extensions: ["xcassets"]
+        )
+    }
+    
+    /// Default fonts synthesizer
+    public static func fonts() -> Self {
+        .fonts(templateType: .defaultTemplate(resourceName: "Fonts"))
+    }
+    
+    /// Fonts synthesizer defined in a plugin
+    public static func fonts(plugin: String) -> Self {
+        .fonts(
+            templateType: .plugin(
+                name: plugin,
+                resourceName: "Fonts"
+            )
+        )
+    }
+
+    /// Fonts synthesizer with a template defined in `templatePath`
+    public static func fonts(templatePath: Path) -> Self {
+        .fonts(templateType: .file(templatePath))
+    }
+
+    private static func fonts(templateType: TemplateType) -> Self {
+        .init(
+            templateType: templateType,
+            parser: .fonts,
+            extensions: ["otf", "ttc", "ttf"]
+        )
+    }
+    
+    /// Default plists synthesizer
+    public static func plists() -> Self {
+        .plists(templateType: .defaultTemplate(resourceName: "Plists"))
+    }
+    
+    /// Plists synthesizer defined in a plugin
+    public static func plists(plugin: String) -> Self {
+        .plists(
+            templateType: .plugin(
+                name: plugin,
+                resourceName: "Plists"
+            )
+        )
+    }
+
+    /// Plists synthesizer with a template defined in `templatePath`
+    public static func plists(templatePath: Path) -> Self {
+        .plists(templateType: .file(templatePath))
+    }
+
+    private static func plists(templateType: TemplateType) -> Self {
+        .init(
+            templateType: templateType,
+            parser: .plists,
+            extensions: ["plist"]
+        )
+    }
+    
+    /// CoreData synthesizer defined in a plugin
+    public static func coreData(plugin: String) -> Self {
+        .coreData(
+            templateType: .plugin(
+                name: plugin,
+                resourceName: "CoreData"
+            )
+        )
+    }
+
+    /// CoreData synthesizer with a template defined in `templatePath`
+    public static func coreData(templatePath: Path) -> Self {
+        .coreData(templateType: .file(templatePath))
+    }
+
+    private static func coreData(templateType: TemplateType) -> Self {
+        .init(
+            templateType: templateType,
+            parser: .coreData,
+            extensions: ["xcdatamodeld"]
+        )
+    }
+    
+    /// InterfaceBuilder synthesizer defined in a plugin
+    public static func interfaceBuilder(plugin: String) -> Self {
+        .interfaceBuilder(
+            templateType: .plugin(
+                name: plugin,
+                resourceName: "InterfaceBuilder"
+            )
+        )
+    }
+
+    /// InterfaceBuilder synthesizer with a template defined in `templatePath`
+    public static func interfaceBuilder(templatePath: Path) -> Self {
+        .interfaceBuilder(templateType: .file(templatePath))
+    }
+
+    private static func interfaceBuilder(templateType: TemplateType) -> Self {
+        .init(
+            templateType: templateType,
+            parser: .interfaceBuilder,
+            extensions: ["storyboard"]
+        )
+    }
+    
+    /// JSON synthesizer defined in a plugin
+    public static func json(plugin: String) -> Self {
+        .coreData(
+            templateType: .plugin(
+                name: plugin,
+                resourceName: "JSON"
+            )
+        )
+    }
+
+    /// JSON synthesizer with a template defined in `templatePath`
+    public static func json(templatePath: Path) -> Self {
+        .json(templateType: .file(templatePath))
+    }
+
+    private static func json(templateType: TemplateType) -> Self {
+        .init(
+            templateType: templateType,
+            parser: .json,
+            extensions: ["json"]
+        )
+    }
+    
+    /// YAML synthesizer defined in a plugin
+    public static func yaml(plugin: String) -> Self {
+        .yaml(
+            templateType: .plugin(
+                name: plugin,
+                resourceName: "YAML"
+            )
+        )
+    }
+
+    /// CoreData synthesizer with a template defined in `templatePath`
+    public static func yaml(templatePath: Path) -> Self {
+        .yaml(templateType: .file(templatePath))
+    }
+
+    private static func yaml(templateType: TemplateType) -> Self {
+        .init(
+            templateType: templateType,
+            parser: .yaml,
+            extensions: ["yml"]
+        )
+    }
+    
     /// Custom synthesizer from a plugin
     /// - Parameters:
     ///     - plugin: Name of a plugin where resource synthesizer template is located
@@ -131,14 +322,6 @@ public struct ResourceSynthesizer: Codable, Equatable {
             templateType: .file(path),
             parser: parser,
             extensions: extensions
-        )
-    }
-
-    private static func strings(templateType: TemplateType) -> Self {
-        .init(
-            templateType: templateType,
-            parser: .strings,
-            extensions: ["strings", "stringsdict"]
         )
     }
 }

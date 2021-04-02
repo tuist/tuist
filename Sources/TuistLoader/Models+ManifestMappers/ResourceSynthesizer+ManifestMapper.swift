@@ -39,6 +39,20 @@ extension TuistGraph.ResourceSynthesizer.Parser {
         switch manifest {
         case .strings:
             return .strings
+        case .assets:
+            return .assets
+        case .plists:
+            return .plists
+        case .fonts:
+            return .fonts
+        case .coreData:
+            return .coreData
+        case .interfaceBuilder:
+            return .interfaceBuilder
+        case .json:
+            return .json
+        case .yaml:
+            return .yaml
         }
     }
 }

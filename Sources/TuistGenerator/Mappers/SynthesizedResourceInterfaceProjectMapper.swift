@@ -5,6 +5,24 @@ import TuistGraph
 import TuistSupport
 import SwiftGenKit
 
+enum SynthesizedResourceInterfaceProjectMapperError: FatalError, Equatable {
+    case defaultTemplateNotAvailable(ResourceSynthesizer.Parser)
+    
+    var type: ErrorType {
+        switch self {
+        case .defaultTemplateNotAvailable:
+            return .bug
+        }
+    }
+    
+    var description: String {
+        switch self {
+        case let .defaultTemplateNotAvailable(parser):
+            return "Default template for parser \(parser) not available."
+        }
+    }
+}
+
 /// A project mapper that synthesizes resource interfaces
 public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { // swiftlint:disable:this type_name
     private let synthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerating
@@ -59,7 +77,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
                     let templateString = try FileHandler.shared.readTextFile(path)
                     return (resourceSynthesizer, templateString)
                 case .defaultTemplate:
-                    return (resourceSynthesizer, templateString(for: resourceSynthesizer.parser))
+                    return (resourceSynthesizer, try templateString(for: resourceSynthesizer.parser))
                 }
             }
             .forEach { parser, templateString in
@@ -99,12 +117,12 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         case let .defaultTemplate(name):
             templateName = name
         case let .file(path):
-            templateName = path.basename
+            templateName = path.basenameWithoutExt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
         }
 
         let renderedInterfaces: [(String, String)]
         switch resourceSynthesizer.parser {
-        case .plists:
+        case .plists, .json, .yaml, .coreData:
             renderedInterfaces = try paths.map { path in
                 let name = self.name(
                     for: resourceSynthesizer,
@@ -121,7 +139,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
                     )
                 )
             }
-        case .assets, .fonts, .strings:
+        case .assets, .fonts, .strings, .interfaceBuilder:
             if paths.isEmpty {
                 renderedInterfaces = []
                 break
@@ -177,9 +195,9 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         target: Target
     ) -> String {
         switch resourceSynthesizer.parser {
-        case .assets, .strings, .fonts:
+        case .assets, .strings, .fonts, .interfaceBuilder:
             return target.name.camelized.uppercasingFirst
-        case .plists:
+        case .plists, .json, .yaml, .coreData:
             return path.basenameWithoutExt.camelized.uppercasingFirst
         }
     }
@@ -210,7 +228,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         return false
     }
 
-    private func templateString(for parser: ResourceSynthesizer.Parser) -> String {
+    private func templateString(for parser: ResourceSynthesizer.Parser) throws -> String {
         switch parser {
         case .assets:
             return SynthesizedResourceInterfaceTemplates.assetsTemplate
@@ -220,6 +238,8 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
             return SynthesizedResourceInterfaceTemplates.plistsTemplate
         case .fonts:
             return SynthesizedResourceInterfaceTemplates.fontsTemplate
+        case .coreData, .interfaceBuilder, .json, .yaml:
+            throw SynthesizedResourceInterfaceProjectMapperError.defaultTemplateNotAvailable(parser)
         }
     }
 }

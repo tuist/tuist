@@ -21,7 +21,12 @@ extension Project {
             organizationName: "tuist.io",
             targets: [mainTarget],
             resourceSynthesizers: [
-                .strings(pluginName: "LocalPlugin"),
+                .strings(plugin: "LocalPlugin"),
+                .custom(
+                    path: "Templates/Lottie.stencil",
+                    parser: .json,
+                    extensions: ["lottie"]
+                )
             ]
         )
     }

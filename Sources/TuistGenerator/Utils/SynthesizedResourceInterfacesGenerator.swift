@@ -39,7 +39,7 @@ final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterface
         )
         return try template.render(context)
     }
-    
+
     // MARK: - Helpers
     
     private func parser(for parser: ResourceSynthesizer.Parser) throws -> Parser {
@@ -52,6 +52,14 @@ final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterface
             return try Plist.Parser()
         case .fonts:
             return try Fonts.Parser()
+        case .coreData:
+            return try CoreData.Parser()
+        case .interfaceBuilder:
+            return try InterfaceBuilder.Parser()
+        case .json:
+            return try JSON.Parser()
+        case .yaml:
+            return try Yaml.Parser()
         }
     }
 }
