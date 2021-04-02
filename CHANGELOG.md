@@ -6,6 +6,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Fixed
 
+- Fixed missing `.resolveDependenciesWithSystemScm` config option in the `PackageDescription` portion of tuist [#2769](https://github.com/tuist/tuist/pull/2769) by [@freak4pc](https://github.com/freak4pc)
 - Fixed running `tuist dump` for projects with plugins [#2700](https://github.com/tuist/tuist/pull/2700) by [@danyf90](https://github.com/danyf90)
 
 ## 1.39.1
