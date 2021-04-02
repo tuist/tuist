@@ -11,11 +11,11 @@ final class PackageDependencyTests: TuistUnitTestCase {
     func test_codable() {
         // Given
         let subject = PackageDependency.test()
-        
+
         // When
         XCTAssertCodable(subject)
     }
-    
+
     func test_uniqueDependencies() {
         // Given
         let subject1 = PackageDependency(
@@ -46,7 +46,7 @@ final class PackageDependencyTests: TuistUnitTestCase {
             path: "path4",
             dependencies: [subject2]
         )
-        
+
         // subject5
         //     |- subject3
         //     |    |- subject1
@@ -62,26 +62,26 @@ final class PackageDependencyTests: TuistUnitTestCase {
             path: "path5",
             dependencies: [
                 subject4,
-                subject3
+                subject3,
             ]
         )
-        
+
         // When
         let got = subject5.uniqueDependencies()
-        
+
         // Then
         let expected = Set([subject1, subject2, subject3, subject4, subject5])
         XCTAssertEqual(got, expected)
     }
-    
+
     func test_absolutePath() {
         // Given
         let path = "/path/to/dependency"
         let subject = PackageDependency.test(path: path)
-        
+
         // When
         let got = subject.absolutePath
-        
+
         // Then
         let expected = AbsolutePath(path)
         XCTAssertEqual(got, expected)

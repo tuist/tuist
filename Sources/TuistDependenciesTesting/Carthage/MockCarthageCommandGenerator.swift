@@ -18,7 +18,7 @@ public final class MockCarthageCommandGenerator: CarthageCommandGenerating {
             platforms: platforms,
             options: options
         )
-        
+
         invokedCommand = true
         invokedCommandCount += 1
         invokedCommandParameters = parameters

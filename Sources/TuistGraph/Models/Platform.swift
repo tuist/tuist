@@ -37,7 +37,7 @@ extension Platform {
         default: return true
         }
     }
-    
+
     /// It returns the destination that should be used to
     /// compile a product for this platform's simulator.
     public var xcodeSimulatorDestination: String? {

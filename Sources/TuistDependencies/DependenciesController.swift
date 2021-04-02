@@ -38,9 +38,9 @@ public final class DependenciesController: DependenciesControlling {
         let dependenciesDirectory = path
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
-        
+
         let platforms = dependencies.platforms
-        
+
         guard !platforms.isEmpty else {
             logger.warning("Platforms was not determined. Select platforms in `Dependencies.swift` manifest file.")
             return

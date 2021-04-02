@@ -1,9 +1,9 @@
+import RxBlocking
+import RxSwift
 import TSCBasic
+import TuistCore
 import TuistGraph
 import TuistSupport
-import TuistCore
-import RxSwift
-import RxBlocking
 
 public protocol XCFrameworkBuilding {
     /// Builds an XCFrameworks for package's products.
@@ -22,7 +22,7 @@ public protocol XCFrameworkBuilding {
 public final class XCFrameworkBuilder: XCFrameworkBuilding {
     private let fileHandler: FileHandling
     private let xcodeBuildController: XcodeBuildControlling
-    
+
     public init(
         fileHandler: FileHandling = FileHandler.shared,
         xcodeBuildController: XcodeBuildControlling = XcodeBuildController(formatter: Formatter())
@@ -30,7 +30,7 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
         self.fileHandler = fileHandler
         self.xcodeBuildController = xcodeBuildController
     }
-    
+
     public func buildXCFrameworks(
         at path: AbsolutePath,
         packageInfo: PackageInfo,
@@ -38,33 +38,33 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
     ) throws -> [AbsolutePath] {
         let projectPath = path.appending(component: packageInfo.xcodeProjectName)
         let scheme = packageInfo.scheme
-        
+
         let frameworksPathsGroupedByName = try platforms
             .intersection(packageInfo.supportedPlatforms)
-            .reduce(into: [String: [AbsolutePath]](), { result, platform in
+            .reduce(into: [String: [AbsolutePath]]()) { result, platform in
                 logger.info("Building \(packageInfo.name) for \(platform.caseValue)...")
-                
+
                 let frameworks = try platform.sdks
                     .flatMap { try buildFramework(at: path, projectPath: projectPath, scheme: scheme, sdk: $0) }
                 result.merge(frameworks, uniquingKeysWith: { $0 + $1 })
-            })
-        
+            }
+
         let xcFrameworksPaths = try frameworksPathsGroupedByName
             .reduce(into: [AbsolutePath]()) { result, next in
                 let name = next.key
                 let frameworks = next.value
-                
+
                 logger.info("Creating XCFramework for \(name)...")
-                
+
                 let xcframeworks = try buildXCFramework(at: path, name: name, frameworks: frameworks)
                 result.append(xcframeworks)
             }
-        
+
         return xcFrameworksPaths
     }
-    
+
     // MARK: - Helpers
-    
+
     private func buildFramework(
         at path: AbsolutePath,
         projectPath: AbsolutePath,
@@ -81,21 +81,21 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
                 arguments: [
                     .destination(sdk.destination),
                     .xcarg("SKIP_INSTALL", "NO"),
-                    .xcarg("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES")
+                    .xcarg("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES"),
                 ]
             )
             .ignoreElements()
             .toBlocking()
             .last()
-        
+
         let frameworksDirectory = archivePath.appending(components: "Products", "Library", "Frameworks")
         let frameworksPaths = try fileHandler
             .contentsOfDirectory(frameworksDirectory)
             .filter { $0.extension == "framework" }
-        
+
         return Dictionary(grouping: frameworksPaths, by: \.basenameWithoutExt)
     }
-    
+
     private func buildXCFramework(
         at path: AbsolutePath,
         name: String,
@@ -107,7 +107,7 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
             .ignoreElements()
             .toBlocking()
             .last()
-        
+
         return output
     }
 }
@@ -119,7 +119,7 @@ private extension Platform {
         let archiveName: String
         let destination: String
     }
-    
+
     var sdks: [SDK] {
         switch self {
         case .iOS:
@@ -131,7 +131,7 @@ private extension Platform {
                 SDK(
                     archiveName: "iphonesimulator.xcarchive",
                     destination: "generic/platform=iOS Simulator"
-                )
+                ),
             ]
         case .tvOS:
             return [
@@ -142,7 +142,7 @@ private extension Platform {
                 SDK(
                     archiveName: "appletvsimulator.xcarchive",
                     destination: "generic/platform=tvOS Simulator"
-                )
+                ),
             ]
         case .watchOS:
             return [
@@ -153,14 +153,14 @@ private extension Platform {
                 SDK(
                     archiveName: "watchsimulator.xcarchive",
                     destination: "generic/platform=watchOS Simulator"
-                )
+                ),
             ]
         case .macOS:
             return [
                 SDK(
                     archiveName: "macosx.xcarchive",
                     destination: "generic/platform=macOS"
-                )
+                ),
             ]
         }
     }

@@ -9,7 +9,7 @@ import XCTest
 
 final class SwiftPackageManagerTests: TuistUnitTestCase {
     private var subject: SwiftPackageManager!
-    
+
     override func setUp() {
         super.setUp()
 
@@ -21,7 +21,7 @@ final class SwiftPackageManagerTests: TuistUnitTestCase {
 
         super.tearDown()
     }
-    
+
     func test_resolve() throws {
         // Given
         let path = try temporaryPath()
@@ -30,13 +30,13 @@ final class SwiftPackageManagerTests: TuistUnitTestCase {
             "package",
             "--package-path",
             path.pathString,
-            "resolve"
+            "resolve",
         ])
-        
+
         // When
         XCTAssertNoThrow(try subject.resolve(at: path))
     }
-    
+
     func test_generateXcodeProject() throws {
         // Given
         let path = try temporaryPath()
@@ -48,17 +48,17 @@ final class SwiftPackageManagerTests: TuistUnitTestCase {
             path.pathString,
             "generate-xcodeproj",
             "--output",
-            outputPath.pathString
+            outputPath.pathString,
         ])
-        
+
         // When / Then
         XCTAssertNoThrow(try subject.generateXcodeProject(at: path, outputPath: outputPath))
     }
-    
+
     func test_loadPackageInfo() throws {
         // Given
         let path = try temporaryPath()
-        
+
         let command = [
             "swift",
             "package",
@@ -66,9 +66,9 @@ final class SwiftPackageManagerTests: TuistUnitTestCase {
             path.pathString,
             "dump-package",
         ]
-        
+
         let jsons = swiftPackageDumpPackageJsons()
-        
+
         // When / Then
         try jsons.forEach {
             system.succeedCommand(command, output: $0)
@@ -76,11 +76,11 @@ final class SwiftPackageManagerTests: TuistUnitTestCase {
             XCTAssertCodableEqualToJson(got, $0)
         }
     }
-    
+
     func test_loadDependencies() throws {
         // Given
         let path = try temporaryPath()
-        
+
         let command = [
             "swift",
             "package",
@@ -88,11 +88,11 @@ final class SwiftPackageManagerTests: TuistUnitTestCase {
             path.pathString,
             "show-dependencies",
             "--format",
-            "json"
+            "json",
         ]
-        
+
         let jsons = swiftPackageShowDependenciesJsons()
-        
+
         // When / Then
         try jsons.forEach {
             system.succeedCommand(command, output: $0)
@@ -396,12 +396,12 @@ private extension SwiftPackageManagerTests {
           }
         }
         """#
-        
+
         return [
             moyaPackageInfoJson,
         ]
     }
-    
+
     func swiftPackageShowDependenciesJsons() -> [String] {
         let moyaPackageDependencies = #"""
         {
@@ -551,9 +551,9 @@ private extension SwiftPackageManagerTests {
           ]
         }
         """#
-        
+
         return [
-            moyaPackageDependencies
+            moyaPackageDependencies,
         ]
     }
 }

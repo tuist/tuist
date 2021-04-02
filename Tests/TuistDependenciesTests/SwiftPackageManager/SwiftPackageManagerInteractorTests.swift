@@ -10,7 +10,7 @@ import XCTest
 
 final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
     private var subject: SwiftPackageManagerInteractor!
-    
+
     private var swiftPackageManager: MockSwiftPackageManager!
     private var xcframeworksBuilder: MockXCFrameworkBuilder!
 
@@ -19,7 +19,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
 
         swiftPackageManager = MockSwiftPackageManager()
         xcframeworksBuilder = MockXCFrameworkBuilder()
-        
+
         subject = SwiftPackageManagerInteractor(
             swiftPackageManager: swiftPackageManager,
             xcframeworkBuilder: xcframeworksBuilder
@@ -28,7 +28,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
 
     override func tearDown() {
         subject = nil
-        
+
         swiftPackageManager = nil
         xcframeworksBuilder = nil
 
@@ -38,7 +38,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
     func test_fetch() throws {
         // Given
         let workingPath = try temporaryPath()
-        
+
         let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
         let dependenciesDirectory = rootPath
             .appending(component: Constants.DependenciesDirectory.name)
@@ -53,7 +53,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
         ])
         let platforms = Set<Platform>([.iOS])
-        
+
         let packageDependency = PackageDependency.test(
             name: "Alamofire",
             path: "/path/to/dependency"
@@ -62,7 +62,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             name: "Alamofire",
             platforms: [.init(platformName: "ios", version: "12.0")]
         )
-        
+
         swiftPackageManager.resolveStub = { [fileHandler] path in
             try [
                 "Package.resolved",
@@ -77,17 +77,17 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             }
         }
         swiftPackageManager.loadDependenciesStub = { _ in
-            return packageDependency
+            packageDependency
         }
         swiftPackageManager.loadPackageInfoStub = { _ in
-            return packageInfo
+            packageInfo
         }
         xcframeworksBuilder.buildXCFrameworkStub = { [fileHandler] arguments in
             let xcframeworkPath = arguments.path.appending(component: "Alamofire.xcframework")
             try fileHandler!.touch(xcframeworkPath)
-            
+
             return [
-                xcframeworkPath
+                xcframeworkPath,
             ]
         }
 
@@ -102,20 +102,20 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         XCTAssertTrue(swiftPackageManager.invokedResolve)
         XCTAssertEqual(swiftPackageManager.invokedResolveCount, 1)
         XCTAssertEqual(swiftPackageManager.invokedResolveParameters, workingPath)
-        
+
         XCTAssertTrue(swiftPackageManager.invokedLoadDependencies)
         XCTAssertEqual(swiftPackageManager.invokedLoadDependenciesCount, 1)
         XCTAssertEqual(swiftPackageManager.invokedLoadDependenciesParameters, workingPath)
-        
+
         XCTAssertTrue(swiftPackageManager.invokedLoadPackageInfo)
         XCTAssertEqual(swiftPackageManager.invokedLoadPackageInfoCount, 1)
         XCTAssertEqual(swiftPackageManager.invokedLoadPackageInfoParameters, packageDependency.absolutePath)
-        
+
         XCTAssertTrue(swiftPackageManager.invokedGenerateXcodeProject)
         XCTAssertEqual(swiftPackageManager.invokedGenerateXcodeProjectCount, 1)
         XCTAssertEqual(swiftPackageManager.invokedGenerateXcodeProjectParameters?.0, packageDependency.absolutePath)
         XCTAssertEqual(swiftPackageManager.invokedGenerateXcodeProjectParameters?.1, workingPath.appending(component: "Alamofire"))
-        
+
         XCTAssertTrue(xcframeworksBuilder.invokedBuildXCFrameworks)
         XCTAssertEqual(xcframeworksBuilder.invokedBuildXCFrameworksCount, 1)
         XCTAssertEqual(xcframeworksBuilder.invokedBuildXCFrameworksParameters?.packageInfo, packageInfo)
@@ -127,7 +127,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             Constants.DependenciesDirectory.swiftPackageManagerDirectoryName,
         ])
         XCTAssertDirectoryContentEqual(lockfilesDirectory, [
-            Constants.DependenciesDirectory.packageResolvedName
+            Constants.DependenciesDirectory.packageResolvedName,
         ])
         XCTAssertDirectoryContentEqual(swiftPackageManagerDirectory, [
             ".build",
@@ -141,11 +141,11 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             "repositories",
         ])
     }
-    
+
     func test_fetch_when_dependenciesDirectoryContainsResultsFromOtherDepedenciesManager() throws {
         // Given
         let workingPath = try temporaryPath()
-        
+
         let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
         let dependenciesDirectory = rootPath
             .appending(component: Constants.DependenciesDirectory.name)
@@ -162,7 +162,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
         ])
         let platforms = Set<Platform>([.iOS])
-        
+
         let packageDependency = PackageDependency.test(
             name: "Alamofire",
             path: "/path/to/dependency"
@@ -171,10 +171,10 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             name: "Alamofire",
             platforms: [.init(platformName: "ios", version: "12.0")]
         )
-        
+
         try fileHandler.touch(lockfilesDirectory.appending(component: "OtherLockfile.lock"))
         try fileHandler.touch(dependenciesDirectory.appending(components: "OtherDepedenciesManager", "Info.plist"))
-        
+
         swiftPackageManager.resolveStub = { [fileHandler] path in
             try [
                 "Package.resolved",
@@ -189,17 +189,17 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             }
         }
         swiftPackageManager.loadDependenciesStub = { _ in
-            return packageDependency
+            packageDependency
         }
         swiftPackageManager.loadPackageInfoStub = { _ in
-            return packageInfo
+            packageInfo
         }
         xcframeworksBuilder.buildXCFrameworkStub = { [fileHandler] arguments in
             let xcframeworkPath = arguments.path.appending(component: "Alamofire.xcframework")
             try fileHandler!.touch(xcframeworkPath)
-            
+
             return [
-                xcframeworkPath
+                xcframeworkPath,
             ]
         }
 
@@ -214,24 +214,24 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         XCTAssertTrue(swiftPackageManager.invokedResolve)
         XCTAssertEqual(swiftPackageManager.invokedResolveCount, 1)
         XCTAssertEqual(swiftPackageManager.invokedResolveParameters, workingPath)
-        
+
         XCTAssertTrue(swiftPackageManager.invokedResolve)
         XCTAssertEqual(swiftPackageManager.invokedResolveCount, 1)
         XCTAssertEqual(swiftPackageManager.invokedResolveParameters, workingPath)
-        
+
         XCTAssertTrue(swiftPackageManager.invokedLoadDependencies)
         XCTAssertEqual(swiftPackageManager.invokedLoadDependenciesCount, 1)
         XCTAssertEqual(swiftPackageManager.invokedLoadDependenciesParameters, workingPath)
-        
+
         XCTAssertTrue(swiftPackageManager.invokedLoadPackageInfo)
         XCTAssertEqual(swiftPackageManager.invokedLoadPackageInfoCount, 1)
         XCTAssertEqual(swiftPackageManager.invokedLoadPackageInfoParameters, packageDependency.absolutePath)
-        
+
         XCTAssertTrue(swiftPackageManager.invokedGenerateXcodeProject)
         XCTAssertEqual(swiftPackageManager.invokedGenerateXcodeProjectCount, 1)
         XCTAssertEqual(swiftPackageManager.invokedGenerateXcodeProjectParameters?.0, packageDependency.absolutePath)
         XCTAssertEqual(swiftPackageManager.invokedGenerateXcodeProjectParameters?.1, workingPath.appending(component: "Alamofire"))
-        
+
         XCTAssertTrue(xcframeworksBuilder.invokedBuildXCFrameworks)
         XCTAssertEqual(xcframeworksBuilder.invokedBuildXCFrameworksCount, 1)
         XCTAssertEqual(xcframeworksBuilder.invokedBuildXCFrameworksParameters?.packageInfo, packageInfo)
@@ -245,10 +245,10 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         ])
         XCTAssertDirectoryContentEqual(lockfilesDirectory, [
             Constants.DependenciesDirectory.packageResolvedName,
-            "OtherLockfile.lock"
+            "OtherLockfile.lock",
         ])
         XCTAssertDirectoryContentEqual(swiftPackageManagerDirectory, [
-           ".build",
+            ".build",
             "Alamofire.xcframework",
         ])
         XCTAssertDirectoryContentEqual(buildDirectory, [
@@ -262,7 +262,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             "Info.plist",
         ])
     }
-    
+
     func test_clean() throws {
         // Given
         let rootPath = try temporaryPath()
@@ -272,27 +272,27 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
         let otherDependenciesManagerDirectory = dependenciesDirectory
             .appending(component: "OtherDepedenciesManager")
-        
+
         try createFiles([
             "Dependencies/Lockfiles/Package.resolved",
             "Dependencies/Lockfiles/OtherLockfile.lock",
             "Dependencies/SwiftPackageManager/Info.plist",
             "Dependencies/OtherDepedenciesManager/Bar.bar",
         ])
-        
+
         // When
         try subject.clean(dependenciesDirectory: dependenciesDirectory)
-        
+
         // Then
         XCTAssertDirectoryContentEqual(dependenciesDirectory, [
             Constants.DependenciesDirectory.lockfilesDirectoryName,
-            "OtherDepedenciesManager"
+            "OtherDepedenciesManager",
         ])
         XCTAssertDirectoryContentEqual(lockfilesDirectory, [
-            "OtherLockfile.lock"
+            "OtherLockfile.lock",
         ])
         XCTAssertDirectoryContentEqual(otherDependenciesManagerDirectory, [
-            "Bar.bar"
+            "Bar.bar",
         ])
     }
 }

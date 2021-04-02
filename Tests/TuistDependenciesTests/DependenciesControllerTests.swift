@@ -72,7 +72,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertTrue(swiftPackageManagerInteractor.invokedClean)
         XCTAssertFalse(swiftPackageManagerInteractor.invokedFetch)
-        
+
         XCTAssertFalse(cocoaPodsInteractor.invokedFetch)
     }
 
@@ -108,7 +108,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertTrue(carthageInteractor.invokedClean)
         XCTAssertFalse(carthageInteractor.invokedFetch)
-        
+
         XCTAssertFalse(cocoaPodsInteractor.invokedFetch)
     }
 
@@ -155,27 +155,27 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertFalse(cocoaPodsInteractor.invokedFetch)
     }
-    
+
     func test_fetch_no_depedencies() throws {
         // Given
         let rootPath = try temporaryPath()
-        
+
         let dependencies = Dependencies(
             carthage: .init([], options: []),
             swiftPackageManager: .init([]),
             platforms: []
         )
-        
+
         // When
         try subject.fetch(at: rootPath, dependencies: dependencies)
-        
+
         // Then
         XCTAssertTrue(carthageInteractor.invokedClean)
         XCTAssertFalse(carthageInteractor.invokedFetch)
-        
+
         XCTAssertTrue(swiftPackageManagerInteractor.invokedClean)
         XCTAssertFalse(swiftPackageManagerInteractor.invokedFetch)
-        
+
         XCTAssertFalse(cocoaPodsInteractor.invokedFetch)
     }
 }

@@ -11,35 +11,35 @@ final class PackageInfoTests: TuistUnitTestCase {
     func test_codable() {
         // Given
         let subject = PackageInfo.test()
-        
+
         // When / Then
         XCTAssertCodable(subject)
     }
-    
+
     func test_scheme() {
         // Given
         let subject = PackageInfo.test(name: "RxSwift")
-        
+
         // When
         let got = subject.scheme
-        
-        //Then
+
+        // Then
         let expected = "RxSwift-Package"
         XCTAssertEqual(got, expected)
     }
-    
+
     func test_xcodeProjectName() {
         // Given
         let subject = PackageInfo.test(name: "RxSwift")
-        
+
         // When
         let got = subject.xcodeProjectName
-        
-        //Then
+
+        // Then
         let expected = "RxSwift.xcodeproj"
         XCTAssertEqual(got, expected)
     }
-    
+
     func test_supportedPlatforms_allPlatforms() {
         // Given
         let subject = PackageInfo.test(platforms: [
@@ -48,24 +48,24 @@ final class PackageInfoTests: TuistUnitTestCase {
             .init(platformName: "tvos", version: "14.0"),
             .init(platformName: "watchos", version: "7.0"),
         ])
-        
+
         // When
         let got = subject.supportedPlatforms
-        
+
         // Then
         let expected = Set<Platform>([.iOS, .macOS, .tvOS, .watchOS])
         XCTAssertEqual(got, expected)
     }
-    
+
     func test_supportedPlatforms_iOS() {
         // Given
         let subject = PackageInfo.test(platforms: [
             .init(platformName: "ios", version: "10.0"),
         ])
-        
+
         // When
         let got = subject.supportedPlatforms
-        
+
         // Then
         let expected = Set<Platform>([.iOS])
         XCTAssertEqual(got, expected)

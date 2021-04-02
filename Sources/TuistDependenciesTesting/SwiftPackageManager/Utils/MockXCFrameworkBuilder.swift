@@ -5,13 +5,13 @@ import TuistGraph
 
 public final class MockXCFrameworkBuilder: XCFrameworkBuilding {
     public init() {}
-    
+
     var invokedBuildXCFrameworks = false
     var invokedBuildXCFrameworksCount = 0
     var invokedBuildXCFrameworksParameters: BuildXCFrameworksParameters?
     var invokedBuildXCFrameworksParametersList = [BuildXCFrameworksParameters]()
     var buildXCFrameworkStub: ((BuildXCFrameworksParameters) throws -> [AbsolutePath])?
-    
+
     public func buildXCFrameworks(
         at path: AbsolutePath,
         packageInfo: PackageInfo,
@@ -22,12 +22,12 @@ public final class MockXCFrameworkBuilder: XCFrameworkBuilding {
             packageInfo: packageInfo,
             platforms: platforms
         )
-        
+
         invokedBuildXCFrameworks = true
         invokedBuildXCFrameworksCount += 1
         invokedBuildXCFrameworksParameters = parameters
         invokedBuildXCFrameworksParametersList.append(parameters)
-        
+
         return (try buildXCFrameworkStub?(parameters)) ?? []
     }
 }

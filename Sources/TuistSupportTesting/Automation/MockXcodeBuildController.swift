@@ -51,12 +51,12 @@ final class MockXcodeBuildController: XcodeBuildControlling {
             archivePath: archivePath,
             arguments: arguments
         )
-        
+
         invokedArchive = true
         invokedArchiveCount += 1
         invokedArchiveParameters = parameters
         invokedArchiveParametersList.append(parameters)
-        
+
         if let archiveStub = archiveStub {
             return archiveStub(parameters)
         } else {
@@ -74,12 +74,12 @@ final class MockXcodeBuildController: XcodeBuildControlling {
             frameworks: frameworks,
             output: output
         )
-        
+
         invokedCreateXCFramework = true
         invokedCreateXCFrameworkCount += 1
         invokedCreateXCFrameworkParameters = parameters
         invokedCreateXCFrameworkParametersList.append(parameters)
-        
+
         if let createXCFrameworkStub = createXCFrameworkStub {
             return createXCFrameworkStub(parameters)
         } else {
@@ -104,7 +104,7 @@ extension MockXcodeBuildController {
         let clean: Bool
         let archivePath: AbsolutePath
         let arguments: [XcodeBuildArgument]
-        
+
         init(
             target: XcodeBuildTarget,
             scheme: String,
@@ -119,11 +119,11 @@ extension MockXcodeBuildController {
             self.arguments = arguments
         }
     }
-    
+
     struct CreateXCFrameworkParameters: Equatable {
         let frameworks: [AbsolutePath]
         let output: AbsolutePath
-        
+
         init(
             frameworks: [AbsolutePath],
             output: AbsolutePath

@@ -17,7 +17,7 @@ extension PackageDependency {
     var absolutePath: AbsolutePath {
         AbsolutePath(path)
     }
-    
+
     /// Returns flatted unique dependencies.
     public func uniqueDependencies() -> Set<PackageDependency> {
         dependencies.reduce(into: [self]) { result, dependency in

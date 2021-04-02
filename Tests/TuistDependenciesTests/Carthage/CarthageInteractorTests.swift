@@ -223,7 +223,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.platforms, platforms)
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.options, options)
     }
-    
+
     func test_clean() throws {
         // Given
         let rootPath = try temporaryPath()
@@ -231,28 +231,29 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             .appending(component: Constants.DependenciesDirectory.name)
         let lockfilesDirectory = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
-        
+
         try createFiles([
             "Dependencies/Lockfiles/Cartfile.resolved",
             "Dependencies/Lockfiles/OtherLockfile.lock",
             "Dependencies/Carthage/Info.plist",
             "Dependencies/OtherDepedenciesManager/bar.bar",
         ])
-        
+
         // When
         try subject.clean(dependenciesDirectory: dependenciesDirectory)
-        
+
         // Then
         XCTAssertEqual(
             try fileHandler.contentsOfDirectory(dependenciesDirectory).sorted(),
             [
                 lockfilesDirectory,
-                dependenciesDirectory.appending(component: "OtherDepedenciesManager")
-            ].sorted())
+                dependenciesDirectory.appending(component: "OtherDepedenciesManager"),
+            ].sorted()
+        )
         XCTAssertEqual(
             try fileHandler.contentsOfDirectory(lockfilesDirectory).sorted(),
             [
-                lockfilesDirectory.appending(component: "OtherLockfile.lock")
+                lockfilesDirectory.appending(component: "OtherLockfile.lock"),
             ].sorted()
         )
     }

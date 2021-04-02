@@ -15,12 +15,12 @@ extension PackageInfo {
     var scheme: String {
         name + "-Package"
     }
-    
+
     /// Returns a name of project that was generated using `swift package generate-xcodeproj` command.
     var xcodeProjectName: String {
         name + ".xcodeproj"
     }
-    
+
     /// Returns platforms that the package supports.
     var supportedPlatforms: Set<Platform> {
         Set(platforms.compactMap(\.platform))
@@ -33,18 +33,18 @@ extension PackageInfo {
     public struct PlatformInfo: Equatable, Codable {
         public let platformName: String
         public let version: String
-        
+
         /// Returns `TuistGraph.Platform` representation.
         var platform: Platform? {
             Platform(rawValue: platformName)
         }
     }
-    
+
     public struct ToolsVersion: Equatable, Codable {
         enum CodingKeys: String, CodingKey {
             case version = "_version"
         }
-        
+
         public let version: String
     }
 }

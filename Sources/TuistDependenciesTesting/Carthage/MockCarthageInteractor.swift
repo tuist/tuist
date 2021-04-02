@@ -22,7 +22,7 @@ public final class MockCarthageInteractor: CarthageInteracting {
             dependencies: dependencies,
             platforms: platforms
         )
-        
+
         invokedFetch = true
         invokedFetchCount += 1
         invokedFetchParameters = parameters
@@ -31,18 +31,18 @@ public final class MockCarthageInteractor: CarthageInteracting {
             throw error
         }
     }
-    
+
     var invokedClean = false
     var invokedCleanCount = 0
     var invokedCleanParameters: AbsolutePath?
     var invokedCleanParametersList = [AbsolutePath]()
     var stubbedCleanError: Error?
-    
+
     public func clean(dependenciesDirectory: AbsolutePath) throws {
         invokedClean = true
         invokedCleanCount += 1
-        invokedCleanParameters = (dependenciesDirectory)
-        invokedCleanParametersList.append((dependenciesDirectory))
+        invokedCleanParameters = dependenciesDirectory
+        invokedCleanParametersList.append(dependenciesDirectory)
         if let error = stubbedCleanError {
             throw error
         }

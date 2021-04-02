@@ -161,7 +161,7 @@ open class TuistTestCase: XCTestCase {
 
         XCTAssertFalse(output.contains(notExpected), message, file: file, line: line)
     }
-    
+
     public func XCTAssertDirectoryContentEqual(
         _ directory: AbsolutePath,
         _ expected: [String],
@@ -173,12 +173,12 @@ open class TuistTestCase: XCTestCase {
                 .contentsOfDirectory(directory)
                 .map { $0.pathString }
                 .sorted()
-            
+
             let expectedContent = expected
                 .map { directory.appending(RelativePath($0)) }
                 .map { $0.pathString }
                 .sorted()
-            
+
             let message = """
             The directory content:
             ===========
@@ -188,7 +188,7 @@ open class TuistTestCase: XCTestCase {
             ===========
             \(expectedContent.isEmpty ? "<Empty>" : expectedContent.joined(separator: "\n"))
             """
-            
+
             XCTAssertEqual(directoryContent, expectedContent, message, file: file, line: line)
         } catch {
             XCTFail(error.localizedDescription, file: file, line: line)
