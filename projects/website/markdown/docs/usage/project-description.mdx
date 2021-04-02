@@ -137,6 +137,15 @@ A `Project.swift` should initialize a variable of type `Project`. It can take an
       optional: true,
       default: '[]',
     },
+    {
+      name: 'ResourceSynthesizer',
+      description:
+        'List of resource synthesizer for generating accessors for resources',
+      type: '[ResourceSynthesizer]',
+      typeLink: '#resourcesynthesizer',
+      optional: true,
+      default: '.default',
+    },
   ]}
 />
 
@@ -1654,6 +1663,65 @@ A `FileElement` can be one of the following options:
     },
   ]}
 />
+
+## ResourceSynthesizer
+
+A `ResourceSynthesizer` has multiple initializers to accomodate your needs.
+
+We support all parsers that [SwiftGen](https://github.com/SwiftGen/SwiftGen) offers.
+
+That means:
+
+- `strings`
+- `assets`
+- `plists`
+- `fonts`
+- `coreData`
+- `interfaceBuilder`
+- `json`
+- `yaml`
+
+For `strings`, `plists`, `fonts`, and `assets` there templates offered by tuist, to initialize eg. strings resource synthesizer:
+
+```swift
+.strings()
+```
+
+The following methods are available for all parsers:
+
+You can also use a local template:
+
+```swift
+.coreData("MyTemplatesDirectory/CoreData.stencil")
+```
+
+or if a plugin offers a resource synthesizer template, you can do:
+
+```swift
+.json(plugin: "CustomPlugin")
+```
+
+These initializers have pre-defined parser and extensions to determine for which resources it should do the synthesization.
+
+If you need something more custom, eg. Lottie template that uses `.json` parser and finds resources with `.lottie` extension, you can do:
+
+```swift
+.custom(
+  path: "Templates/Lottie.stencil",
+  parser: .json,
+  extensions: ["lottie"]
+)
+```
+
+The same can be done for a plugin:
+
+```swift
+.custom(
+  plugin: "CustomPlugin",
+  parser: .json,
+  extensions: ["lottie"]
+)
+```
 
 ## ResourceFileElements
 
