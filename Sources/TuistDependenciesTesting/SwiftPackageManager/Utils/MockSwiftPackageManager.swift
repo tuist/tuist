@@ -23,7 +23,7 @@ public final class MockSwiftPackageManager: SwiftPackageManaging {
     var invokedGenerateXcodeProject = false
     var invokedGenerateXcodeProjectCount = 0
     var invokedGenerateXcodeProjectParameters: (AbsolutePath, AbsolutePath)?
-    var invokedGenerateXcodeProjectParametersList = [(AbsolutePath, AbsolutePath)]()
+    var invokedGenerateXcodeProjectParametersList = [(AbsolutePath, AbsolutePath)]() // swiftlint:disable:this identifier_name
     var generateXcodeProjectStub: ((AbsolutePath, AbsolutePath) throws  -> Void)?
     
     public func generateXcodeProject(at path: AbsolutePath, outputPath: AbsolutePath) throws {

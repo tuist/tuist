@@ -138,10 +138,10 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
     /// Loads lockfile and dependencies into working directory if they had been saved before.
     private func loadDependencies(pathsProvider: SwiftPackageManagerPathsProvider, packageManifestContent: String) throws {
         // copy `.build` directory from previous run if exist
-        if fileHandler.exists(pathsProvider.destinationSwiftPackageManagerBuildDirectory) {
+        if fileHandler.exists(pathsProvider.destinationBuildDirectory) {
             try copy(
-                from: pathsProvider.destinationSwiftPackageManagerBuildDirectory,
-                to: pathsProvider.temporarySwiftPackageManagerBuildDirectory
+                from: pathsProvider.destinationBuildDirectory,
+                to: pathsProvider.temporaryBuildDirectory
             )
         }
 
@@ -168,12 +168,12 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         guard fileHandler.exists(pathsProvider.temporaryPackageResolvedPath) else {
             throw SwiftPackageManagerInteractorError.packageResolvedNotFound
         }
-        guard fileHandler.exists(pathsProvider.temporarySwiftPackageManagerBuildDirectory) else {
+        guard fileHandler.exists(pathsProvider.temporaryBuildDirectory) else {
             throw SwiftPackageManagerInteractorError.buildDirectoryNotFound
         }
         
         // remove old state
-        try fileHandler.delete(pathsProvider.destinationSwiftPackageManagerXCFrameworksDirectory)
+        try fileHandler.delete(pathsProvider.destinationDirectory)
 
         // save `Package.resolved`
         try copy(
@@ -183,15 +183,15 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
 
         // save `.build` directory
         try copy(
-            from: pathsProvider.temporarySwiftPackageManagerBuildDirectory,
-            to: pathsProvider.destinationSwiftPackageManagerBuildDirectory
+            from: pathsProvider.temporaryBuildDirectory,
+            to: pathsProvider.destinationBuildDirectory
         )
         
         // save XCFrameworks
         try xcframeworksPaths.forEach { xcframeworksPath in
             try copy(
                 from: xcframeworksPath,
-                to: pathsProvider.destinationSwiftPackageManagerXCFrameworksDirectory.appending(component: xcframeworksPath.basename)
+                to: pathsProvider.destinationDirectory.appending(component: xcframeworksPath.basename)
             )
         }
     }
@@ -215,11 +215,11 @@ private struct SwiftPackageManagerPathsProvider {
     let temporaryDirectoryPath: AbsolutePath
 
     let destinationPackageResolvedPath: AbsolutePath
-    let destinationSwiftPackageManagerBuildDirectory: AbsolutePath
-    let destinationSwiftPackageManagerXCFrameworksDirectory: AbsolutePath
+    let destinationDirectory: AbsolutePath
+    let destinationBuildDirectory: AbsolutePath
 
     let temporaryPackageResolvedPath: AbsolutePath
-    let temporarySwiftPackageManagerBuildDirectory: AbsolutePath
+    let temporaryBuildDirectory: AbsolutePath
 
     init(dependenciesDirectory: AbsolutePath, temporaryDirectoryPath: AbsolutePath) {
         self.dependenciesDirectory = dependenciesDirectory
@@ -228,15 +228,15 @@ private struct SwiftPackageManagerPathsProvider {
         destinationPackageResolvedPath = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
             .appending(component: Constants.DependenciesDirectory.packageResolvedName)
-        destinationSwiftPackageManagerBuildDirectory = dependenciesDirectory
+        destinationDirectory = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
+        destinationBuildDirectory = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
             .appending(component: ".build")
-        destinationSwiftPackageManagerXCFrameworksDirectory = dependenciesDirectory
-            .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
 
         temporaryPackageResolvedPath = temporaryDirectoryPath
             .appending(component: Constants.DependenciesDirectory.packageResolvedName)
-        temporarySwiftPackageManagerBuildDirectory = temporaryDirectoryPath
+        temporaryBuildDirectory = temporaryDirectoryPath
             .appending(component: ".build")
     }
 }
