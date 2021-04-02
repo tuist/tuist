@@ -6,10 +6,16 @@ import RxSwift
 import RxBlocking
 
 public protocol XCFrameworkBuilding {
+    /// Builds an XCFrameworks for package's products.
+    /// - Parameters:
+    ///   - path: A working directory.
+    ///   - packageInfo: A description of a package.
+    ///   - platforms: List of platforms that architectures will be included into produced XCFramework.
+    /// - Returns: List of paths of produced XCFrameworks.
     func buildXCFrameworks(
-        using packageInfo: PackageInfo,
-        platforms: Set<Platform>,
-        outputDirectory: AbsolutePath
+        at path: AbsolutePath,
+        packageInfo: PackageInfo,
+        platforms: Set<Platform>
     ) throws -> [AbsolutePath]
 }
 
@@ -26,11 +32,11 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
     }
     
     public func buildXCFrameworks(
-        using packageInfo: PackageInfo,
-        platforms: Set<Platform>,
-        outputDirectory: AbsolutePath
+        at path: AbsolutePath,
+        packageInfo: PackageInfo,
+        platforms: Set<Platform>
     ) throws -> [AbsolutePath] {
-        let projectPath = outputDirectory.appending(component: packageInfo.xcodeProjectName)
+        let projectPath = path.appending(component: packageInfo.xcodeProjectName)
         let scheme = packageInfo.scheme
         
         let frameworksPathsGroupedByName = try platforms
@@ -39,7 +45,7 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
                 logger.info("Building \(packageInfo.name) for \(platform.caseValue)...")
                 
                 let frameworks = try platform.sdks
-                    .flatMap { try buildFramework(projectPath: projectPath, scheme: scheme, sdk: $0, outputDirectory: outputDirectory) }
+                    .flatMap { try buildFramework(at: path, projectPath: projectPath, scheme: scheme, sdk: $0) }
                 result.merge(frameworks, uniquingKeysWith: { $0 + $1 })
             })
         
@@ -50,7 +56,7 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
                 
                 logger.info("Creating XCFramework for \(name)...")
                 
-                let xcframeworks = try buildXCFramework(name: name, frameworks: frameworks, outputDirectory: outputDirectory)
+                let xcframeworks = try buildXCFramework(at: path, name: name, frameworks: frameworks)
                 result.append(xcframeworks)
             }
         
@@ -60,12 +66,12 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
     // MARK: - Helpers
     
     private func buildFramework(
+        at path: AbsolutePath,
         projectPath: AbsolutePath,
         scheme: String,
-        sdk: Platform.SDK,
-        outputDirectory: AbsolutePath
+        sdk: Platform.SDK
     ) throws -> [String: [AbsolutePath]] {
-        let archivePath = outputDirectory.appending(component: sdk.archiveName)
+        let archivePath = path.appending(component: sdk.archiveName)
         _ = try xcodeBuildController
             .archive(
                 .project(projectPath),
@@ -91,11 +97,11 @@ public final class XCFrameworkBuilder: XCFrameworkBuilding {
     }
     
     private func buildXCFramework(
+        at path: AbsolutePath,
         name: String,
-        frameworks: [AbsolutePath],
-        outputDirectory: AbsolutePath
+        frameworks: [AbsolutePath]
     ) throws -> AbsolutePath {
-        let output = outputDirectory.appending(component: name + ".xcframework")
+        let output = path.appending(component: name + ".xcframework")
         _ = try xcodeBuildController
             .createXCFramework(frameworks: frameworks, output: output)
             .ignoreElements()

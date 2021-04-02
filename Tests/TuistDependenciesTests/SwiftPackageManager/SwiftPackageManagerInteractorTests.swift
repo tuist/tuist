@@ -83,7 +83,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             return packageInfo
         }
         xcframeworksBuilder.buildXCFrameworkStub = { [fileHandler] arguments in
-            let xcframeworkPath = arguments.outputDirectory.appending(component: "Alamofire.xcframework")
+            let xcframeworkPath = arguments.path.appending(component: "Alamofire.xcframework")
             try fileHandler!.touch(xcframeworkPath)
             
             return [
@@ -119,7 +119,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         XCTAssertTrue(xcframeworksBuilder.invokedBuildXCFrameworks)
         XCTAssertEqual(xcframeworksBuilder.invokedBuildXCFrameworksCount, 1)
         XCTAssertEqual(xcframeworksBuilder.invokedBuildXCFrameworksParameters?.packageInfo, packageInfo)
-        XCTAssertEqual(xcframeworksBuilder.invokedBuildXCFrameworksParameters?.outputDirectory, workingPath.appending(component: "Alamofire"))
+        XCTAssertEqual(xcframeworksBuilder.invokedBuildXCFrameworksParameters?.path, workingPath.appending(component: "Alamofire"))
         XCTAssertEqual(xcframeworksBuilder.invokedBuildXCFrameworksParameters?.platforms, [.iOS])
 
         XCTAssertDirectoryContentEqual(dependenciesDirectory, [
@@ -195,7 +195,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             return packageInfo
         }
         xcframeworksBuilder.buildXCFrameworkStub = { [fileHandler] arguments in
-            let xcframeworkPath = arguments.outputDirectory.appending(component: "Alamofire.xcframework")
+            let xcframeworkPath = arguments.path.appending(component: "Alamofire.xcframework")
             try fileHandler!.touch(xcframeworkPath)
             
             return [
@@ -235,7 +235,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         XCTAssertTrue(xcframeworksBuilder.invokedBuildXCFrameworks)
         XCTAssertEqual(xcframeworksBuilder.invokedBuildXCFrameworksCount, 1)
         XCTAssertEqual(xcframeworksBuilder.invokedBuildXCFrameworksParameters?.packageInfo, packageInfo)
-        XCTAssertEqual(xcframeworksBuilder.invokedBuildXCFrameworksParameters?.outputDirectory, workingPath.appending(component: "Alamofire"))
+        XCTAssertEqual(xcframeworksBuilder.invokedBuildXCFrameworksParameters?.path, workingPath.appending(component: "Alamofire"))
         XCTAssertEqual(xcframeworksBuilder.invokedBuildXCFrameworksParameters?.platforms, [.iOS])
 
         XCTAssertDirectoryContentEqual(dependenciesDirectory, [

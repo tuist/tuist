@@ -99,19 +99,19 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
                         return []
                     }
                     
-                    let outputDirectory = temporaryDirectoryPath.appending(component: packageInfo.name)
-                    try fileHandler.createFolder(outputDirectory)
+                    let packageDirectory = temporaryDirectoryPath.appending(component: packageInfo.name)
+                    try fileHandler.createFolder(packageDirectory)
                     
                     try swiftPackageManager.generateXcodeProject(
                         at: dependencyInfo.absolutePath,
-                        outputPath: outputDirectory
+                        outputPath: packageDirectory
                     )
                     
                     return try xcframeworkBuilder
                         .buildXCFrameworks(
-                            using: packageInfo,
-                            platforms: platforms,
-                            outputDirectory: outputDirectory
+                            at: packageDirectory,
+                            packageInfo: packageInfo,
+                            platforms: platforms
                         )
                 }
             

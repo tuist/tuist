@@ -65,9 +65,9 @@ final class XCFrameworkBuilderTests: TuistUnitTestCase {
         
         // When
         let got = try subject.buildXCFrameworks(
-            using: packageInfo,
-            platforms: platforms,
-            outputDirectory: outputDirectory
+            at: outputDirectory,
+            packageInfo: packageInfo,
+            platforms: platforms
         )
         
         // Then

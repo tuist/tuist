@@ -13,14 +13,14 @@ public final class MockXCFrameworkBuilder: XCFrameworkBuilding {
     var buildXCFrameworkStub: ((BuildXCFrameworksParameters) throws -> [AbsolutePath])?
     
     public func buildXCFrameworks(
-        using packageInfo: PackageInfo,
-        platforms: Set<Platform>,
-        outputDirectory: AbsolutePath
+        at path: AbsolutePath,
+        packageInfo: PackageInfo,
+        platforms: Set<Platform>
     ) throws -> [AbsolutePath] {
         let parameters = BuildXCFrameworksParameters(
+            path: path,
             packageInfo: packageInfo,
-            platforms: platforms,
-            outputDirectory: outputDirectory
+            platforms: platforms
         )
         
         invokedBuildXCFrameworks = true
@@ -35,9 +35,9 @@ public final class MockXCFrameworkBuilder: XCFrameworkBuilding {
 // MARK: - Models
 
 extension MockXCFrameworkBuilder {
-    struct BuildXCFrameworksParameters {
+    struct BuildXCFrameworksParameters: Equatable {
+        let path: AbsolutePath
         let packageInfo: PackageInfo
         let platforms: Set<Platform>
-        let outputDirectory: AbsolutePath
     }
 }
