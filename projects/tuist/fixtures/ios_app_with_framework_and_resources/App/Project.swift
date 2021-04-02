@@ -45,8 +45,5 @@ let project = Project(
                 .target(name: "App"),
             ]
         ),
-    ],
-    resourceSynthesizers: [
-        .strings(),
     ]
 )

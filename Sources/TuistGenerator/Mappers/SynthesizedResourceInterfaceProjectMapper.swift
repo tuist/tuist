@@ -117,7 +117,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         case let .defaultTemplate(name):
             templateName = name
         case let .file(path):
-            templateName = path.basenameWithoutExt                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           
+            templateName = path.basenameWithoutExt
         }
 
         let renderedInterfaces: [(String, String)]

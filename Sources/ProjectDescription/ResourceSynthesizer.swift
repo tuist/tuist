@@ -49,7 +49,7 @@ public struct ResourceSynthesizer: Codable, Equatable {
                 let resourceName = try container.decode(String.self, forKey: .resourceName)
                 self = .plugin(name: name, resourceName: resourceName)
             case .defaultTemplate:
-                let resourceName = try container.decode(String.self, forKey: .name)
+                let resourceName = try container.decode(String.self, forKey: .resourceName)
                 self = .defaultTemplate(resourceName: resourceName)
             }
         }
@@ -330,6 +330,9 @@ extension Array where Element == ResourceSynthesizer {
     public static var `default`: Self {
         [
             .strings(),
+            .assets(),
+            .plists(),
+            .fonts(),
         ]
     }
 }
