@@ -1,7 +1,7 @@
 version: 2
 updates:
   - package-ecosystem: npm
-    directory: '/website'
+    directory: '/projects/website'
     schedule:
       interval: monthly
       time: '11:00'
@@ -12,7 +12,7 @@ updates:
       - dependencies
       - automerge
   - package-ecosystem: npm
-    directory: '/next'
+    directory: '/projects/next'
     schedule:
       interval: monthly
       time: '11:00'

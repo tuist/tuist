@@ -19,8 +19,8 @@ module Fourier
         expected_x86_command = [*expected_command, "--triple", "x86_64-apple-macosx"]
         expected_lipo_command = [
           "lipo", "-create", "-output", File.join(output_directory, binary_name),
-          File.join(path, ".build/arm64-apple-macosx/release/swift-doc"),
-          File.join(path, ".build/x86_64-apple-macosx/release/swift-doc")
+          File.join(path, ".build/arm64-apple-macosx/release/tuist"),
+          File.join(path, ".build/x86_64-apple-macosx/release/tuist")
         ]
         Utilities::System
           .expects(:system)

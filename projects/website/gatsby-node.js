@@ -93,6 +93,14 @@ exports.onCreateNode = ({ node, getNode, actions }) => {
       createNodeField({ node, name: `path`, value: fileNode.relativePath })
     } else {
       const filename = createFilePath({ node, getNode })
+      if (node.frontmatter.migrated_path) {
+        // To redirect to the pages that have been moved to docusaurus
+        createRedirect({
+          fromPath: filename,
+          toPath: `https://docs.tuist.io${node.frontmatter.migrated_path}`,
+          isPermanent: true,
+        })
+      }
       createNodeField({ node, name: `slug`, value: filename })
     }
   }
@@ -190,7 +198,12 @@ exports.createPages = ({ graphql, actions }) => {
   const createDocumentationPages = graphql(
     `
       {
-        allMdx(filter: { fileAbsolutePath: { regex: "/docs/.*/" } }) {
+        allMdx(
+          filter: {
+            fileAbsolutePath: { regex: "/docs/.*/" }
+            frontmatter: { migrated_path: { eq: null } }
+          }
+        ) {
           nodes {
             fileAbsolutePath
             fields {

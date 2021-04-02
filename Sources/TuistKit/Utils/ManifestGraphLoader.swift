@@ -69,6 +69,12 @@ final class ManifestGraphLoader: ManifestGraphLoading {
         }
     }
 
+    func loadPlugins(at path: AbsolutePath) throws {
+        let config = try configLoader.loadConfig(path: path)
+        let plugins = try pluginsService.loadPlugins(using: config)
+        manifestLoader.register(plugins: plugins)
+    }
+
     // MARK: - Private
 
     private func loadProjectGraph(at path: AbsolutePath) throws -> (Project, ValueGraph) {
@@ -83,12 +89,6 @@ final class ManifestGraphLoader: ManifestGraphLoading {
         let manifests = try recursiveManifestLoader.loadWorkspace(at: path)
         let models = try convert(manifests: manifests)
         return try graphLoader.loadWorkspace(workspace: models.workspace, projects: models.projects)
-    }
-
-    private func loadPlugins(at path: AbsolutePath) throws {
-        let config = try configLoader.loadConfig(path: path)
-        let plugins = try pluginsService.loadPlugins(using: config)
-        manifestLoader.register(plugins: plugins)
     }
 
     private func convert(manifests: LoadedProjects,
