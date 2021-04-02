@@ -42,7 +42,7 @@ public final class DependenciesController: DependenciesControlling {
         let platforms = dependencies.platforms
         
         guard !platforms.isEmpty else {
-            #warning("Add error log. Missing platforms in Dependencies.swift!")
+            logger.warning("Platforms was not determined. Select platforms in `Dependencies.swift` manifest file.")
             return
         }
 
