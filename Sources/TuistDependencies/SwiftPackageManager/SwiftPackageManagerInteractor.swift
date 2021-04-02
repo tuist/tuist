@@ -93,9 +93,8 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
                 .uniqueDependencies()
                 .flatMap { dependencyInfo -> [AbsolutePath] in
                     let packageInfo = try swiftPackageManager.loadPackageInfo(at: dependencyInfo.absolutePath)
-                    guard
-                        !packageInfo.supportedPlatforms.isDisjoint(with: platforms)
-                    else {
+                    
+                    guard !packageInfo.supportedPlatforms.isDisjoint(with: platforms) else {
                         logger.info("\(dependencyInfo.name) does not support requested platforms. Building XCFramemork has been skipped.")
                         return []
                     }

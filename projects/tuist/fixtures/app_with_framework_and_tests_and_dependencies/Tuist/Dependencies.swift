@@ -5,12 +5,12 @@ let dependencies = Dependencies(
         [
             .github(path: "Alamofire/Alamofire", requirement: .exact("5.0.4"))
         ],
-        platforms: [.iOS],
         options: [.useXCFrameworks, .noUseBinaries]
     ),
     swiftPackageManager: .swiftPackageManager(
         [
-            .package(url: "https://github.com/SnapKit/SnapKit.git", .upToNextMajor(from: "5.0.1"))
+            .package(url: "https://github.com/ReactiveX/RxSwift.git", .exact("5.1.1"))
         ]
-    )
+    ),
+    platforms: [.iOS]
 )

@@ -8,6 +8,8 @@ Feature: Install dependencies Tuist.
         Then a directory Tuist/Dependencies/Carthage/Alamofire.xcframework exists
         Then a file Tuist/Dependencies/Carthage/.Alamofire.version exists
         Then a file Tuist/Dependencies/Lockfiles/Cartfile.resolved exists
-        Then a directory Tuist/Dependencies/SwiftPackageManager/.build/checkouts/SnapKit exists
+        Then a directory Tuist/Dependencies/SwiftPackageManager/.build/checkouts/RxSwift exists
+        Then a directory Tuist/Dependencies/SwiftPackageManager/RxSwift.xcframework
+        Then a directory Tuist/Dependencies/SwiftPackageManager/RxCocoa.xcframework
         Then a file Tuist/Dependencies/Lockfiles/Package.resolved exists
 
