@@ -88,7 +88,7 @@ final class ManifestGraphLoader: ManifestGraphLoading {
     private func loadWorkspaceGraph(at path: AbsolutePath) throws -> ValueGraph {
         let plugins = try loadPlugins(at: path)
         let manifests = try recursiveManifestLoader.loadWorkspace(at: path)
-        let models = try convert(manifests: manifests)
+        let models = try convert(manifests: manifests, plugins: plugins)
         return try graphLoader.loadWorkspace(workspace: models.workspace, projects: models.projects)
     }
 
@@ -102,13 +102,19 @@ final class ManifestGraphLoader: ManifestGraphLoading {
         }
     }
 
-    private func convert(manifests: LoadedWorkspace,
-                         context: ExecutionContext = .concurrent) throws -> (workspace: Workspace, projects: [TuistGraph.Project])
-    {
+    private func convert(
+        manifests: LoadedWorkspace,
+        plugins: Plugins,
+        context: ExecutionContext = .concurrent
+    ) throws -> (workspace: Workspace, projects: [TuistGraph.Project]) {
         let workspace = try converter.convert(manifest: manifests.workspace, path: manifests.path)
         let tuples = manifests.projects.map { (path: $0.key, manifest: $0.value) }
         let projects = try tuples.map(context: context) {
-            try converter.convert(manifest: $0.manifest, path: $0.path)
+            try converter.convert(
+                manifest: $0.manifest,
+                path: $0.path,
+                plugins: plugins
+            )
         }
         return (workspace, projects)
     }

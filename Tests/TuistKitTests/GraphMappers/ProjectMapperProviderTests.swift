@@ -32,8 +32,7 @@ final class ProjectMapperProviderTests: TuistUnitTestCase {
 
         // When
         let got = subject.mapper(
-            config: Config.test(cloud: .test(options: [])),
-            plugins: .test()
+            config: Config.test(cloud: .test(options: []))
         )
 
         // Then
@@ -47,8 +46,7 @@ final class ProjectMapperProviderTests: TuistUnitTestCase {
 
         // When
         let got = subject.mapper(
-            config: Config.test(),
-            plugins: .test()
+            config: Config.test()
         )
 
         // Then
@@ -62,8 +60,7 @@ final class ProjectMapperProviderTests: TuistUnitTestCase {
 
         // When
         let got = subject.mapper(
-            config: Config.test(),
-            plugins: .test()
+            config: Config.test()
         )
 
         // Then
@@ -81,8 +78,7 @@ final class ProjectMapperProviderTests: TuistUnitTestCase {
                 generationOptions: [
                     .disableSynthesizedResourceAccessors,
                 ]
-            ),
-            plugins: .test()
+            )
         )
 
         // Then
@@ -100,8 +96,7 @@ final class ProjectMapperProviderTests: TuistUnitTestCase {
                 generationOptions: [
                     .disableShowEnvironmentVarsInScriptPhases,
                 ]
-            ),
-            plugins: .test()
+            )
         )
 
         // Then
@@ -119,8 +114,7 @@ final class ProjectMapperProviderTests: TuistUnitTestCase {
                 generationOptions: [
                     .enableCodeCoverage,
                 ]
-            ),
-            plugins: .test()
+            )
         )
 
         // Then
@@ -134,8 +128,7 @@ final class ProjectMapperProviderTests: TuistUnitTestCase {
 
         // When
         let got = subject.mapper(
-            config: Config.test(),
-            plugins: .test()
+            config: Config.test()
         )
 
         // Then

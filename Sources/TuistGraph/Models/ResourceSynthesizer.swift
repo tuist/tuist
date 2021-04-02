@@ -2,10 +2,14 @@ import Foundation
 import TSCBasic
 
 public struct ResourceSynthesizer: Equatable, Hashable {
-    public let templatePath: AbsolutePath?
     public let parser: Parser
     public let extensions: Set<String>
-    public let templateName: String
+    public let template: Template
+    
+    public enum Template: Equatable, Hashable {
+        case file(AbsolutePath)
+        case defaultTemplate(String)
+    }
     
     public enum Parser: Equatable, Hashable {
         case strings
@@ -15,14 +19,12 @@ public struct ResourceSynthesizer: Equatable, Hashable {
     }
     
     public init(
-        templatePath: AbsolutePath?,
         parser: Parser,
         extensions: Set<String>,
-        templateName: String
+        template: Template
     ) {
-        self.templatePath = templatePath
         self.parser = parser
         self.extensions = extensions
-        self.templateName = templateName
+        self.template = template
     }
 }

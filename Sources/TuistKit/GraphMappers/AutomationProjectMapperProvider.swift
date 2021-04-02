@@ -17,15 +17,11 @@ final class AutomationProjectMapperProvider: ProjectMapperProviding {
         self.projectMapperProvider = projectMapperProvider
     }
 
-    func mapper(
-        config: Config,
-        plugins: Plugins
-    ) -> ProjectMapping {
+    func mapper(config: Config) -> ProjectMapping {
         var mappers: [ProjectMapping] = []
         mappers.append(
             projectMapperProvider.mapper(
-                config: config,
-                plugins: plugins
+                config: config
             )
         )
 

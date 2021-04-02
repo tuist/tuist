@@ -1,8 +1,11 @@
 import Foundation
 import TSCBasic
 
+/// Resource synthesizer plugin model
 public struct ResourceSynthesizerPlugin: Equatable {
+    /// Name of the plugin
     public let name: String
+    /// Path to `ResourceTemplates` directory where all resource templates are located
     public let path: AbsolutePath
     
     public init(
@@ -30,7 +33,7 @@ public struct Plugins: Equatable {
     /// - Parameters:
     ///     - projectDescriptionHelpers: List of the loaded helper plugins.
     ///     - templatePaths: List of paths to the `Templates/` directory for the loaded plugins.
-    ///     - resourceTemplates: List of paths to the `ResourceTemplates/` directory for the loaded plugins
+    ///     - resourceSynthesizers: List of the loaded resource synthesizer plugins
     public init(
         projectDescriptionHelpers: [ProjectDescriptionHelpersPlugin],
         templatePaths: [AbsolutePath],

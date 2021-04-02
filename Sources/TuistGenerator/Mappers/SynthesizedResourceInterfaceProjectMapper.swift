@@ -9,27 +9,22 @@ import SwiftGenKit
 public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { // swiftlint:disable:this type_name
     private let synthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerating
     private let contentHasher: ContentHashing
-    private let plugins: Plugins
 
     public convenience init(
-        contentHasher: ContentHashing,
-        plugins: Plugins
+        contentHasher: ContentHashing
     ) {
         self.init(
             synthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerator(),
-            contentHasher: contentHasher,
-            plugins: plugins
+            contentHasher: contentHasher
         )
     }
 
     init(
         synthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerating,
-        contentHasher: ContentHashing,
-        plugins: Plugins
+        contentHasher: ContentHashing
     ) {
         self.synthesizedResourceInterfacesGenerator = synthesizedResourceInterfacesGenerator
         self.contentHasher = contentHasher
-        self.plugins = plugins
     }
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
@@ -59,14 +54,11 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         
         try project.resourceSynthesizers
             .map { resourceSynthesizer throws -> (ResourceSynthesizer, String) in
-                if let pluginName = resourceSynthesizer.pluginName {
-                    guard let plugin = plugins.resourceSynthesizers.first(where: { $0.name == pluginName }) else { fatalError() }
-                    let templateString = try FileHandler.shared.readTextFile(
-                        plugin.path
-                            .appending(components: "\(resourceSynthesizer.templateName).stencil")
-                    )
+                switch resourceSynthesizer.template {
+                case let .file(path):
+                    let templateString = try FileHandler.shared.readTextFile(path)
                     return (resourceSynthesizer, templateString)
-                } else {
+                case .defaultTemplate:
                     return (resourceSynthesizer, templateString(for: resourceSynthesizer.parser))
                 }
             }
@@ -101,9 +93,16 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
 
         let paths = try self.paths(for: resourceSynthesizer, target: target)
             .filter(isResourceEmpty)
+        
+        let templateName: String
+        switch resourceSynthesizer.template {
+        case let .defaultTemplate(name):
+            templateName = name
+        case let .file(path):
+            templateName = path.basename
+        }
 
         let renderedInterfaces: [(String, String)]
-
         switch resourceSynthesizer.parser {
         case .plists:
             renderedInterfaces = try paths.map { path in
@@ -134,7 +133,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
             )
             renderedInterfaces = [
                 (
-                    resourceSynthesizer.templateName + "+" + name,
+                    templateName + "+" + name,
                     try synthesizedResourceInterfacesGenerator.render(
                         parser: resourceSynthesizer.parser,
                         templateString: templateString,

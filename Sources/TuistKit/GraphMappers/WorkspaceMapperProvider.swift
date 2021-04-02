@@ -4,10 +4,7 @@ import TuistGenerator
 import TuistGraph
 
 protocol WorkspaceMapperProviding {
-    func mapper(
-        config: Config,
-        plugins: Plugins
-    ) -> WorkspaceMapping
+    func mapper(config: Config) -> WorkspaceMapping
 }
 
 final class WorkspaceMapperProvider: WorkspaceMapperProviding {
@@ -21,29 +18,21 @@ final class WorkspaceMapperProvider: WorkspaceMapperProviding {
         self.projectMapperProvider = projectMapperProvider
     }
 
-    func mapper(
-        config: Config,
-        plugins: Plugins
-    ) -> WorkspaceMapping {
+    func mapper(config: Config) -> WorkspaceMapping {
         SequentialWorkspaceMapper(
             mappers: mappers(
-                config: config,
-                plugins: plugins
+                config: config
             )
         )
     }
 
-    func mappers(
-        config: Config,
-        plugins: Plugins
-    ) -> [WorkspaceMapping] {
+    func mappers(config: Config) -> [WorkspaceMapping] {
         var mappers: [WorkspaceMapping] = []
 
         mappers.append(
             ProjectWorkspaceMapper(
                 mapper: projectMapperProvider.mapper(
-                    config: config,
-                    plugins: plugins
+                    config: config
                 )
             )
         )

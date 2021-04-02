@@ -3,39 +3,6 @@ import ProjectDescription
 import TSCBasic
 import TuistGraph
 
-extension TuistGraph.ResourceSynthesizer {
-    static func from(
-        manifest: ProjectDescription.ResourceSynthesizer,
-        plugins: Plugins
-    ) -> Self {
-        let templatePath: AbsolutePath?
-        if let pluginName = manifest.pluginName {
-            guard let plugin = plugins.resourceSynthesizers.first(where: { $0.name == pluginName }) else { fatalError() }
-            templatePath = plugin.path
-                .appending(components: "\(manifest.templateName).stencil")
-        } else {
-            templatePath = nil
-        }
-        return .init(
-            templatePath: templatePath,
-            parser: TuistGraph.ResourceSynthesizer.Parser.from(manifest: manifest.parser),
-            extensions: manifest.extensions,
-            templateName: manifest.templateName
-        )
-    }
-}
-
-extension TuistGraph.ResourceSynthesizer.Parser {
-    static func from(
-        manifest: ProjectDescription.ResourceSynthesizer.Parser
-    ) -> Self {
-        switch manifest {
-        case .strings:
-            return .strings
-        }
-    }
-}
-
 extension TuistGraph.Project {
     /// Maps a ProjectDescription.FileElement instance into a [TuistGraph.FileElement] instance.
     /// Glob patterns in file elements are unfolded as part of the mapping.
@@ -45,7 +12,8 @@ extension TuistGraph.Project {
     static func from(
         manifest: ProjectDescription.Project,
         generatorPaths: GeneratorPaths,
-        plugins: Plugins
+        plugins: Plugins,
+        pluginsHelper: PluginsHelping
     ) throws -> TuistGraph.Project {
         let name = manifest.name
         let organizationName = manifest.organizationName
@@ -55,7 +23,14 @@ extension TuistGraph.Project {
         let additionalFiles = try manifest.additionalFiles.flatMap { try TuistGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths) }
         let packages = try manifest.packages.map { try TuistGraph.Package.from(manifest: $0, generatorPaths: generatorPaths) }
         let ideTemplateMacros = try manifest.fileHeaderTemplate.map { try IDETemplateMacros.from(manifest: $0, generatorPaths: generatorPaths) }
-        let resourceSynthesizers = manifest.resourceSynthesizers.map { TuistGraph.ResourceSynthesizer.from(manifest: $0, plugins: plugins) }
+        let resourceSynthesizers = try manifest.resourceSynthesizers.map {
+            try TuistGraph.ResourceSynthesizer.from(
+                manifest: $0,
+                generatorPaths: generatorPaths,
+                plugins: plugins,
+                pluginsHelper: pluginsHelper
+            )            
+        }
         return Project(
             path: generatorPaths.manifestDirectory,
             sourceRootPath: generatorPaths.manifestDirectory,

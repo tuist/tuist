@@ -22,8 +22,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         contentHasher = ContentHasher()
         subject = SynthesizedResourceInterfaceProjectMapper(
             synthesizedResourceInterfacesGenerator: synthesizedResourceInterfacesGenerator,
-            contentHasher: contentHasher,
-            plugins: .test()
+            contentHasher: contentHasher
         )
     }
 
