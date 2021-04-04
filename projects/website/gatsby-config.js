@@ -10,7 +10,8 @@ module.exports = {
     githubUrl: 'https://github.com/tuist',
     releasesUrl: 'https://github.com/tuist/tuist/releases',
     documentationUrl: 'https://docs.tuist.io/',
-    slackUrl: 'https://join.slack.com/t/tuistapp/shared_invite/zt-g38gajhj-D6LLakrPnVCy4sLm24KxaQ',
+    slackUrl:
+      'https://join.slack.com/t/tuistapp/shared_invite/zt-g38gajhj-D6LLakrPnVCy4sLm24KxaQ',
     twitterUrl: 'http://twitter.com/tuistio',
     editUrl: 'https://github.com/tuist/tuist/edit/master/website',
     contributeUrl: 'https://docs.tuist.io/contribution-1-getting-started',
@@ -132,8 +133,8 @@ module.exports = {
                 }">clicking here</a>.)</div>
               `
 
-                let html = edge.node.html
-                html = html
+                let body = edge.node.body
+                body = body
                   .replace(/href="\//g, `href="${siteUrl}/`)
                   .replace(/src="\//g, `src="${siteUrl}/`)
                   .replace(/"\/static\//g, `"${siteUrl}/static/`)
@@ -143,7 +144,7 @@ module.exports = {
                   date: edge.node.fields.date,
                   url: site.siteMetadata.siteUrl + edge.node.fields.slug,
                   guid: site.siteMetadata.siteUrl + edge.node.fields.slug,
-                  custom_elements: [{ 'content:encoded': html + postText }],
+                  custom_elements: [{ 'content:encoded': body + postText }],
                 })
               })
             },
@@ -156,7 +157,7 @@ module.exports = {
                 ) {
                   edges {
                     node {
-                      html
+                      body
                       fields { 
                         slug 
                         date  
