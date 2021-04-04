@@ -11,6 +11,8 @@ updates:
     labels:
       - dependencies
       - automerge
+    ignore:
+      - dependency-name: 'theme-ui/*'
   - package-ecosystem: npm
     directory: '/projects/next'
     schedule:
