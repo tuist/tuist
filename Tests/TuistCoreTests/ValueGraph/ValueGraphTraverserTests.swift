@@ -1133,7 +1133,7 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
                 linking: .dynamic,
                 architectures: [.arm64],
                 product: .framework
-            )
+            ),
         ])
     }
 
