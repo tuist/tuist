@@ -144,11 +144,13 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         // Then
         XCTAssertTrue(carthageInteractor.invokedFetch)
+        XCTAssertFalse(carthageInteractor.invokedClean)
         XCTAssertEqual(carthageInteractor.invokedFetchParameters?.dependenciesDirectory, dependenciesDirectoryPath)
         XCTAssertEqual(carthageInteractor.invokedFetchParameters?.dependencies, carthageDependencies)
         XCTAssertEqual(carthageInteractor.invokedFetchParameters?.platforms, platforms)
 
         XCTAssertTrue(swiftPackageManagerInteractor.invokedFetch)
+        XCTAssertFalse(swiftPackageManagerInteractor.invokedClean)
         XCTAssertEqual(swiftPackageManagerInteractor.invokedFetchParameters?.dependenciesDirectory, dependenciesDirectoryPath)
         XCTAssertEqual(swiftPackageManagerInteractor.invokedFetchParameters?.dependencies, swiftPackageManagerDependencies)
         XCTAssertEqual(swiftPackageManagerInteractor.invokedFetchParameters?.platforms, platforms)
@@ -156,7 +158,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         XCTAssertFalse(cocoaPodsInteractor.invokedFetch)
     }
 
-    func test_fetch_no_depedencies() throws {
+    func test_fetch_throws_when_noPlatforms() throws {
         // Given
         let rootPath = try temporaryPath()
 
@@ -166,16 +168,33 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             platforms: []
         )
 
+        // When / Then
+        XCTAssertThrowsSpecific(
+            try subject.fetch(at: rootPath, dependencies: dependencies),
+            DependenciesControllerError.noPlatforms
+        )
+    }
+    
+    func test_fetch_no_dependencies() throws {
+        // Given
+        let rootPath = try temporaryPath()
+
+        let dependencies = Dependencies(
+            carthage: .init([], options: []),
+            swiftPackageManager: .init([]),
+            platforms: [.iOS]
+        )
+        
         // When
         try subject.fetch(at: rootPath, dependencies: dependencies)
 
         // Then
-        XCTAssertTrue(carthageInteractor.invokedClean)
         XCTAssertFalse(carthageInteractor.invokedFetch)
-
-        XCTAssertTrue(swiftPackageManagerInteractor.invokedClean)
+        XCTAssertTrue(carthageInteractor.invokedClean)
+        
         XCTAssertFalse(swiftPackageManagerInteractor.invokedFetch)
-
+        XCTAssertTrue(swiftPackageManagerInteractor.invokedClean)
+        
         XCTAssertFalse(cocoaPodsInteractor.invokedFetch)
     }
 }
