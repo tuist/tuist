@@ -2574,10 +2574,10 @@
     "@emotion/react" "^11.1.1"
     csstype "^3.0.5"
 
-"@theme-ui/match-media@^0.3.5":
-  version "0.3.5"
-  resolved "https://registry.yarnpkg.com/@theme-ui/match-media/-/match-media-0.3.5.tgz#e676b9f74e1f58608cfdb48ae8be69c4b7517109"
-  integrity sha512-twhqy3H++jP7TqCZSRvSSc1/hxqjVokX+G/gf5S6lYQj4+zaksTO/AyzBzb/6iJLLkN2WeL9P2yjCeSTMxdJGw==
+"@theme-ui/match-media@^0.6.1":
+  version "0.6.1"
+  resolved "https://registry.yarnpkg.com/@theme-ui/match-media/-/match-media-0.6.1.tgz#4d39f6c2361e64903a868c2d0eb4ff0c7953909e"
+  integrity sha512-o0K9SnQDWyFJ9FobrMsGeCJc5qQoWg1s+Ex3LPn4Air8tjtTInStf4erW1r/uRzjvQ+TUaF8wjYnNpm/mv1Gcw==
 
 "@theme-ui/mdx@0.3.5":
   version "0.3.5"
@@ -2709,12 +2709,12 @@
     "@theme-ui/preset-tailwind" "^0.6.0"
     "@theme-ui/preset-tosh" "^0.6.0"
 
-"@theme-ui/prism@^0.3.5":
-  version "0.3.5"
-  resolved "https://registry.yarnpkg.com/@theme-ui/prism/-/prism-0.3.5.tgz#7f17034319d4947ab8cbc2869e1e463b76975fbf"
-  integrity sha512-FyyitvZjjpcMaKv4wQUyzQ+XXtWA3xtpOKEsNICGTIOoxHyP+FSC8+LqrHtxwcGLvl6MADmooh0kkcI1auFwkA==
+"@theme-ui/prism@^0.6.1":
+  version "0.6.1"
+  resolved "https://registry.yarnpkg.com/@theme-ui/prism/-/prism-0.6.1.tgz#1f2e52e826931cfe604b5751434dae4623cd6aea"
+  integrity sha512-fApCfZYvp1y8ci35MWEbUI39j5AQxIIDcL0vcDqlTLRn1pmcX39xNrfV0ouD4CplOsxyMts4El+Mx9RJoc42zQ==
   dependencies:
-    prism-react-renderer "^1.0.2"
+    prism-react-renderer "^1.1.1"
 
 "@theme-ui/sidenav@^0.6.1":
   version "0.6.1"
@@ -7483,7 +7483,6 @@ fastq@^1.10.0, fastq@^1.6.0:
 
 "favicons-webpack-plugin@https://github.com/Creatiwity/favicons-webpack-plugin.git#0872de414061baaad0a2853c77ae75bc38b8bbbf":
   version "0.0.9"
-  uid "0872de414061baaad0a2853c77ae75bc38b8bbbf"
   resolved "https://github.com/Creatiwity/favicons-webpack-plugin.git#0872de414061baaad0a2853c77ae75bc38b8bbbf"
   dependencies:
     core-js "^2.5.7"
@@ -13654,7 +13653,7 @@ pretty-hrtime@^1.0.3:
   resolved "https://registry.yarnpkg.com/pretty-hrtime/-/pretty-hrtime-1.0.3.tgz#b7e3ea42435a4c9b2759d99e0f201eb195802ee1"
   integrity sha1-t+PqQkNaTJsnWdmeDyAesZWALuE=
 
-prism-react-renderer@^1.0.2:
+prism-react-renderer@^1.1.1:
   version "1.2.0"
   resolved "https://registry.yarnpkg.com/prism-react-renderer/-/prism-react-renderer-1.2.0.tgz#5ad4f90c3e447069426c8a53a0eafde60909cdf4"
   integrity sha512-GHqzxLYImx1iKN1jJURcuRoA/0ygCcNhfGw1IT8nPIMzarmKQ3Nc+JcG0gi8JXQzuh0C5ShE4npMIoqNin40hg==
