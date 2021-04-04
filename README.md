@@ -140,6 +140,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
   </tr>
   <tr>
     <td align="center"><a href="https://github.com/tiarnann"><img src="https://avatars.githubusercontent.com/u/10522081?v=4" width="100px;" alt=""/><br /><sub><b>Tíarnán McGrath</b></sub></a></td>
+    <td align="center"><a href="https://github.com/softmaxsg"><img src="https://avatars.githubusercontent.com/u/3723817?v=4" width="100px;" alt=""/><br /><sub><b>Vitaly Chupryk</b></sub></a></td>
   </tr>
 </table>
 
