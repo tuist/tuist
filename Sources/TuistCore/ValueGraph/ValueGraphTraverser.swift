@@ -235,6 +235,8 @@ public class ValueGraphTraverser: GraphTraversing {
         if target.target.product == .unitTests {
             if let hostApp = hostApplication(path: path, name: name) {
                 references.subtract(embeddableFrameworks(path: hostApp.path, name: hostApp.target.name))
+            } else {
+                references = Set(precompiledFrameworks)
             }
         }
 

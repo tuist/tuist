@@ -1120,10 +1120,6 @@ final class ValueGraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, [
-            .product(
-                target: "LocallyBuiltFramework",
-                productName: "LocallyBuiltFramework.framework"
-            ),
             .framework(
                 path: "/test/test.framework",
                 binaryPath: "/test/test.framework/test",
