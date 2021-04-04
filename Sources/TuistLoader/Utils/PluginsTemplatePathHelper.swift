@@ -4,7 +4,7 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
-protocol PluginsHelping {
+protocol PluginsTemplatePathHelping {
     func templatePath(
         for pluginName: String,
         resourceName: String,
@@ -34,7 +34,7 @@ enum PluginsHelperError: FatalError, Equatable {
     }
 }
 
-final class PluginsHelper: PluginsHelping {
+final class PluginsTemplatePathHelper: PluginsTemplatePathHelping {
     func templatePath(
         for pluginName: String,
         resourceName: String,

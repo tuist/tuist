@@ -68,9 +68,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
 
         var target = target
 
-        var sideEffects: [SideEffectDescriptor] = []
-
-        try project.resourceSynthesizers
+        let sideEffects: [SideEffectDescriptor] = try project.resourceSynthesizers
             .map { resourceSynthesizer throws -> (ResourceSynthesizer, String) in
                 switch resourceSynthesizer.template {
                 case let .file(path):
@@ -80,7 +78,8 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
                     return (resourceSynthesizer, try templateString(for: resourceSynthesizer.parser))
                 }
             }
-            .forEach { parser, templateString in
+            .reduce([]) { acc, current in
+                let (parser, templateString) = current
                 let interfaceTypeEffects: [SideEffectDescriptor]
                 (target, interfaceTypeEffects) = try renderAndMapTarget(
                     parser,
@@ -88,7 +87,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
                     target: target,
                     project: project
                 )
-                sideEffects += interfaceTypeEffects
+                return acc + interfaceTypeEffects
             }
 
         return (target, sideEffects)

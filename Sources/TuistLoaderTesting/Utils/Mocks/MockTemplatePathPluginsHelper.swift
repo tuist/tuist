@@ -3,7 +3,7 @@ import TSCBasic
 import TuistGraph
 @testable import TuistLoader
 
-public final class MockPluginsHelper: PluginsHelping {
+public final class MockTemplatePathPluginsHelper: PluginsTemplatePathHelping {
     public init() {}
 
     public var templatePathStub: ((String, String, [ResourceSynthesizerPlugin]) throws -> AbsolutePath)?

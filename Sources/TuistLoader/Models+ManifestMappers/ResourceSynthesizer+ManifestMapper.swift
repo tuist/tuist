@@ -7,7 +7,7 @@ extension TuistGraph.ResourceSynthesizer {
         manifest: ProjectDescription.ResourceSynthesizer,
         generatorPaths: GeneratorPaths,
         plugins: Plugins,
-        pluginsHelper: PluginsHelping
+        pluginsTemplatePathHelper: PluginsTemplatePathHelping
     ) throws -> Self {
         let template: TuistGraph.ResourceSynthesizer.Template
         switch manifest.templateType {
@@ -17,7 +17,7 @@ extension TuistGraph.ResourceSynthesizer {
             let path = try generatorPaths.resolve(path: path)
             template = .file(path)
         case let .plugin(name: name, resourceName: resourceName):
-            let path = try pluginsHelper.templatePath(
+            let path = try pluginsTemplatePathHelper.templatePath(
                 for: name,
                 resourceName: resourceName,
                 resourceSynthesizerPlugins: plugins.resourceSynthesizers

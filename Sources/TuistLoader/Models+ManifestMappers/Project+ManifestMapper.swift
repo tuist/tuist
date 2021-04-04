@@ -13,7 +13,7 @@ extension TuistGraph.Project {
         manifest: ProjectDescription.Project,
         generatorPaths: GeneratorPaths,
         plugins: Plugins,
-        pluginsHelper: PluginsHelping
+        pluginsTemplatePathHelper: PluginsTemplatePathHelping
     ) throws -> TuistGraph.Project {
         let name = manifest.name
         let organizationName = manifest.organizationName
@@ -28,7 +28,7 @@ extension TuistGraph.Project {
                 manifest: $0,
                 generatorPaths: generatorPaths,
                 plugins: plugins,
-                pluginsHelper: pluginsHelper
+                pluginsTemplatePathHelper: pluginsTemplatePathHelper
             )
         }
         return Project(

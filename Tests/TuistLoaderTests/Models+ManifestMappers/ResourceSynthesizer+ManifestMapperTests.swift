@@ -10,16 +10,16 @@ import XCTest
 @testable import TuistLoader
 
 final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
-    private var pluginsHelper: MockPluginsHelper!
+    private var pluginsTemplatePathHelper: MockTemplatePathPluginsHelper!
 
     override func setUp() {
         super.setUp()
 
-        pluginsHelper = MockPluginsHelper()
+        pluginsTemplatePathHelper = MockTemplatePathPluginsHelper()
     }
 
     override func tearDown() {
-        pluginsHelper = nil
+        pluginsTemplatePathHelper = nil
 
         super.tearDown()
     }
@@ -33,7 +33,7 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
             manifest: .strings(),
             generatorPaths: GeneratorPaths(manifestDirectory: manifestDirectory),
             plugins: .none,
-            pluginsHelper: pluginsHelper
+            pluginsTemplatePathHelper: pluginsTemplatePathHelper
         )
 
         // Then
@@ -56,7 +56,7 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
             manifest: .plists(templatePath: "Template.stencil"),
             generatorPaths: GeneratorPaths(manifestDirectory: manifestDirectory),
             plugins: .none,
-            pluginsHelper: pluginsHelper
+            pluginsTemplatePathHelper: pluginsTemplatePathHelper
         )
 
         // Then
@@ -76,7 +76,7 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
         var invokedPluginNames: [String] = []
         var invokedResourceNames: [String] = []
         var invokedResourceSynthesizerPlugins: [ResourceSynthesizerPlugin] = []
-        pluginsHelper.templatePathStub = { pluginName, resourceName, resourceSynthesizerPlugins in
+        pluginsTemplatePathHelper.templatePathStub = { pluginName, resourceName, resourceSynthesizerPlugins in
             invokedPluginNames.append(pluginName)
             invokedResourceNames.append(resourceName)
             invokedResourceSynthesizerPlugins.append(contentsOf: resourceSynthesizerPlugins)
@@ -92,7 +92,7 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
                     .test(name: "Plugin"),
                 ]
             ),
-            pluginsHelper: pluginsHelper
+            pluginsTemplatePathHelper: pluginsTemplatePathHelper
         )
 
         // Then

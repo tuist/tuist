@@ -8,12 +8,12 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class PluginsHelperTests: TuistUnitTestCase {
-    private var subject: PluginsHelper!
+    private var subject: PluginsTemplatePathHelper!
 
     override func setUp() {
         super.setUp()
 
-        subject = PluginsHelper()
+        subject = PluginsTemplatePathHelper()
     }
 
     override func tearDown() {
