@@ -8,7 +8,7 @@ import TuistSupport
 enum DependenciesControllerError: FatalError {
     /// Thrown when platforms for dependencies to install are not determined in `Dependencies.swift`.
     case noPlatforms
-    
+
     /// Error type.
     var type: ErrorType {
         switch self {
@@ -16,7 +16,7 @@ enum DependenciesControllerError: FatalError {
             return .abort
         }
     }
-    
+
     // Error description.
     var description: String {
         switch self {

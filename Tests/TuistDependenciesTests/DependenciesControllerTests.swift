@@ -174,7 +174,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             DependenciesControllerError.noPlatforms
         )
     }
-    
+
     func test_fetch_no_dependencies() throws {
         // Given
         let rootPath = try temporaryPath()
@@ -184,17 +184,17 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             swiftPackageManager: .init([]),
             platforms: [.iOS]
         )
-        
+
         // When
         try subject.fetch(at: rootPath, dependencies: dependencies)
 
         // Then
         XCTAssertFalse(carthageInteractor.invokedFetch)
         XCTAssertTrue(carthageInteractor.invokedClean)
-        
+
         XCTAssertFalse(swiftPackageManagerInteractor.invokedFetch)
         XCTAssertTrue(swiftPackageManagerInteractor.invokedClean)
-        
+
         XCTAssertFalse(cocoaPodsInteractor.invokedFetch)
     }
 }
