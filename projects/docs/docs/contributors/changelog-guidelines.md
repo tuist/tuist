@@ -6,7 +6,7 @@ description: Read about the guidelines that the project embrace for the style of
 
 Here you can find the general guidelines for maintaining the Changelog (or adding new entry). We follow the guidelines from [Keep a Changelog](http://keepachangelog.com/en/1.0.0/) with few additions.
 
-## Guiding Principles
+### Guiding Principles
 
 - Changelogs are for humans, not machines.
 - There should be an entry for every single version.
@@ -29,7 +29,7 @@ Here you can find the general guidelines for maintaining the Changelog (or addin
 - **Fixed** for any bug fixes.
 - **Security** in case of vulnerabilities.
 
-## Example:
+### Example:
 
 ```
 ## [9.0.0] - 2017-09-04

@@ -17,7 +17,7 @@ Those are written in [Cucumber](https://cucumber.io/docs) and Ruby and can be fo
 ./fourier test tuist acceptance projects/tuist/features/generate-1.feature:3
 ```
 
-:::tip Example
+:::note Example
 
 [_generate-1.features_](https://github.com/tuist/tuist/blob/main/projects/tuist/features/generate-1.feature) has several scenarios that run `tuist generate` on a fixture, verify Xcode projects and workspaces are generated and finally verify the generated project build and test successfully.
 
@@ -29,7 +29,7 @@ Most of the internal components Tuist uses have unit tests to thoroughly test th
 
 Those are written in Swift and follow the convention of `<ComponentName>Tests`. Those are run when calling `swift test` or from within Xcode.
 
-:::tip Example
+:::note Example
 
 [TargetLinterTests](https://github.com/tuist/tuist/blob/main/Tests/TuistGeneratorTests/Linter/TargetLinterTests.swift) verifies all the different scenarios the target linter component can flag issues for.
 
@@ -43,6 +43,6 @@ Those are written in Swift and are contained within the `Tuist...IntegrationTest
 
 **Example:**
 
-:::tip Example
+:::note Example
 [StableStructureIntegrationTests](https://github.com/tuist/tuist/blob/main/Tests/TuistIntegrationTests/Generator/StableStructureIntegrationTests.swift) dynamically generates projects with several dependencies and files in random orders and verifies the generated project is always the same even after several generation passes.
 :::

@@ -2,6 +2,37 @@ module.exports = {
   docs: [
     {
       type: 'category',
+      label: 'Usage',
+      items: ['usage/shell-autocompletion', 'usage/helpers'],
+    },
+    {
+      type: 'category',
+      label: 'Building at scale',
+      items: ['building-at-scale/caching'],
+    },
+    {
+      type: 'category',
+      label: 'Commands',
+      items: [
+        'commands/edit',
+        'commands/generate',
+        'commands/focus',
+        'commands/signing',
+        'commands/build',
+        'commands/test',
+        'commands/scaffold',
+        'commands/linting',
+        'commands/graph',
+        'commands/up',
+        'commands/migration',
+        'commands/documentation',
+        'commands/secrets',
+        'commands/clean',
+        'commands/dependencies',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Contributors',
       items: [
         'contributors/get-started',
