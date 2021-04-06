@@ -24,7 +24,7 @@ Where `Target` should be a name of the target, `Configuration` a name of the con
 Export the public (as .cer file) and private key (as .p12 file with an empty string as a password) from your keychain. Use the same basename for these two files: `SomeName.cer` and `SomeName.p12` - this name doesn't need to match any target or configuration.
 If multiple provisioning profiles use the same certificate, it's fine to have `.p12` and `.cer` files just once in the folder - Tuist will find the matching one based on information embedded into the provisioning profile.
 Now you can put all those files in `Tuist/Signing` directory within your project.
-To make it all work, create a secure password by running [tuist secret](/docs/commands/secret/) and place its contents into `Tuist/master.key` that will be used
+To make it all work, create a secure password by running [tuist secret](/commands/secrets/) and place its contents into `Tuist/master.key` that will be used
 for encrypting and decrypting your files.
 
 After that, feel free to run `tuist generate` and everything else should be done for you -
