@@ -31,11 +31,11 @@ The targets have an associated target that contains the tests. **Unit tests** ar
 
 :::
 
-## Utilities
+### Utilities
 
 All generic utilities live in the `TuistSupport` framework. This section documents some of the utilities and how to use them.
 
-### Logger
+#### Logger
 
 When printing output for the user, this is the utility that should be used over the global `print` method. The utility provides formatting that varies depending on the terminal the process is run from, and determines whether the standard output or error should be used based on the type of content being output.
 

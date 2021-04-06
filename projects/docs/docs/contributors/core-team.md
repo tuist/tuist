@@ -6,7 +6,7 @@ description: The core team is a group of contributors that demonstrated a lastin
 
 The Tuist Core Team is a group of Tuist contributors that have demonstrated a lasting enthusiasm for the project and community. The Core Team has GitHub admin privileges on all Tuist repositories.
 
-## Core Team Responsibilities
+### Responsibilities
 
 The Tuist Core Team has the following responsibilities:
 
@@ -17,7 +17,7 @@ The Tuist Core Team has the following responsibilities:
 
 Note that the Tuist Core Team – and all Tuist contributors – are open source _volunteers_; membership on the Core Team is expressly _not_ an obligation. The Core Team is distinguished as leaders in the community and while they are a good group to turn to when someone needs an answer to a question, they are still volunteering their time, and may not be available to help immediately.
 
-## Core Team Members
+### Members
 
 - [@pepibumur](https://github.com/pepibumur)
 - [@ollieatkinson](https://github.com/ollieatkinson)

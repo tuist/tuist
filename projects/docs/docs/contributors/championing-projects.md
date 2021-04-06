@@ -6,7 +6,7 @@ description: This documents describes a framework for proposing and executing pr
 
 This page proposes a light-weight framework to propose, execute, and roll-out projects in Tuist. Projects move through 2 phases: **Explore** and **Build**.
 
-## Explore
+### Explore
 
 This phase starts with an idea. It's usually a user need or problem to be tackled. The goal of this phase is three-fold:
 
@@ -16,7 +16,7 @@ This phase starts with an idea. It's usually a user need or problem to be tackle
 
 The outcome of this phase must be a discussions on the RFCs category of the [community forum](https://github.com/tuist/tuist/discussions/categories/rfcs). The proposal should follow the [default template](https://github.com/tuist/tuist/discussions/2189). The Tuist core team, maintainers, and contributors will dump any concerns or thoughts about the proposed solution. The goal of the discussion is to seek alignment and introduce any necessary modifications to achieve that.
 
-### Roles
+#### Roles
 
 As part of the explore phase, you should identify who will be the **steward**, and if there are **contributors** that want to join the project. The list below describes what the responsibilities of each role are:
 
@@ -24,7 +24,7 @@ As part of the explore phase, you should identify who will be the **steward**, a
 - **Contributor:** Contributors are Tuist users or contributors interested in the proposed solution and would like to participate in its execution.
 - **Steward:** A person from the core team that ensures that the project's execution aligns with Tuist’s design principles and best practices. It’s also the point person to answer any question that might arise.
 
-## Build
+### Build
 
 The goal of this phase is to implement the proposed solution. You must create a **GitHub Milestone** with the project's name and a reference to the topic on Discourse. Moreover, you must break down the project into **small tasks represented by GitHub issues** and assign them to the milestone. If there are contributors to the project other than the champion, we recommend creating a public channel in Slack with the following naming convention `#project-xxx`.
 
