@@ -53,6 +53,58 @@ In order for Tuist to locate the templates for a plugin, they must be placed in 
 └── ...
 ```
 
+## ResourceSynthesizers
+
+ResourceSynthesizer plugins are for sharing & reusing templates for [synthesizing resources](/docs/usage/resources/). To see how you can use resource synthesizers, take a look [here](/docs/usage/project-description#resourcesynthesizer). If you want to use one of the predefined resource synthesizers, the template must also adhere to a specific naming.
+
+For example if you initialize `ResourceSynthesizer` with `.strings(plugin: "MyPlugin")` then the template must be called `Strings.stencil`.
+
+There are more types, so the naming is:
+
+- `strings` => `Strings.stencil`
+- `assets` => `Assets.stencil`
+- `plists` => `Plists.stencil`
+- `fonts` => `Fonts.stencil`
+- `coreData` => `CoreData.stencil`
+- `interfaceBuilder` => `InterfaceBuilder.stencil`
+- `json` => `JSON.stencil`
+- `yaml` => `YAML.stencil`
+
+You can also create a `ResourceSynthesizer` with `.custom`. In this case the template should be of the same name as `resourceName`.
+
+In order for Tuist to locate the templates for a plugin, they must be placed in the same directory as the `Plugin.swift` manifest and in a directory named `ResourceTemplates`.
+
+```
+.
+├── ...
+├── Plugin.swift
+├── ResourceTemplates
+├───── Strings.stencil
+├───── Plists.stencil
+├───── CustomTemplate.stencil
+└── ...
+```
+
+If you'd like to provide a type-safe way for users of your plugin to use your custom resource synthesizers you can use an extension like:
+
+```swift
+extension ResourceSynthesizer {
+    public static func myPluginStrings() -> Self {
+        .strings(plugin: "MyPlugin")
+    }
+}
+
+extension Array where Element == ResourceSynthesizer {
+    public static var `default`: Self {
+        [
+            .myPluginStrings(),
+            .myPluginPlists(),
+            ...
+        ]
+    }
+}
+```
+
 ### Example
 
 Let's walk through creating a custom plugin for Tuist! Our plugin will be named `MyTuistPlugin` and we want to add a new method to `Project` that will
