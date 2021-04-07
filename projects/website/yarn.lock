@@ -2661,12 +2661,12 @@
   dependencies:
     "@theme-ui/preset-base" "^0.6.0"
 
-"@theme-ui/preset-sketchy@^0.6.1":
-  version "0.6.1"
-  resolved "https://registry.yarnpkg.com/@theme-ui/preset-sketchy/-/preset-sketchy-0.6.1.tgz#e14caebcaada0864d0880d6eaf7f5b80e5837de4"
-  integrity sha512-dBVkORsRHY7sPmQHowrbwXinkPMKDvgtj5/YAJGpYMdJsRQfq4QYIT4FRtlsZ37DxM/Z4XwcM5ZnD8vzaPnjWw==
+"@theme-ui/preset-sketchy@^0.6.2":
+  version "0.6.2"
+  resolved "https://registry.yarnpkg.com/@theme-ui/preset-sketchy/-/preset-sketchy-0.6.2.tgz#34bdaeaf288820b1fb2017592c476f8882d1a0c7"
+  integrity sha512-cHNmdQ/P4JRTTytmGisWQMH+iW1SMnKMjv0uosXIaupd/EqmW7bWwxr/BY8t3a2+mr14dKIDkqD/3mjnQ6hWDQ==
   dependencies:
-    "@theme-ui/css" "0.6.0"
+    "@theme-ui/css" "^0.6.2"
 
 "@theme-ui/preset-swiss@^0.6.0":
   version "0.6.0"
@@ -2688,10 +2688,10 @@
   resolved "https://registry.yarnpkg.com/@theme-ui/preset-tosh/-/preset-tosh-0.6.0.tgz#e08b2e1067659f5028da61737c369cff9b947864"
   integrity sha512-0V2m8YJoAMtLQVX9GGx5nxmTn936OZQVpOdfgUx8zf6Uwc2ocIhVzGHOpwTe26JSEaOP0pli9DC8abS/t41Tuw==
 
-"@theme-ui/presets@^0.6.1":
-  version "0.6.1"
-  resolved "https://registry.yarnpkg.com/@theme-ui/presets/-/presets-0.6.1.tgz#ad754db581eec119a49fa7531590e3cf90f68da7"
-  integrity sha512-JT5vueeYbQGFdFiBGt663KzsMZ/NnxCfI+znHwkmfR396ARalyh5R/24/pAOHH0ZldEimQKSKkmMsjtsP8+tsQ==
+"@theme-ui/presets@^0.6.2":
+  version "0.6.2"
+  resolved "https://registry.yarnpkg.com/@theme-ui/presets/-/presets-0.6.2.tgz#289ceda2917838000d928c1ba2b62c2dd4e877fc"
+  integrity sha512-NTHYY7jRlpxs2A4YbF68PUB7FhGwT/fock1gPZcAZN1KPuUIqLpcbBkfinX+nstJXHscyBdham/eBvG3iovfwQ==
   dependencies:
     "@theme-ui/preset-base" "^0.6.0"
     "@theme-ui/preset-bootstrap" "^0.6.0"
@@ -2702,7 +2702,7 @@
     "@theme-ui/preset-future" "^0.6.0"
     "@theme-ui/preset-polaris" "^0.6.0"
     "@theme-ui/preset-roboto" "^0.6.0"
-    "@theme-ui/preset-sketchy" "^0.6.1"
+    "@theme-ui/preset-sketchy" "^0.6.2"
     "@theme-ui/preset-swiss" "^0.6.0"
     "@theme-ui/preset-system" "^0.6.0"
     "@theme-ui/preset-tailwind" "^0.6.0"
