@@ -23,7 +23,6 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
                     .git(path: "Dependency.git", requirement: .branch("BranchName")),
                     .binary(path: "DependencyXYZ", requirement: .atLeast("2.3.1")),
                 ],
-                platforms: [.iOS, .macOS, .tvOS],
                 options: [.useXCFrameworks, .noUseBinaries]
             ),
             swiftPackageManager: .swiftPackageManager(
@@ -31,7 +30,8 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
                     .local(path: .init(localPackagePath.pathString)),
                     .remote(url: "RemotePackage.com", requirement: .exact("1.2.3")),
                 ]
-            )
+            ),
+            platforms: [.iOS, .macOS, .tvOS]
         )
 
         // When
@@ -45,7 +45,6 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
                     .git(path: "Dependency.git", requirement: .branch("BranchName")),
                     .binary(path: "DependencyXYZ", requirement: .atLeast("2.3.1")),
                 ],
-                platforms: [.iOS, .macOS, .tvOS],
                 options: [.useXCFrameworks, .noUseBinaries]
             ),
             swiftPackageManager: .init(
@@ -53,7 +52,8 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
                     .local(path: localPackagePath),
                     .remote(url: "RemotePackage.com", requirement: .exact("1.2.3")),
                 ]
-            )
+            ),
+            platforms: [.iOS, .macOS, .tvOS]
         )
         XCTAssertEqual(got, expected)
     }

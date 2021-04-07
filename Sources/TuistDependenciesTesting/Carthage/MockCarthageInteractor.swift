@@ -8,33 +8,53 @@ public final class MockCarthageInteractor: CarthageInteracting {
 
     var invokedFetch = false
     var invokedFetchCount = 0
-    var invokedFetchParameters: (dependenciesDirectory: AbsolutePath, dependencies: CarthageDependencies)?
-    var invokedFetchParametersList = [(dependenciesDirectory: AbsolutePath, dependencies: CarthageDependencies)]()
+    var invokedFetchParameters: FetchParameters?
+    var invokedFetchParametersList = [FetchParameters]()
     var stubbedFetchError: Error?
 
-    public func fetch(dependenciesDirectory: AbsolutePath, dependencies: CarthageDependencies) throws {
+    public func fetch(
+        dependenciesDirectory: AbsolutePath,
+        dependencies: CarthageDependencies,
+        platforms: Set<Platform>
+    ) throws {
+        let parameters = FetchParameters(
+            dependenciesDirectory: dependenciesDirectory,
+            dependencies: dependencies,
+            platforms: platforms
+        )
+
         invokedFetch = true
         invokedFetchCount += 1
-        invokedFetchParameters = (dependenciesDirectory, dependencies)
-        invokedFetchParametersList.append((dependenciesDirectory, dependencies))
+        invokedFetchParameters = parameters
+        invokedFetchParametersList.append(parameters)
         if let error = stubbedFetchError {
             throw error
         }
     }
-    
+
     var invokedClean = false
     var invokedCleanCount = 0
     var invokedCleanParameters: AbsolutePath?
     var invokedCleanParametersList = [AbsolutePath]()
     var stubbedCleanError: Error?
-    
+
     public func clean(dependenciesDirectory: AbsolutePath) throws {
         invokedClean = true
         invokedCleanCount += 1
-        invokedCleanParameters = (dependenciesDirectory)
-        invokedCleanParametersList.append((dependenciesDirectory))
+        invokedCleanParameters = dependenciesDirectory
+        invokedCleanParametersList.append(dependenciesDirectory)
         if let error = stubbedCleanError {
             throw error
         }
+    }
+}
+
+// MARK: - Models
+
+extension MockCarthageInteractor {
+    struct FetchParameters {
+        let dependenciesDirectory: AbsolutePath
+        let dependencies: CarthageDependencies
+        let platforms: Set<Platform>
     }
 }

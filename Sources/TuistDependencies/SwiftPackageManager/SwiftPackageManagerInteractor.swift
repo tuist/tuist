@@ -2,6 +2,8 @@ import TSCBasic
 import TuistGraph
 import TuistSupport
 
+// MARK: - Swift Package Manager Interactor Errors
+
 enum SwiftPackageManagerInteractorError: FatalError, Equatable {
     /// Thrown when `Package.resolved` cannot be found in temporary directory after `Swift Package Manager` installation.
     case packageResolvedNotFound
@@ -32,9 +34,15 @@ enum SwiftPackageManagerInteractorError: FatalError, Equatable {
 
 public protocol SwiftPackageManagerInteracting {
     /// Fetches `Swift Package Manager` dependencies.
-    /// - Parameter dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
-    /// - Parameter dependencies: List of dependencies to intall using `Swift Package Manager`.
-    func fetch(dependenciesDirectory: AbsolutePath, dependencies: SwiftPackageManagerDependencies) throws
+    /// - Parameters:
+    ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
+    ///   - dependencies: List of dependencies to intall using `Swift Package Manager`.
+    ///   - platforms: List of platforms for which you want to install depedencies.
+    func fetch(
+        dependenciesDirectory: AbsolutePath,
+        dependencies: SwiftPackageManagerDependencies,
+        platforms: Set<Platform>
+    ) throws
     
     /// Removes all cached `Swift Package Manager` dependencies.
     /// - Parameter dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
@@ -52,7 +60,11 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         self.fileHandler = fileHandler
     }
 
-    public func fetch(dependenciesDirectory: AbsolutePath, dependencies: SwiftPackageManagerDependencies) throws {
+    public func fetch(
+        dependenciesDirectory: AbsolutePath,
+        dependencies: SwiftPackageManagerDependencies,
+        platforms: Set<Platform>
+    ) throws {
         logger.info("Resolving and fetching Swift Package Manager dependencies.", metadata: .section)
 
         try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in

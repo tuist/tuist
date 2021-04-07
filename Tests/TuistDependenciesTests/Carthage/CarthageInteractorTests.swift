@@ -46,13 +46,17 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
             ],
-            platforms: [.iOS],
             options: []
         )
+        let platforms = Set<Platform>([.iOS])
 
         // When / Then
         XCTAssertThrowsSpecific(
-            try subject.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: dependencies),
+            try subject.fetch(
+                dependenciesDirectory: dependenciesDirectory,
+                dependencies: dependencies,
+                platforms: platforms
+            ),
             CarthageInteractorError.carthageNotFound
         )
     }
@@ -69,12 +73,16 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
             ],
-            platforms: [.iOS],
             options: [.useXCFrameworks]
         )
+        let platforms = Set<Platform>([.iOS])
 
         XCTAssertThrowsSpecific(
-            try subject.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: dependencies),
+            try subject.fetch(
+                dependenciesDirectory: dependenciesDirectory,
+                dependencies: dependencies,
+                platforms: platforms
+            ),
             CarthageInteractorError.xcFrameworksProductionNotSupported
         )
     }
@@ -109,7 +117,6 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
             ],
-            platforms: platforms,
             options: options
         )
         let stubbedCommand = ["carthage", "bootstrap", "--project-directory", try temporaryPath().pathString, "--platform iOS,macOS,tvOS,watchOS", "--cache-builds", "--new-resolver"]
@@ -120,7 +127,11 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         system.succeedCommand(stubbedCommand)
 
         // When
-        try subject.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: stubbedDependencies)
+        try subject.fetch(
+            dependenciesDirectory: dependenciesDirectory,
+            dependencies: stubbedDependencies,
+            platforms: platforms
+        )
 
         // Then
         let expectedCartfileResolvedPath = dependenciesDirectory
@@ -170,7 +181,6 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
             ],
-            platforms: platforms,
             options: options
         )
         let stubbedCommand = ["carthage", "bootstrap", "--project-directory", try temporaryPath().pathString, "--platform iOS", "--cache-builds", "--new-resolver"]
@@ -181,7 +191,11 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         system.succeedCommand(stubbedCommand)
 
         // When
-        try subject.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: stubbedDependencies)
+        try subject.fetch(
+            dependenciesDirectory: dependenciesDirectory,
+            dependencies: stubbedDependencies,
+            platforms: platforms
+        )
 
         // Then
         let expectedCartfileResolvedPath = dependenciesDirectory
@@ -209,7 +223,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.platforms, platforms)
         XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.options, options)
     }
-    
+
     func test_clean() throws {
         // Given
         let rootPath = try temporaryPath()
@@ -217,28 +231,29 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             .appending(component: Constants.DependenciesDirectory.name)
         let lockfilesDirectory = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
-        
+
         try createFiles([
             "Dependencies/Lockfiles/Cartfile.resolved",
             "Dependencies/Lockfiles/OtherLockfile.lock",
             "Dependencies/Carthage/Info.plist",
             "Dependencies/OtherDepedenciesManager/bar.bar",
         ])
-        
+
         // When
         try subject.clean(dependenciesDirectory: dependenciesDirectory)
-        
+
         // Then
         XCTAssertEqual(
             try fileHandler.contentsOfDirectory(dependenciesDirectory).sorted(),
             [
                 lockfilesDirectory,
-                dependenciesDirectory.appending(component: "OtherDepedenciesManager")
-            ].sorted())
+                dependenciesDirectory.appending(component: "OtherDepedenciesManager"),
+            ].sorted()
+        )
         XCTAssertEqual(
             try fileHandler.contentsOfDirectory(lockfilesDirectory).sorted(),
             [
-                lockfilesDirectory.appending(component: "OtherLockfile.lock")
+                lockfilesDirectory.appending(component: "OtherLockfile.lock"),
             ].sorted()
         )
     }

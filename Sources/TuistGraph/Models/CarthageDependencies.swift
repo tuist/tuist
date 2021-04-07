@@ -4,8 +4,6 @@ import Foundation
 public struct CarthageDependencies: Equatable {
     /// List of depedencies that can be installed using Carthage.
     public let dependencies: [Dependency]
-    /// List of platforms for which you want to install depedencies.
-    public let platforms: Set<Platform>
     /// List of options for Carthage installation.
     public let options: Set<Options>
 
@@ -16,11 +14,9 @@ public struct CarthageDependencies: Equatable {
     ///   - options: List of options for Carthage installation.
     public init(
         _ dependencies: [Dependency],
-        platforms: Set<Platform>,
         options: Set<Options>
     ) {
         self.dependencies = dependencies
-        self.platforms = platforms
         self.options = options
     }
 

@@ -3,6 +3,29 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
+// MARK: - Dependencies Controller Error
+
+enum DependenciesControllerError: FatalError {
+    /// Thrown when platforms for dependencies to install are not determined in `Dependencies.swift`.
+    case noPlatforms
+
+    /// Error type.
+    var type: ErrorType {
+        switch self {
+        case .noPlatforms:
+            return .abort
+        }
+    }
+
+    // Error description.
+    var description: String {
+        switch self {
+        case .noPlatforms:
+            return "Platforms were not determined. Select platforms in `Dependencies.swift` manifest file."
+        }
+    }
+}
+
 // MARK: - Dependencies Controlling
 
 /// `DependenciesControlling` controls:
@@ -38,15 +61,28 @@ public final class DependenciesController: DependenciesControlling {
         let dependenciesDirectory = path
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
+        let platforms = dependencies.platforms
+
+        guard !platforms.isEmpty else {
+            throw DependenciesControllerError.noPlatforms
+        }
 
         if let carthageDepedencies = dependencies.carthage, !carthageDepedencies.dependencies.isEmpty {
-            try carthageInteractor.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: carthageDepedencies)
+            try carthageInteractor.fetch(
+                dependenciesDirectory: dependenciesDirectory,
+                dependencies: carthageDepedencies,
+                platforms: platforms
+            )
         } else {
             try carthageInteractor.clean(dependenciesDirectory: dependenciesDirectory)
         }
 
         if let swiftPackageManagerDependencies = dependencies.swiftPackageManager, !swiftPackageManagerDependencies.packages.isEmpty {
-            try swiftPackageManagerInteractor.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: swiftPackageManagerDependencies)
+            try swiftPackageManagerInteractor.fetch(
+                dependenciesDirectory: dependenciesDirectory,
+                dependencies: swiftPackageManagerDependencies,
+                platforms: platforms
+            )
         } else {
             try swiftPackageManagerInteractor.clean(dependenciesDirectory: dependenciesDirectory)
         }

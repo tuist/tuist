@@ -39,6 +39,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             ".build/repositories/Alamofire-e8f130fe/config",
         ])
 
+        let platforms = Set<Platform>([.iOS, .watchOS, .macOS, .tvOS])
         let command = ["swift", "package", "--package-path", "\(try temporaryPath().pathString)", "resolve"]
         system.succeedCommand(command)
         system.swiftVersionStub = { "5.3" }
@@ -50,7 +51,11 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         )
 
         // When
-        try subject.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: depedencies)
+        try subject.fetch(
+            dependenciesDirectory: dependenciesDirectory,
+            dependencies: depedencies,
+            platforms: platforms
+        )
 
         // Then
         let expectedPackageResolvedPath = dependenciesDirectory

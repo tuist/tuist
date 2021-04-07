@@ -1,6 +1,5 @@
 import RxBlocking
 import TSCBasic
-import TSCUtility
 import TuistCore
 import TuistGraph
 import TuistSupport
@@ -54,9 +53,15 @@ enum CarthageInteractorError: FatalError, Equatable {
 
 public protocol CarthageInteracting {
     /// Fetches `Carthage` dependencies.
-    /// - Parameter dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
-    /// - Parameter dependencies: List of dependencies to intall using `Carthage`.
-    func fetch(dependenciesDirectory: AbsolutePath, dependencies: CarthageDependencies) throws
+    /// - Parameters:
+    ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
+    ///   - dependencies: List of dependencies to intall using `Carthage`.
+    ///   -  platforms: List of platforms for which you want to install depedencies.
+    func fetch(
+        dependenciesDirectory: AbsolutePath,
+        dependencies: CarthageDependencies,
+        platforms: Set<Platform>
+    ) throws
     
     /// Removes all cached `Carthage` dependencies.
     /// - Parameter dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
@@ -80,7 +85,11 @@ public final class CarthageInteractor: CarthageInteracting {
         self.carthageCommandGenerator = carthageCommandGenerator
     }
 
-    public func fetch(dependenciesDirectory: AbsolutePath, dependencies: CarthageDependencies) throws {
+    public func fetch(
+        dependenciesDirectory: AbsolutePath,
+        dependencies: CarthageDependencies,
+        platforms: Set<Platform>
+    ) throws {
         logger.info("Resolving and fetching Carthage dependencies.", metadata: .section)
 
         // check availability of `carthage`
@@ -106,7 +115,7 @@ public final class CarthageInteractor: CarthageInteracting {
             // run `Carthage`
             let command = carthageCommandGenerator.command(
                 path: temporaryDirectoryPath,
-                platforms: dependencies.platforms,
+                platforms: platforms,
                 options: dependencies.options
             )
             try System.shared.runAndPrint(command)
