@@ -3,12 +3,21 @@ module.exports = {
     {
       type: 'category',
       label: 'Usage',
-      items: ['usage/shell-autocompletion', 'usage/helpers'],
+      items: ['usage/shell-autocompletion', 'usage/helpers', 'usage/resources'],
+    },
+    {
+      type: 'category',
+      label: 'Dependencies',
+      items: ['dependencies/local'],
     },
     {
       type: 'category',
       label: 'Building at scale',
-      items: ['building-at-scale/caching'],
+      items: [
+        'building-at-scale/microfeatures',
+        'building-at-scale/caching',
+        'building-at-scale/best-practices',
+      ],
     },
     {
       type: 'category',
