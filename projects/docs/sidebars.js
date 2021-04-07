@@ -13,11 +13,6 @@ module.exports = {
     },
     {
       type: 'category',
-      label: 'Dependencies',
-      items: ['dependencies/local'],
-    },
-    {
-      type: 'category',
       label: 'Plugins',
       items: ['plugins/using-plugins', 'plugins/creating-plugins'],
     },
