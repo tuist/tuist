@@ -184,7 +184,6 @@ private struct SwiftPackageManagerPathsProvider {
             .appending(component: Constants.DependenciesDirectory.packageResolvedName)
         destinationBuildDirectory = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
-            .appending(component: ".build")
 
         temporaryPackageResolvedPath = temporaryDirectoryPath
             .appending(component: Constants.DependenciesDirectory.packageResolvedName)
