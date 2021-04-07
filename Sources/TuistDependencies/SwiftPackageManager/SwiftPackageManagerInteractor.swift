@@ -43,7 +43,7 @@ public protocol SwiftPackageManagerInteracting {
         dependencies: SwiftPackageManagerDependencies,
         platforms: Set<Platform>
     ) throws
-    
+
     /// Removes all cached `Swift Package Manager` dependencies.
     /// - Parameter dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
     func clean(dependenciesDirectory: AbsolutePath) throws
@@ -63,7 +63,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
     public func fetch(
         dependenciesDirectory: AbsolutePath,
         dependencies: SwiftPackageManagerDependencies,
-        platforms: Set<Platform>
+        platforms _: Set<Platform>
     ) throws {
         logger.info("Resolving and fetching Swift Package Manager dependencies.", metadata: .section)
 
@@ -87,14 +87,14 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
 
         logger.info("Packages resolved and fetched successfully.", metadata: .subsection)
     }
-    
+
     public func clean(dependenciesDirectory: AbsolutePath) throws {
         let swiftPackageManagerDirectory = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
         let packageResolvedPath = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
             .appending(component: Constants.DependenciesDirectory.packageResolvedName)
-        
+
         try fileHandler.delete(swiftPackageManagerDirectory)
         try fileHandler.delete(packageResolvedPath)
     }
@@ -104,10 +104,10 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
     /// Loads lockfile and dependencies into working directory if they had been saved before.
     private func loadDependencies(pathsProvider: SwiftPackageManagerPathsProvider, packageManifestContent: String) throws {
         // copy `.build` directory from previous run if exist
-        if fileHandler.exists(pathsProvider.destinationSwiftPackageManagerBuildDirectory) {
+        if fileHandler.exists(pathsProvider.destinationBuildDirectory) {
             try copy(
-                from: pathsProvider.destinationSwiftPackageManagerBuildDirectory,
-                to: pathsProvider.temporarySwiftPackageManagerBuildDirectory
+                from: pathsProvider.destinationBuildDirectory,
+                to: pathsProvider.temporaryBuildDirectory
             )
         }
 
@@ -134,7 +134,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         guard fileHandler.exists(pathsProvider.temporaryPackageResolvedPath) else {
             throw SwiftPackageManagerInteractorError.packageResolvedNotFound
         }
-        guard fileHandler.exists(pathsProvider.temporarySwiftPackageManagerBuildDirectory) else {
+        guard fileHandler.exists(pathsProvider.temporaryBuildDirectory) else {
             throw SwiftPackageManagerInteractorError.buildDirectoryNotFound
         }
 
@@ -146,8 +146,8 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
 
         // save `.build` directory
         try copy(
-            from: pathsProvider.temporarySwiftPackageManagerBuildDirectory,
-            to: pathsProvider.destinationSwiftPackageManagerBuildDirectory
+            from: pathsProvider.temporaryBuildDirectory,
+            to: pathsProvider.destinationBuildDirectory
         )
     }
 
@@ -170,10 +170,10 @@ private struct SwiftPackageManagerPathsProvider {
     let temporaryDirectoryPath: AbsolutePath
 
     let destinationPackageResolvedPath: AbsolutePath
-    let destinationSwiftPackageManagerBuildDirectory: AbsolutePath
+    let destinationBuildDirectory: AbsolutePath
 
     let temporaryPackageResolvedPath: AbsolutePath
-    let temporarySwiftPackageManagerBuildDirectory: AbsolutePath
+    let temporaryBuildDirectory: AbsolutePath
 
     init(dependenciesDirectory: AbsolutePath, temporaryDirectoryPath: AbsolutePath) {
         self.dependenciesDirectory = dependenciesDirectory
@@ -182,13 +182,13 @@ private struct SwiftPackageManagerPathsProvider {
         destinationPackageResolvedPath = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
             .appending(component: Constants.DependenciesDirectory.packageResolvedName)
-        destinationSwiftPackageManagerBuildDirectory = dependenciesDirectory
+        destinationBuildDirectory = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
             .appending(component: ".build")
 
         temporaryPackageResolvedPath = temporaryDirectoryPath
             .appending(component: Constants.DependenciesDirectory.packageResolvedName)
-        temporarySwiftPackageManagerBuildDirectory = temporaryDirectoryPath
+        temporaryBuildDirectory = temporaryDirectoryPath
             .appending(component: ".build")
     }
 }

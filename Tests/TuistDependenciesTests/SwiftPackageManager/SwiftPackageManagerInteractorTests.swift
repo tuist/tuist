@@ -73,7 +73,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         XCTAssertTrue(fileHandler.exists(expectedBuildDirectory.appending(components: "repositories", "checkouts-state.json")))
         XCTAssertTrue(fileHandler.exists(expectedBuildDirectory.appending(components: "repositories", "Alamofire-e8f130fe", "config")))
     }
-    
+
     func test_clean() throws {
         // Given
         let rootPath = try temporaryPath()
@@ -81,28 +81,29 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             .appending(component: Constants.DependenciesDirectory.name)
         let lockfilesDirectory = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
-        
+
         try createFiles([
             "Dependencies/Lockfiles/Package.resolved",
             "Dependencies/Lockfiles/OtherLockfile.lock",
             "Dependencies/SwiftPackageManager/Info.plist",
             "Dependencies/OtherDepedenciesManager/bar.bar",
         ])
-        
+
         // When
         try subject.clean(dependenciesDirectory: dependenciesDirectory)
-        
+
         // Then
         XCTAssertEqual(
             try fileHandler.contentsOfDirectory(dependenciesDirectory).sorted(),
             [
                 lockfilesDirectory,
-                dependenciesDirectory.appending(component: "OtherDepedenciesManager")
-            ].sorted())
+                dependenciesDirectory.appending(component: "OtherDepedenciesManager"),
+            ].sorted()
+        )
         XCTAssertEqual(
             try fileHandler.contentsOfDirectory(lockfilesDirectory).sorted(),
             [
-                lockfilesDirectory.appending(component: "OtherLockfile.lock")
+                lockfilesDirectory.appending(component: "OtherLockfile.lock"),
             ].sorted()
         )
     }
