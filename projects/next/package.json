@@ -41,7 +41,7 @@
     "react-helmet": "^6.1.0",
     "react-helmet-async": "^1.0.9",
     "styled-components": "^5.2.3",
-    "tailwindcss": "^2.0.3",
+    "tailwindcss": "^2.1.1",
     "twin.macro": "^2.3.2",
     "typescript": "^4.2.3"
   },
