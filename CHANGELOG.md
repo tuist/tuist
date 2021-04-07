@@ -6,11 +6,11 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
--  **WIP** Support for `Carthage` dependencies in `Dependencies.swift` [#2394](https://github.com/tuist/tuist/pull/2394) by [@laxmorek](https://github.com/laxmorek).
+- **WIP** Support for `Carthage` dependencies in `Dependencies.swift` [#2394](https://github.com/tuist/tuist/pull/2394) by [@laxmorek](https://github.com/laxmorek).
 
 ### Changed
 
-- **breaking**  Redesign `ProjectDescription.Dependencies` manifest model. [#2394](https://github.com/tuist/tuist/pull/2394) by [@laxmorek](https://github.com/laxmorek).
+- **breaking** Redesign `ProjectDescription.Dependencies` manifest model. [#2394](https://github.com/tuist/tuist/pull/2394) by [@laxmorek](https://github.com/laxmorek).
 
 ### Fixed
 
