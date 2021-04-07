@@ -115,7 +115,7 @@ public struct ResourceSynthesizer: Codable, Equatable {
 
     /// Default assets synthesizer
     public static func assets() -> Self {
-        .strings(templateType: .defaultTemplate(resourceName: "Assets"))
+        .assets(templateType: .defaultTemplate(resourceName: "Assets"))
     }
 
     /// Assets synthesizer defined in a plugin

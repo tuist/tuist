@@ -43,6 +43,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     /// IDE template macros that represent content of IDETemplateMacros.plist
     public var ideTemplateMacros: IDETemplateMacros?
 
+    /// `ResourceSynthesizers` that will be applied on individual target's resources
     public let resourceSynthesizers: [ResourceSynthesizer]
 
     // MARK: - Init
