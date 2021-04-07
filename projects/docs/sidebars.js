@@ -9,6 +9,9 @@ module.exports = {
         'usage/resources',
         'usage/project-description',
         'usage/config',
+        'usage/adoption-guidelines',
+        'usage/stats',
+        'usage/faq',
       ],
     },
     {
