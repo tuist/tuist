@@ -35,7 +35,7 @@ If you don't have any experience with Swift,
 we recommend [Apple's official book](https://docs.swift.org/swift-book/).
 With it you'll also get familiar with the most used elements from the Foundation's API.
 
-## Set up the project locally
+### Set up the project locally
 
 To start working on the project, we can follow the steps below:
 
@@ -46,13 +46,11 @@ To start working on the project, we can follow the steps below:
 - Run `rake install_git_hooks` to automatically format the code following Tuist's conventions
 - Open `Package.swift` using Xcode
 
-<Message
-  info
-  title="Xcode"
-  description="Xcode needs to be installed in your system. If not, you can install it from the macOS App Store. After the installation, open it once to accept some licenses and install some additional components."
-/>
+:::note Xcode
+Xcode needs to be installed in your system. If not, you can install it from the macOS App Store. After the installation, open it once to accept some licenses and install some additional components.
+:::
 
-## Run Tuist from Xcode
+### Run Tuist from Xcode
 
 You can run Tuist from Xcode like you'd do from your terminal.
 

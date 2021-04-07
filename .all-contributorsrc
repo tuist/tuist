@@ -334,6 +334,15 @@
       "contributions": [
         "bug"
       ]
+    },
+    {
+      "login": "softmaxsg",
+      "name": "Vitaly Chupryk",
+      "avatar_url": "https://avatars.githubusercontent.com/u/3723817?v=4",
+      "profile": "https://github.com/softmaxsg",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

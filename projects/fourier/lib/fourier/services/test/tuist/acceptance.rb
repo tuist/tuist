@@ -16,6 +16,7 @@ module Fourier
 
           def call
             args = ["--format", "pretty"]
+            args.concat(["--require", Constants::FEATURES_DIRECTORY])
 
             args << if feature.nil?
               Constants::FEATURES_DIRECTORY

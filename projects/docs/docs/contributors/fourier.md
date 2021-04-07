@@ -10,7 +10,7 @@ Before Fourier's existence, Tuist used [Ruby's Rake](https://github.com/ruby/rak
 
 By implementing our CLI tool within the repository we can better ensure the interface is consistent, and that the business logic is well-structured and tested.
 
-## Running Fourier
+### Running Fourier
 
 Before running Fourier, make sure that you have the Ruby version specified in the `.ruby-version` file, and that you have fetched the [Bundler](https://bundler.io) dependencies specified in the `Gemfile` by running `bundle install`. Then, you can run the following command:
 
@@ -20,7 +20,7 @@ Before running Fourier, make sure that you have the Ruby version specified in th
 
 It'll output the list of available commands that you can run.
 
-## Shadowenv
+### Shadowenv
 
 Tuist includes [Shadowenv](https://shopify.github.io/shadowenv/) directory to adjust your local environment as you enter Tuist's directory from an interactive shell. One of the environment configurations that we provide is exposing the `bin/` directory to your path. Thanks to that, you can run Fourier by simply running `fourier` in your terminal.
 

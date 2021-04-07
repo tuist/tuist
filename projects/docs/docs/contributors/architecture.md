@@ -19,23 +19,23 @@ The project is organized in several targets that are defined in the `Package.swi
 - **tuist:** It's the actual CLI that exposes the commands defined in `TuistKit`.
 - **tuistenv:** It's the CLI of `tuistenv`. It exposes the commands defined in `TuistEnvKit`.
 
-:::tip Package.swift
+:::note Package.swift
 
 The Package.swift file declares the structure of our project (a Swift package) and the Swift Package Manager uses it to generate the Xcode project and provide us with a set of commands to interact with it, like 'swift build'
 
 :::
 
-:::tip Tests
+:::note Tests
 
 The targets have an associated target that contains the tests. **Unit tests** are located in the test targets prefixed with _Tests_, while integration tests are in the ones prefixed with _IntegrationTests_.
 
 :::
 
-## Utilities
+### Utilities
 
 All generic utilities live in the `TuistSupport` framework. This section documents some of the utilities and how to use them.
 
-### Logger
+#### Logger
 
 When printing output for the user, this is the utility that should be used over the global `print` method. The utility provides formatting that varies depending on the terminal the process is run from, and determines whether the standard output or error should be used based on the type of content being output.
 

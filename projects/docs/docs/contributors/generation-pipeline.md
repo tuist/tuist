@@ -8,7 +8,7 @@ The process of generating projects in Tuist has evolved over time and through se
 It is now more akin to a pipeline that entails several steps each with a particular purpose and responsibility.
 The aim is to keep each of those steps simple while still allowing more complex features to be built on top of them.
 
-## Terms
+### Terms
 
 - **Manifest**: Those are the public user facing files used to describe projects. (e.g. `Project.swift`, `Workspace.swift`, `Config.swift`, etc...)
   - The types are declared in the `ProjectDescription` target
@@ -31,13 +31,13 @@ The aim is to keep each of those steps simple while still allowing more complex 
 - **Workspace/Project/Scheme Descriptors**: Those are in-memory representations of the low level `XcodeProj` types
 - **Interactors**: Those are components that perform specialized side effects at the end of the generation process (e.g. signing / SwiftPM resolution etc...)
 
-## Pipeline
+### Pipeline
 
 The pipeline consists of the following stages & steps that are performed sequentially. The main orchestration of all of these steps resides within `TuistKit.Generator`.
 
 ![Generation Pipeline Overview](assets/generation-pipeline/overview.png)
 
-### Loading Manifests & Models
+#### Loading Manifests & Models
 
 ![Manifest & Model Loading](assets/generation-pipeline/manifest-model-loading.png)
 
@@ -50,7 +50,7 @@ The pipeline consists of the following stages & steps that are performed sequent
   - This is where the manifest glob patterns (e.g. `Sources/**`) are evaluated and expanded to explicit absolute paths
   - Manifests are converted concurrently
 
-### Loading the Graph
+#### Loading the Graph
 
 ![Graph Loading](assets/generation-pipeline/graph-loading.png)
 
@@ -60,7 +60,7 @@ The pipeline consists of the following stages & steps that are performed sequent
 - **Apply Graph Mappers**: The Graph undergoes a few additional transformations via graph mappers which modify the graph and produce an additional set of `SideEffectDescriptors`
   - The graph mappers are orchestrated in `GraphMapperProvider`
 
-### Generation
+#### Generation
 
 ![Lint & Generate](assets/generation-pipeline/lint-and-generate.png)
 
@@ -72,7 +72,7 @@ The pipeline consists of the following stages & steps that are performed sequent
     - Projects are internally processed concurrently
     - The descriptor generator doesn't perform any loading, networking or other side effects
 
-### Performing Side Effects
+#### Performing Side Effects
 
 ![Performing Side Effects](assets/generation-pipeline/performing-side-effects.png)
 
