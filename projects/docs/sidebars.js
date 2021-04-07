@@ -3,12 +3,26 @@ module.exports = {
     {
       type: 'category',
       label: 'Usage',
-      items: ['usage/shell-autocompletion', 'usage/helpers', 'usage/resources'],
+      items: [
+        'usage/shell-autocompletion',
+        'usage/helpers',
+        'usage/resources',
+        'usage/project-description',
+      ],
     },
     {
       type: 'category',
       label: 'Dependencies',
       items: ['dependencies/local'],
+    },
+    {
+      type: 'category',
+      label: 'Examples',
+      items: [
+        'examples/app-extensions',
+        'examples/app-clips',
+        'examples/command-line-tools',
+      ],
     },
     {
       type: 'category',

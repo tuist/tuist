@@ -24,6 +24,17 @@ updates:
     labels:
       - dependencies
       - automerge
+  - package-ecosystem: npm
+    directory: '/projects/docs'
+    schedule:
+      interval: monthly
+      time: '11:00'
+    open-pull-requests-limit: 10
+    reviewers:
+      - tuist/core
+    labels:
+      - dependencies
+      - automerge
   - package-ecosystem: bundler
     directory: '/'
     schedule:
