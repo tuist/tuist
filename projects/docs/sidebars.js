@@ -8,12 +8,18 @@ module.exports = {
         'usage/helpers',
         'usage/resources',
         'usage/project-description',
+        'usage/config',
       ],
     },
     {
       type: 'category',
       label: 'Dependencies',
       items: ['dependencies/local'],
+    },
+    {
+      type: 'category',
+      label: 'Plugins',
+      items: ['plugins/using-plugins', 'plugins/creating-plugins'],
     },
     {
       type: 'category',
