@@ -9,7 +9,7 @@ module.exports = {
         'usage/helpers',
         'usage/resources',
         'usage/project-description',
-        'usage/config',
+        'usage/environment',
         'usage/managing-versions',
         'usage/adoption-guidelines',
         'usage/stats',
