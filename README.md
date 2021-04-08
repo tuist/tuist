@@ -3,7 +3,6 @@
   <a href="#contributors-"><img src="https://img.shields.io/badge/all_contributors-2-orange.svg?style=flat-square" alt="All contributors"></a>
   <img src="https://github.com/tuist/tuist/workflows/Tuist/badge.svg" alt="Tuist">
   <img src="https://img.shields.io/github/v/release/tuist/tuist?include_prereleases&style=flat-square" alt="Latest Version">
-  <a href="http://slack.tuist.io"><img src="http://slack.tuist.io/badge.svg" alt="Slack"></a>
   <a href="http://community.tuist.io"><img src="https://img.shields.io/badge/community-tuist-blue?style=flat-square" alt="Community"></a>
   <img src="https://img.shields.io/github/forks/tuist/tuist?style=flat-square" alt="GitHub forks">
   <img src="https://img.shields.io/github/stars/tuist/tuist?style=flat-square" alt="GitHub stars">
