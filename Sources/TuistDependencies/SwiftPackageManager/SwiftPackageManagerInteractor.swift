@@ -65,6 +65,8 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         dependencies: SwiftPackageManagerDependencies,
         platforms _: Set<Platform>
     ) throws {
+        logger.warning("Support for Swift Package Manager dependencies is currently being worked on and is not ready to be used yet.")
+
         logger.info("Resolving and fetching Swift Package Manager dependencies.", metadata: .section)
 
         try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in
