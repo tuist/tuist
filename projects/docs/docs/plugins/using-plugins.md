@@ -29,7 +29,7 @@ By defining plugins in the [`Config.swift`](/manifests/config/) manifest Tuist i
 
 #### Local plugin
 
-Local plugins are stored relative to the machine generating the project. You can tell Tuist to find them at a given [`Path`](/usage/project-description/).
+Local plugins are stored relative to the machine generating the project. You can tell Tuist to find them at a given [`Path`](/manifests/project/).
 
 ```swift
 PluginLocation.local(path: "/Plugins/MyPlugin")

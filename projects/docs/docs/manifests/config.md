@@ -39,10 +39,10 @@ let config = Config(
 
 It allows configuring Tuist and share the configuration across several projects.
 
-| Property                  | Description                                                    | Type                                                    | Optional | Default |
+| Property                  | Description                                                    | Type                                                    | Required | Default |
 | ------------------------- | -------------------------------------------------------------- | ------------------------------------------------------- | -------- | ------- |
-| `compatibleXcodeVersions` | Set the versions of Xcode that the project is compatible with. | [`CompatibleXcodeVersions`](#compatible-xcode-versions) | Yes      | `.all`  |
-| `generationOptions`       | Options to configure the generation of Xcode projects.         | [`[GenerationOption]`](#generationoption)               | Yes      | `[]`    |
+| `compatibleXcodeVersions` | Set the versions of Xcode that the project is compatible with. | [`CompatibleXcodeVersions`](#compatible-xcode-versions) | No       | `.all`  |
+| `generationOptions`       | Options to configure the generation of Xcode projects.         | [`[GenerationOption]`](#generationoption)               | No       | `[]`    |
 
 ### Compatible Xcode versions
 

@@ -5,12 +5,12 @@ module.exports = {
       label: 'Usage',
       items: [
         'usage/get-started',
-        'usage/shell-autocompletion',
         'usage/helpers',
-        'usage/project-description',
+        'usage/dependencies',
         'usage/resources',
         'usage/environment',
         'usage/managing-versions',
+        'usage/shell-autocompletion',
         'usage/adoption-guidelines',
         'usage/stats',
         'usage/faq',
@@ -19,7 +19,7 @@ module.exports = {
     {
       type: 'category',
       label: 'Manifests',
-      items: ['manifests/config'],
+      items: ['manifests/project', 'manifests/workspace', 'manifests/config'],
     },
     {
       type: 'category',
