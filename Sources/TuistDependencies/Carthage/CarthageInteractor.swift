@@ -56,7 +56,7 @@ public protocol CarthageInteracting {
     /// - Parameters:
     ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
     ///   - dependencies: List of dependencies to intall using `Carthage`.
-    ///   -  platforms: List of platforms for which you want to install depedencies.
+    ///   - platforms: List of platforms for which you want to install dependencies.
     func fetch(
         dependenciesDirectory: AbsolutePath,
         dependencies: CarthageDependencies,
