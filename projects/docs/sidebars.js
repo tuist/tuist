@@ -4,15 +4,22 @@ module.exports = {
       type: 'category',
       label: 'Usage',
       items: [
+        'usage/get-started',
         'usage/shell-autocompletion',
         'usage/helpers',
         'usage/resources',
         'usage/project-description',
         'usage/config',
+        'usage/managing-versions',
         'usage/adoption-guidelines',
         'usage/stats',
         'usage/faq',
       ],
+    },
+    {
+      type: 'category',
+      label: 'Manifests',
+      items: ['manifests/config'],
     },
     {
       type: 'category',
