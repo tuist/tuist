@@ -27,6 +27,8 @@ extension TuistGraph.Product {
             return .bundle
         case .appExtension:
             return .appExtension
+        case .tvExtension:
+            return .tvExtension
         case .stickerPackExtension:
             return .stickerPackExtension
         case .watch2App:

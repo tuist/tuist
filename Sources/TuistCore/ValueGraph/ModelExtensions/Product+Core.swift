@@ -31,8 +31,8 @@ extension Product {
         //            return .watchExtension
         case .watch2Extension:
             return .watch2Extension
-        //        case .tvExtension:
-        //            return .tvExtension
+        case .tvExtension:
+            return .tvExtension
         //        case .messagesApplication:
         //            return .messagesApplication
         case .messagesExtension:

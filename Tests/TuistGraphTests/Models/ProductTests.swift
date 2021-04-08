@@ -67,7 +67,7 @@ final class ProductTests: XCTestCase {
             .staticLibrary,
             .dynamicLibrary,
             .framework,
-            //            .tvExtension,
+            .tvExtension,
             .unitTests,
             .uiTests,
         ]

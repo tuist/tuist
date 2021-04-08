@@ -20,7 +20,7 @@ public enum Product: String, Codable, Equatable {
     case watch2App
 //    case watchExtension
     case watch2Extension
-//    case tvExtension
+    case tvExtension
 //    case messagesApplication
     case messagesExtension
     case stickerPackExtension = "sticker_pack_extension"
