@@ -1,6 +1,6 @@
 ---
 title: Frequently asked questions
-slug: '/usage/faq'
+slug: '/tutorial/faq'
 description: Frequently Asked Questions
 ---
 

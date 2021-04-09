@@ -1,6 +1,6 @@
 ---
 title: Environment
-slug: '/usage/environment'
+slug: '/features/environment'
 description: Learn how to leverage environment variables that can be read from the manifest files.
 ---
 

@@ -1,6 +1,6 @@
 ---
 title: Get started
-slug: '/usage/get-started'
+slug: '/tutorial/get-started'
 description: Learn how to install Tuist in your environment and generate your first project.
 ---
 

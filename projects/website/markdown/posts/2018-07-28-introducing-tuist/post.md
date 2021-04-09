@@ -113,7 +113,7 @@ You can check out [the project issues](https://github.com/tuist/tuist/issues) th
 
 ## 📱 Start using it
 
-Would you like to give Tuist a try? You can check out the [Get started](/docs/usage/get-started/) guide that explains how to install the tool and how to bootstrap your first project.
+Would you like to give Tuist a try? You can check out the [Get started](https://docs.tuist.io/tutorial/get-started/) guide that explains how to install the tool and how to bootstrap your first project.
 
 ## 📒 Resources
 

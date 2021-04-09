@@ -1,6 +1,6 @@
 ---
 title: Adoption guidelines
-slug: '/usage/adoption-guidelines'
+slug: '/tutorial/adoption-guidelines'
 description: This page contains guidelines for migrating existing Xcode projects to Tuist.
 ---
 
@@ -84,7 +84,7 @@ and lets developers know that they should change the manifest files instead.
 
 You can use a tool like [xcdiff](https://github.com/bloomberg/xcdiff) for that.
 
-#### Use [project description helpers](/usage/helpers/)
+#### Use [project description helpers](/features/helpers/)
 
 They allow defining your own abstractions for defining your projects,
 and most importantly,

@@ -1,6 +1,6 @@
 ---
 title: Statistics
-slug: '/usage/stats'
+slug: '/features/stats'
 description: Learn about Tuist Stats
 ---
 

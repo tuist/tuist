@@ -1,6 +1,6 @@
 ---
-title: Managing versions
-slug: '/usage/managing-versions'
+title: Version management
+slug: '/features/version-management'
 description: Tuist comes with its own version management that is deterministic and ensures that everyone in the team uses the same version of Tuist. This document explains how to use it, and what are the commands available to pin projects or the environment to specific versions of Tuist.
 ---
 
@@ -10,7 +10,7 @@ If a tool is written in Ruby or Javascript, we can use dependency managers like 
 
 Although the [Swift Package Manager](https://swift.org/package-manager/) supports defining dependencies to be linked from your packages, it doesn’t support defining tools your project depends on. In other words, there isn’t a `swift exec tuist`. The closest option is [Mint](https://github.com/yonaskolb/mint), a non-official tool that aims to solve that problem. However, it means a dependency with another tool that should be installed in the environment, probably with [Homebrew](https://brew.sh), and whose versioning is out of our control. Besides introducing some inconvenience, it might result in a non-reproducible environment.
 
-**Tuist opted for a simple, reproducible and transparent version management approach that is built into Tuist.** If you followed the [Get Started](/usage/get-started/) guide when you installed Tuist, you installed a tool called `tuistenv` that got renamed into `tuist`. Try executing the following command:
+**Tuist opted for a simple, reproducible and transparent version management approach that is built into Tuist.** If you followed the [Get Started](/tutorial/get-started/) guide when you installed Tuist, you installed a tool called `tuistenv` that got renamed into `tuist`. Try executing the following command:
 
 ```bash
 tuist --help-env

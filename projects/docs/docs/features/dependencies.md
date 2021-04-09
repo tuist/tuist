@@ -1,6 +1,6 @@
 ---
 title: Dependencies
-slug: '/usage/dependencies'
+slug: '/features/dependencies'
 description: Defining dependencies between modules is a straightforward task in Tuist. This document describes how to use this feature, and all types of dependencies that targets can define.
 ---
 
