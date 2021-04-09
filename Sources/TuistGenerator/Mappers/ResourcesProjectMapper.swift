@@ -76,6 +76,7 @@ public class ResourcesProjectMapper: ProjectMapping {
         if !target.supportsResources {
             return """
             // swiftlint:disable all
+            // swift-format-ignore-file
             // swiftformat:disable all
             import Foundation
 
@@ -118,6 +119,7 @@ public class ResourcesProjectMapper: ProjectMapping {
         } else {
             return """
             // swiftlint:disable all
+            // swift-format-ignore-file
             // swiftformat:disable all
             import Foundation
 

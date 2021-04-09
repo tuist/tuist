@@ -2,6 +2,8 @@
 extension SynthesizedResourceInterfaceTemplates {
     static let assetsTemplate = """
     // swiftlint:disable all
+    // swift-format-ignore-file
+    // swiftformat:disable all
     // Generated using tuist — https://github.com/tuist/tuist
 
     {% if catalogs %}
@@ -252,6 +254,8 @@ extension SynthesizedResourceInterfaceTemplates {
     {% else %}
     // No assets found
     {% endif %}
+    // swiftlint:enable all
+    // swiftformat:enable all
 
     """
 }
