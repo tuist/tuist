@@ -1,5 +1,6 @@
 ---
 name: Project description
+migrated_path: '/manifests/project'
 excerpt: 'This page documents the models that users can use to define their project: how to initialize them, attributes and their meaning, protocol comformances.'
 ---
 
@@ -1779,11 +1780,9 @@ A path represents a path to a file, directory, or a group of files represented b
   ]}
 />
 
-<Message
-  info
-  title="ExpressibleByStringLiteral"
-  description="The path can be initialized with a plain string. It's equivalent to using `.relativeToManifest.` except when the path starts with `//`, in which case the path is considered relative to the root directory."
-/>
+:::note ExpressibleByStringLiteral
+The path can be initialized with a plain string. It's equivalent to using `.relativeToManifest.` except when the path starts with `//`, in which case the path is considered relative to the root directory.
+:::
 
 ## Target Reference
 
@@ -1831,8 +1830,4 @@ Tuist automatically performs several template transformations for you
   ]}
 />
 
-<Message
-  info
-  title="ExpressibleByStringInterpolation"
-  description="File header template can be initialized with a plain string, it is equivalent to using `.string(...)`"
-/>
+<Message info title="ExpressibleByStringInterpolation" description="" />
