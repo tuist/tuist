@@ -33,9 +33,8 @@ final class ManifestGraphLoader: ManifestGraphLoading {
             configLoader: ConfigLoader(manifestLoader: manifestLoader),
             manifestLoader: manifestLoader,
             recursiveManifestLoader: RecursiveManifestLoader(manifestLoader: manifestLoader),
-            converter: GeneratorModelLoader(
-                manifestLoader: manifestLoader,
-                manifestLinter: AnyManifestLinter()
+            converter: ManifestModelConverter(
+                manifestLoader: manifestLoader
             ),
             graphLoader: ValueGraphLoader(),
             pluginsService: PluginService(manifestLoader: manifestLoader)

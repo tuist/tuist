@@ -53,9 +53,8 @@ class Generator: Generating {
     ) {
         let manifestLoader = manifestLoaderFactory.createManifestLoader()
         recursiveManifestLoader = RecursiveManifestLoader(manifestLoader: manifestLoader)
-        converter = GeneratorModelLoader(
-            manifestLoader: manifestLoader,
-            manifestLinter: manifestLinter
+        converter = ManifestModelConverter(
+            manifestLoader: manifestLoader
         )
         sideEffectDescriptorExecutor = SideEffectDescriptorExecutor()
         self.graphMapperProvider = graphMapperProvider
