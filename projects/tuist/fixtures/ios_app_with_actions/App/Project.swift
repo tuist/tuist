@@ -9,7 +9,7 @@ let project = Project(name: "App",
                                infoPlist: "Info.plist",
                                sources: ["Sources/**"],
                                actions: [
-                                .pre(tool: "/bin/echo", arguments: ["\"tuist\""], name: "Tuist"),
+                                .pre(tool: "/bin/echo", arguments: ["\"tuist\""], name: "Tuist", inputPaths: ["Sources/**/*.swift"]),
                                 .post(tool: "/bin/echo", arguments: ["rocks"], name: "Rocks"),
                                 .pre(path: "script.sh", name: "Run script"),
                                 .pre(script: "echo 'Hello World'", name: "Embedded script"),
