@@ -10,6 +10,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
+- Add missing disabling of swiftformat and swift-format [#2795](https://github.com/tuist/tuist/pull/2795) by [@fortmarek](https://github.com/fortmarek)
+- Add support for globbing in build phase input file and file lists as well as output and output file lists. [#2686](https://github.com/tuist/tuist/pull/2686) by [@FranzBusch](https://github.com/FranzBusch)
 - **breaking** Redesign `ProjectDescription.Dependencies` manifest model. [#2394](https://github.com/tuist/tuist/pull/2394) by [@laxmorek](https://github.com/laxmorek).
 
 ### Fixed

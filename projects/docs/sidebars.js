@@ -2,19 +2,30 @@ module.exports = {
   docs: [
     {
       type: 'category',
-      label: 'Usage',
+      label: 'Tutorial',
       items: [
-        'usage/shell-autocompletion',
-        'usage/helpers',
-        'usage/resources',
-        'usage/project-description',
-        'usage/config',
+        'tutorial/get-started',
+        'tutorial/adoption-guidelines',
+        'tutorial/faq',
       ],
     },
     {
       type: 'category',
-      label: 'Dependencies',
-      items: ['dependencies/local'],
+      label: 'Features',
+      items: [
+        'features/dependencies',
+        'features/helpers',
+        'features/resources',
+        'features/environment',
+        'features/version-management',
+        'features/shell-autocompletion',
+        'features/stats',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Manifests reference',
+      items: ['manifests/project', 'manifests/workspace', 'manifests/config'],
     },
     {
       type: 'category',

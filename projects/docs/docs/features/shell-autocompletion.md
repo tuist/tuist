@@ -1,6 +1,6 @@
 ---
 title: Shell autocompletion
-slug: '/usage/shell-autocompletion'
+slug: '/features/shell-autocompletion'
 description: 'To ease usage of tuist, learn how you can generate autocompletions for your shell'
 ---
 

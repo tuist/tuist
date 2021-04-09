@@ -11,7 +11,7 @@ You may use plugins that exist at a path local to your machine or at a git sourc
 
 ### Adding plugins
 
-In order to tell Tuist you'd like to use plugins in your project, you can start by defining the plugins in the [`Config.swift`](/usage/config/) manifest.
+In order to tell Tuist you'd like to use plugins in your project, you can start by defining the plugins in the [`Config.swift`](/manifests/config/) manifest.
 
 ```swift
 import ProjectDescription
@@ -25,11 +25,11 @@ let config = Config(
 )
 ```
 
-By defining plugins in the [`Config.swift`](/usage/config/) manifest Tuist is able to collect, cache and use your plugins to add or extend functionality.
+By defining plugins in the [`Config.swift`](/manifests/config/) manifest Tuist is able to collect, cache and use your plugins to add or extend functionality.
 
 #### Local plugin
 
-Local plugins are stored relative to the machine generating the project. You can tell Tuist to find them at a given [`Path`](/usage/project-description/).
+Local plugins are stored relative to the machine generating the project. You can tell Tuist to find them at a given [`Path`](/manifests/project/).
 
 ```swift
 PluginLocation.local(path: "/Plugins/MyPlugin")
@@ -65,7 +65,7 @@ The [`Plugin.swift`](/plugins/creating-plugins/) manifest in a git repository sh
 Let's say we have a plugin called `MyTuistPlugin`. This plugin is designed to add functionality to `ProjectDescription`, in this example the plugin will add a new method to `Project` which allow us to define an application.
 This plugin is stored in git on some remote server, and we'd like to use version `1.0.0` of the plugin.
 
-We must first configure Tuist to use our plugin, we can do that by adding the plugin to the [`Config.swift`](/usage/config/) manifest.
+We must first configure Tuist to use our plugin, we can do that by adding the plugin to the [`Config.swift`](/manifests/config/) manifest.
 
 ```swift
 import ProjectDescription

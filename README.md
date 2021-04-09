@@ -3,7 +3,6 @@
   <a href="#contributors-"><img src="https://img.shields.io/badge/all_contributors-2-orange.svg?style=flat-square" alt="All contributors"></a>
   <img src="https://github.com/tuist/tuist/workflows/Tuist/badge.svg" alt="Tuist">
   <img src="https://img.shields.io/github/v/release/tuist/tuist?include_prereleases&style=flat-square" alt="Latest Version">
-  <a href="http://slack.tuist.io"><img src="http://slack.tuist.io/badge.svg" alt="Slack"></a>
   <a href="http://community.tuist.io"><img src="https://img.shields.io/badge/community-tuist-blue?style=flat-square" alt="Community"></a>
   <img src="https://img.shields.io/github/forks/tuist/tuist?style=flat-square" alt="GitHub forks">
   <img src="https://img.shields.io/github/stars/tuist/tuist?style=flat-square" alt="GitHub stars">
@@ -51,7 +50,7 @@ The repository is a monorepo with multiple projects:
 
 ## Documentation 📝
 
-Do you want to know more about what Tuist can offer you? Or perhaps want to contribute to the project and you need a starting point? You can check out the [project documentation](https://tuist.io/docs/usage/get-started/).
+Do you want to know more about what Tuist can offer you? Or perhaps want to contribute to the project and you need a starting point? You can check out the [project documentation](https://docs.tuist.io/tutorial/get-started/).
 
 ## Supported by great companies
 
@@ -141,6 +140,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
   <tr>
     <td align="center"><a href="https://github.com/tiarnann"><img src="https://avatars.githubusercontent.com/u/10522081?v=4" width="100px;" alt=""/><br /><sub><b>Tíarnán McGrath</b></sub></a></td>
     <td align="center"><a href="https://github.com/softmaxsg"><img src="https://avatars.githubusercontent.com/u/3723817?v=4" width="100px;" alt=""/><br /><sub><b>Vitaly Chupryk</b></sub></a></td>
+    <td align="center"><a href="https://github.com/rmnblm"><img src="https://avatars.githubusercontent.com/u/5942764?v=4" width="100px;" alt=""/><br /><sub><b>Roman Blum</b></sub></a></td>
   </tr>
 </table>
 

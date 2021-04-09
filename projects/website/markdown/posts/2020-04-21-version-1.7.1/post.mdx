@@ -34,7 +34,7 @@ let baseSettings: [String: SettingValue] = [
 
 This is not ideal. Having to repeat the strings manually and finding the possible values is not only tedious, but also
 might lead to errors, since typos in strings are a common problem. Initially, I found myself using a few functions in
-my [project description helpers](/docs/usage/helpers/) to make the settings both type safety and to reduce duplication
+my [project description helpers](https://docs.tuist.io/features/helpers/) to make the settings both type safety and to reduce duplication
 of the strings. I raised the topic in the Tuist Slack group and adding these functions to `ProjectDescription` was a
 welcome idea. This is exactly within the goals of Tuist: to make developers' life easier and the task of generating
 projects less error prone. From now on, the code above can be written like this:
@@ -45,7 +45,7 @@ let baseSettings = SettingsDictionary()
     .swiftCompilationMode(.wholemodule)
 ```
 
-[Refer to the documentation](https://tuist.io/docs/usage/projectswift/#settingsdictionary) to see the list of built in
+[Refer to the documentation](https://docs.tuist.io/manifests/project/#settingsdictionary) to see the list of built in
 functions, and also to learn how you can add your own to your project description helpers. If you find yourself using a
 function that others can leverage as well, don't hesitate to open a Pull Request adding them.
 
