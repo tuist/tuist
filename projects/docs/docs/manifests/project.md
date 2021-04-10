@@ -1518,7 +1518,7 @@ description: 'Sets `"ENABLE_BITCODE"` to `"YES"` or `"NO"`',
 
 Notice that you don't depend exclusively on Tuist's built-in functions.
 You can create your own `SettingsDictionary` extension methods and add them to your
-`Project description helpers` this way:s
+`Project description helpers` this way:
 
 ```swift
 public extension SettingsDictionary {
