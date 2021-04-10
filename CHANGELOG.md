@@ -18,6 +18,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Fixed missing `.resolveDependenciesWithSystemScm` config option in the `PackageDescription` portion of tuist [#2769](https://github.com/tuist/tuist/pull/2769) by [@freak4pc](https://github.com/freak4pc)
 - Fixed running `tuist dump` for projects with plugins [#2700](https://github.com/tuist/tuist/pull/2700) by [@danyf90](https://github.com/danyf90)
+- Fixed issue where associating potential test targets in a target's auto-generated scheme became more restrictive that previous versions. [#2797](https://github.com/tuist/tuist/pull/2797) by [@jakeatoms](https://github.com/jakeatoms)
 
 ## 1.39.1
 
