@@ -32,7 +32,9 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
 
     func test_loadDependencies() throws {
         // Given
-        let stubbedPath = try temporaryPath()
+        let temporaryPath = try self.temporaryPath()
+        let localSwiftPackagePath = temporaryPath.appending(component: "LocalPackage")
+
         manifestLoader.loadDependenciesStub = { _ in
             Dependencies(
                 carthage: .carthage(
@@ -40,14 +42,20 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
                         .github(path: "Dependency1", requirement: .exact("1.1.1")),
                         .git(path: "Dependency1", requirement: .exact("2.3.4")),
                     ],
-                    platforms: [.iOS, .macOS],
                     options: [.useXCFrameworks, .noUseBinaries]
-                )
+                ),
+                swiftPackageManager: .swiftPackageManager(
+                    [
+                        .local(path: Path(localSwiftPackagePath.pathString)),
+                        .remote(url: "RemoteUrl.com", requirement: .exact("1.2.3")),
+                    ]
+                ),
+                platforms: [.iOS, .macOS]
             )
         }
 
         // When
-        let model = try subject.loadDependencies(at: stubbedPath)
+        let got = try subject.loadDependencies(at: temporaryPath)
 
         // Then
         let expected: TuistGraph.Dependencies = .init(
@@ -56,10 +64,16 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
                     .github(path: "Dependency1", requirement: .exact("1.1.1")),
                     .git(path: "Dependency1", requirement: .exact("2.3.4")),
                 ],
-                platforms: [.iOS, .macOS],
                 options: [.useXCFrameworks, .noUseBinaries]
-            )
+            ),
+            swiftPackageManager: .init(
+                [
+                    .local(path: localSwiftPackagePath),
+                    .remote(url: "RemoteUrl.com", requirement: .exact("1.2.3")),
+                ]
+            ),
+            platforms: [.iOS, .macOS]
         )
-        XCTAssertEqual(model, expected)
+        XCTAssertEqual(got, expected)
     }
 }

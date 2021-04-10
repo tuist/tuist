@@ -10,7 +10,6 @@ final class CarthageDependenciesTests: TuistUnitTestCase {
             [
                 .github(path: "Dependency/Dependency", requirement: .exact("1.1.1")),
             ],
-            platforms: [.iOS],
             options: []
         )
         let expected = """
@@ -36,7 +35,6 @@ final class CarthageDependenciesTests: TuistUnitTestCase {
                 .binary(path: "https://my.domain.com/release/MyFramework.json", requirement: .upToNext("1.0.1")),
                 .binary(path: "file:///some/local/path/MyFramework.json", requirement: .atLeast("1.1.0")),
             ],
-            platforms: [.iOS],
             options: []
         )
         let expected = """
