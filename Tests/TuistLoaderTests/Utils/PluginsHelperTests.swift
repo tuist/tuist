@@ -8,12 +8,12 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class PluginsHelperTests: TuistUnitTestCase {
-    private var subject: PluginsTemplatePathHelper!
+    private var subject: ResourceSynthesizerPathLocator!
 
     override func setUp() {
         super.setUp()
 
-        subject = PluginsTemplatePathHelper()
+        subject = ResourceSynthesizerPathLocator()
     }
 
     override func tearDown() {
@@ -29,7 +29,7 @@ final class PluginsHelperTests: TuistUnitTestCase {
                 resourceName: "Strings",
                 resourceSynthesizerPlugins: [.test(name: "B"), .test(name: "C")]
             ),
-            PluginsHelperError.pluginNotFound("A", ["B", "C"])
+            ResourceSynthesizerPathLocatorError.pluginNotFound("A", ["B", "C"])
         )
     }
 
@@ -40,7 +40,7 @@ final class PluginsHelperTests: TuistUnitTestCase {
                 resourceName: "Strings",
                 resourceSynthesizerPlugins: [.test(name: "A")]
             ),
-            PluginsHelperError.resourceTemplateNotFound(name: "Strings.stencil", plugin: "A")
+            ResourceSynthesizerPathLocatorError.resourceTemplateNotFound(name: "Strings.stencil", plugin: "A")
         )
     }
 
@@ -68,14 +68,14 @@ final class PluginsHelperTests: TuistUnitTestCase {
 
     func test_resourceTemplateNotFound_error() {
         XCTAssertEqual(
-            PluginsHelperError.resourceTemplateNotFound(name: "Strings.stencil", plugin: "A").description,
+            ResourceSynthesizerPathLocatorError.resourceTemplateNotFound(name: "Strings.stencil", plugin: "A").description,
             "No template Strings.stencil found in a plugin A"
         )
     }
 
     func test_pluginNotFound_error() {
         XCTAssertEqual(
-            PluginsHelperError.pluginNotFound("A", ["B", "C"]).description,
+            ResourceSynthesizerPathLocatorError.pluginNotFound("A", ["B", "C"]).description,
             "Plugin A was not found. Available plugins: B, C"
         )
     }

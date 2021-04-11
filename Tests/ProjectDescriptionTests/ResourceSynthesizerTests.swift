@@ -16,16 +16,10 @@ final class ResourceSynthesizerTests: XCTestCase {
         )
     }
 
-    func test_codable_when_file() {
-        XCTAssertCodable(
-            ResourceSynthesizer.strings(templatePath: "Path")
-        )
-    }
-
     func test_codable_when_custom() {
         XCTAssertCodable(
             ResourceSynthesizer.custom(
-                path: "Path",
+                name: "Custom",
                 parser: .json,
                 extensions: ["lottie"]
             )

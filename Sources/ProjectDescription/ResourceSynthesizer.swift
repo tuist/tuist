@@ -14,25 +14,21 @@ public struct ResourceSynthesizer: Codable, Equatable {
 
     /// Templates can be either a local template file, from a plugin, or a default template from tuist
     public enum TemplateType: Codable, Equatable {
-        /// Local template file at a given path
-        case file(Path)
         /// Plugin template file
         /// `name` is a name of a plugin
         /// `resourceName` is a name of the resource - that is used for finding a template as well as naming the resulting `.swift` file
         case plugin(name: String, resourceName: String)
-        /// Default template defined in tuist
+        /// Default template defined `Tuist/{ProjectName}`, or if not present there, in tuist itself
         /// `resourceName` is used for the name of the resulting `.swift` file
         case defaultTemplate(resourceName: String)
 
         public enum CodingKeys: String, CodingKey {
             case type
-            case path
             case name
             case resourceName
         }
 
         private enum TypeName: String, Codable {
-            case file
             case plugin
             case defaultTemplate
         }
@@ -41,9 +37,6 @@ public struct ResourceSynthesizer: Codable, Equatable {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             let type = try container.decode(TypeName.self, forKey: .type)
             switch type {
-            case .file:
-                let path = try container.decode(Path.self, forKey: .path)
-                self = .file(path)
             case .plugin:
                 let name = try container.decode(String.self, forKey: .name)
                 let resourceName = try container.decode(String.self, forKey: .resourceName)
@@ -57,9 +50,6 @@ public struct ResourceSynthesizer: Codable, Equatable {
         public func encode(to encoder: Encoder) throws {
             var container = encoder.container(keyedBy: CodingKeys.self)
             switch self {
-            case let .file(path):
-                try container.encode(TypeName.file, forKey: .type)
-                try container.encode(path, forKey: .path)
             case let .plugin(name: name, resourceName: resourceName):
                 try container.encode(TypeName.plugin, forKey: .type)
                 try container.encode(name, forKey: .name)
@@ -85,7 +75,7 @@ public struct ResourceSynthesizer: Codable, Equatable {
         case yaml
     }
 
-    /// Default strings synthesizer
+    /// Default strings synthesizer defined in `Tuist/{ProjectName}` or tuist itself
     public static func strings() -> Self {
         .strings(templateType: .defaultTemplate(resourceName: "Strings"))
     }
@@ -100,11 +90,6 @@ public struct ResourceSynthesizer: Codable, Equatable {
         )
     }
 
-    /// Strings synthesizer with a template defined in `templatePath`
-    public static func strings(templatePath: Path) -> Self {
-        .strings(templateType: .file(templatePath))
-    }
-
     private static func strings(templateType: TemplateType) -> Self {
         .init(
             templateType: templateType,
@@ -113,7 +98,7 @@ public struct ResourceSynthesizer: Codable, Equatable {
         )
     }
 
-    /// Default assets synthesizer
+    /// Default assets synthesizer defined in `Tuist/{ProjectName}` or tuist itself
     public static func assets() -> Self {
         .assets(templateType: .defaultTemplate(resourceName: "Assets"))
     }
@@ -128,11 +113,6 @@ public struct ResourceSynthesizer: Codable, Equatable {
         )
     }
 
-    /// Assets synthesizer with a template defined in `templatePath`
-    public static func assets(templatePath: Path) -> Self {
-        .assets(templateType: .file(templatePath))
-    }
-
     private static func assets(templateType: TemplateType) -> Self {
         .init(
             templateType: templateType,
@@ -141,7 +121,7 @@ public struct ResourceSynthesizer: Codable, Equatable {
         )
     }
 
-    /// Default fonts synthesizer
+    /// Default fonts synthesizer defined in `Tuist/{ProjectName}` or tuist itself
     public static func fonts() -> Self {
         .fonts(templateType: .defaultTemplate(resourceName: "Fonts"))
     }
@@ -156,11 +136,6 @@ public struct ResourceSynthesizer: Codable, Equatable {
         )
     }
 
-    /// Fonts synthesizer with a template defined in `templatePath`
-    public static func fonts(templatePath: Path) -> Self {
-        .fonts(templateType: .file(templatePath))
-    }
-
     private static func fonts(templateType: TemplateType) -> Self {
         .init(
             templateType: templateType,
@@ -169,7 +144,7 @@ public struct ResourceSynthesizer: Codable, Equatable {
         )
     }
 
-    /// Default plists synthesizer
+    /// Default plists synthesizer defined in `Tuist/{ProjectName}` or tuist itself
     public static func plists() -> Self {
         .plists(templateType: .defaultTemplate(resourceName: "Plists"))
     }
@@ -182,11 +157,6 @@ public struct ResourceSynthesizer: Codable, Equatable {
                 resourceName: "Plists"
             )
         )
-    }
-
-    /// Plists synthesizer with a template defined in `templatePath`
-    public static func plists(templatePath: Path) -> Self {
-        .plists(templateType: .file(templatePath))
     }
 
     private static func plists(templateType: TemplateType) -> Self {
@@ -207,9 +177,9 @@ public struct ResourceSynthesizer: Codable, Equatable {
         )
     }
 
-    /// CoreData synthesizer with a template defined in `templatePath`
-    public static func coreData(templatePath: Path) -> Self {
-        .coreData(templateType: .file(templatePath))
+    /// Default CoreData synthesizer defined in `Tuist/{ProjectName}`
+    public static func coreData() -> Self {
+        .coreData(templateType: .defaultTemplate(resourceName: "CoreData"))
     }
 
     private static func coreData(templateType: TemplateType) -> Self {
@@ -230,9 +200,9 @@ public struct ResourceSynthesizer: Codable, Equatable {
         )
     }
 
-    /// InterfaceBuilder synthesizer with a template defined in `templatePath`
-    public static func interfaceBuilder(templatePath: Path) -> Self {
-        .interfaceBuilder(templateType: .file(templatePath))
+    /// InterfaceBuilder synthesizer with a template defined in `Tuist/{ProjectName}`
+    public static func interfaceBuilder() -> Self {
+        .interfaceBuilder(templateType: .defaultTemplate(resourceName: "InterfaceBuilder"))
     }
 
     private static func interfaceBuilder(templateType: TemplateType) -> Self {
@@ -253,9 +223,9 @@ public struct ResourceSynthesizer: Codable, Equatable {
         )
     }
 
-    /// JSON synthesizer with a template defined in `templatePath`
-    public static func json(templatePath: Path) -> Self {
-        .json(templateType: .file(templatePath))
+    /// JSON synthesizer with a template defined in `Tuist/{ProjectName}`
+    public static func json() -> Self {
+        .json(templateType: .defaultTemplate(resourceName: "JSON"))
     }
 
     private static func json(templateType: TemplateType) -> Self {
@@ -276,9 +246,9 @@ public struct ResourceSynthesizer: Codable, Equatable {
         )
     }
 
-    /// CoreData synthesizer with a template defined in `templatePath`
-    public static func yaml(templatePath: Path) -> Self {
-        .yaml(templateType: .file(templatePath))
+    /// CoreData synthesizer with a template defined in `Tuist/{ProjectName}`
+    public static func yaml() -> Self {
+        .yaml(templateType: .defaultTemplate(resourceName: "YAML"))
     }
 
     private static func yaml(templateType: TemplateType) -> Self {
@@ -308,18 +278,18 @@ public struct ResourceSynthesizer: Codable, Equatable {
         )
     }
 
-    /// Custom local synthesizer
+    /// Custom local synthesizer defined `Tuist/ResourceTemplates/{name}.stencil`
     /// - Parameters:
-    ///     - path: Path to the template
+    ///     - name: Name of synthesizer
     ///     - parser: `Parser` to use for parsing the file to obtain its data
     ///     - extensions: Set of extensions that should be parsed
     public static func custom(
-        path: Path,
+        name: String,
         parser: Parser,
         extensions: Set<String>
     ) -> Self {
         .init(
-            templateType: .file(path),
+            templateType: .defaultTemplate(resourceName: name),
             parser: parser,
             extensions: extensions
         )

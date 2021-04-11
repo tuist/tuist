@@ -4,15 +4,20 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
-protocol PluginsTemplatePathHelping {
+protocol ResourceSynthesizerPathLocating {
     func templatePath(
         for pluginName: String,
         resourceName: String,
         resourceSynthesizerPlugins: [ResourceSynthesizerPlugin]
     ) throws -> AbsolutePath
+    
+    func templatePath(
+        for resourceName: String,
+        path: AbsolutePath
+    ) -> AbsolutePath?
 }
 
-enum PluginsHelperError: FatalError, Equatable {
+enum ResourceSynthesizerPathLocatorError: FatalError, Equatable {
     case pluginNotFound(String, [String])
     case resourceTemplateNotFound(name: String, plugin: String)
 
@@ -34,7 +39,15 @@ enum PluginsHelperError: FatalError, Equatable {
     }
 }
 
-final class PluginsTemplatePathHelper: PluginsTemplatePathHelping {
+final class ResourceSynthesizerPathLocator: ResourceSynthesizerPathLocating {
+    private let rootDirectoryLocator: RootDirectoryLocating
+    
+    init(
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
+    ) {
+        self.rootDirectoryLocator = rootDirectoryLocator
+    }
+    
     func templatePath(
         for pluginName: String,
         resourceName: String,
@@ -42,14 +55,24 @@ final class PluginsTemplatePathHelper: PluginsTemplatePathHelping {
     ) throws -> AbsolutePath {
         guard
             let plugin = resourceSynthesizerPlugins.first(where: { $0.name == pluginName })
-        else { throw PluginsHelperError.pluginNotFound(pluginName, resourceSynthesizerPlugins.map(\.name)) }
+        else { throw ResourceSynthesizerPathLocatorError.pluginNotFound(pluginName, resourceSynthesizerPlugins.map(\.name)) }
 
         let resourceTemplatePath = plugin.path
             .appending(components: "\(resourceName).stencil")
         guard
             FileHandler.shared.exists(resourceTemplatePath)
-        else { throw PluginsHelperError.resourceTemplateNotFound(name: "\(resourceName).stencil", plugin: plugin.name) }
+        else { throw ResourceSynthesizerPathLocatorError.resourceTemplateNotFound(name: "\(resourceName).stencil", plugin: plugin.name) }
 
         return resourceTemplatePath
+    }
+    
+    func templatePath(
+        for resourceName: String,
+        path: AbsolutePath
+    ) -> AbsolutePath? {
+        guard let rootDirectory = rootDirectoryLocator.locate(from: path) else { return nil }
+        let templatePath = rootDirectory
+            .appending(components: Constants.tuistDirectoryName, Constants.resourceTemplatesDirectoryName, "\(resourceName).stencil")
+        return FileHandler.shared.exists(templatePath) ? templatePath : nil
     }
 }

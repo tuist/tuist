@@ -7,17 +7,21 @@ extension TuistGraph.ResourceSynthesizer {
         manifest: ProjectDescription.ResourceSynthesizer,
         generatorPaths: GeneratorPaths,
         plugins: Plugins,
-        pluginsTemplatePathHelper: PluginsTemplatePathHelping
+        resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating
     ) throws -> Self {
         let template: TuistGraph.ResourceSynthesizer.Template
         switch manifest.templateType {
         case let .defaultTemplate(resourceName: resourceName):
-            template = .defaultTemplate(resourceName)
-        case let .file(path):
-            let path = try generatorPaths.resolve(path: path)
-            template = .file(path)
+            if let templatePath = resourceSynthesizerPathLocator.templatePath(
+                for: resourceName,
+                path: generatorPaths.manifestDirectory
+            ) {
+                template = .file(templatePath)
+            } else {
+                template = .defaultTemplate(resourceName)
+            }
         case let .plugin(name: name, resourceName: resourceName):
-            let path = try pluginsTemplatePathHelper.templatePath(
+            let path = try resourceSynthesizerPathLocator.templatePath(
                 for: name,
                 resourceName: resourceName,
                 resourceSynthesizerPlugins: plugins.resourceSynthesizers

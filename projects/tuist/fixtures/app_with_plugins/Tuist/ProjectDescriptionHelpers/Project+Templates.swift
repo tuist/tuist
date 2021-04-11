@@ -23,7 +23,7 @@ extension Project {
             resourceSynthesizers: [
                 .strings(plugin: "LocalPlugin"),
                 .custom(
-                    path: "Templates/Lottie.stencil",
+                    name: "Lottie",
                     parser: .json,
                     extensions: ["lottie"]
                 )

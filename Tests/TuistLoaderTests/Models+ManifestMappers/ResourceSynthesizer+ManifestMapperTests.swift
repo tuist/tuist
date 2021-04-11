@@ -10,16 +10,16 @@ import XCTest
 @testable import TuistLoader
 
 final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
-    private var pluginsTemplatePathHelper: MockTemplatePathPluginsHelper!
+    private var resourceSynthesizerPathLocator: MockResourceSynthesizerPathLocator!
 
     override func setUp() {
         super.setUp()
 
-        pluginsTemplatePathHelper = MockTemplatePathPluginsHelper()
+        resourceSynthesizerPathLocator = MockResourceSynthesizerPathLocator()
     }
 
     override func tearDown() {
-        pluginsTemplatePathHelper = nil
+        resourceSynthesizerPathLocator = nil
 
         super.tearDown()
     }
@@ -33,7 +33,7 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
             manifest: .strings(),
             generatorPaths: GeneratorPaths(manifestDirectory: manifestDirectory),
             plugins: .none,
-            pluginsTemplatePathHelper: pluginsTemplatePathHelper
+            resourceSynthesizerPathLocator: resourceSynthesizerPathLocator
         )
 
         // Then
@@ -46,28 +46,34 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
             )
         )
     }
-
-    func test_from_when_plists_file() throws {
+    
+    func test_from_when_default_strings_and_custom_template_defined() throws {
         // Given
         let manifestDirectory = try temporaryPath()
+        var gotResourceName: String?
+        resourceSynthesizerPathLocator.templatePathResourceStub = { resourceName, path in
+            gotResourceName = resourceName
+            return path.appending(component: "Template.stencil")
+        }
 
         // When
         let got = try ResourceSynthesizer.from(
-            manifest: .plists(templatePath: "Template.stencil"),
+            manifest: .strings(),
             generatorPaths: GeneratorPaths(manifestDirectory: manifestDirectory),
             plugins: .none,
-            pluginsTemplatePathHelper: pluginsTemplatePathHelper
+            resourceSynthesizerPathLocator: resourceSynthesizerPathLocator
         )
 
         // Then
         XCTAssertEqual(
             got,
             .init(
-                parser: .plists,
-                extensions: ["plist"],
+                parser: .strings,
+                extensions: ["strings", "stringsdict"],
                 template: .file(manifestDirectory.appending(component: "Template.stencil"))
             )
         )
+        XCTAssertEqual(gotResourceName, "Strings")
     }
 
     func test_from_when_assets_plugin() throws {
@@ -76,7 +82,7 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
         var invokedPluginNames: [String] = []
         var invokedResourceNames: [String] = []
         var invokedResourceSynthesizerPlugins: [ResourceSynthesizerPlugin] = []
-        pluginsTemplatePathHelper.templatePathStub = { pluginName, resourceName, resourceSynthesizerPlugins in
+        resourceSynthesizerPathLocator.templatePathStub = { pluginName, resourceName, resourceSynthesizerPlugins in
             invokedPluginNames.append(pluginName)
             invokedResourceNames.append(resourceName)
             invokedResourceSynthesizerPlugins.append(contentsOf: resourceSynthesizerPlugins)
@@ -92,7 +98,7 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
                     .test(name: "Plugin"),
                 ]
             ),
-            pluginsTemplatePathHelper: pluginsTemplatePathHelper
+            resourceSynthesizerPathLocator: resourceSynthesizerPathLocator
         )
 
         // Then
