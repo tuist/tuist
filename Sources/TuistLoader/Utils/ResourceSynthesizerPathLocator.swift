@@ -72,7 +72,7 @@ final class ResourceSynthesizerPathLocator: ResourceSynthesizerPathLocating {
     ) -> AbsolutePath? {
         guard let rootDirectory = rootDirectoryLocator.locate(from: path) else { return nil }
         let templatePath = rootDirectory
-            .appending(components: Constants.tuistDirectoryName, Constants.resourceTemplatesDirectoryName, "\(resourceName).stencil")
+            .appending(components: Constants.tuistDirectoryName, Constants.resourceSynthesizersDirectoryName, "\(resourceName).stencil")
         return FileHandler.shared.exists(templatePath) ? templatePath : nil
     }
 }

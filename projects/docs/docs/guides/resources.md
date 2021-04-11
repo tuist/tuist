@@ -109,7 +109,7 @@ For `strings`, `plists`, `fonts`, and `assets` there are templates offered by tu
 .strings()
 ```
 
-You can also use a local template. Just add it to `Tuist/ResourceTemplates/{name}.stencil` where name is derived from the resource and then use the default initializer (e.g. `plists()` for Plists). Here you have listed all of the name mappings:
+You can also use a local template. Just add it to `Tuist/ResourceSynthesizers/{name}.stencil` where name is derived from the resource and then use the default initializer (e.g. `plists()` for Plists). Here you have listed all of the name mappings:
 
 - `strings` => `Strings.stencil`
 - `assets` => `Assets.stencil`
@@ -138,7 +138,7 @@ If you need something more custom, eg. Lottie template that uses `.json` parser 
 )
 ```
 
-where the template should again be present at `Tuist/ResourceTemplates/Lottie.stencil`.
+where the template should again be present at `Tuist/ResourceSynthesizers/Lottie.stencil`.
 
 The same can be done for a plugin:
 

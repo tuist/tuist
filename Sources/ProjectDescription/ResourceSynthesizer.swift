@@ -278,7 +278,7 @@ public struct ResourceSynthesizer: Codable, Equatable {
         )
     }
 
-    /// Custom local synthesizer defined `Tuist/ResourceTemplates/{name}.stencil`
+    /// Custom local synthesizer defined `Tuist/ResourceSynthesizers/{name}.stencil`
     /// - Parameters:
     ///     - name: Name of synthesizer
     ///     - parser: `Parser` to use for parsing the file to obtain its data

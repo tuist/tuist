@@ -101,7 +101,7 @@ final class PluginServiceTests: TuistTestCase {
         // Given
         let pluginPath = try temporaryPath()
         let pluginName = "TestPlugin"
-        let resourceTemplatesPath = pluginPath.appending(components: "ResourceTemplates")
+        let resourceTemplatesPath = pluginPath.appending(components: "ResourceSynthesizers")
 
         try makeDirectories(resourceTemplatesPath)
 
@@ -132,7 +132,7 @@ final class PluginServiceTests: TuistTestCase {
         let pluginFingerprint = "\(pluginGitUrl)-\(pluginGitId)".md5
         let cachedPluginPath = environment.cacheDirectory.appending(components: Constants.pluginsDirectoryName, pluginFingerprint)
         let pluginName = "TestPlugin"
-        let resourceTemplatesPath = cachedPluginPath.appending(components: "ResourceTemplates")
+        let resourceTemplatesPath = cachedPluginPath.appending(components: "ResourceSynthesizers")
 
         try makeDirectories(resourceTemplatesPath)
 

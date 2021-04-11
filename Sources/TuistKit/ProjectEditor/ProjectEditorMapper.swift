@@ -278,7 +278,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             let pluginManifest = manifest.path.appending(component: "Plugin.swift")
             let pluginHelpersPath = manifest.path.appending(component: Constants.helpersDirectoryName)
             let pluginTemplatesPath = manifest.path.appending(component: Constants.templatesDirectoryName)
-            let pluginResourceTemplatesPath = manifest.path.appending(component: Constants.resourceTemplatesDirectoryName)
+            let pluginResourceTemplatesPath = manifest.path.appending(component: Constants.resourceSynthesizersDirectoryName)
             let sourcePaths = [pluginManifest] +
                 FileHandler.shared.glob(pluginHelpersPath, glob: "**/*.swift") +
                 FileHandler.shared.glob(pluginTemplatesPath, glob: "**/*.swift") +

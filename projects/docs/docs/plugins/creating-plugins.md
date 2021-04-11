@@ -72,13 +72,13 @@ There are more types, so the naming is:
 
 You can also create a `ResourceSynthesizer` with `.custom`. In this case the template should be of the same name as `resourceName`.
 
-In order for Tuist to locate the templates for a plugin, they must be placed in the same directory as the `Plugin.swift` manifest and in a directory named `ResourceTemplates`.
+In order for Tuist to locate the templates for a plugin, they must be placed in the same directory as the `Plugin.swift` manifest and in a directory named `ResourceSynthesizers`.
 
 ```
 .
 ├── ...
 ├── Plugin.swift
-├── ResourceTemplates
+├── ResourceSynthesizers
 ├───── Strings.stencil
 ├───── Plists.stencil
 ├───── CustomTemplate.stencil

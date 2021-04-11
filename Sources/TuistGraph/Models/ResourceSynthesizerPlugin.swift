@@ -5,7 +5,7 @@ import TSCBasic
 public struct ResourceSynthesizerPlugin: Equatable {
     /// Name of the plugin
     public let name: String
-    /// Path to `ResourceTemplates` directory where all resource templates are located
+    /// Path to `ResourceSynthesizers` directory where all resource templates are located
     public let path: AbsolutePath
 
     public init(

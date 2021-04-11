@@ -82,7 +82,7 @@ public final class PluginService: PluginServicing {
         let resourceSynthesizerPlugins = zip(
             (localPluginManifests + remotePluginManifests).map(\.name),
             pluginPaths
-                .map { $0.appending(component: Constants.resourceTemplatesDirectoryName) }
+                .map { $0.appending(component: Constants.resourceSynthesizersDirectoryName) }
         )
         .filter { _, path in FileHandler.shared.exists(path) }
         .map(ResourceSynthesizerPlugin.init)
