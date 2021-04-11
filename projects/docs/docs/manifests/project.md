@@ -1168,83 +1168,54 @@ default: '[]',
 
 Run action options represent the configuration of a run action.
 
-<PropertiesTable
-properties={[
-{
-name: 'StoreKitConfigurationPath',
-description:
-'Path of the StoreKit Configuration file that is used to control and debug StoreKit purchases. It only works with Xcode 12 and above.',
-type: 'Path',
-optional: true,
-default: 'nil',
-},
-{
-name: 'SimulatedLocation',
-description: 'A simulated GPS location to use when running the app.',
-type: 'SimulatedLocation',
-optional: true,
-default: 'nil',
-},
-]}
-/>
+| Property                    | Description                                                                                                                          | Type                                       | Required | Default |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------ | -------- | ------- |
+| `storeKitConfigurationPath` | Path of the StoreKit Configuration file that is used to control and debug StoreKit purchases. It only works with Xcode 12 and above. | [`Path`](#path)                            | No       |         |
+| `simulatedLocation`         | A simulated GPS location to use when running the app.                                                                                | [`SimulatedLocation`](#simulated-location) | No       |         |
+
+#### Simulated Location
+
+Simulated location represents a GPS location that is used when running an app on the simulator.
+
+| Property     | Description                                             | Type            | Required | Default |
+| ------------ | ------------------------------------------------------- | --------------- | -------- | ------- |
+| `identifier` | The identifier of the location _(e.g. London, England)_ | `String`        | No       |
+| `gpxFile`    | Path to a `.gpx` file that indicates the location       | [`Path`](#path) | No       |
+
+`SimulatedLocation` provides convenient initializers for the following locations:
+
+| Location                   | Initializer     |
+| -------------------------- | --------------- |
+| London, England            | `.london`       |
+| Johannesburg, South Africa | `.johannesburg` |
+| Moscow, Russia             | `.moscow`       |
+| Mumbai, India              | `.mumbai`       |
+| Tokyo, Japan               | `.tokyo`        |
+| Sydney, Australia          | `.sydney`       |
+| Hong Kong, China           | `.hongKong`     |
+| Honolulu, HI, USA          | `.honolulu`     |
+| San Francisco, CA, USA     | `.sanFrancisco` |
+| Mexico City, Mexico        | `.mexicoCity`   |
+| New York, NY, USA          | `.newYork`      |
+| Rio De Janeiro, Brazil     | `.rioDeJaneiro` |
 
 #### Scheme Diagnostics Option
 
 Diagnostics options represent the configurable diagnostics-related settings in the schemes' run and test actions.
 
-<EnumTable
-cases={[
-{
-case: '.mainThreadChecker',
-description: 'Enable the main thread checker.',
-},
-]}
-/>
+| Case                 | Description                     |
+| -------------------- | ------------------------------- |
+| `.mainThreadChecker` | Enable the main thread checker. |
 
 #### Archive Action
 
-<PropertiesTable
-properties={[
-{
-name: 'Configuration Name',
-description: 'Indicates the build configuration to run the archive with.',
-type: 'String',
-optional: false,
-default: '',
-},
-{
-name: 'Reveal Archive in Organizer',
-description:
-'If set to true, Xcode will reveal the Organizer on completion.',
-type: 'Bool',
-optional: true,
-default: 'true',
-},
-{
-name: 'Custom Archive Name',
-description: "Set if you want to override Xcode's default archive name.",
-type: 'String',
-optional: true,
-default: 'nil',
-},
-{
-name: 'Pre-actions',
-description:
-'A list of actions that are executed before starting the archive process.',
-type: '[ExecutionAction]',
-optional: true,
-default: '[]',
-},
-{
-name: 'Post-actions',
-description:
-'A list of actions that are executed after the archive process.',
-type: '[ExecutionAction]',
-optional: true,
-default: '[]',
-},
-]}
-/>
+| Property                   | Description                                                              | Type                                     | Required | Default |
+| -------------------------- | ------------------------------------------------------------------------ | ---------------------------------------- | -------- | ------- |
+| `configurationName`        | Indicates the build configuration to run the archive with.               | `String`                                 | Yes      |         |
+| `revealArchiveInOrganizer` | If set to true, Xcode will reveal the Organizer on completion.           | `Bool`                                   | No       | Yes     |
+| `customArchiveName`        | Set if you want to override Xcode's default archive name.                | `String`                                 | No       |         |
+| `preActions`               | A list of actions that are executed before starting the archive process. | [`[ExecutionAction]`](#execution-action) | No       | `[]`    |
+| `postActions`              | A list of actions that are executed after the archive process.           | [`[ExecutionAction]`](#execution-action) | No       | `[]`    |
 
 #### Profile action
 
