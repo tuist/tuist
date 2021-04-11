@@ -57,9 +57,11 @@ It defines a dependency with a pre-compiled framework, for example, a framework 
 ### Library dependencies
 
 ```swift
-.library(path: "Vendor/Library.a",
-         publicHeaders: nil,
-         swiftModuleMap: "Vendor/Library.modulemap")
+.library(
+    path: "Vendor/Library.a",
+    publicHeaders: nil,
+    swiftModuleMap: "Vendor/Library.modulemap"
+)
 ```
 
 It defines a dependency with a pre-compiled library. It allows specifying the path where the public headers or Swift module map is.

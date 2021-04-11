@@ -44,33 +44,41 @@ The definition file, also known as manifest, has the following structure:
 ```swift
 import ProjectDescription
 
-let project = Project(name: "MyApp",
-                      organizationName: "MyOrg",
-                      targets: [
-                        Target(name: "MyApp",
-                               platform: .iOS,
-                               product: .app,
-                               bundleId: "io.tuist.MyApp",
-                               infoPlist: "Info.plist",
-                               sources: ["Sources/**"],
-                               resources: ["Resources/**"],
-                               headers: Headers(public: ["Sources/public/A/**", "Sources/public/B/**"],
-                                                private: "Sources/private/**",
-                                                project: ["Sources/project/A/**", "Sources/project/B/**"]),
-                               dependencies: [
-                                    /* Target dependencies can be defined here */
-                                    /* .framework(path: "framework") */
-                                ]),
-                        Target(name: "MyAppTests",
-                               platform: .iOS,
-                               product: .unitTests,
-                               bundleId: "io.tuist.MyAppTests",
-                               infoPlist: "Info.plist",
-                               sources: ["Tests/**"],
-                               dependencies: [
-                                    .target(name: "MyApp")
-                               ])
-                      ])
+let project = Project(
+    name: "MyApp",
+    organizationName: "MyOrg",
+    targets: [
+        Target(
+            name: "MyApp",
+            platform: .iOS,
+            product: .app,
+            bundleId: "io.tuist.MyApp",
+            infoPlist: "Info.plist",
+            sources: ["Sources/**"],
+            resources: ["Resources/**"],
+            headers: Headers(
+                public: ["Sources/public/A/**", "Sources/public/B/**"],
+                private: "Sources/private/**",
+                project: ["Sources/project/A/**", "Sources/project/B/**"]
+            ),
+            dependencies: [
+                /* Target dependencies can be defined here */
+                /* .framework(path: "framework") */
+            ]
+        ),
+        Target(
+            name: "MyAppTests",
+            platform: .iOS,
+            product: .unitTests,
+            bundleId: "io.tuist.MyAppTests",
+            infoPlist: "Info.plist",
+            sources: ["Tests/**"],
+            dependencies: [
+                .target(name: "MyApp")
+            ]
+        )
+    ]
+)
 ```
 
 Since we are defining an Xcode project, most of the properties might be familiar to you. There are some that are available which are not used from the manifest that you've got generated. You can [check out](https://tuist.github.io/tuist/index.html) the project reference to see all the public models that are available in the `ProjectDescription` framework.

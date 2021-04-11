@@ -30,10 +30,14 @@ let template = Template(
         .optional("platform", default: "ios"),
     ],
     files: [
-        .string(path: "Project.swift",
-                contents: "My template contents of name \(nameAttribute)"),
-        .file(path: "generated/Up.swift",
-              templatePath: "generate.stencil"),
+        .string(
+            path: "Project.swift",
+            contents: "My template contents of name \(nameAttribute)"
+        ),
+        .file(
+            path: "generated/Up.swift",
+            templatePath: "generate.stencil"
+        ),
     ]
 )
 ```

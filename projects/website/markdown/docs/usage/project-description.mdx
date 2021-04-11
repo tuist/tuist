@@ -14,44 +14,54 @@ Projects are defined in `Project.swift` files, which we refer to as manifest fil
 
 ```swift
 
-let project = Project(name: "MyProject",
-                      organizationName: "MyOrg",
-                      targets: [
-                          Target(name: "App",
-                                 platform: .iOS,
-                                 product: .app,
-                                 bundleId: "io.tuist.App",
-                                 infoPlist: "Config/App-Info.plist",
-                                 sources: ["Sources/**"],
-                                 resources: [
-                                   "Resources/**",
-                                   .folderReference(path: "Stubs"),
-                                   .folderReference(path: "ODR", tags: ["odr_tag"])
-                                 ],
-                                 headers: Headers(public: ["Sources/public/A/**", "Sources/public/B/**"],
-                                                  private: "Sources/private/**",
-                                                  project: ["Sources/project/A/**", "Sources/project/B/**"]),
-                                 dependencies: [
-                                     .project(target: "Framework1", path: "../Framework1"),
-                                     .project(target: "Framework2", path: "../Framework2")
-                                 ])
-                        ],
-                        schemes: [
-                            Scheme(name: "App-Debug",
-                                   shared: true,
-                                   buildAction: BuildAction(targets: ["App"]),
-                                   testAction: TestAction(targets: ["AppTests"]),
-                                   runAction: RunAction(executable: "App")),
-                            Scheme(name: "App-Release",
-                                   shared: true,
-                                   buildAction: BuildAction(targets: ["App"]),
-                                   runAction: RunAction(executable: "App"))
-                        ],
-                        additionalFiles: [
-                                 "Dangerfile.swift",
-                                 "Documentation/**",
-                                 .folderReference(path: "Website")
-                        ])
+let project = Project(
+    name: "MyProject",
+    organizationName: "MyOrg",
+    targets: [
+        Target(
+            name: "App",
+            platform: .iOS,
+            product: .app,
+            bundleId: "io.tuist.App",
+            infoPlist: "Config/App-Info.plist",
+            sources: ["Sources/**"],
+            resources: [
+                "Resources/**",
+                .folderReference(path: "Stubs"),
+                .folderReference(path: "ODR", tags: ["odr_tag"])
+            ],
+            headers: Headers(
+                public: ["Sources/public/A/**", "Sources/public/B/**"],
+                private: "Sources/private/**",
+                project: ["Sources/project/A/**", "Sources/project/B/**"]
+            ),
+            dependencies: [
+                .project(target: "Framework1", path: "../Framework1"),
+                .project(target: "Framework2", path: "../Framework2")
+            ]
+        )
+    ],
+    schemes: [
+        Scheme(
+            name: "App-Debug",
+            shared: true,
+            buildAction: BuildAction(targets: ["App"]),
+            testAction: TestAction(targets: ["AppTests"]),
+            runAction: RunAction(executable: "App")
+        ),
+        Scheme(
+            name: "App-Release",
+            shared: true,
+            buildAction: BuildAction(targets: ["App"]),
+            runAction: RunAction(executable: "App")
+        )
+    ],
+    additionalFiles: [
+        "Dangerfile.swift",
+        "Documentation/**",
+        .folderReference(path: "Website")
+    ]
+)
 ```
 
 ## Project

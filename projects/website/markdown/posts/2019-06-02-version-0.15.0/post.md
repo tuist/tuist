@@ -59,14 +59,18 @@ Total time taken: 0.605s
 Until this version, developers were not able to customize the list of generated schemes. That has changed and now schemes are configurable. When schemes are not passed, Tuist generates a default scheme for each target that is part of the project. The example below shows how schemes are initialized and used from a project:
 
 ```swift
-let scheme = Scheme(name: "MyScheme",
-                    shared: true,
-                    buildAction: BuildAction(targets: ["App"]),
-                    testAction: TestAction(targets: ["AppTests"]),
-                    runAction: RunAction(executable: "App"))
+let scheme = Scheme(
+    name: "MyScheme",
+    shared: true,
+    buildAction: BuildAction(targets: ["App"]),
+    testAction: TestAction(targets: ["AppTests"]),
+    runAction: RunAction(executable: "App")
+)
 
-let project = Project(name: "App",
-                      schemes: [scheme])
+let project = Project(
+    name: "App",
+    schemes: [scheme]
+)
 ```
 
 ## Compiler flags 🚩
