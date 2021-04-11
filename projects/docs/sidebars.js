@@ -44,7 +44,12 @@ module.exports = {
     {
       type: 'category',
       label: 'Manifests reference',
-      items: ['manifests/project', 'manifests/workspace', 'manifests/config'],
+      items: [
+        'manifests/project',
+        'manifests/workspace',
+        'manifests/dependencies',
+        'manifests/config',
+      ],
     },
     {
       type: 'category',
