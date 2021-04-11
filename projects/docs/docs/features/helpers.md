@@ -75,7 +75,7 @@ extension Project {
 
 **Project.swift**
 
-```swift
+```swift {2}
 import ProjectDescription
 import ProjectDescriptionHelpers
 
