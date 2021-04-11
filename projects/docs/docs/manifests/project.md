@@ -946,137 +946,32 @@ You can create a test action with either a set of test targets or test plans.
 Test plans do not support all properties (those are part of the plan itself). Use the `testPlans` factory method instead of the initializer to create a test action using test plans instead of test targets (details below).
 :::
 
-<PropertiesTable
-properties={[
-{
-name: 'Targets',
-description:
-'A list of testable targets, that are targets which are defined in the project with testable information.',
-type: '[TestableTarget]',
-typeLink: '#testableTarget',
-optional: false,
-default: '[]',
-},
-{
-name: 'Arguments',
-description:
-'Commandline arguments passed on launch and environment variables.',
-type: 'Arguments',
-typeLink: '#arguments',
-optional: true,
-default: 'nil',
-},
-{
-name: 'Build configuration',
-description: 'Build configuration to run the test with.',
-type: 'PresetBuildConfiguration',
-typeLink: '#preset-build-configuration',
-optional: true,
-default: '.debug',
-},
-{
-name: 'Coverage',
-description:
-'Whether the scheme should or not gather the test coverage data.',
-type: 'Bool',
-optional: true,
-default: 'false',
-},
-{
-name: 'codeCoverageTargets',
-description:
-'A list of targets you want to gather the test coverage data for them, which are defined in the project.',
-type: '[TargetReference]',
-optional: true,
-default: '[]',
-},
-{
-name: 'expandVariableFromTarget',
-description:
-'A target that will be used to expand the variables defined inside Environment Variables definition (e.g. $SOURCE_ROOT)',
-type: 'TargetReference?',
-optional: true,
-default: 'nil',
-},
-{
-name: 'Pre-actions',
-description:
-'A list of actions that are executed before starting the tests-run process.',
-type: '[ExecutionAction]',
-typeLink: '#execution-action',
-optional: true,
-default: '[]',
-},
-{
-name: 'Post-actions',
-description:
-'A list of actions that are executed after the tests-run process.',
-type: '[ExecutionAction]',
-typeLink: '#execution-action',
-optional: true,
-default: '[]',
-},
-{
-name: 'Diagnostics options',
-description: 'List of diagnostics options to set to the action.',
-type: '[SchemeDiagnosticsOption]',
-typeLink: '#scheme-diagnostics-option',
-optional: true,
-default: '[.mainThreadChecker]',
-},
-{
-name: 'Language',
-description: 'Language used to run the tests',
-type: 'String?',
-optional: true,
-default: 'nil',
-},
-{
-name: 'Region',
-description: 'Region used to run the tests',
-type: 'String?',
-optional: true,
-default: 'nil',
-},
-]}
-/>
+| Property                   | Description                                                                                                            | Type                                                      | Required | Default                |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | -------- | ---------------------- |
+| `targets`                  | A list of testable targets, that are targets which are defined in the project with testable information.               | [`[TestableTarget]`](#testable-target)                    | Yes      | `[]`                   |
+| `arguments`                | Command line arguments passed on launch and environment variables.                                                     | [`Arguments`](#arguments)                                 | No       |                        |
+| `buildConfiguration`       | Build configuration to run the test with.                                                                              | [`PresetBuildConfiguration`](#preset-build-configuration) | No       | `.debug`               |
+| `coverage`                 | Whether the scheme should or not gather the test coverage data.                                                        | `Bool`                                                    | No       | `false`                |
+| `codeCoverageTargets`      | A list of targets you want to gather the test coverage data for them, which are defined in the project.                | [`[TargetReference]`](#target-reference)                  | No       | `[]`                   |
+| `expandVariableFromTarget` | A target that will be used to expand the variables defined inside Environment Variables definition (e.g. $SOURCE_ROOT) | [`TargetReference`](#target-reference)                    | No       |                        |
+| `preActions`               | A list of actions that are executed before starting the tests-run process.                                             | [`[ExecutionAction]`](#execution-action)                  | No       | `[]`                   |
+| `postActions`              | A list of actions that are executed after the tests-run process.                                                       | [`[ExecutionAction]`](#execution-action)                  | No       | `[]`                   |
+| `diagnosticsOptions`       | List of diagnostics options to set to the action.                                                                      | [`[SchemeDiagnosticsOption]`](#scheme-diagnostics-option) | Yes      | `[.mainThreadChecker]` |
+| `language`                 | Language used to run the tests.                                                                                        | `String`                                                  | No       |                        |
+| `region`                   | Region used to run the tests.                                                                                          | `String`                                                  | No       |                        |
 
 Alternatively, when leveraging custom configurations, the configuration name can be explicitly specified:
 
-<PropertiesTable
-properties={[
-{
-name: 'Configuration Name',
-description: 'Indicates the build configuration to run the test with.',
-type: 'String',
-optional: false,
-default: '',
-},
-]}
-/>
+| Property            | Description                                             | Type     | Required | Default |
+| ------------------- | ------------------------------------------------------- | -------- | -------- | ------- |
+| `configurationName` | Indicates the build configuration to run the test with. | `String` | No       |         |
 
 When using test plans:
 
-<PropertiesTable
-properties={[
-{
-name: 'Default',
-description: 'Path to a xctestplan file',
-type: 'Path',
-typeLink: '#path',
-optional: false,
-default: 'nil',
-},
-{
-name: 'Other',
-description: 'Paths to other xctestplan files',
-type: '[Path]',
-typeLink: '#path',
-optional: true,
-default: '[]',
-},
-]}
-/>
+| Property  | Description                      | Type              | Required | Default |
+| --------- | -------------------------------- | ----------------- | -------- | ------- |
+| `default` | Path to a xctestplan file.       | [`Path`](#path)   | No       |         |
+| `other`   | Paths to other xctestplan files. | [`[Path]`](#path) | No       | `[]`    |
 
 :::note Launch Arguments & Environment
 By default the Test & Profile actions will inherit the Run action's Launch & Environment when not explicitly specified.
@@ -1086,93 +981,41 @@ By default the Test & Profile actions will inherit the Run action's Launch & Env
 
 Scheme run scripts can be defined with the following attributes:
 
-<PropertiesTable
-properties={[
-{
-name: 'Title',
-description: 'Name of a script.',
-type: 'String',
-optional: true,
-default: "'Run Stript'",
-},
-{
-name: 'Script text',
-description: 'An inline shell script.',
-type: 'String',
-optional: false,
-default: '',
-},
-{
-name: 'Target',
-description:
-"Name of the build or test target that will provide the action's build settings.",
-type: 'TargetReference',
-optional: true,
-default: 'nil',
-},
-]}
-/>
+| Property     | Description                                                                     | Type                                   | Required | Default        |
+| ------------ | ------------------------------------------------------------------------------- | -------------------------------------- | -------- | -------------- |
+| `title`      | Name of a script.                                                               | `String`                               | No       | `"Run Script"` |
+| `scriptText` | An inline shell script.                                                         | [`TargetReference`](#target-reference) | No       |                |
+| `target`     | Name of the build or test target that will provide the action's build settings. | `String`                               | No       |                |
 
-#### TestableTarget
+#### Testable Target
 
 Testable target descibe target and tests information.
 
-<PropertiesTable
-properties={[
-{
-name: 'Target',
-description: 'The target name and its project path.',
-type: 'TargetReference',
-optional: false,
-},
-{
-name: 'Skipped',
-description: 'Skip test target from TestAction.',
-type: 'Bool',
-optional: true,
-default: 'false',
-},
-{
-name: 'Parallelizable',
-description: 'Execute tests in parallel.',
-type: 'Bool',
-optional: true,
-default: 'false',
-},
-{
-name: 'RandomExecutionOrdering',
-description: 'Execute tests in random order.',
-type: 'Bool',
-optional: true,
-default: 'false',
-},
-]}
-/>
+| Property                  | Description                           | Type                                   | Required | Default |
+| ------------------------- | ------------------------------------- | -------------------------------------- | -------- | ------- |
+| `target`                  | The target name and its project path. | [`TargetReference`](#target-reference) | Yes      |         |
+| `skipped`                 | Skip test target from TestAction.     | `Bool`                                 | No       | `false` |
+| `skipped`                 | Skip test target from TestAction.     | `Bool`                                 | No       | `false` |
+| `parallelizable`          | Execute tests in parallel.            | `Bool`                                 | No       | `false` |
+| `randomExecutionOrdering` | Execute tests in random order.        | `Bool`                                 | No       | `false` |
 
 #### Arguments
 
 Arguments contain commandline arguments passed on launch and Environment variables.
 
-<PropertiesTable
-properties={[
-{
-name: 'Environment',
-description:
-'The environment variables that are passed by the scheme when running a scheme action.',
-type: '[String: String]',
-optional: true,
-default: '[:]',
-},
-{
-name: 'LaunchArguments',
-description:
-'Commandline launch arguments that are passed by the scheme when running a scheme action.',
-type: '[LaunchArgument]',
-optional: true,
-default: '[]',
-},
-]}
-/>
+| Property          | Description                                                                               | Type                                  | Required | Default |
+| ----------------- | ----------------------------------------------------------------------------------------- | ------------------------------------- | -------- | ------- |
+| `environment`     | The environment variables that are passed by the scheme when running a scheme action.     | `[String: String]`                    | No       | `[:]`   |
+| `launchArguments` | Command line launch arguments that are passed by the scheme when running a scheme action. | [[LaunchArgument]`](#launch-argument) | No       | `[]`    |
+
+#### Launch Argument
+
+It represents an argument that is passed when running a scheme's action:
+
+| Property    | Description                            | Type     | Required | Default |
+| ----------- | -------------------------------------- | -------- | -------- | ------- |
+| `name`      | The name of the launch argument        | `String` | Yes      |         |
+| `isEnabled` | Whether the argument is enabled or not | `Bool`   | Yes      |         |
 
 #### Run Action Options
 
