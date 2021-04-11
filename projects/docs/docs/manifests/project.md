@@ -1250,50 +1250,17 @@ default: '[]',
 
 It represents the scheme action that profiles the built products on the supported platforms:
 
-<PropertiesTable
-properties={[
-{
-name: 'Config',
-description:
-'Indicates the build configuration the product should be profiled with.',
-type: 'PresetBuildConfiguration',
-typeLink: '#preset-build-configuration',
-optional: true,
-default: '.release',
-},
-{
-name: 'Executable',
-description: 'The name of the executable or target to profile.',
-type: 'TargetReference',
-optional: true,
-default: 'nil',
-},
-{
-name: 'Arguments',
-description:
-'Commandline arguments passed on launch and environment variables.',
-type: 'Arguments',
-typeLink: '#arguments',
-optional: true,
-default: 'nil',
-},
-]}
-/>
+| Property     | Description                                                            | Type                                                      | Required | Default    |
+| ------------ | ---------------------------------------------------------------------- | --------------------------------------------------------- | -------- | ---------- |
+| `config`     | Indicates the build configuration the product should be profiled with. | [`PresetBuildConfiguration`](#preset-build-configuration) | No       | `.release` |
+| `executable` | The name of the executable or target to profile.                       | [`TargetReference`](#target-reference)                    | No       |            |
+| `arguments`  | Command line arguments passed on launch and environment variables.     | [`Arguments`](#arguments)                                 | No       |            |
 
 Alternatively, when leveraging custom configurations, the configuration name can be explicitly specified:
 
-<PropertiesTable
-properties={[
-{
-name: 'Configuration Name',
-description:
-'Indicates the build configuration the product should be profiled with.',
-type: 'String',
-optional: false,
-default: '',
-},
-]}
-/>
+| Property            | Description                                                            | Type     | Required | Default |
+| ------------------- | ---------------------------------------------------------------------- | -------- | -------- | ------- |
+| `configurationName` | Indicates the build configuration the product should be profiled with. | `String` | No       |         |
 
 :::note Launch Arguments & Environment
 By default the Test & Profile actions will inherit the Run action's Launch & Environment when not explicitly specified.
@@ -1303,108 +1270,34 @@ By default the Test & Profile actions will inherit the Run action's Launch & Env
 
 It represents the scheme action that analyzes the built products:
 
-<PropertiesTable
-properties={[
-{
-name: 'Config',
-description:
-'Indicates the build configuration the product should be analyzed with.',
-type: 'PresetBuildConfiguration',
-typeLink: '#preset-build-configuration',
-optional: true,
-default: '.debug',
-},
-]}
-/>
+| Property | Description                                                            | Type                                                      | Required | Default  |
+| -------- | ---------------------------------------------------------------------- | --------------------------------------------------------- | -------- | -------- |
+| `config` | Indicates the build configuration the product should be analyzed with. | [`PresetBuildConfiguration`](#preset-build-configuration) | No       | `.debug` |
 
 Alternatively, when leveraging custom configurations, the configuration name can be explicitly specified:
 
-<PropertiesTable
-properties={[
-{
-name: 'Configuration Name',
-description:
-'Indicates the build configuration the product should be analyzed with.',
-type: 'String',
-optional: false,
-default: '',
-},
-]}
-/>
+| Property            | Description                                                            | Type     | Required | Default |
+| ------------------- | ---------------------------------------------------------------------- | -------- | -------- | ------- |
+| `configurationName` | Indicates the build configuration the product should be analyzed with. | `String` | Yes      |         |
 
 ### Settings
 
 A `Settings` object contains an optional dictionary with build settings and relative path to an `.xcconfig` file. It is initialized with the following attributes:
 
-<PropertiesTable
-properties={[
-{
-name: 'Base',
-description:
-'A dictionary with build settings that are inherited from all the configurations.',
-type: 'SettingsDictionary',
-typeLink: '#settingsdictionary',
-optional: true,
-default: '[:]',
-},
-{
-name: 'Debug',
-description: 'The debug configuration settings.',
-type: 'Configuration',
-typeLink: '#configuration',
-optional: true,
-default: 'nil',
-},
-{
-name: 'Release',
-description: 'Same as debug but for the release configuration.',
-type: 'Configuration',
-typeLink: '#configuration',
-optional: true,
-default: 'nil',
-},
-{
-name: 'Default settings',
-description: 'An enum specifying the set of default settings.',
-type: 'DefaultSettings',
-typeLink: '#defaultsettings',
-optional: true,
-default: '.recommended',
-},
-]}
-/>
+| Property          | Description                                                                      | Type                                        | Required | Default        |
+| ----------------- | -------------------------------------------------------------------------------- | ------------------------------------------- | -------- | -------------- |
+| `base`            | A dictionary with build settings that are inherited from all the configurations. | [`SettingsDictionary`](#settingsdictionary) | No       | `[:]`          |
+| `debug`           | The debug configuration settings.                                                | [`Configuration`](#configuration)           | No       |                |
+| `release`         | The release configuration settings.                                              | [`Configuration`](#configuration)           | No       |                |
+| `defaultSettings` | An enum specifying the set of default settings.                                  | [`DefaultSettings`](#defaultsettings)       | No       | `.recommended` |
 
 To specify multiple configurations beyond the default Debug and Release configuration _(e.g. Debug, Beta, Release)_, `Settings` can alternatively be initialized with the following attributes:
 
-<PropertiesTable
-properties={[
-{
-name: 'Base',
-description:
-'A dictionary with build settings that are inherited from all the configurations.',
-type: 'SettingsDictionary',
-typeLink: '#settingsdictionary',
-optional: true,
-default: '[:]',
-},
-{
-name: 'Configurations',
-description: 'A list of custom configurations',
-type: '[CustomConfiguration]',
-typeLink: '#custom-configuration',
-optional: false,
-default: '',
-},
-{
-name: 'Default settings',
-description: 'An enum specifying the set of default settings.',
-type: 'DefaultSettings',
-typeLink: '#defaultsettings',
-optional: true,
-default: '.recommended',
-},
-]}
-/>
+| Property          | Description                                                                      | Type                                             | Required | Default        |
+| ----------------- | -------------------------------------------------------------------------------- | ------------------------------------------------ | -------- | -------------- |
+| `base`            | A dictionary with build settings that are inherited from all the configurations. | [`SettingsDictionary`](#settingsdictionary)      | No       | `[:]`          |
+| `configurations`  | A list of custom configurations.                                                 | [`[CustomConfiguration]`](#custom-configuration) | Yes      |                |
+| `defaultSettings` | An enum specifying the set of default settings.                                  | [`DefaultSettings`](#defaultsettings)            | No       | `.recommended` |
 
 :::note Custom Configurations
 The list of custom configurations should have unique names and can't be empty. Please use the alternate settings initializer to leverage the default Debug & Release configurations.
@@ -1437,84 +1330,20 @@ When using dictionary literals, it's necessary to set the type of the dictionary
 
 Here is the list of functions provided by Tuist:
 
-<SettingsDictionaryTable
-methods={[
-{
-subject: 'Code Signing',
-signature:
-'func manualCodeSigning(identity: String? = nil, provisioningProfileSpecifier: String? = nil) -> SettingsDictionary',
-description:
-'Sets `"CODE_SIGN_STYLE"` to `"Manual"`, `"CODE_SIGN_IDENTITY"` to `identity`, and `"PROVISIONING_PROFILE_SPECIFIER"` to `provisioningProfileSpecifier`',
-},
-{
-subject: 'Code Signing',
-signature:
-'func automaticCodeSigning(devTeam: String) -> SettingsDictionary',
-description:
-'Sets `"CODE_SIGN_STYLE"` to `"Automatic"` and `"DEVELOPMENT_TEAM"` to `devTeam`',
-},
-{
-subject: 'Code Signing',
-signature:
-'func codeSignIdentityAppleDevelopment() -> SettingsDictionary',
-description: 'Sets `"CODE_SIGN_IDENTITY"` to `"Apple Development"`',
-},
-{
-subject: 'Code Signing',
-signature:
-'func codeSignIdentity(_ identity: String) -> SettingsDictionary',
-description: 'Sets `"CODE_SIGN_IDENTITY"` to `identity`',
-},
-{
-subject: 'Versioning',
-signature:
-'func currentProjectVersion(_ version: String) -> SettingsDictionary',
-description: 'Sets `"CURRENT_PROJECT_VERSION"` to `version`',
-},
-{
-subject: 'Versioning',
-signature: 'func appleGenericVersioningSystem() -> SettingsDictionary',
-description: 'Sets `"VERSIONING_SYSTEM"` to `"apple-generic"`',
-},
-{
-subject: 'Versioning',
-signature:
-'func versionInfo(_ version: String, prefix: String? = nil, suffix: String? = nil) -> SettingsDictionary',
-description:
-'Sets `"VERSION_INFO_PREFIX"` to `version`. If `prefix` and `suffix` are not `nil`, they\'re used as `"VERSION_INFO_PREFIX"` and `"VERSION_INFO_SUFFIX"` respectively.',
-},
-{
-subject: 'Swift Settings',
-signature: 'func swiftVersion(_ version: String) -> SettingsDictionary',
-description: 'Sets `"SWIFT_VERSION"` to `version`',
-},
-{
-subject: 'Swift Settings',
-signature:
-'func otherSwiftFlags(_ flags: String...) -> SettingsDictionary',
-description: 'Sets `"OTHER_SWIFT_FLAGS"` to `flags`',
-},
-{
-subject: 'Swift Settings',
-signature:
-'func swiftCompilationMode(_ mode: SwiftCompilationMode) -> SettingsDictionary',
-description:
-'Sets `"SWIFT_COMPILATION_MODE"` to the available `SwiftCompilationMode` (`"singlefile"` or `"wholemodule"`)',
-},
-{
-subject: 'Swift Settings',
-signature:
-'func swiftOptimizationLevel(_ level: SwiftOptimizationLevel) -> SettingsDictionary',
-description:
-'Sets `"SWIFT_OPTIMIZATION_LEVEL"` to the available `SwiftOptimizationLevel` (`"-O"`, `"-Onone"` or `"-Osize"`)',
-},
-{
-subject: 'Bitcode',
-signature: 'func bitcodeEnabled(_ enabled: Bool) -> SettingsDictionary',
-description: 'Sets `"ENABLE_BITCODE"` to `"YES"` or `"NO"`',
-},
-]}
-/>
+| Subject        | Function Signature                                                                                                   | Description                                                                                                                                                           |
+| -------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Code Signing   | `func manualCodeSigning(identity: String? = nil, provisioningProfileSpecifier: String? = nil) -> SettingsDictionary` | Sets `"CODE_SIGN_STYLE"` to `"Manual"`, `"CODE_SIGN_IDENTITY"` to `identity`, and `"PROVISIONING_PROFILE_SPECIFIER"` to `provisioningProfileSpecifier`                |
+| Code signing   | `func automaticCodeSigning(devTeam: String) -> SettingsDictionary`                                                   | Sets `"CODE_SIGN_STYLE"` to `"Automatic"` and `"DEVELOPMENT_TEAM"` to `devTeam`                                                                                       |
+| Code signing   | `func codeSignIdentityAppleDevelopment() -> SettingsDictionary`                                                      | Sets `"CODE_SIGN_IDENTITY"` to `"Apple Development"`                                                                                                                  |
+| Code signing   | `func codeSignIdentity(_ identity: String) -> SettingsDictionary`                                                    | Sets `"CODE_SIGN_IDENTITY"` to `identity`                                                                                                                             |
+| Versioning     | `func currentProjectVersion(_ version: String) -> SettingsDictionary`                                                | Sets `"CURRENT_PROJECT_VERSION"` to `version`                                                                                                                         |
+| Versioning     | `func appleGenericVersioningSystem() -> SettingsDictionary`                                                          | Sets `"VERSIONING_SYSTEM"` to `"apple-generic"`                                                                                                                       |
+| Versioning     | `func versionInfo(_ version: String, prefix: String? = nil, suffix: String? = nil) -> SettingsDictionary`            | Sets `"VERSION_INFO_PREFIX"` to `version`. If `prefix` and `suffix` are not `nil`, they\'re used as `"VERSION_INFO_PREFIX"` and `"VERSION_INFO_SUFFIX"` respectively. |
+| Swift Settings | `func swiftVersion(_ version: String) -> SettingsDictionary`                                                         | Sets `"SWIFT_VERSION"` to `version`                                                                                                                                   |
+| Swift Settings | `func otherSwiftFlags(_ flags: String...) -> SettingsDictionary`                                                     | Sets `"OTHER_SWIFT_FLAGS"` to `flags`                                                                                                                                 |
+| Swift Settings | `func swiftCompilationMode(_ mode: SwiftCompilationMode) -> SettingsDictionary`                                      | Sets `"SWIFT_COMPILATION_MODE"` to the available `SwiftCompilationMode` (`"singlefile"` or `"wholemodule"`)                                                           |
+| Swift Settings | `func swiftOptimizationLevel(_ level: SwiftOptimizationLevel) -> SettingsDictionary`                                 | Sets `"SWIFT_OPTIMIZATION_LEVEL"` to the available `SwiftOptimizationLevel` (`"-O"`, `"-Onone"` or `"-Osize"`)                                                        |
+| Bitcode        | `func bitcodeEnabled(_ enabled: Bool) -> SettingsDictionary`                                                         | Sets `"ENABLE_BITCODE"` to `"YES"` or `"NO"`                                                                                                                          |
 
 Notice that you don't depend exclusively on Tuist's built-in functions.
 You can create your own `SettingsDictionary` extension methods and add them to your
