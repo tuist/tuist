@@ -23,11 +23,11 @@ The following example shows how we access the `TUIST_APP_NAME` variable:
 
 ```swift
 func appName() -> String {
-  if case let .string(environmentAppName) = Environment.appName {
-    return environmentAppName
-  } else {
-    return "MyApp"
-  }
+    if case let .string(environmentAppName) = Environment.appName {
+        return environmentAppName
+    } else {
+        return "MyApp"
+    }
 }
 ```
 

@@ -14,33 +14,36 @@ using the generic `.appExtension` product type.
 For example, this is how a Notification Service Extension can be declared:
 
 ```swift
-let project = Project(name: "App",
-                      targets: [
-                        Target(name: "App",
-                               platform: .iOS,
-                               product: .app,
-                               bundleId: "io.tuist.App",
-                               infoPlist: "Info.plist",
-                               sources: ["Sources/**"],
-                               dependencies: [
-                                    .target(name: "NotificationServiceExtension"),
-                                ]),
-                        Target(name: "NotificationServiceExtension",
-                               platform: .iOS,
-                               product: .appExtension,
-                               bundleId: "io.tuist.App.NotificationServiceExtension",
-                               infoPlist: .extendingDefault(with: [
-                                       "CFBundleDisplayName": "$(PRODUCT_NAME)",
-                                       "NSExtension": [
-                                               "NSExtensionPointIdentifier": "com.apple.usernotifications.service",
-                                               "NSExtensionPrincipalClass": "$(PRODUCT_MODULE_NAME).NotificationService"
-                                       ]
-                               ]),
-                               sources: "NotificationServiceExtension/**",
-                               dependencies: [
-
-                               ]),
-                      ])
+let project = Project(
+    name: "App",
+    targets: [
+        Target(name: "App",
+            platform: .iOS,
+            product: .app,
+            bundleId: "io.tuist.App",
+            infoPlist: "Info.plist",
+            sources: ["Sources/**"],
+            dependencies: [
+                .target(name: "NotificationServiceExtension"),
+            ]
+        ),
+        Target(
+            name: "NotificationServiceExtension",
+            platform: .iOS,
+            product: .appExtension,
+            bundleId: "io.tuist.App.NotificationServiceExtension",
+            infoPlist: .extendingDefault(with: [
+                "CFBundleDisplayName": "$(PRODUCT_NAME)",
+                "NSExtension": [
+                    "NSExtensionPointIdentifier": "com.apple.usernotifications.service",
+                    "NSExtensionPrincipalClass": "$(PRODUCT_MODULE_NAME).NotificationService"
+                ]
+            ]),
+            sources: "NotificationServiceExtension/**",
+            dependencies: []
+        ),
+    ]
+)
 ```
 
 ### Info Plist Keys
@@ -68,19 +71,23 @@ To associate or include extensions within an application, the application target
 For example:
 
 ```swift
-let project = Project(name: "App",
-                      targets: [
-                        Target(name: "App",
-                               platform: .iOS,
-                               product: .app,
-                               bundleId: "io.tuist.App",
-                               infoPlist: "Info.plist",
-                               sources: ["Sources/**"],
-                               dependencies: [
-                                    .target(name: "NotificationServiceExtension"),
-                                    .target(name: "WidgetExtension"),
-                                    // ...
-                                ]),
-                        // ...
-                      ])
+let project = Project(
+    name: "App",
+    targets: [
+        Target(
+            name: "App",
+            platform: .iOS,
+            product: .app,
+            bundleId: "io.tuist.App",
+            infoPlist: "Info.plist",
+            sources: ["Sources/**"],
+            dependencies: [
+                .target(name: "NotificationServiceExtension"),
+                .target(name: "WidgetExtension"),
+                // …
+            ]
+        ),
+        // …
+    ]
+)
 ```

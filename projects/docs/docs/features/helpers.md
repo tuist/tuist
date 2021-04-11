@@ -44,25 +44,31 @@ import ProjectDescription
 
 extension Project {
   public static func featureFramework(name: String, dependencies: [TargetDependency] = []) -> Project {
-    return Project(name: name,
-                   targets: [
-                      Target(name: name,
-                              platform: .iOS,
-                              product: .framework,
-                              bundleId: "io.tuist.\(name)",
-                              infoPlist: "\(name).plist",
-                              sources: ["Sources/\(name)/**"],
-                              resources: ["Resources/\(name)/**",],
-                              dependencies: dependencies),
-                      Target(name: "\(name)Tests",
-                              platform: .iOS,
-                              product: .unitTests,
-                              bundleId: "io.tuist.\(name)Tests",
-                              infoPlist: "\(name)Tests.plist",
-                              sources: ["Sources/\(name)Tests/**"],
-                              resources: ["Resources/\(name)Tests/**",],
-                              dependencies: [.target(name: name)])
-                  ])
+    return Project(
+        name: name,
+        targets: [
+            Target(
+                name: name,
+                platform: .iOS,
+                product: .framework,
+                bundleId: "io.tuist.\(name)",
+                infoPlist: "\(name).plist",
+                sources: ["Sources/\(name)/**"],
+                resources: ["Resources/\(name)/**",],
+                dependencies: dependencies
+            ),
+            Target(
+                name: "\(name)Tests",
+                platform: .iOS,
+                product: .unitTests,
+                bundleId: "io.tuist.\(name)Tests",
+                infoPlist: "\(name)Tests.plist",
+                sources: ["Sources/\(name)Tests/**"],
+                resources: ["Resources/\(name)Tests/**",],
+                dependencies: [.target(name: name)]
+            )
+        ]
+    )
   }
 }
 ```
