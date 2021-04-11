@@ -23,9 +23,10 @@ Learn how to define the contract between the dependency managers (Cocoapods, Car
 ### Step 1: "Dependencies.swift"
 
 1. Create `Dependencies.swift` in your project in `Tuist/` directory.
-2. Run `tuist edit` to start editing your manifest files.
-3. Add `import ProjectDescription` on the top of file.
-4. Define your dependencies.
+2. You can read more about `Dependencies.swift` [here](/manifests/dependencies/).
+3. Run `tuist edit` to start editing your manifest files.
+4. Add `import ProjectDescription` on the top of file.
+5. Define your dependencies.
 
 Example of project structure with added `Depedencies.swift` manifest file:
 

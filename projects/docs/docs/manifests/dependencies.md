@@ -4,6 +4,12 @@ title: Dependencies.swift
 slug: '/manifests/dependencies'
 ---
 
+:::warning Work in progress
+This feature is currently being worked on and is not ready to be used yet.
+:::
+
+Learn how to get started with `Dependencies.swift` [here](/features/third-party-dependencies/).
+
 ```swift
 import ProjectDescription
 
