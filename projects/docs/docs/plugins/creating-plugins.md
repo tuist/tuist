@@ -55,7 +55,7 @@ In order for Tuist to locate the templates for a plugin, they must be placed in 
 
 ## ResourceSynthesizers
 
-ResourceSynthesizer plugins are for sharing & reusing templates for [synthesizing resources](/docs/usage/resources/). To see how you can use resource synthesizers, take a look [here](/docs/usage/project-description#resourcesynthesizer). If you want to use one of the predefined resource synthesizers, the template must also adhere to a specific naming.
+ResourceSynthesizer plugins are for sharing & reusing templates for [synthesizing resources](/features/resources/). If you want to use one of the predefined resource synthesizers, the template must also adhere to a specific naming.
 
 For example if you initialize `ResourceSynthesizer` with `.strings(plugin: "MyPlugin")` then the template must be called `Strings.stencil`.
 

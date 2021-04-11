@@ -10,7 +10,7 @@ protocol ResourceSynthesizerPathLocating {
         resourceName: String,
         resourceSynthesizerPlugins: [ResourceSynthesizerPlugin]
     ) throws -> AbsolutePath
-    
+
     func templatePath(
         for resourceName: String,
         path: AbsolutePath
@@ -41,13 +41,13 @@ enum ResourceSynthesizerPathLocatorError: FatalError, Equatable {
 
 final class ResourceSynthesizerPathLocator: ResourceSynthesizerPathLocating {
     private let rootDirectoryLocator: RootDirectoryLocating
-    
+
     init(
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
     ) {
         self.rootDirectoryLocator = rootDirectoryLocator
     }
-    
+
     func templatePath(
         for pluginName: String,
         resourceName: String,
@@ -65,7 +65,7 @@ final class ResourceSynthesizerPathLocator: ResourceSynthesizerPathLocating {
 
         return resourceTemplatePath
     }
-    
+
     func templatePath(
         for resourceName: String,
         path: AbsolutePath

@@ -14,7 +14,7 @@ public final class MockResourceSynthesizerPathLocator: ResourceSynthesizerPathLo
     ) throws -> AbsolutePath {
         try templatePathStub?(pluginName, resourceName, resourceSynthesizerPlugins) ?? AbsolutePath("/test")
     }
-    
+
     public var templatePathResourceStub: ((String, AbsolutePath) -> AbsolutePath?)?
     public func templatePath(
         for resourceName: String,

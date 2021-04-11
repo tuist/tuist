@@ -46,7 +46,7 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
             )
         )
     }
-    
+
     func test_from_when_default_strings_and_custom_template_defined() throws {
         // Given
         let manifestDirectory = try temporaryPath()
