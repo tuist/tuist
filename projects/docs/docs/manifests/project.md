@@ -168,154 +168,26 @@ Tuist creates a `.package.resolved` file, so your team can share the same versio
 
 Each target in the list of project targets can be initialized with the following attributes:
 
-<PropertiesTable
-properties={[
-{
-name: 'Name',
-description:
-'The name of the target. The Xcode project target and the derivated product take the same name.',
-type: 'String',
-optional: false,
-default: '',
-},
-{
-name: 'Platform',
-description: 'The platform the target product is built for.',
-type: 'Platform',
-typeLink: '#platform',
-optional: false,
-default: '',
-},
-{
-name: 'Product',
-description: 'The type of build product this target will output.',
-type: 'Product',
-typeLink: '#product',
-optional: false,
-default: '',
-},
-{
-name: 'Product Name',
-description: 'The built product name.',
-type: 'String',
-optional: true,
-default: '$(TARGET_NAME)',
-},
-{
-name: 'Deployment Target',
-description: 'The minimum iOS version your product will support.',
-type: 'DeploymentTarget',
-typeLink: '#deployment-target',
-optional: true,
-default: 'nil',
-},
-{
-name: 'Bundle id',
-description: 'The product bundle identifier.',
-type: 'String',
-optional: false,
-default: '',
-},
-{
-name: 'Info plist',
-description: 'Relative path to the Info.plist',
-type: 'InfoPlist',
-typeLink: '#infoplist',
-optional: false,
-default: '',
-},
-{
-name: 'Resources',
-description:
-'List of files to include in the resources build phase. Note that localizable files, `*.lproj`, are supported.',
-type: 'ResourceFileElements',
-typeLink: '#resourcefileelements',
-optional: true,
-default: 'nil',
-},
-{
-name: 'Copy Files',
-description: 'Copy files actions allow defining copy files build phases.',
-type: '[CopyFilesAction]',
-typeLink: '#copy-files-action',
-optional: true,
-default: '[]',
-},
-{
-name: 'Headers',
-description: 'The target headers',
-type: 'Headers',
-typeLink: '#headers',
-optional: true,
-default: 'nil',
-},
-{
-name: 'Entitlements',
-description: 'Path to the entitlement file.',
-type: 'Path',
-typeLink: '#path',
-optional: true,
-default: 'nil',
-},
-{
-name: 'Actions',
-description: 'Target actions allow defining extra script build phases.',
-type: '[TargetAction]',
-typeLink: '#target-action',
-optional: true,
-default: '[]',
-},
-{
-name: 'Dependencies',
-description: 'List of target dependencies',
-type: '[TargetDependency]',
-typeLink: '../dependencies',
-optional: true,
-default: '[]',
-},
-{
-name: 'Sources',
-description:
-'Source files that are compiled by the target. Any playgrounds matched by the globs used in this property will be automatically added.',
-type: 'SourceFilesList',
-typeLink: '#source-file-list',
-optional: false,
-default: '',
-},
-{
-name: 'Settings',
-description: 'Target build settings and configuration files.',
-type: 'Settings',
-typeLink: '#settings',
-optional: true,
-default: 'nil',
-},
-{
-name: 'Core Data models',
-description: 'Core Data models.',
-type: '[CoreDataModel]',
-typeLink: '#core-data-model',
-optional: true,
-default: '[]',
-},
-{
-name: 'Environment',
-description:
-'List of variables that will be set to the scheme that Tuist automatically generates for the target.',
-type: '[String: String]',
-optional: true,
-default: '[:]',
-},
-{
-name: 'LaunchArguments',
-description:
-'List of launch arguments that will be set to the scheme that Tuist automatically generates for the target.',
-type: '[LaunchArgument]',
-optional: true,
-default: '[]',
-},
-]}
-/>
+| Property           | Description                                                                                                                           | Type                                            | Required | Default          |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | -------- | ---------------- |
+| `name`             | The name of the target. The Xcode project target and the derivated product take the same name.                                        | `String`                                        | Yes      |                  |
+| `platform`         | The platform the target product is built for.                                                                                         | [`Platform`](#platform)                         | Yes      |                  |
+| `product`          | The type of build product this target will output.                                                                                    | [`Product`](#product)                           | Yes      |                  |
+| `productName`      | The built product name.                                                                                                               | `String`                                        | No       | `$(TARGET_NAME)` |
+| `deploymentTarget` | The minimum iOS version your product will support.                                                                                    | [#deployment-target](#deployment-target)        | No       |                  |
+| `bundleId`         | The product bundle identifier.                                                                                                        | `String`                                        | Yes      |                  |
+| `infoPlist`        | Relative path to the `Info.plist`                                                                                                     | [`InfoPlist`](#infoplist)                       | Yes      |                  |
+| `resources`        | List of files to include in the resources build phase. Note that localizable files, `*.lproj`, are supported.                         | [`ResourceFileElements`](#resourcefileelements) | No       |                  |
+| `copyFiles`        | Copy files actions allow defining copy files build phases.                                                                            | [`[CopyFilesAction]`](copy-files-action)        | No       |                  |
+| `headers`          | The target headers.                                                                                                                   | [`Headers`](#headers)                           | No       |                  |
+| `entitlements`     | Path to the entitlement file.                                                                                                         | [`Path`](#path)                                 | No       |                  |
+| `actions`          | Target actions allow defining extra script build phases.                                                                              | [`[TargetAction]`](#target-action)              | No       | `[]`             |
+| `dependencies`     | List of target dependencies.                                                                                                          | [`[TargetDependency]` ](/features/dependencies) | No       | `[]`             |
+| `sources`          | Source files that are compiled by the target. Any playgrounds matched by the globs used in this property will be automatically added. | [`SourceFilesList`](#source-file-list)          | Yes      |                  |
+| `settings`         | Target build settings and configuration files.                                                                                        | [`Settings`](#settings)                         | No       |                  |
+| `coreDataModels`   | Core Data models.                                                                                                                     | [`[CoreDataModel]`](#core-data-model)           | No       |                  |
+| `environment`      | List of variables that will be set to the scheme that Tuist automatically generates for the target.                                   | `[String: String]`                              | No       | `[:]`            |
+| `launchArguments`  | List of launch arguments that will be set to the scheme that Tuist automatically generates for the target.                            | [`[LaunchArgument]`](#launch-argument)          | No       | `[]`             |
 
 ```swift
 import ProjectDescription
@@ -333,19 +205,9 @@ let target = Target(name: "App",
 
 It represents a list of source files that are part of a target:
 
-<PropertiesTable
-properties={[
-{
-name: 'Globs',
-description:
-'Path to the source files. They are represented by a [glob pattern](https://facelessuser.github.io/wcmatch/glob/) and the compiler flags.',
-type: '[SourceFileGlob]',
-typeLink: '#source-file-glob',
-optional: false,
-default: '',
-},
-]}
-/>
+| Property | Description                                                                                                                              | Type                                    | Required | Default |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------- | -------- | ------- |
+| `globs`  | Path to the source files. They are represented by a [glob pattern](https://facelessuser.github.io/wcmatch/glob/) and the compiler flags. | [`[SourceFileGlob]`](#source-file-glob) | No       |         |
 
 :::note ExpressibleByStringLiteral and ExpressibleByArrayLiteral
 The list of source files can be initialized with a string that represents the glob pattern, or an array of strings, which represents a list of glob patterns. In both cases the comiler flags will have no value.
@@ -359,84 +221,27 @@ If multiple patterns match the same paths, the latest one takes preference over 
 
 It represents a glob pattern that refers to source files and the compiler flags _(if any)_ to be set in the build phase:
 
-<PropertiesTable
-properties={[
-{
-name: 'Glob',
-description: 'Glob pattern to the source files.',
-type: 'Path',
-typeLink: '#path',
-optional: false,
-default: '',
-},
-{
-name: 'Excluding',
-description: 'Glob patterns for source files that will be excluded.',
-type: '[Path]',
-typeLink: '#path',
-optional: true,
-default: '[]',
-},
-{
-name: 'Compiler flags',
-description:
-'The compiler flags to be set to the source files in the sources build phase.',
-type: 'String',
-optional: true,
-default: 'nil',
-},
-]}
-/>
+| Property        | Description                                                                  | Type              | Required | Default |
+| --------------- | ---------------------------------------------------------------------------- | ----------------- | -------- | ------- |
+| `glob`          | Glob pattern to the source files.                                            | [`Path`](#path)   | Yes      |         |
+| `excluding`     | Glob patterns for source files that will be excluded.                        | [`[Path]`](#path) | No       | `[]`    |
+| `compilerFlags` | The compiler flags to be set to the source files in the sources build phase. | `String`          | No       |         |
 
 ### Copy Files Action
 
 Copy files actions, represented as target copy files build phases, are useful to associate project files and products of other targets with the target and copies them to a specified destination, typically a subfolder within a product. This action may be used multiple times per target.
 
-<EnumTable
-cases={[
-{
-case:
-'.productsDirectory(name: String, subpath: String?, files: [FileElement])',
-description: 'A copy files action for the products directory.',
-},
-{
-case: '.wrapper(name: String, subpath: String?, files: [FileElement])',
-description: 'A copy files action for the wrapper directory.',
-},
-{
-case:
-'.executables(name: String, subpath: String?, files: [FileElement])',
-description: 'A copy files action for the executables directory.',
-},
-{
-case: '.resources(name: String, subpath: String?, files: [FileElement])',
-description: 'A copy files action for the resources directory.',
-},
-{
-case:
-'.javaResources(name: String, subpath: String?, files: [FileElement])',
-description: 'A copy files action for the java resources directory.',
-},
-{
-case: '.frameworks(name: String, subpath: String?, files: [FileElement])',
-description: 'A copy files action for the frameworks directory.',
-},
-{
-case:
-'.sharedFrameworks(name: String, subpath: String?, files: [FileElement])',
-description: 'A copy files action for the shared frameworks directory.',
-},
-{
-case:
-'.sharedSupport(name: String, subpath: String?, files: [FileElement])',
-description: 'A copy files action for the shared support directory.',
-},
-{
-case: '.plugins(name: String, subpath: String?, files: [FileElement])',
-description: 'A copy files action for the plugins directory.',
-},
-]}
-/>
+| Case                                                                       | Description                                              |
+| -------------------------------------------------------------------------- | -------------------------------------------------------- |
+| `.productsDirectory(name: String, subpath: String?, files: [FileElement])` | A copy files action for the products directory.          |
+| `.wrapper(name: String, subpath: String?, files: [FileElement])`           | A copy files action for the wrapper directory.           |
+| `.executables(name: String, subpath: String?, files: [FileElement])`       | A copy files action for the executables directory.       |
+| `.resources(name: String, subpath: String?, files: [FileElement])`         | A copy files action for the resources directory.         |
+| `.javaResources(name: String, subpath: String?, files: [FileElement])`     | A copy files action for the java resources directory.    |
+| `.frameworks(name: String, subpath: String?, files: [FileElement])`        | A copy files action for the frameworks directory.        |
+| `.sharedFrameworks(name: String, subpath: String?, files: [FileElement])`  | A copy files action for the shared frameworks directory. |
+| `.sharedSupport(name: String, subpath: String?, files: [FileElement])`     | A copy files action for the shared support directory.    |
+| `.plugins(name: String, subpath: String?, files: [FileElement])`           | A copy files action for the plugins directory.           |
 
 The following example shows the definition of a copy files action that copy template files to the shared support directory and adds it inside a subfolder `Templates`:
 
@@ -454,48 +259,19 @@ The following example shows the definition of a copy files action that copy font
 
 It represents the target headers:
 
-<PropertiesTable
-properties={[
-{
-name: 'Public',
-description: 'Relative glob pattern that points to the public headers',
-type: 'FileList',
-optional: true,
-default: 'nil',
-},
-{
-name: 'Private',
-description: 'Relative glob pattern that points to the private headers',
-type: 'FileList',
-optional: true,
-default: 'nil',
-},
-{
-name: 'Project',
-description: 'Relative glob pattern that points to the project headers',
-type: 'FileList',
-optional: true,
-default: 'nil',
-},
-]}
-/>
+| Property  | Description                                               | Type                     | Required | Default |
+| --------- | --------------------------------------------------------- | ------------------------ | -------- | ------- |
+| `public`  | Relative glob pattern that points to the public headers.  | [`FileList`](#file-list) | No       |         |
+| `private` | Relative glob pattern that points to the private headers. | [`FileList`](#file-list) | No       |         |
+| `project` | Relative glob pattern that points to the project headers. | [`FileList`](#file-list) | No       |         |
 
 ### File List
 
 It represents a list of glob patterns that refer to files:
 
-<PropertiesTable
-properties={[
-{
-name: 'Globs',
-description: 'Glob pattern to the files.',
-type: '[Path]',
-typeLink: '#path',
-optional: false,
-default: '',
-},
-]}
-/>
+| Property | Description                | Type            | Required | Default |
+| -------- | -------------------------- | --------------- | -------- | ------- |
+| `globs`  | Glob pattern to the files. | `[Path]`(#path) | Yes      |         |
 
 ### Core Data Model
 
