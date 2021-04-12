@@ -6,7 +6,7 @@ public extension Plugins {
     static func test(
         projectDescriptionHelpers: [ProjectDescriptionHelpersPlugin] = [],
         templatePaths: [AbsolutePath] = [],
-        resourceSynthesizers: [ResourceSynthesizerPlugin] = []
+        resourceSynthesizers: [PluginResourceSynthesizer] = []
     ) -> Plugins {
         Plugins(
             projectDescriptionHelpers: projectDescriptionHelpers,

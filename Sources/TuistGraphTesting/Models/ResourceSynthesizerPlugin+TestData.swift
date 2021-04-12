@@ -2,7 +2,7 @@ import Foundation
 import TSCBasic
 @testable import TuistGraph
 
-public extension ResourceSynthesizerPlugin {
+public extension PluginResourceSynthesizer {
     static func test(
         name: String = "Plugin",
         path: AbsolutePath = AbsolutePath("/test")

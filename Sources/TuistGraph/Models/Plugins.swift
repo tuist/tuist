@@ -10,7 +10,7 @@ public struct Plugins: Equatable {
     public let templateDirectories: [AbsolutePath]
 
     /// List of paths pointing to resource templates
-    public let resourceSynthesizers: [ResourceSynthesizerPlugin]
+    public let resourceSynthesizers: [PluginResourceSynthesizer]
 
     /// Creates a `Plugins`.
     ///
@@ -21,7 +21,7 @@ public struct Plugins: Equatable {
     public init(
         projectDescriptionHelpers: [ProjectDescriptionHelpersPlugin],
         templatePaths: [AbsolutePath],
-        resourceSynthesizers: [ResourceSynthesizerPlugin]
+        resourceSynthesizers: [PluginResourceSynthesizer]
     ) {
         self.projectDescriptionHelpers = projectDescriptionHelpers
         templateDirectories = templatePaths

@@ -119,7 +119,7 @@ final class PluginServiceTests: TuistTestCase {
         let plugins = try subject.loadPlugins(using: config)
         let expectedPlugins = Plugins.test(
             resourceSynthesizers: [
-                ResourceSynthesizerPlugin(name: pluginName, path: resourceTemplatesPath),
+                PluginResourceSynthesizer(name: pluginName, path: resourceTemplatesPath),
             ]
         )
         XCTAssertEqual(plugins, expectedPlugins)
@@ -150,7 +150,7 @@ final class PluginServiceTests: TuistTestCase {
         let plugins = try subject.loadPlugins(using: config)
         let expectedPlugins = Plugins.test(
             resourceSynthesizers: [
-                ResourceSynthesizerPlugin(name: pluginName, path: resourceTemplatesPath),
+                PluginResourceSynthesizer(name: pluginName, path: resourceTemplatesPath),
             ]
         )
         XCTAssertEqual(plugins, expectedPlugins)

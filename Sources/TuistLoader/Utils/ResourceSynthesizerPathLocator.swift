@@ -8,7 +8,7 @@ protocol ResourceSynthesizerPathLocating {
     func templatePath(
         for pluginName: String,
         resourceName: String,
-        resourceSynthesizerPlugins: [ResourceSynthesizerPlugin]
+        resourceSynthesizerPlugins: [PluginResourceSynthesizer]
     ) throws -> AbsolutePath
 
     func templatePath(
@@ -51,7 +51,7 @@ final class ResourceSynthesizerPathLocator: ResourceSynthesizerPathLocating {
     func templatePath(
         for pluginName: String,
         resourceName: String,
-        resourceSynthesizerPlugins: [ResourceSynthesizerPlugin]
+        resourceSynthesizerPlugins: [PluginResourceSynthesizer]
     ) throws -> AbsolutePath {
         guard
             let plugin = resourceSynthesizerPlugins.first(where: { $0.name == pluginName })

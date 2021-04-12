@@ -6,11 +6,11 @@ import TuistGraph
 public final class MockResourceSynthesizerPathLocator: ResourceSynthesizerPathLocating {
     public init() {}
 
-    public var templatePathStub: ((String, String, [ResourceSynthesizerPlugin]) throws -> AbsolutePath)?
+    public var templatePathStub: ((String, String, [PluginResourceSynthesizer]) throws -> AbsolutePath)?
     public func templatePath(
         for pluginName: String,
         resourceName: String,
-        resourceSynthesizerPlugins: [ResourceSynthesizerPlugin]
+        resourceSynthesizerPlugins: [PluginResourceSynthesizer]
     ) throws -> AbsolutePath {
         try templatePathStub?(pluginName, resourceName, resourceSynthesizerPlugins) ?? AbsolutePath("/test")
     }

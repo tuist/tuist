@@ -85,7 +85,7 @@ public final class PluginService: PluginServicing {
                 .map { $0.appending(component: Constants.resourceSynthesizersDirectoryName) }
         )
         .filter { _, path in FileHandler.shared.exists(path) }
-        .map(ResourceSynthesizerPlugin.init)
+        .map(PluginResourceSynthesizer.init)
 
         return Plugins(
             projectDescriptionHelpers: localProjectDescriptionHelperPlugins + remoteProjectDescriptionHelperPlugins,
