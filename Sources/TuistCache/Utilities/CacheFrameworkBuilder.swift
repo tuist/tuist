@@ -144,7 +144,6 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
                                     sdk: String) throws -> AbsolutePath
     {
         let projectPath = projectTarget.path
-        let pathString = projectPath.pathString
 
         let derivedDataPath = try derivedDataLocator.locate(for: projectPath)
         var buildDirectory = derivedDataPath

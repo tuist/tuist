@@ -44,7 +44,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         let subject = makeSubject(with: manifestLoader)
 
         // When
-        let model = try subject.convert(manifest: manifest, path: temporaryPath)
+        let model = try subject.convert(manifest: manifest, path: temporaryPath, plugins: .none)
 
         // Then
         XCTAssertEqual(model.name, "SomeProject")
@@ -69,7 +69,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         let subject = makeSubject(with: manifestLoader)
 
         // When
-        let model = try subject.convert(manifest: manifest, path: temporaryPath)
+        let model = try subject.convert(manifest: manifest, path: temporaryPath, plugins: .none)
 
         // Then
         XCTAssertEqual(model.targets.count, 2)
@@ -106,7 +106,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         let subject = makeSubject(with: manifestLoader)
 
         // When
-        let model = try subject.convert(manifest: manifest, path: temporaryPath)
+        let model = try subject.convert(manifest: manifest, path: temporaryPath, plugins: .none)
 
         // Then
         XCTAssertEqual(model.additionalFiles, files.map { .file(path: $0) })
@@ -130,7 +130,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         let subject = makeSubject(with: manifestLoader)
 
         // When
-        let model = try subject.convert(manifest: manifest, path: temporaryPath)
+        let model = try subject.convert(manifest: manifest, path: temporaryPath, plugins: .none)
 
         // Then
         XCTAssertEqual(model.additionalFiles, files.map { .folderReference(path: $0) })
@@ -152,7 +152,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         let subject = makeSubject(with: manifestLoader)
 
         // When
-        let model = try subject.convert(manifest: manifest, path: temporaryPath)
+        let model = try subject.convert(manifest: manifest, path: temporaryPath, plugins: .none)
 
         // Then
         XCTAssertEqual(model.organizationName, "SomeOrganization")
