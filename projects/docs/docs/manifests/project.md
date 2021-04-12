@@ -501,140 +501,52 @@ default: '',
 
 The `CoreDataModel` type represents a Core Data model:
 
-<PropertiesTable
-properties={[
-{
-name: 'Path',
-description: 'Relative path to the Core Data model.',
-type: 'Path',
-typeLink: '#path',
-optional: false,
-default: '',
-},
-{
-name: 'Current version',
-description: 'Current version without the extension.',
-type: 'String',
-optional: false,
-default: '',
-},
-]}
-/>
+| Property         | Description                            | Type            | Required | Default |
+| ---------------- | -------------------------------------- | --------------- | -------- | ------- |
+| `path`           | Relative path to the Core Data model.  | [`Path`](#path) | Yes      |         |
+| `currentVersion` | Current version without the extension. | `String`        | Yes      |         |
 
 ### Platform
 
 The platform type represents the platform a target is built for. It can be any of the following types:
 
-<EnumTable
-cases={[
-{
-case: '.iOS',
-description: 'An iOS platform.',
-},
-{
-case: '.macOS',
-description: 'A macOS platorm.',
-},
-{
-case: '.tvOS',
-description: 'A tvOS platform.',
-},
-{
-case: '.watchOS',
-description: 'A watchOS platform.',
-},
-]}
-/>
+| Case       | Description                                                   |
+| ---------- | ------------------------------------------------------------- |
+| `.iOS`     | The [iOS](https://en.wikipedia.org/wiki/IOS) platform         |
+| `.macOS`   | The [macOS](https://en.wikipedia.org/wiki/MacOS) platform     |
+| `.tvOS`    | The [tvOS](https://en.wikipedia.org/wiki/TvOS) platform       |
+| `.watchOS` | The [watchOS](https://en.wikipedia.org/wiki/WatchOS) platform |
 
 ### Product
 
 The type of build product this target will output. It can be any of the following types:
 
-<EnumTable
-cases={[
-{
-case: '.app',
-description: 'An application.',
-},
-{
-case: '.staticLibrary',
-description: 'A static library.',
-},
-{
-case: '.dynamicLibrary',
-description: 'A dynamic library.',
-},
-{
-case: '.framework',
-description: 'A dynamic framework.',
-},
-{
-case: '.staticFramework',
-description:
-'A static framework. This is a regular framework product however is configured to be statically linked.',
-},
-{
-case: '.unitTests',
-description: 'A unit tests bundle.',
-},
-{
-case: '.uiTests',
-description: 'A UI tests bundle.',
-},
-{
-case: '.bundle',
-description:
-'A custom bundle. (Currently only iOS resource bundles are supported)',
-},
-{
-case: '.appExtension',
-description: 'An application extension.',
-},
-{
-case: '.stickerPackExtension',
-description: 'A sticker pack extension.',
-},
-{
-case: '.watch2App',
-description: 'A Watch application. (watchOS platform only)',
-},
-{
-case: '.watch2Extension',
-description: 'A Watch application extension. (watchOS platform only)',
-},
-{
-case: '.messagesExtension',
-description: 'An iMessage extension. (iOS platform only)',
-},
-{
-case: '.appClip',
-description: 'An appClip. (iOS platform only)',
-},
-]}
-/>
+| Case                    | Description                                                           |
+| ----------------------- | --------------------------------------------------------------------- |
+| `.app`                  | An application.                                                       |
+| `.staticLibrary`        | A static library.                                                     |
+| `.dynamicLibrary`       | A dynamic library.                                                    |
+| `.framework`            | A dynamic framework.                                                  |
+| `.staticFramework`      | A static framework.                                                   |
+| `.unitTests`            | A unit tests bundle.                                                  |
+| `.uiTests`              | A UI tests bundle.                                                    |
+| `.bundle`               | A custom bundle. (currently only iOS resource bundles are supported). |
+| `.appExtension`         | An application extension.                                             |
+| `.stickerPackExtension` | A sticker pack extension.                                             |
+| `.watch2App`            | A Watch application. (watchOS platform only) .                        |
+| `.watch2Extension`      | A Watch application extension. (watchOS platform only).               |
+| `.messagesExtension`    | An iMessage extension. (iOS platform only)                            |
+| `.appClip`              | An appClip. (iOS platform only).                                      |
 
 ### InfoPlist
 
 The `InfoPlist` model represents a target `Info.plist` file. It can have any of the following values:
 
-<EnumTable
-cases={[
-{
-case: '.file(path: Path)',
-description: 'The path to an existing Info.plist file',
-},
-{
-case: '.dictionary([String: InfoPlist.Value])',
-description:
-'A dictionary with the Info.plist content. Tuist generates the Info.plist file at the generation time.',
-},
-{
-case: '.extendingDefault(with: [String: InfoPlist.Value])',
-description:
-'It indicates Tuist to provide the default content for the target the InfoPlist belongs to, and extend it with the given values.',
-},
-]}
-/>
+| Case                                                 | Description                                                                                                                     |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `.file(path: Path)`                                  | The path to an existing Info.plist file.                                                                                        |
+| `.dictionary([String: InfoPlist.Value])`             | A dictionary with the Info.plist content. Tuist generates the Info.plist file at the generation time.                           |
+| `.extendingDefault(with: [String: InfoPlist.Value])` | It indicates Tuist to provide the default content for the target the InfoPlist belongs to, and extend it with the given values. |
 
 :::note ExpressibleByStringLiteral
 The InfoPlist model conforms the ExpressibleByStringLiteral protocol, which means that it can be initialized with a String. In that case, the string is the path to the Info.plist file.
@@ -642,32 +554,15 @@ The InfoPlist model conforms the ExpressibleByStringLiteral protocol, which mean
 
 ### InfoPlist.Value
 
-It represents the values of the InfoPlist file dictionary. The reason this type exists is to ensure that the values used to define the content of the dynamically generated `Info.plist` files ar valid:
+It represents the values of the InfoPlist file dictionary. The reason this type exists is to ensure that the values used to define the content of the dynamically generated `Info.plist` files are valid:
 
-<EnumTable
-cases={[
-{
-case: '.string(String)',
-description: 'It represents a string value.',
-},
-{
-case: '.integer(Int)',
-description: 'It represents an integer value.',
-},
-{
-case: '.boolean(Bool)',
-description: 'It represents a boolean value.',
-},
-{
-case: '.dictionary([String: InfoPlist.Value])',
-description: 'It represents a dictionary value.',
-},
-{
-case: '.array([InfoPlist.Value])',
-description: 'It represents an array value.',
-},
-]}
-/>
+| Case                                     | Description                       |
+| ---------------------------------------- | --------------------------------- |
+| `.string(String)`                        | It represents a string value.     |
+| `.integer(Int)`                          | It represents an integer value.   |
+| `.boolean(Bool)`                         | It represents a boolean value.    |
+| `.dictionary([String: InfoPlist.Value])` | It represents a dictionary value. |
+| `.array([InfoPlist.Value])`              | It represents an array value.     |
 
 :::note ExpressiveByLiteral
 `InfoPlist.Value` conforms to the `ExpressiveByLiteral` protocols and therefore, it can be initialized with an instance of the primitive type that they encapsulate.
@@ -677,46 +572,15 @@ description: 'It represents an array value.',
 
 Target actions, represented as target script build phases, are useful to define actions to be executed before of after the build process of a target.
 
-<EnumTable
-cases={[
-{
-case:
-'.pre(tool: String, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool)',
-description:
-'Action executed before the target-specific build phases where tool is the name of the tool to be executed.',
-},
-{
-case:
-'.pre(path: Path, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool)',
-description:
-'Action executed before the target-specific build phases where path is the path to the tool to be executed.',
-},
-{
-case:
-'.pre(script: String, name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool)',
-description:
-'Action executed before the target-specific build phases where script is an embedded script to run. It is advised to keep embedded scripts as small as possible',
-},
-{
-case:
-'.post(tool: String, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool)',
-description:
-'Action executed after all the target-specific build phases where tool is the name of the tool to be executed.',
-},
-{
-case:
-'.post(path: Path, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool)',
-description:
-'Action executed after all the target-specific build phases where path is the path to the tool to be executed.',
-},
-{
-case:
-'.post(script: String, name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool)',
-description:
-'Action executed after all the target-specific build phases where script is an embedded script to run. It is advised to keep embedded scripts as small as possible',
-},
-]}
-/>
+| Case                                                                                                                                                                                         | Description                                                                                                                                                       |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.pre(tool: String, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool)`  | Action executed before the target-specific build phases where tool is the name of the tool to be executed.                                                        |
+| `.pre(path: Path, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool)`    | Action executed before the target-specific build phases where path is the path to the tool to be executed.                                                        |
+| `.pre(script: String, name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool)`                      |
+| Action executed before the target-specific build phases where script is an embedded script to run. It is advised to keep embedded scripts as small as possible.                              |
+| `.post(tool: String, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool)` | Action executed after all the target-specific build phases where tool is the name of the tool to be executed.                                                     |
+| `.post(path: Path, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool)`   | Action executed after all the target-specific build phases where path is the path to the tool to be executed.                                                     |
+| `.post(script: String, name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool)`                     | Action executed after all the target-specific build phases where script is an embedded script to run. It is advised to keep embedded scripts as small as possible |
 
 The following example shows the definition of an action that runs the `my_custom_script.sh` passing the argument `"hello"`:
 
@@ -740,91 +604,25 @@ The following example shows the definition of an action that runs the `my_custom
 
 It represents the default build configurations available:
 
-<EnumTable
-cases={[
-{
-case: '.debug',
-description:
-'Debug build configuration, traditionally used during local development.',
-},
-{
-case: '.release',
-description: 'Release build configuration.',
-},
-]}
-/>
+| Case       | Description                                                             |
+| ---------- | ----------------------------------------------------------------------- |
+| `.debug`   | Debug build configuration, traditionally used during local development. |
+| `.release` | Release build configuration.                                            |
 
 ### Scheme
 
 A `Scheme` defines a collection of targets to `Build, Run, Test, Profile, Analyze and Archive`:
 
-<PropertiesTable
-properties={[
-{
-name: 'Name',
-description: 'The name of the scheme.',
-type: 'String',
-optional: false,
-default: '',
-},
-{
-name: 'Shared',
-description:
-'Marks the scheme as shared (i.e. one that is checked in to the repository and is visible to `xcodebuild` from the command line).',
-type: 'Bool',
-optional: true,
-default: 'true',
-},
-{
-name: 'Build action',
-description: 'Action that builds the project targets.',
-type: 'BuildAction',
-typeLink: '#build-action',
-optional: true,
-default: 'nil',
-},
-{
-name: 'Run action',
-description: 'Action that runs project built products.',
-type: 'RunAction',
-typeLink: '#run-action',
-optional: true,
-default: 'nil',
-},
-{
-name: 'Test action',
-description: 'Action that runs the project tests.',
-type: 'TestAction',
-typeLink: '#test-action',
-optional: true,
-default: 'nil',
-},
-{
-name: 'Archive action',
-description: 'Action that runs the project archive.',
-type: 'ArchiveAction',
-typeLink: '#archive-action',
-optional: true,
-default: 'nil',
-},
-{
-name: 'Profile action',
-description: 'Action that profiles the project.',
-type: 'ProfileAction',
-typeLink: '#profile-action',
-optional: true,
-default: 'nil',
-},
-{
-name: 'Analyze action',
-description: 'Action that analyze the project.',
-type: 'AnalyzeAction',
-typeLink: '#analyze-action',
-optional: true,
-default: 'nil',
-},
-]}
-/>
+| Property        | Description                                                                                                                      | Type                               | Required | Default |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- | -------- | ------- |
+| `name`          | The name of the scheme.                                                                                                          | `String`                           | Yes      |         |
+| `shared`        | Marks the scheme as shared (i.e. one that is checked in to the repository and is visible to `xcodebuild` from the command line). | `Bool`                             | No       | `true`  |
+| `buildAction`   | Action that builds the project targets.                                                                                          | [`BuildAction`](#build-action)     | No       |         |
+| `runAction`     | Action that runs project built products.                                                                                         | [`RunAction`](#run-action)         | No       |         |
+| `testAction`    | Action that runs the project tests.                                                                                              | [`TestAction`](#test-action)       | No       |         |
+| `archiveAction` | Action that runs the project archive.                                                                                            | [`ArchiveAction`](#archive-action) | No       |         |
+| `profileAction` | Action that profiles the project.                                                                                                | [`ProfileAction`](#profile-action) | No       |         |
+| `analyzeAction` | Action that analyze the project.                                                                                                 | [`AnalyzeAction`](#analyze-action) | No       |         |
 
 :::note Auto-generation of schemes
 Tuist will auto-generate a scheme for each target by default in addition to any defined schemes. This however can be disabled if needed via the [Configuration generationOptions](/manifests/config#generationoption).
@@ -842,101 +640,29 @@ Schemes for extensions have additional properties and settings, Tuist automatica
 
 It represents the scheme action that builds targets:
 
-<PropertiesTable
-properties={[
-{
-name: 'Targets',
-description:
-'A list of targets to build, which are defined in the Project.',
-type: '[TargetReference]',
-optional: false,
-default: '',
-},
-{
-name: 'Pre-actions',
-description:
-'A list of actions that are executed before starting the build process.',
-type: '[ExecutionAction]',
-typeLink: '#execution-action',
-optional: true,
-default: '[]',
-},
-{
-name: 'Post-actions',
-description:
-'A list of actions that are executed after the build process.',
-type: '[ExecutionAction]',
-typeLink: '#execution-action',
-optional: true,
-default: '[]',
-},
-]}
-/>
+| Property      | Description                                                            | Type                                     | Required | Default |
+| ------------- | ---------------------------------------------------------------------- | ---------------------------------------- | -------- | ------- |
+| `targets`     | A list of targets to build, which are defined in the project.          | [`[TargetReference]`](#target-reference) | No       |         |
+| `preActions`  | A list of actions that are executed before starting the build process. | [`[ExecutionAction]`](#execution-action) | Yes      | `[]`    |
+| `postActions` | A list of actions that are executed after the build process.           | [`[ExecutionAction]`](#execution-action) | Yes      | `[]`    |
 
 #### Run action
 
 It represents the scheme action that runs the built products on the supported platforms:
 
-<PropertiesTable
-properties={[
-{
-name: 'Config',
-description:
-'Indicates the build configuration the product should run with.',
-type: 'PresetBuildConfiguration',
-typeLink: '#preset-build-configuration',
-optional: true,
-default: '.debug',
-},
-{
-name: 'Executable',
-description: 'The name of the executable or target to run.',
-type: 'TargetReference',
-optional: true,
-default: 'nil',
-},
-{
-name: 'Arguments',
-description:
-'Commandline arguments passed on launch and environment variables.',
-type: 'Arguments',
-typeLink: '#arguments',
-optional: true,
-default: 'nil',
-},
-{
-name: 'Options',
-description: 'List of options to set to the action.',
-type: 'RunActionOptions',
-typeLink: '#run-action-options',
-optional: true,
-default: '.options()',
-},
-{
-name: 'Diagnostics options',
-description: 'List of diagnostics options to set to the action.',
-type: '[SchemeDiagnosticsOption]',
-typeLink: '#scheme-diagnostics-option',
-optional: true,
-default: '[.mainThreadChecker]',
-},
-]}
-/>
+| Property             | Description                                                        | Type                                                      | Required | Default                |
+| -------------------- | ------------------------------------------------------------------ | --------------------------------------------------------- | -------- | ---------------------- |
+| `config`             | Indicates the build configuration the product should run with.     | [`PresetBuildConfiguration`](#preset-build-configuration) | No       | `.debug`               |
+| `executable`         | The name of the executable or target to run.                       | [`TargetReference`](#target-reference)                    | No       |                        |
+| `arguments`          | Command line arguments passed on launch and environment variables. | [`Arguments`](#arguments)                                 | No       |                        |
+| `options`            | List of options to set to the action.                              | [`RunActionOptions`](#run-action-options)                 | No       | `.options()`           |
+| `diagnosticsOptions` | List of diagnostics options to set to the action.                  | [`[SchemeDiagnosticsOption]`](#scheme-diagnostics-option) | No       | `[.mainThreadChecker]` |
 
 Alternatively, when leveraging custom configurations, the configuration name can be explicitly specified:
 
-<PropertiesTable
-properties={[
-{
-name: 'Configuration Name',
-description:
-'Indicates the build configuration the product should run with.',
-type: 'String',
-optional: false,
-default: '',
-},
-]}
-/>
+| Property            | Description                                                    | Type     | Required | Default |
+| ------------------- | -------------------------------------------------------------- | -------- | -------- | ------- |
+| `configurationName` | Indicates the build configuration the product should run with. | `String` | Yes      |         |
 
 #### Test Action
 
