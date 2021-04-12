@@ -53,7 +53,7 @@ Bundling the version 0.4.0 in the directory /Tuist/.tuist-bin
 ✅ Success: tuist bundled successfully at /Tuist/.tuist-bin
 ```
 
-It creates a `.tuist-bin` directory in the current directory that contains the `tuist` binary and its artifacts. When you run `tuist [COMMADN]` the version manager determines bundled version should be executed. Read more [here](#running-tuist).
+It creates a `.tuist-bin` directory in the current directory that contains the `tuist` binary and its artifacts. When you run `tuist [COMMAND]` the version manager uses the bundled version automatically.
 
 #### Install
 
