@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 
-public struct ValueGraphTarget: Equatable, Hashable, Comparable, CustomDebugStringConvertible, CustomStringConvertible {
+public struct ValueGraphTarget: Equatable, Hashable, Comparable, CustomDebugStringConvertible, CustomStringConvertible, Codable {
     /// Path to the directory that contains the project where the target is defined.
     public let path: AbsolutePath
 

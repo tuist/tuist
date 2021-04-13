@@ -3,7 +3,7 @@ import TSCBasic
 
 public typealias SettingsDictionary = [String: SettingValue]
 
-public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral, Equatable {
+public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral, Equatable, Codable {
     case string(String)
     case array([String])
 
@@ -28,7 +28,7 @@ public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral,
     }
 }
 
-public struct Configuration: Equatable {
+public struct Configuration: Equatable, Codable {
     // MARK: - Attributes
 
     public let settings: SettingsDictionary
@@ -53,7 +53,7 @@ public struct Configuration: Equatable {
     }
 }
 
-public enum DefaultSettings {
+public enum DefaultSettings: Codable {
     case recommended(excluding: Set<String> = [])
     case essential(excluding: Set<String> = [])
     case none
@@ -69,7 +69,7 @@ extension DefaultSettings {
     }
 }
 
-public class Settings: Equatable {
+public struct Settings: Equatable, Codable {
     public static let `default` = Settings(
         configurations: [.release: nil, .debug: nil],
         defaultSettings: .recommended
@@ -152,6 +152,90 @@ extension Dictionary where Key == String, Value == SettingValue {
             case let .string(string):
                 return string
             }
+        }
+    }
+}
+
+// MARK: - SettingValue - Codable
+
+extension SettingValue {
+    private enum Kind: String, Codable {
+        case string
+        case array
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case kind
+        case string
+        case array
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let kind = try container.decode(Kind.self, forKey: .kind)
+        switch kind {
+        case .string:
+            let string = try container.decode(String.self, forKey: .string)
+            self = .string(string)
+        case .array:
+            let array = try container.decode([String].self, forKey: .array)
+            self = .array(array)
+        }
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case let .string(string):
+            try container.encode(Kind.string, forKey: .kind)
+            try container.encode(string, forKey: .string)
+        case let .array(array):
+            try container.encode(Kind.array, forKey: .kind)
+            try container.encode(array, forKey: .array)
+        }
+    }
+}
+
+// MARK: - DefaultSettings - Codable
+
+extension DefaultSettings {
+    private enum Kind: String, Codable {
+        case recommended
+        case essential
+        case none
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case kind
+        case excluding
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let kind = try container.decode(Kind.self, forKey: .kind)
+        switch kind {
+        case .recommended:
+            let excluding = try container.decode(Set<String>.self, forKey: .excluding)
+            self = .recommended(excluding: excluding)
+        case .essential:
+            let excluding = try container.decode(Set<String>.self, forKey: .excluding)
+            self = .essential(excluding: excluding)
+        case .none:
+            self = .none
+        }
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case let .recommended(excluding):
+            try container.encode(Kind.recommended, forKey: .kind)
+            try container.encode(excluding, forKey: .excluding)
+        case let .essential(excluding):
+            try container.encode(Kind.essential, forKey: .kind)
+            try container.encode(excluding, forKey: .excluding)
+        case .none:
+            try container.encode(Kind.none, forKey: .kind)
         }
     }
 }

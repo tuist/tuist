@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 
-public struct CopyFilesAction: Equatable {
+public struct CopyFilesAction: Equatable, Codable {
     /// Name of the build phase when the project gets generated.
     public var name: String
 
@@ -15,7 +15,7 @@ public struct CopyFilesAction: Equatable {
     public var files: [FileElement]
 
     /// Destination path.
-    public enum Destination: String, Equatable {
+    public enum Destination: String, Equatable, Codable {
         case absolutePath
         case productsDirectory
         case wrapper

@@ -1,5 +1,5 @@
 import Foundation
 
-public enum SchemeDiagnosticsOption: Equatable {
+public enum SchemeDiagnosticsOption: String, Equatable, Codable {
     case mainThreadChecker
 }

@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 
-public struct CoreDataModel: Equatable {
+public struct CoreDataModel: Equatable, Codable {
     // MARK: - Attributes
 
     public let path: AbsolutePath

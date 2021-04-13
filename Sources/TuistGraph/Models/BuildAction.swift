@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 
-public struct BuildAction: Equatable {
+public struct BuildAction: Equatable, Codable {
     // MARK: - Attributes
 
     public var targets: [TargetReference]

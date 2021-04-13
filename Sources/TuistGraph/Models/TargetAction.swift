@@ -2,12 +2,12 @@ import Foundation
 import TSCBasic
 
 /// It represents a target script build phase
-public struct TargetAction: Equatable {
+public struct TargetAction: Equatable, Codable {
     /// Order when the action gets executed.
     ///
     /// - pre: Before the sources and resources build phase.
     /// - post: After the sources and resources build phase.
-    public enum Order: String, Equatable {
+    public enum Order: String, Equatable, Codable {
         case pre
         case post
     }
@@ -16,8 +16,8 @@ public struct TargetAction: Equatable {
     ///
     /// - tool: Executes the tool with the given arguments. Tuist will look up the tool on the environment's PATH.
     /// - scriptPath: Executes the file at the path with the given arguments.
-    /// - text: Executes the embedded script. This should be a short command.
-    public enum Script: Equatable {
+    /// - embedded: Executes the embedded script. This should be a short command.
+    public enum Script: Equatable, Codable {
         case tool(_ path: String, _ args: [String] = [])
         case scriptPath(_ path: AbsolutePath, args: [String] = [])
         case embedded(String)
@@ -130,5 +130,61 @@ extension Array where Element == TargetAction {
 
     public var postActions: [TargetAction] {
         filter { $0.order == .post }
+    }
+}
+
+// MARK: - TargetAction.Script - Codable
+
+//case tool(_ path: String, _ args: [String] = [])
+//case scriptPath(_ path: AbsolutePath, args: [String] = [])
+//case embedded(String)
+
+extension TargetAction.Script {
+    private enum Kind: String, Codable {
+        case tool
+        case scriptPath
+        case embedded
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case kind
+        case path
+        case absolutePath
+        case args
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let kind = try container.decode(Kind.self, forKey: .kind)
+        switch kind {
+        case .tool:
+            let path = try container.decode(String.self, forKey: .path)
+            let args = try container.decode([String].self, forKey: .args)
+            self = .tool(path, args)
+        case .scriptPath:
+            let absolutePath = try container.decode(AbsolutePath.self, forKey: .absolutePath)
+            let args = try container.decode([String].self, forKey: .args)
+            self = .scriptPath(absolutePath, args: args)
+        case .embedded:
+            let path = try container.decode(String.self, forKey: .path)
+            self = .embedded(path)
+        }
+    }
+    
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case let .tool(path, args):
+            try container.encode(Kind.tool, forKey: .kind)
+            try container.encode(path, forKey: .path)
+            try container.encode(args, forKey: .args)
+        case let .scriptPath(absolutePath, args):
+            try container.encode(Kind.scriptPath, forKey: .kind)
+            try container.encode(absolutePath, forKey: .absolutePath)
+            try container.encode(args, forKey: .args)
+        case let .embedded(path):
+            try container.encode(Kind.embedded, forKey: .kind)
+            try container.encode(path, forKey: .path)
+        }
     }
 }

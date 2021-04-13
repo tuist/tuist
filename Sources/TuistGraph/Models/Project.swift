@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 
-public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebugStringConvertible {
+public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebugStringConvertible, Codable {
     // MARK: - Attributes
 
     /// Path to the folder that contains the project manifest.
