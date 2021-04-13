@@ -87,6 +87,11 @@ public protocol ManifestLoading {
     /// - Parameters:
     ///     -  path: Path to the directory that contains Dependencies.swift
     func loadDependencies(at path: AbsolutePath) throws -> ProjectDescription.Dependencies
+    
+    /// Loads the Tasks.swift in the given directory
+    /// - Parameters:
+    ///     - path: Path to the directory that contains Tasks.swift
+    func loadTasks(at path: AbsolutePath) throws -> ProjectDescription.Tasks
 
     /// Loads the Plugin.swift in the given directory.
     /// - Parameter path: Path to the directory that contains Plugin.swift
@@ -264,7 +269,8 @@ public class ManifestLoader: ManifestLoading {
                  .project,
                  .setup,
                  .template,
-                 .workspace:
+                 .workspace,
+                 .tasks:
                 return try projectDescriptionHelpersBuilderFactory
                     .projectDescriptionHelpersBuilder(cacheDirectory: projectDescriptionHelpersCacheDirectory)
                     .build(
