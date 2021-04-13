@@ -1,7 +1,11 @@
 import Foundation
 
-public struct Tasks {
+public struct Tasks: Codable, ExpressibleByArrayLiteral {
     public let tasks: [String: Task]
+    
+    public init(arrayLiteral elements: Task...) {
+        self.init(elements)
+    }
     
     public init(
         _ tasks: [Task]
@@ -9,21 +13,18 @@ public struct Tasks {
         self.tasks = tasks.reduce(into: [:]) { acc, task in
             acc[task.name] = task
         }
+        if !dumpIfNeeded(self) {
+            runIfNeeded()
+        }
     }
     
     private func runIfNeeded() {
         guard
             let taskCommandLineIndex = CommandLine.arguments.firstIndex(of: "--tuist-task"),
-            CommandLine.argc > taskCommandLineIndex,
+            CommandLine.argc > taskCommandLineIndex
         else { return }
         let name = CommandLine.arguments[taskCommandLineIndex + 1]
-        guard
-            let task = tasks[name]
-        else {
-            // TODO: This should probably be handled when loading Tasks.swift -> we should add dumpIfNeeded call here
-            print("No task with name: \(name)")
-            exit(1)
-        }
-        try! task.task()
+        // swiftlint:disable:next force_try
+        try! tasks[name]!.task()
     }
 }
