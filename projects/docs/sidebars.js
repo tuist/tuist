@@ -3,16 +3,14 @@ module.exports = {
     {
       type: 'category',
       label: 'Tutorial',
-      items: [
-        'tutorial/get-started',
-        'tutorial/adoption-guidelines',
-        'tutorial/faq',
-      ],
+      items: ['tutorial/get-started', 'tutorial/faq'],
     },
     {
       type: 'category',
       label: 'Guides',
+      collapsed: false,
       items: [
+        'guides/adopting-tuist',
         'guides/dependencies',
         'guides/helpers',
         'guides/resources',

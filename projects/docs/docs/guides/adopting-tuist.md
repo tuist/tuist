@@ -1,6 +1,6 @@
 ---
-title: Adoption guidelines
-slug: '/tutorial/adoption-guidelines'
+title: Adopting Tuist
+slug: '/guides/adopting-tuist'
 description: This page contains guidelines for migrating existing Xcode projects to Tuist.
 ---
 
