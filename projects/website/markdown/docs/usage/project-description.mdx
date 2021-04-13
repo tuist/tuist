@@ -137,6 +137,15 @@ A `Project.swift` should initialize a variable of type `Project`. It can take an
       optional: true,
       default: '[]',
     },
+    {
+      name: 'ResourceSynthesizer',
+      description:
+        'List of resource synthesizer for generating accessors for resources',
+      type: '[ResourceSynthesizer]',
+      typeLink: '#resourcesynthesizer',
+      optional: true,
+      default: '.default',
+    },
   ]}
 />
 
@@ -1654,6 +1663,10 @@ A `FileElement` can be one of the following options:
     },
   ]}
 />
+
+## ResourceSynthesizer
+
+A `ResourceSynthesizer` creates accessors, so you can use your resources in a type-safe way. To read more about them, head over to [resource documentation](/docs/usage/resources/).
 
 ## ResourceFileElements
 

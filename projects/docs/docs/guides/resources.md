@@ -51,11 +51,11 @@ This is why we think it is a great opportunity to integrate [SwiftGen](https://g
 so teams can use it out of the box without having to set it up themselves!
 
 So, how does one synthesize the resource interface accessors? It's simple, you just add `resources` to your `Target`
-and the rest is done for you.
+and define the appropriate `ResourceSynthesizers` in `Project` (more on that below).
 
 It generates code that uses tuist's aforementioned bundle accessor, so you can use it safely in your libraries, too.
 
-Currently, we support these types of resources with the following interface names and files:
+Currently, tuist has templates for these types of resources with the following interface names and files:
 
 - Assets (images and colors) {TargetName}Assets `Assets+{TargetName}.swift`
 - Strings {TargetName}Assets `Strings+{TargetName}.swift`
@@ -86,6 +86,71 @@ let sfProBoldFont = MyFrameworkFontFamily.SFProDisplay.bold
 let sfProHeavyFont = MyFrameworkFontFamily.SFProDisplay.heavy
 ```
 
+These templates are used by default via a parameter in `Project`, `resourceSynthesizers`. But there is a lot that you can customize here 👇
+
+## ResourceSynthesizers
+
+Resource synthesizers support all parsers that [SwiftGen](https://github.com/SwiftGen/SwiftGen) offers.
+
+That means:
+
+- `strings`
+- `assets`
+- `plists`
+- `fonts`
+- `coreData`
+- `interfaceBuilder`
+- `json`
+- `yaml`
+
+For `strings`, `plists`, `fonts`, and `assets` there are templates offered by tuist, to initialize eg. strings resource synthesizer (as described above):
+
+```swift
+.strings()
+```
+
+You can also use a local template. Just add it to `Tuist/ResourceSynthesizers/{name}.stencil` where name is derived from the resource and then use the default initializer (e.g. `plists()` for Plists). Here you have listed all of the name mappings:
+
+- `strings` => `Strings.stencil`
+- `assets` => `Assets.stencil`
+- `plists` => `Plists.stencil`
+- `fonts` => `Fonts.stencil`
+- `coreData` => `CoreData.stencil`
+- `interfaceBuilder` => `InterfaceBuilder.stencil`
+- `json` => `JSON.stencil`
+- `yaml` => `YAML.stencil`
+
+If a plugin offers a resource synthesizer template, you can also do:
+
+```swift
+.json(plugin: "CustomPlugin")
+```
+
+These initializers have pre-defined parser and extensions to determine for which resources it should do the synthesization.
+
+If you need something more custom, eg. Lottie template that uses `.json` parser and finds resources with `.lottie` extension, you can do:
+
+```swift
+.custom(
+  name: "Lottie",
+  parser: .json,
+  extensions: ["lottie"]
+)
+```
+
+where the template should again be present at `Tuist/ResourceSynthesizers/Lottie.stencil`.
+
+The same can be done for a plugin:
+
+```swift
+.custom(
+  plugin: "CustomPlugin",
+  parser: .json,
+  extensions: ["lottie"],
+  resourceName: "Lottie"
+)
+```
+
 To ensure that it works well with our cache feature, it's not possible to run it from a build path.
 
-You can also opt out of this feature by adding `disableSynthesizedResourceAccessors` to `generationOptions` in [`Config.swift`](/manifests/config)
+If you don't want to use resource synthesizers at all, you can just pass empty array: `resourceSynthesizers: []` in `Project` initializer.
