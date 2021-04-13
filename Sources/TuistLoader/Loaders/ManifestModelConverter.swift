@@ -24,7 +24,7 @@ public final class ManifestModelConverter: ManifestModelConverting {
             manifestLoader: ManifestLoader()
         )
     }
-    
+
     public convenience init(
         manifestLoader: ManifestLoading
     ) {
