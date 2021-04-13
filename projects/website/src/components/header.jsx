@@ -24,11 +24,7 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
   }
   const {
     site: {
-      siteMetadata: {
-        githubUrl,
-        slackUrl,
-        firstDocumentationPagePath,
-      },
+      siteMetadata: { githubUrl, slackUrl },
     },
   } = useStaticQuery(graphql`
     query {
@@ -36,7 +32,6 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
         siteMetadata {
           githubUrl
           slackUrl
-          firstDocumentationPagePath
         }
       }
     }
@@ -95,7 +90,6 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
         </div>
         <Location>
           {({ location }) => {
-            const isDocs = location.pathname.startsWith('/docs')
             const isBlog = location.pathname.startsWith('/blog')
             const isAppsAtScale = location.pathname.startsWith('/apps-at-scale')
             return (
@@ -116,16 +110,16 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
                     alignItems: ['center'],
                   }}
                 >
-                  <Link
+                  <a
                     sx={{
                       ...linkStyle,
                       ...(isDocs ? hoverStyle : {}),
                       variant: 'text.header',
                     }}
-                    to={firstDocumentationPagePath}
+                    href="https://docs.tuist.io"
                   >
                     DOCS
-                  </Link>
+                  </a>
                   <Link
                     sx={{
                       ...linkStyle,
