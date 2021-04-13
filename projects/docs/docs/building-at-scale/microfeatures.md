@@ -247,7 +247,7 @@ the decision process has been notably simplified.
 Since Tuist supports defining resources in libraries,
 we recommend sticking to **static libraries**,
 unless you come across scenarios where a dynamic framework is more suitable.
-Bear in mind that Tuist makes changing the product a seamless process as long as you use the [standard interface](/features/resources/) for accessing resources.
+Bear in mind that Tuist makes changing the product a seamless process as long as you use the [standard interface](/guides/resources/) for accessing resources.
 
 ### Frequently asked questions
 

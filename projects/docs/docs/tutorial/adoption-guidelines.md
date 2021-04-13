@@ -84,7 +84,7 @@ and lets developers know that they should change the manifest files instead.
 
 You can use a tool like [xcdiff](https://github.com/bloomberg/xcdiff) for that.
 
-#### Use [project description helpers](/features/helpers/)
+#### Use [project description helpers](/guides/helpers/)
 
 They allow defining your own abstractions for defining your projects,
 and most importantly,

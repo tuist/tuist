@@ -1,6 +1,6 @@
 ---
-title: Version management
-slug: '/features/version-management'
+title: Managing Tuist versions
+slug: '/guides/version-management'
 description: Tuist comes with its own version management that is deterministic and ensures that everyone in the team uses the same version of Tuist. This document explains how to use it, and what are the commands available to pin projects or the environment to specific versions of Tuist.
 ---
 

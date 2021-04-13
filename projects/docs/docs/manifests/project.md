@@ -97,7 +97,7 @@ For local:
 .package(path: "MyLibrary")
 ```
 
-Targets can then depend on products from these Swift Packages. See [Dependencies](/features/dependencies)
+Targets can then depend on products from these Swift Packages. See [Dependencies](/guides/dependencies)
 
 :::note Package.resolved
 Tuist creates a `.package.resolved` file, so your team can share the same versions of dependencies without committing your workspace.
@@ -121,7 +121,7 @@ Each target in the list of project targets can be initialized with the following
 | `headers`          | The target headers.                                                                                                                   | [`Headers`](#headers)                           | No       |                  |
 | `entitlements`     | Path to the entitlement file.                                                                                                         | [`Path`](#path)                                 | No       |                  |
 | `actions`          | Target actions allow defining extra script build phases.                                                                              | [`[TargetAction]`](#target-action)              | No       | `[]`             |
-| `dependencies`     | List of target dependencies.                                                                                                          | [`[TargetDependency]` ](/features/dependencies) | No       | `[]`             |
+| `dependencies`     | List of target dependencies.                                                                                                          | [`[TargetDependency]` ](/guides/dependencies)   | No       | `[]`             |
 | `sources`          | Source files that are compiled by the target. Any playgrounds matched by the globs used in this property will be automatically added. | [`SourceFilesList`](#source-file-list)          | Yes      |                  |
 | `settings`         | Target build settings and configuration files.                                                                                        | [`Settings`](#settings)                         | No       |                  |
 | `coreDataModels`   | Core Data models.                                                                                                                     | [`[CoreDataModel]`](#core-data-model)           | No       |                  |

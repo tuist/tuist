@@ -1,8 +1,10 @@
 ---
-title: Statistics
-slug: '/features/stats'
+title: Helping Tuist
+slug: '/guides/stats'
 description: Learn about Tuist Stats
 ---
+
+### Sending usage statistics
 
 Tuist sends some **anonymous** analytics events to track the usage of the tool.
 Having statistics about Tuist's usage helps contributors to make informed decision and better prioritize future work.

@@ -1,6 +1,6 @@
 ---
 title: Accessing resources
-slug: '/features/resources'
+slug: '/guides/resources'
 description: 'In this page documents how Tuist synthesizes accessors for resources to provide an interface that is consistent across all target products (e.g. framework. library).'
 ---
 

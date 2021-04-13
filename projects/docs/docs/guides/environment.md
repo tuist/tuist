@@ -1,6 +1,6 @@
 ---
-title: Environment
-slug: '/features/environment'
+title: Generation-time configuration
+slug: '/guides/environment'
 description: Learn how to leverage environment variables that can be read from the manifest files.
 ---
 
