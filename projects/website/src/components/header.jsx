@@ -113,7 +113,6 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
                   <a
                     sx={{
                       ...linkStyle,
-                      ...(isDocs ? hoverStyle : {}),
                       variant: 'text.header',
                     }}
                     href="https://docs.tuist.io"
