@@ -42,7 +42,7 @@ extension DeploymentTarget {
         case version
         case deploymentDevices
     }
-    
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)

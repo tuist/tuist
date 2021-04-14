@@ -134,9 +134,9 @@ public enum ValueGraphDependency: Hashable, CustomStringConvertible, Comparable,
     public static func < (lhs: ValueGraphDependency, rhs: ValueGraphDependency) -> Bool {
         lhs.description < rhs.description
     }
-    
+
     // MARK: - Codable
-    
+
     private enum Kind: String, Codable {
         case xcframework
         case framework
@@ -146,7 +146,7 @@ public enum ValueGraphDependency: Hashable, CustomStringConvertible, Comparable,
         case sdk
         case cocoapods
     }
-    
+
     enum CodingKeys: String, CodingKey {
         case kind
         case path
@@ -165,7 +165,7 @@ public enum ValueGraphDependency: Hashable, CustomStringConvertible, Comparable,
         case status
         case source
     }
-    
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
@@ -235,7 +235,7 @@ public enum ValueGraphDependency: Hashable, CustomStringConvertible, Comparable,
             self = .cocoapods(path: path)
         }
     }
-    
+
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {

@@ -169,7 +169,7 @@ extension SettingValue {
         case string
         case array
     }
-    
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
@@ -182,7 +182,7 @@ extension SettingValue {
             self = .array(array)
         }
     }
-    
+
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
@@ -209,7 +209,7 @@ extension DefaultSettings {
         case kind
         case excluding
     }
-    
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
@@ -224,7 +224,7 @@ extension DefaultSettings {
             self = .none
         }
     }
-    
+
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {

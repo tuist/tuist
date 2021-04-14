@@ -16,7 +16,7 @@ final class TestableTargetTests: TuistUnitTestCase {
             parallelizable: true,
             randomExecutionOrdering: true
         )
-        
+
         // Then
         XCTAssertCodable(subject)
     }

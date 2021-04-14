@@ -11,7 +11,7 @@ final class TestPlanTests: TuistUnitTestCase {
             path: "/path/to",
             isDefault: true
         )
-        
+
         // Then
         XCTAssertCodable(subject)
     }

@@ -14,7 +14,7 @@ final class CoreDataModelTests: TuistUnitTestCase {
             ],
             currentVersion: "1.1.1"
         )
-        
+
         // Then
         XCTAssertCodable(subject)
     }

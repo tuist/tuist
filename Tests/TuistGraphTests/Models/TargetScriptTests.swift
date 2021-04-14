@@ -13,7 +13,7 @@ final class TargetScriptTests: TuistUnitTestCase {
             showEnvVarsInLog: true,
             hashable: true
         )
-        
+
         // Then
         XCTAssertCodable(subject)
     }

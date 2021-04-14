@@ -6,7 +6,6 @@ public enum Package: Equatable, Codable {
     case local(path: AbsolutePath)
 }
 
-
 // MARK: - Codable
 
 extension Package {
@@ -21,7 +20,7 @@ extension Package {
         case requirement
         case path
     }
-    
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
@@ -35,7 +34,7 @@ extension Package {
             self = .local(path: path)
         }
     }
-    
+
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {

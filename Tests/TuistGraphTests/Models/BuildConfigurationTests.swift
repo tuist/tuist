@@ -11,11 +11,11 @@ final class BuildConfigurationTests: TuistUnitTestCase {
             name: "Debug",
             variant: .debug
         )
-        
+
         // Then
         XCTAssertCodable(subject)
     }
-    
+
     func test_name_returnsTheRightValue_whenDebug() {
         XCTAssertEqual(BuildConfiguration.debug.name, "Debug")
     }

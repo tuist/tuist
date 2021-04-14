@@ -43,7 +43,7 @@ extension TargetDependency {
         case product
         case status
     }
-    
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
@@ -80,7 +80,7 @@ extension TargetDependency {
             self = .xctest
         }
     }
-    
+
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {

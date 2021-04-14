@@ -15,7 +15,7 @@ extension ProjectGroup {
         case kind
         case name
     }
-    
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
@@ -25,7 +25,7 @@ extension ProjectGroup {
             self = .group(name: name)
         }
     }
-    
+
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {

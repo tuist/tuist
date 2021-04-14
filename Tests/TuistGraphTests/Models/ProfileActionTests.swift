@@ -21,11 +21,11 @@ final class ProfileActionTests: TuistUnitTestCase {
                     .init(
                         name: "name",
                         isEnabled: false
-                    )
+                    ),
                 ]
             )
         )
-        
+
         // Then
         XCTAssertCodable(subject)
     }

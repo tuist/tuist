@@ -12,7 +12,7 @@ final class SourceFileTests: TuistUnitTestCase {
             compilerFlags: "flag",
             contentHash: "hash"
         )
-        
+
         // Then
         XCTAssertCodable(subject)
     }

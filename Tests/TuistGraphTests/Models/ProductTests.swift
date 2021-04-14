@@ -7,19 +7,19 @@ final class ProductTests: XCTestCase {
     func test_codable_app() {
         // Given
         let subject = Product.app
-        
+
         // Then
         XCTAssertCodable(subject)
     }
-    
+
     func test_codable_staticFramework() {
         // Given
         let subject = Product.staticFramework
-        
+
         // Then
         XCTAssertCodable(subject)
     }
-    
+
     func test_xcodeValue() {
         XCTAssertEqual(Product.app.xcodeValue, PBXProductType.application)
         XCTAssertEqual(Product.staticLibrary.xcodeValue, PBXProductType.staticLibrary)

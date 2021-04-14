@@ -6,19 +6,19 @@ final class PlatformTests: XCTestCase {
     func test_codable_iOS() {
         // Given
         let subject = Platform.iOS
-        
+
         // Then
         XCTAssertCodable(subject)
     }
-    
+
     func test_codable_tvOS() {
         // Given
         let subject = Platform.tvOS
-        
+
         // Then
         XCTAssertCodable(subject)
     }
-    
+
     func test_xcodeSdkRoot_returns_the_right_value() {
         XCTAssertEqual(Platform.macOS.xcodeSdkRoot, "macosx")
         XCTAssertEqual(Platform.iOS.xcodeSdkRoot, "iphoneos")

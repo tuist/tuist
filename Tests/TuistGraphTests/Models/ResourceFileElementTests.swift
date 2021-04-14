@@ -13,20 +13,20 @@ final class ResourceFileElementTests: TuistUnitTestCase {
                 "tag",
             ]
         )
-        
+
         // Then
         XCTAssertCodable(subject)
     }
-    
+
     func test_codable_folderReference() {
         // Given
         let subject = ResourceFileElement.folderReference(
             path: "/path/to/folder",
             tags: [
-                "tag"
+                "tag",
             ]
         )
-        
+
         // Then
         XCTAssertCodable(subject)
     }

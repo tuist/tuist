@@ -24,11 +24,11 @@ final class TargetTests: TuistUnitTestCase {
     func test_codable() {
         // Given
         let subject = Target.test(name: "Test", product: .staticLibrary)
-        
+
         // Then
         XCTAssertCodable(subject)
     }
-    
+
     func test_validSourceExtensions() {
         XCTAssertEqual(Target.validSourceExtensions, ["m", "swift", "mm", "cpp", "c", "d", "s", "intentdefinition", "xcmappingmodel", "metal", "mlmodel"])
     }

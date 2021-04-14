@@ -17,7 +17,7 @@ final class ArchiveActionTests: TuistUnitTestCase {
                     scriptText: "text",
                     target: nil,
                     showEnvVarsInLog: false
-                )
+                ),
             ],
             postActions: [
                 .init(
@@ -25,10 +25,10 @@ final class ArchiveActionTests: TuistUnitTestCase {
                     scriptText: "text",
                     target: nil,
                     showEnvVarsInLog: true
-                )
+                ),
             ]
         )
-        
+
         // Then
         XCTAssertCodable(subject)
     }

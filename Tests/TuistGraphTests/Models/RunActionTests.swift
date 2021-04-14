@@ -22,15 +22,15 @@ final class RunActionTests: TuistUnitTestCase {
                     .init(
                         name: "name",
                         isEnabled: true
-                    )
+                    ),
                 ]
             ),
             options: .init(),
             diagnosticsOptions: [
-                .mainThreadChecker
+                .mainThreadChecker,
             ]
         )
-        
+
         // Then
         XCTAssertCodable(subject)
     }

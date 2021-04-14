@@ -11,7 +11,7 @@ final class TargetReferenceTests: TuistUnitTestCase {
             projectPath: "/path/to/project",
             name: "name"
         )
-        
+
         // Then
         XCTAssertCodable(subject)
     }

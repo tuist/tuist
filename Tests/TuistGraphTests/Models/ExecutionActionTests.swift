@@ -16,7 +16,7 @@ final class ExecutionActionTests: TuistUnitTestCase {
             ),
             showEnvVarsInLog: false
         )
-        
+
         // Then
         XCTAssertCodable(subject)
     }

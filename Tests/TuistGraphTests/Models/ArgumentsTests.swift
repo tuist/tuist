@@ -18,7 +18,7 @@ final class ArgumentsTests: TuistUnitTestCase {
                 ),
             ]
         )
-        
+
         // Then
         XCTAssertCodable(subject)
     }

@@ -16,11 +16,11 @@ final class ProjectTests: XCTestCase {
         let subject = Project.test(targets: [
             framework, app, appTests, frameworkTests,
         ])
-        
+
         // Then
         XCTAssertCodable(subject)
     }
-    
+
     func test_sortedTargetsForProjectScheme() {
         // Given
         let framework = Target.test(name: "Framework", product: .framework)

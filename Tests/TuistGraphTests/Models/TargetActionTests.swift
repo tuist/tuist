@@ -13,11 +13,11 @@ final class TargetActionTests: XCTestCase {
     func test_codable() {
         // Given
         let subject = TargetAction(name: "name", order: .pre, script: .embedded(script))
-        
+
         // Then
         XCTAssertCodable(subject)
     }
-    
+
     func test_embedded_script() throws {
         let subject = TargetAction(name: "name", order: .pre, script: .embedded(script))
 

@@ -135,9 +135,9 @@ extension Array where Element == TargetAction {
 
 // MARK: - TargetAction.Script - Codable
 
-//case tool(_ path: String, _ args: [String] = [])
-//case scriptPath(_ path: AbsolutePath, args: [String] = [])
-//case embedded(String)
+// case tool(_ path: String, _ args: [String] = [])
+// case scriptPath(_ path: AbsolutePath, args: [String] = [])
+// case embedded(String)
 
 extension TargetAction.Script {
     private enum Kind: String, Codable {
@@ -152,7 +152,7 @@ extension TargetAction.Script {
         case absolutePath
         case args
     }
-    
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
@@ -170,7 +170,7 @@ extension TargetAction.Script {
             self = .embedded(path)
         }
     }
-    
+
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {

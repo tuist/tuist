@@ -12,10 +12,10 @@ final class CopyFilesActionTests: TuistUnitTestCase {
             destination: .frameworks,
             subpath: "subpath",
             files: [
-                .file(path: "/path/to/file")
+                .file(path: "/path/to/file"),
             ]
         )
-        
+
         // Then
         XCTAssertCodable(subject)
     }

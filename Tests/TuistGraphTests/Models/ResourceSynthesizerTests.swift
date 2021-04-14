@@ -15,7 +15,7 @@ final class ResourceSynthesizerTests: TuistUnitTestCase {
             ],
             template: .defaultTemplate("template")
         )
-        
+
         // Then
         XCTAssertCodable(subject)
     }

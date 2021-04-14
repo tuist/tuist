@@ -85,14 +85,14 @@ extension InfoPlist {
         case dictionary
         case extendingDefault
     }
-    
+
     enum CodingKeys: String, CodingKey {
         case kind
         case path
         case data
         case dictionary
     }
-    
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
@@ -112,7 +112,7 @@ extension InfoPlist {
             self = .extendingDefault(with: directory)
         }
     }
-    
+
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
@@ -183,7 +183,7 @@ extension InfoPlist.Value {
         case dictionary
         case array
     }
-    
+
     enum CodingKeys: String, CodingKey {
         case kind
         case string
@@ -192,7 +192,7 @@ extension InfoPlist.Value {
         case dictionary
         case array
     }
-    
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
@@ -214,7 +214,7 @@ extension InfoPlist.Value {
             self = .dictionary(dictionary)
         }
     }
-    
+
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {

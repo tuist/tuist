@@ -11,7 +11,7 @@ final class WorkspaceTests: TuistUnitTestCase {
             path: "/path/to/workspace",
             name: "name"
         )
-        
+
         // Then
         XCTAssertCodable(subject)
     }

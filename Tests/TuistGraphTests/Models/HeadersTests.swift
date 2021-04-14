@@ -18,7 +18,7 @@ final class HeadersTests: TuistUnitTestCase {
                 "/path/to/project/header",
             ]
         )
-        
+
         // Then
         XCTAssertCodable(subject)
     }

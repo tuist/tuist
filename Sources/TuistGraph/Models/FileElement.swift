@@ -31,12 +31,12 @@ extension FileElement {
         case file
         case folderReference
     }
-    
+
     enum CodingKeys: String, CodingKey {
         case kind
         case path
     }
-    
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
@@ -49,7 +49,7 @@ extension FileElement {
             self = .folderReference(path: path)
         }
     }
-    
+
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
@@ -62,4 +62,3 @@ extension FileElement {
         }
     }
 }
-
