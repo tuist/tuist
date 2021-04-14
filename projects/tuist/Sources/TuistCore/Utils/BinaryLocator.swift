@@ -51,7 +51,7 @@ public final class BinaryLocator: BinaryLocating {
                 .removingLastComponent()
                 .removingLastComponent()
                 .removingLastComponent()
-                .appending(RelativePath("projects/tuist/vendor"))
+                .appending(RelativePath("vendor"))
         #else
             let bundlePath = AbsolutePath(Bundle(for: BinaryLocator.self).bundleURL.path)
         #endif
