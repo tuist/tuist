@@ -26,12 +26,12 @@ The structure is similar to the project manifest. We need to create a root varia
 import ProjectDescription
 
 let config = Config(
-  compatibleXcodeVersions: ["10.3"],
-  generationOptions: [
-    .xcodeProjectName("SomePrefix-\(.projectName)-SomeSuffix"),
-    .organizationName("Tuist"),
-    .developmentRegion("de")
-  ]
+    compatibleXcodeVersions: ["10.3"],
+    generationOptions: [
+        .xcodeProjectName("SomePrefix-\(.projectName)-SomeSuffix"),
+        .organizationName("Tuist"),
+        .developmentRegion("de")
+    ]
 )
 ```
 

@@ -13,7 +13,7 @@ module.exports = {
   organizationName: 'tuist',
   projectName: 'tuist',
   customFields: {
-    defaultDocsLandingPage: 'usage/get-started',
+    defaultDocsLandingPage: 'tutorial/get-started',
   },
   themeConfig: {
     prism: {

@@ -11,23 +11,37 @@ The snippet below shows an example workspace manifest:
 ```swift
 import ProjectDescription
 
-let workspace = Workspace(name: "CustomWorkspace",
-                          projects: [
-                            "App",
-                            "Modules/**"
-                          ],
-                          schemes: [
-                            Scheme(name: "Workspace-App",
-                                   shared: true,
-                                   buildAction: BuildAction(targets: [.project(path: "App", target: "App")], preActions: []),
-                                   testAction: TestAction(targets: [TestableTarget(target: .project(path: "App", target: "AppTests"))]),
-                                   runAction: RunAction(executable: .project(path: "App", target: "App")),
-                                   archiveAction: ArchiveAction(configurationName: "Debug", customArchiveName: "Something2"))
-                          ],
-                          additionalFiles: [
-                            "Documentation/**",
-                            .folderReference(path: "Website")
-                          ])
+let workspace = Workspace(
+    name: "CustomWorkspace",
+    projects: [
+        "App",
+        "Modules/**"
+    ],
+    schemes: [
+        Scheme(
+            name: "Workspace-App",
+            shared: true,
+            buildAction: BuildAction(
+                targets: [.project(path: "App", target: "App")],
+                preActions: []
+            ),
+            testAction: TestAction(
+                targets: [TestableTarget(target: .project(path: "App", target: "AppTests"))]
+            ),
+            runAction: RunAction(
+                executable: .project(path: "App", target: "App")
+            ),
+            archiveAction: ArchiveAction(
+                configurationName: "Debug",
+                customArchiveName: "Something2"
+            )
+        )
+    ],
+    additionalFiles: [
+        "Documentation/**",
+        .folderReference(path: "Website")
+    ]
+)
 ```
 
 Although `Workspace.swift` file can reside in any directory (including a project directory), we recommend defining it at the root of the project:

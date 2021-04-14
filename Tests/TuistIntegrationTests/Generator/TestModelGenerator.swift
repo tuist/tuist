@@ -28,30 +28,26 @@ final class TestModelGenerator {
     }
 
     func generate() throws -> ValueGraph {
-        let modelLoader = try createModelLoader()
+        let models = try createModels()
         let graphLoader = ValueGraphLoader(
             frameworkMetadataProvider: MockFrameworkMetadataProvider(),
             libraryMetadataProvider: MockLibraryMetadataProvider(),
             xcframeworkMetadataProvider: MockXCFrameworkMetadataProvider(),
             systemFrameworkMetadataProvider: SystemFrameworkMetadataProvider()
         )
-        let workspace = try modelLoader.loadWorkspace(at: rootPath)
-        let projects = try workspace.projects.map(modelLoader.loadProject)
 
-        return try graphLoader.loadWorkspace(workspace: workspace, projects: projects)
+        return try graphLoader.loadWorkspace(
+            workspace: models.workspace,
+            projects: models.projects
+        )
     }
 
-    private func createModelLoader() throws -> GeneratorModelLoading {
-        let modelLoader = MockGeneratorModelLoader(basePath: rootPath)
-
-        let projects = try (0 ..< config.projects).map { try createProjectWithDependencies(name: "App\($0)") }
-        let workspace = try createWorkspace(path: rootPath, projects: projects.map(\.name))
-        projects.forEach { project in
-            modelLoader.mockProject(project.name) { _ in project }
+    private func createModels() throws -> WorkspaceWithProjects {
+        let projects = try (0 ..< config.projects).map {
+            try createProjectWithDependencies(name: "App\($0)")
         }
-
-        modelLoader.mockWorkspace { _ in workspace }
-        return modelLoader
+        let workspace = try createWorkspace(path: rootPath, projects: projects.map(\.name))
+        return WorkspaceWithProjects(workspace: workspace, projects: projects)
     }
 
     private func createProjectWithDependencies(name: String) throws -> Project {
@@ -121,7 +117,8 @@ final class TestModelGenerator {
             packages: packages,
             schemes: schemes,
             ideTemplateMacros: nil,
-            additionalFiles: createAdditionalFiles(path: path)
+            additionalFiles: createAdditionalFiles(path: path),
+            resourceSynthesizers: []
         )
     }
 

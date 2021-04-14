@@ -9,9 +9,12 @@ extension TuistGraph.Project {
     /// - Parameters:
     ///   - manifest: Manifest representation of  the file element.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.Project,
-                     generatorPaths: GeneratorPaths) throws -> TuistGraph.Project
-    {
+    static func from(
+        manifest: ProjectDescription.Project,
+        generatorPaths: GeneratorPaths,
+        plugins: Plugins,
+        resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating
+    ) throws -> TuistGraph.Project {
         let name = manifest.name
         let organizationName = manifest.organizationName
         let settings = try manifest.settings.map { try TuistGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
@@ -20,6 +23,14 @@ extension TuistGraph.Project {
         let additionalFiles = try manifest.additionalFiles.flatMap { try TuistGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths) }
         let packages = try manifest.packages.map { try TuistGraph.Package.from(manifest: $0, generatorPaths: generatorPaths) }
         let ideTemplateMacros = try manifest.fileHeaderTemplate.map { try IDETemplateMacros.from(manifest: $0, generatorPaths: generatorPaths) }
+        let resourceSynthesizers = try manifest.resourceSynthesizers.map {
+            try TuistGraph.ResourceSynthesizer.from(
+                manifest: $0,
+                generatorPaths: generatorPaths,
+                plugins: plugins,
+                resourceSynthesizerPathLocator: resourceSynthesizerPathLocator
+            )
+        }
         return Project(
             path: generatorPaths.manifestDirectory,
             sourceRootPath: generatorPaths.manifestDirectory,
@@ -33,7 +44,8 @@ extension TuistGraph.Project {
             packages: packages,
             schemes: schemes,
             ideTemplateMacros: ideTemplateMacros,
-            additionalFiles: additionalFiles
+            additionalFiles: additionalFiles,
+            resourceSynthesizers: resourceSynthesizers
         )
     }
 }

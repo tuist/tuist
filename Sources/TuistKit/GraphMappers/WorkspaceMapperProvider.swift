@@ -19,14 +19,22 @@ final class WorkspaceMapperProvider: WorkspaceMapperProviding {
     }
 
     func mapper(config: Config) -> WorkspaceMapping {
-        SequentialWorkspaceMapper(mappers: mappers(config: config))
+        SequentialWorkspaceMapper(
+            mappers: mappers(
+                config: config
+            )
+        )
     }
 
     func mappers(config: Config) -> [WorkspaceMapping] {
         var mappers: [WorkspaceMapping] = []
 
         mappers.append(
-            ProjectWorkspaceMapper(mapper: projectMapperProvider.mapper(config: config))
+            ProjectWorkspaceMapper(
+                mapper: projectMapperProvider.mapper(
+                    config: config
+                )
+            )
         )
 
         mappers.append(

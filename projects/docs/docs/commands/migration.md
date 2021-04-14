@@ -4,7 +4,7 @@ slug: '/commands/migration'
 description: 'Learn how to use the migration commands to smooth the adoption of Tuist from your projects.'
 ---
 
-To help developers with the process of [adopting Tuist](/usage/adoption-guidelines/),
+To help developers with the process of [adopting Tuist](/guides/adopting-tuist/),
 Tuist provides a set of commands under `tuist migration`.
 
 ### Extract build settings into xcode build configuration files

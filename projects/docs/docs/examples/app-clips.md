@@ -11,28 +11,34 @@ An App Clip is a small part of your app thatâ€™s discoverable at the moment itâ€
 For example, this is how an AppClip can be declared:
 
 ```swift
-let project = Project(name: "App",
-                      targets: [
-                        Target(name: "App",
-                               platform: .iOS,
-                               product: .app,
-                               bundleId: "io.tuist.App",
-                               infoPlist: "App/Configs/Info.plist",
-                               sources: ["App/Sources/**"],
-                               dependencies: [
-                                    .target(name: "AppClip"),
-                                ]),
-                        Target(name: "AppClip",
-                               platform: .iOS,
-                               product: .appClip,
-                               bundleId: "io.tuist.App.Clip",
-                               infoPlist: "AppClip/Configs/Info.plist",
-                               sources: ["AppClip/Sources/**",],
-                               entitlements: "AppClip/Entitlements/AppClip.entitlements",
-                               dependencies: [
-                                    .sdk(name: "AppClip.framework", status: .required),
-                                ]),
-                      ])
+let project = Project(
+    name: "App",
+    targets: [
+        Target(
+            name: "App",
+            platform: .iOS,
+            product: .app,
+            bundleId: "io.tuist.App",
+            infoPlist: "App/Configs/Info.plist",
+            sources: ["App/Sources/**"],
+            dependencies: [
+                .target(name: "AppClip"),
+            ]
+        ),
+        Target(
+            name: "AppClip",
+            platform: .iOS,
+            product: .appClip,
+            bundleId: "io.tuist.App.Clip",
+            infoPlist: "AppClip/Configs/Info.plist",
+            sources: ["AppClip/Sources/**",],
+            entitlements: "AppClip/Entitlements/AppClip.entitlements",
+            dependencies: [
+                .sdk(name: "AppClip.framework", status: .required),
+            ]
+        ),
+    ]
+)
 ```
 
 ### Parent Application Identifiers Entitlement

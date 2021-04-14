@@ -50,7 +50,7 @@ The repository is a monorepo with multiple projects:
 
 ## Documentation 📝
 
-Do you want to know more about what Tuist can offer you? Or perhaps want to contribute to the project and you need a starting point? You can check out the [project documentation](https://tuist.io/docs/usage/get-started/).
+Do you want to know more about what Tuist can offer you? Or perhaps want to contribute to the project and you need a starting point? You can check out the [project documentation](https://docs.tuist.io/tutorial/get-started/).
 
 ## Supported by great companies
 

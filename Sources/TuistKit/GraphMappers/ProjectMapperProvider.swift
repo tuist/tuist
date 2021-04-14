@@ -36,7 +36,11 @@ final class ProjectMapperProvider: ProjectMapperProviding {
 
         // Namespace generator
         if !config.generationOptions.contains(.disableSynthesizedResourceAccessors) {
-            mappers.append(SynthesizedResourceInterfaceProjectMapper(contentHasher: contentHasher))
+            mappers.append(
+                SynthesizedResourceInterfaceProjectMapper(
+                    contentHasher: contentHasher
+                )
+            )
         }
 
         // Logfile noise suppression

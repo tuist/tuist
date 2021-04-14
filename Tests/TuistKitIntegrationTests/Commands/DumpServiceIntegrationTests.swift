@@ -31,10 +31,13 @@ final class DumpServiceTests: TuistTestCase {
         let config = """
         import ProjectDescription
 
-        let project = Project(name: "tuist",
-              organizationName: "tuist",
-              settings: nil,
-              targets: [])
+        let project = Project(
+            name: "tuist",
+            organizationName: "tuist",
+            settings: nil,
+            targets: [],
+            resourceSynthesizers: []
+        )
         """
         try config.write(
             toFile: tmpDir.appending(component: "Project.swift").pathString,
@@ -42,7 +45,7 @@ final class DumpServiceTests: TuistTestCase {
             encoding: .utf8
         )
         try subject.run(path: tmpDir.pathString)
-        let expected = "{\n  \"additionalFiles\": [\n\n  ],\n  \"name\": \"tuist\",\n  \"organizationName\": \"tuist\",\n  \"packages\": [\n\n  ],\n  \"schemes\": [\n\n  ],\n  \"targets\": [\n\n  ]\n}\n"
+        let expected = "{\n  \"additionalFiles\": [\n\n  ],\n  \"name\": \"tuist\",\n  \"organizationName\": \"tuist\",\n  \"packages\": [\n\n  ],\n  \"resourceSynthesizers\": [\n\n  ],\n  \"schemes\": [\n\n  ],\n  \"targets\": [\n\n  ]\n}\n"
 
         XCTAssertPrinterOutputContains(expected)
     }

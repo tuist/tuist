@@ -38,28 +38,34 @@ A manifest file is a `Project.swift` file, which looks like this:
 ```swift
 import ProjectDescription
 
-let project = Project(name: "MyApp",
-                      targets: [
-                        Target(name: "MyApp",
-                               platform: .iOS,
-                               product: .app,
-                               bundleId: "io.tuist.MyApp",
-                               infoPlist: "Info.plist",
-                               sources: "Sources/**",
-                               dependencies: [
-                                /* Target dependencies can be defined here */
-                                /* .framework(path: "framework") */
-                               ]),
-                        Target(name: "MyAppTests",
-                               platform: .iOS,
-                               product: .unitTests,
-                               bundleId: "io.tuist.MyAppTests",
-                               infoPlist: "Tests.plist",
-                               sources: "Tests/**",
-                               dependencies: [
-                                 .target(name: "MyApp")
-                               ])
-                       ])
+let project = Project(
+    name: "MyApp",
+    targets: [
+        Target(
+            name: "MyApp",
+            platform: .iOS,
+            product: .app,
+            bundleId: "io.tuist.MyApp",
+            infoPlist: "Info.plist",
+            sources: "Sources/**",
+            dependencies: [
+                /* Target dependencies can be defined here */
+                /* .framework(path: "framework") */
+            ]
+        ),
+        Target(
+            name: "MyAppTests",
+            platform: .iOS,
+            product: .unitTests,
+            bundleId: "io.tuist.MyAppTests",
+            infoPlist: "Tests.plist",
+            sources: "Tests/**",
+            dependencies: [
+                .target(name: "MyApp")
+            ]
+        )
+    ]
+)
 ```
 
 If you have used the [Swift Package Manager](https://swift.org/package-manager/) before, this approach might sound familiar to you. One of the benefits of defining the project in a Swift file instead of formats like YAML or JSON is that you can leverage Xcode to validate the syntax and get code auto-completion.
@@ -113,7 +119,7 @@ You can check out [the project issues](https://github.com/tuist/tuist/issues) th
 
 ## 📱 Start using it
 
-Would you like to give Tuist a try? You can check out the [Get started](/docs/usage/get-started/) guide that explains how to install the tool and how to bootstrap your first project.
+Would you like to give Tuist a try? You can check out the [Get started](https://docs.tuist.io/tutorial/get-started/) guide that explains how to install the tool and how to bootstrap your first project.
 
 ## 📒 Resources
 

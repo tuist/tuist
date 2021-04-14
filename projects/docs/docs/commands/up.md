@@ -55,10 +55,10 @@ tuist up
 #### Environment Exists
 
 ```swift
-  .variableExists(
-      name: "See if the environment contains this variable.",
-      variable: "GITHUB_TOKEN"
-  )
+.variableExists(
+    name: "See if the environment contains this variable.",
+    variable: "GITHUB_TOKEN"
+)
 ```
 
 This checks for the existence of the variable, and throws an exception if it is not present.
@@ -69,11 +69,11 @@ This checks for the existence of the variable, and throws an exception if it is 
 #### Environment Variable Equals
 
 ```swift
-  .variableHasValue(
-      name: "See if the variable is equal to the desired value.",
-      variable: "USER",
-      value: "elvis"
-  )
+.variableHasValue(
+    name: "See if the variable is equal to the desired value.",
+    variable: "USER",
+    value: "elvis"
+)
 ```
 
 This runs the command(s) listed in `isMet`, and throws an exception containing the `advice` if the precondition is not met.
@@ -85,11 +85,11 @@ This runs the command(s) listed in `isMet`, and throws an exception containing t
 #### Precondition
 
 ```swift
-  .precondition(
-      name: "GITHUB_TOKEN",
-      advice: "“GITHUB_TOKEN” environment variable must be set.",
-      isMet: ["scripts/validations/github_token.py"]
-  )
+.precondition(
+    name: "GITHUB_TOKEN",
+    advice: "“GITHUB_TOKEN” environment variable must be set.",
+    isMet: ["scripts/validations/github_token.py"]
+)
 ```
 
 This runs the command(s) listed in `isMet`, and throws an exception containing the `advice` if the precondition is not met.

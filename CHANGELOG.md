@@ -7,14 +7,24 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 - Add support for `runPostActionsOnFailure` for post build actions. [#2752](https://github.com/tuist/tuist/pull/2752) by [@FranzBusch](https://github.com/FranzBusch)
 
+## 1.40.0
+
+### Added
+
+- Add resource synthesizers [#2746](https://github.com/tuist/tuist/pull/2746) by [@fortmarek](https://github.com/fortmarek)
+- **WIP** Support for `SwiftPackageManager` dependencies in `Dependencies.swift` [#2394](https://github.com/tuist/tuist/pull/2394) by [@laxmorek](https://github.com/laxmorek).
+
 ### Changed
 
 - Add missing disabling of swiftformat and swift-format [#2795](https://github.com/tuist/tuist/pull/2795) by [@fortmarek](https://github.com/fortmarek)
+- Add support for globbing in build phase input file and file lists as well as output and output file lists. [#2686](https://github.com/tuist/tuist/pull/2686) by [@FranzBusch](https://github.com/FranzBusch)
+- **breaking** Redesign `ProjectDescription.Dependencies` manifest model. [#2394](https://github.com/tuist/tuist/pull/2394) by [@laxmorek](https://github.com/laxmorek).
 
 ### Fixed
 
 - Fixed missing `.resolveDependenciesWithSystemScm` config option in the `PackageDescription` portion of tuist [#2769](https://github.com/tuist/tuist/pull/2769) by [@freak4pc](https://github.com/freak4pc)
 - Fixed running `tuist dump` for projects with plugins [#2700](https://github.com/tuist/tuist/pull/2700) by [@danyf90](https://github.com/danyf90)
+- Fixed issue where associating potential test targets in a target's auto-generated scheme became more restrictive that previous versions. [#2797](https://github.com/tuist/tuist/pull/2797) by [@jakeatoms](https://github.com/jakeatoms)
 
 ## 1.39.1
 

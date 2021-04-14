@@ -1,13 +1,15 @@
 import TSCBasic
+import TuistGraph
 @testable import TuistGenerator
 
 final class MockSynthesizedResourceInterfaceGenerator: SynthesizedResourceInterfacesGenerating {
-    var renderStub: ((SynthesizedResourceInterfaceType, String, [AbsolutePath]) throws -> String)?
+    var renderStub: ((ResourceSynthesizer.Parser, String, String, [AbsolutePath]) throws -> String)?
     func render(
-        _ namespaceType: SynthesizedResourceInterfaceType,
+        parser: ResourceSynthesizer.Parser,
+        templateString: String,
         name: String,
         paths: [AbsolutePath]
     ) throws -> String {
-        try renderStub?(namespaceType, name, paths) ?? ""
+        try renderStub?(parser, templateString, name, paths) ?? ""
     }
 }

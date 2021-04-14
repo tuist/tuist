@@ -311,17 +311,13 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     // MARK: - Helpers
 
     private func generateWorkspace(projectSettings: Settings, targetSettings: Settings?) throws {
-        let temporaryPath = try self.temporaryPath()
-
-        let modelLoader = try createModelLoader(projectSettings: projectSettings, targetSettings: targetSettings)
+        let models = try createModels(projectSettings: projectSettings, targetSettings: targetSettings)
         let subject = DescriptorGenerator()
         let writer = XcodeProjWriter()
         let linter = GraphLinter()
         let graphLoader = ValueGraphLoader()
 
-        let workspace = try modelLoader.loadWorkspace(at: temporaryPath)
-        let projects = try workspace.projects.map(modelLoader.loadProject)
-        let graph = try graphLoader.loadWorkspace(workspace: workspace, projects: projects)
+        let graph = try graphLoader.loadWorkspace(workspace: models.workspace, projects: models.projects)
         let graphTraverser = ValueGraphTraverser(graph: graph)
         try linter.lint(graphTraverser: graphTraverser).printAndThrowIfNeeded()
         let descriptor = try subject.generateWorkspace(graphTraverser: graphTraverser)
@@ -341,17 +337,17 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         return absolutePath
     }
 
-    private func createModelLoader(projectSettings: Settings, targetSettings: Settings?) throws -> GeneratorModelLoading {
+    private func createModels(projectSettings: Settings, targetSettings: Settings?) throws -> WorkspaceWithProjects {
         let temporaryPath = try self.temporaryPath()
-        let modelLoader = MockGeneratorModelLoader(basePath: temporaryPath)
         let appTarget = try createAppTarget(settings: targetSettings)
-        let project = createProject(path: try pathTo("App"), settings: projectSettings, targets: [appTarget], schemes: [])
+        let project = createProject(
+            path: try pathTo("App"),
+            settings: projectSettings,
+            targets: [appTarget],
+            schemes: []
+        )
         let workspace = try createWorkspace(path: temporaryPath, projects: ["App"])
-
-        modelLoader.mockProject("App") { _ in project }
-        modelLoader.mockWorkspace { _ in workspace }
-
-        return modelLoader
+        return WorkspaceWithProjects(workspace: workspace, projects: [project])
     }
 
     private func createConfig() -> Config {
@@ -381,7 +377,8 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
             packages: packages,
             schemes: schemes,
             ideTemplateMacros: nil,
-            additionalFiles: []
+            additionalFiles: [],
+            resourceSynthesizers: []
         )
     }
 
