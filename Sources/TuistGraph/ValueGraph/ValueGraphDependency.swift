@@ -216,11 +216,11 @@ public enum ValueGraphDependency: Hashable, CustomStringConvertible, Comparable,
             let product = try container.decode(String.self, forKey: .product)
             self = .packageProduct(path: path, product: product)
         case .target:
-            let name = try container.decode(String.self, forKey: .path)
+            let name = try container.decode(String.self, forKey: .name)
             let path = try container.decode(AbsolutePath.self, forKey: .path)
             self = .target(name: name, path: path)
         case .sdk:
-            let name = try container.decode(String.self, forKey: .path)
+            let name = try container.decode(String.self, forKey: .name)
             let path = try container.decode(AbsolutePath.self, forKey: .path)
             let status = try container.decode(SDKStatus.self, forKey: .status)
             let source = try container.decode(SDKSource.self, forKey: .source)
