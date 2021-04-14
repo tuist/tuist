@@ -8,8 +8,7 @@ on:
       - main
   pull_request:
     paths:
-      - Sources/**
-      - Tests/**
+      - projects/tuist/**
       - projects/fixturegen/**
       - projects/tuistbench/**
 

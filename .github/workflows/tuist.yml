@@ -7,10 +7,10 @@ on:
   pull_request:
     paths:
       - Gemfile*
-      - Package.swift
-      - Package.resolved
-      - Sources/**
-      - Tests/**
+      - projects/tuist/Package.swift
+      - projects/tuist/Package.resolved
+      - projects/tuist/Sources/**
+      - projects/tuist/Tests/**
       - projects/tuist/features/**
       - projects/tuist/fixtures/**
 

@@ -7,9 +7,9 @@ on:
   pull_request:
     paths:
       - projects/fixturegen/**
-      - Package.swift
-      - Package.resolved
-      - Sources/**
+      - projects/tuist/Package.swift
+      - projects/tuist/Package.resolved
+      - projects/tuist/Sources/**
 env:
   RUBY_VERSION: '2.7.2'
 
