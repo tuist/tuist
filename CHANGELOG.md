@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.40.0
+
 ### Added
 
 - Add resource synthesizers [#2746](https://github.com/tuist/tuist/pull/2746) by [@fortmarek](https://github.com/fortmarek)
