@@ -1,6 +1,6 @@
 ---
 title: Sharing code across manifests
-migrated_path: '/guides/helpers'
+slug: '/guides/helpers'
 description: Project description helpers are a group of Swift files that can be accessed from any project manifest. They are useful to extract common patterns, define project conventions, or simplify the definition of projects.
 ---
 
