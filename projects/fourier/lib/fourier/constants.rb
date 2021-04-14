@@ -2,7 +2,7 @@
 module Fourier
   module Constants
     ROOT_DIRECTORY = File.expand_path("../../../..", __dir__)
-    TUIST_DIRECTORY = ROOT_DIRECTORY
+    TUIST_DIRECTORY = File.expand_path("projects/tuist", ROOT_DIRECTORY)
     FEATURES_DIRECTORY = File.expand_path("projects/tuist/features", ROOT_DIRECTORY)
     FIXTURES_DIRECTORY = File.expand_path("projects/tuist/fixtures", ROOT_DIRECTORY)
     TUIST_VENDOR_DIRECTORY = File.expand_path("projects/tuist/vendor", ROOT_DIRECTORY)
