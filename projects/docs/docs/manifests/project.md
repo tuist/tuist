@@ -356,11 +356,12 @@ Schemes for extensions have additional properties and settings, Tuist automatica
 
 It represents the scheme action that builds targets:
 
-| Property      | Description                                                            | Type                                     | Required | Default |
-| ------------- | ---------------------------------------------------------------------- | ---------------------------------------- | -------- | ------- |
-| `targets`     | A list of targets to build, which are defined in the project.          | [`[TargetReference]`](#target-reference) | No       |         |
-| `preActions`  | A list of actions that are executed before starting the build process. | [`[ExecutionAction]`](#execution-action) | Yes      | `[]`    |
-| `postActions` | A list of actions that are executed after the build process.           | [`[ExecutionAction]`](#execution-action) | Yes      | `[]`    |
+| Property                  | Description                                                            | Type                                     | Required | Default |
+| ------------------------- | ---------------------------------------------------------------------- | ---------------------------------------- | -------- | ------- |
+| `targets`                 | A list of targets to build, which are defined in the project.          | [`[TargetReference]`](#target-reference) | No       |         |
+| `preActions`              | A list of actions that are executed before starting the build process. | [`[ExecutionAction]`](#execution-action) | Yes      | `[]`    |
+| `postActions`             | A list of actions that are executed after the build process.           | [`[ExecutionAction]`](#execution-action) | Yes      | `[]`    |
+| `runPostActionsOnFailure` | Whether the post actions should be run in the case of a failure        | `Bool`                                   | No       | `false` |
 
 #### Run action
 
