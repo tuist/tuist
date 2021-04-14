@@ -58,7 +58,7 @@ end
 def package
   print_section("Building tuist")
   FileUtils.mkdir_p("build")
-  system("swift", "build", "--product", "tuist", "--configuration", "release")
+  system("swift", "build", "--product", "tuist", "--configuration", "release", "--package-path", File.expand_path("projects/tuist", __dir__))
   system(
     "swift", "build",
     "--product", "ProjectDescription",
@@ -66,24 +66,25 @@ def package
     "-Xswiftc", "-enable-library-evolution",
     "-Xswiftc", "-emit-module-interface",
     "-Xswiftc", "-emit-module-interface-path",
-    "-Xswiftc", ".build/release/ProjectDescription.swiftinterface"
+    "-Xswiftc", ".build/release/ProjectDescription.swiftinterface",
+    "--package-path", File.expand_path("projects/tuist", __dir__)
   )
-  system("swift", "build", "--product", "tuistenv", "--configuration", "release")
+  system("swift", "build", "--product", "tuistenv", "--configuration", "release", "--package-path", File.expand_path("projects/tuist", __dir__))
 
-  build_templates_path = File.join(__dir__, ".build/release/Templates")
-  script_path = File.join(__dir__, ".build/release/script")
-  vendor_path = File.join(__dir__, ".build/release/vendor")
+  build_templates_path = File.join(__dir__, "projects/tuist/.build/release/Templates")
+  script_path = File.join(__dir__, "projects/tuist/.build/release/script")
+  vendor_path = File.join(__dir__, "projects/tuist/.build/release/vendor")
 
   FileUtils.rm_rf(build_templates_path) if File.exist?(build_templates_path)
-  FileUtils.cp_r(File.expand_path("Templates", __dir__), build_templates_path)
+  FileUtils.cp_r(File.expand_path("projects/tuist/Templates", __dir__), build_templates_path)
   FileUtils.rm_rf(script_path) if File.exist?(script_path)
-  FileUtils.cp_r(File.expand_path("script", __dir__), script_path)
+  FileUtils.cp_r(File.expand_path("projects/scripts", __dir__), script_path)
   FileUtils.cp_r(File.expand_path("projects/tuist/vendor", __dir__), vendor_path)
 
   File.delete("tuist.zip") if File.exist?("tuist.zip")
   File.delete("tuistenv.zip") if File.exist?("tuistenv.zip")
 
-  Dir.chdir(".build/release") do
+  Dir.chdir(File.expand_path("projects/tuist/.build/release", __dir__)) do
     system(
       "zip", "-q", "-r", "--symlinks",
       "tuist.zip", "tuist",
@@ -98,8 +99,14 @@ def package
     system("zip", "-q", "-r", "--symlinks", "tuistenv.zip", "tuistenv")
   end
 
-  FileUtils.cp(".build/release/tuist.zip", "build/tuist.zip")
-  FileUtils.cp(".build/release/tuistenv.zip", "build/tuistenv.zip")
+  FileUtils.cp(
+    File.expand_path("projects/tuist/.build/release/tuist.zip", __dir__), 
+    File.expand_path("build/tuist.zip", __dir__)
+  )
+  FileUtils.cp(
+    File.expand_path("projects/tuist/.build/release/tuistenv.zip", __dir__), 
+    File.expand_path("build/tuistenv.zip", __dir__)
+  )
 end
 
 def release(version)
