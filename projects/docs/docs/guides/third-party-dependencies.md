@@ -53,7 +53,7 @@ let dependencies = Dependencies(
 ### Step 2: "tuist dependencies" commands
 
 1. Pull dependencies using `tuist dependencies fetch` command.
-2. You can read more about commands [here](/docs/commands/dependencies/).
+2. You can read more about commands [here](https://docs.tuist.io/commands/dependencies/).
 3. Tuist will save dependencies in `/Tuist/Dependencies` directory.
 
 The folder structure below shows how Tuist organizes dependencies:

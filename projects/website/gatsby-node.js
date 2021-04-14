@@ -56,6 +56,238 @@ exports.onCreateNode = ({ node, getNode, actions }) => {
     isPermanent: true,
   })
 
+  // Redirects to docs.tuist.io
+  createRedirect({
+    fromPath: '/building-at-scale/best-practices',
+    toPath: 'https://docs.tuist.io/building-at-scale/best-practices',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/building-at-scale/caching',
+    toPath: 'https://docs.tuist.io/building-at-scale/caching',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/building-at-scale/microfeatures',
+    toPath: 'https://docs.tuist.io/building-at-scale/microfeatures',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/commands/autocompletion',
+    toPath: 'https://docs.tuist.io/guides/shell-autocompletion',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/commands/build',
+    toPath: 'https://docs.tuist.io/commands/build',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/commands/clean',
+    toPath: 'https://docs.tuist.io/commands/clean',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/commands/dependencies',
+    toPath: 'https://docs.tuist.io/commands/dependencies',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/commands/doc',
+    toPath: 'https://docs.tuist.io/commands/documentation',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/commands/edit',
+    toPath: 'https://docs.tuist.io/commands/edit',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/commands/generate',
+    toPath: 'https://docs.tuist.io/commands/generate',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/commands/graph',
+    toPath: 'https://docs.tuist.io/commands/graph',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/commands/linting',
+    toPath: 'https://docs.tuist.io/commands/linting',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/commands/migration',
+    toPath: 'https://docs.tuist.io/commands/migration',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/commands/scaffold',
+    toPath: 'https://docs.tuist.io/commands/scaffold',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/commands/secrets',
+    toPath: 'https://docs.tuist.io/commands/secrets',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/commands/signing',
+    toPath: 'https://docs.tuist.io/commands/signing',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/commands/test',
+    toPath: 'https://docs.tuist.io/commands/test',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/commands/focus',
+    toPath: 'https://docs.tuist.io/commands/focus',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/commands/up',
+    toPath: 'https://docs.tuist.io/commands/up',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/contribution/analytics-events',
+    toPath: 'https://docs.tuist.io/contributors/analytics-events',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/contribution/architecture',
+    toPath: 'https://docs.tuist.io/contributors/architecture',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/contribution/code-reviews',
+    toPath: 'https://docs.tuist.io/contributors/code-reviews',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/contribution/fourier',
+    toPath: 'https://docs.tuist.io/contributors/fourier',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/contribution/generation-pipeline',
+    toPath: 'https://docs.tuist.io/contributors/generation-pipeline',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/contribution/get-started',
+    toPath: 'https://docs.tuist.io/contributors/get-started',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/contribution/managing-projects',
+    toPath: 'https://docs.tuist.io/contributors/championing-projects',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/contribution/manifesto',
+    toPath: 'https://docs.tuist.io/contributors/manifesto',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/contribution/performance',
+    toPath: 'https://docs.tuist.io/contributors/performance-testing',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/contribution/reporting-bugs',
+    toPath: 'https://docs.tuist.io/contributors/reporting-bugs',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/dependencies/local',
+    toPath: 'https://docs.tuist.io/guides/dependencies',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/examples/app-clips',
+    toPath: 'https://docs.tuist.io/examples/app-clips',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/examples/app-extensions',
+    toPath: 'https://docs.tuist.io/examples/app-extensions',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/examples/command-line-tools',
+    toPath: 'https://docs.tuist.io/examples/command-line-tools',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/usage/workspace-description',
+    toPath: 'https://docs.tuist.io/manifests/workspace',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/usage/project',
+    toPath: 'https://docs.tuist.io/manifests/project',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/usage/config',
+    toPath: 'https://docs.tuist.io/manifests/config',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/usage/dynamic-configuration',
+    toPath: 'https://docs.tuist.io/guides/environment',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/usage/adoption-guidelines',
+    toPath: 'https://docs.tuist.io/guides/adopting-tuist',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/usage/faq',
+    toPath: 'https://docs.tuist.io/tutorial/faq',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/plugins/creating-plugins',
+    toPath: 'https://docs.tuist.io/plugins/creating-plugins',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/plugins/using-plugins',
+    toPath: 'https://docs.tuist.io/plugins/using-plugins',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/usage/stats',
+    toPath: 'https://docs.tuist.io/guides/stats',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/usage/get-started',
+    toPath: 'https://docs.tuist.io/tutorial/get-started',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/usage/helpers',
+    toPath: 'https://docs.tuist.io/guides/helpers',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/usage/managing-versions',
+    toPath: 'https://docs.tuist.io/guides/version-management',
+    isPermanent: true,
+  })
+  createRedirect({
+    fromPath: '/usage/resources',
+    toPath: 'https://docs.tuist.io/guides/resources',
+    isPermanent: true,
+  })
+
   // Auto-generated pages
   if (node.internal.type === `Mdx`) {
     const fileNode = getNode(node.parent)
@@ -194,35 +426,5 @@ exports.createPages = ({ graphql, actions }) => {
       })
     })
   })
-
-  const createDocumentationPages = graphql(
-    `
-      {
-        allMdx(
-          filter: {
-            fileAbsolutePath: { regex: "/docs/.*/" }
-            frontmatter: { migrated_path: { eq: null } }
-          }
-        ) {
-          nodes {
-            fileAbsolutePath
-            fields {
-              slug
-            }
-          }
-        }
-      }
-    `
-  ).then((result) => {
-    return result.data.allMdx.nodes.forEach((node, index) => {
-      return createPage({
-        path: node.fields.slug,
-        component: path.resolve(`./src/templates/documentation.jsx`),
-        context: {
-          slug: node.fields.slug,
-        },
-      })
-    })
-  })
-  return Promise.all([createBlogPages, createDocumentationPages])
+  return Promise.all([createBlogPages])
 }
