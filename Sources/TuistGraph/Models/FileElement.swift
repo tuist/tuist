@@ -57,7 +57,7 @@ extension FileElement {
             try container.encode(Kind.file, forKey: .kind)
             try container.encode(path, forKey: .path)
         case let .folderReference(path):
-            try container.encode(Kind.file, forKey: .kind)
+            try container.encode(Kind.folderReference, forKey: .kind)
             try container.encode(path, forKey: .path)
         }
     }

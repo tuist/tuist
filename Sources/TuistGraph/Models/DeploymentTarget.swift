@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - DeploymentTarget
 
-public enum DeploymentTarget: Codable {
+public enum DeploymentTarget: Equatable, Codable {
     case iOS(String, DeploymentDevice)
     case macOS(String)
     case watchOS(String)

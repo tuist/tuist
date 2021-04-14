@@ -5,6 +5,14 @@ import XCTest
 @testable import TuistGraph
 
 final class SettingsTests: XCTestCase {
+    func test_codable() {
+        // Given
+        let subject = Settings.default
+        
+        // Then
+        XCTAssertCodable(subject)
+    }
+    
     func testXcconfigs() {
         // Given
         let configurations: [BuildConfiguration: Configuration?] = [
