@@ -2,7 +2,7 @@
 require "open3"
 
 Given(/tuist is available/) do
-  system("swift", "build", "--package-path", File.expand_path("../../../../..", __dir__))
+  system("swift", "build", "--package-path", File.expand_path("../../..", __dir__))
 end
 
 Then(/^tuist generates the project$/) do
@@ -105,7 +105,7 @@ Then(/tuist generate yields error "(.+)"/) do |error|
 end
 
 Then(/tuistenv should succeed in installing the latest version/) do
-  constants_path = File.expand_path("../../../../../Sources/TuistSupport/Constants.swift", __dir__)
+  constants_path = File.expand_path("../../../Sources/TuistSupport/Constants.swift", __dir__)
   # Matches: let version = "3.2.1"
   version = File.read(constants_path).match(/let\sversion\s=\s\"(.+)\"/)[1].chomp
 
