@@ -135,10 +135,6 @@ extension Array where Element == TargetAction {
 
 // MARK: - TargetAction.Script - Codable
 
-// case tool(_ path: String, _ args: [String] = [])
-// case scriptPath(_ path: AbsolutePath, args: [String] = [])
-// case embedded(String)
-
 extension TargetAction.Script {
     private enum Kind: String, Codable {
         case tool
