@@ -18,6 +18,7 @@ module.exports = {
         'guides/version-management',
         'guides/shell-autocompletion',
         'guides/stats',
+        '/guides/third-party-dependencies',
       ],
     },
     {
