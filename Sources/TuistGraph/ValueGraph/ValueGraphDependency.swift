@@ -184,7 +184,7 @@ public enum ValueGraphDependency: Hashable, CustomStringConvertible, Comparable,
         case .framework:
             let path = try container.decode(AbsolutePath.self, forKey: .path)
             let binaryPath = try container.decode(AbsolutePath.self, forKey: .binaryPath)
-            let dsymPath = try container.decode(AbsolutePath?.self, forKey: .dsymPath)
+            let dsymPath = try container.decodeIfPresent(AbsolutePath.self, forKey: .dsymPath)
             let bcsymbolmapPaths = try container.decode([AbsolutePath].self, forKey: .bcsymbolmapPaths)
             let linking = try container.decode(BinaryLinking.self, forKey: .linking)
             let architectures = try container.decode([BinaryArchitecture].self, forKey: .architectures)
@@ -203,7 +203,7 @@ public enum ValueGraphDependency: Hashable, CustomStringConvertible, Comparable,
             let publicHeaders = try container.decode(AbsolutePath.self, forKey: .publicHeaders)
             let linking = try container.decode(BinaryLinking.self, forKey: .linking)
             let architectures = try container.decode([BinaryArchitecture].self, forKey: .architectures)
-            let swiftModuleMap = try container.decode(AbsolutePath?.self, forKey: .swiftModuleMap)
+            let swiftModuleMap = try container.decodeIfPresent(AbsolutePath.self, forKey: .swiftModuleMap)
             self = .library(
                 path: path,
                 publicHeaders: publicHeaders,

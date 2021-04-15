@@ -64,7 +64,7 @@ extension TargetDependency {
         case .library:
             let path = try container.decode(AbsolutePath.self, forKey: .path)
             let publicHeaders = try container.decode(AbsolutePath.self, forKey: .publicHeaders)
-            let swiftModuleMap = try container.decode(AbsolutePath?.self, forKey: .swiftModuleMap)
+            let swiftModuleMap = try container.decodeIfPresent(AbsolutePath.self, forKey: .swiftModuleMap)
             self = .library(path: path, publicHeaders: publicHeaders, swiftModuleMap: swiftModuleMap)
         case .package:
             let product = try container.decode(String.self, forKey: .product)
