@@ -8,7 +8,7 @@ slug: '/manifests/dependencies'
 This feature is currently being worked on and is not ready to be used yet.
 :::
 
-Learn how to get started with `Dependencies.swift` [here](/features/third-party-dependencies/).
+Learn how to get started with `Dependencies.swift` [here](/guides/third-party-dependencies/).
 
 ```swift
 import ProjectDescription
