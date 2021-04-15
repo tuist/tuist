@@ -249,7 +249,7 @@ public enum ValueGraphDependency: Hashable, CustomStringConvertible, Comparable,
             try container.encode(Kind.framework, forKey: .kind)
             try container.encode(path, forKey: .path)
             try container.encode(binaryPath, forKey: .binaryPath)
-            try container.encode(dsymPath, forKey: .dsymPath)
+            try container.encodeIfPresent(dsymPath, forKey: .dsymPath)
             try container.encode(bcsymbolmapPaths, forKey: .bcsymbolmapPaths)
             try container.encode(linking, forKey: .linking)
             try container.encode(architectures, forKey: .architectures)
@@ -260,7 +260,7 @@ public enum ValueGraphDependency: Hashable, CustomStringConvertible, Comparable,
             try container.encode(publicHeaders, forKey: .publicHeaders)
             try container.encode(linking, forKey: .linking)
             try container.encode(architectures, forKey: .architectures)
-            try container.encode(swiftModuleMap, forKey: .swiftModuleMap)
+            try container.encodeIfPresent(swiftModuleMap, forKey: .swiftModuleMap)
         case let .packageProduct(path, product):
             try container.encode(Kind.packageProduct, forKey: .kind)
             try container.encode(path, forKey: .path)

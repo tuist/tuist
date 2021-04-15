@@ -101,7 +101,7 @@ extension TargetDependency {
             try container.encode(Kind.library, forKey: .kind)
             try container.encode(path, forKey: .path)
             try container.encode(publicHeaders, forKey: .publicHeaders)
-            try container.encode(swiftModuleMap, forKey: .swiftModuleMap)
+            try container.encodeIfPresent(swiftModuleMap, forKey: .swiftModuleMap)
         case let .package(product):
             try container.encode(Kind.package, forKey: .kind)
             try container.encode(product, forKey: .product)

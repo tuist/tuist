@@ -20,4 +20,16 @@ final class TargetDependencyTests: TuistUnitTestCase {
         // Then
         XCTAssertCodable(subject)
     }
+    
+    func test_codable_library() {
+        // Given
+        let subject = TargetDependency.library(
+            path: "/path/to/library",
+            publicHeaders: "/path/to/publicheaders",
+            swiftModuleMap: "/path/to/swiftModuleMap"
+        )
+
+        // Then
+        XCTAssertCodable(subject)
+    }
 }
