@@ -37,7 +37,7 @@ extension DeploymentTarget {
         case tvOS
     }
 
-    enum CodingKeys: String, CodingKey {
+    private enum CodingKeys: String, CodingKey {
         case kind
         case version
         case deploymentDevices

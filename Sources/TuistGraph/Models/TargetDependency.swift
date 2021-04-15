@@ -33,7 +33,7 @@ extension TargetDependency {
         case xctest
     }
 
-    enum CodingKeys: String, CodingKey {
+    private enum CodingKeys: String, CodingKey {
         case kind
         case name
         case target

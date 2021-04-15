@@ -41,7 +41,7 @@ extension ResourceSynthesizer.Template {
         case defaultTemplate
     }
 
-    enum CodingKeys: String, CodingKey {
+    private enum CodingKeys: String, CodingKey {
         case kind
         case file
         case template

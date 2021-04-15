@@ -86,7 +86,7 @@ extension InfoPlist {
         case extendingDefault
     }
 
-    enum CodingKeys: String, CodingKey {
+    private enum CodingKeys: String, CodingKey {
         case kind
         case path
         case data
@@ -184,7 +184,7 @@ extension InfoPlist.Value {
         case array
     }
 
-    enum CodingKeys: String, CodingKey {
+    private enum CodingKeys: String, CodingKey {
         case kind
         case string
         case integer

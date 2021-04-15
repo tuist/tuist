@@ -147,7 +147,7 @@ public enum ValueGraphDependency: Hashable, CustomStringConvertible, Comparable,
         case cocoapods
     }
 
-    enum CodingKeys: String, CodingKey {
+    private enum CodingKeys: String, CodingKey {
         case kind
         case path
         case infoPlist

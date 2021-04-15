@@ -32,7 +32,7 @@ extension FileElement {
         case folderReference
     }
 
-    enum CodingKeys: String, CodingKey {
+    private enum CodingKeys: String, CodingKey {
         case kind
         case path
     }

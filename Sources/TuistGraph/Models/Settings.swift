@@ -164,7 +164,7 @@ extension SettingValue {
         case array
     }
 
-    enum CodingKeys: String, CodingKey {
+    private enum CodingKeys: String, CodingKey {
         case kind
         case string
         case array
@@ -205,7 +205,7 @@ extension DefaultSettings {
         case none
     }
 
-    enum CodingKeys: String, CodingKey {
+    private enum CodingKeys: String, CodingKey {
         case kind
         case excluding
     }

@@ -142,7 +142,7 @@ extension TargetAction.Script {
         case embedded
     }
 
-    enum CodingKeys: String, CodingKey {
+    private enum CodingKeys: String, CodingKey {
         case kind
         case path
         case absolutePath

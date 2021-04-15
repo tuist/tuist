@@ -14,7 +14,7 @@ extension Package {
         case local
     }
 
-    enum CodingKeys: String, CodingKey {
+    private enum CodingKeys: String, CodingKey {
         case kind
         case url
         case requirement

@@ -3,13 +3,13 @@ import TSCBasic
 
 /// It represents th Info.plist contained in an .xcframework bundle.
 public struct XCFrameworkInfoPlist: Codable, Equatable {
-    enum CodingKeys: String, CodingKey {
+    private enum CodingKeys: String, CodingKey {
         case libraries = "AvailableLibraries"
     }
 
     /// It represents a library inside an .xcframework
     public struct Library: Codable, Equatable {
-        enum CodingKeys: String, CodingKey {
+        private enum CodingKeys: String, CodingKey {
             case identifier = "LibraryIdentifier"
             case path = "LibraryPath"
             case architectures = "SupportedArchitectures"
