@@ -20,7 +20,7 @@ final class TargetDependencyTests: TuistUnitTestCase {
         // Then
         XCTAssertCodable(subject)
     }
-    
+
     func test_codable_library() {
         // Given
         let subject = TargetDependency.library(
