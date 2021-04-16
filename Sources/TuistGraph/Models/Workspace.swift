@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 
-public struct Workspace: Equatable {
+public struct Workspace: Equatable, Codable {
     // MARK: - Attributes
 
     /// Path to where the manifest / root directory of this workspace is located

@@ -1,7 +1,7 @@
 import Foundation
 
 public struct IDETemplateMacros: Codable, Hashable {
-    enum CodingKeys: String, CodingKey {
+    private enum CodingKeys: String, CodingKey {
         case fileHeader = "FILEHEADER"
     }
 

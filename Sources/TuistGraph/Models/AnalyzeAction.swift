@@ -1,6 +1,6 @@
 import Foundation
 
-public struct AnalyzeAction: Equatable {
+public struct AnalyzeAction: Equatable, Codable {
     // MARK: - Attributes
 
     public let configurationName: String

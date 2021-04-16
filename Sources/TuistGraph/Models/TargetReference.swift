@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 
-public struct TargetReference: Hashable {
+public struct TargetReference: Hashable, Codable {
     public var projectPath: AbsolutePath
     public var name: String
 

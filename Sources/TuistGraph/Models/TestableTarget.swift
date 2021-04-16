@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 
-public struct TestableTarget: Equatable, Hashable {
+public struct TestableTarget: Equatable, Hashable, Codable {
     public let target: TargetReference
     public let isSkipped: Bool
     public let isParallelizable: Bool

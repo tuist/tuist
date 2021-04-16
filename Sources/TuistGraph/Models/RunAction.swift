@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 
-public struct RunAction: Equatable {
+public struct RunAction: Equatable, Codable {
     // MARK: - Attributes
 
     public let configurationName: String

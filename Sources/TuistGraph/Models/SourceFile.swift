@@ -2,7 +2,7 @@ import Foundation
 import TSCBasic
 
 /// A type that represents a source file.
-public struct SourceFile: ExpressibleByStringLiteral, Equatable {
+public struct SourceFile: ExpressibleByStringLiteral, Equatable, Codable {
     /// Source file path.
     public var path: AbsolutePath
 

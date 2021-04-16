@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 
-public struct TestAction: Equatable {
+public struct TestAction: Equatable, Codable {
     // MARK: - Attributes
 
     public var testPlans: [TestPlan]?
