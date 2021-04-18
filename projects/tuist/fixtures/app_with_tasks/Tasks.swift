@@ -1,7 +1,12 @@
 import ProjectDescription
+import Foundation
 
 let tasks: Tasks = [
-    .task("print-me") {
-        print("Hello, I am called from a task!")
+    .task("create-file") {
+        try "File created with a task".write(
+            to: URL(fileURLWithPath: "file.txt"),
+            atomically: true,
+            encoding: .utf8
+        )
     }
 ]
