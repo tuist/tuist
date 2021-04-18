@@ -23,14 +23,17 @@ public struct Cache: Codable, Equatable {
 
     /// A list of the cache profiles.
     public let profiles: [Profile]
+    /// The path where the cache will be stored, if `nil` it will be a default location in a shared directory.
+    public let path: Path?
 
     /// Returns a `Cache` instance containing the given profiles.
     /// If no profile list is provided, tuist's default profile will be taken as the default.
     /// If no profile is provided in `tuist cache --profile` command, the first profile from the profiles list will be taken as the default.
-    ///
-    /// - Parameter profiles: Profiles to be choosen from
+    /// - Parameters:
+    ///   - profiles: Profiles to be chosen from
+    ///   - path: The path where the cache will be stored, if `nil` it will be a default location in a shared directory.
     /// - Returns: The `Cache` instance
-    public static func cache(profiles: [Profile]) -> Cache {
-        Cache(profiles: profiles)
+    public static func cache(profiles: [Profile] = [], path: Path? = nil) -> Cache {
+        Cache(profiles: profiles, path: path)
     }
 }

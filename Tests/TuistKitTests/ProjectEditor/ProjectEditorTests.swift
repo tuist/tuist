@@ -35,6 +35,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
     var writer: MockXcodeProjWriter!
     var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
     var projectDescriptionHelpersBuilder: MockProjectDescriptionHelpersBuilder!
+    var projectDescriptionHelpersBuilderFactory: MockProjectDescriptionHelpersBuilderFactory!
     var subject: ProjectEditor!
 
     override func setUp() {
@@ -47,6 +48,9 @@ final class ProjectEditorTests: TuistUnitTestCase {
         writer = MockXcodeProjWriter()
         templatesDirectoryLocator = MockTemplatesDirectoryLocator()
         projectDescriptionHelpersBuilder = MockProjectDescriptionHelpersBuilder()
+        projectDescriptionHelpersBuilderFactory = MockProjectDescriptionHelpersBuilderFactory()
+        projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilderStub = { _ in self.projectDescriptionHelpersBuilder }
+
         subject = ProjectEditor(
             generator: generator,
             projectEditorMapper: projectEditorMapper,
@@ -55,7 +59,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
             helpersDirectoryLocator: helpersDirectoryLocator,
             writer: writer,
             templatesDirectoryLocator: templatesDirectoryLocator,
-            projectDescriptionHelpersBuilder: projectDescriptionHelpersBuilder
+            projectDescriptionHelpersBuilderFactory: projectDescriptionHelpersBuilderFactory
         )
     }
 

@@ -11,22 +11,29 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class TestsCacheMapperTests: TuistUnitTestCase {
+    private var hashesCacheDirectory: AbsolutePath!
     private var testsCacheDirectory: AbsolutePath!
     private var graphContentHasher: MockGraphContentHasher!
     private var subject: TestsCacheGraphMapper!
+    private var cacheDirectoriesProvider: MockCacheDirectoriesProvider!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
-        testsCacheDirectory = try temporaryPath()
+        hashesCacheDirectory = try temporaryPath()
         graphContentHasher = MockGraphContentHasher()
+        testsCacheDirectory = try temporaryPath()
+        cacheDirectoriesProvider = try MockCacheDirectoriesProvider()
+        cacheDirectoriesProvider.cacheDirectoryStub = testsCacheDirectory
         subject = TestsCacheGraphMapper(
-            testsCacheDirectory: testsCacheDirectory,
-            graphContentHasher: graphContentHasher
+            hashesCacheDirectory: hashesCacheDirectory,
+            config: Config.default,
+            graphContentHasher: graphContentHasher,
+            cacheDirectoryProviderFactory: MockCacheDirectoriesProviderFactory(provider: cacheDirectoriesProvider)
         )
     }
 
     override func tearDown() {
-        testsCacheDirectory = nil
+        hashesCacheDirectory = nil
         graphContentHasher = nil
         subject = nil
         super.tearDown()
@@ -145,10 +152,10 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
         }
 
         try fileHandler.touch(
-            environment.testsCacheDirectory.appending(component: "FrameworkA")
+            cacheDirectoriesProvider.testsCacheDirectory.appending(component: "FrameworkA")
         )
         try fileHandler.touch(
-            environment.testsCacheDirectory.appending(component: "UnitTestsA")
+            cacheDirectoriesProvider.testsCacheDirectory.appending(component: "UnitTestsA")
         )
 
         let expectedGraph = ValueGraph.test(
@@ -223,13 +230,13 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
             }),
             [
                 .file(
-                    FileDescriptor(path: testsCacheDirectory.appending(component: "FrameworkA"))
+                    FileDescriptor(path: hashesCacheDirectory.appending(component: "FrameworkA"))
                 ),
                 .file(
-                    FileDescriptor(path: testsCacheDirectory.appending(component: "UnitTestsA"))
+                    FileDescriptor(path: hashesCacheDirectory.appending(component: "UnitTestsA"))
                 ),
                 .file(
-                    FileDescriptor(path: testsCacheDirectory.appending(component: "UnitTestsB"))
+                    FileDescriptor(path: hashesCacheDirectory.appending(component: "UnitTestsB"))
                 ),
             ]
         )
@@ -313,7 +320,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
         }
 
         try fileHandler.touch(
-            environment.testsCacheDirectory.appending(component: "UnitTestsA")
+            hashesCacheDirectory.appending(component: "UnitTestsA")
         )
 
         let expectedGraph = ValueGraph.test(
@@ -375,10 +382,10 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
             }),
             [
                 .file(
-                    FileDescriptor(path: testsCacheDirectory.appending(component: "FrameworkA"))
+                    FileDescriptor(path: hashesCacheDirectory.appending(component: "FrameworkA"))
                 ),
                 .file(
-                    FileDescriptor(path: testsCacheDirectory.appending(component: "UnitTestsA"))
+                    FileDescriptor(path: hashesCacheDirectory.appending(component: "UnitTestsA"))
                 ),
             ]
         )

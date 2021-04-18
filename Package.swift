@@ -751,6 +751,7 @@ let package = Package(
                 "TuistSupport",
                 "TuistSupportTesting",
                 "TuistScaffoldTesting",
+                "TuistCoreTesting",
                 rxBlockingDependency,
                 swiftToolsSupportDependency,
             ]

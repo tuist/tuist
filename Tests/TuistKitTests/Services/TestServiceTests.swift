@@ -22,6 +22,7 @@ final class TestServiceTests: TuistUnitTestCase {
     private var simulatorController: MockSimulatorController!
     private var contentHasher: MockContentHasher!
     private var testsCacheTemporaryDirectory: TemporaryDirectory!
+    private var cacheDirectoriesProvider: MockCacheDirectoriesProvider!
 
     override func setUpWithError() throws {
         try super.setUpWithError()
@@ -35,6 +36,8 @@ final class TestServiceTests: TuistUnitTestCase {
         testServiceGeneratorFactory.generatorStub = { _, _ in
             self.generator
         }
+        let mockCacheDirectoriesProvider = try MockCacheDirectoriesProvider()
+        cacheDirectoriesProvider = mockCacheDirectoriesProvider
 
         contentHasher.hashStub = { _ in
             "hash"
@@ -46,7 +49,8 @@ final class TestServiceTests: TuistUnitTestCase {
             xcodebuildController: xcodebuildController,
             buildGraphInspector: buildGraphInspector,
             simulatorController: simulatorController,
-            contentHasher: contentHasher
+            contentHasher: contentHasher,
+            cacheDirectoryProviderFactory: MockCacheDirectoriesProviderFactory(provider: mockCacheDirectoriesProvider)
         )
     }
 
@@ -82,7 +86,7 @@ final class TestServiceTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(
             automationPath,
-            environment.projectsCacheDirectory.appending(component: "test-hash")
+            cacheDirectoriesProvider.generatedAutomationProjectsDirectory.appending(component: "test-hash")
         )
     }
 
@@ -183,10 +187,10 @@ final class TestServiceTests: TuistUnitTestCase {
             ]
         )
         XCTAssertTrue(
-            fileHandler.exists(environment.testsCacheDirectory.appending(component: "A"))
+            fileHandler.exists(cacheDirectoriesProvider.testsCacheDirectory.appending(component: "A"))
         )
         XCTAssertTrue(
-            fileHandler.exists(environment.testsCacheDirectory.appending(component: "B"))
+            fileHandler.exists(cacheDirectoriesProvider.testsCacheDirectory.appending(component: "B"))
         )
     }
 
@@ -223,7 +227,7 @@ final class TestServiceTests: TuistUnitTestCase {
             ]
         )
         XCTAssertFalse(
-            fileHandler.exists(environment.testsCacheDirectory.appending(component: "A"))
+            fileHandler.exists(cacheDirectoriesProvider.testsCacheDirectory.appending(component: "A"))
         )
     }
 
