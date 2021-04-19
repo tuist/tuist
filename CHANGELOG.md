@@ -9,6 +9,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Make `ValueGraph` serializable. [#2811](https://github.com/tuist/tuist/pull/2811) by [@laxmorek](https://github.com/laxmorek)
 - Add support for configuration of cache directory [#2566](https://github.com/tuist/tuist/pull/2566) by [@adellibovi](https://github.com/adellibovi).
 
+### Changed
+
+- Improve performance of `tuist generate` by optimizing up md5 hash generation. [#2815](https://github.com/tuist/tuist/pull/2815) by [@adellibovi](https://github.com/adellibovi)
+
 ## 1.40.0
 
 ### Added
