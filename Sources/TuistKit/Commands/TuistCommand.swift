@@ -54,6 +54,9 @@ public struct TuistCommand: ParsableCommand {
             if processedArguments.first == InitCommand.configuration.commandName {
                 try InitCommand.preprocess(processedArguments)
             }
+            if processedArguments.first == TaskCommand.configuration.commandName {
+                try TaskCommand.preprocess(processedArguments)
+            }
             command = try parseAsRoot(processedArguments)
         } catch {
             let exitCode = self.exitCode(for: error).rawValue

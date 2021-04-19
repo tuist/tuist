@@ -5,3 +5,5 @@ Feature: Run tasks
     Then I copy the fixture app_with_tasks into the working directory
     Then tuist runs a task create-file
     Then content of a file named file.txt should be equal to File created with a task
+    Then tuist runs a task create-file with attribute file-name as custom-file
+    Then content of a file named custom-file.txt should be equal to File created with a task

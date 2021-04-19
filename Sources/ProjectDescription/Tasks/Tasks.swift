@@ -24,7 +24,13 @@ public struct Tasks: Codable, ExpressibleByArrayLiteral {
             CommandLine.argc > taskCommandLineIndex
         else { return }
         let name = CommandLine.arguments[taskCommandLineIndex + 1]
-        // swiftlint:disable:next force_try
-        try! tasks[name]!.task()
+        let attributesString = CommandLine.arguments[taskCommandLineIndex + 2]
+        // swiftlint:disable force_try
+        let attributes: [String: String] = try! JSONDecoder().decode(
+            [String: String].self,
+            from: attributesString.data(using: .utf8)!
+        )
+        try! tasks[name]!.task(attributes)
+        // swiftlint:enable force_try
     }
 }
