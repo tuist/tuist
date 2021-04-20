@@ -12,6 +12,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Changed
 
 - Improve performance of `tuist generate` by optimizing up md5 hash generation. [#2815](https://github.com/tuist/tuist/pull/2815) by [@adellibovi](https://github.com/adellibovi)
+- Speed up frameworks metadata reading using Mach-o parsing instead of `file`, `lipo` and `dwarfdump` external processes. [#2814](https://github.com/tuist/tuist/pull/2814) by [@adellibovi](https://github.com/adellibovi)
 
 ## 1.40.0
 
