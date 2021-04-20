@@ -1,17 +1,17 @@
-import Foundation
 import ArgumentParser
+import Foundation
 import TuistSupport
 
 enum TaskCommandError: FatalError, Equatable {
     case taskNotProvided
-    
+
     var description: String {
         switch self {
         case .taskNotProvided:
             return "You must provide task name"
         }
     }
-    
+
     var type: ErrorType {
         switch self {
         case .taskNotProvided:
@@ -20,7 +20,6 @@ enum TaskCommandError: FatalError, Equatable {
     }
 }
 
-
 struct TaskCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
@@ -28,19 +27,19 @@ struct TaskCommand: ParsableCommand {
             abstract: "Runs task defined in Tasks.swift"
         )
     }
-    
+
     @Argument(
         help: "Name of a task you want to run"
     )
     var task: String
-    
+
     @Option(
         name: .shortAndLong,
         help: "The path to the directory where the tasks are run from",
         completion: .directory
     )
     var path: String?
-    
+
     func run() throws {
         try TaskService().run(
             task,
@@ -48,11 +47,11 @@ struct TaskCommand: ParsableCommand {
             path: path
         )
     }
-    
+
     init() {}
-    
+
     var taskOptions: [String: String] = [:]
-    
+
     // Custom decoding to decode dynamic options
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -182,4 +181,3 @@ extension TaskCommand: CustomReflectable {
         return Mirror(TaskCommand(), children: children + requiredTemplateChildren + optionalTemplateChildren)
     }
 }
-

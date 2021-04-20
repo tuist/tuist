@@ -95,11 +95,11 @@ public class CachedManifestLoader: ManifestLoading {
     public func loadDependencies(at path: AbsolutePath) throws -> Dependencies {
         try manifestLoader.loadDependencies(at: path)
     }
-    
+
     public func loadTasks(at path: AbsolutePath) throws -> Tasks {
         try manifestLoader.loadTasks(at: path)
     }
-    
+
     public func tasksLoadArguments(at path: AbsolutePath) throws -> [String] {
         try manifestLoader.tasksLoadArguments(at: path)
     }

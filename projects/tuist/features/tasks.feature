@@ -7,3 +7,4 @@ Feature: Run tasks
     Then content of a file named file.txt should be equal to File created with a task
     Then tuist runs a task create-file with attribute file-name as custom-file
     Then content of a file named custom-file.txt should be equal to File created with a task
+    
