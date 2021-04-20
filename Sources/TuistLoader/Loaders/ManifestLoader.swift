@@ -93,9 +93,9 @@ public protocol ManifestLoading {
     ///     - path: Path to the directory that contains Tasks.swift
     func loadTasks(at path: AbsolutePath) throws -> ProjectDescription.Tasks
     
-    /// Returns arguments for building `Tasks.swift`
+    /// Returns arguments for loading `Tasks.swift`
     /// You can append this list to insert your own custom flag
-    func tasksBuildArguments(at path: AbsolutePath) throws -> [String]
+    func tasksLoadArguments(at path: AbsolutePath) throws -> [String]
     
     /// Loads the Plugin.swift in the given directory.
     /// - Parameter path: Path to the directory that contains Plugin.swift
@@ -212,7 +212,7 @@ public class ManifestLoader: ManifestLoading {
         try loadManifest(.tasks, at: path)
     }
     
-    public func tasksBuildArguments(at path: AbsolutePath) throws -> [String] {
+    public func tasksLoadArguments(at path: AbsolutePath) throws -> [String] {
         let manifestPath = try self.manifestPath(
             .tasks,
             at: path

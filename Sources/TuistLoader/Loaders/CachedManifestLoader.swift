@@ -100,8 +100,8 @@ public class CachedManifestLoader: ManifestLoading {
         try manifestLoader.loadTasks(at: path)
     }
     
-    public func tasksBuildArguments(at path: AbsolutePath) throws -> [String] {
-        try manifestLoader.tasksBuildArguments(at: path)
+    public func tasksLoadArguments(at path: AbsolutePath) throws -> [String] {
+        try manifestLoader.tasksLoadArguments(at: path)
     }
 
     public func manifests(at path: AbsolutePath) -> Set<Manifest> {
