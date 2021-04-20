@@ -84,7 +84,7 @@ public final class MockManifestLoader: ManifestLoading {
         fatalError()
     }
     
-    public func tasksBuildArguments(at path: AbsolutePath) throws -> [String] {
+    public func tasksLoadArguments(at path: AbsolutePath) throws -> [String] {
         // TODO: Implement
         fatalError()
     }

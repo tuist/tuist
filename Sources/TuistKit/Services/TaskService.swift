@@ -47,7 +47,7 @@ struct TaskService {
     ) throws {
         let task = try loadTask(taskName: taskName, path: path)
         let path = self.path(path)
-        let runArguments = try manifestLoader.tasksBuildArguments(at: path)
+        let runArguments = try manifestLoader.tasksLoadArguments(at: path)
         + [
             "--tuist-task",
             task.name,
