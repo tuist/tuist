@@ -3,8 +3,8 @@ import Foundation
 public struct Task: Codable {
     public let name: String
     public let options: [Option]
-    public let task: ([String: String]) throws -> ()
-    
+    public let task: ([String: String]) throws -> Void
+
     public enum Option: Codable, Equatable {
         case required(String)
         case optional(String)
@@ -26,7 +26,7 @@ public struct Task: Codable {
                 return name
             }
         }
-        
+
         enum CodingKeys: String, CodingKey {
             case type
             case name
@@ -58,21 +58,21 @@ public struct Task: Codable {
             }
         }
     }
-    
+
     init(
         name: String,
         options: [Option],
-        task: @escaping ([String: String]) throws -> ()
+        task: @escaping ([String: String]) throws -> Void
     ) {
         self.name = name
         self.options = options
         self.task = task
     }
-    
+
     public static func task(
         _ name: String,
         options: [Option] = [],
-        task: @escaping ([String: String]) throws -> ()
+        task: @escaping ([String: String]) throws -> Void
     ) -> Task {
         Task(
             name: name,
@@ -80,12 +80,12 @@ public struct Task: Codable {
             task: task
         )
     }
-    
+
     private enum CodingKeys: String, CodingKey {
         case name
         case options
     }
-    
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         name = try container.decode(String.self, forKey: .name)
@@ -94,11 +94,10 @@ public struct Task: Codable {
         // This is fine as we should never invoke `task` directly but using `swiftc` command instead
         task = { _ in }
     }
-    
+
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(name, forKey: .name)
         try container.encode(options, forKey: .options)
     }
 }
-

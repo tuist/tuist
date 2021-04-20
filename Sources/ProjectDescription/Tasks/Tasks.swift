@@ -2,11 +2,11 @@ import Foundation
 
 public struct Tasks: Codable, ExpressibleByArrayLiteral {
     public let tasks: [String: Task]
-    
+
     public init(arrayLiteral elements: Task...) {
         self.init(elements)
     }
-    
+
     public init(
         _ tasks: [Task]
     ) {
@@ -17,7 +17,7 @@ public struct Tasks: Codable, ExpressibleByArrayLiteral {
             runIfNeeded()
         }
     }
-    
+
     private func runIfNeeded() {
         guard
             let taskCommandLineIndex = CommandLine.arguments.firstIndex(of: "--tuist-task"),
