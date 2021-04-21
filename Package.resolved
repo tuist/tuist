@@ -192,11 +192,11 @@
       },
       {
         "package": "XcodeProj",
-        "repositoryURL": "https://github.com/tuist/XcodeProj.git",
+        "repositoryURL": "https://github.com/ferologics/XcodeProj.git",
         "state": {
           "branch": null,
-          "revision": "0c889906136b7cba277b9327e9a8217669bb4eb3",
-          "version": "7.21.0"
+          "revision": "46a8341102acb212f702a690e0313a214a414f29",
+          "version": "7.24.0"
         }
       },
       {
