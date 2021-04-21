@@ -1,84 +1,138 @@
+import TSCBasic
+import TuistCore
+import TuistGraph
+import TuistSupport
+import XCTest
 
+@testable import TuistDependencies
+@testable import TuistSupportTesting
 
+final class CarthageTests: TuistUnitTestCase {
+    private var subject: Carthage!
 
-#warning("Finish me")
+    override func setUp() {
+        super.setUp()
 
-//
-//
-//import TuistCore
-//import TuistSupport
-//import XCTest
-//
-//@testable import TuistDependencies
-//@testable import TuistSupportTesting
-//
-//final class CarthageCommandGeneratorTests: TuistUnitTestCase {
-//    private var subject: CarthageCommandGenerator!
-//
-//    override func setUp() {
-//        super.setUp()
-//        subject = CarthageCommandGenerator()
-//    }
-//
-//    override func tearDown() {
-//        subject = nil
-//        super.tearDown()
-//    }
-//
-//    func test_command() throws {
-//        // Given
-//        let stubbedPath = try temporaryPath()
-//        let expected = "carthage bootstrap --project-directory \(stubbedPath.pathString) --use-netrc --cache-builds --new-resolver"
-//
-//        // When
-//        let got = subject
-//            .command(path: stubbedPath, platforms: nil, options: nil)
-//            .joined(separator: " ")
-//
-//        // Then
-//        XCTAssertEqual(got, expected)
-//    }
-//
-//    func test_command_with_platforms() throws {
-//        // Given
-//        let stubbedPath = try temporaryPath()
-//        let expected = "carthage bootstrap --project-directory \(stubbedPath.pathString) --platform iOS --use-netrc --cache-builds --new-resolver"
-//
-//        // When
-//        let got = subject
-//            .command(path: stubbedPath, platforms: [.iOS], options: nil)
-//            .joined(separator: " ")
-//
-//        // Then
-//        XCTAssertEqual(got, expected)
-//    }
-//
-//    func test_command_with_platforms_and_xcframeworks() throws {
-//        // Given
-//        let stubbedPath = try temporaryPath()
-//        let expected = "carthage bootstrap --project-directory \(stubbedPath.pathString) --platform iOS,macOS,tvOS,watchOS --use-netrc --cache-builds --new-resolver --use-xcframeworks"
-//
-//        // When
-//        let got = subject
-//            .command(path: stubbedPath, platforms: [.iOS, .tvOS, .macOS, .watchOS], options: [.useXCFrameworks])
-//            .joined(separator: " ")
-//
-//        // Then
-//        XCTAssertEqual(got, expected)
-//    }
-//
-//    func test_command_with_platforms_and_xcframeworks_and_noUseBinaries() throws {
-//        // Given
-//        let stubbedPath = try temporaryPath()
-//        let expected = "carthage bootstrap --project-directory \(stubbedPath.pathString) --platform iOS,macOS,tvOS,watchOS --use-netrc --cache-builds --new-resolver --use-xcframeworks --no-use-binaries"
-//
-//        // When
-//        let got = subject
-//            .command(path: stubbedPath, platforms: [.iOS, .tvOS, .macOS, .watchOS], options: [.useXCFrameworks, .noUseBinaries])
-//            .joined(separator: " ")
-//
-//        // Then
-//        XCTAssertEqual(got, expected)
-//    }
-//}
-//
+        subject = Carthage()
+    }
+
+    override func tearDown() {
+        subject = nil
+
+        super.tearDown()
+    }
+    
+    func test_bootstrap() throws {
+        // Given
+        let path = try temporaryPath()
+        system.succeedCommand([
+            "carthage",
+            "bootstrap",
+            "--project-directory",
+            path.pathString,
+            "--use-netrc",
+            "--cache-builds",
+            "--new-resolver",
+        ])
+        
+        // When / Then
+        XCTAssertNoThrow(try subject.bootstrap(at: path, platforms: nil, options: nil))
+    }
+    
+    func test_bootstrap_with_platforms() throws {
+        // Given
+        let path = try temporaryPath()
+        system.succeedCommand([
+            "carthage",
+            "bootstrap",
+            "--project-directory",
+            path.pathString,
+            "--platform",
+            "iOS",
+            "--use-netrc",
+            "--cache-builds",
+            "--new-resolver",
+        ])
+        
+        // When / Then
+        XCTAssertNoThrow(try subject.bootstrap(at: path, platforms: [.iOS], options: nil))
+    }
+    
+    func test_bootstrap_with_platforms_and_options() throws {
+        // Given
+        let path = try temporaryPath()
+        system.succeedCommand([
+            "carthage",
+            "bootstrap",
+            "--project-directory",
+            path.pathString,
+            "--platform",
+            "iOS",
+            "--use-netrc",
+            "--cache-builds",
+            "--new-resolver",
+            "--use-xcframeworks",
+            "--no-use-binaries",
+        ])
+        
+        // When / Then
+        XCTAssertNoThrow(try subject.bootstrap(at: path, platforms: [.iOS], options: [.noUseBinaries, .useXCFrameworks]))
+    }
+    
+    func test_update() throws {
+        // Given
+        let path = try temporaryPath()
+        system.succeedCommand([
+            "carthage",
+            "update",
+            "--project-directory",
+            path.pathString,
+            "--use-netrc",
+            "--cache-builds",
+            "--new-resolver",
+        ])
+        
+        // When / Then
+        XCTAssertNoThrow(try subject.update(at: path, platforms: nil, options: nil))
+    }
+    
+    func test_update_with_platforms() throws {
+        // Given
+        let path = try temporaryPath()
+        system.succeedCommand([
+            "carthage",
+            "update",
+            "--project-directory",
+            path.pathString,
+            "--platform",
+            "iOS",
+            "--use-netrc",
+            "--cache-builds",
+            "--new-resolver",
+        ])
+        
+        // When / Then
+        XCTAssertNoThrow(try subject.update(at: path, platforms: [.iOS], options: nil))
+    }
+    
+    func test_update_with_platforms_and_options() throws {
+        // Given
+        let path = try temporaryPath()
+        system.succeedCommand([
+            "carthage",
+            "update",
+            "--project-directory",
+            path.pathString,
+            "--platform",
+            "iOS",
+            "--use-netrc",
+            "--cache-builds",
+            "--new-resolver",
+            "--use-xcframeworks",
+            "--no-use-binaries",
+        ])
+        
+        // When / Then
+        XCTAssertNoThrow(try subject.update(at: path, platforms: [.iOS], options: [.noUseBinaries, .useXCFrameworks]))
+    }
+}
