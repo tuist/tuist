@@ -29,7 +29,7 @@ public protocol CocoaPodsInteracting {
     /// Fetches `CocoaPods` dependencies.
     /// - Parameter dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
     func fetch(dependenciesDirectory: AbsolutePath) throws
-    
+
     /// Update `CocoaPods` dependencies.
     /// - Parameter dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
     func update(dependenciesDirectory: AbsolutePath) throws
@@ -43,8 +43,8 @@ public final class CocoaPodsInteractor: CocoaPodsInteracting {
     public func fetch(dependenciesDirectory _: AbsolutePath) throws {
         throw CocoaPodsInteractorError.unimplemented
     }
-    
-    public func update(dependenciesDirectory: AbsolutePath) throws {
+
+    public func update(dependenciesDirectory _: AbsolutePath) throws {
         throw CocoaPodsInteractorError.unimplemented
     }
 }

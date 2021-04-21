@@ -31,13 +31,13 @@ public final class MockCarthageInteractor: CarthageInteracting {
             throw error
         }
     }
-    
+
     var invokedUpdate = false
     var invokedUpdateCount = 0
     var invokedUpdateParameters: UpdateParameters?
     var invokedUpdateParametersList = [UpdateParameters]()
     var stubbedUpdateError: Error?
-    
+
     public func update(
         dependenciesDirectory: AbsolutePath,
         dependencies: CarthageDependencies,
@@ -83,7 +83,7 @@ extension MockCarthageInteractor {
         let dependencies: CarthageDependencies
         let platforms: Set<Platform>
     }
-    
+
     struct UpdateParameters {
         let dependenciesDirectory: AbsolutePath
         let dependencies: CarthageDependencies

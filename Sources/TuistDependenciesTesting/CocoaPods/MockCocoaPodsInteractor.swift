@@ -21,7 +21,7 @@ public final class MockCocoaPodsInteractor: CocoaPodsInteracting {
             throw error
         }
     }
-    
+
     var invokedUpdate = false
     var invokedUpdateCount = 0
     var invokedUpdateParameters: AbsolutePath?

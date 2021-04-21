@@ -21,7 +21,7 @@ final class CarthageTests: TuistUnitTestCase {
 
         super.tearDown()
     }
-    
+
     func test_bootstrap() throws {
         // Given
         let path = try temporaryPath()
@@ -34,11 +34,11 @@ final class CarthageTests: TuistUnitTestCase {
             "--cache-builds",
             "--new-resolver",
         ])
-        
+
         // When / Then
         XCTAssertNoThrow(try subject.bootstrap(at: path, platforms: nil, options: nil))
     }
-    
+
     func test_bootstrap_with_platforms() throws {
         // Given
         let path = try temporaryPath()
@@ -53,11 +53,11 @@ final class CarthageTests: TuistUnitTestCase {
             "--cache-builds",
             "--new-resolver",
         ])
-        
+
         // When / Then
         XCTAssertNoThrow(try subject.bootstrap(at: path, platforms: [.iOS], options: nil))
     }
-    
+
     func test_bootstrap_with_platforms_and_options() throws {
         // Given
         let path = try temporaryPath()
@@ -74,11 +74,11 @@ final class CarthageTests: TuistUnitTestCase {
             "--use-xcframeworks",
             "--no-use-binaries",
         ])
-        
+
         // When / Then
         XCTAssertNoThrow(try subject.bootstrap(at: path, platforms: [.iOS], options: [.noUseBinaries, .useXCFrameworks]))
     }
-    
+
     func test_update() throws {
         // Given
         let path = try temporaryPath()
@@ -91,11 +91,11 @@ final class CarthageTests: TuistUnitTestCase {
             "--cache-builds",
             "--new-resolver",
         ])
-        
+
         // When / Then
         XCTAssertNoThrow(try subject.update(at: path, platforms: nil, options: nil))
     }
-    
+
     func test_update_with_platforms() throws {
         // Given
         let path = try temporaryPath()
@@ -110,11 +110,11 @@ final class CarthageTests: TuistUnitTestCase {
             "--cache-builds",
             "--new-resolver",
         ])
-        
+
         // When / Then
         XCTAssertNoThrow(try subject.update(at: path, platforms: [.iOS], options: nil))
     }
-    
+
     func test_update_with_platforms_and_options() throws {
         // Given
         let path = try temporaryPath()
@@ -131,7 +131,7 @@ final class CarthageTests: TuistUnitTestCase {
             "--use-xcframeworks",
             "--no-use-binaries",
         ])
-        
+
         // When / Then
         XCTAssertNoThrow(try subject.update(at: path, platforms: [.iOS], options: [.noUseBinaries, .useXCFrameworks]))
     }

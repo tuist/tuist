@@ -8,7 +8,7 @@ public protocol SwiftPackageManaging {
     /// Resolves package dependencies.
     /// - Parameter path: Directory where the `Package.swift` is defined.
     func resolve(at path: AbsolutePath) throws
-    
+
     /// Update package dependencies
     /// - Parameter path: Directory where the `Package.swift` is defined.
     func update(at path: AbsolutePath) throws

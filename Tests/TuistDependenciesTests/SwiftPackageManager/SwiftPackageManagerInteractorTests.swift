@@ -37,10 +37,10 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let depedencies = SwiftPackageManagerDependencies([
             .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
         ])
-        
+
         swiftPackageManager.resolveStub = { [unowned self] path in
             XCTAssertEqual(path, try self.temporaryPath())
-            
+
             // simulate output of SPM fetch call
             try [
                 "Package.resolved",
@@ -76,7 +76,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(components: "repositories", "checkouts-state.json")))
         XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(components: "repositories", "Alamofire-e8f130fe", "config")))
     }
-    
+
     func test_update() throws {
         // Given
         let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
@@ -86,10 +86,10 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let depedencies = SwiftPackageManagerDependencies([
             .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
         ])
-        
+
         swiftPackageManager.updateStub = { [unowned self] path in
             XCTAssertEqual(path, try self.temporaryPath())
-            
+
             // simulate output of SPM update call
             try [
                 "Package.resolved",

@@ -62,8 +62,7 @@ public protocol CarthageInteracting {
         dependencies: CarthageDependencies,
         platforms: Set<Platform>
     ) throws
-    
-    
+
     /// Updates `Carthage` dependencies.
     /// - Parameters:
     ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
@@ -103,7 +102,7 @@ public final class CarthageInteractor: CarthageInteracting {
         platforms: Set<Platform>
     ) throws {
         logger.info("Resolving and fetching Carthage dependencies.", metadata: .section)
-        
+
         try install(
             dependenciesDirectory: dependenciesDirectory,
             dependencies: dependencies,
@@ -118,7 +117,7 @@ public final class CarthageInteractor: CarthageInteracting {
 
         logger.info("Carthage dependencies resolved and fetched successfully.", metadata: .subsection)
     }
-    
+
     public func update(
         dependenciesDirectory: AbsolutePath,
         dependencies: CarthageDependencies,
@@ -187,7 +186,7 @@ public final class CarthageInteractor: CarthageInteracting {
             try saveDepedencies(pathsProvider: pathsProvider)
         }
     }
-    
+
     /// Loads lockfile and dependencies into working directory if they had been saved before.
     private func loadDependencies(pathsProvider: CarthagePathsProvider, dependencies: CarthageDependencies) throws {
         // copy build directory from previous run if exist

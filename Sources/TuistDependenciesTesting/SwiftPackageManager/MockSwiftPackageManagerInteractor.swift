@@ -29,13 +29,13 @@ public final class MockSwiftPackageManagerInteractor: SwiftPackageManagerInterac
             throw error
         }
     }
-    
+
     var invokedUpdate = false
     var invokedUpdateCount = 0
     var invokedUpdateParameters: UpdateParameters?
     var invokedUpdateParametersList = [UpdateParameters]()
     var stubbedUpdateError: Error?
-    
+
     public func update(
         dependenciesDirectory: AbsolutePath,
         dependencies: SwiftPackageManagerDependencies
@@ -78,7 +78,7 @@ extension MockSwiftPackageManagerInteractor {
         let dependenciesDirectory: AbsolutePath
         let dependencies: SwiftPackageManagerDependencies
     }
-    
+
     struct UpdateParameters {
         let dependenciesDirectory: AbsolutePath
         let dependencies: SwiftPackageManagerDependencies

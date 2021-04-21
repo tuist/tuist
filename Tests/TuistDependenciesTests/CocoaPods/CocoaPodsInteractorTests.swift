@@ -25,7 +25,7 @@ final class CocoaPodsInteractorTests: TuistUnitTestCase {
         // When/Then
         XCTAssertThrowsSpecific(try subject.fetch(dependenciesDirectory: stubbedPath), CocoaPodsInteractorError.unimplemented)
     }
-    
+
     func test_update() throws {
         // Given
         let stubbedPath = try temporaryPath()

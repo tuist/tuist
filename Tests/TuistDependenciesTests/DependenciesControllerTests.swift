@@ -38,7 +38,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         super.tearDown()
     }
-    
+
     // MARK: - Fetch
 
     func test_fetch_carthage() throws {
@@ -209,9 +209,9 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         XCTAssertFalse(cocoaPodsInteractor.invokedFetch)
         XCTAssertFalse(cocoaPodsInteractor.invokedUpdate)
     }
-    
+
     // MARK: - Update
-    
+
     func test_update_carthage() throws {
         // Given
         let rootPath = try temporaryPath()

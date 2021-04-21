@@ -59,7 +59,7 @@ final class DependenciesUpdateServiceTests: TuistUnitTestCase {
 
         // When
         try subject.run(path: stubbedPath.pathString)
-        
+
         // Then
         XCTAssertTrue(dependenciesController.invokedUpdate)
         XCTAssertEqual(dependenciesController.invokedUpdateCount, 1)
@@ -67,7 +67,7 @@ final class DependenciesUpdateServiceTests: TuistUnitTestCase {
         XCTAssertEqual(dependenciesController.invokedUpdateParameters?.dependencies, stubbedDependencies)
 
         XCTAssertFalse(dependenciesController.invokedFetch)
-        
+
         XCTAssertTrue(dependenciesModelLoader.invokedLoadDependencies)
         XCTAssertEqual(dependenciesModelLoader.invokedLoadDependenciesCount, 1)
     }

@@ -38,7 +38,7 @@ public protocol DependenciesControlling {
     /// - Parameter path: Directory whose project's dependencies will be fetched.
     /// - Parameter dependencies: List of dependencies to fetch.
     func fetch(at path: AbsolutePath, dependencies: Dependencies) throws
-    
+
     /// Updates dependencies.
     /// - Parameters:
     ///   - path: Directory whose project's dependencies will be updated.
@@ -92,7 +92,7 @@ public final class DependenciesController: DependenciesControlling {
             try swiftPackageManagerInteractor.clean(dependenciesDirectory: dependenciesDirectory)
         }
     }
-    
+
     public func update(at path: AbsolutePath, dependencies: Dependencies) throws {
         let dependenciesDirectory = path
             .appending(component: Constants.tuistDirectoryName)
@@ -102,7 +102,7 @@ public final class DependenciesController: DependenciesControlling {
         guard !platforms.isEmpty else {
             throw DependenciesControllerError.noPlatforms
         }
-        
+
         if let carthageDepedencies = dependencies.carthage, !carthageDepedencies.dependencies.isEmpty {
             try carthageInteractor.update(
                 dependenciesDirectory: dependenciesDirectory,
@@ -112,7 +112,7 @@ public final class DependenciesController: DependenciesControlling {
         } else {
             try carthageInteractor.clean(dependenciesDirectory: dependenciesDirectory)
         }
-        
+
         if let swiftPackageManagerDependencies = dependencies.swiftPackageManager, !swiftPackageManagerDependencies.packages.isEmpty {
             try swiftPackageManagerInteractor.update(
                 dependenciesDirectory: dependenciesDirectory,

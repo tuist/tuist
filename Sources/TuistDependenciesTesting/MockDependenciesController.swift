@@ -21,7 +21,7 @@ public final class MockDependenciesController: DependenciesControlling {
             throw error
         }
     }
-    
+
     var invokedUpdate = false
     var invokedUpdateCount = 0
     var invokedUpdateParameters: (path: AbsolutePath, dependencies: Dependencies)?

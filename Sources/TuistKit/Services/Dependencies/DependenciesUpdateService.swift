@@ -20,14 +20,14 @@ final class DependenciesUpdateService {
 
     func run(path: String?) throws {
         logger.info("Updating dependencies.", metadata: .section)
-        
+
         let path = self.path(path)
         let dependencies = try dependenciesModelLoader.loadDependencies(at: path)
         try dependenciesController.update(at: path, dependencies: dependencies)
-        
+
         logger.info("Dependencies updated successfully.", metadata: .success)
     }
-    
+
     // MARK: - Helpers
 
     private func path(_ path: String?) -> AbsolutePath {

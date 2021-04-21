@@ -31,7 +31,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
 
         super.tearDown()
     }
-    
+
     func test_fetch() throws {
         // Given
         carthageController.canUseSystemCarthageStub = { true }
@@ -48,12 +48,12 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             ],
             options: options
         )
-        
+
         carthage.bootstrapStub = { [unowned self] parameters in
             XCTAssertEqual(parameters.path, try self.temporaryPath())
             XCTAssertEqual(parameters.platforms, platforms)
             XCTAssertEqual(parameters.options, options)
-            
+
             // simulate output of Carthage bootstrap call
             try [
                 "Cartfile.resolved",
@@ -154,7 +154,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             CarthageInteractorError.xcFrameworksProductionNotSupported
         )
     }
-    
+
     func test_update() throws {
         // Given
         carthageController.canUseSystemCarthageStub = { true }
@@ -171,12 +171,12 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             ],
             options: options
         )
-        
+
         carthage.updateStub = { [unowned self] parameters in
             XCTAssertEqual(parameters.path, try self.temporaryPath())
             XCTAssertEqual(parameters.platforms, platforms)
             XCTAssertEqual(parameters.options, options)
-            
+
             // simulate output of Carthage update call
             try [
                 "Cartfile.resolved",
@@ -225,7 +225,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "tvOS", "ReactiveMoya.framework", "Info.plist")))
         XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "tvOS", "RxMoya.framework", "Info.plist")))
     }
-    
+
     func test_update_throws_when_carthageUnavailableInEnvironment() throws {
         // Given
         carthageController.canUseSystemCarthageStub = { false }

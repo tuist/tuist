@@ -5,7 +5,7 @@ import TuistGraph
 
 public final class MockCarthage: Carthaging {
     public init() {}
-    
+
     var invokedBootstrap = false
     var invokedBootstrapCount = 0
     var invokedBootstrapParameters: BootstrapParameters?
@@ -18,7 +18,7 @@ public final class MockCarthage: Carthaging {
             platforms: platforms,
             options: options
         )
-        
+
         invokedBootstrap = true
         invokedBootstrapCount += 1
         invokedBootstrapParameters = parameters
@@ -38,7 +38,7 @@ public final class MockCarthage: Carthaging {
             platforms: platforms,
             options: options
         )
-        
+
         invokedUpdate = true
         invokedUpdateCount += 1
         invokedUpdateParameters = parameters
@@ -54,7 +54,7 @@ extension MockCarthage {
         let path: AbsolutePath
         let platforms: Set<Platform>?
         let options: Set<CarthageDependencies.Options>?
-        
+
         init(
             path: AbsolutePath,
             platforms: Set<Platform>?,
@@ -65,12 +65,12 @@ extension MockCarthage {
             self.options = options
         }
     }
-    
+
     struct UpdateParameters {
         let path: AbsolutePath
         let platforms: Set<Platform>?
         let options: Set<CarthageDependencies.Options>?
-        
+
         init(
             path: AbsolutePath,
             platforms: Set<Platform>?,
