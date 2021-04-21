@@ -104,7 +104,6 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         XCTAssertTrue(swiftPackageManagerInteractor.invokedFetch)
         XCTAssertEqual(swiftPackageManagerInteractor.invokedFetchParameters?.dependenciesDirectory, dependenciesDirectoryPath)
         XCTAssertEqual(swiftPackageManagerInteractor.invokedFetchParameters?.dependencies, swiftPackageManagerDependencies)
-        XCTAssertEqual(swiftPackageManagerInteractor.invokedFetchParameters?.platforms, platforms)
 
         XCTAssertTrue(carthageInteractor.invokedClean)
         XCTAssertFalse(carthageInteractor.invokedFetch)
@@ -153,7 +152,6 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         XCTAssertFalse(swiftPackageManagerInteractor.invokedClean)
         XCTAssertEqual(swiftPackageManagerInteractor.invokedFetchParameters?.dependenciesDirectory, dependenciesDirectoryPath)
         XCTAssertEqual(swiftPackageManagerInteractor.invokedFetchParameters?.dependencies, swiftPackageManagerDependencies)
-        XCTAssertEqual(swiftPackageManagerInteractor.invokedFetchParameters?.platforms, platforms)
 
         XCTAssertFalse(cocoaPodsInteractor.invokedFetch)
     }

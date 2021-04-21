@@ -35,9 +35,15 @@ enum DependenciesControllerError: FatalError {
 ///     4. Generating dependencies graph under `./Tuist/Dependencies/graph.json`.
 public protocol DependenciesControlling {
     /// Fetches dependencies.
-    /// - Parameter path: Directory whose project's dependencies will be installed.
-    /// - Parameter dependencies: List of dependencies to intall.
+    /// - Parameter path: Directory whose project's dependencies will be fetched.
+    /// - Parameter dependencies: List of dependencies to fetch.
     func fetch(at path: AbsolutePath, dependencies: Dependencies) throws
+    
+    /// Updates dependencies.
+    /// - Parameters:
+    ///   - path: Directory whose project's dependencies will be updated.
+    ///   - dependencies: List of dependencies to update.
+    func update(at path: AbsolutePath, dependencies: Dependencies) throws
 }
 
 // MARK: - Dependencies Controller
@@ -80,8 +86,37 @@ public final class DependenciesController: DependenciesControlling {
         if let swiftPackageManagerDependencies = dependencies.swiftPackageManager, !swiftPackageManagerDependencies.packages.isEmpty {
             try swiftPackageManagerInteractor.fetch(
                 dependenciesDirectory: dependenciesDirectory,
-                dependencies: swiftPackageManagerDependencies,
+                dependencies: swiftPackageManagerDependencies
+            )
+        } else {
+            try swiftPackageManagerInteractor.clean(dependenciesDirectory: dependenciesDirectory)
+        }
+    }
+    
+    public func update(at path: AbsolutePath, dependencies: Dependencies) throws {
+        let dependenciesDirectory = path
+            .appending(component: Constants.tuistDirectoryName)
+            .appending(component: Constants.DependenciesDirectory.name)
+        let platforms = dependencies.platforms
+
+        guard !platforms.isEmpty else {
+            throw DependenciesControllerError.noPlatforms
+        }
+        
+        if let carthageDepedencies = dependencies.carthage, !carthageDepedencies.dependencies.isEmpty {
+            try carthageInteractor.update(
+                dependenciesDirectory: dependenciesDirectory,
+                dependencies: carthageDepedencies,
                 platforms: platforms
+            )
+        } else {
+            try carthageInteractor.clean(dependenciesDirectory: dependenciesDirectory)
+        }
+        
+        if let swiftPackageManagerDependencies = dependencies.swiftPackageManager, !swiftPackageManagerDependencies.packages.isEmpty {
+            try swiftPackageManagerInteractor.update(
+                dependenciesDirectory: dependenciesDirectory,
+                dependencies: swiftPackageManagerDependencies
             )
         } else {
             try swiftPackageManagerInteractor.clean(dependenciesDirectory: dependenciesDirectory)

@@ -57,7 +57,18 @@ final class DependenciesUpdateServiceTests: TuistUnitTestCase {
         )
         dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
 
-        // When/Then
-        XCTAssertThrowsSpecific(try subject.run(path: stubbedPath.pathString), DependenciesUpdateServiceError.unimplemented)
+        // When
+        try subject.run(path: stubbedPath.pathString)
+        
+        // Then
+        XCTAssertTrue(dependenciesController.invokedUpdate)
+        XCTAssertEqual(dependenciesController.invokedUpdateCount, 1)
+        XCTAssertEqual(dependenciesController.invokedUpdateParameters?.path, stubbedPath)
+        XCTAssertEqual(dependenciesController.invokedUpdateParameters?.dependencies, stubbedDependencies)
+
+        XCTAssertFalse(dependenciesController.invokedFetch)
+        
+        XCTAssertTrue(dependenciesModelLoader.invokedLoadDependencies)
+        XCTAssertEqual(dependenciesModelLoader.invokedLoadDependenciesCount, 1)
     }
 }

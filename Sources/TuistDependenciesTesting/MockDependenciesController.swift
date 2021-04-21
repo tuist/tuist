@@ -21,4 +21,20 @@ public final class MockDependenciesController: DependenciesControlling {
             throw error
         }
     }
+    
+    var invokedUpdate = false
+    var invokedUpdateCount = 0
+    var invokedUpdateParameters: (path: AbsolutePath, dependencies: Dependencies)?
+    var invokedUpdateParametersList = [(path: AbsolutePath, dependencies: Dependencies)]()
+    var stubbedUpdateError: Error?
+
+    public func update(at path: AbsolutePath, dependencies: Dependencies) throws {
+        invokedUpdate = true
+        invokedUpdateCount += 1
+        invokedUpdateParameters = (path, dependencies)
+        invokedUpdateParametersList.append((path, dependencies))
+        if let error = stubbedUpdateError {
+            throw error
+        }
+    }
 }

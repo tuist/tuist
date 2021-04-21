@@ -55,9 +55,21 @@ public protocol CarthageInteracting {
     /// Fetches `Carthage` dependencies.
     /// - Parameters:
     ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
-    ///   - dependencies: List of dependencies to intall using `Carthage`.
-    ///   - platforms: List of platforms for which you want to install dependencies.
+    ///   - dependencies: List of dependencies to fetch using `Carthage`.
+    ///   - platforms: List of platforms for which you want to fetch dependencies.
     func fetch(
+        dependenciesDirectory: AbsolutePath,
+        dependencies: CarthageDependencies,
+        platforms: Set<Platform>
+    ) throws
+    
+    
+    /// Updates `Carthage` dependencies.
+    /// - Parameters:
+    ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
+    ///   - dependencies: List of dependencies to update using `Carthage`.
+    ///   - platforms: List of platforms for which you want to update dependencies.
+    func update(
         dependenciesDirectory: AbsolutePath,
         dependencies: CarthageDependencies,
         platforms: Set<Platform>
@@ -73,16 +85,16 @@ public protocol CarthageInteracting {
 public final class CarthageInteractor: CarthageInteracting {
     private let fileHandler: FileHandling
     private let carthageController: CarthageControlling
-    private let carthageCommandGenerator: CarthageCommandGenerating
+    private let carthage: Carthaging
 
     public init(
         fileHandler: FileHandling = FileHandler.shared,
         carthageController: CarthageControlling = CarthageController.shared,
-        carthageCommandGenerator: CarthageCommandGenerating = CarthageCommandGenerator()
+        carthage: Carthaging = Carthage()
     ) {
         self.fileHandler = fileHandler
         self.carthageController = carthageController
-        self.carthageCommandGenerator = carthageCommandGenerator
+        self.carthage = carthage
     }
 
     public func fetch(
@@ -91,7 +103,63 @@ public final class CarthageInteractor: CarthageInteracting {
         platforms: Set<Platform>
     ) throws {
         logger.info("Resolving and fetching Carthage dependencies.", metadata: .section)
+        
+        try install(
+            dependenciesDirectory: dependenciesDirectory,
+            dependencies: dependencies,
+            installationMethod: { path in
+                try carthage.bootstrap(
+                    at: path,
+                    platforms: platforms,
+                    options: dependencies.options
+                )
+            }
+        )
 
+        logger.info("Carthage dependencies resolved and fetched successfully.", metadata: .subsection)
+    }
+    
+    public func update(
+        dependenciesDirectory: AbsolutePath,
+        dependencies: CarthageDependencies,
+        platforms: Set<Platform>
+    ) throws {
+        logger.info("Updating Carthage dependencies.", metadata: .section)
+
+        try install(
+            dependenciesDirectory: dependenciesDirectory,
+            dependencies: dependencies,
+            installationMethod: { path in
+                try carthage.update(
+                    at: path,
+                    platforms: platforms,
+                    options: dependencies.options
+                )
+            }
+        )
+
+        logger.info("Carthage dependencies updated successfully.", metadata: .subsection)
+    }
+
+    public func clean(dependenciesDirectory: AbsolutePath) throws {
+        let carthageDirectory = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
+        let cartfileResolvedPath = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
+            .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
+
+        try fileHandler.delete(carthageDirectory)
+        try fileHandler.delete(cartfileResolvedPath)
+    }
+
+    // MARK: - Installation
+
+    /// Installs given `dependencies` at `dependenciesDirectory` using `installationMethod`.
+    private func install(
+        dependenciesDirectory: AbsolutePath,
+        dependencies: CarthageDependencies,
+        installationMethod: (AbsolutePath) throws -> Void
+    ) throws {
         // check availability of `carthage`
         guard carthageController.canUseSystemCarthage() else {
             throw CarthageInteractorError.carthageNotFound
@@ -113,33 +181,13 @@ public final class CarthageInteractor: CarthageInteracting {
             try loadDependencies(pathsProvider: pathsProvider, dependencies: dependencies)
 
             // run `Carthage`
-            let command = carthageCommandGenerator.command(
-                path: temporaryDirectoryPath,
-                platforms: platforms,
-                options: dependencies.options
-            )
-            try System.shared.runAndPrint(command)
+            try installationMethod(temporaryDirectoryPath)
 
             // post installation
             try saveDepedencies(pathsProvider: pathsProvider)
         }
-
-        logger.info("Carthage dependencies resolved and fetched successfully.", metadata: .subsection)
     }
-
-    public func clean(dependenciesDirectory: AbsolutePath) throws {
-        let carthageDirectory = dependenciesDirectory
-            .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
-        let cartfileResolvedPath = dependenciesDirectory
-            .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
-            .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
-
-        try fileHandler.delete(carthageDirectory)
-        try fileHandler.delete(cartfileResolvedPath)
-    }
-
-    // MARK: - Installation
-
+    
     /// Loads lockfile and dependencies into working directory if they had been saved before.
     private func loadDependencies(pathsProvider: CarthagePathsProvider, dependencies: CarthageDependencies) throws {
         // copy build directory from previous run if exist

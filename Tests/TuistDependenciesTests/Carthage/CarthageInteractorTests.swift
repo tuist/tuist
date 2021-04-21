@@ -10,26 +10,23 @@ import XCTest
 
 final class CarthageInteractorTests: TuistUnitTestCase {
     private var subject: CarthageInteractor!
-
     private var carthageController: MockCarthageController!
-    private var carthageCommandGenerator: MockCarthageCommandGenerator!
+    private var carthage: MockCarthage!
 
     override func setUp() {
         super.setUp()
 
         carthageController = MockCarthageController()
-        carthageCommandGenerator = MockCarthageCommandGenerator()
-
+        carthage = MockCarthage()
         subject = CarthageInteractor(
             carthageController: carthageController,
-            carthageCommandGenerator: carthageCommandGenerator
+            carthage: carthage
         )
     }
 
     override func tearDown() {
         carthageController = nil
-        carthageCommandGenerator = nil
-
+        carthage = nil
         subject = nil
 
         super.tearDown()
@@ -119,12 +116,8 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             ],
             options: options
         )
-        let stubbedCommand = ["carthage", "bootstrap", "--project-directory", try temporaryPath().pathString, "--platform iOS,macOS,tvOS,watchOS", "--cache-builds", "--new-resolver"]
-
-        carthageCommandGenerator.commandStub = { _ in stubbedCommand }
-
-        system.whichStub = { _ in "1.0.0" }
-        system.succeedCommand(stubbedCommand)
+        
+        carthage.bootstrapStub = { parameters in }
 
         // When
         try subject.fetch(
@@ -154,10 +147,10 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "tvOS", "ReactiveMoya.framework", "Info.plist")))
         XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "tvOS", "RxMoya.framework", "Info.plist")))
 
-        XCTAssertTrue(carthageCommandGenerator.invokedCommand)
-        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.path, try temporaryPath())
-        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.platforms, platforms)
-        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.options, options)
+        XCTAssertTrue(carthage.invokedBootstrap)
+        XCTAssertEqual(carthage.invokedBootstrapParameters?.path, try temporaryPath())
+        XCTAssertEqual(carthage.invokedBootstrapParameters?.platforms, platforms)
+        XCTAssertEqual(carthage.invokedBootstrapParameters?.options, options)
     }
 
     func test_fetch_onePlatform() throws {
@@ -183,13 +176,9 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             ],
             options: options
         )
-        let stubbedCommand = ["carthage", "bootstrap", "--project-directory", try temporaryPath().pathString, "--platform iOS", "--cache-builds", "--new-resolver"]
-
-        carthageCommandGenerator.commandStub = { _ in stubbedCommand }
-
-        system.whichStub = { _ in "1.0.0" }
-        system.succeedCommand(stubbedCommand)
-
+        
+        carthage.bootstrapStub = { parameters in }
+        
         // When
         try subject.fetch(
             dependenciesDirectory: dependenciesDirectory,
@@ -218,10 +207,10 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         XCTAssertFalse(fileHandler.exists(expectedCarthageDirectory.appending(components: "tvOS", "ReactiveMoya.framework", "Info.plist")))
         XCTAssertFalse(fileHandler.exists(expectedCarthageDirectory.appending(components: "tvOS", "RxMoya.framework", "Info.plist")))
 
-        XCTAssertTrue(carthageCommandGenerator.invokedCommand)
-        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.path, try temporaryPath())
-        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.platforms, platforms)
-        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.options, options)
+        XCTAssertTrue(carthage.invokedBootstrap)
+        XCTAssertEqual(carthage.invokedBootstrapParameters?.path, try temporaryPath())
+        XCTAssertEqual(carthage.invokedBootstrapParameters?.platforms, platforms)
+        XCTAssertEqual(carthage.invokedBootstrapParameters?.options, options)
     }
 
     func test_clean() throws {

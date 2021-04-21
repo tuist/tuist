@@ -14,13 +14,11 @@ public final class MockSwiftPackageManagerInteractor: SwiftPackageManagerInterac
 
     public func fetch(
         dependenciesDirectory: AbsolutePath,
-        dependencies: SwiftPackageManagerDependencies,
-        platforms: Set<Platform>
+        dependencies: SwiftPackageManagerDependencies
     ) throws {
         let parameters = FetchParameters(
             dependenciesDirectory: dependenciesDirectory,
-            dependencies: dependencies,
-            platforms: platforms
+            dependencies: dependencies
         )
 
         invokedFetch = true
@@ -28,6 +26,30 @@ public final class MockSwiftPackageManagerInteractor: SwiftPackageManagerInterac
         invokedFetchParameters = parameters
         invokedFetchParametersList.append(parameters)
         if let error = stubbedFetchError {
+            throw error
+        }
+    }
+    
+    var invokedUpdate = false
+    var invokedUpdateCount = 0
+    var invokedUpdateParameters: UpdateParameters?
+    var invokedUpdateParametersList = [UpdateParameters]()
+    var stubbedUpdateError: Error?
+    
+    public func update(
+        dependenciesDirectory: AbsolutePath,
+        dependencies: SwiftPackageManagerDependencies
+    ) throws {
+        let parameters = UpdateParameters(
+            dependenciesDirectory: dependenciesDirectory,
+            dependencies: dependencies
+        )
+
+        invokedUpdate = true
+        invokedUpdateCount += 1
+        invokedUpdateParameters = parameters
+        invokedUpdateParametersList.append(parameters)
+        if let error = stubbedUpdateError {
             throw error
         }
     }
@@ -55,6 +77,10 @@ extension MockSwiftPackageManagerInteractor {
     struct FetchParameters {
         let dependenciesDirectory: AbsolutePath
         let dependencies: SwiftPackageManagerDependencies
-        let platforms: Set<Platform>
+    }
+    
+    struct UpdateParameters {
+        let dependenciesDirectory: AbsolutePath
+        let dependencies: SwiftPackageManagerDependencies
     }
 }

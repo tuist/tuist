@@ -31,6 +31,32 @@ public final class MockCarthageInteractor: CarthageInteracting {
             throw error
         }
     }
+    
+    var invokedUpdate = false
+    var invokedUpdateCount = 0
+    var invokedUpdateParameters: UpdateParameters?
+    var invokedUpdateParametersList = [UpdateParameters]()
+    var stubbedUpdateError: Error?
+    
+    public func update(
+        dependenciesDirectory: AbsolutePath,
+        dependencies: CarthageDependencies,
+        platforms: Set<Platform>
+    ) throws {
+        let parameters = UpdateParameters(
+            dependenciesDirectory: dependenciesDirectory,
+            dependencies: dependencies,
+            platforms: platforms
+        )
+
+        invokedUpdate = true
+        invokedUpdateCount += 1
+        invokedUpdateParameters = parameters
+        invokedUpdateParametersList.append(parameters)
+        if let error = stubbedUpdateError {
+            throw error
+        }
+    }
 
     var invokedClean = false
     var invokedCleanCount = 0
@@ -53,6 +79,12 @@ public final class MockCarthageInteractor: CarthageInteracting {
 
 extension MockCarthageInteractor {
     struct FetchParameters {
+        let dependenciesDirectory: AbsolutePath
+        let dependencies: CarthageDependencies
+        let platforms: Set<Platform>
+    }
+    
+    struct UpdateParameters {
         let dependenciesDirectory: AbsolutePath
         let dependencies: CarthageDependencies
         let platforms: Set<Platform>

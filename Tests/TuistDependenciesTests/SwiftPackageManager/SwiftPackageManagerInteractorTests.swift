@@ -10,15 +10,20 @@ import XCTest
 
 final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
     private var subject: SwiftPackageManagerInteractor!
+    private var swiftPackageManager: MockSwiftPackageManager!
 
     override func setUp() {
         super.setUp()
 
-        subject = SwiftPackageManagerInteractor()
+        swiftPackageManager = MockSwiftPackageManager()
+        subject = SwiftPackageManagerInteractor(
+            swiftPackageManager: swiftPackageManager
+        )
     }
 
     override func tearDown() {
         subject = nil
+        swiftPackageManager = nil
 
         super.tearDown()
     }
@@ -38,23 +43,18 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             ".build/repositories/checkouts-state.json",
             ".build/repositories/Alamofire-e8f130fe/config",
         ])
-
-        let platforms = Set<Platform>([.iOS, .watchOS, .macOS, .tvOS])
-        let command = ["swift", "package", "--package-path", "\(try temporaryPath().pathString)", "resolve"]
-        system.succeedCommand(command)
-        system.swiftVersionStub = { "5.3" }
-
         let depedencies = SwiftPackageManagerDependencies(
             [
                 .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
             ]
         )
+        
+        swiftPackageManager.resolveStub = { parameters in }
 
         // When
         try subject.fetch(
             dependenciesDirectory: dependenciesDirectory,
-            dependencies: depedencies,
-            platforms: platforms
+            dependencies: depedencies
         )
 
         // Then
@@ -71,6 +71,9 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(components: "checkouts", "Alamofire", "Info.plist")))
         XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(components: "repositories", "checkouts-state.json")))
         XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(components: "repositories", "Alamofire-e8f130fe", "config")))
+        
+        XCTAssertTrue(swiftPackageManager.invokedResolve)
+        XCTAssertEqual(swiftPackageManager.invokedResolveParameters, try temporaryPath())
     }
 
     func test_clean() throws {

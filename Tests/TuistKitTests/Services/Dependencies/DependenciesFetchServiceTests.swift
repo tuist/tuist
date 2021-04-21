@@ -66,6 +66,8 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
         XCTAssertEqual(dependenciesController.invokedFetchParameters?.path, stubbedPath)
         XCTAssertEqual(dependenciesController.invokedFetchParameters?.dependencies, stubbedDependencies)
 
+        XCTAssertFalse(dependenciesController.invokedUpdate)
+        
         XCTAssertTrue(dependenciesModelLoader.invokedLoadDependencies)
         XCTAssertEqual(dependenciesModelLoader.invokedLoadDependenciesCount, 1)
     }
