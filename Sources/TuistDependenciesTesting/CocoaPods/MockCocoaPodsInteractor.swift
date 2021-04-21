@@ -21,4 +21,20 @@ public final class MockCocoaPodsInteractor: CocoaPodsInteracting {
             throw error
         }
     }
+    
+    var invokedUpdate = false
+    var invokedUpdateCount = 0
+    var invokedUpdateParameters: AbsolutePath?
+    var invokedUpdateParametersList = [AbsolutePath]()
+    var stubbedUpdateError: Error?
+
+    public func update(dependenciesDirectory: AbsolutePath) throws {
+        invokedUpdate = true
+        invokedUpdateCount += 1
+        invokedUpdateParameters = dependenciesDirectory
+        invokedUpdateParametersList.append(dependenciesDirectory)
+        if let error = stubbedUpdateError {
+            throw error
+        }
+    }
 }
