@@ -34,22 +34,26 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let dependenciesDirectory = rootPath
             .appending(component: Constants.DependenciesDirectory.name)
 
-        try createFiles([
-            "Package.resolved",
-            ".build/manifest.db",
-            ".build/workspace-state.json",
-            ".build/artifacts/foo.txt",
-            ".build/checkouts/Alamofire/Info.plist",
-            ".build/repositories/checkouts-state.json",
-            ".build/repositories/Alamofire-e8f130fe/config",
+        let depedencies = SwiftPackageManagerDependencies([
+            .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
         ])
-        let depedencies = SwiftPackageManagerDependencies(
-            [
-                .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
-            ]
-        )
         
-        swiftPackageManager.resolveStub = { parameters in }
+        swiftPackageManager.resolveStub = { [unowned self] path in
+            XCTAssertEqual(path, try self.temporaryPath())
+            
+            // simulate output of SPM fetch call
+            try [
+                "Package.resolved",
+                ".build/manifest.db",
+                ".build/workspace-state.json",
+                ".build/artifacts/foo.txt",
+                ".build/checkouts/Alamofire/Info.plist",
+                ".build/repositories/checkouts-state.json",
+                ".build/repositories/Alamofire-e8f130fe/config",
+            ].forEach {
+                try fileHandler!.touch(path.appending(RelativePath($0)))
+            }
+        }
 
         // When
         try subject.fetch(
@@ -71,9 +75,55 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(components: "checkouts", "Alamofire", "Info.plist")))
         XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(components: "repositories", "checkouts-state.json")))
         XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(components: "repositories", "Alamofire-e8f130fe", "config")))
+    }
+    
+    func test_update() throws {
+        // Given
+        let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
+        let dependenciesDirectory = rootPath
+            .appending(component: Constants.DependenciesDirectory.name)
+
+        let depedencies = SwiftPackageManagerDependencies([
+            .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
+        ])
         
-        XCTAssertTrue(swiftPackageManager.invokedResolve)
-        XCTAssertEqual(swiftPackageManager.invokedResolveParameters, try temporaryPath())
+        swiftPackageManager.updateStub = { [unowned self] path in
+            XCTAssertEqual(path, try self.temporaryPath())
+            
+            // simulate output of SPM update call
+            try [
+                "Package.resolved",
+                ".build/manifest.db",
+                ".build/workspace-state.json",
+                ".build/artifacts/foo.txt",
+                ".build/checkouts/Alamofire/Info.plist",
+                ".build/repositories/checkouts-state.json",
+                ".build/repositories/Alamofire-e8f130fe/config",
+            ].forEach {
+                try fileHandler!.touch(path.appending(RelativePath($0)))
+            }
+        }
+
+        // When
+        try subject.update(
+            dependenciesDirectory: dependenciesDirectory,
+            dependencies: depedencies
+        )
+
+        // Then
+        let expectedPackageResolvedPath = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
+            .appending(component: Constants.DependenciesDirectory.packageResolvedName)
+        let expectedSwiftPackageManagerDirectory = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
+
+        XCTAssertTrue(fileHandler.exists(expectedPackageResolvedPath))
+        XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(component: "manifest.db")))
+        XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(component: "workspace-state.json")))
+        XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(components: "artifacts", "foo.txt")))
+        XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(components: "checkouts", "Alamofire", "Info.plist")))
+        XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(components: "repositories", "checkouts-state.json")))
+        XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(components: "repositories", "Alamofire-e8f130fe", "config")))
     }
 
     func test_clean() throws {
