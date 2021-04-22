@@ -62,7 +62,6 @@ module.exports = {
         allExtensions: true,
       },
     },
-    `gatsby-plugin-styled-components`,
     {
       resolve: 'gatsby-plugin-next-seo',
       options: {

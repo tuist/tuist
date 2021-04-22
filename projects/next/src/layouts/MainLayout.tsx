@@ -1,5 +1,4 @@
 import React from 'react'
-import { GlobalStyles } from 'twin.macro'
 import { GatsbySeo } from 'gatsby-plugin-next-seo'
 import Footer from '../components/Footer'
 import Header from '../components/Header'
@@ -10,7 +9,6 @@ type MainLayoutProps = {
 
 const MainLayout = ({ children, ...rest }: MainLayoutProps) => (
   <main {...rest}>
-    <GlobalStyles />
     <GatsbySeo titleTemplate="%s" />
     <Header />
     {children}
