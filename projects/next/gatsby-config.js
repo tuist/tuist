@@ -62,7 +62,6 @@ module.exports = {
         allExtensions: true,
       },
     },
-    `gatsby-plugin-styled-components`,
     {
       resolve: 'gatsby-plugin-next-seo',
       options: {
@@ -80,6 +79,13 @@ module.exports = {
           site: '@site',
           cardType: 'summary',
         },
+      },
+    },
+    {
+      resolve: 'gatsby-plugin-theme-ui',
+      options: {
+        prismPreset: 'dracula',
+        preset: '@theme-ui/preset-funk',
       },
     },
   ],
