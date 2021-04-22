@@ -84,7 +84,7 @@ module.exports = {
     {
       resolve: 'gatsby-plugin-theme-ui',
       options: {
-        prismPreset: 'night-owl',
+        prismPreset: 'dracula',
         preset: '@theme-ui/preset-funk',
       },
     },
