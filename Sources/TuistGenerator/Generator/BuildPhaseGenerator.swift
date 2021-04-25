@@ -150,6 +150,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
                 shellPath: "/bin/sh",
                 shellScript: action.shellScript(sourceRootPath: sourceRootPath),
+                runOnlyForDeploymentPostprocessing: action.runOnlyForDeploymentPostprocessing,
                 showEnvVarsInLog: action.showEnvVarsInLog
             )
             if let basedOnDependencyAnalysis = action.basedOnDependencyAnalysis {
