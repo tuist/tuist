@@ -45,7 +45,7 @@ public struct TargetAction: Codable, Equatable {
     /// Whether to skip running this script in incremental builds, if nothing has changed
     public let basedOnDependencyAnalysis: Bool?
 
-    /// Whether running this script only runs on install builds (default is false)
+    /// Whether this script only runs on install builds (default is false)
     public let runOnlyForDeploymentPostprocessing: Bool
     
     public enum CodingKeys: String, CodingKey {
@@ -74,7 +74,7 @@ public struct TargetAction: Codable, Equatable {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
-    ///   - runOnlyForDeploymentPostprocessing: Whether running this script only runs on install builds (default is false)
+    ///   - runOnlyForDeploymentPostprocessing: Whether this script only runs on install builds (default is false)
     init(name: String,
          script: Script = .embedded(""),
          order: Order,
@@ -162,7 +162,7 @@ extension TargetAction {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
-    ///   - runOnlyForDeploymentPostprocessing: Whether running this script only runs on install builds (default is false)
+    ///   - runOnlyForDeploymentPostprocessing: Whether this script only runs on install builds (default is false)
     /// - Returns: Target action.
     public static func pre(tool: String,
                            arguments: String...,
@@ -198,7 +198,7 @@ extension TargetAction {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
-    ///   - runOnlyForDeploymentPostprocessing: Whether running this script only runs on install builds (default is false)
+    ///   - runOnlyForDeploymentPostprocessing: Whether this script only runs on install builds (default is false)
     /// - Returns: Target action.
     public static func pre(tool: String,
                            arguments: [String],
@@ -234,7 +234,7 @@ extension TargetAction {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
-    ///   - runOnlyForDeploymentPostprocessing: Whether running this script only runs on install builds (default is false)
+    ///   - runOnlyForDeploymentPostprocessing: Whether this script only runs on install builds (default is false)
     /// - Returns: Target action.
     public static func post(tool: String,
                             arguments: String...,
@@ -270,7 +270,7 @@ extension TargetAction {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
-    ///   - runOnlyForDeploymentPostprocessing: Whether running this script only runs on install builds (default is false)
+    ///   - runOnlyForDeploymentPostprocessing: Whether this script only runs on install builds (default is false)
     /// - Returns: Target action.
     public static func post(tool: String,
                             arguments: [String],
@@ -310,7 +310,7 @@ extension TargetAction {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
-    ///   - runOnlyForDeploymentPostprocessing: Whether running this script only runs on install builds (default is false)
+    ///   - runOnlyForDeploymentPostprocessing: Whether this script only runs on install builds (default is false)
     /// - Returns: Target action.
     public static func pre(path: Path,
                            arguments: String...,
@@ -346,7 +346,7 @@ extension TargetAction {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
-    ///   - runOnlyForDeploymentPostprocessing: Whether running this script only runs on install builds (default is false)
+    ///   - runOnlyForDeploymentPostprocessing: Whether this script only runs on install builds (default is false)
     /// - Returns: Target action.
     public static func pre(path: Path,
                            arguments: [String],
@@ -382,7 +382,7 @@ extension TargetAction {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
-    ///   - runOnlyForDeploymentPostprocessing: Whether running this script only runs on install builds (default is false)
+    ///   - runOnlyForDeploymentPostprocessing: Whether this script only runs on install builds (default is false)
     /// - Returns: Target action.
     public static func post(path: Path,
                             arguments: String...,
@@ -418,7 +418,7 @@ extension TargetAction {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
-    ///   - runOnlyForDeploymentPostprocessing: Whether running this script only runs on install builds (default is false)
+    ///   - runOnlyForDeploymentPostprocessing: Whether this script only runs on install builds (default is false)
     /// - Returns: Target action.
     public static func post(path: Path,
                             arguments: [String],
@@ -458,7 +458,7 @@ extension TargetAction {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
-    ///   - runOnlyForDeploymentPostprocessing: Whether running this script only runs on install builds (default is false)
+    ///   - runOnlyForDeploymentPostprocessing: Whether this script only runs on install builds (default is false)
     /// - Returns: Target action.
     public static func pre(script: String,
                            name: String,
@@ -493,7 +493,7 @@ extension TargetAction {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
-    ///   - runOnlyForDeploymentPostprocessing: Whether running this script only runs on install builds (default is false)
+    ///   - runOnlyForDeploymentPostprocessing: Whether this script only runs on install builds (default is false)
     /// - Returns: Target action.
     public static func post(script: String,
                             name: String,

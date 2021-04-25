@@ -88,7 +88,7 @@ public struct TargetAction: Equatable, Codable {
     /// Whether to skip running this script in incremental builds, if nothing has changed
     public let basedOnDependencyAnalysis: Bool?
     
-    /// Whether running this script only runs on install builds (default is false)
+    /// Whether this script only runs on install builds (default is false)
     public let runOnlyForDeploymentPostprocessing: Bool
 
     /// Initializes a new target action with its attributes using a script at the given path to be executed.
@@ -104,7 +104,7 @@ public struct TargetAction: Equatable, Codable {
     ///   - outputFileListPaths: List of output filelist paths
     ///   - showEnvVarsInLog: Show environment variables in the logs
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
-    ///   - runOnlyForDeploymentPostprocessing: Whether running this script only runs on install builds (default is false)
+    ///   - runOnlyForDeploymentPostprocessing: Whether this script only runs on install builds (default is false)
     public init(name: String,
                 order: Order,
                 script: Script = .embedded(""),
