@@ -758,7 +758,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
                     script: .scriptPath(path.appending(component: "script.sh"), args: ["arg"]),
                     showEnvVarsInLog: false,
                     basedOnDependencyAnalysis: false,
-                    runOnlyForDeploymentPostprocessing: true
+                    runForInstallBuildsOnly: true
                 ),
                 TargetAction(
                     name: "pre",

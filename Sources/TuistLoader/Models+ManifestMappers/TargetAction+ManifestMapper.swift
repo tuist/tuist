@@ -18,7 +18,7 @@ extension TuistGraph.TargetAction {
         let outputPaths = try absolutePaths(for: manifest.outputPaths, generatorPaths: generatorPaths)
         let outputFileListPaths = try absolutePaths(for: manifest.outputFileListPaths, generatorPaths: generatorPaths)
         let basedOnDependencyAnalysis = manifest.basedOnDependencyAnalysis
-        let runOnlyForDeploymentPostprocessing = manifest.runOnlyForDeploymentPostprocessing
+        let runForInstallBuildsOnly = manifest.runForInstallBuildsOnly
         
         let script: TuistGraph.TargetAction.Script
         switch manifest.script {
@@ -42,7 +42,7 @@ extension TuistGraph.TargetAction {
             outputPaths: outputPaths,
             outputFileListPaths: outputFileListPaths,
             basedOnDependencyAnalysis: basedOnDependencyAnalysis,
-            runOnlyForDeploymentPostprocessing: runOnlyForDeploymentPostprocessing
+            runForInstallBuildsOnly: runForInstallBuildsOnly
         )
     }
 
