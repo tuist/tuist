@@ -85,6 +85,19 @@ Tuist
             |- RxSwift
 ```
 
+If you don't want to check in build artifacts you can update your `.gitignore`:
+
+```bash
+# Add this line if you want to avoid checking in a build artifacts from Carthage dependencies.
+Tuist/Dependencies/Carthage
+
+# Add this line if you want to avoid checking in a build artifacts from Swift Package Manager dependencies.
+Tuist/Dependencies/SwiftPackageManager
+
+# Add this line if you want to avoid checking in a build artifacts from CocoaPods dependencies.
+Tuist/Dependencies/Cocoapods
+```
+
 ### Step 3: Link dependencies
 
 Link pulled dependencies in your project manifest file.
