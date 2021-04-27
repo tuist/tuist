@@ -8,7 +8,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Add support for `runPostActionsOnFailure` for post build actions. [#2752](https://github.com/tuist/tuist/pull/2752) by [@FranzBusch](https://github.com/FranzBusch)
 - Make `ValueGraph` serializable. [#2811](https://github.com/tuist/tuist/pull/2811) by [@laxmorek](https://github.com/laxmorek)
 - Add support for configuration of cache directory [#2566](https://github.com/tuist/tuist/pull/2566) by [@adellibovi](https://github.com/adellibovi).
-- Add support for `runForInstallBuildsOnly` for build actions. by [@StefanFessler](https://github.com/apps4everyone)
+- Add support for `runForInstallBuildsOnly` for build actions by [@StefanFessler](https://github.com/apps4everyone)
 
 ### Changed
 
