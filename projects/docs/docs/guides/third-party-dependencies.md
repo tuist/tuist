@@ -1,7 +1,7 @@
 ---
 title: Third-party dependencies
 slug: '/guides/third-party-dependencies'
-edescriptionxceprt: Learn how to define the contract between the dependency managers and Tuist.
+description: Learn how to define the contract between the dependency managers and Tuist.
 ---
 
 :::warning Work in progress

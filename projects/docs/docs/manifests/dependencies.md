@@ -1,7 +1,7 @@
 ---
 title: Dependencies.swift
-# description: 'This page documents the models that users can use to define their project: how to initialize them, attributes and their meaning, protocol comformances.'
 slug: '/manifests/dependencies'
+description: This page documents how the Dependencies.swift manifest file can be used define the contract between the dependency managers and Tuist.
 ---
 
 :::warning Work in progress
@@ -29,11 +29,11 @@ let dependencies = Dependencies(
 
 A `Dependencies` manifest allows for defining external dependencies for Tuist.
 
-| Property              | Description                                                                      | Type                                                                     | Required | Default                  |
-| --------------------- | -------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | -------- | ------------------------ |
-| `carthage`            | The description of dependency that can be installed using Carthage.              | [`CarthageDependencies`](#carthage-dependencies)                         | No       | `nil`                    |
-| `swiftPackageManager` | The description of dependency that can be installed using Swift Package Manager. | [`SwiftPackageManagerDependencies`](#swift-package-manager-dependencies) | No       | `nil`                    |
-| `platforms`           | List of platforms for which you want to install depedencies.                     | [`Set<Platform>`](/manifests/project#platform)                           | No       | `Set(Platform.allCases)` |
+| Property              | Description                                                                        | Type                                                                     | Required | Default                  |
+| --------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | -------- | ------------------------ |
+| `carthage`            | The description of a dependency that can be installed using Carthage.              | [`CarthageDependencies`](#carthage-dependencies)                         | No       | `nil`                    |
+| `swiftPackageManager` | The description of a dependency that can be installed using Swift Package Manager. | [`SwiftPackageManagerDependencies`](#swift-package-manager-dependencies) | No       | `nil`                    |
+| `platforms`           | List of platforms for which you want to install depedencies.                       | [`Set<Platform>`](/manifests/project#platform)                           | No       | `Set(Platform.allCases)` |
 
 ### Carthage Dependencies
 
