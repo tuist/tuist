@@ -81,9 +81,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         try install(
             dependenciesDirectory: dependenciesDirectory,
             dependencies: dependencies,
-            installationMethod: { path in
-                try swiftPackageManager.resolve(at: path)
-            }
+            shouldUpdate: false
         )
 
         logger.info("Packages resolved and fetched successfully.", metadata: .subsection)
@@ -100,9 +98,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         try install(
             dependenciesDirectory: dependenciesDirectory,
             dependencies: dependencies,
-            installationMethod: { path in
-                try swiftPackageManager.update(at: path)
-            }
+            shouldUpdate: true
         )
 
         logger.info("Updating resolved and fetched successfully.", metadata: .subsection)
@@ -121,11 +117,11 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
 
     // MARK: - Installation
 
-    /// Installs given `dependencies` at `dependenciesDirectory` using `installationMethod`.
+    /// Installs given `dependencies` at `dependenciesDirectory`.
     private func install(
         dependenciesDirectory: AbsolutePath,
         dependencies: SwiftPackageManagerDependencies,
-        installationMethod: (AbsolutePath) throws -> Void
+        shouldUpdate: Bool
     ) throws {
         try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in
             // prepare paths
@@ -138,7 +134,11 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
             try loadDependencies(pathsProvider: pathsProvider, packageManifestContent: dependencies.manifestValue())
 
             // run `Swift Package Manager`
-            try installationMethod(temporaryDirectoryPath)
+            if shouldUpdate {
+                try swiftPackageManager.update(at: temporaryDirectoryPath)
+            } else {
+                try swiftPackageManager.resolve(at: temporaryDirectoryPath)
+            }
 
             // post installation
             try saveDepedencies(pathsProvider: pathsProvider)

@@ -106,13 +106,8 @@ public final class CarthageInteractor: CarthageInteracting {
         try install(
             dependenciesDirectory: dependenciesDirectory,
             dependencies: dependencies,
-            installationMethod: { path in
-                try carthage.bootstrap(
-                    at: path,
-                    platforms: platforms,
-                    options: dependencies.options
-                )
-            }
+            platforms: platforms,
+            shouldUpdate: false
         )
 
         logger.info("Carthage dependencies resolved and fetched successfully.", metadata: .subsection)
@@ -128,13 +123,8 @@ public final class CarthageInteractor: CarthageInteracting {
         try install(
             dependenciesDirectory: dependenciesDirectory,
             dependencies: dependencies,
-            installationMethod: { path in
-                try carthage.update(
-                    at: path,
-                    platforms: platforms,
-                    options: dependencies.options
-                )
-            }
+            platforms: platforms,
+            shouldUpdate: true
         )
 
         logger.info("Carthage dependencies updated successfully.", metadata: .subsection)
@@ -153,11 +143,12 @@ public final class CarthageInteractor: CarthageInteracting {
 
     // MARK: - Installation
 
-    /// Installs given `dependencies` at `dependenciesDirectory` using `installationMethod`.
+    /// Installs given `dependencies` at `dependenciesDirectory`.
     private func install(
         dependenciesDirectory: AbsolutePath,
         dependencies: CarthageDependencies,
-        installationMethod: (AbsolutePath) throws -> Void
+        platforms: Set<Platform>,
+        shouldUpdate: Bool
     ) throws {
         // check availability of `carthage`
         guard carthageController.canUseSystemCarthage() else {
@@ -180,7 +171,19 @@ public final class CarthageInteractor: CarthageInteracting {
             try loadDependencies(pathsProvider: pathsProvider, dependencies: dependencies)
 
             // run `Carthage`
-            try installationMethod(temporaryDirectoryPath)
+            if shouldUpdate {
+                try carthage.update(
+                    at: temporaryDirectoryPath,
+                    platforms: platforms,
+                    options: dependencies.options
+                )
+            } else {
+                try carthage.bootstrap(
+                    at: temporaryDirectoryPath,
+                    platforms: platforms,
+                    options: dependencies.options
+                )
+            }
 
             // post installation
             try saveDepedencies(pathsProvider: pathsProvider)

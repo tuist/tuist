@@ -54,24 +54,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             XCTAssertEqual(parameters.platforms, platforms)
             XCTAssertEqual(parameters.options, options)
 
-            // simulate output of Carthage bootstrap call
-            try [
-                "Cartfile.resolved",
-                "Carthage/Build/iOS/Moya.framework/Info.plist",
-                "Carthage/Build/iOS/ReactiveMoya.framework/Info.plist",
-                "Carthage/Build/iOS/RxMoya.framework/Info.plist",
-                "Carthage/Build/Mac/Moya.framework/Info.plist",
-                "Carthage/Build/Mac/ReactiveMoya.framework/Info.plist",
-                "Carthage/Build/Mac/RxMoya.framework/Info.plist",
-                "Carthage/Build/watchOS/Moya.framework/Info.plist",
-                "Carthage/Build/watchOS/ReactiveMoya.framework/Info.plist",
-                "Carthage/Build/watchOS/RxMoya.framework/Info.plist",
-                "Carthage/Build/tvOS/Moya.framework/Info.plist",
-                "Carthage/Build/tvOS/ReactiveMoya.framework/Info.plist",
-                "Carthage/Build/tvOS/RxMoya.framework/Info.plist",
-            ].forEach {
-                try fileHandler!.touch(parameters.path.appending(RelativePath($0)))
-            }
+            try self.simulateCarthageOutput(at: parameters.path)
         }
 
         // When
@@ -177,24 +160,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             XCTAssertEqual(parameters.platforms, platforms)
             XCTAssertEqual(parameters.options, options)
 
-            // simulate output of Carthage update call
-            try [
-                "Cartfile.resolved",
-                "Carthage/Build/iOS/Moya.framework/Info.plist",
-                "Carthage/Build/iOS/ReactiveMoya.framework/Info.plist",
-                "Carthage/Build/iOS/RxMoya.framework/Info.plist",
-                "Carthage/Build/Mac/Moya.framework/Info.plist",
-                "Carthage/Build/Mac/ReactiveMoya.framework/Info.plist",
-                "Carthage/Build/Mac/RxMoya.framework/Info.plist",
-                "Carthage/Build/watchOS/Moya.framework/Info.plist",
-                "Carthage/Build/watchOS/ReactiveMoya.framework/Info.plist",
-                "Carthage/Build/watchOS/RxMoya.framework/Info.plist",
-                "Carthage/Build/tvOS/Moya.framework/Info.plist",
-                "Carthage/Build/tvOS/ReactiveMoya.framework/Info.plist",
-                "Carthage/Build/tvOS/RxMoya.framework/Info.plist",
-            ].forEach {
-                try fileHandler!.touch(parameters.path.appending(RelativePath($0)))
-            }
+            try self.simulateCarthageOutput(at: parameters.path)
         }
 
         // When
@@ -310,5 +276,29 @@ final class CarthageInteractorTests: TuistUnitTestCase {
                 lockfilesDirectory.appending(component: "OtherLockfile.lock"),
             ].sorted()
         )
+    }
+}
+
+// MARK: - Helpers
+
+private extension CarthageInteractorTests {
+    func simulateCarthageOutput(at path: AbsolutePath) throws {
+        try [
+            "Cartfile.resolved",
+            "Carthage/Build/iOS/Moya.framework/Info.plist",
+            "Carthage/Build/iOS/ReactiveMoya.framework/Info.plist",
+            "Carthage/Build/iOS/RxMoya.framework/Info.plist",
+            "Carthage/Build/Mac/Moya.framework/Info.plist",
+            "Carthage/Build/Mac/ReactiveMoya.framework/Info.plist",
+            "Carthage/Build/Mac/RxMoya.framework/Info.plist",
+            "Carthage/Build/watchOS/Moya.framework/Info.plist",
+            "Carthage/Build/watchOS/ReactiveMoya.framework/Info.plist",
+            "Carthage/Build/watchOS/RxMoya.framework/Info.plist",
+            "Carthage/Build/tvOS/Moya.framework/Info.plist",
+            "Carthage/Build/tvOS/ReactiveMoya.framework/Info.plist",
+            "Carthage/Build/tvOS/RxMoya.framework/Info.plist",
+        ].forEach {
+            try fileHandler.touch(path.appending(RelativePath($0)))
+        }
     }
 }

@@ -41,18 +41,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         swiftPackageManager.resolveStub = { [unowned self] path in
             XCTAssertEqual(path, try self.temporaryPath())
 
-            // simulate output of SPM fetch call
-            try [
-                "Package.resolved",
-                ".build/manifest.db",
-                ".build/workspace-state.json",
-                ".build/artifacts/foo.txt",
-                ".build/checkouts/Alamofire/Info.plist",
-                ".build/repositories/checkouts-state.json",
-                ".build/repositories/Alamofire-e8f130fe/config",
-            ].forEach {
-                try fileHandler!.touch(path.appending(RelativePath($0)))
-            }
+            try simulateSPMOutput(at: path)
         }
 
         // When
@@ -90,18 +79,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         swiftPackageManager.updateStub = { [unowned self] path in
             XCTAssertEqual(path, try self.temporaryPath())
 
-            // simulate output of SPM update call
-            try [
-                "Package.resolved",
-                ".build/manifest.db",
-                ".build/workspace-state.json",
-                ".build/artifacts/foo.txt",
-                ".build/checkouts/Alamofire/Info.plist",
-                ".build/repositories/checkouts-state.json",
-                ".build/repositories/Alamofire-e8f130fe/config",
-            ].forEach {
-                try fileHandler!.touch(path.appending(RelativePath($0)))
-            }
+            try simulateSPMOutput(at: path)
         }
 
         // When
@@ -158,5 +136,23 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
                 lockfilesDirectory.appending(component: "OtherLockfile.lock"),
             ].sorted()
         )
+    }
+}
+
+// MARK: - Helpers
+
+private extension SwiftPackageManagerInteractorTests {
+    func simulateSPMOutput(at path: AbsolutePath) throws {
+        try [
+            "Package.resolved",
+            ".build/manifest.db",
+            ".build/workspace-state.json",
+            ".build/artifacts/foo.txt",
+            ".build/checkouts/Alamofire/Info.plist",
+            ".build/repositories/checkouts-state.json",
+            ".build/repositories/Alamofire-e8f130fe/config",
+        ].forEach {
+            try fileHandler.touch(path.appending(RelativePath($0)))
+        }
     }
 }

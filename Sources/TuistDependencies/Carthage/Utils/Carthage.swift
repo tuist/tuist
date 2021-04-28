@@ -67,6 +67,7 @@ public final class Carthage: Carthaging {
                         return "--no-use-binaries"
                     }
                 }
+                .sorted()
         }
         
         commandComponents += [
