@@ -22,6 +22,7 @@ final class AutomationGraphMapperProvider: GraphMapperProviding {
         mappers.append(
             TestsCacheGraphMapper(hashesCacheDirectory: testsCacheDirectory, config: config)
         )
+        mappers.append(CacheTreeShakingGraphMapper()) 
         return SequentialGraphMapper(mappers)
     }
 }

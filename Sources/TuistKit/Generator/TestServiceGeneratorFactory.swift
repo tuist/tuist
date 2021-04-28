@@ -8,22 +8,25 @@ import TuistSupport
 protocol TestServiceGeneratorFactorying {
     func generator(
         automationPath: AbsolutePath,
-        testsCacheDirectory: AbsolutePath
+        testsCacheDirectory: AbsolutePath,
+        skipUITests: Bool
     ) -> Generating
 }
 
 final class TestServiceGeneratorFactory: TestServiceGeneratorFactorying {
     func generator(
         automationPath: AbsolutePath,
-        testsCacheDirectory: AbsolutePath
+        testsCacheDirectory: AbsolutePath,
+        skipUITests: Bool
     ) -> Generating {
         Generator(
-            projectMapperProvider: AutomationProjectMapperProvider(),
+            projectMapperProvider: AutomationProjectMapperProvider(skipUITests: skipUITests),
             graphMapperProvider: AutomationGraphMapperProvider(
                 testsCacheDirectory: testsCacheDirectory
             ),
             workspaceMapperProvider: AutomationWorkspaceMapperProvider(
-                workspaceDirectory: FileHandler.shared.resolveSymlinks(automationPath)
+                workspaceDirectory: FileHandler.shared.resolveSymlinks(automationPath),
+                skipUITests: skipUITests
             ),
             manifestLoaderFactory: ManifestLoaderFactory()
         )

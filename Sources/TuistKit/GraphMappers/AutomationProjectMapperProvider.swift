@@ -10,11 +10,14 @@ import TuistSupport
 /// It uses default `ProjectMapperProvider` but adds its own on top
 final class AutomationProjectMapperProvider: ProjectMapperProviding {
     private let projectMapperProvider: ProjectMapperProviding
+    private let skipUITests: Bool
 
     init(
-        projectMapperProvider: ProjectMapperProviding = ProjectMapperProvider()
+        projectMapperProvider: ProjectMapperProviding = ProjectMapperProvider(),
+        skipUITests: Bool
     ) {
         self.projectMapperProvider = projectMapperProvider
+        self.skipUITests = skipUITests
     }
 
     func mapper(config: Config) -> ProjectMapping {
@@ -36,6 +39,12 @@ final class AutomationProjectMapperProvider: ProjectMapperProviding {
         mappers.append(
             SourceRootPathProjectMapper()
         )
+
+        if skipUITests {
+            mappers.append(
+                PruneUITestsProjectMapper()
+            )
+        }
 
         return SequentialProjectMapper(mappers: mappers)
     }
