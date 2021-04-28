@@ -18,6 +18,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Fix a bug for which when generating a `Resources` target from a `staticLibrary` or `staticFramework`, the parent's deployment target isn't passed to the new target. [#2830](https://github.com/tuist/tuist/pull/2830) by [@fila95](https://github.com/fila95)
 - Fix `.messagesExtension` default settings to include the appropriate `LD_RUNPATH_SEARCH_PATHS` [#2824](https://github.com/tuist/tuist/pull/2824) by [@kwridan](https://github.com/kwridan)
+- Fix the link to documented guidelines in pull request template [#2833](https://github.com/tuist/tuist/pull/2833) by [@mollyIV](https://github.com/mollyIV).
 
 ## 1.40.0
 
