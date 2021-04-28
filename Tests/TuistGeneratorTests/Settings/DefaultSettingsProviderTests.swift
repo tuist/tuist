@@ -31,6 +31,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         "ENABLE_TESTABILITY": "YES",
         "ALWAYS_SEARCH_USER_PATHS": "NO",
         "GCC_NO_COMMON_BLOCKS": "YES",
+        "CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER": "YES",
     ]
 
     private let projectEssentialReleaseSettings: [String: SettingValue] = [
@@ -51,6 +52,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         "ENABLE_NS_ASSERTIONS": "NO",
         "CLANG_CXX_LANGUAGE_STANDARD": "gnu++14",
         "VALIDATE_PRODUCT": "YES",
+        "CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER": "YES",
     ]
 
     private let appTargetEssentialDebugSettings: [String: SettingValue] = [
@@ -275,7 +277,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         // Then
 
         XCTAssertSettings(got, containsAll: projectEssentialDebugSettings)
-        XCTAssertEqual(got.count, 47)
+        XCTAssertEqual(got.count, 48)
     }
 
     func testProjectSettings_whenRecommendedRelease() throws {
@@ -296,7 +298,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
 
         // Then
         XCTAssertSettings(got, containsAll: projectEssentialReleaseSettings)
-        XCTAssertEqual(got.count, 44)
+        XCTAssertEqual(got.count, 45)
     }
 
     func testProjectSettings_whenNoneDebug() throws {

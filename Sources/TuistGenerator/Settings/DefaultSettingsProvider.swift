@@ -38,6 +38,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         "GCC_NO_COMMON_BLOCKS",
         "PRODUCT_NAME",
         "VALIDATE_PRODUCT",
+        "CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER",
     ]
 
     private static let essentialTargetSettings: Set<String> = [
