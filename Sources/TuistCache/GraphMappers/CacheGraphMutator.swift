@@ -116,6 +116,7 @@ class CacheGraphMutator: CacheGraphMutating {
         )
     }
 
+    // swiftlint:disable:next function_body_length
     fileprivate func mapDependencies(
         _ dependencies: Set<ValueGraphDependency>,
         graph: ValueGraph,

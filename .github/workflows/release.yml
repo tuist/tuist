@@ -18,7 +18,7 @@ jobs:
           fetch-depth: 0
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '2.x'
+          ruby-version: '2.7.2'
       - name: Install Bundler 2.1.4
         run: gem install bundler --version 2.1.4
       - uses: actions/cache@v2
@@ -31,8 +31,6 @@ jobs:
         run: |
           bundle config path gems/bundle
           bundle install --jobs 4 --retry 3
-      - name: Select Xcode 11.5
-        run: sudo xcode-select -switch /Applications/Xcode_11.5.app
       - name: Create a new release
         uses: fortmarek/tapestry-action@0.2.0
         env:

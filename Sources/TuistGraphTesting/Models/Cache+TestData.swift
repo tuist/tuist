@@ -4,7 +4,7 @@ import TSCBasic
 
 public extension Cache {
     static func test(profiles: [Cache.Profile] = [Cache.Profile.test()]) -> Cache {
-        Cache(profiles: profiles)
+        Cache(profiles: profiles, path: nil)
     }
 }
 

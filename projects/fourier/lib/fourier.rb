@@ -1,8 +1,8 @@
 # frozen_string_literal: true
 
 require "cli/ui"
-require "zeitwerk"
 require "thor"
+require "zeitwerk"
 
 ::CLI::UI::StdoutRouter.enable
 
@@ -37,6 +37,9 @@ module Fourier
 
     desc "format", "Format the project's code"
     subcommand "format", Commands::Format
+
+    desc "update", "Update project's components"
+    subcommand "update", Commands::Update
 
     desc "focus TARGET", "Edit Tuist's project focusing on the target TARGET"
     def focus(target)

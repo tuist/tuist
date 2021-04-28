@@ -8,17 +8,23 @@ public final class MockCarthageCommandGenerator: CarthageCommandGenerating {
 
     var invokedCommand = false
     var invokedCommandCount = 0
-    var invokedCommandParameters: CommandArgs?
-    var invokedCommandParametersList = [CommandArgs]()
-    var commandStub: ((CommandArgs) -> [String])?
+    var invokedCommandParameters: CommandParameters?
+    var invokedCommandParametersList = [CommandParameters]()
+    var commandStub: ((CommandParameters) -> [String])?
 
     public func command(path: AbsolutePath, platforms: Set<Platform>?, options: Set<CarthageDependencies.Options>?) -> [String] {
+        let parameters = CommandParameters(
+            path: path,
+            platforms: platforms,
+            options: options
+        )
+
         invokedCommand = true
         invokedCommandCount += 1
-        invokedCommandParameters = CommandArgs(path: path, platforms: platforms, options: options)
-        invokedCommandParametersList.append(CommandArgs(path: path, platforms: platforms, options: options))
+        invokedCommandParameters = parameters
+        invokedCommandParametersList.append(parameters)
         if let stub = commandStub {
-            return stub(CommandArgs(path: path, platforms: platforms, options: options))
+            return stub(parameters)
         } else {
             return []
         }
@@ -28,7 +34,7 @@ public final class MockCarthageCommandGenerator: CarthageCommandGenerating {
 // MARK: - Models
 
 extension MockCarthageCommandGenerator {
-    struct CommandArgs {
+    struct CommandParameters {
         let path: AbsolutePath
         let platforms: Set<Platform>?
         let options: Set<CarthageDependencies.Options>?

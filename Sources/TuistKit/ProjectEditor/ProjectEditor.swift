@@ -59,8 +59,9 @@ final class ProjectEditor: ProjectEditing {
     /// Utility to locate the custom templates directory
     let templatesDirectoryLocator: TemplatesDirectoryLocating
 
-    /// Builder used to compile and build the loaded plugins
-    let projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding
+    private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
+
+    private let projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring
 
     /// Xcode Project writer
     private let writer: XcodeProjWriting
@@ -73,7 +74,8 @@ final class ProjectEditor: ProjectEditing {
         helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator(),
         writer: XcodeProjWriting = XcodeProjWriter(),
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
-        projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding = ProjectDescriptionHelpersBuilder()
+        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory(),
+        projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring = ProjectDescriptionHelpersBuilderFactory()
     ) {
         self.generator = generator
         self.projectEditorMapper = projectEditorMapper
@@ -82,7 +84,8 @@ final class ProjectEditor: ProjectEditing {
         self.helpersDirectoryLocator = helpersDirectoryLocator
         self.writer = writer
         self.templatesDirectoryLocator = templatesDirectoryLocator
-        self.projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilder
+        self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
+        self.projectDescriptionHelpersBuilderFactory = projectDescriptionHelpersBuilderFactory
     }
 
     func edit(
@@ -93,6 +96,9 @@ final class ProjectEditor: ProjectEditing {
         let projectDescriptionPath = try resourceLocator.projectDescription()
         let projectManifests = manifestFilesLocator.locateProjectManifests(at: editingPath)
         let configPath = manifestFilesLocator.locateConfig(at: editingPath)
+        let cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories(config: nil)
+        let projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(
+            cacheDirectory: cacheDirectory.projectDescriptionHelpersCacheDirectory)
         let dependenciesPath = manifestFilesLocator.locateDependencies(at: editingPath)
         let setupPath = manifestFilesLocator.locateSetup(at: editingPath)
 
@@ -108,7 +114,8 @@ final class ProjectEditor: ProjectEditing {
         let builtPluginHelperModules = try buildRemotePluginModules(
             in: editingPath,
             projectDescriptionPath: projectDescriptionPath,
-            plugins: plugins
+            plugins: plugins,
+            projectDescriptionHelpersBuilder: projectDescriptionHelpersBuilder
         )
 
         /// We error if the user tries to edit a project in a directory where there are no editable files.
@@ -158,7 +165,8 @@ final class ProjectEditor: ProjectEditing {
     private func buildRemotePluginModules(
         in path: AbsolutePath,
         projectDescriptionPath: AbsolutePath,
-        plugins: Plugins
+        plugins: Plugins,
+        projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding
     ) throws -> [ProjectDescriptionHelpersModule] {
         let loadedPluginHelpers = plugins.projectDescriptionHelpers.filter { $0.location == .remote }
         return try projectDescriptionHelpersBuilder.buildPlugins(

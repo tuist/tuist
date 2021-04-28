@@ -41,6 +41,7 @@ final class TestService {
     private let contentHasher: ContentHashing
 
     private let testsCacheTemporaryDirectory: TemporaryDirectory
+    private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
 
     convenience init() throws {
         let testsCacheTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
@@ -56,7 +57,8 @@ final class TestService {
         xcodebuildController: XcodeBuildControlling = XcodeBuildController(),
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         simulatorController: SimulatorControlling = SimulatorController(),
-        contentHasher: ContentHashing = ContentHasher()
+        contentHasher: ContentHashing = ContentHasher(),
+        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory()
     ) {
         self.testsCacheTemporaryDirectory = testsCacheTemporaryDirectory
         self.testServiceGeneratorFactory = testServiceGeneratorFactory
@@ -64,8 +66,10 @@ final class TestService {
         self.buildGraphInspector = buildGraphInspector
         self.simulatorController = simulatorController
         self.contentHasher = contentHasher
+        self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
     }
 
+    // swiftlint:disable:next function_body_length
     func run(
         schemeName: String?,
         clean: Bool,
@@ -74,7 +78,14 @@ final class TestService {
         deviceName: String?,
         osVersion: String?
     ) throws {
-        let projectDirectory = Environment.shared.projectsCacheDirectory
+        // Load config
+        let manifestLoaderFactory = ManifestLoaderFactory()
+        let manifestLoader = manifestLoaderFactory.createManifestLoader()
+        let configLoader = ConfigLoader(manifestLoader: manifestLoader)
+        let config = try configLoader.loadConfig(path: path)
+        let cacheDirectoriesProvider = try cacheDirectoryProviderFactory.cacheDirectories(config: config)
+
+        let projectDirectory = cacheDirectoriesProvider.generatedAutomationProjectsDirectory
             .appending(component: "\(try contentHasher.hash(path.pathString))")
         if !FileHandler.shared.exists(projectDirectory) {
             try FileHandler.shared.createFolder(projectDirectory)
@@ -92,7 +103,8 @@ final class TestService {
         let graphTraverser = ValueGraphTraverser(graph: graph)
         let version = osVersion?.version()
 
-        let testableSchemes = buildGraphInspector.testableSchemes(graphTraverser: graphTraverser) + buildGraphInspector.projectSchemes(graphTraverser: graphTraverser)
+        let testableSchemes = buildGraphInspector.testableSchemes(graphTraverser: graphTraverser) +
+            buildGraphInspector.projectSchemes(graphTraverser: graphTraverser)
         logger.log(
             level: .debug,
             "Found the following testable schemes: \(Set(testableSchemes.map(\.name)).joined(separator: ", "))"
@@ -148,16 +160,16 @@ final class TestService {
             }
 
             if !FileHandler.shared.exists(
-                Environment.shared.testsCacheDirectory
+                cacheDirectoriesProvider.testsCacheDirectory
             ) {
-                try FileHandler.shared.createFolder(Environment.shared.testsCacheDirectory)
+                try FileHandler.shared.createFolder(cacheDirectoriesProvider.testsCacheDirectory)
             }
 
-            // Saving hashes to `testsCacheTemporaryDirectory` after all the tests have run successfully
+            // Saving hashes from `testsCacheTemporaryDirectory` to `testsCacheDirectory` after all the tests have run successfully
             try FileHandler.shared
                 .contentsOfDirectory(testsCacheTemporaryDirectory.path)
                 .forEach { hashPath in
-                    let destination = Environment.shared.testsCacheDirectory.appending(component: hashPath.basename)
+                    let destination = cacheDirectoriesProvider.testsCacheDirectory.appending(component: hashPath.basename)
                     guard !FileHandler.shared.exists(destination) else { return }
                     try FileHandler.shared.move(
                         from: hashPath,

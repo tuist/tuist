@@ -51,7 +51,7 @@ public final class BinaryLocator: BinaryLocating {
                 .removingLastComponent()
                 .removingLastComponent()
                 .removingLastComponent()
-                .appending(RelativePath("vendor"))
+                .appending(RelativePath("projects/tuist/vendor"))
         #else
             let bundlePath = AbsolutePath(Bundle(for: BinaryLocator.self).bundleURL.path)
         #endif
@@ -64,7 +64,7 @@ public final class BinaryLocator: BinaryLocating {
 
     public func swiftLintPath() throws -> AbsolutePath {
         let candidates = try binariesPaths().map { path in
-            path.appending(component: Constants.Vendor.swiftLint)
+            path.appending(components: Constants.Vendor.swiftLint, Constants.Vendor.swiftLint)
         }
 
         guard let existingPath = candidates.first(where: FileHandler.shared.exists) else {
@@ -75,7 +75,7 @@ public final class BinaryLocator: BinaryLocating {
 
     public func swiftDocPath() throws -> AbsolutePath {
         let candidates = try binariesPaths().map { path in
-            path.appending(component: Constants.Vendor.swiftDoc)
+            path.appending(components: Constants.Vendor.swiftDoc, Constants.Vendor.swiftDoc)
         }
 
         guard let existingPath = candidates.first(where: FileHandler.shared.exists) else {
@@ -86,7 +86,7 @@ public final class BinaryLocator: BinaryLocating {
 
     public func xcbeautifyPath() throws -> AbsolutePath {
         let candidates = try binariesPaths().map { path in
-            path.appending(component: Constants.Vendor.xcbeautify)
+            path.appending(components: Constants.Vendor.xcbeautify, Constants.Vendor.xcbeautify)
         }
 
         guard let existingPath = candidates.first(where: FileHandler.shared.exists) else {

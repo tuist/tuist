@@ -11,7 +11,7 @@ community_topic: https://community.tuist.io/t/marek-forts-interview/68
 
 This post is the first one of a series of interviews about how different companies in the industry are doing app development at scale.
 Our first interviewee is Marek Fořt, iOS developer at [AckeeCZ](https://www.ackee.cz/en), an app development studio based in the Czech republic.
-Marek is a core member of Tuist, and has been the brain behind features like [scaffolding](/docs/commands/scaffold/), and soon signing management.
+Marek is a core member of Tuist, and has been the brain behind features like [scaffolding](https://docs.tuist.io/commands/scaffold/), and soon signing management.
 
 Let's dive right into Marek's experience doing app development at scale:
 
@@ -25,7 +25,7 @@ We have a platform-oriented _(iOS, Android, web...)_ teams structure - every tea
 
 ### What code paradigms and architectures do you follow?
 
-We use MVVM architecture with [ReactiveSwift](https://github.com/ReactiveCocoa/ReactiveSwift) for all of our projects currently, although we have also started experimenting with [Composable architecture](https://github.com/pointfreeco/swift-composable-architecture) and Combine since we think that Redux-like approach might be a better option once we start using SwiftUI. Along with the MVVM architecture we have also started using [microfeatures](/docs/building-at-scale/microfeatures/) approach for one of our larger projects - this has had the benefit of better separation of concerns, faster build times, we have also introduced an example app for each individual feature which means it is extremely easy to concentrate on the task at hand. You can check out our [MVVM template](https://github.com/AckeeCZ/iOS-MVVM-ProjectTemplate/): we are planning to publish a revamped version with the microfeatures and composable architecture approaches.
+We use MVVM architecture with [ReactiveSwift](https://github.com/ReactiveCocoa/ReactiveSwift) for all of our projects currently, although we have also started experimenting with [Composable architecture](https://github.com/pointfreeco/swift-composable-architecture) and Combine since we think that Redux-like approach might be a better option once we start using SwiftUI. Along with the MVVM architecture we have also started using [microfeatures](https://docs.tuist.io/building-at-scale/microfeatures/) approach for one of our larger projects - this has had the benefit of better separation of concerns, faster build times, we have also introduced an example app for each individual feature which means it is extremely easy to concentrate on the task at hand. You can check out our [MVVM template](https://github.com/AckeeCZ/iOS-MVVM-ProjectTemplate/): we are planning to publish a revamped version with the microfeatures and composable architecture approaches.
 
 ### If you have multiple apps, how do you share code between them and how do you use internal tools to automate repetitive processes?
 

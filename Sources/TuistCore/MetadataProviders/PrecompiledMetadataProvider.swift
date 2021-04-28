@@ -1,10 +1,12 @@
 import Foundation
+import MachO
 import TSCBasic
 import TuistGraph
 import TuistSupport
 
 enum PrecompiledMetadataProviderError: FatalError, Equatable {
     case architecturesNotFound(AbsolutePath)
+    case metadataNotFound(AbsolutePath)
 
     // MARK: - FatalError
 
@@ -12,12 +14,16 @@ enum PrecompiledMetadataProviderError: FatalError, Equatable {
         switch self {
         case let .architecturesNotFound(path):
             return "Couldn't find architectures for binary at path \(path.pathString)"
+        case let .metadataNotFound(path):
+            return "Couldn't find metadata for binary at path \(path.pathString)"
         }
     }
 
     var type: ErrorType {
         switch self {
         case .architecturesNotFound:
+            return .abort
+        case .metadataNotFound:
             return .abort
         }
     }
@@ -28,6 +34,10 @@ enum PrecompiledMetadataProviderError: FatalError, Equatable {
         switch (lhs, rhs) {
         case let (.architecturesNotFound(lhsPath), .architecturesNotFound(rhsPath)):
             return lhsPath == rhsPath
+        case let (.metadataNotFound(lhsPath), .metadataNotFound(rhsPath)):
+            return lhsPath == rhsPath
+        default:
+            return false
         }
     }
 }
@@ -47,62 +57,222 @@ public protocol PrecompiledMetadataProviding {
     func uuids(binaryPath: AbsolutePath) throws -> Set<UUID>
 }
 
+/// PrecompiledMetadataProvider reads a framework/library metadata using the Mach-o file format.
+/// Useful documentation:
+/// - https://opensource.apple.com/source/cctools/cctools-809/misc/lipo.c
+/// - https://opensource.apple.com/source/xnu/xnu-4903.221.2/EXTERNAL_HEADERS/mach-o/loader.h.auto.html
+
 public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
     public func architectures(binaryPath: AbsolutePath) throws -> [BinaryArchitecture] {
-        let result = try System.shared.capture("/usr/bin/lipo", "-info", binaryPath.pathString).spm_chuzzle() ?? ""
-        let regexes = [
-            // Non-fat file: path is architecture: x86_64
-            try NSRegularExpression(pattern: ".+:\\s.+\\sis\\sarchitecture:\\s(.+)", options: []),
-            // Architectures in the fat file: /path/xpm.framework/xpm are: x86_64 arm64
-            try NSRegularExpression(pattern: "Architectures\\sin\\sthe\\sfat\\sfile:.+:\\s(.+)", options: []),
-        ]
-
-        guard let architectures = regexes.compactMap({ (regex) -> [BinaryArchitecture]? in
-            guard let match = regex.firstMatch(in: result, options: [], range: NSRange(location: 0, length: result.count)) else {
-                return nil
-            }
-            let architecturesString = (result as NSString).substring(with: match.range(at: 1))
-            return architecturesString.split(separator: " ").map(String.init).compactMap(BinaryArchitecture.init)
-        }).first else {
-            throw PrecompiledMetadataProviderError.architecturesNotFound(binaryPath)
-        }
-        return architectures
+        let metadata = try readMetadatas(binaryPath: binaryPath)
+        return metadata.map { $0.0 }
     }
 
     public func linking(binaryPath: AbsolutePath) throws -> BinaryLinking {
-        let result = try System.shared.capture("/usr/bin/file", binaryPath.pathString).spm_chuzzle() ?? ""
-        return result.contains("dynamically linked") ? .dynamic : .static
+        let metadata = try readMetadatas(binaryPath: binaryPath)
+        return metadata.contains { $0.1 == BinaryLinking.dynamic } ? .dynamic : .static
     }
 
     public func uuids(binaryPath: AbsolutePath) throws -> Set<UUID> {
-        let output = try System.shared.capture(["/usr/bin/xcrun", "dwarfdump", "--uuid", binaryPath.pathString])
-        // UUIDs are letters, decimals, or hyphens.
-        var uuidCharacterSet = CharacterSet()
-        uuidCharacterSet.formUnion(.letters)
-        uuidCharacterSet.formUnion(.decimalDigits)
-        uuidCharacterSet.formUnion(CharacterSet(charactersIn: "-"))
+        let metadata = try readMetadatas(binaryPath: binaryPath)
+        return Set(metadata.compactMap { $0.2 })
+    }
 
-        let scanner = Scanner(string: output)
-        var uuids = Set<UUID>()
+    typealias Metadata = (BinaryArchitecture, BinaryLinking, UUID?)
 
-        // The output of dwarfdump is a series of lines formatted as follows
-        // for each architecture:
-        //
-        //     UUID: <UUID> (<Architecture>) <PathToBinary>
-        //
-        while !scanner.isAtEnd {
-            scanner.scanString("UUID: ", into: nil)
+    private let sizeOfArchiveHeader: UInt64 = 60
+    private let archiveHeaderSizeOffset: UInt64 = 56
+    private let archiveFormatMagic = "!<arch>\n"
+    private let archiveExtendedFormat = "#1/"
 
-            var uuidString: NSString?
-            scanner.scanCharacters(from: uuidCharacterSet, into: &uuidString)
+    func readMetadatas(binaryPath: AbsolutePath) throws -> [Metadata] {
+        guard let binary = FileHandle(forReadingAtPath: binaryPath.pathString) else {
+            throw PrecompiledMetadataProviderError.metadataNotFound(binaryPath)
+        }
 
-            if let uuidString = uuidString as String?, let uuid = UUID(uuidString: uuidString) {
-                uuids.insert(uuid)
+        defer {
+            binary.closeFile()
+        }
+
+        let magic: UInt32 = binary.read()
+        binary.seek(to: 0)
+
+        if isFat(magic) {
+            return try readMetadatasFromFatHeader(binary: binary, binaryPath: binaryPath)
+        } else if let metadata = try readMetadataFromMachHeaderIfAvailable(binary: binary) {
+            return [metadata]
+        } else {
+            throw PrecompiledMetadataProviderError.metadataNotFound(binaryPath)
+        }
+    }
+
+    private func readMetadatasFromFatHeader(binary: FileHandle, binaryPath: AbsolutePath) throws -> [(BinaryArchitecture, BinaryLinking, UUID?)] {
+        let currentOffset = binary.currentOffset
+        let magic: UInt32 = binary.read()
+        binary.seek(to: currentOffset)
+
+        var header: fat_header = binary.read()
+        if shouldSwap(magic) {
+            swap_fat_header(&header, NX_UnknownByteOrder)
+        }
+
+        return try (0 ..< header.nfat_arch).map { _ in
+            var fatArch: fat_arch = binary.read()
+            if shouldSwap(magic) {
+                swap_fat_arch(&fatArch, 1, NX_UnknownByteOrder)
+            }
+            let currentOffset = binary.currentOffset
+
+            binary.seek(to: UInt64(fatArch.offset))
+            if let value = try readMetadataFromMachHeaderIfAvailable(binary: binary) {
+                binary.seek(to: currentOffset)
+                return value
+            } else {
+                binary.seek(to: currentOffset)
+
+                guard let architecture = readBinaryArchitecture(cputype: fatArch.cputype, cpusubtype: fatArch.cpusubtype) else {
+                    throw PrecompiledMetadataProviderError.architecturesNotFound(binaryPath)
+                }
+
+                return (architecture, .static, nil)
+            }
+        }
+    }
+
+    private func readMetadataFromMachHeaderIfAvailable(binary: FileHandle) throws -> (BinaryArchitecture, BinaryLinking, UUID?)? {
+        readArchiveFormatIfAvailable(binary: binary)
+
+        let currentOffset = binary.currentOffset
+        let magic: UInt32 = binary.read()
+        binary.seek(to: currentOffset)
+
+        guard isMagic(magic) else { return nil }
+
+        let cputype: cpu_type_t
+        let cpusubtype: cpu_subtype_t
+        let filetype: UInt32
+        let numOfCommands: UInt32
+
+        if is64(magic) {
+            var header: mach_header_64 = binary.read()
+            if shouldSwap(magic) {
+                swap_mach_header_64(&header, NX_UnknownByteOrder)
             }
 
-            // Scan until a newline or end of file.
-            scanner.scanUpToCharacters(from: .newlines, into: nil)
+            cputype = header.cputype
+            cpusubtype = header.cpusubtype
+            filetype = header.filetype
+            numOfCommands = header.ncmds
+        } else {
+            var header: mach_header = binary.read()
+            if shouldSwap(magic) {
+                swap_mach_header(&header, NX_UnknownByteOrder)
+            }
+            cputype = header.cputype
+            cpusubtype = header.cpusubtype
+            filetype = header.filetype
+            numOfCommands = header.ncmds
         }
-        return uuids
+
+        guard
+            let binaryArchitecture = readBinaryArchitecture(cputype: cputype, cpusubtype: cpusubtype)
+        else { return nil }
+
+        var uuid: UUID?
+
+        for _ in 0 ..< numOfCommands {
+            let currentOffset = binary.currentOffset
+            var loadCommand: load_command = binary.read()
+
+            if shouldSwap(magic) {
+                swap_load_command(&loadCommand, NX_UnknownByteOrder)
+            }
+
+            guard loadCommand.cmd == LC_UUID else {
+                binary.seek(to: currentOffset + UInt64(loadCommand.cmdsize))
+                continue
+            }
+
+            binary.seek(to: currentOffset)
+
+            var uuidCommand: uuid_command = binary.read()
+
+            if shouldSwap(magic) {
+                swap_uuid_command(&uuidCommand, NX_UnknownByteOrder)
+            }
+
+            uuid = UUID(uuid: uuidCommand.uuid)
+            break
+        }
+
+        let binaryLinking = filetype == MH_DYLIB ? BinaryLinking.dynamic : BinaryLinking.static
+        return (binaryArchitecture, binaryLinking, uuid)
+    }
+
+    private func readBinaryArchitecture(cputype: cpu_type_t, cpusubtype: cpu_subtype_t) -> BinaryArchitecture? {
+        guard
+            let archInfo = NXGetArchInfoFromCpuType(cputype, cpusubtype),
+            let arch = BinaryArchitecture(rawValue: String(cString: archInfo.pointee.name))
+        else {
+            return nil
+        }
+        return arch
+    }
+
+    private func readArchiveFormatIfAvailable(binary: FileHandle) {
+        let currentOffset = binary.currentOffset
+        let magic = binary.readData(ofLength: 8)
+        binary.seek(to: currentOffset)
+
+        guard String(data: magic, encoding: .ascii) == archiveFormatMagic else { return }
+
+        binary.seek(to: archiveHeaderSizeOffset)
+        guard let sizeString = binary.readString(ofLength: 10) else { return }
+
+        let size = strtoul(sizeString, nil, 10)
+        binary.seek(to: 8 + sizeOfArchiveHeader + UInt64(size))
+
+        guard let name = binary.readString(ofLength: 16) else { return }
+        binary.seek(to: binary.currentOffset - 16)
+
+        if name.hasPrefix(archiveExtendedFormat) {
+            let nameSize = strtoul(String(name.dropFirst(3)), nil, 10)
+            binary.seek(to: binary.currentOffset + sizeOfArchiveHeader + UInt64(nameSize))
+        } else {
+            binary.seek(to: binary.currentOffset + sizeOfArchiveHeader)
+        }
+    }
+
+    private func isMagic(_ magic: UInt32) -> Bool {
+        return [MH_MAGIC, MH_MAGIC_64, MH_CIGAM, MH_CIGAM_64, FAT_MAGIC, FAT_CIGAM].contains(magic)
+    }
+
+    private func is64(_ magic: UInt32) -> Bool {
+        [MH_MAGIC_64, MH_CIGAM_64].contains(magic)
+    }
+
+    private func shouldSwap(_ magic: UInt32) -> Bool {
+        return [MH_CIGAM, MH_CIGAM_64, FAT_CIGAM].contains(magic)
+    }
+
+    private func isFat(_ magic: UInt32) -> Bool {
+        return [FAT_MAGIC, FAT_CIGAM].contains(magic)
+    }
+}
+
+private extension FileHandle {
+    var currentOffset: UInt64 { offsetInFile }
+
+    func seek(to offset: UInt64) {
+        seek(toFileOffset: offset)
+    }
+
+    func read<T>() -> T {
+        readData(ofLength: MemoryLayout<T>.size).withUnsafeBytes { $0.load(as: T.self) }
+    }
+
+    func readString(ofLength length: Int) -> String? {
+        let sizeData = readData(ofLength: length)
+        return String(data: sizeData, encoding: .ascii)
     }
 }

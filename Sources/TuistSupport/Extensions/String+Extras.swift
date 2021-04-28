@@ -144,7 +144,7 @@ extension String {
     /// - Returns: Shell escaped string.
     func shellEscaped() -> String {
         // If all the characters in the string are in whitelist then no need to escape.
-        guard let pos = utf8.firstIndex(where: { !inShellWhitelist($0) }) else {
+        guard let pos = utf8.firstIndex(where: { mustBeEscaped($0) }) else {
             return self
         }
 
@@ -174,7 +174,7 @@ extension String {
         self = shellEscaped()
     }
 
-    private func inShellWhitelist(_ codeUnit: UInt8) -> Bool {
+    private func mustBeEscaped(_ codeUnit: UInt8) -> Bool {
         switch codeUnit {
         case UInt8(ascii: "a") ... UInt8(ascii: "z"),
              UInt8(ascii: "A") ... UInt8(ascii: "Z"),
@@ -189,9 +189,9 @@ extension String {
              UInt8(ascii: "="),
              UInt8(ascii: "."),
              UInt8(ascii: ","):
-            return true
-        default:
             return false
+        default:
+            return true
         }
     }
 }

@@ -542,6 +542,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         ])
         let templateSources = try createFiles([
             "Templates/custom.swift",
+            "Templates/strings.stencil",
         ])
         // When
         let graph = try subject.map(

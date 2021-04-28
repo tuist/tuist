@@ -16,9 +16,10 @@ module Fourier
 
           def call
             args = ["--format", "pretty"]
+            args.concat(["--require", Constants::FEATURES_DIRECTORY])
 
             args << if feature.nil?
-              File.join(Constants::TUIST_DIRECTORY, "features/")
+              Constants::FEATURES_DIRECTORY
             else
               feature
             end

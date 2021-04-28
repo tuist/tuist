@@ -20,6 +20,7 @@ public final class PluginService: PluginServicing {
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let fileHandler: FileHandling
     private let gitHandler: GitHandling
+    private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
 
     /// Creates a `PluginService`.
     /// - Parameters:
@@ -31,17 +32,20 @@ public final class PluginService: PluginServicing {
         manifestLoader: ManifestLoading = ManifestLoader(),
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
         fileHandler: FileHandling = FileHandler.shared,
-        gitHandler: GitHandling = GitHandler()
+        gitHandler: GitHandling = GitHandler(),
+        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory()
     ) {
         self.manifestLoader = manifestLoader
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.fileHandler = fileHandler
         self.gitHandler = gitHandler
+        self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
     }
 
     public func loadPlugins(using config: Config) throws -> Plugins {
         guard !config.plugins.isEmpty else { return .none }
 
+        let cacheDirectories = try cacheDirectoryProviderFactory.cacheDirectories(config: config)
         let localPluginPaths: [AbsolutePath] = config.plugins
             .compactMap { pluginLocation in
                 switch pluginLocation {
@@ -60,7 +64,7 @@ public final class PluginService: PluginServicing {
                 switch pluginLocation {
                 case let .gitWithSha(url, id),
                      let .gitWithTag(url, id):
-                    return try fetchGitPlugin(at: url, with: id)
+                    return try fetchGitPlugin(at: url, with: id, cacheDirectory: cacheDirectories.pluginCacheDirectory)
                 case .local:
                     return nil
                 }
@@ -79,19 +83,26 @@ public final class PluginService: PluginServicing {
             }
 
         let templatePaths = try pluginPaths.flatMap(templatePaths(pluginPath:))
+        let resourceSynthesizerPlugins = zip(
+            (localPluginManifests + remotePluginManifests).map(\.name),
+            pluginPaths
+                .map { $0.appending(component: Constants.resourceSynthesizersDirectoryName) }
+        )
+        .filter { _, path in FileHandler.shared.exists(path) }
+        .map(PluginResourceSynthesizer.init)
 
         return Plugins(
             projectDescriptionHelpers: localProjectDescriptionHelperPlugins + remoteProjectDescriptionHelperPlugins,
-            templatePaths: templatePaths
+            templatePaths: templatePaths,
+            resourceSynthesizers: resourceSynthesizerPlugins
         )
     }
 
     /// fetches the git plugins from the remote server and caches them in
     /// the Tuist cache with a unique fingerprint
-    private func fetchGitPlugin(at url: String, with gitId: String) throws -> AbsolutePath {
+    private func fetchGitPlugin(at url: String, with gitId: String, cacheDirectory: AbsolutePath) throws -> AbsolutePath {
         let fingerprint = "\(url)-\(gitId)".md5
-        let pluginDirectory = Environment.shared.cacheDirectory
-            .appending(RelativePath(Constants.pluginsDirectoryName))
+        let pluginDirectory = cacheDirectory
             .appending(RelativePath(fingerprint))
 
         guard !fileHandler.exists(pluginDirectory) else {

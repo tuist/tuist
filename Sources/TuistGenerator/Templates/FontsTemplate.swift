@@ -2,6 +2,8 @@
 extension SynthesizedResourceInterfaceTemplates {
     static let fontsTemplate = """
     // swiftlint:disable all
+    // swift-format-ignore-file
+    // swiftformat:disable all
     // Generated using tuist — https://github.com/tuist/tuist
 
     {% if families %}
@@ -106,6 +108,8 @@ extension SynthesizedResourceInterfaceTemplates {
     {% else %}
     // No fonts found
     {% endif %}
+    // swiftlint:enable all
+    // swiftformat:enable all
 
     """
 }

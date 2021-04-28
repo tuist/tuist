@@ -11,7 +11,7 @@ import TuistSupport
 protocol Generating {
     @discardableResult
     func load(path: AbsolutePath) throws -> ValueGraph
-    func loadProject(path: AbsolutePath) throws -> (Project, ValueGraph, [SideEffectDescriptor])
+    func loadProject(path: AbsolutePath) throws -> (Project, ValueGraph, [SideEffectDescriptor]) // swiftlint:disable:this large_tuple
     func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath
     func generateWithGraph(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, ValueGraph)
     func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, ValueGraph)
@@ -53,9 +53,8 @@ class Generator: Generating {
     ) {
         let manifestLoader = manifestLoaderFactory.createManifestLoader()
         recursiveManifestLoader = RecursiveManifestLoader(manifestLoader: manifestLoader)
-        converter = GeneratorModelLoader(
-            manifestLoader: manifestLoader,
-            manifestLinter: manifestLinter
+        converter = ManifestModelConverter(
+            manifestLoader: manifestLoader
         )
         sideEffectDescriptorExecutor = SideEffectDescriptorExecutor()
         self.graphMapperProvider = graphMapperProvider
@@ -119,7 +118,7 @@ class Generator: Generating {
         }.printAndThrowIfNeeded()
 
         // Convert to models
-        let models = try convert(manifests: manifests)
+        let models = try convert(manifests: manifests, plugins: plugins)
 
         // Apply any registered model mappers
         let projectMapper = projectMapperProvider.mapper(config: config)
@@ -244,7 +243,7 @@ class Generator: Generating {
         }.printAndThrowIfNeeded()
 
         // Convert to models
-        let projects = try convert(manifests: manifests)
+        let projects = try convert(manifests: manifests, plugins: plugins)
 
         let workspaceName = manifests.projects[path]?.name ?? "Workspace"
         let workspace = Workspace(
@@ -285,7 +284,6 @@ class Generator: Generating {
         )
     }
 
-    // swiftlint:disable:next large_tuple
     private func loadWorkspace(path: AbsolutePath) throws -> (ValueGraph, [SideEffectDescriptor]) {
         // Load config
         let config = try configLoader.loadConfig(path: path)
@@ -303,7 +301,7 @@ class Generator: Generating {
         }.printAndThrowIfNeeded()
 
         // Convert to models
-        let models = try convert(manifests: manifests)
+        let models = try convert(manifests: manifests, plugins: plugins)
 
         // Apply model mappers
         let workspaceMapper = workspaceMapperProvider.mapper(config: config)
@@ -326,22 +324,26 @@ class Generator: Generating {
         return (mappedGraph, modelMapperSideEffects + graphMapperSideEffects)
     }
 
-    private func convert(manifests: LoadedProjects,
-                         context: ExecutionContext = .concurrent) throws -> [TuistGraph.Project]
-    {
+    private func convert(
+        manifests: LoadedProjects,
+        plugins: Plugins,
+        context: ExecutionContext = .concurrent
+    ) throws -> [TuistGraph.Project] {
         let tuples = manifests.projects.map { (path: $0.key, manifest: $0.value) }
         return try tuples.map(context: context) {
-            try converter.convert(manifest: $0.manifest, path: $0.path)
+            try converter.convert(manifest: $0.manifest, path: $0.path, plugins: plugins)
         }
     }
 
-    private func convert(manifests: LoadedWorkspace,
-                         context: ExecutionContext = .concurrent) throws -> (workspace: Workspace, projects: [TuistGraph.Project])
-    {
+    private func convert(
+        manifests: LoadedWorkspace,
+        plugins: Plugins,
+        context: ExecutionContext = .concurrent
+    ) throws -> (workspace: Workspace, projects: [TuistGraph.Project]) {
         let workspace = try converter.convert(manifest: manifests.workspace, path: manifests.path)
         let tuples = manifests.projects.map { (path: $0.key, manifest: $0.value) }
         let projects = try tuples.map(context: context) {
-            try converter.convert(manifest: $0.manifest, path: $0.path)
+            try converter.convert(manifest: $0.manifest, path: $0.path, plugins: plugins)
         }
         return (workspace, projects)
     }

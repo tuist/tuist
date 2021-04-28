@@ -19,6 +19,7 @@ gem "octokit", "~> 4.20"
 gem "zeitwerk", "~> 2.4"
 gem "cli-kit", "~> 3.3"
 gem "semantic", "~> 1.6"
+gem "down", "~> 5.2"
 
 group :test do
   gem "mocha", "~> 1.12"
@@ -27,8 +28,8 @@ group :test do
 end
 
 group :development do
-  gem 'rubocop-shopify'
-  gem "rubocop-minitest", "~> 0.10.3"
+  gem "rubocop-shopify"
+  gem "rubocop-minitest", "~> 0.11.1"
   gem "rubocop-rake", "~> 0.5.1"
 end
 

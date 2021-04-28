@@ -11,6 +11,11 @@ module Fourier
       def next
         Services::Serve::Next.call
       end
+
+      desc "docs", "Serve the documentation website"
+      def docs
+        Services::Serve::Docs.call
+      end
     end
   end
 end

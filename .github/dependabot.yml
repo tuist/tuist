@@ -1,7 +1,20 @@
 version: 2
 updates:
   - package-ecosystem: npm
-    directory: '/website'
+    directory: '/projects/website'
+    schedule:
+      interval: monthly
+      time: '11:00'
+    open-pull-requests-limit: 10
+    reviewers:
+      - tuist/core
+    labels:
+      - dependencies
+      - automerge
+    ignore:
+      - dependency-name: 'theme-ui/*'
+  - package-ecosystem: npm
+    directory: '/projects/next'
     schedule:
       interval: monthly
       time: '11:00'
@@ -12,7 +25,7 @@ updates:
       - dependencies
       - automerge
   - package-ecosystem: npm
-    directory: '/next'
+    directory: '/projects/docs'
     schedule:
       interval: monthly
       time: '11:00'

@@ -56,7 +56,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
     ///   - helpersDirectoryLocating: Instance to locate the helpers directory.
     public init(
         projectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing = ProjectDescriptionHelpersHasher(),
-        cacheDirectory: AbsolutePath = Environment.shared.projectDescriptionHelpersCacheDirectory,
+        cacheDirectory: AbsolutePath,
         helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator()
     ) {
         self.projectDescriptionHelpersHasher = projectDescriptionHelpersHasher

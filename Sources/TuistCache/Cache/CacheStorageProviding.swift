@@ -7,5 +7,5 @@ public protocol CacheStorageProviding: AnyObject {
     init(config: Config)
 
     /// Given a configuration, it returns the storages that should be used.
-    func storages() -> [CacheStoring]
+    func storages() throws -> [CacheStoring]
 }

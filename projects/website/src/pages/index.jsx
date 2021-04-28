@@ -105,10 +105,7 @@ const Steroids = () => {
               Bootstrap, maintain, and interact with
               <br /> Xcode projects at any scale
             </div>
-            <GradientButton
-              title="GET STARTED"
-              link="/docs/usage/get-started/"
-            />
+            <GradientButton title="GET STARTED" link="https://docs.tuist.io/" />
 
             <div
               sx={{ color: 'gray', mt: 5, textAlign: 'center' }}
@@ -569,7 +566,7 @@ const Contribute = () => {
           <div className="mt-8 flex justify-center">
             <div className="inline-flex rounded-md shadow">
               <Link
-                to="/docs/usage/get-started/"
+                to="https://docs.tuist.io"
                 sx={{
                   color: 'background',
                   bg: 'primary',

@@ -1,23 +1,7 @@
 import Foundation
 import TSCBasic
 
-public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebugStringConvertible {
-    public static func == (lhs: Project, rhs: Project) -> Bool {
-        lhs.path == rhs.path &&
-            lhs.sourceRootPath == rhs.sourceRootPath &&
-            lhs.xcodeProjPath == rhs.xcodeProjPath &&
-            lhs.name == rhs.name &&
-            lhs.organizationName == rhs.organizationName &&
-            lhs.developmentRegion == rhs.developmentRegion &&
-            lhs.targets == rhs.targets &&
-            lhs.packages == rhs.packages &&
-            lhs.schemes == rhs.schemes &&
-            lhs.settings == rhs.settings &&
-            lhs.filesGroup == rhs.filesGroup &&
-            lhs.additionalFiles == rhs.additionalFiles &&
-            lhs.ideTemplateMacros == rhs.ideTemplateMacros
-    }
-
+public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebugStringConvertible, Codable {
     // MARK: - Attributes
 
     /// Path to the folder that contains the project manifest.
@@ -59,6 +43,9 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     /// IDE template macros that represent content of IDETemplateMacros.plist
     public var ideTemplateMacros: IDETemplateMacros?
 
+    /// `ResourceSynthesizers` that will be applied on individual target's resources
+    public let resourceSynthesizers: [ResourceSynthesizer]
+
     // MARK: - Init
 
     /// Initializes the project with its attributes.
@@ -75,20 +62,22 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     ///   - targets: The project targets
     ///   - additionalFiles: The additional files to include in the project
     ///                      *(Those won't be included in any build phases)*
-    public init(path: AbsolutePath,
-                sourceRootPath: AbsolutePath,
-                xcodeProjPath: AbsolutePath,
-                name: String,
-                organizationName: String?,
-                developmentRegion: String?,
-                settings: Settings,
-                filesGroup: ProjectGroup,
-                targets: [Target],
-                packages: [Package],
-                schemes: [Scheme],
-                ideTemplateMacros: IDETemplateMacros?,
-                additionalFiles: [FileElement])
-    {
+    public init(
+        path: AbsolutePath,
+        sourceRootPath: AbsolutePath,
+        xcodeProjPath: AbsolutePath,
+        name: String,
+        organizationName: String?,
+        developmentRegion: String?,
+        settings: Settings,
+        filesGroup: ProjectGroup,
+        targets: [Target],
+        packages: [Package],
+        schemes: [Scheme],
+        ideTemplateMacros: IDETemplateMacros?,
+        additionalFiles: [FileElement],
+        resourceSynthesizers: [ResourceSynthesizer]
+    ) {
         self.path = path
         self.sourceRootPath = sourceRootPath
         self.xcodeProjPath = xcodeProjPath
@@ -102,6 +91,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
         self.filesGroup = filesGroup
         self.ideTemplateMacros = ideTemplateMacros
         self.additionalFiles = additionalFiles
+        self.resourceSynthesizers = resourceSynthesizers
     }
 
     // MARK: - CustomStringConvertible
@@ -140,7 +130,8 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
             packages: packages,
             schemes: schemes,
             ideTemplateMacros: ideTemplateMacros,
-            additionalFiles: additionalFiles
+            additionalFiles: additionalFiles,
+            resourceSynthesizers: resourceSynthesizers
         )
     }
 
@@ -160,7 +151,8 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
             packages: packages,
             schemes: schemes,
             ideTemplateMacros: ideTemplateMacros,
-            additionalFiles: additionalFiles
+            additionalFiles: additionalFiles,
+            resourceSynthesizers: resourceSynthesizers
         )
     }
 

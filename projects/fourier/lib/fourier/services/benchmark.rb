@@ -31,10 +31,10 @@ module Fourier
             "paths" => [
               File.join(tmp_dir, "50_projects"),
               File.join(tmp_dir, "2000_sources"),
-              File.join(Constants::ROOT_DIRECTORY, "fixtures/ios_app_with_static_frameworks"),
-              File.join(Constants::ROOT_DIRECTORY, "fixtures/ios_app_with_framework_and_resources"),
-              File.join(Constants::ROOT_DIRECTORY, "fixtures/ios_app_with_transitive_framework"),
-              File.join(Constants::ROOT_DIRECTORY, "fixtures/ios_app_with_xcframeworks"),
+              File.join(Constants::FIXTURES_DIRECTORY, "ios_app_with_static_frameworks"),
+              File.join(Constants::FIXTURES_DIRECTORY, "ios_app_with_framework_and_resources"),
+              File.join(Constants::FIXTURES_DIRECTORY, "ios_app_with_transitive_framework"),
+              File.join(Constants::FIXTURES_DIRECTORY, "ios_app_with_xcframeworks"),
             ],
           }
           File.write(fixture_list_path, fixtures.to_json)

@@ -1,6 +1,6 @@
 import Foundation
 
-public struct Arguments: Equatable {
+public struct Arguments: Equatable, Codable {
     // MARK: - Attributes
 
     public let environment: [String: String]

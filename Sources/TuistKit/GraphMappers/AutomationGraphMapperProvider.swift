@@ -20,7 +20,7 @@ final class AutomationGraphMapperProvider: GraphMapperProviding {
         var mappers: [GraphMapping] = []
         mappers.append(graphMapperProvider.mapper(config: config))
         mappers.append(
-            TestsCacheGraphMapper(testsCacheDirectory: testsCacheDirectory)
+            TestsCacheGraphMapper(hashesCacheDirectory: testsCacheDirectory, config: config)
         )
         return SequentialGraphMapper(mappers)
     }

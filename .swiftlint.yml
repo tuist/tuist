@@ -32,6 +32,9 @@ identifier_name:
   min_length:
     error: 1
     warning: 1
+inclusive_language:
+  override_allowed_terms:
+    - masterKey
 type_name:
   min_length:
     error: 1

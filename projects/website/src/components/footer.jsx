@@ -1,10 +1,7 @@
 /** @jsx jsx */
 import { jsx, Styled, useThemeUI } from 'theme-ui'
 import { useStaticQuery, graphql, Link } from 'gatsby'
-import {
-  faGithub,
-  faTwitter,
-} from '@fortawesome/free-brands-svg-icons'
+import { faGithub, faTwitter } from '@fortawesome/free-brands-svg-icons'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 
 export default () => {
@@ -12,12 +9,7 @@ export default () => {
 
   const {
     site: {
-      siteMetadata: {
-        githubUrl,
-        slackUrl,
-        releasesUrl,
-        twitterUrl,
-      },
+      siteMetadata: { githubUrl, slackUrl, releasesUrl, twitterUrl },
     },
   } = useStaticQuery(graphql`
     query {
@@ -48,7 +40,7 @@ export default () => {
             <div className="px-5 py-2">
               <Link
                 alt="Opens the project documentation/"
-                to="/docs/usage/get-started/"
+                to="https://docs.tuist.io"
                 className="text-base leading-6"
                 sx={{ color: 'gray', ':hover': { color: 'primary' } }}
               >

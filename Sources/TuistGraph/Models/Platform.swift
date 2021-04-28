@@ -1,6 +1,6 @@
 import Foundation
 
-public enum Platform: String, CaseIterable {
+public enum Platform: String, CaseIterable, Codable {
     case iOS = "ios"
     case macOS = "macos"
     case tvOS = "tvos"

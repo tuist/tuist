@@ -5,8 +5,12 @@ import TuistGraph
 import TuistSupport
 
 extension TuistGraph.Cache {
-    static func from(manifest: ProjectDescription.Cache) -> TuistGraph.Cache {
-        TuistGraph.Cache(profiles: manifest.profiles.map(TuistGraph.Cache.Profile.from(manifest:)))
+    static func from(manifest: ProjectDescription.Cache,
+                     generatorPaths: GeneratorPaths) throws -> TuistGraph.Cache
+    {
+        let path = try manifest.path.map { try generatorPaths.resolve(path: $0) }
+        let profiles = manifest.profiles.map(TuistGraph.Cache.Profile.from(manifest:))
+        return TuistGraph.Cache(profiles: profiles, path: path)
     }
 }
 

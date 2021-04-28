@@ -13,10 +13,10 @@ extension TuistGraph.TargetAction {
     static func from(manifest: ProjectDescription.TargetAction, generatorPaths: GeneratorPaths) throws -> TuistGraph.TargetAction {
         let name = manifest.name
         let order = TuistGraph.TargetAction.Order.from(manifest: manifest.order)
-        let inputPaths = try manifest.inputPaths.map { try generatorPaths.resolve(path: $0) }
-        let inputFileListPaths = try manifest.inputFileListPaths.map { try generatorPaths.resolve(path: $0) }
-        let outputPaths = try manifest.outputPaths.map { try generatorPaths.resolve(path: $0) }
-        let outputFileListPaths = try manifest.outputFileListPaths.map { try generatorPaths.resolve(path: $0) }
+        let inputPaths = try absolutePaths(for: manifest.inputPaths, generatorPaths: generatorPaths)
+        let inputFileListPaths = try absolutePaths(for: manifest.inputFileListPaths, generatorPaths: generatorPaths)
+        let outputPaths = try absolutePaths(for: manifest.outputPaths, generatorPaths: generatorPaths)
+        let outputFileListPaths = try absolutePaths(for: manifest.outputFileListPaths, generatorPaths: generatorPaths)
         let basedOnDependencyAnalysis = manifest.basedOnDependencyAnalysis
 
         let script: TuistGraph.TargetAction.Script
@@ -42,6 +42,18 @@ extension TuistGraph.TargetAction {
             outputFileListPaths: outputFileListPaths,
             basedOnDependencyAnalysis: basedOnDependencyAnalysis
         )
+    }
+
+    private static func absolutePaths(for paths: [Path], generatorPaths: GeneratorPaths) throws -> [AbsolutePath] {
+        try paths.map { (path: Path) -> [AbsolutePath] in
+            // avoid globbing paths that contain variables
+            if path.pathString.contains("$") {
+                return [try generatorPaths.resolve(path: path)]
+            }
+            let absolutePath = try generatorPaths.resolve(path: path)
+            let base = AbsolutePath(absolutePath.dirname)
+            return try base.throwingGlob(absolutePath.basename)
+        }.reduce([], +)
     }
 }
 

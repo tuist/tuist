@@ -5,11 +5,13 @@ import TSCBasic
 public extension Plugins {
     static func test(
         projectDescriptionHelpers: [ProjectDescriptionHelpersPlugin] = [],
-        templatePaths: [AbsolutePath] = []
+        templatePaths: [AbsolutePath] = [],
+        resourceSynthesizers: [PluginResourceSynthesizer] = []
     ) -> Plugins {
         Plugins(
             projectDescriptionHelpers: projectDescriptionHelpers,
-            templatePaths: templatePaths
+            templatePaths: templatePaths,
+            resourceSynthesizers: resourceSynthesizers
         )
     }
 }

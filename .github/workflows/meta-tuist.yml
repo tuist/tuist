@@ -11,7 +11,7 @@ on:
       - Package.resolved
       - Sources/**
       - Tests/**
-      - features/**
+      - projects/tuist/features/**
       - Project.swift
 
 env:

@@ -1,11 +1,15 @@
 import Foundation
 import TSCBasic
 
-public struct Target: Equatable, Hashable, Comparable {
+public struct Target: Equatable, Hashable, Comparable, Codable {
     // MARK: - Static
 
-    public static let validSourceExtensions: [String] = ["m", "swift", "mm", "cpp", "c", "d", "s", "intentdefinition", "xcmappingmodel", "metal", "mlmodel"]
-    public static let validFolderExtensions: [String] = ["framework", "bundle", "app", "xcassets", "appiconset", "scnassets"]
+    public static let validSourceExtensions: [String] = [
+        "m", "swift", "mm", "cpp", "c", "d", "s", "intentdefinition", "xcmappingmodel", "metal", "mlmodel",
+    ]
+    public static let validFolderExtensions: [String] = [
+        "framework", "bundle", "app", "xcassets", "appiconset", "scnassets",
+    ]
 
     // MARK: - Attributes
 

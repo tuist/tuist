@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 
-public struct TestPlan: Equatable {
+public struct TestPlan: Equatable, Codable {
     public let path: AbsolutePath
     public let isDefault: Bool
 

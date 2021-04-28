@@ -31,7 +31,9 @@ final class ProjectMapperProviderTests: TuistUnitTestCase {
         subject = ProjectMapperProvider(contentHasher: ContentHasher())
 
         // When
-        let got = subject.mapper(config: Config.test(cloud: .test(options: [])))
+        let got = subject.mapper(
+            config: Config.test(cloud: .test(options: []))
+        )
 
         // Then
         let sequentialProjectMapper = try XCTUnwrap(got as? SequentialProjectMapper)
@@ -43,7 +45,9 @@ final class ProjectMapperProviderTests: TuistUnitTestCase {
         subject = ProjectMapperProvider(contentHasher: ContentHasher())
 
         // When
-        let got = subject.mapper(config: Config.test())
+        let got = subject.mapper(
+            config: Config.test()
+        )
 
         // Then
         let sequentialProjectMapper = try XCTUnwrap(got as? SequentialProjectMapper)
@@ -55,7 +59,9 @@ final class ProjectMapperProviderTests: TuistUnitTestCase {
         subject = ProjectMapperProvider(contentHasher: ContentHasher())
 
         // When
-        let got = subject.mapper(config: Config.test())
+        let got = subject.mapper(
+            config: Config.test()
+        )
 
         // Then
         let sequentialProjectMapper = try XCTUnwrap(got as? SequentialProjectMapper)
@@ -121,7 +127,9 @@ final class ProjectMapperProviderTests: TuistUnitTestCase {
         subject = ProjectMapperProvider(contentHasher: CacheContentHasher())
 
         // When
-        let got = subject.mapper(config: Config.test())
+        let got = subject.mapper(
+            config: Config.test()
+        )
 
         // Then
         let sequentialProjectMapper = try XCTUnwrap(got as? SequentialProjectMapper)

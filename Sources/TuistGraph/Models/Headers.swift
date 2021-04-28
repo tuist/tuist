@@ -2,7 +2,7 @@ import Foundation
 import TSCBasic
 
 /// Headers
-public struct Headers: Equatable {
+public struct Headers: Equatable, Codable {
     // MARK: - Attributes
 
     public let `public`: [AbsolutePath]
