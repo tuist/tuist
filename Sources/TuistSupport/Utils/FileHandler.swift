@@ -72,6 +72,7 @@ public protocol FileHandling: AnyObject {
     func fileSize(path: AbsolutePath) throws -> UInt64
     func changeExtension(path: AbsolutePath, to newExtension: String) throws -> AbsolutePath
     func resolveSymlinks(_ path: AbsolutePath) -> AbsolutePath
+    func fileAttributes(at path: AbsolutePath) throws -> [FileAttributeKey: Any]
 }
 
 public class FileHandler: FileHandling {
@@ -265,6 +266,10 @@ public class FileHandler: FileHandling {
 
     public func resolveSymlinks(_ path: AbsolutePath) -> AbsolutePath {
         TSCBasic.resolveSymlinks(path)
+    }
+
+    public func fileAttributes(at path: AbsolutePath) throws -> [FileAttributeKey: Any] {
+        try fileManager.attributesOfItem(atPath: path.pathString)
     }
 
     // MARK: - MD5

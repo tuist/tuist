@@ -7,6 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Add `tuist dependencies update` command. [#2819](https://github.com/tuist/tuist/pull/2819) by [@laxmorek](https://github.com/laxmorek)
+- Add `--build-output-path` option to `tuist build` [#2835](https://github.com/tuist/tuist/pull/2835) by [@Luis Padron](https://github.com/luispadron).
 
 ### Changed
 
