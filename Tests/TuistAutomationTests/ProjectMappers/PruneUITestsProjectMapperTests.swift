@@ -27,7 +27,7 @@ final class PruneUITestsProjectMapperTests: TuistUnitTestCase {
         let project = Project.test(
             targets: [
                 .test(name: "App", product: .app),
-                .test(name: "UITests", product: .uiTests)
+                .test(name: "UITests", product: .uiTests),
             ]
         )
 
@@ -38,7 +38,7 @@ final class PruneUITestsProjectMapperTests: TuistUnitTestCase {
             Project.test(
                 targets: [
                     .test(name: "App", product: .app),
-                    .test(name: "UITests", product: .uiTests, prune: true)
+                    .test(name: "UITests", product: .uiTests, prune: true),
                 ]
             )
         )
