@@ -36,6 +36,7 @@ public class ResourcesProjectMapper: ProjectMapping {
                 product: .bundle,
                 productName: nil,
                 bundleId: "\(target.bundleId).resources",
+                deploymentTarget: target.deploymentTarget,
                 infoPlist: .extendingDefault(with: [:]),
                 resources: target.resources,
                 copyFiles: target.copyFiles,
