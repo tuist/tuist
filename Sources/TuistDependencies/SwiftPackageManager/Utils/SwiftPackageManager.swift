@@ -18,27 +18,26 @@ public final class SwiftPackageManager: SwiftPackageManaging {
     public init() {}
 
     public func resolve(at path: AbsolutePath) throws {
-        let command = buildSwiftPackageCommand(packagePath: path, subcommand: ["resolve"])
+        let command = buildSwiftPackageCommand(packagePath: path, subcommand: "resolve")
 
         try System.shared.run(command)
     }
 
     public func update(at path: AbsolutePath) throws {
-        let command = buildSwiftPackageCommand(packagePath: path, subcommand: ["update"])
+        let command = buildSwiftPackageCommand(packagePath: path, subcommand: "update")
 
         try System.shared.run(command)
     }
 
     // MARK: - Helpers
 
-    private func buildSwiftPackageCommand(packagePath: AbsolutePath, subcommand: [String]) -> [String] {
+    private func buildSwiftPackageCommand(packagePath: AbsolutePath, subcommand: String) -> [String] {
         [
             "swift",
             "package",
             "--package-path",
             packagePath.pathString,
-        ]
-            +
             subcommand
+        ]
     }
 }

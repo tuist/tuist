@@ -12,7 +12,7 @@ public final class MockCarthage: Carthaging {
     var invokedBootstrapParametersList = [BootstrapParameters]()
     var bootstrapStub: ((BootstrapParameters) throws -> Void)?
 
-    public func bootstrap(at path: AbsolutePath, platforms: Set<Platform>?, options: Set<CarthageDependencies.Options>?) throws {
+    public func bootstrap(at path: AbsolutePath, platforms: Set<Platform>, options: Set<CarthageDependencies.Options>) throws {
         let parameters = BootstrapParameters(
             path: path,
             platforms: platforms,
@@ -32,7 +32,7 @@ public final class MockCarthage: Carthaging {
     var invokedUpdateParametersList = [UpdateParameters]()
     var updateStub: ((UpdateParameters) throws -> Void)?
 
-    public func update(at path: AbsolutePath, platforms: Set<Platform>?, options: Set<CarthageDependencies.Options>?) throws {
+    public func update(at path: AbsolutePath, platforms: Set<Platform>, options: Set<CarthageDependencies.Options>) throws {
         let parameters = UpdateParameters(
             path: path,
             platforms: platforms,
@@ -52,13 +52,13 @@ public final class MockCarthage: Carthaging {
 extension MockCarthage {
     struct BootstrapParameters {
         let path: AbsolutePath
-        let platforms: Set<Platform>?
-        let options: Set<CarthageDependencies.Options>?
+        let platforms: Set<Platform>
+        let options: Set<CarthageDependencies.Options>
 
         init(
             path: AbsolutePath,
-            platforms: Set<Platform>?,
-            options: Set<CarthageDependencies.Options>?
+            platforms: Set<Platform>,
+            options: Set<CarthageDependencies.Options>
         ) {
             self.path = path
             self.platforms = platforms
@@ -68,13 +68,13 @@ extension MockCarthage {
 
     struct UpdateParameters {
         let path: AbsolutePath
-        let platforms: Set<Platform>?
-        let options: Set<CarthageDependencies.Options>?
+        let platforms: Set<Platform>
+        let options: Set<CarthageDependencies.Options>
 
         init(
             path: AbsolutePath,
-            platforms: Set<Platform>?,
-            options: Set<CarthageDependencies.Options>?
+            platforms: Set<Platform>,
+            options: Set<CarthageDependencies.Options>
         ) {
             self.path = path
             self.platforms = platforms

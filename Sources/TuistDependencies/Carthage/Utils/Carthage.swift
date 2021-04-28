@@ -12,14 +12,14 @@ public protocol Carthaging {
     ///   - path: Directory whose project's dependencies will be installed.
     ///   - platforms: The platforms to build for.
     ///   - options: The options for Carthage installation.
-    func bootstrap(at path: AbsolutePath, platforms: Set<Platform>?, options: Set<CarthageDependencies.Options>?) throws
+    func bootstrap(at path: AbsolutePath, platforms: Set<Platform>, options: Set<CarthageDependencies.Options>) throws
 
     /// Updates and rebuilds the project's dependencies
     /// - Parameters:
     ///   - path: Directory whose project's dependencies will be installed.
     ///   - platforms: The platforms to build for.
     ///   - options: The options for Carthage installation.
-    func update(at path: AbsolutePath, platforms: Set<Platform>?, options: Set<CarthageDependencies.Options>?) throws
+    func update(at path: AbsolutePath, platforms: Set<Platform>, options: Set<CarthageDependencies.Options>) throws
 }
 
 // MARK: - Carthage Command Generator
@@ -27,68 +27,54 @@ public protocol Carthaging {
 public final class Carthage: Carthaging {
     public init() {}
 
-    public func bootstrap(at path: AbsolutePath, platforms: Set<Platform>?, options: Set<CarthageDependencies.Options>?) throws {
-        var commandComponents: [String] = []
-        commandComponents.append("carthage")
-        commandComponents.append("bootstrap")
-
-        commandComponents += projectDirecotryFlag(for: path)
-        commandComponents += plarformFlag(for: platforms)
-        commandComponents += additionalFlags(with: options)
-
-        try System.shared.run(commandComponents)
+    public func bootstrap(at path: AbsolutePath, platforms: Set<Platform>, options: Set<CarthageDependencies.Options>) throws {
+        let command = buildCarthageCommand(path: path, platforms: platforms, options: options, subcommand: "bootstrap")
+        try System.shared.run(command)
     }
 
-    public func update(at path: AbsolutePath, platforms: Set<Platform>?, options: Set<CarthageDependencies.Options>?) throws {
-        var commandComponents: [String] = []
-        commandComponents.append("carthage")
-        commandComponents.append("update")
-
-        commandComponents += projectDirecotryFlag(for: path)
-        commandComponents += plarformFlag(for: platforms)
-        commandComponents += additionalFlags(with: options)
-
-        try System.shared.run(commandComponents)
+    public func update(at path: AbsolutePath, platforms: Set<Platform>, options: Set<CarthageDependencies.Options>) throws {
+        let command = buildCarthageCommand(path: path, platforms: platforms, options: options, subcommand: "update")
+        try System.shared.run(command)
     }
 
     // MARK: - Helpers
-
-    private func projectDirecotryFlag(for path: AbsolutePath) -> [String] {
-        [
+    
+    private func buildCarthageCommand(path: AbsolutePath, platforms: Set<Platform>, options: Set<CarthageDependencies.Options>, subcommand: String) -> [String] {
+        var commandComponents: [String] = [
+            "carthage",
+            subcommand,
             "--project-directory",
             path.pathString,
         ]
-    }
-
-    private func plarformFlag(for platforms: Set<Platform>?) -> [String] {
-        guard let platforms = platforms, !platforms.isEmpty else { return [] }
-
-        return [
-            "--platform",
-            platforms
-                .map(\.caseValue)
-                .sorted()
-                .joined(separator: ","),
-        ]
-    }
-
-    private func additionalFlags(with options: Set<CarthageDependencies.Options>?) -> [String] {
-        var flags = [
+        
+        if !platforms.isEmpty {
+            commandComponents += [
+                "--platform",
+                platforms
+                    .map(\.caseValue)
+                    .sorted()
+                    .joined(separator: ","),
+            ]
+        }
+        
+        if !options.isEmpty {
+            commandComponents += options
+                .map { option in
+                    switch option {
+                    case .useXCFrameworks:
+                        return "--use-xcframeworks"
+                    case .noUseBinaries:
+                        return "--no-use-binaries"
+                    }
+                }
+        }
+        
+        commandComponents += [
             "--use-netrc",
             "--cache-builds",
             "--new-resolver",
         ]
-
-        if let options = options {
-            if options.contains(.useXCFrameworks) {
-                flags.append("--use-xcframeworks")
-            }
-
-            if options.contains(.noUseBinaries) {
-                flags.append("--no-use-binaries")
-            }
-        }
-
-        return flags
+        
+        return commandComponents
     }
 }

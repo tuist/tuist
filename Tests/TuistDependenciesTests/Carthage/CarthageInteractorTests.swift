@@ -40,7 +40,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         let dependenciesDirectory = rootPath
             .appending(component: Constants.DependenciesDirectory.name)
 
-        let platforms = Set<Platform>([.iOS, .watchOS, .macOS, .tvOS])
+        let platforms: Set<Platform> = [.iOS, .watchOS, .macOS, .tvOS]
         let options = Set<CarthageDependencies.Options>([])
         let stubbedDependencies = CarthageDependencies(
             [
@@ -116,7 +116,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             ],
             options: []
         )
-        let platforms = Set<Platform>([.iOS])
+        let platforms: Set<Platform> = [.iOS]
 
         // When / Then
         XCTAssertThrowsSpecific(
@@ -143,7 +143,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             ],
             options: [.useXCFrameworks]
         )
-        let platforms = Set<Platform>([.iOS])
+        let platforms: Set<Platform> = [.iOS]
 
         XCTAssertThrowsSpecific(
             try subject.fetch(
@@ -163,7 +163,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         let dependenciesDirectory = rootPath
             .appending(component: Constants.DependenciesDirectory.name)
 
-        let platforms = Set<Platform>([.iOS, .watchOS, .macOS, .tvOS])
+        let platforms: Set<Platform> = [.iOS, .watchOS, .macOS, .tvOS]
         let options = Set<CarthageDependencies.Options>([])
         let stubbedDependencies = CarthageDependencies(
             [
@@ -239,7 +239,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             ],
             options: []
         )
-        let platforms = Set<Platform>([.iOS])
+        let platforms: Set<Platform> = [.iOS]
 
         // When / Then
         XCTAssertThrowsSpecific(
@@ -266,7 +266,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             ],
             options: [.useXCFrameworks]
         )
-        let platforms = Set<Platform>([.iOS])
+        let platforms: Set<Platform> = [.iOS]
 
         XCTAssertThrowsSpecific(
             try subject.update(

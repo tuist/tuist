@@ -36,7 +36,7 @@ final class CarthageTests: TuistUnitTestCase {
         ])
 
         // When / Then
-        XCTAssertNoThrow(try subject.bootstrap(at: path, platforms: nil, options: nil))
+        XCTAssertNoThrow(try subject.bootstrap(at: path, platforms: [], options: []))
     }
 
     func test_bootstrap_with_platforms() throws {
@@ -55,7 +55,7 @@ final class CarthageTests: TuistUnitTestCase {
         ])
 
         // When / Then
-        XCTAssertNoThrow(try subject.bootstrap(at: path, platforms: [.iOS], options: nil))
+        XCTAssertNoThrow(try subject.bootstrap(at: path, platforms: [.iOS], options: []))
     }
 
     func test_bootstrap_with_platforms_and_options() throws {
@@ -68,11 +68,11 @@ final class CarthageTests: TuistUnitTestCase {
             path.pathString,
             "--platform",
             "iOS",
+            "--no-use-binaries",
+            "--use-xcframeworks",
             "--use-netrc",
             "--cache-builds",
             "--new-resolver",
-            "--use-xcframeworks",
-            "--no-use-binaries",
         ])
 
         // When / Then
@@ -93,7 +93,7 @@ final class CarthageTests: TuistUnitTestCase {
         ])
 
         // When / Then
-        XCTAssertNoThrow(try subject.update(at: path, platforms: nil, options: nil))
+        XCTAssertNoThrow(try subject.update(at: path, platforms: [], options: []))
     }
 
     func test_update_with_platforms() throws {
@@ -112,7 +112,7 @@ final class CarthageTests: TuistUnitTestCase {
         ])
 
         // When / Then
-        XCTAssertNoThrow(try subject.update(at: path, platforms: [.iOS], options: nil))
+        XCTAssertNoThrow(try subject.update(at: path, platforms: [.iOS], options: []))
     }
 
     func test_update_with_platforms_and_options() throws {
@@ -125,11 +125,11 @@ final class CarthageTests: TuistUnitTestCase {
             path.pathString,
             "--platform",
             "iOS",
+            "--no-use-binaries",
+            "--use-xcframeworks",
             "--use-netrc",
             "--cache-builds",
             "--new-resolver",
-            "--use-xcframeworks",
-            "--no-use-binaries",
         ])
 
         // When / Then
