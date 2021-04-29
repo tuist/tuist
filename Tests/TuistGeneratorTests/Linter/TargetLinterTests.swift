@@ -73,7 +73,7 @@ final class TargetLinterTests: TuistUnitTestCase {
 
     func test_lint_when_target_no_source_files_but_has_dependency() {
         let target = Target.test(sources: [], dependencies: [
-            TargetDependency.sdk(name: "libc++.tbd", status: .optional)
+            TargetDependency.sdk(name: "libc++.tbd", status: .optional),
         ])
         let got = subject.lint(target: target)
 
