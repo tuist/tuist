@@ -83,7 +83,7 @@ class TargetLinter: TargetLinting {
         let supportsSources = target.supportsSources
         let sources = target.sources
 
-        if supportsSources, sources.isEmpty {
+        if supportsSources, sources.isEmpty, target.dependencies.isEmpty {
             return [LintingIssue(reason: "The target \(target.name) doesn't contain source files.", severity: .warning)]
         } else if !supportsSources, !sources.isEmpty {
             return [LintingIssue(reason: "Target \(target.name) cannot contain sources. \(target.platform) \(target.product) targets don't support source files", severity: .error)]
