@@ -79,7 +79,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         XCTAssertDirectoryContentEqual(
             lockfilesDirectory,
             [
-                Constants.DependenciesDirectory.cartfileResolvedName
+                Constants.DependenciesDirectory.cartfileResolvedName,
             ]
         )
         XCTAssertDirectoryContentEqual(
@@ -224,7 +224,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         XCTAssertDirectoryContentEqual(
             lockfilesDirectory,
             [
-                Constants.DependenciesDirectory.cartfileResolvedName
+                Constants.DependenciesDirectory.cartfileResolvedName,
             ]
         )
         XCTAssertDirectoryContentEqual(
@@ -351,7 +351,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         XCTAssertDirectoryContentEqual(
             lockfilesDirectory,
             [
-                "OtherLockfile.lock"
+                "OtherLockfile.lock",
             ]
         )
     }

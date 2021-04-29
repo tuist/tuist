@@ -61,7 +61,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             swiftPackageManager: nil,
             platforms: platforms
         )
-        
+
         carthageInteractor.fetchStub = { parameters in
             XCTAssertEqual(parameters.dependenciesDirectory, dependenciesDirectoryPath)
             XCTAssertEqual(parameters.dependencies, carthageDependencies)
@@ -103,7 +103,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             swiftPackageManager: swiftPackageManagerDependencies,
             platforms: platforms
         )
-        
+
         swiftPackageManagerInteractor.fetchStub = { parameters in
             XCTAssertEqual(parameters.dependenciesDirectory, dependenciesDirectoryPath)
             XCTAssertEqual(parameters.dependencies, swiftPackageManagerDependencies)
@@ -151,7 +151,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             swiftPackageManager: swiftPackageManagerDependencies,
             platforms: platforms
         )
-        
+
         carthageInteractor.fetchStub = { parameters in
             XCTAssertEqual(parameters.dependenciesDirectory, dependenciesDirectoryPath)
             XCTAssertEqual(parameters.dependencies, carthageDependencies)
@@ -243,7 +243,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             swiftPackageManager: nil,
             platforms: platforms
         )
-        
+
         carthageInteractor.updateStub = { parameters in
             XCTAssertEqual(parameters.dependenciesDirectory, dependenciesDirectoryPath)
             XCTAssertEqual(parameters.dependencies, carthageDependencies)
@@ -285,7 +285,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             swiftPackageManager: swiftPackageManagerDependencies,
             platforms: platforms
         )
-        
+
         swiftPackageManagerInteractor.fetchStub = { parameters in
             XCTAssertEqual(parameters.dependenciesDirectory, dependenciesDirectoryPath)
             XCTAssertEqual(parameters.dependencies, swiftPackageManagerDependencies)
@@ -333,7 +333,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             swiftPackageManager: swiftPackageManagerDependencies,
             platforms: platforms
         )
-        
+
         carthageInteractor.updateStub = { parameters in
             XCTAssertEqual(parameters.dependenciesDirectory, dependenciesDirectoryPath)
             XCTAssertEqual(parameters.dependencies, carthageDependencies)

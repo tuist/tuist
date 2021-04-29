@@ -38,7 +38,7 @@ public final class Carthage: Carthaging {
     }
 
     // MARK: - Helpers
-    
+
     private func buildCarthageCommand(path: AbsolutePath, platforms: Set<Platform>, options: Set<CarthageDependencies.Options>, subcommand: String) -> [String] {
         var commandComponents: [String] = [
             "carthage",
@@ -46,7 +46,7 @@ public final class Carthage: Carthaging {
             "--project-directory",
             path.pathString,
         ]
-        
+
         if !platforms.isEmpty {
             commandComponents += [
                 "--platform",
@@ -56,7 +56,7 @@ public final class Carthage: Carthaging {
                     .joined(separator: ","),
             ]
         }
-        
+
         if !options.isEmpty {
             commandComponents += options
                 .map { option in
@@ -69,13 +69,13 @@ public final class Carthage: Carthaging {
                 }
                 .sorted()
         }
-        
+
         commandComponents += [
             "--use-netrc",
             "--cache-builds",
             "--new-resolver",
         ]
-        
+
         return commandComponents
     }
 }

@@ -65,7 +65,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         XCTAssertDirectoryContentEqual(
             lockfilesDirectory,
             [
-                Constants.DependenciesDirectory.packageResolvedName
+                Constants.DependenciesDirectory.packageResolvedName,
             ]
         )
         XCTAssertDirectoryContentEqual(
@@ -75,7 +75,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
                 "workspace-state.json",
                 "artifacts",
                 "checkouts",
-                "repositories"
+                "repositories",
             ]
         )
     }
@@ -117,7 +117,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         XCTAssertDirectoryContentEqual(
             lockfilesDirectory,
             [
-                Constants.DependenciesDirectory.packageResolvedName
+                Constants.DependenciesDirectory.packageResolvedName,
             ]
         )
         XCTAssertDirectoryContentEqual(
@@ -127,7 +127,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
                 "workspace-state.json",
                 "artifacts",
                 "checkouts",
-                "repositories"
+                "repositories",
             ]
         )
     }
@@ -161,7 +161,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         XCTAssertDirectoryContentEqual(
             lockfilesDirectory,
             [
-                "OtherLockfile.lock"
+                "OtherLockfile.lock",
             ]
         )
     }

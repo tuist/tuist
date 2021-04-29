@@ -56,7 +56,7 @@ final class DependenciesUpdateServiceTests: TuistUnitTestCase {
             platforms: [.iOS, .macOS]
         )
         dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
-        
+
         dependenciesController.updateStub = { path, dependencies in
             XCTAssertEqual(path, stubbedPath)
             XCTAssertEqual(dependencies, stubbedDependencies)

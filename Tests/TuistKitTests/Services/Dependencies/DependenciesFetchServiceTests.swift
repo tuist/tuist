@@ -56,7 +56,7 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
             platforms: [.iOS, .macOS]
         )
         dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
-        
+
         dependenciesController.fetchStub = { path, dependencies in
             XCTAssertEqual(path, stubbedPath)
             XCTAssertEqual(dependencies, stubbedDependencies)

@@ -37,7 +37,7 @@ public final class SwiftPackageManager: SwiftPackageManaging {
             "package",
             "--package-path",
             packagePath.pathString,
-            subcommand
+            subcommand,
         ]
     }
 }
