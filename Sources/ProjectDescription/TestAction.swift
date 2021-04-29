@@ -198,4 +198,58 @@ public struct TestAction: Equatable, Codable {
             region: nil
         )
     }
+
+    /// Initializes a new instance of a test action using test plans
+    /// - Parameters:
+    ///   - testPlans: Array of test plans. The first in the array will be the default plan.
+    ///   - config: Configuration that should be used for building the test targets.
+    ///   - preActions: ist of actions to be executed before running the tests.
+    ///   - postActions: List of actions to be executed after running the tests.
+    public static func testPlans(_ testPlans: [Path],
+                                 config: PresetBuildConfiguration = .debug,
+                                 preActions: [ExecutionAction] = [],
+                                 postActions: [ExecutionAction] = []) -> Self
+    {
+        Self(
+            testPlans: testPlans,
+            targets: [],
+            arguments: nil,
+            configurationName: config.name,
+            coverage: false,
+            codeCoverageTargets: [],
+            expandVariableFromTarget: nil,
+            preActions: preActions,
+            postActions: postActions,
+            diagnosticsOptions: [.mainThreadChecker],
+            language: nil,
+            region: nil
+        )
+    }
+
+    /// Initializes a new instance of a test action using test plans
+    /// - Parameters:
+    ///   - testPlans: Array of test plans. The first in the array will be the default plan.
+    ///   - config: Configuration that should be used for building the test targets.
+    ///   - preActions: ist of actions to be executed before running the tests.
+    ///   - postActions: List of actions to be executed after running the tests.
+    public static func testPlans(_ testPlans: [Path],
+                                 configurationName: String,
+                                 preActions: [ExecutionAction] = [],
+                                 postActions: [ExecutionAction] = []) -> Self
+    {
+        Self(
+            testPlans: testPlans,
+            targets: [],
+            arguments: nil,
+            configurationName: configurationName,
+            coverage: false,
+            codeCoverageTargets: [],
+            expandVariableFromTarget: nil,
+            preActions: preActions,
+            postActions: postActions,
+            diagnosticsOptions: [.mainThreadChecker],
+            language: nil,
+            region: nil
+        )
+    }
 }
