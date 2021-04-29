@@ -80,6 +80,15 @@ final class TargetLinterTests: TuistUnitTestCase {
         XCTAssertEqual(0, got.count)
     }
 
+    func test_lint_when_target_no_source_files_but_has_actions() {
+        let target = Target.test(sources: [], actions: [
+            TargetAction(name: "Test script", order: .post, script: .embedded("echo 'This is a test'")),
+        ])
+        let got = subject.lint(target: target)
+
+        XCTAssertEqual(0, got.count)
+    }
+
     func test_lint_when_a_infoplist_file_is_being_copied() {
         let infoPlistPath = AbsolutePath("/Info.plist")
         let googeServiceInfoPlistPath = AbsolutePath("/GoogleService-Info.plist")
