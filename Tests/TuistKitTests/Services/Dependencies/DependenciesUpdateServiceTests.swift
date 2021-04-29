@@ -56,19 +56,19 @@ final class DependenciesUpdateServiceTests: TuistUnitTestCase {
             platforms: [.iOS, .macOS]
         )
         dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
+        
+        dependenciesController.updateStub = { path, dependencies in
+            XCTAssertEqual(path, stubbedPath)
+            XCTAssertEqual(dependencies, stubbedDependencies)
+        }
 
         // When
         try subject.run(path: stubbedPath.pathString)
 
         // Then
         XCTAssertTrue(dependenciesController.invokedUpdate)
-        XCTAssertEqual(dependenciesController.invokedUpdateCount, 1)
-        XCTAssertEqual(dependenciesController.invokedUpdateParameters?.path, stubbedPath)
-        XCTAssertEqual(dependenciesController.invokedUpdateParameters?.dependencies, stubbedDependencies)
+        XCTAssertTrue(dependenciesModelLoader.invokedLoadDependencies)
 
         XCTAssertFalse(dependenciesController.invokedFetch)
-
-        XCTAssertTrue(dependenciesModelLoader.invokedLoadDependencies)
-        XCTAssertEqual(dependenciesModelLoader.invokedLoadDependenciesCount, 1)
     }
 }

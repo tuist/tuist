@@ -7,9 +7,6 @@ public final class MockCarthage: Carthaging {
     public init() {}
 
     var invokedBootstrap = false
-    var invokedBootstrapCount = 0
-    var invokedBootstrapParameters: BootstrapParameters?
-    var invokedBootstrapParametersList = [BootstrapParameters]()
     var bootstrapStub: ((BootstrapParameters) throws -> Void)?
 
     public func bootstrap(at path: AbsolutePath, platforms: Set<Platform>, options: Set<CarthageDependencies.Options>) throws {
@@ -20,16 +17,10 @@ public final class MockCarthage: Carthaging {
         )
 
         invokedBootstrap = true
-        invokedBootstrapCount += 1
-        invokedBootstrapParameters = parameters
-        invokedBootstrapParametersList.append(parameters)
         try bootstrapStub?(parameters)
     }
 
     var invokedUpdate = false
-    var invokedUpdateCount = 0
-    var invokedUpdateParameters: UpdateParameters?
-    var invokedUpdateParametersList = [UpdateParameters]()
     var updateStub: ((UpdateParameters) throws -> Void)?
 
     public func update(at path: AbsolutePath, platforms: Set<Platform>, options: Set<CarthageDependencies.Options>) throws {
@@ -40,9 +31,6 @@ public final class MockCarthage: Carthaging {
         )
 
         invokedUpdate = true
-        invokedUpdateCount += 1
-        invokedUpdateParameters = parameters
-        invokedUpdateParametersList.append(parameters)
         try updateStub?(parameters)
     }
 }

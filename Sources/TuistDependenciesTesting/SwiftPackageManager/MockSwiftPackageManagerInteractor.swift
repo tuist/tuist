@@ -7,10 +7,7 @@ public final class MockSwiftPackageManagerInteractor: SwiftPackageManagerInterac
     public init() {}
 
     var invokedFetch = false
-    var invokedFetchCount = 0
-    var invokedFetchParameters: FetchParameters?
-    var invokedFetchParametersList = [FetchParameters]()
-    var stubbedFetchError: Error?
+    var fetchStub: ((FetchParameters) throws -> Void)?
 
     public func fetch(
         dependenciesDirectory: AbsolutePath,
@@ -22,19 +19,11 @@ public final class MockSwiftPackageManagerInteractor: SwiftPackageManagerInterac
         )
 
         invokedFetch = true
-        invokedFetchCount += 1
-        invokedFetchParameters = parameters
-        invokedFetchParametersList.append(parameters)
-        if let error = stubbedFetchError {
-            throw error
-        }
+        try fetchStub?(parameters)
     }
 
     var invokedUpdate = false
-    var invokedUpdateCount = 0
-    var invokedUpdateParameters: UpdateParameters?
-    var invokedUpdateParametersList = [UpdateParameters]()
-    var stubbedUpdateError: Error?
+    var updateStub: ((UpdateParameters) throws -> Void)?
 
     public func update(
         dependenciesDirectory: AbsolutePath,
@@ -46,28 +35,15 @@ public final class MockSwiftPackageManagerInteractor: SwiftPackageManagerInterac
         )
 
         invokedUpdate = true
-        invokedUpdateCount += 1
-        invokedUpdateParameters = parameters
-        invokedUpdateParametersList.append(parameters)
-        if let error = stubbedUpdateError {
-            throw error
-        }
+        try updateStub?(parameters)
     }
 
     var invokedClean = false
-    var invokedCleanCount = 0
-    var invokedCleanParameters: AbsolutePath?
-    var invokedCleanParametersList = [AbsolutePath]()
-    var stubbedCleanError: Error?
+    var cleanStub: ((AbsolutePath) throws -> Void)?
 
     public func clean(dependenciesDirectory: AbsolutePath) throws {
         invokedClean = true
-        invokedCleanCount += 1
-        invokedCleanParameters = dependenciesDirectory
-        invokedCleanParametersList.append(dependenciesDirectory)
-        if let error = stubbedCleanError {
-            throw error
-        }
+        try cleanStub?(dependenciesDirectory)
     }
 }
 

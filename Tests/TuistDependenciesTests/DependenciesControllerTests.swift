@@ -61,6 +61,12 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             swiftPackageManager: nil,
             platforms: platforms
         )
+        
+        carthageInteractor.fetchStub = { parameters in
+            XCTAssertEqual(parameters.dependenciesDirectory, dependenciesDirectoryPath)
+            XCTAssertEqual(parameters.dependencies, carthageDependencies)
+            XCTAssertEqual(parameters.platforms, platforms)
+        }
 
         // When
         try subject.fetch(at: rootPath, dependencies: dependencies)
@@ -69,9 +75,6 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         XCTAssertFalse(carthageInteractor.invokedClean)
         XCTAssertFalse(carthageInteractor.invokedUpdate)
         XCTAssertTrue(carthageInteractor.invokedFetch)
-        XCTAssertEqual(carthageInteractor.invokedFetchParameters?.dependenciesDirectory, dependenciesDirectoryPath)
-        XCTAssertEqual(carthageInteractor.invokedFetchParameters?.dependencies, carthageDependencies)
-        XCTAssertEqual(carthageInteractor.invokedFetchParameters?.platforms, platforms)
 
         XCTAssertTrue(swiftPackageManagerInteractor.invokedClean)
         XCTAssertFalse(swiftPackageManagerInteractor.invokedUpdate)
@@ -100,6 +103,11 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             swiftPackageManager: swiftPackageManagerDependencies,
             platforms: platforms
         )
+        
+        swiftPackageManagerInteractor.fetchStub = { parameters in
+            XCTAssertEqual(parameters.dependenciesDirectory, dependenciesDirectoryPath)
+            XCTAssertEqual(parameters.dependencies, swiftPackageManagerDependencies)
+        }
 
         // When
         try subject.fetch(at: rootPath, dependencies: dependencies)
@@ -108,8 +116,6 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         XCTAssertFalse(swiftPackageManagerInteractor.invokedClean)
         XCTAssertFalse(swiftPackageManagerInteractor.invokedUpdate)
         XCTAssertTrue(swiftPackageManagerInteractor.invokedFetch)
-        XCTAssertEqual(swiftPackageManagerInteractor.invokedFetchParameters?.dependenciesDirectory, dependenciesDirectoryPath)
-        XCTAssertEqual(swiftPackageManagerInteractor.invokedFetchParameters?.dependencies, swiftPackageManagerDependencies)
 
         XCTAssertTrue(carthageInteractor.invokedClean)
         XCTAssertFalse(carthageInteractor.invokedUpdate)
@@ -145,6 +151,16 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             swiftPackageManager: swiftPackageManagerDependencies,
             platforms: platforms
         )
+        
+        carthageInteractor.fetchStub = { parameters in
+            XCTAssertEqual(parameters.dependenciesDirectory, dependenciesDirectoryPath)
+            XCTAssertEqual(parameters.dependencies, carthageDependencies)
+            XCTAssertEqual(parameters.platforms, platforms)
+        }
+        swiftPackageManagerInteractor.fetchStub = { parameters in
+            XCTAssertEqual(parameters.dependenciesDirectory, dependenciesDirectoryPath)
+            XCTAssertEqual(parameters.dependencies, swiftPackageManagerDependencies)
+        }
 
         // When
         try subject.fetch(at: rootPath, dependencies: dependencies)
@@ -153,15 +169,10 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         XCTAssertTrue(carthageInteractor.invokedFetch)
         XCTAssertFalse(carthageInteractor.invokedUpdate)
         XCTAssertFalse(carthageInteractor.invokedClean)
-        XCTAssertEqual(carthageInteractor.invokedFetchParameters?.dependenciesDirectory, dependenciesDirectoryPath)
-        XCTAssertEqual(carthageInteractor.invokedFetchParameters?.dependencies, carthageDependencies)
-        XCTAssertEqual(carthageInteractor.invokedFetchParameters?.platforms, platforms)
 
         XCTAssertTrue(swiftPackageManagerInteractor.invokedFetch)
         XCTAssertFalse(swiftPackageManagerInteractor.invokedUpdate)
         XCTAssertFalse(swiftPackageManagerInteractor.invokedClean)
-        XCTAssertEqual(swiftPackageManagerInteractor.invokedFetchParameters?.dependenciesDirectory, dependenciesDirectoryPath)
-        XCTAssertEqual(swiftPackageManagerInteractor.invokedFetchParameters?.dependencies, swiftPackageManagerDependencies)
 
         XCTAssertFalse(cocoaPodsInteractor.invokedFetch)
         XCTAssertFalse(cocoaPodsInteractor.invokedUpdate)
@@ -232,6 +243,12 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             swiftPackageManager: nil,
             platforms: platforms
         )
+        
+        carthageInteractor.updateStub = { parameters in
+            XCTAssertEqual(parameters.dependenciesDirectory, dependenciesDirectoryPath)
+            XCTAssertEqual(parameters.dependencies, carthageDependencies)
+            XCTAssertEqual(parameters.platforms, platforms)
+        }
 
         // When
         try subject.update(at: rootPath, dependencies: dependencies)
@@ -240,9 +257,6 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         XCTAssertFalse(carthageInteractor.invokedClean)
         XCTAssertFalse(carthageInteractor.invokedFetch)
         XCTAssertTrue(carthageInteractor.invokedUpdate)
-        XCTAssertEqual(carthageInteractor.invokedUpdateParameters?.dependenciesDirectory, dependenciesDirectoryPath)
-        XCTAssertEqual(carthageInteractor.invokedUpdateParameters?.dependencies, carthageDependencies)
-        XCTAssertEqual(carthageInteractor.invokedUpdateParameters?.platforms, platforms)
 
         XCTAssertTrue(swiftPackageManagerInteractor.invokedClean)
         XCTAssertFalse(swiftPackageManagerInteractor.invokedUpdate)
@@ -271,6 +285,11 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             swiftPackageManager: swiftPackageManagerDependencies,
             platforms: platforms
         )
+        
+        swiftPackageManagerInteractor.fetchStub = { parameters in
+            XCTAssertEqual(parameters.dependenciesDirectory, dependenciesDirectoryPath)
+            XCTAssertEqual(parameters.dependencies, swiftPackageManagerDependencies)
+        }
 
         // When
         try subject.update(at: rootPath, dependencies: dependencies)
@@ -279,8 +298,6 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         XCTAssertFalse(swiftPackageManagerInteractor.invokedClean)
         XCTAssertFalse(swiftPackageManagerInteractor.invokedFetch)
         XCTAssertTrue(swiftPackageManagerInteractor.invokedUpdate)
-        XCTAssertEqual(swiftPackageManagerInteractor.invokedUpdateParameters?.dependenciesDirectory, dependenciesDirectoryPath)
-        XCTAssertEqual(swiftPackageManagerInteractor.invokedUpdateParameters?.dependencies, swiftPackageManagerDependencies)
 
         XCTAssertTrue(carthageInteractor.invokedClean)
         XCTAssertFalse(carthageInteractor.invokedUpdate)
@@ -316,6 +333,16 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             swiftPackageManager: swiftPackageManagerDependencies,
             platforms: platforms
         )
+        
+        carthageInteractor.updateStub = { parameters in
+            XCTAssertEqual(parameters.dependenciesDirectory, dependenciesDirectoryPath)
+            XCTAssertEqual(parameters.dependencies, carthageDependencies)
+            XCTAssertEqual(parameters.platforms, platforms)
+        }
+        swiftPackageManagerInteractor.fetchStub = { parameters in
+            XCTAssertEqual(parameters.dependenciesDirectory, dependenciesDirectoryPath)
+            XCTAssertEqual(parameters.dependencies, swiftPackageManagerDependencies)
+        }
 
         // When
         try subject.update(at: rootPath, dependencies: dependencies)
@@ -324,15 +351,10 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         XCTAssertFalse(carthageInteractor.invokedClean)
         XCTAssertFalse(carthageInteractor.invokedFetch)
         XCTAssertTrue(carthageInteractor.invokedUpdate)
-        XCTAssertEqual(carthageInteractor.invokedUpdateParameters?.dependenciesDirectory, dependenciesDirectoryPath)
-        XCTAssertEqual(carthageInteractor.invokedUpdateParameters?.dependencies, carthageDependencies)
-        XCTAssertEqual(carthageInteractor.invokedUpdateParameters?.platforms, platforms)
 
         XCTAssertFalse(swiftPackageManagerInteractor.invokedClean)
         XCTAssertFalse(swiftPackageManagerInteractor.invokedFetch)
         XCTAssertTrue(swiftPackageManagerInteractor.invokedUpdate)
-        XCTAssertEqual(swiftPackageManagerInteractor.invokedUpdateParameters?.dependenciesDirectory, dependenciesDirectoryPath)
-        XCTAssertEqual(swiftPackageManagerInteractor.invokedUpdateParameters?.dependencies, swiftPackageManagerDependencies)
 
         XCTAssertFalse(cocoaPodsInteractor.invokedFetch)
         XCTAssertFalse(cocoaPodsInteractor.invokedUpdate)
