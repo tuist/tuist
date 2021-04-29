@@ -2,9 +2,9 @@ import Foundation
 
 /// A `Dependencies` manifest allows for defining external dependencies for Tuist.
 public struct Dependencies: Codable, Equatable {
-    /// The description of dependency that can be installed using Carthage.
+    /// The description of a dependency that can be installed using Carthage.
     public let carthage: CarthageDependencies?
-    /// The description of dependency that can be installed using Swift Package Manager.
+    /// The description of a dependency that can be installed using Swift Package Manager.
     public let swiftPackageManager: SwiftPackageManagerDependencies?
     /// List of platforms for which you want to install depedencies.
     public let platforms: Set<Platform>

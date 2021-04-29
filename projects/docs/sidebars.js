@@ -18,6 +18,7 @@ module.exports = {
         'guides/version-management',
         'guides/shell-autocompletion',
         'guides/stats',
+        'guides/third-party-dependencies',
       ],
     },
     {
@@ -44,7 +45,12 @@ module.exports = {
     {
       type: 'category',
       label: 'Manifests reference',
-      items: ['manifests/project', 'manifests/workspace', 'manifests/config'],
+      items: [
+        'manifests/project',
+        'manifests/workspace',
+        'manifests/dependencies',
+        'manifests/config',
+      ],
     },
     {
       type: 'category',
