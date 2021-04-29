@@ -33,6 +33,10 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
         let dependenciesDirectory = rootPath
             .appending(component: Constants.DependenciesDirectory.name)
+        let lockfilesDirectory = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
+        let swiftPackageManagerDirectory = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
 
         let depedencies = SwiftPackageManagerDependencies([
             .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
@@ -51,19 +55,29 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         )
 
         // Then
-        let expectedPackageResolvedPath = dependenciesDirectory
-            .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
-            .appending(component: Constants.DependenciesDirectory.packageResolvedName)
-        let expectedSwiftPackageManagerDirectory = dependenciesDirectory
-            .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
-
-        XCTAssertTrue(fileHandler.exists(expectedPackageResolvedPath))
-        XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(component: "manifest.db")))
-        XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(component: "workspace-state.json")))
-        XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(components: "artifacts", "foo.txt")))
-        XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(components: "checkouts", "Alamofire", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(components: "repositories", "checkouts-state.json")))
-        XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(components: "repositories", "Alamofire-e8f130fe", "config")))
+        XCTAssertDirectoryContentEqual(
+            dependenciesDirectory,
+            [
+                Constants.DependenciesDirectory.lockfilesDirectoryName,
+                Constants.DependenciesDirectory.swiftPackageManagerDirectoryName,
+            ]
+        )
+        XCTAssertDirectoryContentEqual(
+            lockfilesDirectory,
+            [
+                Constants.DependenciesDirectory.packageResolvedName
+            ]
+        )
+        XCTAssertDirectoryContentEqual(
+            swiftPackageManagerDirectory,
+            [
+                "manifest.db",
+                "workspace-state.json",
+                "artifacts",
+                "checkouts",
+                "repositories"
+            ]
+        )
     }
 
     func test_update() throws {
@@ -71,6 +85,10 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
         let dependenciesDirectory = rootPath
             .appending(component: Constants.DependenciesDirectory.name)
+        let lockfilesDirectory = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
+        let swiftPackageManagerDirectory = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
 
         let depedencies = SwiftPackageManagerDependencies([
             .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
@@ -89,19 +107,29 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         )
 
         // Then
-        let expectedPackageResolvedPath = dependenciesDirectory
-            .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
-            .appending(component: Constants.DependenciesDirectory.packageResolvedName)
-        let expectedSwiftPackageManagerDirectory = dependenciesDirectory
-            .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
-
-        XCTAssertTrue(fileHandler.exists(expectedPackageResolvedPath))
-        XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(component: "manifest.db")))
-        XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(component: "workspace-state.json")))
-        XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(components: "artifacts", "foo.txt")))
-        XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(components: "checkouts", "Alamofire", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(components: "repositories", "checkouts-state.json")))
-        XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(components: "repositories", "Alamofire-e8f130fe", "config")))
+        XCTAssertDirectoryContentEqual(
+            dependenciesDirectory,
+            [
+                Constants.DependenciesDirectory.lockfilesDirectoryName,
+                Constants.DependenciesDirectory.swiftPackageManagerDirectoryName,
+            ]
+        )
+        XCTAssertDirectoryContentEqual(
+            lockfilesDirectory,
+            [
+                Constants.DependenciesDirectory.packageResolvedName
+            ]
+        )
+        XCTAssertDirectoryContentEqual(
+            swiftPackageManagerDirectory,
+            [
+                "manifest.db",
+                "workspace-state.json",
+                "artifacts",
+                "checkouts",
+                "repositories"
+            ]
+        )
     }
 
     func test_clean() throws {
@@ -123,18 +151,18 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         try subject.clean(dependenciesDirectory: dependenciesDirectory)
 
         // Then
-        XCTAssertEqual(
-            try fileHandler.contentsOfDirectory(dependenciesDirectory).sorted(),
+        XCTAssertDirectoryContentEqual(
+            dependenciesDirectory,
             [
-                lockfilesDirectory,
-                dependenciesDirectory.appending(component: "OtherDepedenciesManager"),
-            ].sorted()
+                Constants.DependenciesDirectory.lockfilesDirectoryName,
+                "OtherDepedenciesManager",
+            ]
         )
-        XCTAssertEqual(
-            try fileHandler.contentsOfDirectory(lockfilesDirectory).sorted(),
+        XCTAssertDirectoryContentEqual(
+            lockfilesDirectory,
             [
-                lockfilesDirectory.appending(component: "OtherLockfile.lock"),
-            ].sorted()
+                "OtherLockfile.lock"
+            ]
         )
     }
 }

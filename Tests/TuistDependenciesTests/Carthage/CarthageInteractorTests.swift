@@ -39,6 +39,10 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
         let dependenciesDirectory = rootPath
             .appending(component: Constants.DependenciesDirectory.name)
+        let lockfilesDirectory = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
+        let carthageDirectory = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
 
         let platforms: Set<Platform> = [.iOS, .watchOS, .macOS, .tvOS]
         let options = Set<CarthageDependencies.Options>([])
@@ -65,25 +69,60 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         )
 
         // Then
-        let expectedCartfileResolvedPath = dependenciesDirectory
-            .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
-            .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
-        let expectedCarthageDirectory = dependenciesDirectory
-            .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
-
-        XCTAssertTrue(fileHandler.exists(expectedCartfileResolvedPath))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "iOS", "Moya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "iOS", "ReactiveMoya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "iOS", "RxMoya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "Mac", "Moya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "Mac", "ReactiveMoya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "Mac", "RxMoya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "watchOS", "Moya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "watchOS", "ReactiveMoya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "watchOS", "RxMoya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "tvOS", "Moya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "tvOS", "ReactiveMoya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "tvOS", "RxMoya.framework", "Info.plist")))
+        XCTAssertDirectoryContentEqual(
+            dependenciesDirectory,
+            [
+                Constants.DependenciesDirectory.lockfilesDirectoryName,
+                Constants.DependenciesDirectory.carthageDirectoryName,
+            ]
+        )
+        XCTAssertDirectoryContentEqual(
+            lockfilesDirectory,
+            [
+                Constants.DependenciesDirectory.cartfileResolvedName
+            ]
+        )
+        XCTAssertDirectoryContentEqual(
+            carthageDirectory,
+            [
+                "iOS",
+                "Mac",
+                "watchOS",
+                "tvOS",
+            ]
+        )
+        XCTAssertDirectoryContentEqual(
+            carthageDirectory.appending(component: "iOS"),
+            [
+                "Moya.framework",
+                "ReactiveMoya.framework",
+                "RxMoya.framework",
+            ]
+        )
+        XCTAssertDirectoryContentEqual(
+            carthageDirectory.appending(component: "Mac"),
+            [
+                "Moya.framework",
+                "ReactiveMoya.framework",
+                "RxMoya.framework",
+            ]
+        )
+        XCTAssertDirectoryContentEqual(
+            carthageDirectory.appending(component: "watchOS"),
+            [
+                "Moya.framework",
+                "ReactiveMoya.framework",
+                "RxMoya.framework",
+            ]
+        )
+        XCTAssertDirectoryContentEqual(
+            carthageDirectory.appending(component: "tvOS"),
+            [
+                "Moya.framework",
+                "ReactiveMoya.framework",
+                "RxMoya.framework",
+            ]
+        )
     }
 
     func test_fetch_throws_when_carthageUnavailableInEnvironment() throws {
@@ -145,6 +184,10 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
         let dependenciesDirectory = rootPath
             .appending(component: Constants.DependenciesDirectory.name)
+        let lockfilesDirectory = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
+        let carthageDirectory = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
 
         let platforms: Set<Platform> = [.iOS, .watchOS, .macOS, .tvOS]
         let options = Set<CarthageDependencies.Options>([])
@@ -171,25 +214,60 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         )
 
         // Then
-        let expectedCartfileResolvedPath = dependenciesDirectory
-            .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
-            .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
-        let expectedCarthageDirectory = dependenciesDirectory
-            .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
-
-        XCTAssertTrue(fileHandler.exists(expectedCartfileResolvedPath))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "iOS", "Moya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "iOS", "ReactiveMoya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "iOS", "RxMoya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "Mac", "Moya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "Mac", "ReactiveMoya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "Mac", "RxMoya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "watchOS", "Moya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "watchOS", "ReactiveMoya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "watchOS", "RxMoya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "tvOS", "Moya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "tvOS", "ReactiveMoya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "tvOS", "RxMoya.framework", "Info.plist")))
+        XCTAssertDirectoryContentEqual(
+            dependenciesDirectory,
+            [
+                Constants.DependenciesDirectory.lockfilesDirectoryName,
+                Constants.DependenciesDirectory.carthageDirectoryName,
+            ]
+        )
+        XCTAssertDirectoryContentEqual(
+            lockfilesDirectory,
+            [
+                Constants.DependenciesDirectory.cartfileResolvedName
+            ]
+        )
+        XCTAssertDirectoryContentEqual(
+            carthageDirectory,
+            [
+                "iOS",
+                "Mac",
+                "watchOS",
+                "tvOS",
+            ]
+        )
+        XCTAssertDirectoryContentEqual(
+            carthageDirectory.appending(component: "iOS"),
+            [
+                "Moya.framework",
+                "ReactiveMoya.framework",
+                "RxMoya.framework",
+            ]
+        )
+        XCTAssertDirectoryContentEqual(
+            carthageDirectory.appending(component: "Mac"),
+            [
+                "Moya.framework",
+                "ReactiveMoya.framework",
+                "RxMoya.framework",
+            ]
+        )
+        XCTAssertDirectoryContentEqual(
+            carthageDirectory.appending(component: "watchOS"),
+            [
+                "Moya.framework",
+                "ReactiveMoya.framework",
+                "RxMoya.framework",
+            ]
+        )
+        XCTAssertDirectoryContentEqual(
+            carthageDirectory.appending(component: "tvOS"),
+            [
+                "Moya.framework",
+                "ReactiveMoya.framework",
+                "RxMoya.framework",
+            ]
+        )
     }
 
     func test_update_throws_when_carthageUnavailableInEnvironment() throws {
@@ -263,18 +341,18 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         try subject.clean(dependenciesDirectory: dependenciesDirectory)
 
         // Then
-        XCTAssertEqual(
-            try fileHandler.contentsOfDirectory(dependenciesDirectory).sorted(),
+        XCTAssertDirectoryContentEqual(
+            dependenciesDirectory,
             [
-                lockfilesDirectory,
-                dependenciesDirectory.appending(component: "OtherDepedenciesManager"),
-            ].sorted()
+                Constants.DependenciesDirectory.lockfilesDirectoryName,
+                "OtherDepedenciesManager",
+            ]
         )
-        XCTAssertEqual(
-            try fileHandler.contentsOfDirectory(lockfilesDirectory).sorted(),
+        XCTAssertDirectoryContentEqual(
+            lockfilesDirectory,
             [
-                lockfilesDirectory.appending(component: "OtherLockfile.lock"),
-            ].sorted()
+                "OtherLockfile.lock"
+            ]
         )
     }
 }
