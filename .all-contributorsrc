@@ -352,6 +352,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "fila95",
+      "name": "Giovanni Filaferro",
+      "avatar_url": "https://avatars.githubusercontent.com/u/7265334?v=4",
+      "profile": "http://nanotek.me",
+      "contributions": [
+        "bug"
+      ]
     }
   ],
   "contributorsPerLine": 7,

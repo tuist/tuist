@@ -117,6 +117,7 @@ final class CacheTreeShakingGraphMapperTests: TuistUnitTestCase {
         // Given
         let graph = ValueGraph.test(
             path: project.path,
+            workspace: workspace,
             projects: [project.path: project],
             targets: [project.path: [target.name: target]],
             dependencies: [:]
@@ -146,6 +147,7 @@ final class CacheTreeShakingGraphMapperTests: TuistUnitTestCase {
 
         let graph = ValueGraph.test(
             path: project.path,
+            workspace: workspace,
             projects: [project.path: project],
             targets: [project.path: [target.name: target]],
             dependencies: [:]
@@ -156,5 +158,53 @@ final class CacheTreeShakingGraphMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEmpty(gotGraph.workspace.schemes)
+    }
+
+    func test_map_removes_pruned_targets_from_scheme() throws {
+        // Given
+        let path = AbsolutePath("/project")
+        let targets = [
+            Target.test(name: "first", prune: true),
+            Target.test(name: "second", prune: false),
+            Target.test(name: "third", prune: true),
+        ]
+        let scheme = Scheme.test(
+            name: "Scheme",
+            buildAction: .test(targets: targets.map { TargetReference(projectPath: path, name: $0.name) }),
+            testAction: .test(
+                targets: targets.map { TestableTarget(target: TargetReference(projectPath: path, name: $0.name)) },
+                coverage: true,
+                codeCoverageTargets: targets.map { TargetReference(projectPath: path, name: $0.name) }
+            )
+        )
+        let project = Project.test(path: path, targets: targets, schemes: [scheme])
+        let graph = ValueGraph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: Dictionary(uniqueKeysWithValues: targets.map { ($0.name, $0) })]
+        )
+
+        let unprunedTargets = targets.filter { !$0.prune }
+        let schemeWithUnprunedTargets = Scheme.test(
+            name: "Scheme",
+            buildAction: .test(targets: unprunedTargets.map { TargetReference(projectPath: path, name: $0.name) }),
+            testAction: .test(
+                targets: unprunedTargets.map { TestableTarget(target: TargetReference(projectPath: path, name: $0.name)) },
+                coverage: true,
+                codeCoverageTargets: unprunedTargets.map { TargetReference(projectPath: path, name: $0.name) }
+            )
+        )
+        let expectedProject = Project.test(path: path, targets: unprunedTargets, schemes: [schemeWithUnprunedTargets])
+        let expectedGraph = ValueGraph.test(
+            path: expectedProject.path,
+            projects: [expectedProject.path: expectedProject],
+            targets: [expectedProject.path: Dictionary(uniqueKeysWithValues: unprunedTargets.map { ($0.name, $0) })]
+        )
+
+        // When
+        let (gotGraph, _) = try subject.map(graph: graph)
+
+        // Then
+        XCTAssertEqual(gotGraph, expectedGraph)
     }
 }

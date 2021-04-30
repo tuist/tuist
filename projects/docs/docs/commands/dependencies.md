@@ -8,6 +8,8 @@ description: "Learn how to use Tuist's dependencies commands to manage third-par
 
 Third-party dependencies are represented by another graph. Dependency managers like [CocoaPods](https://cocoapods.org) integrate it when running `pod install` leverating Xcode workspaces, and Swift Package Manager does it at build time leveraging Xcode's closed build system. Both approaches might lead to integration issues that can cause compilation issues down the road. We are aware that's not a great developer experience and thus we take a different approach to managing third party dependencies that allows leverating Tuist features such as linting and caching. The idea is simple, developers define their Carthage and Package dependencies in a `Dependencies.swift` file. They are fetched by running `tuist dependencies fetch` and integrated into the generated Xcode project at generation time. Because we merge your project and the third-party dependencies' graph into a single graph, we validate and fail early if the resulting graph is invalid.
 
+Check out [this page](/guides/third-party-dependencies/) for the API reference of `Dependencies.swift`.
+
 :::warning Work in progress
 This feature is currently being worked on and is not ready to be used yet.
 :::
