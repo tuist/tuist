@@ -10,20 +10,20 @@ import XCTest
 
 final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
     private var subject: SwiftPackageManagerInteractor!
-    private var swiftPackageManager: MockSwiftPackageManager!
+    private var swiftPackageManagerController: MockSwiftPackageManagerController!
 
     override func setUp() {
         super.setUp()
 
-        swiftPackageManager = MockSwiftPackageManager()
+        swiftPackageManagerController = MockSwiftPackageManagerController()
         subject = SwiftPackageManagerInteractor(
-            swiftPackageManager: swiftPackageManager
+            swiftPackageManagerController: swiftPackageManagerController
         )
     }
 
     override func tearDown() {
         subject = nil
-        swiftPackageManager = nil
+        swiftPackageManagerController = nil
 
         super.tearDown()
     }
@@ -42,7 +42,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
         ])
 
-        swiftPackageManager.resolveStub = { path in
+        swiftPackageManagerController.resolveStub = { path in
             XCTAssertEqual(path, try self.temporaryPath())
 
             try self.simulateSPMOutput(at: path)
@@ -94,7 +94,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
         ])
 
-        swiftPackageManager.updateStub = { path in
+        swiftPackageManagerController.updateStub = { path in
             XCTAssertEqual(path, try self.temporaryPath())
 
             try self.simulateSPMOutput(at: path)

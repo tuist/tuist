@@ -3,7 +3,7 @@ import TuistGraph
 
 @testable import TuistDependencies
 
-public final class MockSwiftPackageManager: SwiftPackageManaging {
+public final class MockSwiftPackageManagerController: SwiftPackageManagerControlling {
     public init() {}
 
     var invokedResolve = false

@@ -60,14 +60,14 @@ public protocol SwiftPackageManagerInteracting {
 
 public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
     private let fileHandler: FileHandling
-    private let swiftPackageManager: SwiftPackageManaging
+    private let swiftPackageManagerController: SwiftPackageManagerControlling
 
     public init(
         fileHandler: FileHandling = FileHandler.shared,
-        swiftPackageManager: SwiftPackageManaging = SwiftPackageManager()
+        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController()
     ) {
         self.fileHandler = fileHandler
-        self.swiftPackageManager = swiftPackageManager
+        self.swiftPackageManagerController = swiftPackageManagerController
     }
 
     public func fetch(
@@ -135,9 +135,9 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
 
             // run `Swift Package Manager`
             if shouldUpdate {
-                try swiftPackageManager.update(at: temporaryDirectoryPath)
+                try swiftPackageManagerController.update(at: temporaryDirectoryPath)
             } else {
-                try swiftPackageManager.resolve(at: temporaryDirectoryPath)
+                try swiftPackageManagerController.resolve(at: temporaryDirectoryPath)
             }
 
             // post installation

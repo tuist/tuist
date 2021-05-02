@@ -8,12 +8,12 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class SwiftPackageManagerTests: TuistUnitTestCase {
-    private var subject: SwiftPackageManager!
+    private var subject: SwiftPackageManagerController!
 
     override func setUp() {
         super.setUp()
 
-        subject = SwiftPackageManager()
+        subject = SwiftPackageManagerController()
     }
 
     override func tearDown() {

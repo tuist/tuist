@@ -4,7 +4,7 @@ import TuistGraph
 import TuistSupport
 
 /// Protocol that defines an interface to interact with the Swift Package Manager.
-public protocol SwiftPackageManaging {
+public protocol SwiftPackageManagerControlling {
     /// Resolves package dependencies.
     /// - Parameter path: Directory where the `Package.swift` is defined.
     func resolve(at path: AbsolutePath) throws
@@ -14,7 +14,7 @@ public protocol SwiftPackageManaging {
     func update(at path: AbsolutePath) throws
 }
 
-public final class SwiftPackageManager: SwiftPackageManaging {
+public final class SwiftPackageManagerController: SwiftPackageManagerControlling {
     public init() {}
 
     public func resolve(at path: AbsolutePath) throws {
