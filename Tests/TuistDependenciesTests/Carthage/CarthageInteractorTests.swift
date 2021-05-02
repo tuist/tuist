@@ -69,20 +69,20 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertDirectoryContentEqual(
+        try XCTAssertDirectoryContentEqual(
             dependenciesDirectory,
             [
                 Constants.DependenciesDirectory.lockfilesDirectoryName,
                 Constants.DependenciesDirectory.carthageDirectoryName,
             ]
         )
-        XCTAssertDirectoryContentEqual(
+        try XCTAssertDirectoryContentEqual(
             lockfilesDirectory,
             [
                 Constants.DependenciesDirectory.cartfileResolvedName,
             ]
         )
-        XCTAssertDirectoryContentEqual(
+        try XCTAssertDirectoryContentEqual(
             carthageDirectory,
             [
                 "iOS",
@@ -91,7 +91,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
                 "tvOS",
             ]
         )
-        XCTAssertDirectoryContentEqual(
+        try XCTAssertDirectoryContentEqual(
             carthageDirectory.appending(component: "iOS"),
             [
                 "Moya.framework",
@@ -99,7 +99,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
                 "RxMoya.framework",
             ]
         )
-        XCTAssertDirectoryContentEqual(
+        try XCTAssertDirectoryContentEqual(
             carthageDirectory.appending(component: "Mac"),
             [
                 "Moya.framework",
@@ -107,7 +107,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
                 "RxMoya.framework",
             ]
         )
-        XCTAssertDirectoryContentEqual(
+        try XCTAssertDirectoryContentEqual(
             carthageDirectory.appending(component: "watchOS"),
             [
                 "Moya.framework",
@@ -115,7 +115,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
                 "RxMoya.framework",
             ]
         )
-        XCTAssertDirectoryContentEqual(
+        try XCTAssertDirectoryContentEqual(
             carthageDirectory.appending(component: "tvOS"),
             [
                 "Moya.framework",
@@ -214,20 +214,20 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertDirectoryContentEqual(
+        try XCTAssertDirectoryContentEqual(
             dependenciesDirectory,
             [
                 Constants.DependenciesDirectory.lockfilesDirectoryName,
                 Constants.DependenciesDirectory.carthageDirectoryName,
             ]
         )
-        XCTAssertDirectoryContentEqual(
+        try XCTAssertDirectoryContentEqual(
             lockfilesDirectory,
             [
                 Constants.DependenciesDirectory.cartfileResolvedName,
             ]
         )
-        XCTAssertDirectoryContentEqual(
+        try XCTAssertDirectoryContentEqual(
             carthageDirectory,
             [
                 "iOS",
@@ -236,7 +236,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
                 "tvOS",
             ]
         )
-        XCTAssertDirectoryContentEqual(
+        try XCTAssertDirectoryContentEqual(
             carthageDirectory.appending(component: "iOS"),
             [
                 "Moya.framework",
@@ -244,7 +244,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
                 "RxMoya.framework",
             ]
         )
-        XCTAssertDirectoryContentEqual(
+        try XCTAssertDirectoryContentEqual(
             carthageDirectory.appending(component: "Mac"),
             [
                 "Moya.framework",
@@ -252,7 +252,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
                 "RxMoya.framework",
             ]
         )
-        XCTAssertDirectoryContentEqual(
+        try XCTAssertDirectoryContentEqual(
             carthageDirectory.appending(component: "watchOS"),
             [
                 "Moya.framework",
@@ -260,7 +260,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
                 "RxMoya.framework",
             ]
         )
-        XCTAssertDirectoryContentEqual(
+        try XCTAssertDirectoryContentEqual(
             carthageDirectory.appending(component: "tvOS"),
             [
                 "Moya.framework",
@@ -341,14 +341,14 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         try subject.clean(dependenciesDirectory: dependenciesDirectory)
 
         // Then
-        XCTAssertDirectoryContentEqual(
+        try XCTAssertDirectoryContentEqual(
             dependenciesDirectory,
             [
                 Constants.DependenciesDirectory.lockfilesDirectoryName,
                 "OtherDepedenciesManager",
             ]
         )
-        XCTAssertDirectoryContentEqual(
+        try XCTAssertDirectoryContentEqual(
             lockfilesDirectory,
             [
                 "OtherLockfile.lock",

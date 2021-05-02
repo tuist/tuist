@@ -161,38 +161,37 @@ open class TuistTestCase: XCTestCase {
 
         XCTAssertFalse(output.contains(notExpected), message, file: file, line: line)
     }
-
+    
+    /// Asserts that a directory at given path contains expected elements.
+    /// It does not check the contents of a directory recursively.
+    /// - Throws: An error if the directory at given path does not exist.
     public func XCTAssertDirectoryContentEqual(
         _ directory: AbsolutePath,
         _ expected: [String],
         file: StaticString = #file,
         line: UInt = #line
-    ) {
-        do {
-            let directoryContent = try fileHandler
-                .contentsOfDirectory(directory)
-                .map { $0.pathString }
-                .sorted()
+    ) throws {
+        let directoryContent = try fileHandler
+            .contentsOfDirectory(directory)
+            .map { $0.pathString }
+            .sorted()
 
-            let expectedContent = expected
-                .map { directory.appending(RelativePath($0)) }
-                .map { $0.pathString }
-                .sorted()
+        let expectedContent = expected
+            .map { directory.appending(RelativePath($0)) }
+            .map { $0.pathString }
+            .sorted()
 
-            let message = """
-            The directory content:
-            ===========
-            \(directoryContent.isEmpty ? "<Empty>" : directoryContent.joined(separator: "\n"))
+        let message = """
+        The directory content:
+        ===========
+        \(directoryContent.isEmpty ? "<Empty>" : directoryContent.joined(separator: "\n"))
 
-            Doesn't equal to expected:
-            ===========
-            \(expectedContent.isEmpty ? "<Empty>" : expectedContent.joined(separator: "\n"))
-            """
+        Doesn't equal to expected:
+        ===========
+        \(expectedContent.isEmpty ? "<Empty>" : expectedContent.joined(separator: "\n"))
+        """
 
-            XCTAssertEqual(directoryContent, expectedContent, message, file: file, line: line)
-        } catch {
-            XCTFail(error.localizedDescription, file: file, line: line)
-        }
+        XCTAssertEqual(directoryContent, expectedContent, message, file: file, line: line)
     }
 
     public func temporaryFixture(_ pathString: String) throws -> AbsolutePath {

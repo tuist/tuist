@@ -55,20 +55,20 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertDirectoryContentEqual(
+        try XCTAssertDirectoryContentEqual(
             dependenciesDirectory,
             [
                 Constants.DependenciesDirectory.lockfilesDirectoryName,
                 Constants.DependenciesDirectory.swiftPackageManagerDirectoryName,
             ]
         )
-        XCTAssertDirectoryContentEqual(
+        try XCTAssertDirectoryContentEqual(
             lockfilesDirectory,
             [
                 Constants.DependenciesDirectory.packageResolvedName,
             ]
         )
-        XCTAssertDirectoryContentEqual(
+        try XCTAssertDirectoryContentEqual(
             swiftPackageManagerDirectory,
             [
                 "manifest.db",
@@ -107,20 +107,20 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertDirectoryContentEqual(
+        try XCTAssertDirectoryContentEqual(
             dependenciesDirectory,
             [
                 Constants.DependenciesDirectory.lockfilesDirectoryName,
                 Constants.DependenciesDirectory.swiftPackageManagerDirectoryName,
             ]
         )
-        XCTAssertDirectoryContentEqual(
+        try XCTAssertDirectoryContentEqual(
             lockfilesDirectory,
             [
                 Constants.DependenciesDirectory.packageResolvedName,
             ]
         )
-        XCTAssertDirectoryContentEqual(
+        try XCTAssertDirectoryContentEqual(
             swiftPackageManagerDirectory,
             [
                 "manifest.db",
@@ -151,14 +151,14 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         try subject.clean(dependenciesDirectory: dependenciesDirectory)
 
         // Then
-        XCTAssertDirectoryContentEqual(
+        try XCTAssertDirectoryContentEqual(
             dependenciesDirectory,
             [
                 Constants.DependenciesDirectory.lockfilesDirectoryName,
                 "OtherDepedenciesManager",
             ]
         )
-        XCTAssertDirectoryContentEqual(
+        try XCTAssertDirectoryContentEqual(
             lockfilesDirectory,
             [
                 "OtherLockfile.lock",
