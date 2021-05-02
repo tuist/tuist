@@ -48,12 +48,11 @@ struct TaskService {
         options: [String: String],
         path: String?
     ) throws {
-        let task = try loadTask(taskName: taskName, path: path)
         let path = self.path(path)
-        let runArguments = try manifestLoader.tasksLoadArguments(at: path)
+        let taskPath = try task(with: taskName, path: path)
+        let runArguments = try manifestLoader.taskLoadArguments(at: taskPath)
             + [
                 "--tuist-task",
-                task.name,
                 String(data: try JSONEncoder().encode(options), encoding: .utf8)!,
             ]
         try ProcessEnv.chdir(path)
@@ -72,12 +71,8 @@ struct TaskService {
         optional: [String]
     ) {
         let path = self.path(path)
-        guard let rootDirectory = rootDirectoryLocator.locate(from: path) else { fatalError() }
-        let tasksDirectory = rootDirectory.appending(
-            components: Constants.tuistDirectoryName, Constants.tasksDirectoryName
-        )
-        FileHandler.shared.contentsOfDirectory(tasksDirectory)
-
+        try task(with: taskName, path: path)
+        return ([], [])
 //        return task.options.reduce(into: (required: [], optional: [])) { currentValue, attribute in
 //            switch attribute {
 //            case let .optional(name):
@@ -89,20 +84,35 @@ struct TaskService {
     }
 
     // MARK: - Helpers
-
-    private func loadTask(
-        taskName: String,
-        path: String?
-    ) throws -> Task {
-        let path = self.path(path)
-        let config = try configLoader.loadConfig(path: path)
-        let plugins = try pluginService.loadPlugins(using: config)
-        manifestLoader.register(plugins: plugins)
-
-//        let tasks = try FileHandler.shared.contentsOfDirectory(
-        guard let task = tasks.tasks[taskName] else { throw TaskError.taskNotFound(taskName, tasks.tasks.map(\.key)) }
+    @discardableResult
+    private func task(with name: String, path: AbsolutePath) throws -> AbsolutePath {
+        guard let rootDirectory = rootDirectoryLocator.locate(from: path) else { fatalError() }
+        let tasksDirectory = rootDirectory.appending(
+            components: Constants.tuistDirectoryName, Constants.tasksDirectoryName
+        )
+        let tasks: [String: AbsolutePath] = try FileHandler.shared.contentsOfDirectory(tasksDirectory)
+            .reduce(into: [:]) { acc, current in
+                acc[current.basenameWithoutExt.camelCaseToKebabCase()] = current
+            }
+        
+        guard let task = tasks[name] else { throw TaskError.taskNotFound(name, tasks.map(\.key)) }
         return task
     }
+    
+//
+//    private func loadTask(
+//        taskName: String,
+//        path: String?
+//    ) throws -> Task {
+//        let path = self.path(path)
+//        let config = try configLoader.loadConfig(path: path)
+//        let plugins = try pluginService.loadPlugins(using: config)
+//        manifestLoader.register(plugins: plugins)
+//
+////        let tasks = try FileHandler.shared.contentsOfDirectory(
+//        guard let task = tasks.tasks[taskName] else { throw TaskError.taskNotFound(taskName, tasks.tasks.map(\.key)) }
+//        return task
+//    }
 
     private func path(_ path: String?) -> AbsolutePath {
         if let path = path {

@@ -10,7 +10,7 @@ public enum Manifest: CaseIterable {
     case galaxy
     case dependencies
     case plugin
-    case tasks
+    case task
 
     /// This was introduced to rename a file name without breaking existing projects.
     public var deprecatedFileName: String? {
@@ -45,8 +45,8 @@ public enum Manifest: CaseIterable {
             return "Dependencies.swift"
         case .plugin:
             return "Plugin.swift"
-        case .tasks:
-            return "Tasks.swift"
+        case .task:
+            return "\(path.basenameWithoutExt).swift"
         }
     }
 }

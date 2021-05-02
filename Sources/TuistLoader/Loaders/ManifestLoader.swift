@@ -88,14 +88,9 @@ public protocol ManifestLoading {
     ///     -  path: Path to the directory that contains Dependencies.swift
     func loadDependencies(at path: AbsolutePath) throws -> ProjectDescription.Dependencies
 
-    /// Loads the Tasks.swift in the given directory
-    /// - Parameters:
-    ///     - path: Path to the directory that contains Tasks.swift
-    func loadTasks(at path: AbsolutePath) throws -> ProjectDescription.Tasks
-
     /// Returns arguments for loading `Tasks.swift`
     /// You can append this list to insert your own custom flag
-    func tasksLoadArguments(at path: AbsolutePath) throws -> [String]
+    func taskLoadArguments(at path: AbsolutePath) throws -> [String]
 
     /// Loads the Plugin.swift in the given directory.
     /// - Parameter path: Path to the directory that contains Plugin.swift
@@ -208,16 +203,8 @@ public class ManifestLoader: ManifestLoading {
         return try decoder.decode(Dependencies.self, from: dependenciesData)
     }
 
-    public func loadTasks(at path: AbsolutePath) throws -> ProjectDescription.Tasks {
-        try loadManifest(.tasks, at: path)
-    }
-
-    public func tasksLoadArguments(at path: AbsolutePath) throws -> [String] {
-        let manifestPath = try self.manifestPath(
-            .tasks,
-            at: path
-        )
-        return try buildArguments(.tasks, at: manifestPath)
+    public func taskLoadArguments(at path: AbsolutePath) throws -> [String] {
+        try buildArguments(.task, at: path)
     }
 
     public func loadPlugin(at path: AbsolutePath) throws -> ProjectDescription.Plugin {
@@ -335,7 +322,7 @@ public class ManifestLoader: ManifestLoading {
                  .setup,
                  .template,
                  .workspace,
-                 .tasks:
+                 .task:
                 return try projectDescriptionHelpersBuilderFactory
                     .projectDescriptionHelpersBuilder(cacheDirectory: projectDescriptionHelpersCacheDirectory)
                     .build(
