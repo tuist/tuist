@@ -62,10 +62,10 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             platforms: platforms
         )
 
-        carthageInteractor.fetchStub = { parameters in
-            XCTAssertEqual(parameters.dependenciesDirectory, dependenciesDirectoryPath)
-            XCTAssertEqual(parameters.dependencies, carthageDependencies)
-            XCTAssertEqual(parameters.platforms, platforms)
+        carthageInteractor.fetchStub = { arg0, arg1, arg2 in
+            XCTAssertEqual(arg0, dependenciesDirectoryPath)
+            XCTAssertEqual(arg1, carthageDependencies)
+            XCTAssertEqual(arg2, platforms)
         }
 
         // When
@@ -104,9 +104,9 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             platforms: platforms
         )
 
-        swiftPackageManagerInteractor.fetchStub = { parameters in
-            XCTAssertEqual(parameters.dependenciesDirectory, dependenciesDirectoryPath)
-            XCTAssertEqual(parameters.dependencies, swiftPackageManagerDependencies)
+        swiftPackageManagerInteractor.fetchStub = { arg0, arg1 in
+            XCTAssertEqual(arg0, dependenciesDirectoryPath)
+            XCTAssertEqual(arg1, swiftPackageManagerDependencies)
         }
 
         // When
@@ -152,14 +152,14 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             platforms: platforms
         )
 
-        carthageInteractor.fetchStub = { parameters in
-            XCTAssertEqual(parameters.dependenciesDirectory, dependenciesDirectoryPath)
-            XCTAssertEqual(parameters.dependencies, carthageDependencies)
-            XCTAssertEqual(parameters.platforms, platforms)
+        carthageInteractor.fetchStub = { arg0, arg1, arg2 in
+            XCTAssertEqual(arg0, dependenciesDirectoryPath)
+            XCTAssertEqual(arg1, carthageDependencies)
+            XCTAssertEqual(arg2, platforms)
         }
-        swiftPackageManagerInteractor.fetchStub = { parameters in
-            XCTAssertEqual(parameters.dependenciesDirectory, dependenciesDirectoryPath)
-            XCTAssertEqual(parameters.dependencies, swiftPackageManagerDependencies)
+        swiftPackageManagerInteractor.fetchStub = { arg0, arg1 in
+            XCTAssertEqual(arg0, dependenciesDirectoryPath)
+            XCTAssertEqual(arg1, swiftPackageManagerDependencies)
         }
 
         // When
@@ -244,10 +244,10 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             platforms: platforms
         )
 
-        carthageInteractor.updateStub = { parameters in
-            XCTAssertEqual(parameters.dependenciesDirectory, dependenciesDirectoryPath)
-            XCTAssertEqual(parameters.dependencies, carthageDependencies)
-            XCTAssertEqual(parameters.platforms, platforms)
+        carthageInteractor.updateStub = { arg0, arg1, arg2 in
+            XCTAssertEqual(arg0, dependenciesDirectoryPath)
+            XCTAssertEqual(arg1, carthageDependencies)
+            XCTAssertEqual(arg2, platforms)
         }
 
         // When
@@ -286,9 +286,9 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             platforms: platforms
         )
 
-        swiftPackageManagerInteractor.fetchStub = { parameters in
-            XCTAssertEqual(parameters.dependenciesDirectory, dependenciesDirectoryPath)
-            XCTAssertEqual(parameters.dependencies, swiftPackageManagerDependencies)
+        swiftPackageManagerInteractor.fetchStub = { arg0, arg1 in
+            XCTAssertEqual(arg0, dependenciesDirectoryPath)
+            XCTAssertEqual(arg1, swiftPackageManagerDependencies)
         }
 
         // When
@@ -334,14 +334,14 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             platforms: platforms
         )
 
-        carthageInteractor.updateStub = { parameters in
-            XCTAssertEqual(parameters.dependenciesDirectory, dependenciesDirectoryPath)
-            XCTAssertEqual(parameters.dependencies, carthageDependencies)
-            XCTAssertEqual(parameters.platforms, platforms)
+        carthageInteractor.updateStub = { arg0, arg1, arg2 in
+            XCTAssertEqual(arg0, dependenciesDirectoryPath)
+            XCTAssertEqual(arg1, carthageDependencies)
+            XCTAssertEqual(arg2, platforms)
         }
-        swiftPackageManagerInteractor.fetchStub = { parameters in
-            XCTAssertEqual(parameters.dependenciesDirectory, dependenciesDirectoryPath)
-            XCTAssertEqual(parameters.dependencies, swiftPackageManagerDependencies)
+        swiftPackageManagerInteractor.fetchStub = { arg0, arg1 in
+            XCTAssertEqual(arg0, dependenciesDirectoryPath)
+            XCTAssertEqual(arg1, swiftPackageManagerDependencies)
         }
 
         // When

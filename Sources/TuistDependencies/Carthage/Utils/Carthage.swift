@@ -39,7 +39,12 @@ public final class Carthage: Carthaging {
 
     // MARK: - Helpers
 
-    private func buildCarthageCommand(path: AbsolutePath, platforms: Set<Platform>, options: Set<CarthageDependencies.Options>, subcommand: String) -> [String] {
+    private func buildCarthageCommand(
+        path: AbsolutePath,
+        platforms: Set<Platform>,
+        options: Set<CarthageDependencies.Options>,
+        subcommand: String
+    ) -> [String] {
         var commandComponents: [String] = [
             "carthage",
             subcommand,

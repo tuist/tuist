@@ -7,35 +7,25 @@ public final class MockSwiftPackageManagerInteractor: SwiftPackageManagerInterac
     public init() {}
 
     var invokedFetch = false
-    var fetchStub: ((FetchParameters) throws -> Void)?
+    var fetchStub: ((AbsolutePath, SwiftPackageManagerDependencies) throws -> Void)?
 
     public func fetch(
         dependenciesDirectory: AbsolutePath,
         dependencies: SwiftPackageManagerDependencies
     ) throws {
-        let parameters = FetchParameters(
-            dependenciesDirectory: dependenciesDirectory,
-            dependencies: dependencies
-        )
-
         invokedFetch = true
-        try fetchStub?(parameters)
+        try fetchStub?(dependenciesDirectory, dependencies)
     }
 
     var invokedUpdate = false
-    var updateStub: ((UpdateParameters) throws -> Void)?
+    var updateStub: ((AbsolutePath, SwiftPackageManagerDependencies) throws -> Void)?
 
     public func update(
         dependenciesDirectory: AbsolutePath,
         dependencies: SwiftPackageManagerDependencies
     ) throws {
-        let parameters = UpdateParameters(
-            dependenciesDirectory: dependenciesDirectory,
-            dependencies: dependencies
-        )
-
         invokedUpdate = true
-        try updateStub?(parameters)
+        try updateStub?(dependenciesDirectory, dependencies)
     }
 
     var invokedClean = false
@@ -44,19 +34,5 @@ public final class MockSwiftPackageManagerInteractor: SwiftPackageManagerInterac
     public func clean(dependenciesDirectory: AbsolutePath) throws {
         invokedClean = true
         try cleanStub?(dependenciesDirectory)
-    }
-}
-
-// MARK: - Models
-
-extension MockSwiftPackageManagerInteractor {
-    struct FetchParameters {
-        let dependenciesDirectory: AbsolutePath
-        let dependencies: SwiftPackageManagerDependencies
-    }
-
-    struct UpdateParameters {
-        let dependenciesDirectory: AbsolutePath
-        let dependencies: SwiftPackageManagerDependencies
     }
 }

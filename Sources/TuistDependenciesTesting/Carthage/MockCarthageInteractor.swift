@@ -7,39 +7,27 @@ public final class MockCarthageInteractor: CarthageInteracting {
     public init() {}
 
     var invokedFetch = false
-    var fetchStub: ((FetchParameters) throws -> Void)?
+    var fetchStub: ((AbsolutePath, CarthageDependencies, Set<Platform>) throws -> Void)?
 
     public func fetch(
         dependenciesDirectory: AbsolutePath,
         dependencies: CarthageDependencies,
         platforms: Set<Platform>
     ) throws {
-        let parameters = FetchParameters(
-            dependenciesDirectory: dependenciesDirectory,
-            dependencies: dependencies,
-            platforms: platforms
-        )
-
         invokedFetch = true
-        try fetchStub?(parameters)
+        try fetchStub?(dependenciesDirectory, dependencies, platforms)
     }
 
     var invokedUpdate = false
-    var updateStub: ((UpdateParameters) throws -> Void)?
+    var updateStub: ((AbsolutePath, CarthageDependencies, Set<Platform>) throws -> Void)?
 
     public func update(
         dependenciesDirectory: AbsolutePath,
         dependencies: CarthageDependencies,
         platforms: Set<Platform>
     ) throws {
-        let parameters = UpdateParameters(
-            dependenciesDirectory: dependenciesDirectory,
-            dependencies: dependencies,
-            platforms: platforms
-        )
-
         invokedUpdate = true
-        try updateStub?(parameters)
+        try updateStub?(dependenciesDirectory, dependencies, platforms)
     }
 
     var invokedClean = false
@@ -48,21 +36,5 @@ public final class MockCarthageInteractor: CarthageInteracting {
     public func clean(dependenciesDirectory: AbsolutePath) throws {
         invokedClean = true
         try cleanStub?(dependenciesDirectory)
-    }
-}
-
-// MARK: - Models
-
-extension MockCarthageInteractor {
-    struct FetchParameters {
-        let dependenciesDirectory: AbsolutePath
-        let dependencies: CarthageDependencies
-        let platforms: Set<Platform>
-    }
-
-    struct UpdateParameters {
-        let dependenciesDirectory: AbsolutePath
-        let dependencies: CarthageDependencies
-        let platforms: Set<Platform>
     }
 }

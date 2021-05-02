@@ -42,10 +42,10 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
         ])
 
-        swiftPackageManager.resolveStub = { [unowned self] path in
+        swiftPackageManager.resolveStub = { path in
             XCTAssertEqual(path, try self.temporaryPath())
 
-            try simulateSPMOutput(at: path)
+            try self.simulateSPMOutput(at: path)
         }
 
         // When
@@ -94,10 +94,10 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
         ])
 
-        swiftPackageManager.updateStub = { [unowned self] path in
+        swiftPackageManager.updateStub = { path in
             XCTAssertEqual(path, try self.temporaryPath())
 
-            try simulateSPMOutput(at: path)
+            try self.simulateSPMOutput(at: path)
         }
 
         // When

@@ -7,66 +7,26 @@ public final class MockCarthage: Carthaging {
     public init() {}
 
     var invokedBootstrap = false
-    var bootstrapStub: ((BootstrapParameters) throws -> Void)?
+    var bootstrapStub: ((AbsolutePath, Set<Platform>, Set<CarthageDependencies.Options>) throws -> Void)?
 
-    public func bootstrap(at path: AbsolutePath, platforms: Set<Platform>, options: Set<CarthageDependencies.Options>) throws {
-        let parameters = BootstrapParameters(
-            path: path,
-            platforms: platforms,
-            options: options
-        )
-
+    public func bootstrap(
+        at path: AbsolutePath,
+        platforms: Set<Platform>,
+        options: Set<CarthageDependencies.Options>
+    ) throws {
         invokedBootstrap = true
-        try bootstrapStub?(parameters)
+        try bootstrapStub?(path, platforms, options)
     }
 
     var invokedUpdate = false
-    var updateStub: ((UpdateParameters) throws -> Void)?
+    var updateStub: ((AbsolutePath, Set<Platform>, Set<CarthageDependencies.Options>) throws -> Void)?
 
-    public func update(at path: AbsolutePath, platforms: Set<Platform>, options: Set<CarthageDependencies.Options>) throws {
-        let parameters = UpdateParameters(
-            path: path,
-            platforms: platforms,
-            options: options
-        )
-
+    public func update(
+        at path: AbsolutePath,
+        platforms: Set<Platform>,
+        options: Set<CarthageDependencies.Options>
+    ) throws {
         invokedUpdate = true
-        try updateStub?(parameters)
-    }
-}
-
-// MARK: - Models
-
-extension MockCarthage {
-    struct BootstrapParameters {
-        let path: AbsolutePath
-        let platforms: Set<Platform>
-        let options: Set<CarthageDependencies.Options>
-
-        init(
-            path: AbsolutePath,
-            platforms: Set<Platform>,
-            options: Set<CarthageDependencies.Options>
-        ) {
-            self.path = path
-            self.platforms = platforms
-            self.options = options
-        }
-    }
-
-    struct UpdateParameters {
-        let path: AbsolutePath
-        let platforms: Set<Platform>
-        let options: Set<CarthageDependencies.Options>
-
-        init(
-            path: AbsolutePath,
-            platforms: Set<Platform>,
-            options: Set<CarthageDependencies.Options>
-        ) {
-            self.path = path
-            self.platforms = platforms
-            self.options = options
-        }
+        try updateStub?(path, platforms, options)
     }
 }
