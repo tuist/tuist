@@ -88,11 +88,6 @@ public protocol ManifestLoading {
     ///     -  path: Path to the directory that contains Dependencies.swift
     func loadDependencies(at path: AbsolutePath) throws -> ProjectDescription.Dependencies
 
-    /// Loads the Tasks.swift in the given directory
-    /// - Parameters:
-    ///     - path: Path to the directory that contains Tasks.swift
-    func loadTasks(at path: AbsolutePath) throws -> ProjectDescription.Tasks
-
     /// Returns arguments for loading `Tasks.swift`
     /// You can append this list to insert your own custom flag
     func taskLoadArguments(at path: AbsolutePath) throws -> [String]

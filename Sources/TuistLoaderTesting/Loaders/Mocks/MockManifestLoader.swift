@@ -79,12 +79,7 @@ public final class MockManifestLoader: ManifestLoading {
         return try loadPluginStub?(path) ?? Plugin.test()
     }
 
-    public func loadTasks(at _: AbsolutePath) throws -> Tasks {
-        // TODO: Implement
-        fatalError()
-    }
-
-    public func tasksLoadArguments(at _: AbsolutePath) throws -> [String] {
+    public func taskLoadArguments(at _: AbsolutePath) throws -> [String] {
         // TODO: Implement
         fatalError()
     }
