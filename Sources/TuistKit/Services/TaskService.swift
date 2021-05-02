@@ -29,15 +29,18 @@ struct TaskService {
     private let configLoader: ConfigLoading
     private let manifestLoader: ManifestLoading
     private let pluginService: PluginServicing
+    private let rootDirectoryLocator: RootDirectoryLocating
 
     init(
         configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
         manifestLoader: ManifestLoading = ManifestLoader(),
-        pluginService: PluginServicing = PluginService()
+        pluginService: PluginServicing = PluginService(),
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
     ) {
         self.configLoader = configLoader
         self.manifestLoader = manifestLoader
         self.pluginService = pluginService
+        self.rootDirectoryLocator = rootDirectoryLocator
     }
 
     func run(
@@ -68,16 +71,21 @@ struct TaskService {
         required: [String],
         optional: [String]
     ) {
-        let task = try loadTask(taskName: taskName, path: path)
+        let path = self.path(path)
+        guard let rootDirectory = rootDirectoryLocator.locate(from: path) else { fatalError() }
+        let tasksDirectory = rootDirectory.appending(
+            components: Constants.tuistDirectoryName, Constants.tasksDirectoryName
+        )
+        FileHandler.shared.contentsOfDirectory(tasksDirectory)
 
-        return task.options.reduce(into: (required: [], optional: [])) { currentValue, attribute in
-            switch attribute {
-            case let .optional(name):
-                currentValue.optional.append(name)
-            case let .required(name):
-                currentValue.required.append(name)
-            }
-        }
+//        return task.options.reduce(into: (required: [], optional: [])) { currentValue, attribute in
+//            switch attribute {
+//            case let .optional(name):
+//                currentValue.optional.append(name)
+//            case let .required(name):
+//                currentValue.required.append(name)
+//            }
+//        }
     }
 
     // MARK: - Helpers
@@ -91,7 +99,7 @@ struct TaskService {
         let plugins = try pluginService.loadPlugins(using: config)
         manifestLoader.register(plugins: plugins)
 
-        let tasks = try manifestLoader.loadTasks(at: path)
+//        let tasks = try FileHandler.shared.contentsOfDirectory(
         guard let task = tasks.tasks[taskName] else { throw TaskError.taskNotFound(taskName, tasks.tasks.map(\.key)) }
         return task
     }
