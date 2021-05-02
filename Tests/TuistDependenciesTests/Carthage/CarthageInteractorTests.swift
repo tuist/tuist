@@ -11,22 +11,18 @@ import XCTest
 final class CarthageInteractorTests: TuistUnitTestCase {
     private var subject: CarthageInteractor!
     private var carthageController: MockCarthageController!
-    private var carthage: MockCarthage!
 
     override func setUp() {
         super.setUp()
 
         carthageController = MockCarthageController()
-        carthage = MockCarthage()
         subject = CarthageInteractor(
-            carthageController: carthageController,
-            carthage: carthage
+            carthageController: carthageController
         )
     }
 
     override func tearDown() {
         carthageController = nil
-        carthage = nil
         subject = nil
 
         super.tearDown()
@@ -53,7 +49,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             options: options
         )
 
-        carthage.bootstrapStub = { arg0, arg1, arg2 in
+        carthageController.bootstrapStub = { arg0, arg1, arg2 in
             XCTAssertEqual(arg0, try self.temporaryPath())
             XCTAssertEqual(arg1, platforms)
             XCTAssertEqual(arg2, options)
@@ -198,7 +194,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             options: options
         )
 
-        carthage.updateStub = { arg0, arg1, arg2 in
+        carthageController.updateStub = { arg0, arg1, arg2 in
             XCTAssertEqual(arg0, try self.temporaryPath())
             XCTAssertEqual(arg1, platforms)
             XCTAssertEqual(arg2, options)

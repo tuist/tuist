@@ -7,7 +7,7 @@ import XCTest
 @testable import TuistDependencies
 @testable import TuistSupportTesting
 
-final class SwiftPackageManagerTests: TuistUnitTestCase {
+final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
     private var subject: SwiftPackageManagerController!
 
     override func setUp() {

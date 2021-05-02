@@ -84,16 +84,13 @@ public protocol CarthageInteracting {
 public final class CarthageInteractor: CarthageInteracting {
     private let fileHandler: FileHandling
     private let carthageController: CarthageControlling
-    private let carthage: Carthaging
 
     public init(
         fileHandler: FileHandling = FileHandler.shared,
-        carthageController: CarthageControlling = CarthageController.shared,
-        carthage: Carthaging = Carthage()
+        carthageController: CarthageControlling = CarthageController.shared
     ) {
         self.fileHandler = fileHandler
         self.carthageController = carthageController
-        self.carthage = carthage
     }
 
     public func fetch(
@@ -172,13 +169,13 @@ public final class CarthageInteractor: CarthageInteracting {
 
             // run `Carthage`
             if shouldUpdate {
-                try carthage.update(
+                try carthageController.update(
                     at: temporaryDirectoryPath,
                     platforms: platforms,
                     options: dependencies.options
                 )
             } else {
-                try carthage.bootstrap(
+                try carthageController.bootstrap(
                     at: temporaryDirectoryPath,
                     platforms: platforms,
                     options: dependencies.options
