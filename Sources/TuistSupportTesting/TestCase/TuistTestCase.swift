@@ -161,7 +161,7 @@ open class TuistTestCase: XCTestCase {
 
         XCTAssertFalse(output.contains(notExpected), message, file: file, line: line)
     }
-    
+
     /// Asserts that a directory at given path contains expected elements.
     /// It does not check the contents of a directory recursively.
     /// - Throws: An error if the directory at given path does not exist.

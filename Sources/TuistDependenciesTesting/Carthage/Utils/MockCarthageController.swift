@@ -30,8 +30,7 @@ public final class MockCarthageController: CarthageControlling {
         invokedIsXCFrameworksProductionSupported = true
         return isXCFrameworksProductionSupportedStub?() ?? false
     }
-    
-    
+
     var invokedBootstrap = false
     var bootstrapStub: ((AbsolutePath, Set<TuistGraph.Platform>, Set<CarthageDependencies.Options>) throws -> Void)?
 

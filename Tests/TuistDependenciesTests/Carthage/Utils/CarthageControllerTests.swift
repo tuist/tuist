@@ -21,7 +21,7 @@ final class CarthageControllerTests: TuistUnitTestCase {
 
         super.tearDown()
     }
-    
+
     func test_canUseSystemCarthage_available() {
         // Given
         system.whichStub = { _ in "path" }

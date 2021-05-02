@@ -44,7 +44,7 @@ public protocol CarthageControlling {
 
     /// Returns true if version of Carthage available in the environment supports producing XCFrameworks.
     func isXCFrameworksProductionSupported() throws -> Bool
-    
+
     /// Checkouts and builds the project's dependencies
     /// - Parameters:
     ///   - path: Directory whose project's dependencies will be installed.
@@ -65,7 +65,7 @@ public protocol CarthageControlling {
 public final class CarthageController: CarthageControlling {
     /// Shared instance.
     public static var shared: CarthageControlling = CarthageController()
-    
+
     /// Cached response of `carthage version` command.
     @Atomic
     private var cachedCarthageVersion: Version?
