@@ -361,6 +361,15 @@
       "contributions": [
         "bug"
       ]
+    },
+    {
+      "login": "tovkal",
+      "name": "Andrés Pizá Bückmann",
+      "avatar_url": "https://avatars.githubusercontent.com/u/5960675?v=4",
+      "profile": "http://twitter.com/tovkal",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
