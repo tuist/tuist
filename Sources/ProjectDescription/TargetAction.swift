@@ -107,7 +107,7 @@ public struct TargetAction: Codable, Equatable {
         outputPaths = try container.decodeIfPresent([Path].self, forKey: .outputPaths) ?? []
         outputFileListPaths = try container.decodeIfPresent([Path].self, forKey: .outputFileListPaths) ?? []
         basedOnDependencyAnalysis = try container.decodeIfPresent(Bool.self, forKey: .basedOnDependencyAnalysis)
-        runForInstallBuildsOnly = try container.decode(Bool.self, forKey: .runForInstallBuildsOnly)
+        runForInstallBuildsOnly = try container.decodeIfPresent(Bool.self, forKey: .runForInstallBuildsOnly) ?? false
 
         let arguments: [String] = try container.decodeIfPresent([String].self, forKey: .arguments) ?? []
         if let script = try container.decodeIfPresent(String.self, forKey: .script) {
