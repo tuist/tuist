@@ -142,6 +142,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="https://github.com/softmaxsg"><img src="https://avatars.githubusercontent.com/u/3723817?v=4" width="100px;" alt=""/><br /><sub><b>Vitaly Chupryk</b></sub></a></td>
     <td align="center"><a href="https://github.com/rmnblm"><img src="https://avatars.githubusercontent.com/u/5942764?v=4" width="100px;" alt=""/><br /><sub><b>Roman Blum</b></sub></a></td>
     <td align="center"><a href="http://nanotek.me"><img src="https://avatars.githubusercontent.com/u/7265334?v=4" width="100px;" alt=""/><br /><sub><b>Giovanni Filaferro</b></sub></a></td>
+    <td align="center"><a href="http://twitter.com/tovkal"><img src="https://avatars.githubusercontent.com/u/5960675?v=4" width="100px;" alt=""/><br /><sub><b>Andrés Pizá Bückmann</b></sub></a></td>
   </tr>
 </table>
 
