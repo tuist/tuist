@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+
+- Add `tuist dependencies update` command. [#2819](https://github.com/tuist/tuist/pull/2819) by [@laxmorek](https://github.com/laxmorek)
+
 ### Fixed
 
 - Fix `tuist focus` not excluding targets from `codeCoverageTargets` of custom schemes by [@Luis Padron](https://github.com/luispadron).
@@ -11,6 +15,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ## 1.41.0 
 
 ### Added
+
 - Add support for `runPostActionsOnFailure` for post build actions. [#2752](https://github.com/tuist/tuist/pull/2752) by [@FranzBusch](https://github.com/FranzBusch)
 - Make `ValueGraph` serializable. [#2811](https://github.com/tuist/tuist/pull/2811) by [@laxmorek](https://github.com/laxmorek)
 - Add support for configuration of cache directory [#2566](https://github.com/tuist/tuist/pull/2566) by [@adellibovi](https://github.com/adellibovi).

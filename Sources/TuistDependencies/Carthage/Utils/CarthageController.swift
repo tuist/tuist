@@ -1,6 +1,8 @@
-import Foundation
 import TSCBasic
 import TSCUtility
+import TuistCore
+import TuistGraph
+import TuistSupport
 
 // MARK: - Carthage Controller Error
 
@@ -32,7 +34,7 @@ enum CarthageControllerError: FatalError, Equatable {
 
 // MARK: - Carthage Controlling
 
-/// Controls `Carthage` that can be found in the environment.
+/// Protocol that defines an interface to interact with the Carthage.
 public protocol CarthageControlling {
     /// Returns true if Carthage is available in the environment.
     func canUseSystemCarthage() -> Bool
@@ -42,6 +44,20 @@ public protocol CarthageControlling {
 
     /// Returns true if version of Carthage available in the environment supports producing XCFrameworks.
     func isXCFrameworksProductionSupported() throws -> Bool
+
+    /// Checkouts and builds the project's dependencies
+    /// - Parameters:
+    ///   - path: Directory whose project's dependencies will be installed.
+    ///   - platforms: The platforms to build for.
+    ///   - options: The options for Carthage installation.
+    func bootstrap(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>, options: Set<CarthageDependencies.Options>) throws
+
+    /// Updates and rebuilds the project's dependencies
+    /// - Parameters:
+    ///   - path: Directory whose project's dependencies will be installed.
+    ///   - platforms: The platforms to build for.
+    ///   - options: The options for Carthage installation.
+    func update(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>, options: Set<CarthageDependencies.Options>) throws
 }
 
 // MARK: - Carthage Controller
@@ -85,5 +101,62 @@ public final class CarthageController: CarthageControlling {
         // Carthage has supported XCFrameworks production since 0.37.0
         // More info here: https://github.com/Carthage/Carthage/releases/tag/0.37.0
         try carthageVersion() >= Version(0, 37, 0)
+    }
+
+    public func bootstrap(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>, options: Set<CarthageDependencies.Options>) throws {
+        let command = buildCarthageCommand(path: path, platforms: platforms, options: options, subcommand: "bootstrap")
+        try System.shared.run(command)
+    }
+
+    public func update(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>, options: Set<CarthageDependencies.Options>) throws {
+        let command = buildCarthageCommand(path: path, platforms: platforms, options: options, subcommand: "update")
+        try System.shared.run(command)
+    }
+
+    // MARK: - Helpers
+
+    private func buildCarthageCommand(
+        path: AbsolutePath,
+        platforms: Set<TuistGraph.Platform>,
+        options: Set<CarthageDependencies.Options>,
+        subcommand: String
+    ) -> [String] {
+        var commandComponents: [String] = [
+            "carthage",
+            subcommand,
+            "--project-directory",
+            path.pathString,
+        ]
+
+        if !platforms.isEmpty {
+            commandComponents += [
+                "--platform",
+                platforms
+                    .map(\.caseValue)
+                    .sorted()
+                    .joined(separator: ","),
+            ]
+        }
+
+        if !options.isEmpty {
+            commandComponents += options
+                .map { option in
+                    switch option {
+                    case .useXCFrameworks:
+                        return "--use-xcframeworks"
+                    case .noUseBinaries:
+                        return "--no-use-binaries"
+                    }
+                }
+                .sorted()
+        }
+
+        commandComponents += [
+            "--use-netrc",
+            "--cache-builds",
+            "--new-resolver",
+        ]
+
+        return commandComponents
     }
 }

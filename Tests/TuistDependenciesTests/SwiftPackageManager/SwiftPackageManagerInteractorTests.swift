@@ -10,15 +10,20 @@ import XCTest
 
 final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
     private var subject: SwiftPackageManagerInteractor!
+    private var swiftPackageManagerController: MockSwiftPackageManagerController!
 
     override func setUp() {
         super.setUp()
 
-        subject = SwiftPackageManagerInteractor()
+        swiftPackageManagerController = MockSwiftPackageManagerController()
+        subject = SwiftPackageManagerInteractor(
+            swiftPackageManagerController: swiftPackageManagerController
+        )
     }
 
     override func tearDown() {
         subject = nil
+        swiftPackageManagerController = nil
 
         super.tearDown()
     }
@@ -28,49 +33,103 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
         let dependenciesDirectory = rootPath
             .appending(component: Constants.DependenciesDirectory.name)
+        let lockfilesDirectory = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
+        let swiftPackageManagerDirectory = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
 
-        try createFiles([
-            "Package.resolved",
-            ".build/manifest.db",
-            ".build/workspace-state.json",
-            ".build/artifacts/foo.txt",
-            ".build/checkouts/Alamofire/Info.plist",
-            ".build/repositories/checkouts-state.json",
-            ".build/repositories/Alamofire-e8f130fe/config",
+        let depedencies = SwiftPackageManagerDependencies([
+            .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
         ])
 
-        let platforms = Set<Platform>([.iOS, .watchOS, .macOS, .tvOS])
-        let command = ["swift", "package", "--package-path", "\(try temporaryPath().pathString)", "resolve"]
-        system.succeedCommand(command)
-        system.swiftVersionStub = { "5.3" }
+        swiftPackageManagerController.resolveStub = { path in
+            XCTAssertEqual(path, try self.temporaryPath())
 
-        let depedencies = SwiftPackageManagerDependencies(
-            [
-                .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
-            ]
-        )
+            try self.simulateSPMOutput(at: path)
+        }
 
         // When
         try subject.fetch(
             dependenciesDirectory: dependenciesDirectory,
-            dependencies: depedencies,
-            platforms: platforms
+            dependencies: depedencies
         )
 
         // Then
-        let expectedPackageResolvedPath = dependenciesDirectory
+        try XCTAssertDirectoryContentEqual(
+            dependenciesDirectory,
+            [
+                Constants.DependenciesDirectory.lockfilesDirectoryName,
+                Constants.DependenciesDirectory.swiftPackageManagerDirectoryName,
+            ]
+        )
+        try XCTAssertDirectoryContentEqual(
+            lockfilesDirectory,
+            [
+                Constants.DependenciesDirectory.packageResolvedName,
+            ]
+        )
+        try XCTAssertDirectoryContentEqual(
+            swiftPackageManagerDirectory,
+            [
+                "manifest.db",
+                "workspace-state.json",
+                "artifacts",
+                "checkouts",
+                "repositories",
+            ]
+        )
+    }
+
+    func test_update() throws {
+        // Given
+        let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
+        let dependenciesDirectory = rootPath
+            .appending(component: Constants.DependenciesDirectory.name)
+        let lockfilesDirectory = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
-            .appending(component: Constants.DependenciesDirectory.packageResolvedName)
-        let expectedSwiftPackageManagerDirectory = dependenciesDirectory
+        let swiftPackageManagerDirectory = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
 
-        XCTAssertTrue(fileHandler.exists(expectedPackageResolvedPath))
-        XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(component: "manifest.db")))
-        XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(component: "workspace-state.json")))
-        XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(components: "artifacts", "foo.txt")))
-        XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(components: "checkouts", "Alamofire", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(components: "repositories", "checkouts-state.json")))
-        XCTAssertTrue(fileHandler.exists(expectedSwiftPackageManagerDirectory.appending(components: "repositories", "Alamofire-e8f130fe", "config")))
+        let depedencies = SwiftPackageManagerDependencies([
+            .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
+        ])
+
+        swiftPackageManagerController.updateStub = { path in
+            XCTAssertEqual(path, try self.temporaryPath())
+
+            try self.simulateSPMOutput(at: path)
+        }
+
+        // When
+        try subject.update(
+            dependenciesDirectory: dependenciesDirectory,
+            dependencies: depedencies
+        )
+
+        // Then
+        try XCTAssertDirectoryContentEqual(
+            dependenciesDirectory,
+            [
+                Constants.DependenciesDirectory.lockfilesDirectoryName,
+                Constants.DependenciesDirectory.swiftPackageManagerDirectoryName,
+            ]
+        )
+        try XCTAssertDirectoryContentEqual(
+            lockfilesDirectory,
+            [
+                Constants.DependenciesDirectory.packageResolvedName,
+            ]
+        )
+        try XCTAssertDirectoryContentEqual(
+            swiftPackageManagerDirectory,
+            [
+                "manifest.db",
+                "workspace-state.json",
+                "artifacts",
+                "checkouts",
+                "repositories",
+            ]
+        )
     }
 
     func test_clean() throws {
@@ -92,18 +151,36 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         try subject.clean(dependenciesDirectory: dependenciesDirectory)
 
         // Then
-        XCTAssertEqual(
-            try fileHandler.contentsOfDirectory(dependenciesDirectory).sorted(),
+        try XCTAssertDirectoryContentEqual(
+            dependenciesDirectory,
             [
-                lockfilesDirectory,
-                dependenciesDirectory.appending(component: "OtherDepedenciesManager"),
-            ].sorted()
+                Constants.DependenciesDirectory.lockfilesDirectoryName,
+                "OtherDepedenciesManager",
+            ]
         )
-        XCTAssertEqual(
-            try fileHandler.contentsOfDirectory(lockfilesDirectory).sorted(),
+        try XCTAssertDirectoryContentEqual(
+            lockfilesDirectory,
             [
-                lockfilesDirectory.appending(component: "OtherLockfile.lock"),
-            ].sorted()
+                "OtherLockfile.lock",
+            ]
         )
+    }
+}
+
+// MARK: - Helpers
+
+private extension SwiftPackageManagerInteractorTests {
+    func simulateSPMOutput(at path: AbsolutePath) throws {
+        try [
+            "Package.resolved",
+            ".build/manifest.db",
+            ".build/workspace-state.json",
+            ".build/artifacts/foo.txt",
+            ".build/checkouts/Alamofire/Info.plist",
+            ".build/repositories/checkouts-state.json",
+            ".build/repositories/Alamofire-e8f130fe/config",
+        ].forEach {
+            try fileHandler.touch(path.appending(RelativePath($0)))
+        }
     }
 }
