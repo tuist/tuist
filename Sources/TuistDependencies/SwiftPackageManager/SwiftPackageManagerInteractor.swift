@@ -36,12 +36,19 @@ public protocol SwiftPackageManagerInteracting {
     /// Fetches `Swift Package Manager` dependencies.
     /// - Parameters:
     ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
-    ///   - dependencies: List of dependencies to intall using `Swift Package Manager`.
-    ///   - platforms: List of platforms for which you want to install dependencies.
+    ///   - dependencies: List of dependencies to fetch using `Swift Package Manager`.
     func fetch(
         dependenciesDirectory: AbsolutePath,
-        dependencies: SwiftPackageManagerDependencies,
-        platforms: Set<Platform>
+        dependencies: SwiftPackageManagerDependencies
+    ) throws
+
+    /// Updates `Swift Package Manager` dependencies.
+    /// - Parameters:
+    ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
+    ///   - dependencies: List of dependencies to update using `Swift Package Manager`.
+    func update(
+        dependenciesDirectory: AbsolutePath,
+        dependencies: SwiftPackageManagerDependencies
     ) throws
 
     /// Removes all cached `Swift Package Manager` dependencies.
@@ -53,41 +60,48 @@ public protocol SwiftPackageManagerInteracting {
 
 public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
     private let fileHandler: FileHandling
+    private let swiftPackageManagerController: SwiftPackageManagerControlling
 
     public init(
-        fileHandler: FileHandling = FileHandler.shared
+        fileHandler: FileHandling = FileHandler.shared,
+        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController()
     ) {
         self.fileHandler = fileHandler
+        self.swiftPackageManagerController = swiftPackageManagerController
     }
 
     public func fetch(
         dependenciesDirectory: AbsolutePath,
-        dependencies: SwiftPackageManagerDependencies,
-        platforms _: Set<Platform>
+        dependencies: SwiftPackageManagerDependencies
     ) throws {
         logger.warning("Support for Swift Package Manager dependencies is currently being worked on and is not ready to be used yet.")
 
         logger.info("Resolving and fetching Swift Package Manager dependencies.", metadata: .section)
 
-        try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in
-            // prepare paths
-            let pathsProvider = SwiftPackageManagerPathsProvider(
-                dependenciesDirectory: dependenciesDirectory,
-                temporaryDirectoryPath: temporaryDirectoryPath
-            )
-
-            // prepare for installation
-            try loadDependencies(pathsProvider: pathsProvider, packageManifestContent: dependencies.manifestValue())
-
-            // run `Swift Package Manager`
-            let command = ["swift", "package", "--package-path", "\(temporaryDirectoryPath.pathString)", "resolve"]
-            try System.shared.runAndPrint(command)
-
-            // post installation
-            try saveDepedencies(pathsProvider: pathsProvider)
-        }
+        try install(
+            dependenciesDirectory: dependenciesDirectory,
+            dependencies: dependencies,
+            shouldUpdate: false
+        )
 
         logger.info("Packages resolved and fetched successfully.", metadata: .subsection)
+    }
+
+    public func update(
+        dependenciesDirectory: AbsolutePath,
+        dependencies: SwiftPackageManagerDependencies
+    ) throws {
+        logger.warning("Support for Swift Package Manager dependencies is currently being worked on and is not ready to be used yet.")
+
+        logger.info("Updating Swift Package Manager dependencies.", metadata: .section)
+
+        try install(
+            dependenciesDirectory: dependenciesDirectory,
+            dependencies: dependencies,
+            shouldUpdate: true
+        )
+
+        logger.info("Updating resolved and fetched successfully.", metadata: .subsection)
     }
 
     public func clean(dependenciesDirectory: AbsolutePath) throws {
@@ -102,6 +116,34 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
     }
 
     // MARK: - Installation
+
+    /// Installs given `dependencies` at `dependenciesDirectory`.
+    private func install(
+        dependenciesDirectory: AbsolutePath,
+        dependencies: SwiftPackageManagerDependencies,
+        shouldUpdate: Bool
+    ) throws {
+        try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in
+            // prepare paths
+            let pathsProvider = SwiftPackageManagerPathsProvider(
+                dependenciesDirectory: dependenciesDirectory,
+                temporaryDirectoryPath: temporaryDirectoryPath
+            )
+
+            // prepare for installation
+            try loadDependencies(pathsProvider: pathsProvider, packageManifestContent: dependencies.manifestValue())
+
+            // run `Swift Package Manager`
+            if shouldUpdate {
+                try swiftPackageManagerController.update(at: temporaryDirectoryPath)
+            } else {
+                try swiftPackageManagerController.resolve(at: temporaryDirectoryPath)
+            }
+
+            // post installation
+            try saveDepedencies(pathsProvider: pathsProvider)
+        }
+    }
 
     /// Loads lockfile and dependencies into working directory if they had been saved before.
     private func loadDependencies(pathsProvider: SwiftPackageManagerPathsProvider, packageManifestContent: String) throws {

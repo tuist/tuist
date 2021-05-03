@@ -28,8 +28,11 @@ public struct CarthageDependencies: Codable, Equatable {
 public extension CarthageDependencies {
     /// Specifies origin of Carthage dependency.
     enum Dependency: Codable, Equatable {
+        /// GitHub repositories (both GitHub.com and GitHub Enterprise).
         case github(path: String, requirement: Requirement)
+        /// Other Git repositories.
         case git(path: String, requirement: Requirement)
+        /// Dependencies that are only available as compiled binary `.framework`s.
         case binary(path: String, requirement: Requirement)
     }
 
