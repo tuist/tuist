@@ -8,11 +8,15 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Add `tuist dependencies update` command. [#2819](https://github.com/tuist/tuist/pull/2819) by [@laxmorek](https://github.com/laxmorek)
 
+### Changed
+
+- Warnings for targets with no source files are now suppressed if the target does contain a dependency. [#2838](https://github.com/tuist/tuist/pull/2838) by [@jsorge](https://github.com/jsorge)
+
 ### Fixed
 
 - Fix `tuist focus` not excluding targets from `codeCoverageTargets` of custom schemes by [@Luis Padron](https://github.com/luispadron).
 
-## 1.41.0 
+## 1.41.0
 
 ### Added
 
