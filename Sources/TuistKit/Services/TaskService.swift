@@ -71,20 +71,29 @@ struct TaskService {
         optional: [String]
     ) {
         let path = self.path(path)
-        try task(with: taskName, path: path)
-        return ([], [])
-//        return task.options.reduce(into: (required: [], optional: [])) { currentValue, attribute in
-//            switch attribute {
-//            case let .optional(name):
-//                currentValue.optional.append(name)
-//            case let .required(name):
-//                currentValue.required.append(name)
-//            }
-//        }
+        let taskPath = try task(with: taskName, path: path)
+        let taskContents = try FileHandler.shared.readTextFile(taskPath)
+        let optionsRegex = try NSRegularExpression(pattern: "\\.optional\\(\"([^\"]*)\"\\),?", options: [])
+        var options: [String] = []
+        optionsRegex.enumerateMatches(
+            in: taskContents,
+            options: [],
+            range: NSRange(location: 0, length: taskContents.count)
+        ) { match, _, _ in
+            guard
+                let match = match,
+                match.numberOfRanges == 2,
+                let range = Range(match.range(at: 1), in: taskContents)
+            else { return }
+            options.append(
+                String(taskContents[range])
+            )
+        }
+        
+        return ([], options)
     }
 
     // MARK: - Helpers
-    @discardableResult
     private func task(with name: String, path: AbsolutePath) throws -> AbsolutePath {
         guard let rootDirectory = rootDirectoryLocator.locate(from: path) else { fatalError() }
         let tasksDirectory = rootDirectory.appending(
