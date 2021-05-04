@@ -120,29 +120,10 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         }
 
         let renderedInterfaces: [(String, String)]
-        switch resourceSynthesizer.parser {
-        case .plists, .json, .yaml, .coreData:
-            renderedInterfaces = try paths.map { path in
-                let name = self.name(
-                    for: resourceSynthesizer,
-                    path: path,
-                    target: target
-                )
-                return (
-                    name,
-                    try synthesizedResourceInterfacesGenerator.render(
-                        parser: resourceSynthesizer.parser,
-                        templateString: templateString,
-                        name: name,
-                        paths: [path]
-                    )
-                )
-            }
-        case .assets, .fonts, .strings, .interfaceBuilder:
-            if paths.isEmpty {
-                renderedInterfaces = []
-                break
-            }
+        if paths.isEmpty {
+            renderedInterfaces = []
+        }
+        else {
             let name = self.name(
                 for: resourceSynthesizer,
                 path: project.path,
@@ -193,12 +174,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         path: AbsolutePath,
         target: Target
     ) -> String {
-        switch resourceSynthesizer.parser {
-        case .assets, .strings, .fonts, .interfaceBuilder:
-            return target.name.camelized.uppercasingFirst
-        case .plists, .json, .yaml, .coreData:
-            return path.basenameWithoutExt.camelized.uppercasingFirst
-        }
+        return target.name.camelized.uppercasingFirst
     }
 
     private func paths(

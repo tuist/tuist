@@ -156,7 +156,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 ),
                 .file(
                     FileDescriptor(
-                        path: derivedSourcesPath.appending(component: "Environment.swift"),
+                        path: derivedSourcesPath.appending(component: "Plists+TargetA.swift"),
                         contents: "Environment.plist".data(using: .utf8)
                     )
                 ),
@@ -168,7 +168,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 ),
                 .file(
                     FileDescriptor(
-                        path: derivedSourcesPath.appending(component: "LottieAnimation.swift"),
+                        path: derivedSourcesPath.appending(component: "Lottie+TargetA.swift"),
                         contents: "LottieAnimation.lottie".data(using: .utf8)
                     )
                 ),
@@ -196,7 +196,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                             ),
                             SourceFile(
                                 path: derivedSourcesPath
-                                    .appending(component: "Environment.swift"),
+                                    .appending(component: "Plists+TargetA.swift"),
                                 compilerFlags: nil,
                                 contentHash: try contentHasher.hash("Environment.plist".data(using: .utf8)!)
                             ),
@@ -208,7 +208,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                             ),
                             SourceFile(
                                 path: derivedSourcesPath
-                                    .appending(component: "LottieAnimation.swift"),
+                                    .appending(component: "Lottie+TargetA.swift"),
                                 compilerFlags: nil,
                                 contentHash: try contentHasher.hash("LottieAnimation.lottie".data(using: .utf8)!)
                             ),
