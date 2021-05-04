@@ -183,7 +183,7 @@ public final class CarthageInteractor: CarthageInteracting {
             }
 
             // post installation
-            try saveDepedencies(pathsProvider: pathsProvider)
+            try saveDepedencies(dependenciesDirectory: dependenciesDirectory, pathsProvider: pathsProvider, dependencies: dependencies)
         }
     }
 
@@ -216,7 +216,7 @@ public final class CarthageInteractor: CarthageInteracting {
     }
 
     /// Saves lockfile resolved depedencies in `Tuist/Depedencies` directory.
-    private func saveDepedencies(pathsProvider: CarthagePathsProvider) throws {
+    private func saveDepedencies(dependenciesDirectory: AbsolutePath, pathsProvider: CarthagePathsProvider, dependencies: CarthageDependencies) throws {
         // validation
         guard fileHandler.exists(pathsProvider.temporaryCarfileResolvedPath) else {
             throw CarthageInteractorError.cartfileResolvedNotFound
@@ -236,17 +236,55 @@ public final class CarthageInteractor: CarthageInteracting {
             from: pathsProvider.temporaryCarthageBuildDirectory,
             to: pathsProvider.destinationCarthageDirectory
         )
+        
+        if dependencies.options.contains(.useXCFrameworks) {
+            // save build xcFrameworks to copyPath directories
+            try self.copyXCFrameworksToPaths(
+                from: pathsProvider.destinationCarthageDirectory,
+                dependencies: dependencies,
+                dependenciesDirectory: dependenciesDirectory
+            )
+        }
     }
 
     // MARK: - Helpers
 
-    private func copy(from fromPath: AbsolutePath, to toPath: AbsolutePath) throws {
+    private func copy(
+        from fromPath: AbsolutePath,
+        to toPath: AbsolutePath
+    ) throws {
         if fileHandler.exists(toPath) {
             try fileHandler.replace(toPath, with: fromPath)
         } else {
             try fileHandler.createFolder(toPath.removingLastComponent())
             try fileHandler.copy(from: fromPath, to: toPath)
         }
+    }
+    
+    private func copyXCFrameworksToPaths(
+        from fromBasePath: AbsolutePath,
+        dependencies: CarthageDependencies,
+        dependenciesDirectory: AbsolutePath
+    ) throws {
+        for dependency in dependencies.dependencies where dependency.copyPath != nil {
+            try dependency.names.forEach({ name in
+                let xcFrameworkPath = "/\(name).xcframework"
+                let fromPath: AbsolutePath = AbsolutePath(fromBasePath.pathString.appending(xcFrameworkPath))
+                if fileHandler.exists(fromPath) {
+                    let toPath: AbsolutePath = AbsolutePath("\(dependenciesDirectory.parentDirectory.parentDirectory.pathString)"
+                                                                + "/\(dependency.copyPath!.pathString.appending(xcFrameworkPath))")
+                    if fileHandler.exists(toPath) {
+                        try fileHandler.replace(toPath, with: fromPath)
+                    } else {
+                        try fileHandler.move(from: fromPath, to: toPath)
+                    }
+                } else {
+                    logger.error("Carthage dependencies copy xcframeworks XCFramework not found at: \(fromPath.pathString)", metadata: .error)
+                }
+            })
+        }
+        
+        logger.info("Carthage dependencies copied XCFrameworks to installation paths", metadata: .subsection)
     }
 }
 

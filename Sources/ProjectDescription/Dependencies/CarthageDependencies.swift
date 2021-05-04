@@ -29,11 +29,11 @@ public extension CarthageDependencies {
     /// Specifies origin of Carthage dependency.
     enum Dependency: Codable, Equatable {
         /// GitHub repositories (both GitHub.com and GitHub Enterprise).
-        case github(path: String, requirement: Requirement)
+        case github(path: String, requirement: Requirement, copyPath: Path? = nil, names: [String] = [])
         /// Other Git repositories.
-        case git(path: String, requirement: Requirement)
+        case git(path: String, requirement: Requirement, copyPath: Path? = nil, names: [String] = [])
         /// Dependencies that are only available as compiled binary `.framework`s.
-        case binary(path: String, requirement: Requirement)
+        case binary(path: String, requirement: Requirement, copyPath: Path? = nil, names: [String] = [])
     }
 
     /// Specifies version requirement for Carthage depedency.
@@ -70,6 +70,8 @@ extension CarthageDependencies.Dependency {
         case kind
         case path
         case requirement
+        case copyPath
+        case names
     }
 
     public init(from decoder: Decoder) throws {
@@ -79,33 +81,45 @@ extension CarthageDependencies.Dependency {
         case .github:
             let path = try container.decode(String.self, forKey: .path)
             let requirement = try container.decode(CarthageDependencies.Requirement.self, forKey: .requirement)
-            self = .github(path: path, requirement: requirement)
+            let copyPath = try? container.decodeIfPresent(Path.self, forKey: .copyPath)
+            let names = try container.decodeIfPresent([String].self, forKey: .names) ?? []
+            self = .github(path: path, requirement: requirement, copyPath: copyPath, names: names)
         case .git:
             let path = try container.decode(String.self, forKey: .path)
             let requirement = try container.decode(CarthageDependencies.Requirement.self, forKey: .requirement)
-            self = .git(path: path, requirement: requirement)
+            let copyPath = try? container.decodeIfPresent(Path.self, forKey: .copyPath)
+            let names = try container.decodeIfPresent([String].self, forKey: .names) ?? []
+            self = .git(path: path, requirement: requirement, copyPath: copyPath, names: names)
         case .binary:
             let path = try container.decode(String.self, forKey: .path)
             let requirement = try container.decode(CarthageDependencies.Requirement.self, forKey: .requirement)
-            self = .binary(path: path, requirement: requirement)
+            let copyPath = try? container.decodeIfPresent(Path.self, forKey: .copyPath)
+            let names = try container.decodeIfPresent([String].self, forKey: .names) ?? []
+            self = .binary(path: path, requirement: requirement, copyPath: copyPath, names: names)
         }
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
-        case let .github(path, requirement):
+        case let .github(path, requirement, copyPath, names):
             try container.encode(Kind.github, forKey: .kind)
             try container.encode(path, forKey: .path)
             try container.encode(requirement, forKey: .requirement)
-        case let .git(path, requirement):
+            try container.encode(copyPath, forKey: .copyPath)
+            try container.encode(names, forKey: .names)
+        case let .git(path, requirement, copyPath, names):
             try container.encode(Kind.git, forKey: .kind)
             try container.encode(path, forKey: .path)
             try container.encode(requirement, forKey: .requirement)
-        case let .binary(path, requirement):
+            try container.encode(copyPath, forKey: .copyPath)
+            try container.encode(names, forKey: .names)
+        case let .binary(path, requirement, copyPath, names):
             try container.encode(Kind.binary, forKey: .kind)
             try container.encode(path, forKey: .path)
             try container.encode(requirement, forKey: .requirement)
+            try container.encode(copyPath, forKey: .copyPath)
+            try container.encode(names, forKey: .names)
         }
     }
 }

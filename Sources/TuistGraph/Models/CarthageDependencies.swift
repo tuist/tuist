@@ -1,4 +1,5 @@
 import Foundation
+import ProjectDescription
 
 /// Contains descriptions of dependencies to be fetched with Carthage.
 public struct CarthageDependencies: Equatable {
@@ -32,19 +33,62 @@ public struct CarthageDependencies: Equatable {
 
 public extension CarthageDependencies {
     enum Dependency: Equatable {
-        case github(path: String, requirement: Requirement)
-        case git(path: String, requirement: Requirement)
-        case binary(path: String, requirement: Requirement)
+        case github(path: String, requirement: Requirement, copyPath: Path? = nil, names: [String] = [])
+        case git(path: String, requirement: Requirement, copyPath: Path? = nil, names: [String] = [])
+        case binary(path: String, requirement: Requirement, copyPath: Path? = nil, names: [String] = [])
 
         /// Returns `Cartfile` representation.
         public var cartfileValue: String {
             switch self {
-            case let .github(path, requirement):
+            case let .github(path, requirement, _, _):
                 return #"github "\#(path)" \#(requirement.cartfileValue)"#
-            case let .git(path, requirement):
+            case let .git(path, requirement, _, _):
                 return #"git "\#(path)" \#(requirement.cartfileValue)"#
-            case let .binary(path, requirement):
+            case let .binary(path, requirement, _, _):
                 return #"binary "\#(path)" \#(requirement.cartfileValue)"#
+            }
+        }
+        
+        public var path: String {
+            switch self {
+            case let .github(path, _, _, _):
+                return path
+            case let .git(path, _, _, _):
+                return path
+            case let .binary(path, _, _, _):
+                return path
+            }
+        }
+        
+        public var names: [String] {
+            var frameworkNames: [String]
+            switch self {
+            case let .github(_, _, _, names):
+                frameworkNames = names
+            case let .git(_, _, _, names):
+                frameworkNames = names
+            case let .binary(_, _, _, names):
+                frameworkNames = names
+            }
+            if frameworkNames.isEmpty {
+                let path = self.path
+                if let copyPath = self.copyPath {
+                    frameworkNames = [copyPath.pathString.components(separatedBy: "/").last ?? path]
+                } else {
+                    frameworkNames = [path.components(separatedBy: "/").last ?? path]
+                }
+            }
+            return frameworkNames
+        }
+        
+        public var copyPath: Path? {
+            switch self {
+            case let .github(_, _, copyPath, _):
+                return copyPath
+            case let .git(_, _, copyPath, _):
+                return copyPath
+            case let .binary(_, _, copyPath, _):
+                return copyPath
             }
         }
     }

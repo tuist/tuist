@@ -23,4 +23,24 @@ final class DependenciesTests: XCTestCase {
         )
         XCTAssertCodable(subject)
     }
+    
+    func test_dependencies_codable_copyPath_names() throws {
+        let subject = Dependencies(
+            carthage: .carthage(
+                [
+                    .github(path: "Dependency1/Dependency1", requirement: .branch("BranchName"), copyPath: Path.relativeToRoot("Dependency1"), names: ["Dependency1"]),
+                    .git(path: "Dependency2/Dependency2", requirement: .upToNext("1.2.3"), copyPath: nil, names: []),
+                ],
+                options: [.useXCFrameworks, .noUseBinaries]
+            ),
+            swiftPackageManager: .swiftPackageManager(
+                [
+                    .local(path: "Path/Path"),
+                    .remote(url: "Dependency3/Dependency3", requirement: .exact("4.5.6")),
+                ]
+            ),
+            platforms: [.iOS, .macOS, .tvOS, .watchOS]
+        )
+        XCTAssertCodable(subject)
+    }
 }

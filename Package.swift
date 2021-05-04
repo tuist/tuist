@@ -67,7 +67,7 @@ let package = Package(
     targets: [
         .target(
             name: "TuistGraph",
-            dependencies: [swiftToolsSupportDependency]
+            dependencies: [swiftToolsSupportDependency, "ProjectDescription"]
         ),
         .target(
             name: "TuistGraphTesting",
@@ -87,11 +87,11 @@ let package = Package(
         ),
         .testTarget(
             name: "TuistCoreTests",
-            dependencies: ["TuistCore", "TuistCoreTesting", "TuistSupportTesting"]
+            dependencies: ["TuistCore", "TuistCoreTesting", "TuistSupportTesting", "ProjectDescription"]
         ),
         .testTarget(
             name: "TuistCoreIntegrationTests",
-            dependencies: ["TuistCore", "TuistSupportTesting"]
+            dependencies: ["TuistCore", "TuistSupportTesting", "ProjectDescription"]
         ),
         .target(
             name: "TuistDoc",
@@ -429,6 +429,7 @@ let package = Package(
                 "TuistScaffold",
                 "TuistSupportTesting",
                 "TuistGraphTesting",
+                "ProjectDescription",
             ]
         ),
         .target(
@@ -449,6 +450,7 @@ let package = Package(
                 "TuistCoreTesting",
                 "TuistGraphTesting",
                 rxBlockingDependency,
+                "ProjectDescription",
             ]
         ),
         .target(
@@ -470,6 +472,7 @@ let package = Package(
                 "TuistSupportTesting",
                 "TuistGraphTesting",
                 rxBlockingDependency,
+                "ProjectDescription",
             ]
         ),
         .target(
@@ -488,6 +491,7 @@ let package = Package(
                 "TuistInsights",
                 "TuistSupportTesting",
                 "TuistGraphTesting",
+                "ProjectDescription",
             ]
         ),
         .testTarget(
@@ -496,6 +500,7 @@ let package = Package(
                 "TuistInsights",
                 "TuistSupportTesting",
                 "TuistGraphTesting",
+                "ProjectDescription",
             ]
         ),
         .target(
@@ -538,7 +543,8 @@ let package = Package(
             name: "TuistDependencies",
             dependencies: ["TuistCore",
                            "TuistGraph",
-                           "TuistSupport"]
+                           "TuistSupport",
+                           "ProjectDescription"]
         ),
         .target(
             name: "TuistDependenciesTesting",
@@ -584,6 +590,7 @@ let package = Package(
                 "TuistSupportTesting",
                 "TuistGraphTesting",
                 rxBlockingDependency,
+                "ProjectDescription",
             ]
         ),
         .target(
@@ -720,6 +727,7 @@ let package = Package(
                 "TuistGraphTesting",
                 "TuistCoreTesting",
                 "XcodeProj",
+                "ProjectDescription",
             ]
         ),
         .target(

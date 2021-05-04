@@ -5,6 +5,11 @@ extension Logger.Metadata {
     public static var success: Logger.Metadata {
         [tuist: .string(successKey)]
     }
+    
+    public static let errorKey: String = "error"
+    public static var error: Logger.Metadata {
+        [tuist: .string(errorKey)]
+    }
 
     public static let sectionKey: String = "section"
     public static var section: Logger.Metadata {

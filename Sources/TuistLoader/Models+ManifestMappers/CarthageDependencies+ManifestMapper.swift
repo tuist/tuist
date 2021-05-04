@@ -19,12 +19,12 @@ extension TuistGraph.CarthageDependencies.Dependency {
     /// Creates `TuistGraph.CarthageDependencies.Dependency` instance from `ProjectDescription.CarthageDependencies.Dependency` instance.
     static func from(manifest: ProjectDescription.CarthageDependencies.Dependency) -> Self {
         switch manifest {
-        case let .github(path, requirement):
-            return .github(path: path, requirement: .from(manifest: requirement))
-        case let .git(path, requirement):
-            return .git(path: path, requirement: .from(manifest: requirement))
-        case let .binary(path, requirement):
-            return .binary(path: path, requirement: .from(manifest: requirement))
+        case let .github(path, requirement, copyPath, names):
+            return .github(path: path, requirement: .from(manifest: requirement), copyPath: copyPath, names: names)
+        case let .git(path, requirement, copyPath, names):
+            return .git(path: path, requirement: .from(manifest: requirement), copyPath: copyPath, names: names)
+        case let .binary(path, requirement, copyPath, names):
+            return .binary(path: path, requirement: .from(manifest: requirement), copyPath: copyPath, names: names)
         }
     }
 }
