@@ -2708,12 +2708,12 @@
     "@theme-ui/preset-tailwind" "0.7.5"
     "@theme-ui/preset-tosh" "0.7.5"
 
-"@theme-ui/prism@^0.3.5":
-  version "0.3.5"
-  resolved "https://registry.yarnpkg.com/@theme-ui/prism/-/prism-0.3.5.tgz#7f17034319d4947ab8cbc2869e1e463b76975fbf"
-  integrity sha512-FyyitvZjjpcMaKv4wQUyzQ+XXtWA3xtpOKEsNICGTIOoxHyP+FSC8+LqrHtxwcGLvl6MADmooh0kkcI1auFwkA==
+"@theme-ui/prism@^0.7.5":
+  version "0.7.5"
+  resolved "https://registry.yarnpkg.com/@theme-ui/prism/-/prism-0.7.5.tgz#2a5ceb5c280a5e8b002e64263e6065894e7e4f61"
+  integrity sha512-OrQMb/tf5lp58+kd79lQRptieF11UOn/xbyccA6fkiwydaj5T7ZR6+wfQKaRGQnmxYp9g48WqxPyTCDELlgpNQ==
   dependencies:
-    prism-react-renderer "^1.0.2"
+    prism-react-renderer "^1.1.1"
 
 "@theme-ui/sidenav@^0.6.2":
   version "0.6.2"
@@ -13796,7 +13796,7 @@ pretty-hrtime@^1.0.3:
   resolved "https://registry.yarnpkg.com/pretty-hrtime/-/pretty-hrtime-1.0.3.tgz#b7e3ea42435a4c9b2759d99e0f201eb195802ee1"
   integrity sha1-t+PqQkNaTJsnWdmeDyAesZWALuE=
 
-prism-react-renderer@^1.0.2:
+prism-react-renderer@^1.1.1:
   version "1.2.0"
   resolved "https://registry.yarnpkg.com/prism-react-renderer/-/prism-react-renderer-1.2.0.tgz#5ad4f90c3e447069426c8a53a0eafde60909cdf4"
   integrity sha512-GHqzxLYImx1iKN1jJURcuRoA/0ygCcNhfGw1IT8nPIMzarmKQ3Nc+JcG0gi8JXQzuh0C5ShE4npMIoqNin40hg==
