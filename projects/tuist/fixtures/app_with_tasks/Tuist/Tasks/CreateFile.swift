@@ -3,7 +3,7 @@ import Foundation
 
 let task = Task(
     options: [
-         .optional("fileName")
+         .optional("fileName"),
     ]
 ) { options in
     let fileName = options["fileName"] ?? "file"
