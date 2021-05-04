@@ -15,7 +15,7 @@
   },
   "dependencies": {
     "@docusaurus/core": "2.0.0-alpha.75",
-    "@docusaurus/plugin-sitemap": "^2.0.0-alpha.72",
+    "@docusaurus/plugin-sitemap": "^2.0.0-alpha.75",
     "@docusaurus/preset-classic": "2.0.0-alpha.72",
     "@docusaurus/theme-search-algolia": "^2.0.0-alpha.72",
     "@mdx-js/react": "^1.6.21",

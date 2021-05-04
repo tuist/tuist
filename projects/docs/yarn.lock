@@ -1431,7 +1431,7 @@
   dependencies:
     "@docusaurus/core" "2.0.0-alpha.72"
 
-"@docusaurus/plugin-sitemap@2.0.0-alpha.72", "@docusaurus/plugin-sitemap@^2.0.0-alpha.72":
+"@docusaurus/plugin-sitemap@2.0.0-alpha.72":
   version "2.0.0-alpha.72"
   resolved "https://registry.yarnpkg.com/@docusaurus/plugin-sitemap/-/plugin-sitemap-2.0.0-alpha.72.tgz#6ad55c894c19315c91847d17f0c9dcfb145132f8"
   integrity sha512-ZaMeJFDdey+PDMxg7qI2u9Wm7ylZb30FBR14wPSH5da+yMnNtl8wAlWEW8RkEgKYo04mE7DMvdEZ1YdsPF7cQg==
@@ -1442,6 +1442,19 @@
     fs-extra "^9.1.0"
     joi "^17.4.0"
     sitemap "^6.3.6"
+
+"@docusaurus/plugin-sitemap@^2.0.0-alpha.75":
+  version "2.0.0-alpha.75"
+  resolved "https://registry.yarnpkg.com/@docusaurus/plugin-sitemap/-/plugin-sitemap-2.0.0-alpha.75.tgz#b3d5ea20ba9b78d09dfc4ba504bbde2939863ca5"
+  integrity sha512-v6kAfkg10U5x2uxXvZnK9imiP56mUXu2TtGOV2eUeGy1ZeclszLZ/9xFyQcWqXheEu+KjvCM0OO2R3q017PnxQ==
+  dependencies:
+    "@docusaurus/core" "2.0.0-alpha.75"
+    "@docusaurus/types" "2.0.0-alpha.75"
+    "@docusaurus/utils" "2.0.0-alpha.75"
+    "@docusaurus/utils-validation" "2.0.0-alpha.75"
+    fs-extra "^9.1.0"
+    sitemap "^6.3.6"
+    tslib "^2.1.0"
 
 "@docusaurus/preset-classic@2.0.0-alpha.72":
   version "2.0.0-alpha.72"
