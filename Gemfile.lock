@@ -20,7 +20,7 @@ GEM
     claide (1.0.3)
     cli-kit (3.3.0)
       cli-ui (>= 1.1.4)
-    cli-ui (1.4.0)
+    cli-ui (1.5.1)
     cocoapods (1.10.1)
       addressable (~> 2.6)
       claide (>= 1.0.2, < 2.0)
@@ -253,7 +253,7 @@ PLATFORMS
 DEPENDENCIES
   byebug (~> 11.1)
   cli-kit (~> 3.3)
-  cli-ui (~> 1.4)
+  cli-ui (~> 1.5)
   cocoapods (~> 1.10)
   colorize (~> 0.8.1)
   cucumber (~> 5.3)
