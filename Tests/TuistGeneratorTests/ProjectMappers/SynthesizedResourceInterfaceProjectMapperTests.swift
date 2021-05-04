@@ -241,13 +241,3 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         )
     }
 }
-extension SideEffectDescriptor {
-  var contents: String {
-    switch self {
-    case .file(let descriptor):
-      return String(data: descriptor.contents!, encoding: .utf8) ?? ""
-    default:
-      return ":"
-    }
-  }
-}
