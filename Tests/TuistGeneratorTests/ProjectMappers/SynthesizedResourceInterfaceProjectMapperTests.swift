@@ -48,8 +48,8 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         let aAsset = aAssets.appending(component: "asset")
         let frenchStrings = targetAPath.appending(components: "fr.lproj", "aStrings.strings")
         let frenchStringsDict = targetAPath.appending(components: "fr.lproj", "aStrings.stringsdict")
-        let englishStrings = targetAPath.appending(components: "en.lproj", "aStrings.strings")
-        let englishStringsDict = targetAPath.appending(components: "en.lproj", "aStrings.stringsdict")
+        let englishStrings = targetAPath.appending(components: "en.lproj", "aStringsEn.strings")
+        let englishStringsDict = targetAPath.appending(components: "en.lproj", "aStringsEn.stringsdict")
         let environmentPlist = targetAPath.appending(component: "Environment.plist")
         let emptyPlist = targetAPath.appending(component: "Empty.plist")
         let ttfFont = targetAPath.appending(component: "ttfFont.ttf")
@@ -151,7 +151,8 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 .file(
                     FileDescriptor(
                         path: derivedSourcesPath.appending(component: "Strings+TargetA.swift"),
-                        contents: "aStrings.strings, aStrings.stringsdict".data(using: .utf8)
+                        contents: "aStringsEn.strings, aStringsEn.stringsdict, aStrings.strings, aStrings.stringsdict"
+                            .data(using: .utf8)
                     )
                 ),
                 .file(
@@ -163,7 +164,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 .file(
                     FileDescriptor(
                         path: derivedSourcesPath.appending(component: "Fonts+TargetA.swift"),
-                        contents: "ttfFont.ttf, otfFont.otf, ttcFont.ttc".data(using: .utf8)
+                        contents: "otfFont.otf, ttcFont.ttc, ttfFont.ttf".data(using: .utf8)
                     )
                 ),
                 .file(
@@ -192,7 +193,10 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                                 path: derivedSourcesPath
                                     .appending(component: "Strings+TargetA.swift"),
                                 compilerFlags: nil,
-                                contentHash: try contentHasher.hash("aStrings.strings, aStrings.stringsdict".data(using: .utf8)!)
+                                contentHash: try contentHasher.hash(
+                                  "aStringsEn.strings, aStringsEn.stringsdict, aStrings.strings, aStrings.stringsdict"
+                                        .data(using: .utf8)!
+                                )
                             ),
                             SourceFile(
                                 path: derivedSourcesPath
@@ -204,7 +208,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                                 path: derivedSourcesPath
                                     .appending(component: "Fonts+TargetA.swift"),
                                 compilerFlags: nil,
-                                contentHash: try contentHasher.hash("ttfFont.ttf, otfFont.otf, ttcFont.ttc".data(using: .utf8)!)
+                                contentHash: try contentHasher.hash("otfFont.otf, ttcFont.ttc, ttfFont.ttf".data(using: .utf8)!)
                             ),
                             SourceFile(
                                 path: derivedSourcesPath
@@ -236,4 +240,14 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             ==
         )
     }
+}
+extension SideEffectDescriptor {
+  var contents: String {
+    switch self {
+    case .file(let descriptor):
+      return String(data: descriptor.contents!, encoding: .utf8) ?? ""
+    default:
+      return ":"
+    }
+  }
 }
