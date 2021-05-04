@@ -10,10 +10,12 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
+- For some data types (plist, json, yaml and core data) resource synthesizers now group them and let `SwiftGen` output a single fine instead of one for each resource.  [#2887](https://github.com/tuist/tuist/pull/2887) by [@fila95](https://github.com/fila95)
 - Warnings for targets with no source files are now suppressed if the target does contain a dependency or action. [#2838](https://github.com/tuist/tuist/pull/2838) by [@jsorge](https://github.com/jsorge)
 
 ### Fixed
 
+- `.strings` Localization file synthesizers are now consistent and reproducible across multiple generations using the `developmentRegion` to choose the source one or defaulting to `en`. [#2887](https://github.com/tuist/tuist/pull/2887) by [@fila95](https://github.com/fila95)
 - Fix `tuist focus` not excluding targets from `codeCoverageTargets` of custom schemes by [@Luis Padron](https://github.com/luispadron).
 
 ## 1.41.0
