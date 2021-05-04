@@ -214,7 +214,7 @@ GEM
       unicode-display_width (>= 1.4.0, < 3.0)
     rubocop-ast (1.4.1)
       parser (>= 2.7.1.5)
-    rubocop-minitest (0.11.1)
+    rubocop-minitest (0.12.1)
       rubocop (>= 0.90, < 2.0)
     rubocop-rake (0.5.1)
       rubocop
@@ -274,7 +274,7 @@ DEPENDENCIES
   mocha (~> 1.12)
   octokit (~> 4.21)
   rake (~> 13.0)
-  rubocop-minitest (~> 0.11.1)
+  rubocop-minitest (~> 0.12.1)
   rubocop-rake (~> 0.5.1)
   rubocop-shopify
   ruby-macho (~> 1.4)
