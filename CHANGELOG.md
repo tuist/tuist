@@ -10,7 +10,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
-- For some data types (plist, json, yaml and core data) resource synthesizers now group them and let `SwiftGen` output a single fine instead of one for each resource.  [#2887](https://github.com/tuist/tuist/pull/2887) by [@fila95](https://github.com/fila95)
+- **Breaking** For some data types (plist, json, yaml and core data) resource synthesizers now group them and let `SwiftGen` output a single fine instead of one for each resource. [#2887](https://github.com/tuist/tuist/pull/2887) by [@fila95](https://github.com/fila95)
 - Warnings for targets with no source files are now suppressed if the target does contain a dependency or action. [#2838](https://github.com/tuist/tuist/pull/2838) by [@jsorge](https://github.com/jsorge)
 
 ### Fixed
@@ -33,6 +33,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Speed up frameworks metadata reading using Mach-o parsing instead of `file`, `lipo` and `dwarfdump` external processes. [#2814](https://github.com/tuist/tuist/pull/2814) by [@adellibovi](https://github.com/adellibovi)
 
 ### Fixed
+
 - `tuist generate` your projects without having to re-open them! 🧑‍💻 [#2828] by [@ferologics](https://github.com/ferologics)
 - Fix a bug for which when generating a `Resources` target from a `staticLibrary` or `staticFramework`, the parent's deployment target isn't passed to the new target. [#2830](https://github.com/tuist/tuist/pull/2830) by [@fila95](https://github.com/fila95)
 - Fix `.messagesExtension` default settings to include the appropriate `LD_RUNPATH_SEARCH_PATHS` [#2824](https://github.com/tuist/tuist/pull/2824) by [@kwridan](https://github.com/kwridan)
