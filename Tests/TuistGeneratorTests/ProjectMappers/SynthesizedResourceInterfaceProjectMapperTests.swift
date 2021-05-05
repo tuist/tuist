@@ -38,7 +38,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         var templateStrings: [String] = []
         synthesizedResourceInterfacesGenerator.renderStub = { _, templateString, _, paths in
             templateStrings.append(templateString)
-            let content = paths.map(\.basename).joined(separator: ", ")
+          let content = paths.map { $0.components.suffix(2).joined(separator: "/") } .joined(separator: ", ")
             return content
         }
 
@@ -48,8 +48,8 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         let aAsset = aAssets.appending(component: "asset")
         let frenchStrings = targetAPath.appending(components: "fr.lproj", "aStrings.strings")
         let frenchStringsDict = targetAPath.appending(components: "fr.lproj", "aStrings.stringsdict")
-        let englishStrings = targetAPath.appending(components: "en.lproj", "aStringsEn.strings")
-        let englishStringsDict = targetAPath.appending(components: "en.lproj", "aStringsEn.stringsdict")
+        let englishStrings = targetAPath.appending(components: "en.lproj", "aStrings.strings")
+        let englishStringsDict = targetAPath.appending(components: "en.lproj", "aStrings.stringsdict")
         let environmentPlist = targetAPath.appending(component: "Environment.plist")
         let emptyPlist = targetAPath.appending(component: "Empty.plist")
         let ttfFont = targetAPath.appending(component: "ttfFont.ttf")
@@ -145,32 +145,32 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                 .file(
                     FileDescriptor(
                         path: derivedSourcesPath.appending(component: "Assets+TargetA.swift"),
-                        contents: "a.xcassets".data(using: .utf8)
+                        contents: "TargetA/a.xcassets".data(using: .utf8)
                     )
                 ),
                 .file(
                     FileDescriptor(
                         path: derivedSourcesPath.appending(component: "Strings+TargetA.swift"),
-                        contents: "aStringsEn.strings, aStringsEn.stringsdict, aStrings.strings, aStrings.stringsdict"
+                        contents: "en.lproj/aStrings.strings, en.lproj/aStrings.stringsdict"
                             .data(using: .utf8)
                     )
                 ),
                 .file(
                     FileDescriptor(
                         path: derivedSourcesPath.appending(component: "Plists+TargetA.swift"),
-                        contents: "Environment.plist".data(using: .utf8)
+                        contents: "TargetA/Environment.plist".data(using: .utf8)
                     )
                 ),
                 .file(
                     FileDescriptor(
                         path: derivedSourcesPath.appending(component: "Fonts+TargetA.swift"),
-                        contents: "otfFont.otf, ttcFont.ttc, ttfFont.ttf".data(using: .utf8)
+                        contents: "TargetA/otfFont.otf, TargetA/ttcFont.ttc, TargetA/ttfFont.ttf".data(using: .utf8)
                     )
                 ),
                 .file(
                     FileDescriptor(
                         path: derivedSourcesPath.appending(component: "Lottie+TargetA.swift"),
-                        contents: "LottieAnimation.lottie".data(using: .utf8)
+                        contents: "TargetA/LottieAnimation.lottie".data(using: .utf8)
                     )
                 ),
             ]
@@ -187,34 +187,34 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
                                 path: derivedSourcesPath
                                     .appending(component: "Assets+TargetA.swift"),
                                 compilerFlags: nil,
-                                contentHash: try contentHasher.hash("a.xcassets".data(using: .utf8)!)
+                                contentHash: try contentHasher.hash("TargetA/a.xcassets".data(using: .utf8)!)
                             ),
                             SourceFile(
                                 path: derivedSourcesPath
                                     .appending(component: "Strings+TargetA.swift"),
                                 compilerFlags: nil,
                                 contentHash: try contentHasher.hash(
-                                  "aStringsEn.strings, aStringsEn.stringsdict, aStrings.strings, aStrings.stringsdict"
-                                        .data(using: .utf8)!
+                                    "en.lproj/aStrings.strings, en.lproj/aStrings.stringsdict".data(using: .utf8)!
                                 )
                             ),
                             SourceFile(
                                 path: derivedSourcesPath
                                     .appending(component: "Plists+TargetA.swift"),
                                 compilerFlags: nil,
-                                contentHash: try contentHasher.hash("Environment.plist".data(using: .utf8)!)
+                                contentHash: try contentHasher.hash("TargetA/Environment.plist".data(using: .utf8)!)
                             ),
                             SourceFile(
                                 path: derivedSourcesPath
                                     .appending(component: "Fonts+TargetA.swift"),
                                 compilerFlags: nil,
-                                contentHash: try contentHasher.hash("otfFont.otf, ttcFont.ttc, ttfFont.ttf".data(using: .utf8)!)
+                                contentHash: try contentHasher
+                                    .hash("TargetA/otfFont.otf, TargetA/ttcFont.ttc, TargetA/ttfFont.ttf".data(using: .utf8)!)
                             ),
                             SourceFile(
                                 path: derivedSourcesPath
                                     .appending(component: "Lottie+TargetA.swift"),
                                 compilerFlags: nil,
-                                contentHash: try contentHasher.hash("LottieAnimation.lottie".data(using: .utf8)!)
+                                contentHash: try contentHasher.hash("TargetA/LottieAnimation.lottie".data(using: .utf8)!)
                             ),
                         ],
                         resources: targetA.resources
@@ -240,4 +240,24 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             ==
         )
     }
+}
+
+extension SideEffectDescriptor {
+  var content: String? {
+    switch self {
+    case .file(let file):
+      return String(data: file.contents!, encoding: .utf8)
+    default:
+      return ""
+    }
+  }
+
+  var path: AbsolutePath? {
+    switch self {
+    case .file(let file):
+      return file.path
+    default:
+      return ""
+    }
+  }
 }

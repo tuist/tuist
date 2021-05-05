@@ -185,21 +185,35 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         let resourcesPaths = target.resources
             .map(\.path)
 
-        var seen: Set<String> = []
         var paths = resourcesPaths
             .filter { $0.extension.map(resourceSynthesizer.extensions.contains) ?? false }
-            .filter { seen.insert($0.basename).inserted }
             .sorted()
 
-        if resourceSynthesizer.isLocalizable {
-            let developmentRegion = developmentRegion ?? "en"
+        switch resourceSynthesizer.parser {
+        case .strings:
+            // This file kind is localizable, let's order files based on it
+            var regionPriorityQueue = ["Base", "en"]
+            if let developmentRegion = developmentRegion {
+                regionPriorityQueue.insert(developmentRegion, at: 0)
+            }
+
             // Let's sort paths moving the development region localization's one at first
-            paths.sort(by: { lhs, rhs in
-                lhs.pathString.contains(developmentRegion) && !rhs.pathString.contains(developmentRegion)
-            })
+            let prioritizedPaths = paths.filter { path in
+                regionPriorityQueue.map { path.parentDirectory.basename.contains($0) }.contains(true)
+            }
+
+            let unprioritizedPaths = paths.filter { path in
+                !regionPriorityQueue.map { path.parentDirectory.basename.contains($0) }.contains(true)
+            }
+
+            paths = prioritizedPaths + unprioritizedPaths
+
+        case .assets, .coreData, .fonts, .interfaceBuilder, .json, .plists, .yaml:
+            break
         }
 
-        return paths
+        var seen: Set<String> = []
+        return paths.filter { seen.insert($0.basename).inserted }
     }
 
     private func isResourceEmpty(_ path: AbsolutePath) throws -> Bool {
@@ -227,20 +241,6 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
             return SynthesizedResourceInterfaceTemplates.fontsTemplate
         case .coreData, .interfaceBuilder, .json, .yaml:
             throw SynthesizedResourceInterfaceProjectMapperError.defaultTemplateNotAvailable(parser)
-        }
-    }
-}
-
-// MARK: - Synthesizer Helpers
-
-extension ResourceSynthesizer {
-    /// Whether files handled by this synthesizer can be localized
-    var isLocalizable: Bool {
-        switch self.parser {
-        case .assets, .coreData, .fonts, .interfaceBuilder, .json, .plists, .yaml:
-            return false
-        case .strings:
-            return true
         }
     }
 }
