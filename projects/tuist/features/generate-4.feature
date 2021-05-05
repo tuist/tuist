@@ -43,3 +43,12 @@ Scenario: The project is an iOS application with extensions (ios_app_with_extens
     Then the product 'App.app' with destination 'Debug-iphonesimulator' contains extension 'NotificationServiceExtension'
     Then the product 'App.app' with destination 'Debug-iphonesimulator' contains extension 'NotificationServiceExtension'
     Then the product 'App.app' with destination 'Debug-iphonesimulator' does not contain headers
+
+Scenario: The project is a tvOS application with extensions (tvos_app_with_extensions)
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture tvos_app_with_extensions into the working directory
+    Then tuist generates the project
+    Then I should be able to build for tvOS the scheme App
+    Then the product 'App.app' with destination 'Debug-appletvsimulator' contains extension 'TopShelfExtension'
+    Then the product 'App.app' with destination 'Debug-appletvsimulator' does not contain headers
