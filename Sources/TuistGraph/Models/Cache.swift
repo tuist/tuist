@@ -1,4 +1,5 @@
 import Foundation
+import TSCBasic
 
 public struct Cache: Equatable, Hashable {
     // Warning ⚠️
@@ -20,10 +21,12 @@ public struct Cache: Equatable, Hashable {
     }
 
     public let profiles: [Profile]
+    public let path: AbsolutePath?
 
-    public init(profiles: [Profile]) {
+    public init(profiles: [Profile], path: AbsolutePath?) {
         self.profiles = profiles
+        self.path = path
     }
 
-    public static let `default` = Cache(profiles: [Profile(name: "Development", configuration: "Debug")])
+    public static let `default` = Cache(profiles: [Profile(name: "Development", configuration: "Debug")], path: nil)
 }

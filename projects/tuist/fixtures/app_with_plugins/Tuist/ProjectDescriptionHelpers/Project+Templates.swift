@@ -10,14 +10,24 @@ extension Project {
             bundleId: "io.tuist.\(name)",
             infoPlist: .default,
             sources: ["Source/**"],
-            resources: [],
+            resources: [
+                "Resources/**",
+            ],
             dependencies: []
         )
         
         return Project(
             name: name,
             organizationName: "tuist.io",
-            targets: [mainTarget]
+            targets: [mainTarget],
+            resourceSynthesizers: [
+                .strings(plugin: "LocalPlugin"),
+                .custom(
+                    name: "Lottie",
+                    parser: .json,
+                    extensions: ["lottie"]
+                )
+            ]
         )
     }
 }

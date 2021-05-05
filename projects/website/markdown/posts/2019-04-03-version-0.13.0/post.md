@@ -54,15 +54,17 @@ Additionally, the `Workspace.swift` manifest has been enhanced to allow the incl
 ```swift
 import ProjectDescription
 
-let workspace = Workspace(name: "Workspace",
-                          projects: [
-                              "App",
-                              "Frameworks/**",
-                            ],
-                            additionalFiles: [
-                                "Documentation/**",
-                                .folderReference(path: "Website")
-                            ])
+let workspace = Workspace(
+    name: "Workspace",
+    projects: [
+        "App",
+        "Frameworks/**",
+    ],
+    additionalFiles: [
+        "Documentation/**",
+        .folderReference(path: "Website")
+    ]
+)
 ```
 
 <img class="posts__post-screenshot" 
@@ -78,33 +80,40 @@ For example take the following `Project.swift` manifest:
 ```swift
 import ProjectDescription
 
-let project = Project(name: "App",
-                      targets: [
-                          Target(name: "App",
-                                 platform: .iOS,
-                                 product: .app,
-                                 bundleId: "io.tuist.App",
-                                 infoPlist: "Info.plist",
-                                 sources: "Sources/**"),
-                          Target(name: "AppTests",
-                                 platform: .iOS,
-                                 product: .unitTests,
-                                 bundleId: "io.tuist.AppTests",
-                                 infoPlist: "Tests.plist",
-                                 sources: "Tests/**",
-                                 dependencies: [
-                                     .target(name: "App"),
-                                 ]),
-                          Target(name: "AppUITests",
-                                 platform: .iOS,
-                                 product: .uiTests,
-                                 bundleId: "io.tuist.AppUITests",
-                                 infoPlist: "Tests.plist",
-                                 sources: "UITests/**",
-                                 dependencies: [
-                                    .target(name: "App"),
-                                ])
-])
+let project = Project(
+    name: "App",
+    targets: [
+        Target(name: "App",
+            platform: .iOS,
+            product: .app,
+            bundleId: "io.tuist.App",
+            infoPlist: "Info.plist",
+            sources: "Sources/**"
+        ),
+        Target(
+            name: "AppTests",
+            platform: .iOS,
+            product: .unitTests,
+            bundleId: "io.tuist.AppTests",
+            infoPlist: "Tests.plist",
+            sources: "Tests/**",
+            dependencies: [
+                .target(name: "App"),
+            ]
+        ),
+        Target(
+            name: "AppUITests",
+            platform: .iOS,
+            product: .uiTests,
+            bundleId: "io.tuist.AppUITests",
+            infoPlist: "Tests.plist",
+            sources: "UITests/**",
+            dependencies: [
+               .target(name: "App"),
+            ]
+        )
+    ]
+)
 ```
 
 The generated project will have the host and target application set to **App** for the unit and ui test targets.

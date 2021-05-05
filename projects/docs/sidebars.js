@@ -2,35 +2,23 @@ module.exports = {
   docs: [
     {
       type: 'category',
-      label: 'Usage',
-      items: [
-        'usage/shell-autocompletion',
-        'usage/helpers',
-        'usage/resources',
-        'usage/project-description',
-      ],
+      label: 'Tutorial',
+      items: ['tutorial/get-started', 'tutorial/faq'],
     },
     {
       type: 'category',
-      label: 'Dependencies',
-      items: ['dependencies/local'],
-    },
-    {
-      type: 'category',
-      label: 'Examples',
+      label: 'Guides',
+      collapsed: false,
       items: [
-        'examples/app-extensions',
-        'examples/app-clips',
-        'examples/command-line-tools',
-      ],
-    },
-    {
-      type: 'category',
-      label: 'Building at scale',
-      items: [
-        'building-at-scale/microfeatures',
-        'building-at-scale/caching',
-        'building-at-scale/best-practices',
+        'guides/adopting-tuist',
+        'guides/dependencies',
+        'guides/helpers',
+        'guides/resources',
+        'guides/environment',
+        'guides/version-management',
+        'guides/shell-autocompletion',
+        'guides/stats',
+        'guides/third-party-dependencies',
       ],
     },
     {
@@ -52,6 +40,39 @@ module.exports = {
         'commands/secrets',
         'commands/clean',
         'commands/dependencies',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Manifests reference',
+      items: [
+        'manifests/project',
+        'manifests/workspace',
+        'manifests/dependencies',
+        'manifests/config',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Plugins',
+      items: ['plugins/using-plugins', 'plugins/creating-plugins'],
+    },
+    {
+      type: 'category',
+      label: 'Examples',
+      items: [
+        'examples/app-extensions',
+        'examples/app-clips',
+        'examples/command-line-tools',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Building at scale',
+      items: [
+        'building-at-scale/microfeatures',
+        'building-at-scale/caching',
+        'building-at-scale/best-practices',
       ],
     },
     {

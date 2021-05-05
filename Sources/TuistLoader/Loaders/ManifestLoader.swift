@@ -3,6 +3,7 @@ import ProjectDescription
 import RxBlocking
 import RxSwift
 import TSCBasic
+import TuistCore
 import TuistGraph
 import TuistSupport
 
@@ -109,30 +110,35 @@ public class ManifestLoader: ManifestLoading {
     // MARK: - Attributes
 
     let resourceLocator: ResourceLocating
-    let projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding
     let manifestFilesLocator: ManifestFilesLocating
     let environment: Environmenting
     private let decoder: JSONDecoder
     private var plugins: Plugins = .none
+    private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
+    private let projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring
 
     // MARK: - Init
 
     public convenience init() {
         self.init(
+            environment: Environment.shared,
             resourceLocator: ResourceLocator(),
-            projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilder(),
+            cacheDirectoryProviderFactory: CacheDirectoriesProviderFactory(),
+            projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactory(),
             manifestFilesLocator: ManifestFilesLocator()
         )
     }
 
-    init(environment: Environmenting = Environment.shared,
+    init(environment: Environmenting,
          resourceLocator: ResourceLocating,
-         projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding,
+         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring,
+         projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring,
          manifestFilesLocator: ManifestFilesLocating)
     {
         self.environment = environment
         self.resourceLocator = resourceLocator
-        self.projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilder
+        self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
+        self.projectDescriptionHelpersBuilderFactory = projectDescriptionHelpersBuilderFactory
         self.manifestFilesLocator = manifestFilesLocator
         decoder = JSONDecoder()
     }
@@ -244,6 +250,7 @@ public class ManifestLoader: ManifestLoading {
             "-lProjectDescription",
             "-framework", "ProjectDescription",
         ]
+        let projectDescriptionHelpersCacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories(config: nil).projectDescriptionHelpersCacheDirectory
 
         let projectDescriptionHelperArguments: [String] = try {
             switch manifest {
@@ -256,7 +263,7 @@ public class ManifestLoader: ManifestLoading {
                  .setup,
                  .template,
                  .workspace:
-                return try projectDescriptionHelpersBuilder.build(
+                return try projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(cacheDirectory: projectDescriptionHelpersCacheDirectory).build(
                     at: path,
                     projectDescriptionSearchPaths: searchPaths,
                     projectDescriptionHelperPlugins: plugins.projectDescriptionHelpers

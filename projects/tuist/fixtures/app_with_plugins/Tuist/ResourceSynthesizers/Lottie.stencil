@@ -1,0 +1,56 @@
+// swiftformat:disable all
+// swiftlint:disable all
+{% if files %}
+{% set accessModifier %}{% if param.publicAccess %}public{% else %}internal{% endif %}{% endset %}
+{% set documentPrefix %}{{param.documentName|default:"Document"}}{% endset %}
+import Foundation
+#if canImport(Lottie)
+import Lottie
+// MARK: - Animations Assets
+{{accessModifier}} extension AnimationAsset {
+  {% for file in files %}
+  static let {{file.name|swiftIdentifier:"pretty"|lowerFirstWord|escapeReservedKeywords}} = Self(named: "{{file.name}}")
+  {% endfor %}
+}
+// MARK: - Animation Helpers
+{{accessModifier}} extension AnimationAsset {
+  /// All the available animation. Can be used to preload them
+  static let allAnimations: [Self] = [
+    {% for file in files %}
+    Self.{{file.name|swiftIdentifier:"pretty"|lowerFirstWord|escapeReservedKeywords}},
+    {% endfor %}
+  ]
+}
+// MARK: - Structures
+{{accessModifier}} struct AnimationAsset: Hashable {
+  {{accessModifier}} fileprivate(set) var name: String
+  {{accessModifier}} let animation: Lottie.Animation?
+  {{accessModifier}} init(named name: String) {
+    self.name = name
+    if let url = Bundle.module.url(forResource: name, withExtension: "lottie") {
+      self.animation = Lottie.Animation.filepath(url.path)
+    } else {
+      self.animation = nil
+    }
+  }
+  // MARK: Hashable Conformance
+  {{accessModifier}} static func == (lhs: Self, rhs: Self) -> Bool {
+    return lhs.name == rhs.name
+  }
+  {{accessModifier}} func hash(into hasher: inout Hasher) {
+    hasher.combine(self.name)
+  }
+}
+// MARK: - Preload Helpers
+{{accessModifier}} extension AnimationAsset {
+  /// Preloads all the Lottie Animations to avoid performance issues when loading them
+  static func preload() -> Void {
+    for animationAsset in Self.allAnimations {
+      _ = animationAsset.animation
+    }
+  }
+}
+#endif
+{% else %}
+// No files found
+{% endif %}

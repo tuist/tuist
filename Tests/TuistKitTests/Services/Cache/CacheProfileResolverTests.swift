@@ -61,7 +61,7 @@ final class CacheProfileResolverTests: TuistUnitTestCase {
         // When
         let resolvedProfile = try subject.resolveCacheProfile(
             named: nil,
-            from: .test(cache: Cache(profiles: [.init(name: "foo", configuration: "configuration")]))
+            from: .test(cache: Cache(profiles: [.init(name: "foo", configuration: "configuration")], path: nil))
         )
 
         // Then
@@ -83,7 +83,7 @@ final class CacheProfileResolverTests: TuistUnitTestCase {
                     profiles: [
                         .init(name: "foo", configuration: "debug"),
                         .init(name: "bar", configuration: "release"),
-                    ]
+                    ], path: nil
                 )
             )
         )
@@ -103,7 +103,7 @@ final class CacheProfileResolverTests: TuistUnitTestCase {
         XCTAssertThrowsSpecific(
             try subject.resolveCacheProfile(
                 named: "foo",
-                from: .test(cache: Cache(profiles: [.init(name: "bar", configuration: "debug")]))
+                from: .test(cache: Cache(profiles: [.init(name: "bar", configuration: "debug")], path: nil))
             ),
             CacheProfileResolverError.missingProfile(name: "foo", availableProfiles: ["bar"])
         )

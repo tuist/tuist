@@ -46,7 +46,7 @@ let package = Package(
         ),
     ],
     dependencies: [
-        .package(url: "https://github.com/tuist/XcodeProj.git", .upToNextMajor(from: "7.17.0")),
+        .package(url: "https://github.com/tuist/XcodeProj.git", .upToNextMajor(from: "7.22.0")),
         .package(name: "Signals", url: "https://github.com/tuist/BlueSignals.git", .upToNextMajor(from: "1.0.21")),
         .package(url: "https://github.com/ReactiveX/RxSwift.git", .upToNextMajor(from: "5.1.1")),
         .package(url: "https://github.com/rnine/Checksum.git", .upToNextMajor(from: "1.0.2")),
@@ -751,6 +751,7 @@ let package = Package(
                 "TuistSupport",
                 "TuistSupportTesting",
                 "TuistScaffoldTesting",
+                "TuistCoreTesting",
                 rxBlockingDependency,
                 swiftToolsSupportDependency,
             ]

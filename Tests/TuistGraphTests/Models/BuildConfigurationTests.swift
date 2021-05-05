@@ -1,9 +1,21 @@
 import Foundation
-import TuistGraph
 import XCTest
-@testable import TuistCore
 
-final class BuildConfigurationTests: XCTestCase {
+@testable import TuistGraph
+@testable import TuistSupportTesting
+
+final class BuildConfigurationTests: TuistUnitTestCase {
+    func test_codable() {
+        // Given
+        let subject = BuildConfiguration(
+            name: "Debug",
+            variant: .debug
+        )
+
+        // Then
+        XCTAssertCodable(subject)
+    }
+
     func test_name_returnsTheRightValue_whenDebug() {
         XCTAssertEqual(BuildConfiguration.debug.name, "Debug")
     }

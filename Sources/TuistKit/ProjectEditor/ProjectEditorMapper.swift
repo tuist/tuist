@@ -249,7 +249,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             packages: [],
             schemes: [scheme],
             ideTemplateMacros: nil,
-            additionalFiles: []
+            additionalFiles: [],
+            resourceSynthesizers: []
         )
     }
 
@@ -277,9 +278,12 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             let pluginManifest = manifest.path.appending(component: "Plugin.swift")
             let pluginHelpersPath = manifest.path.appending(component: Constants.helpersDirectoryName)
             let pluginTemplatesPath = manifest.path.appending(component: Constants.templatesDirectoryName)
+            let pluginResourceTemplatesPath = manifest.path.appending(component: Constants.resourceSynthesizersDirectoryName)
             let sourcePaths = [pluginManifest] +
                 FileHandler.shared.glob(pluginHelpersPath, glob: "**/*.swift") +
-                FileHandler.shared.glob(pluginTemplatesPath, glob: "**/*.swift")
+                FileHandler.shared.glob(pluginTemplatesPath, glob: "**/*.swift") +
+                FileHandler.shared.glob(pluginTemplatesPath, glob: "**/*.stencil") +
+                FileHandler.shared.glob(pluginResourceTemplatesPath, glob: "*.stencil")
             return editorHelperTarget(
                 name: manifest.name,
                 filesGroup: pluginsFilesGroup,
@@ -325,7 +329,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             packages: [],
             schemes: allSchemes,
             ideTemplateMacros: nil,
-            additionalFiles: []
+            additionalFiles: [],
+            resourceSynthesizers: []
         )
     }
 

@@ -10,63 +10,139 @@ import XCTest
 
 final class CarthageInteractorTests: TuistUnitTestCase {
     private var subject: CarthageInteractor!
-
-    private var fileHandlerMock: MockFileHandler!
     private var carthageController: MockCarthageController!
-    private var carthageCommandGenerator: MockCarthageCommandGenerator!
-
-    private var temporaryDirectoryPath: AbsolutePath!
 
     override func setUp() {
         super.setUp()
 
-        do {
-            temporaryDirectoryPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
-        } catch {
-            XCTFail("Failed to setup TemporaryDirectory")
-        }
-
-        fileHandlerMock = MockFileHandler(temporaryDirectory: { self.temporaryDirectoryPath })
         carthageController = MockCarthageController()
-        carthageCommandGenerator = MockCarthageCommandGenerator()
-
         subject = CarthageInteractor(
-            fileHandler: fileHandlerMock,
-            carthageController: carthageController,
-            carthageCommandGenerator: carthageCommandGenerator
+            carthageController: carthageController
         )
     }
 
     override func tearDown() {
-        fileHandlerMock = nil
         carthageController = nil
-        carthageCommandGenerator = nil
-
-        temporaryDirectoryPath = nil
-
         subject = nil
 
         super.tearDown()
+    }
+
+    func test_fetch() throws {
+        // Given
+        carthageController.canUseSystemCarthageStub = { true }
+
+        let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
+        let dependenciesDirectory = rootPath
+            .appending(component: Constants.DependenciesDirectory.name)
+        let lockfilesDirectory = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
+        let carthageDirectory = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
+
+        let platforms: Set<Platform> = [.iOS, .watchOS, .macOS, .tvOS]
+        let options = Set<CarthageDependencies.Options>([])
+        let stubbedDependencies = CarthageDependencies(
+            [
+                .github(path: "Moya", requirement: .exact("1.1.1")),
+            ],
+            options: options
+        )
+
+        carthageController.bootstrapStub = { arg0, arg1, arg2 in
+            XCTAssertEqual(arg0, try self.temporaryPath())
+            XCTAssertEqual(arg1, platforms)
+            XCTAssertEqual(arg2, options)
+
+            try self.simulateCarthageOutput(at: arg0)
+        }
+
+        // When
+        try subject.fetch(
+            dependenciesDirectory: dependenciesDirectory,
+            dependencies: stubbedDependencies,
+            platforms: platforms
+        )
+
+        // Then
+        try XCTAssertDirectoryContentEqual(
+            dependenciesDirectory,
+            [
+                Constants.DependenciesDirectory.lockfilesDirectoryName,
+                Constants.DependenciesDirectory.carthageDirectoryName,
+            ]
+        )
+        try XCTAssertDirectoryContentEqual(
+            lockfilesDirectory,
+            [
+                Constants.DependenciesDirectory.cartfileResolvedName,
+            ]
+        )
+        try XCTAssertDirectoryContentEqual(
+            carthageDirectory,
+            [
+                "iOS",
+                "Mac",
+                "watchOS",
+                "tvOS",
+            ]
+        )
+        try XCTAssertDirectoryContentEqual(
+            carthageDirectory.appending(component: "iOS"),
+            [
+                "Moya.framework",
+                "ReactiveMoya.framework",
+                "RxMoya.framework",
+            ]
+        )
+        try XCTAssertDirectoryContentEqual(
+            carthageDirectory.appending(component: "Mac"),
+            [
+                "Moya.framework",
+                "ReactiveMoya.framework",
+                "RxMoya.framework",
+            ]
+        )
+        try XCTAssertDirectoryContentEqual(
+            carthageDirectory.appending(component: "watchOS"),
+            [
+                "Moya.framework",
+                "ReactiveMoya.framework",
+                "RxMoya.framework",
+            ]
+        )
+        try XCTAssertDirectoryContentEqual(
+            carthageDirectory.appending(component: "tvOS"),
+            [
+                "Moya.framework",
+                "ReactiveMoya.framework",
+                "RxMoya.framework",
+            ]
+        )
     }
 
     func test_fetch_throws_when_carthageUnavailableInEnvironment() throws {
         // Given
         carthageController.canUseSystemCarthageStub = { false }
 
-        let rootPath = try temporaryPath()
+        let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
         let dependenciesDirectory = rootPath
             .appending(component: Constants.DependenciesDirectory.name)
         let dependencies = CarthageDependencies(
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
             ],
-            platforms: [.iOS],
             options: []
         )
+        let platforms: Set<Platform> = [.iOS]
 
         // When / Then
         XCTAssertThrowsSpecific(
-            try subject.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: dependencies),
+            try subject.fetch(
+                dependenciesDirectory: dependenciesDirectory,
+                dependencies: dependencies,
+                platforms: platforms
+            ),
             CarthageInteractorError.carthageNotFound
         )
     }
@@ -76,153 +152,227 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         carthageController.canUseSystemCarthageStub = { true }
         carthageController.isXCFrameworksProductionSupportedStub = { false }
 
-        let rootPath = try temporaryPath()
+        let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
         let dependenciesDirectory = rootPath
             .appending(component: Constants.DependenciesDirectory.name)
         let dependencies = CarthageDependencies(
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
             ],
-            platforms: [.iOS],
             options: [.useXCFrameworks]
         )
+        let platforms: Set<Platform> = [.iOS]
 
         XCTAssertThrowsSpecific(
-            try subject.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: dependencies),
+            try subject.fetch(
+                dependenciesDirectory: dependenciesDirectory,
+                dependencies: dependencies,
+                platforms: platforms
+            ),
             CarthageInteractorError.xcFrameworksProductionNotSupported
         )
     }
 
-    func test_fetch_allPlatforms() throws {
+    func test_update() throws {
         // Given
         carthageController.canUseSystemCarthageStub = { true }
 
-        let rootPath = try temporaryPath()
-        let temporaryDependenciesDirectory = temporaryDirectoryPath
-            .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
-            .appending(component: "Build")
+        let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
         let dependenciesDirectory = rootPath
             .appending(component: Constants.DependenciesDirectory.name)
+        let lockfilesDirectory = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
+        let carthageDirectory = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
 
-        try fileHandler.touch(temporaryDirectoryPath.appending(components: Constants.DependenciesDirectory.cartfileResolvedName))
-        try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "iOS", "Moya.framework", "Info.plist"))
-        try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "iOS", "ReactiveMoya.framework", "Info.plist"))
-        try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "iOS", "RxMoya.framework", "Info.plist"))
-        try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "Mac", "Moya.framework", "Info.plist"))
-        try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "Mac", "ReactiveMoya.framework", "Info.plist"))
-        try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "Mac", "RxMoya.framework", "Info.plist"))
-        try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "watchOS", "Moya.framework", "Info.plist"))
-        try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "watchOS", "ReactiveMoya.framework", "Info.plist"))
-        try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "watchOS", "RxMoya.framework", "Info.plist"))
-        try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "tvOS", "Moya.framework", "Info.plist"))
-        try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "tvOS", "ReactiveMoya.framework", "Info.plist"))
-        try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "tvOS", "RxMoya.framework", "Info.plist"))
-
-        let platforms = Set<Platform>([.iOS, .watchOS, .macOS, .tvOS])
+        let platforms: Set<Platform> = [.iOS, .watchOS, .macOS, .tvOS]
         let options = Set<CarthageDependencies.Options>([])
         let stubbedDependencies = CarthageDependencies(
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
             ],
-            platforms: platforms,
             options: options
         )
-        let stubbedCommand = ["carthage", "bootstrap", "--project-directory", temporaryDirectoryPath.pathString, "--platform iOS,macOS,tvOS,watchOS", "--cache-builds", "--new-resolver"]
 
-        carthageCommandGenerator.commandStub = { _ in stubbedCommand }
+        carthageController.updateStub = { arg0, arg1, arg2 in
+            XCTAssertEqual(arg0, try self.temporaryPath())
+            XCTAssertEqual(arg1, platforms)
+            XCTAssertEqual(arg2, options)
 
-        system.whichStub = { _ in "1.0.0" }
-        system.succeedCommand(stubbedCommand)
+            try self.simulateCarthageOutput(at: arg0)
+        }
 
         // When
-        try subject.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: stubbedDependencies)
+        try subject.update(
+            dependenciesDirectory: dependenciesDirectory,
+            dependencies: stubbedDependencies,
+            platforms: platforms
+        )
 
         // Then
-        let expectedCartfileResolvedPath = dependenciesDirectory
-            .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
-            .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
-        let expectedCarthageDirectory = dependenciesDirectory
-            .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
-
-        XCTAssertTrue(fileHandler.exists(expectedCartfileResolvedPath))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "iOS", "Moya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "iOS", "ReactiveMoya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "iOS", "RxMoya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "Mac", "Moya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "Mac", "ReactiveMoya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "Mac", "RxMoya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "watchOS", "Moya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "watchOS", "ReactiveMoya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "watchOS", "RxMoya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "tvOS", "Moya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "tvOS", "ReactiveMoya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "tvOS", "RxMoya.framework", "Info.plist")))
-
-        XCTAssertTrue(carthageCommandGenerator.invokedCommand)
-        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.path, temporaryDirectoryPath)
-        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.platforms, platforms)
-        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.options, options)
+        try XCTAssertDirectoryContentEqual(
+            dependenciesDirectory,
+            [
+                Constants.DependenciesDirectory.lockfilesDirectoryName,
+                Constants.DependenciesDirectory.carthageDirectoryName,
+            ]
+        )
+        try XCTAssertDirectoryContentEqual(
+            lockfilesDirectory,
+            [
+                Constants.DependenciesDirectory.cartfileResolvedName,
+            ]
+        )
+        try XCTAssertDirectoryContentEqual(
+            carthageDirectory,
+            [
+                "iOS",
+                "Mac",
+                "watchOS",
+                "tvOS",
+            ]
+        )
+        try XCTAssertDirectoryContentEqual(
+            carthageDirectory.appending(component: "iOS"),
+            [
+                "Moya.framework",
+                "ReactiveMoya.framework",
+                "RxMoya.framework",
+            ]
+        )
+        try XCTAssertDirectoryContentEqual(
+            carthageDirectory.appending(component: "Mac"),
+            [
+                "Moya.framework",
+                "ReactiveMoya.framework",
+                "RxMoya.framework",
+            ]
+        )
+        try XCTAssertDirectoryContentEqual(
+            carthageDirectory.appending(component: "watchOS"),
+            [
+                "Moya.framework",
+                "ReactiveMoya.framework",
+                "RxMoya.framework",
+            ]
+        )
+        try XCTAssertDirectoryContentEqual(
+            carthageDirectory.appending(component: "tvOS"),
+            [
+                "Moya.framework",
+                "ReactiveMoya.framework",
+                "RxMoya.framework",
+            ]
+        )
     }
 
-    func test_fetch_onePlatform() throws {
+    func test_update_throws_when_carthageUnavailableInEnvironment() throws {
         // Given
-        carthageController.canUseSystemCarthageStub = { true }
+        carthageController.canUseSystemCarthageStub = { false }
 
-        let rootPath = try temporaryPath()
-        let temporaryDependenciesDirectory = temporaryDirectoryPath
-            .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
-            .appending(component: "Build")
+        let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
         let dependenciesDirectory = rootPath
             .appending(component: Constants.DependenciesDirectory.name)
-
-        try fileHandler.touch(temporaryDirectoryPath.appending(components: Constants.DependenciesDirectory.cartfileResolvedName))
-        try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "iOS", "Moya.framework", "Info.plist"))
-        try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "iOS", "ReactiveMoya.framework", "Info.plist"))
-        try fileHandler.touch(temporaryDependenciesDirectory.appending(components: "iOS", "RxMoya.framework", "Info.plist"))
-
-        let platforms = Set<Platform>([.iOS])
-        let options = Set<CarthageDependencies.Options>([])
-        let stubbedDependencies = CarthageDependencies(
+        let dependencies = CarthageDependencies(
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
             ],
-            platforms: platforms,
-            options: options
+            options: []
         )
-        let stubbedCommand = ["carthage", "bootstrap", "--project-directory", temporaryDirectoryPath.pathString, "--platform iOS", "--cache-builds", "--new-resolver"]
+        let platforms: Set<Platform> = [.iOS]
 
-        carthageCommandGenerator.commandStub = { _ in stubbedCommand }
+        // When / Then
+        XCTAssertThrowsSpecific(
+            try subject.update(
+                dependenciesDirectory: dependenciesDirectory,
+                dependencies: dependencies,
+                platforms: platforms
+            ),
+            CarthageInteractorError.carthageNotFound
+        )
+    }
 
-        system.whichStub = { _ in "1.0.0" }
-        system.succeedCommand(stubbedCommand)
+    func test_update_throws_when_xcFrameworkdProductionUnsupported_and_useXCFrameworksSpecifiedInOptions() throws {
+        // Given
+        carthageController.canUseSystemCarthageStub = { true }
+        carthageController.isXCFrameworksProductionSupportedStub = { false }
+
+        let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
+        let dependenciesDirectory = rootPath
+            .appending(component: Constants.DependenciesDirectory.name)
+        let dependencies = CarthageDependencies(
+            [
+                .github(path: "Moya", requirement: .exact("1.1.1")),
+            ],
+            options: [.useXCFrameworks]
+        )
+        let platforms: Set<Platform> = [.iOS]
+
+        XCTAssertThrowsSpecific(
+            try subject.update(
+                dependenciesDirectory: dependenciesDirectory,
+                dependencies: dependencies,
+                platforms: platforms
+            ),
+            CarthageInteractorError.xcFrameworksProductionNotSupported
+        )
+    }
+
+    func test_clean() throws {
+        // Given
+        let rootPath = try temporaryPath()
+        let dependenciesDirectory = rootPath
+            .appending(component: Constants.DependenciesDirectory.name)
+        let lockfilesDirectory = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
+
+        try createFiles([
+            "Dependencies/Lockfiles/Cartfile.resolved",
+            "Dependencies/Lockfiles/OtherLockfile.lock",
+            "Dependencies/Carthage/Info.plist",
+            "Dependencies/OtherDepedenciesManager/bar.bar",
+        ])
 
         // When
-        try subject.fetch(dependenciesDirectory: dependenciesDirectory, dependencies: stubbedDependencies)
+        try subject.clean(dependenciesDirectory: dependenciesDirectory)
 
         // Then
-        let expectedCartfileResolvedPath = dependenciesDirectory
-            .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
-            .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
-        let expectedCarthageDirectory = dependenciesDirectory
-            .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
+        try XCTAssertDirectoryContentEqual(
+            dependenciesDirectory,
+            [
+                Constants.DependenciesDirectory.lockfilesDirectoryName,
+                "OtherDepedenciesManager",
+            ]
+        )
+        try XCTAssertDirectoryContentEqual(
+            lockfilesDirectory,
+            [
+                "OtherLockfile.lock",
+            ]
+        )
+    }
+}
 
-        XCTAssertTrue(fileHandler.exists(expectedCartfileResolvedPath))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "iOS", "Moya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "iOS", "ReactiveMoya.framework", "Info.plist")))
-        XCTAssertTrue(fileHandler.exists(expectedCarthageDirectory.appending(components: "iOS", "RxMoya.framework", "Info.plist")))
-        XCTAssertFalse(fileHandler.exists(expectedCarthageDirectory.appending(components: "Mac", "Moya.framework", "Info.plist")))
-        XCTAssertFalse(fileHandler.exists(expectedCarthageDirectory.appending(components: "Mac", "ReactiveMoya.framework", "Info.plist")))
-        XCTAssertFalse(fileHandler.exists(expectedCarthageDirectory.appending(components: "Mac", "RxMoya.framework", "Info.plist")))
-        XCTAssertFalse(fileHandler.exists(expectedCarthageDirectory.appending(components: "watchOS", "Moya.framework", "Info.plist")))
-        XCTAssertFalse(fileHandler.exists(expectedCarthageDirectory.appending(components: "watchOS", "ReactiveMoya.framework", "Info.plist")))
-        XCTAssertFalse(fileHandler.exists(expectedCarthageDirectory.appending(components: "watchOS", "RxMoya.framework", "Info.plist")))
-        XCTAssertFalse(fileHandler.exists(expectedCarthageDirectory.appending(components: "tvOS", "Moya.framework", "Info.plist")))
-        XCTAssertFalse(fileHandler.exists(expectedCarthageDirectory.appending(components: "tvOS", "ReactiveMoya.framework", "Info.plist")))
-        XCTAssertFalse(fileHandler.exists(expectedCarthageDirectory.appending(components: "tvOS", "RxMoya.framework", "Info.plist")))
+// MARK: - Helpers
 
-        XCTAssertTrue(carthageCommandGenerator.invokedCommand)
-        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.path, temporaryDirectoryPath)
-        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.platforms, platforms)
-        XCTAssertEqual(carthageCommandGenerator.invokedCommandParameters?.options, options)
+private extension CarthageInteractorTests {
+    func simulateCarthageOutput(at path: AbsolutePath) throws {
+        try [
+            "Cartfile.resolved",
+            "Carthage/Build/iOS/Moya.framework/Info.plist",
+            "Carthage/Build/iOS/ReactiveMoya.framework/Info.plist",
+            "Carthage/Build/iOS/RxMoya.framework/Info.plist",
+            "Carthage/Build/Mac/Moya.framework/Info.plist",
+            "Carthage/Build/Mac/ReactiveMoya.framework/Info.plist",
+            "Carthage/Build/Mac/RxMoya.framework/Info.plist",
+            "Carthage/Build/watchOS/Moya.framework/Info.plist",
+            "Carthage/Build/watchOS/ReactiveMoya.framework/Info.plist",
+            "Carthage/Build/watchOS/RxMoya.framework/Info.plist",
+            "Carthage/Build/tvOS/Moya.framework/Info.plist",
+            "Carthage/Build/tvOS/ReactiveMoya.framework/Info.plist",
+            "Carthage/Build/tvOS/RxMoya.framework/Info.plist",
+        ].forEach {
+            try fileHandler.touch(path.appending(RelativePath($0)))
+        }
     }
 }

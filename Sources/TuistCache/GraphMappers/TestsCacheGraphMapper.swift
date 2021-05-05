@@ -5,37 +5,46 @@ import TuistGraph
 import TuistSupport
 
 /// Tree-shakes testable targets which hashes have not changed from those in the tests cache directory
-/// Creates tests hash files into a `testsCacheDirectory`
+/// Creates tests hash files into a `hashesCacheDirectory`
 public final class TestsCacheGraphMapper: GraphMapping {
-    private let testsCacheDirectory: AbsolutePath
+    private let hashesCacheDirectory: AbsolutePath
     private let graphContentHasher: GraphContentHashing
+    private let config: Config
+    private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
 
     /// - Parameters:
-    ///     - testsCacheDirectory: Location where to save current hashes.
+    ///     - hashesCacheDirectory: Location where to save current hashes.
     /// This should be a temporary location if you don't want to save the hashes permanently.
     /// This is useful when you want to save the hashes of tests only after the tests have run successfully.
     public convenience init(
-        testsCacheDirectory: AbsolutePath
+        hashesCacheDirectory: AbsolutePath,
+        config: Config
     ) {
         self.init(
-            testsCacheDirectory: testsCacheDirectory,
-            graphContentHasher: GraphContentHasher(contentHasher: ContentHasher())
+            hashesCacheDirectory: hashesCacheDirectory,
+            config: config,
+            graphContentHasher: GraphContentHasher(contentHasher: ContentHasher()),
+            cacheDirectoryProviderFactory: CacheDirectoriesProviderFactory()
         )
     }
 
     init(
-        testsCacheDirectory: AbsolutePath,
-        graphContentHasher: GraphContentHashing
+        hashesCacheDirectory: AbsolutePath,
+        config: Config,
+        graphContentHasher: GraphContentHashing,
+        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
     ) {
-        self.testsCacheDirectory = testsCacheDirectory
+        self.hashesCacheDirectory = hashesCacheDirectory
+        self.config = config
         self.graphContentHasher = graphContentHasher
+        self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
     }
 
     public func map(graph: ValueGraph) throws -> (ValueGraph, [SideEffectDescriptor]) {
         let graphTraverser = ValueGraphTraverser(graph: graph)
         let hashableTargets = self.hashableTargets(graphTraverser: graphTraverser)
         let hashes = try graphContentHasher.contentHashes(for: graph, filter: hashableTargets.contains)
-
+        let testsCacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories(config: config).testsCacheDirectory
         var visitedNodes: [ValueGraphTarget: Bool] = [:]
         var workspace = graph.workspace
         let mappedSchemes = try workspace.schemes
@@ -44,7 +53,8 @@ public final class TestsCacheGraphMapper: GraphMapping {
                     scheme: scheme,
                     graphTraverser: graphTraverser,
                     hashes: hashes,
-                    visited: &visitedNodes
+                    visited: &visitedNodes,
+                    testsCacheDirectory: testsCacheDirectory
                 )
             }
         let schemes = mappedSchemes.map(\.0)
@@ -60,7 +70,7 @@ public final class TestsCacheGraphMapper: GraphMapping {
             hashes.values.map {
                 .file(
                     FileDescriptor(
-                        path: testsCacheDirectory.appending(component: $0)
+                        path: hashesCacheDirectory.appending(component: $0)
                     )
                 )
             }
@@ -131,7 +141,8 @@ public final class TestsCacheGraphMapper: GraphMapping {
         scheme: Scheme,
         graphTraverser: GraphTraversing,
         hashes: [ValueGraphTarget: String],
-        visited: inout [ValueGraphTarget: Bool]
+        visited: inout [ValueGraphTarget: Bool],
+        testsCacheDirectory: AbsolutePath
     ) throws -> (Scheme, [ValueGraphTarget]) {
         var scheme = scheme
         guard let testAction = scheme.testAction else { return (scheme, []) }
@@ -144,7 +155,8 @@ public final class TestsCacheGraphMapper: GraphMapping {
                 testableTarget,
                 graphTraverser: graphTraverser,
                 hashes: hashes,
-                visited: &visited
+                visited: &visited,
+                testsCacheDirectory: testsCacheDirectory
             )
         }
 
@@ -165,7 +177,8 @@ public final class TestsCacheGraphMapper: GraphMapping {
         _ target: ValueGraphTarget,
         graphTraverser: GraphTraversing,
         hashes: [ValueGraphTarget: String],
-        visited: inout [ValueGraphTarget: Bool]
+        visited: inout [ValueGraphTarget: Bool],
+        testsCacheDirectory: AbsolutePath
     ) -> Bool {
         if let visitedValue = visited[target] { return visitedValue }
         let allTargetDependenciesAreHashed = graphTraverser.directTargetDependencies(
@@ -177,7 +190,8 @@ public final class TestsCacheGraphMapper: GraphMapping {
                 $0,
                 graphTraverser: graphTraverser,
                 hashes: hashes,
-                visited: &visited
+                visited: &visited,
+                testsCacheDirectory: testsCacheDirectory
             )
         }
         guard let hash = hashes[target] else {
@@ -187,7 +201,7 @@ public final class TestsCacheGraphMapper: GraphMapping {
         /// Target is considered as cached if all its dependencies are cached and its hash is present in `testsCacheDirectory`
         /// Hash of the target is saved to that directory only after a successful test run
         let isCached = FileHandler.shared.exists(
-            Environment.shared.testsCacheDirectory.appending(component: hash)
+            testsCacheDirectory.appending(component: hash)
         ) && allTargetDependenciesAreHashed
         visited[target] = isCached
         return isCached

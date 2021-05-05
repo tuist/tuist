@@ -4,19 +4,19 @@ import Foundation
 public struct CarthageDependencies: Equatable {
     /// List of depedencies that can be installed using Carthage.
     public let dependencies: [Dependency]
-    /// List of platforms for which you want to install depedencies.
-    public let platforms: Set<Platform>
     /// List of options for Carthage installation.
     public let options: Set<Options>
 
-    /// Initializes the carthage dependency with its attributes.
+    /// Initializes a new `CarthageDependencies` instance.
+    /// - Parameters:
+    ///   - dependencies: List of depedencies that can be installed using Carthage.
+    ///   - platforms: List of platforms for which you want to install depedencies.
+    ///   - options: List of options for Carthage installation.
     public init(
         _ dependencies: [Dependency],
-        platforms: Set<Platform>,
         options: Set<Options>
     ) {
         self.dependencies = dependencies
-        self.platforms = platforms
         self.options = options
     }
 
@@ -27,6 +27,8 @@ public struct CarthageDependencies: Equatable {
             .joined(separator: "\n")
     }
 }
+
+// MARK: - CarthageDependencies.Dependency
 
 public extension CarthageDependencies {
     enum Dependency: Equatable {
@@ -46,7 +48,11 @@ public extension CarthageDependencies {
             }
         }
     }
+}
 
+// MARK: - CarthageDependencies.Requirement
+
+public extension CarthageDependencies {
     enum Requirement: Equatable {
         case exact(String)
         case upToNext(String)
@@ -70,7 +76,11 @@ public extension CarthageDependencies {
             }
         }
     }
+}
 
+// MARK: - CarthageDependencies.Options
+
+public extension CarthageDependencies {
     enum Options: Equatable {
         case useXCFrameworks
         case noUseBinaries

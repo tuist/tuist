@@ -93,12 +93,20 @@ extension TargetAction {
     public static func test(name: String = "Action",
                             tool: String = "",
                             order: Order = .pre,
-                            arguments: [String] = []) -> TargetAction
+                            arguments: [String] = [],
+                            inputPaths: [Path] = [],
+                            inputFileListPaths: [Path] = [],
+                            outputPaths: [Path] = [],
+                            outputFileListPaths: [Path] = []) -> TargetAction
     {
         TargetAction(
             name: name,
             script: .tool(tool, arguments),
-            order: order
+            order: order,
+            inputPaths: inputPaths,
+            inputFileListPaths: inputFileListPaths,
+            outputPaths: outputPaths,
+            outputFileListPaths: outputFileListPaths
         )
     }
 }

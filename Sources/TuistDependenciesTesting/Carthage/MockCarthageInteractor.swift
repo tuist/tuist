@@ -7,18 +7,34 @@ public final class MockCarthageInteractor: CarthageInteracting {
     public init() {}
 
     var invokedFetch = false
-    var invokedFetchCount = 0
-    var invokedFetchParameters: (dependenciesDirectory: AbsolutePath, dependencies: CarthageDependencies)?
-    var invokedFetchParametersList = [(dependenciesDirectory: AbsolutePath, dependencies: CarthageDependencies)]()
-    var stubbedFetchError: Error?
+    var fetchStub: ((AbsolutePath, CarthageDependencies, Set<Platform>) throws -> Void)?
 
-    public func fetch(dependenciesDirectory: AbsolutePath, dependencies: CarthageDependencies) throws {
+    public func fetch(
+        dependenciesDirectory: AbsolutePath,
+        dependencies: CarthageDependencies,
+        platforms: Set<Platform>
+    ) throws {
         invokedFetch = true
-        invokedFetchCount += 1
-        invokedFetchParameters = (dependenciesDirectory, dependencies)
-        invokedFetchParametersList.append((dependenciesDirectory, dependencies))
-        if let error = stubbedFetchError {
-            throw error
-        }
+        try fetchStub?(dependenciesDirectory, dependencies, platforms)
+    }
+
+    var invokedUpdate = false
+    var updateStub: ((AbsolutePath, CarthageDependencies, Set<Platform>) throws -> Void)?
+
+    public func update(
+        dependenciesDirectory: AbsolutePath,
+        dependencies: CarthageDependencies,
+        platforms: Set<Platform>
+    ) throws {
+        invokedUpdate = true
+        try updateStub?(dependenciesDirectory, dependencies, platforms)
+    }
+
+    var invokedClean = false
+    var cleanStub: ((AbsolutePath) throws -> Void)?
+
+    public func clean(dependenciesDirectory: AbsolutePath) throws {
+        invokedClean = true
+        try cleanStub?(dependenciesDirectory)
     }
 }

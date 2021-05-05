@@ -17,13 +17,13 @@ final class DependenciesFetchService {
     }
 
     func run(path: String?) throws {
-        logger.info("We are starting to fetch the dependencies.", metadata: .section)
+        logger.info("Resolving and fetching dependencies.", metadata: .section)
 
         let path = self.path(path)
         let dependencies = try dependenciesModelLoader.loadDependencies(at: path)
         try dependenciesController.fetch(at: path, dependencies: dependencies)
 
-        logger.info("Dependencies were fetched successfully.", metadata: .success)
+        logger.info("Dependencies resolved and fetched successfully.", metadata: .success)
     }
 
     // MARK: - Helpers

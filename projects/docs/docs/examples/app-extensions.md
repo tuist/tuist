@@ -14,33 +14,36 @@ using the generic `.appExtension` product type.
 For example, this is how a Notification Service Extension can be declared:
 
 ```swift
-let project = Project(name: "App",
-                      targets: [
-                        Target(name: "App",
-                               platform: .iOS,
-                               product: .app,
-                               bundleId: "io.tuist.App",
-                               infoPlist: "Info.plist",
-                               sources: ["Sources/**"],
-                               dependencies: [
-                                    .target(name: "NotificationServiceExtension"),
-                                ]),
-                        Target(name: "NotificationServiceExtension",
-                               platform: .iOS,
-                               product: .appExtension,
-                               bundleId: "io.tuist.App.NotificationServiceExtension",
-                               infoPlist: .extendingDefault(with: [
-                                       "CFBundleDisplayName": "$(PRODUCT_NAME)",
-                                       "NSExtension": [
-                                               "NSExtensionPointIdentifier": "com.apple.usernotifications.service",
-                                               "NSExtensionPrincipalClass": "$(PRODUCT_MODULE_NAME).NotificationService"
-                                       ]
-                               ]),
-                               sources: "NotificationServiceExtension/**",
-                               dependencies: [
-
-                               ]),
-                      ])
+let project = Project(
+    name: "App",
+    targets: [
+        Target(name: "App",
+            platform: .iOS,
+            product: .app,
+            bundleId: "io.tuist.App",
+            infoPlist: "Info.plist",
+            sources: ["Sources/**"],
+            dependencies: [
+                .target(name: "NotificationServiceExtension"),
+            ]
+        ),
+        Target(
+            name: "NotificationServiceExtension",
+            platform: .iOS,
+            product: .appExtension,
+            bundleId: "io.tuist.App.NotificationServiceExtension",
+            infoPlist: .extendingDefault(with: [
+                "CFBundleDisplayName": "$(PRODUCT_NAME)",
+                "NSExtension": [
+                    "NSExtensionPointIdentifier": "com.apple.usernotifications.service",
+                    "NSExtensionPrincipalClass": "$(PRODUCT_MODULE_NAME).NotificationService"
+                ]
+            ]),
+            sources: "NotificationServiceExtension/**",
+            dependencies: []
+        ),
+    ]
+)
 ```
 
 ### Info Plist Keys
@@ -56,7 +59,7 @@ For example, here is a list of some of the extension types and their correspondi
 | Notification Service | `com.apple.usernotifications.service` |
 | Widgets Extension    | `com.apple.widgetkit-extension`       |
 
-Knowing the different key/value requirements may be needed when leveraging the auto-generated `Info.plist` file _(see [Info Plist](/usage/project-description/))_.
+Knowing the different key/value requirements may be needed when leveraging the auto-generated `Info.plist` file _(see [Info Plist](/manifests/project/))_.
 
 To find out what the identifier for an extension type is or any other required key, you can examine the values within an existing `Info.plist` file _(if one exists)_,
 or create a new sample project using the Xcode UI with the desired app extension target and examine the `Info.plist` file created by Xcode.
@@ -68,19 +71,23 @@ To associate or include extensions within an application, the application target
 For example:
 
 ```swift
-let project = Project(name: "App",
-                      targets: [
-                        Target(name: "App",
-                               platform: .iOS,
-                               product: .app,
-                               bundleId: "io.tuist.App",
-                               infoPlist: "Info.plist",
-                               sources: ["Sources/**"],
-                               dependencies: [
-                                    .target(name: "NotificationServiceExtension"),
-                                    .target(name: "WidgetExtension"),
-                                    // ...
-                                ]),
-                        // ...
-                      ])
+let project = Project(
+    name: "App",
+    targets: [
+        Target(
+            name: "App",
+            platform: .iOS,
+            product: .app,
+            bundleId: "io.tuist.App",
+            infoPlist: "Info.plist",
+            sources: ["Sources/**"],
+            dependencies: [
+                .target(name: "NotificationServiceExtension"),
+                .target(name: "WidgetExtension"),
+                // …
+            ]
+        ),
+        // …
+    ]
+)
 ```

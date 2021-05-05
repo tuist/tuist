@@ -45,6 +45,9 @@ public struct TargetAction: Codable, Equatable {
     /// Whether to skip running this script in incremental builds, if nothing has changed
     public let basedOnDependencyAnalysis: Bool?
 
+    /// Whether this action only runs on install builds (default is false)
+    public let runForInstallBuildsOnly: Bool
+
     public enum CodingKeys: String, CodingKey {
         case name
         case tool
@@ -57,6 +60,7 @@ public struct TargetAction: Codable, Equatable {
         case outputPaths
         case outputFileListPaths
         case basedOnDependencyAnalysis
+        case runForInstallBuildsOnly = "runOnlyForDeploymentPostprocessing"
     }
 
     /// Initializes the target action with its attributes.
@@ -70,6 +74,7 @@ public struct TargetAction: Codable, Equatable {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
+    ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
     init(name: String,
          script: Script = .embedded(""),
          order: Order,
@@ -77,7 +82,8 @@ public struct TargetAction: Codable, Equatable {
          inputFileListPaths: [Path] = [],
          outputPaths: [Path] = [],
          outputFileListPaths: [Path] = [],
-         basedOnDependencyAnalysis: Bool? = nil)
+         basedOnDependencyAnalysis: Bool? = nil,
+         runForInstallBuildsOnly: Bool = false)
     {
         self.name = name
         self.script = script
@@ -87,6 +93,7 @@ public struct TargetAction: Codable, Equatable {
         self.outputPaths = outputPaths
         self.outputFileListPaths = outputFileListPaths
         self.basedOnDependencyAnalysis = basedOnDependencyAnalysis
+        self.runForInstallBuildsOnly = runForInstallBuildsOnly
     }
 
     // MARK: - Codable
@@ -100,6 +107,7 @@ public struct TargetAction: Codable, Equatable {
         outputPaths = try container.decodeIfPresent([Path].self, forKey: .outputPaths) ?? []
         outputFileListPaths = try container.decodeIfPresent([Path].self, forKey: .outputFileListPaths) ?? []
         basedOnDependencyAnalysis = try container.decodeIfPresent(Bool.self, forKey: .basedOnDependencyAnalysis)
+        runForInstallBuildsOnly = try container.decodeIfPresent(Bool.self, forKey: .runForInstallBuildsOnly) ?? false
 
         let arguments: [String] = try container.decodeIfPresent([String].self, forKey: .arguments) ?? []
         if let script = try container.decodeIfPresent(String.self, forKey: .script) {
@@ -123,6 +131,7 @@ public struct TargetAction: Codable, Equatable {
         try container.encode(outputPaths, forKey: .outputPaths)
         try container.encode(outputFileListPaths, forKey: .outputFileListPaths)
         try container.encode(basedOnDependencyAnalysis, forKey: .basedOnDependencyAnalysis)
+        try container.encode(runForInstallBuildsOnly, forKey: .runForInstallBuildsOnly)
 
         switch script {
         case let .embedded(script):
@@ -153,6 +162,7 @@ extension TargetAction {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
+    ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
     /// - Returns: Target action.
     public static func pre(tool: String,
                            arguments: String...,
@@ -161,7 +171,8 @@ extension TargetAction {
                            inputFileListPaths: [Path] = [],
                            outputPaths: [Path] = [],
                            outputFileListPaths: [Path] = [],
-                           basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
+                           basedOnDependencyAnalysis: Bool? = nil,
+                           runForInstallBuildsOnly: Bool = false) -> TargetAction
     {
         TargetAction(
             name: name,
@@ -171,7 +182,8 @@ extension TargetAction {
             inputFileListPaths: inputFileListPaths,
             outputPaths: outputPaths,
             outputFileListPaths: outputFileListPaths,
-            basedOnDependencyAnalysis: basedOnDependencyAnalysis
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+            runForInstallBuildsOnly: runForInstallBuildsOnly
         )
     }
 
@@ -186,6 +198,7 @@ extension TargetAction {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
+    ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
     /// - Returns: Target action.
     public static func pre(tool: String,
                            arguments: [String],
@@ -194,7 +207,8 @@ extension TargetAction {
                            inputFileListPaths: [Path] = [],
                            outputPaths: [Path] = [],
                            outputFileListPaths: [Path] = [],
-                           basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
+                           basedOnDependencyAnalysis: Bool? = nil,
+                           runForInstallBuildsOnly: Bool = false) -> TargetAction
     {
         TargetAction(
             name: name,
@@ -204,7 +218,8 @@ extension TargetAction {
             inputFileListPaths: inputFileListPaths,
             outputPaths: outputPaths,
             outputFileListPaths: outputFileListPaths,
-            basedOnDependencyAnalysis: basedOnDependencyAnalysis
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+            runForInstallBuildsOnly: runForInstallBuildsOnly
         )
     }
 
@@ -219,6 +234,7 @@ extension TargetAction {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
+    ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
     /// - Returns: Target action.
     public static func post(tool: String,
                             arguments: String...,
@@ -227,7 +243,8 @@ extension TargetAction {
                             inputFileListPaths: [Path] = [],
                             outputPaths: [Path] = [],
                             outputFileListPaths: [Path] = [],
-                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
+                            basedOnDependencyAnalysis: Bool? = nil,
+                            runForInstallBuildsOnly: Bool = false) -> TargetAction
     {
         TargetAction(
             name: name,
@@ -237,7 +254,8 @@ extension TargetAction {
             inputFileListPaths: inputFileListPaths,
             outputPaths: outputPaths,
             outputFileListPaths: outputFileListPaths,
-            basedOnDependencyAnalysis: basedOnDependencyAnalysis
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+            runForInstallBuildsOnly: runForInstallBuildsOnly
         )
     }
 
@@ -252,6 +270,7 @@ extension TargetAction {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
+    ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
     /// - Returns: Target action.
     public static func post(tool: String,
                             arguments: [String],
@@ -260,7 +279,8 @@ extension TargetAction {
                             inputFileListPaths: [Path] = [],
                             outputPaths: [Path] = [],
                             outputFileListPaths: [Path] = [],
-                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
+                            basedOnDependencyAnalysis: Bool? = nil,
+                            runForInstallBuildsOnly: Bool = false) -> TargetAction
     {
         TargetAction(
             name: name,
@@ -270,7 +290,8 @@ extension TargetAction {
             inputFileListPaths: inputFileListPaths,
             outputPaths: outputPaths,
             outputFileListPaths: outputFileListPaths,
-            basedOnDependencyAnalysis: basedOnDependencyAnalysis
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+            runForInstallBuildsOnly: runForInstallBuildsOnly
         )
     }
 }
@@ -289,6 +310,7 @@ extension TargetAction {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
+    ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
     /// - Returns: Target action.
     public static func pre(path: Path,
                            arguments: String...,
@@ -297,7 +319,8 @@ extension TargetAction {
                            inputFileListPaths: [Path] = [],
                            outputPaths: [Path] = [],
                            outputFileListPaths: [Path] = [],
-                           basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
+                           basedOnDependencyAnalysis: Bool? = nil,
+                           runForInstallBuildsOnly: Bool = false) -> TargetAction
     {
         TargetAction(
             name: name,
@@ -307,7 +330,8 @@ extension TargetAction {
             inputFileListPaths: inputFileListPaths,
             outputPaths: outputPaths,
             outputFileListPaths: outputFileListPaths,
-            basedOnDependencyAnalysis: basedOnDependencyAnalysis
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+            runForInstallBuildsOnly: runForInstallBuildsOnly
         )
     }
 
@@ -322,6 +346,7 @@ extension TargetAction {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
+    ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
     /// - Returns: Target action.
     public static func pre(path: Path,
                            arguments: [String],
@@ -330,7 +355,8 @@ extension TargetAction {
                            inputFileListPaths: [Path] = [],
                            outputPaths: [Path] = [],
                            outputFileListPaths: [Path] = [],
-                           basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
+                           basedOnDependencyAnalysis: Bool? = nil,
+                           runForInstallBuildsOnly: Bool = false) -> TargetAction
     {
         TargetAction(
             name: name,
@@ -340,7 +366,8 @@ extension TargetAction {
             inputFileListPaths: inputFileListPaths,
             outputPaths: outputPaths,
             outputFileListPaths: outputFileListPaths,
-            basedOnDependencyAnalysis: basedOnDependencyAnalysis
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+            runForInstallBuildsOnly: runForInstallBuildsOnly
         )
     }
 
@@ -355,6 +382,7 @@ extension TargetAction {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
+    ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
     /// - Returns: Target action.
     public static func post(path: Path,
                             arguments: String...,
@@ -363,7 +391,8 @@ extension TargetAction {
                             inputFileListPaths: [Path] = [],
                             outputPaths: [Path] = [],
                             outputFileListPaths: [Path] = [],
-                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
+                            basedOnDependencyAnalysis: Bool? = nil,
+                            runForInstallBuildsOnly: Bool = false) -> TargetAction
     {
         TargetAction(
             name: name,
@@ -373,7 +402,8 @@ extension TargetAction {
             inputFileListPaths: inputFileListPaths,
             outputPaths: outputPaths,
             outputFileListPaths: outputFileListPaths,
-            basedOnDependencyAnalysis: basedOnDependencyAnalysis
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+            runForInstallBuildsOnly: runForInstallBuildsOnly
         )
     }
 
@@ -388,6 +418,7 @@ extension TargetAction {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
+    ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
     /// - Returns: Target action.
     public static func post(path: Path,
                             arguments: [String],
@@ -396,7 +427,8 @@ extension TargetAction {
                             inputFileListPaths: [Path] = [],
                             outputPaths: [Path] = [],
                             outputFileListPaths: [Path] = [],
-                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
+                            basedOnDependencyAnalysis: Bool? = nil,
+                            runForInstallBuildsOnly: Bool = false) -> TargetAction
     {
         TargetAction(
             name: name,
@@ -406,7 +438,8 @@ extension TargetAction {
             inputFileListPaths: inputFileListPaths,
             outputPaths: outputPaths,
             outputFileListPaths: outputFileListPaths,
-            basedOnDependencyAnalysis: basedOnDependencyAnalysis
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+            runForInstallBuildsOnly: runForInstallBuildsOnly
         )
     }
 }
@@ -425,6 +458,7 @@ extension TargetAction {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
+    ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
     /// - Returns: Target action.
     public static func pre(script: String,
                            name: String,
@@ -432,7 +466,8 @@ extension TargetAction {
                            inputFileListPaths: [Path] = [],
                            outputPaths: [Path] = [],
                            outputFileListPaths: [Path] = [],
-                           basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
+                           basedOnDependencyAnalysis: Bool? = nil,
+                           runForInstallBuildsOnly: Bool = false) -> TargetAction
     {
         TargetAction(
             name: name,
@@ -442,7 +477,8 @@ extension TargetAction {
             inputFileListPaths: inputFileListPaths,
             outputPaths: outputPaths,
             outputFileListPaths: outputFileListPaths,
-            basedOnDependencyAnalysis: basedOnDependencyAnalysis
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+            runForInstallBuildsOnly: runForInstallBuildsOnly
         )
     }
 
@@ -457,6 +493,7 @@ extension TargetAction {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
+    ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
     /// - Returns: Target action.
     public static func post(script: String,
                             name: String,
@@ -464,7 +501,8 @@ extension TargetAction {
                             inputFileListPaths: [Path] = [],
                             outputPaths: [Path] = [],
                             outputFileListPaths: [Path] = [],
-                            basedOnDependencyAnalysis: Bool? = nil) -> TargetAction
+                            basedOnDependencyAnalysis: Bool? = nil,
+                            runForInstallBuildsOnly: Bool = false) -> TargetAction
     {
         TargetAction(
             name: name,
@@ -474,7 +512,8 @@ extension TargetAction {
             inputFileListPaths: inputFileListPaths,
             outputPaths: outputPaths,
             outputFileListPaths: outputFileListPaths,
-            basedOnDependencyAnalysis: basedOnDependencyAnalysis
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+            runForInstallBuildsOnly: runForInstallBuildsOnly
         )
     }
 }

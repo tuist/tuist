@@ -36,6 +36,7 @@ public class ResourcesProjectMapper: ProjectMapping {
                 product: .bundle,
                 productName: nil,
                 bundleId: "\(target.bundleId).resources",
+                deploymentTarget: target.deploymentTarget,
                 infoPlist: .extendingDefault(with: [:]),
                 resources: target.resources,
                 copyFiles: target.copyFiles,
@@ -76,6 +77,7 @@ public class ResourcesProjectMapper: ProjectMapping {
         if !target.supportsResources {
             return """
             // swiftlint:disable all
+            // swift-format-ignore-file
             // swiftformat:disable all
             import Foundation
 
@@ -118,6 +120,7 @@ public class ResourcesProjectMapper: ProjectMapping {
         } else {
             return """
             // swiftlint:disable all
+            // swift-format-ignore-file
             // swiftformat:disable all
             import Foundation
 

@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 
-public struct ArchiveAction: Equatable {
+public struct ArchiveAction: Equatable, Codable {
     // MARK: - Attributes
 
     public let configurationName: String

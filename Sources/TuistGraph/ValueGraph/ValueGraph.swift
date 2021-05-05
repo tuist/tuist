@@ -2,7 +2,7 @@ import Foundation
 import TSCBasic
 
 /// An directed acyclic graph (DAG) that Tuist uses to represent the dependency tree.
-public struct ValueGraph: Equatable {
+public struct ValueGraph: Equatable, Codable {
     /// The name of the graph
     public var name: String
 

@@ -1,6 +1,6 @@
 import Foundation
 
-public enum SDKSource: Equatable {
+public enum SDKSource: String, Equatable, Codable {
     case developer // Platforms/iPhoneOS.platform/Developer/Library
     case system // Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library
 

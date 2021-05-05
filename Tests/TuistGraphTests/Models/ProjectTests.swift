@@ -7,6 +7,20 @@ import XCTest
 @testable import TuistGraph
 
 final class ProjectTests: XCTestCase {
+    func test_codable() {
+        // Given
+        let framework = Target.test(name: "Framework", product: .framework)
+        let app = Target.test(name: "App", product: .app)
+        let appTests = Target.test(name: "AppTets", product: .unitTests)
+        let frameworkTests = Target.test(name: "FrameworkTests", product: .unitTests)
+        let subject = Project.test(targets: [
+            framework, app, appTests, frameworkTests,
+        ])
+
+        // Then
+        XCTAssertCodable(subject)
+    }
+
     func test_sortedTargetsForProjectScheme() {
         // Given
         let framework = Target.test(name: "Framework", product: .framework)

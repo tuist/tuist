@@ -6,8 +6,12 @@ import TuistCore
 public final class Cache: CacheStoring {
     // MARK: - Attributes
 
-    /// An instance that returns the storages to be used.
     private let storageProvider: CacheStorageProviding
+
+    /// An instance that returns the storages to be used.
+    private var storages: [CacheStoring] {
+        (try? storageProvider.storages()) ?? []
+    }
 
     // MARK: - Init
 
@@ -21,7 +25,6 @@ public final class Cache: CacheStoring {
 
     public func exists(hash: String) -> Single<Bool> {
         /// It calls exists sequentially until one of the storages returns true.
-        let storages = storageProvider.storages()
         return storages.map { $0.exists(hash: hash) }.reduce(Single.just(false)) { (result, next) -> Single<Bool> in
             result.flatMap { exists in
                 if exists {
@@ -36,7 +39,6 @@ public final class Cache: CacheStoring {
     }
 
     public func fetch(hash: String) -> Single<AbsolutePath> {
-        let storages = storageProvider.storages()
         return storages
             .map { $0.fetch(hash: hash) }
             .reduce(nil) { (result, next) -> Single<AbsolutePath> in
@@ -49,7 +51,6 @@ public final class Cache: CacheStoring {
     }
 
     public func store(hash: String, paths: [AbsolutePath]) -> Completable {
-        let storages = storageProvider.storages()
         return Completable.zip(storages.map { $0.store(hash: hash, paths: paths) })
     }
 }

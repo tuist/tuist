@@ -46,13 +46,29 @@ final class DependenciesUpdateServiceTests: TuistUnitTestCase {
                 [
                     .git(path: "Dependency1", requirement: .exact("1.1.1")),
                 ],
-                platforms: [.iOS, .macOS],
                 options: []
-            )
+            ),
+            swiftPackageManager: .init(
+                [
+                    .remote(url: "Depedency1/Depedency1", requirement: .upToNextMajor("1.2.3")),
+                ]
+            ),
+            platforms: [.iOS, .macOS]
         )
         dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
 
-        // When/Then
-        XCTAssertThrowsSpecific(try subject.run(path: stubbedPath.pathString), DependenciesUpdateServiceError.unimplemented)
+        dependenciesController.updateStub = { path, dependencies in
+            XCTAssertEqual(path, stubbedPath)
+            XCTAssertEqual(dependencies, stubbedDependencies)
+        }
+
+        // When
+        try subject.run(path: stubbedPath.pathString)
+
+        // Then
+        XCTAssertTrue(dependenciesController.invokedUpdate)
+        XCTAssertTrue(dependenciesModelLoader.invokedLoadDependencies)
+
+        XCTAssertFalse(dependenciesController.invokedFetch)
     }
 }

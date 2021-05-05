@@ -46,22 +46,29 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
                 [
                     .github(path: "Dependency1", requirement: .exact("1.1.1")),
                 ],
-                platforms: [.iOS, .macOS],
                 options: []
-            )
+            ),
+            swiftPackageManager: .init(
+                [
+                    .remote(url: "Depedency1/Depedency1", requirement: .upToNextMajor("1.2.3")),
+                ]
+            ),
+            platforms: [.iOS, .macOS]
         )
         dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
+
+        dependenciesController.fetchStub = { path, dependencies in
+            XCTAssertEqual(path, stubbedPath)
+            XCTAssertEqual(dependencies, stubbedDependencies)
+        }
 
         // When
         try subject.run(path: stubbedPath.pathString)
 
         // Then
-        XCTAssertTrue(dependenciesController.invokedFetch)
-        XCTAssertEqual(dependenciesController.invokedFetchCount, 1)
-        XCTAssertEqual(dependenciesController.invokedFetchParameters?.path, stubbedPath)
-        XCTAssertEqual(dependenciesController.invokedFetchParameters?.dependencies, stubbedDependencies)
-
         XCTAssertTrue(dependenciesModelLoader.invokedLoadDependencies)
-        XCTAssertEqual(dependenciesModelLoader.invokedLoadDependenciesCount, 1)
+        XCTAssertTrue(dependenciesController.invokedFetch)
+
+        XCTAssertFalse(dependenciesController.invokedUpdate)
     }
 }

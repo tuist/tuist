@@ -1,5 +1,5 @@
 import TSCBasic
-import TuistCore
+import TuistGraph
 
 @testable import TuistDependencies
 
@@ -7,18 +7,32 @@ public final class MockSwiftPackageManagerInteractor: SwiftPackageManagerInterac
     public init() {}
 
     var invokedFetch = false
-    var invokedFetchCount = 0
-    var invokedFetchParameters: AbsolutePath?
-    var invokedFetchParametersList = [AbsolutePath]()
-    var stubbedFetchError: Error?
+    var fetchStub: ((AbsolutePath, SwiftPackageManagerDependencies) throws -> Void)?
 
-    public func fetch(dependenciesDirectory: AbsolutePath) throws {
+    public func fetch(
+        dependenciesDirectory: AbsolutePath,
+        dependencies: SwiftPackageManagerDependencies
+    ) throws {
         invokedFetch = true
-        invokedFetchCount += 1
-        invokedFetchParameters = dependenciesDirectory
-        invokedFetchParametersList.append(dependenciesDirectory)
-        if let error = stubbedFetchError {
-            throw error
-        }
+        try fetchStub?(dependenciesDirectory, dependencies)
+    }
+
+    var invokedUpdate = false
+    var updateStub: ((AbsolutePath, SwiftPackageManagerDependencies) throws -> Void)?
+
+    public func update(
+        dependenciesDirectory: AbsolutePath,
+        dependencies: SwiftPackageManagerDependencies
+    ) throws {
+        invokedUpdate = true
+        try updateStub?(dependenciesDirectory, dependencies)
+    }
+
+    var invokedClean = false
+    var cleanStub: ((AbsolutePath) throws -> Void)?
+
+    public func clean(dependenciesDirectory: AbsolutePath) throws {
+        invokedClean = true
+        try cleanStub?(dependenciesDirectory)
     }
 }

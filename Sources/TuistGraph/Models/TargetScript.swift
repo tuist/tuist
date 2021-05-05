@@ -2,7 +2,7 @@ import Foundation
 import TSCBasic
 
 /// It represents a target build phase.
-public struct TargetScript: Equatable {
+public struct TargetScript: Equatable, Codable {
     /// The  name of the build phase.
     public let name: String
 

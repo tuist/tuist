@@ -1,6 +1,6 @@
 import Foundation
 
-public enum Product: String, CustomStringConvertible, CaseIterable, Encodable {
+public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
     case app
     case staticLibrary = "static_library"
     case dynamicLibrary = "dynamic_library"

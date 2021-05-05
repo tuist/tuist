@@ -26,6 +26,11 @@ extension TuistGraph.BuildAction {
                 name: $0.targetName
             )
         }
-        return TuistGraph.BuildAction(targets: targets, preActions: preActions, postActions: postActions)
+        return TuistGraph.BuildAction(
+            targets: targets,
+            preActions: preActions,
+            postActions: postActions,
+            runPostActionsOnFailure: manifest.runPostActionsOnFailure
+        )
     }
 }

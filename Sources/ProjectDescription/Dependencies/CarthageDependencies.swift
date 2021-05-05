@@ -2,27 +2,10 @@ import Foundation
 
 /// Contains the description of a dependency that can be installed using Carthage.
 public struct CarthageDependencies: Codable, Equatable {
-    /// List of depedencies that can be installed using Carthage.
+    /// List of depedencies that will be installed using Carthage.
     public let dependencies: [Dependency]
-    /// List of platforms for which you want to install depedencies. Refers to `--platform` Carthage flag.
-    public let platforms: Set<Platform>
     /// List of options for Carthage installation.
     public let options: Set<Options>
-
-    /// Initializes a new `CarthageDependencies` instance.
-    /// - Parameters:
-    ///   - dependencies: List of depedencies that can be installed using Carthage.
-    ///   - platforms: List of platforms for which you want to install depedencies. Refers to `--platform` Carthage flag.
-    ///   - options: List of options for Carthage installation.
-    init(
-        dependencies: [Dependency],
-        platforms: Set<Platform> = Set(Platform.allCases),
-        options: Set<Options> = []
-    ) {
-        self.dependencies = dependencies
-        self.platforms = platforms
-        self.options = options
-    }
 
     /// Creates `CarthageDependencies` instance.
     /// - Parameters:
@@ -31,12 +14,10 @@ public struct CarthageDependencies: Codable, Equatable {
     ///   - options: List of options for Carthage installation.
     public static func carthage(
         _ dependencies: [Dependency],
-        platforms: Set<Platform> = Set(Platform.allCases),
         options: Set<Options> = []
     ) -> Self {
         .init(
             dependencies: dependencies,
-            platforms: platforms,
             options: options
         )
     }
@@ -47,8 +28,11 @@ public struct CarthageDependencies: Codable, Equatable {
 public extension CarthageDependencies {
     /// Specifies origin of Carthage dependency.
     enum Dependency: Codable, Equatable {
+        /// GitHub repositories (both GitHub.com and GitHub Enterprise).
         case github(path: String, requirement: Requirement)
+        /// Other Git repositories.
         case git(path: String, requirement: Requirement)
+        /// Dependencies that are only available as compiled binary `.framework`s.
         case binary(path: String, requirement: Requirement)
     }
 

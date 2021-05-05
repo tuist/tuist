@@ -1,6 +1,8 @@
 extension SynthesizedResourceInterfaceTemplates {
     static let plistsTemplate = """
     // swiftlint:disable all
+    // swift-format-ignore-file
+    // swiftformat:disable all
     // Generated using tuist — https://github.com/tuist/tuist
 
     {% if files %}
@@ -80,6 +82,8 @@ extension SynthesizedResourceInterfaceTemplates {
     {% else %}
     // No files found
     {% endif %}
+    // swiftlint:enable all
+    // swiftformat:enable all
 
     """
 }

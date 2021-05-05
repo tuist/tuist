@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 
-public struct Scheme: Equatable {
+public struct Scheme: Equatable, Codable {
     // MARK: - Attributes
 
     public var name: String
