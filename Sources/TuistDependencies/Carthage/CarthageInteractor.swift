@@ -236,10 +236,10 @@ public final class CarthageInteractor: CarthageInteracting {
             from: pathsProvider.temporaryCarthageBuildDirectory,
             to: pathsProvider.destinationCarthageDirectory
         )
-        
+
         if dependencies.options.contains(.useXCFrameworks) {
             // save build xcFrameworks to copyPath directories
-            try self.copyXCFrameworksToPaths(
+            try copyXCFrameworksToPaths(
                 from: pathsProvider.destinationCarthageDirectory,
                 dependencies: dependencies,
                 dependenciesDirectory: dependenciesDirectory
@@ -260,19 +260,19 @@ public final class CarthageInteractor: CarthageInteracting {
             try fileHandler.copy(from: fromPath, to: toPath)
         }
     }
-    
+
     private func copyXCFrameworksToPaths(
         from fromBasePath: AbsolutePath,
         dependencies: CarthageDependencies,
         dependenciesDirectory: AbsolutePath
     ) throws {
         for dependency in dependencies.dependencies where dependency.copyPath != nil {
-            try dependency.names.forEach({ name in
+            try dependency.names.forEach { name in
                 let xcFrameworkPath = "/\(name).xcframework"
                 let fromPath: AbsolutePath = AbsolutePath(fromBasePath.pathString.appending(xcFrameworkPath))
                 if fileHandler.exists(fromPath) {
                     let toPath: AbsolutePath = AbsolutePath("\(dependenciesDirectory.parentDirectory.parentDirectory.pathString)"
-                                                                + "/\(dependency.copyPath!.pathString.appending(xcFrameworkPath))")
+                        + "/\(dependency.copyPath!.pathString.appending(xcFrameworkPath))")
                     if fileHandler.exists(toPath) {
                         try fileHandler.replace(toPath, with: fromPath)
                     } else {
@@ -281,9 +281,9 @@ public final class CarthageInteractor: CarthageInteracting {
                 } else {
                     logger.error("Carthage dependencies copy xcframeworks XCFramework not found at: \(fromPath.pathString)", metadata: .error)
                 }
-            })
+            }
         }
-        
+
         logger.info("Carthage dependencies copied XCFrameworks to installation paths", metadata: .subsection)
     }
 }

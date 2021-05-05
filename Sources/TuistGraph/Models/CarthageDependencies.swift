@@ -48,7 +48,7 @@ public extension CarthageDependencies {
                 return #"binary "\#(path)" \#(requirement.cartfileValue)"#
             }
         }
-        
+
         public var path: String {
             switch self {
             case let .github(path, _, _, _):
@@ -59,7 +59,7 @@ public extension CarthageDependencies {
                 return path
             }
         }
-        
+
         public var names: [String] {
             var frameworkNames: [String]
             switch self {
@@ -80,7 +80,7 @@ public extension CarthageDependencies {
             }
             return frameworkNames
         }
-        
+
         public var copyPath: Path? {
             switch self {
             case let .github(_, _, copyPath, _):
