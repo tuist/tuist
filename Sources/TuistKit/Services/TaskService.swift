@@ -66,10 +66,7 @@ struct TaskService {
     func loadTaskOptions(
         taskName: String,
         path: String?
-    ) throws -> (
-        required: [String],
-        optional: [String]
-    ) {
+    ) throws -> [String] {
         let path = self.path(path)
         let taskPath = try task(with: taskName, path: path)
         let taskContents = try FileHandler.shared.readTextFile(taskPath)
@@ -90,7 +87,7 @@ struct TaskService {
             )
         }
         
-        return ([], options)
+        return options
     }
 
     // MARK: - Helpers
@@ -107,21 +104,6 @@ struct TaskService {
         guard let task = tasks[name] else { throw TaskError.taskNotFound(name, tasks.map(\.key)) }
         return task
     }
-    
-//
-//    private func loadTask(
-//        taskName: String,
-//        path: String?
-//    ) throws -> Task {
-//        let path = self.path(path)
-//        let config = try configLoader.loadConfig(path: path)
-//        let plugins = try pluginService.loadPlugins(using: config)
-//        manifestLoader.register(plugins: plugins)
-//
-////        let tasks = try FileHandler.shared.contentsOfDirectory(
-//        guard let task = tasks.tasks[taskName] else { throw TaskError.taskNotFound(taskName, tasks.tasks.map(\.key)) }
-//        return task
-//    }
 
     private func path(_ path: String?) -> AbsolutePath {
         if let path = path {
