@@ -38,7 +38,7 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
         var templateStrings: [String] = []
         synthesizedResourceInterfacesGenerator.renderStub = { _, templateString, _, paths in
             templateStrings.append(templateString)
-          let content = paths.map { $0.components.suffix(2).joined(separator: "/") } .joined(separator: ", ")
+            let content = paths.map { $0.components.suffix(2).joined(separator: "/") }.joined(separator: ", ")
             return content
         }
 
@@ -240,24 +240,4 @@ final class SynthesizedResourceInterfaceProjectMapperTests: TuistUnitTestCase {
             ==
         )
     }
-}
-
-extension SideEffectDescriptor {
-  var content: String? {
-    switch self {
-    case .file(let file):
-      return String(data: file.contents!, encoding: .utf8)
-    default:
-      return ""
-    }
-  }
-
-  var path: AbsolutePath? {
-    switch self {
-    case .file(let file):
-      return file.path
-    default:
-      return ""
-    }
-  }
 }

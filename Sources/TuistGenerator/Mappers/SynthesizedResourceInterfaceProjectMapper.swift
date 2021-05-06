@@ -122,8 +122,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         let renderedInterfaces: [(String, String)]
         if paths.isEmpty {
             renderedInterfaces = []
-        }
-        else {
+        } else {
             let name = self.name(
                 for: resourceSynthesizer,
                 path: project.path,
@@ -170,8 +169,8 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
     }
 
     private func name(
-        for resourceSynthesizer: ResourceSynthesizer,
-        path: AbsolutePath,
+        for _: ResourceSynthesizer,
+        path _: AbsolutePath,
         target: Target
     ) -> String {
         return target.name.camelized.uppercasingFirst
