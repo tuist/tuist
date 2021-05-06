@@ -184,20 +184,7 @@ public struct TestAction: Equatable, Codable {
                                  preActions: [ExecutionAction] = [],
                                  postActions: [ExecutionAction] = []) -> Self
     {
-        Self(
-            testPlans: testPlans,
-            targets: [],
-            arguments: nil,
-            configurationName: config.name,
-            coverage: false,
-            codeCoverageTargets: [],
-            expandVariableFromTarget: nil,
-            preActions: preActions,
-            postActions: postActions,
-            diagnosticsOptions: [.mainThreadChecker],
-            language: nil,
-            region: nil
-        )
+      Self.testPlans(testPlans, configurationName: config.name, preActions: preActions, postActions: postActions)
     }
 
     /// Initializes a new instance of a test action using test plans
