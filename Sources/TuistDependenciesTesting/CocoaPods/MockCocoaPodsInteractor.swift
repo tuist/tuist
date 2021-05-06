@@ -7,18 +7,18 @@ public final class MockCocoaPodsInteractor: CocoaPodsInteracting {
     public init() {}
 
     var invokedFetch = false
-    var invokedFetchCount = 0
-    var invokedFetchParameters: AbsolutePath?
-    var invokedFetchParametersList = [AbsolutePath]()
-    var stubbedFetchError: Error?
+    var fetchStub: ((AbsolutePath) throws -> Void)?
 
     public func fetch(dependenciesDirectory: AbsolutePath) throws {
         invokedFetch = true
-        invokedFetchCount += 1
-        invokedFetchParameters = dependenciesDirectory
-        invokedFetchParametersList.append(dependenciesDirectory)
-        if let error = stubbedFetchError {
-            throw error
-        }
+        try fetchStub?(dependenciesDirectory)
+    }
+
+    var invokedUpdate = false
+    var updateStub: ((AbsolutePath) throws -> Void)?
+
+    public func update(dependenciesDirectory: AbsolutePath) throws {
+        invokedUpdate = true
+        try updateStub?(dependenciesDirectory)
     }
 }

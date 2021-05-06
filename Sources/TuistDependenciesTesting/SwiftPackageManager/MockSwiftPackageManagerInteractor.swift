@@ -7,54 +7,32 @@ public final class MockSwiftPackageManagerInteractor: SwiftPackageManagerInterac
     public init() {}
 
     var invokedFetch = false
-    var invokedFetchCount = 0
-    var invokedFetchParameters: FetchParameters?
-    var invokedFetchParametersList = [FetchParameters]()
-    var stubbedFetchError: Error?
+    var fetchStub: ((AbsolutePath, SwiftPackageManagerDependencies) throws -> Void)?
 
     public func fetch(
         dependenciesDirectory: AbsolutePath,
-        dependencies: SwiftPackageManagerDependencies,
-        platforms: Set<Platform>
+        dependencies: SwiftPackageManagerDependencies
     ) throws {
-        let parameters = FetchParameters(
-            dependenciesDirectory: dependenciesDirectory,
-            dependencies: dependencies,
-            platforms: platforms
-        )
-
         invokedFetch = true
-        invokedFetchCount += 1
-        invokedFetchParameters = parameters
-        invokedFetchParametersList.append(parameters)
-        if let error = stubbedFetchError {
-            throw error
-        }
+        try fetchStub?(dependenciesDirectory, dependencies)
+    }
+
+    var invokedUpdate = false
+    var updateStub: ((AbsolutePath, SwiftPackageManagerDependencies) throws -> Void)?
+
+    public func update(
+        dependenciesDirectory: AbsolutePath,
+        dependencies: SwiftPackageManagerDependencies
+    ) throws {
+        invokedUpdate = true
+        try updateStub?(dependenciesDirectory, dependencies)
     }
 
     var invokedClean = false
-    var invokedCleanCount = 0
-    var invokedCleanParameters: AbsolutePath?
-    var invokedCleanParametersList = [AbsolutePath]()
-    var stubbedCleanError: Error?
+    var cleanStub: ((AbsolutePath) throws -> Void)?
 
     public func clean(dependenciesDirectory: AbsolutePath) throws {
         invokedClean = true
-        invokedCleanCount += 1
-        invokedCleanParameters = dependenciesDirectory
-        invokedCleanParametersList.append(dependenciesDirectory)
-        if let error = stubbedCleanError {
-            throw error
-        }
-    }
-}
-
-// MARK: - Models
-
-extension MockSwiftPackageManagerInteractor {
-    struct FetchParameters {
-        let dependenciesDirectory: AbsolutePath
-        let dependencies: SwiftPackageManagerDependencies
-        let platforms: Set<Platform>
+        try cleanStub?(dependenciesDirectory)
     }
 }
