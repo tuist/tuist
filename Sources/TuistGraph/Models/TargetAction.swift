@@ -88,6 +88,9 @@ public struct TargetAction: Equatable, Codable {
     /// Whether to skip running this script in incremental builds, if nothing has changed
     public let basedOnDependencyAnalysis: Bool?
 
+    /// Whether this action only runs on install builds (default is false)
+    public let runForInstallBuildsOnly: Bool
+
     /// Initializes a new target action with its attributes using a script at the given path to be executed.
     ///
     /// - Parameters:
@@ -101,6 +104,7 @@ public struct TargetAction: Equatable, Codable {
     ///   - outputFileListPaths: List of output filelist paths
     ///   - showEnvVarsInLog: Show environment variables in the logs
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
+    ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
     public init(name: String,
                 order: Order,
                 script: Script = .embedded(""),
@@ -109,7 +113,8 @@ public struct TargetAction: Equatable, Codable {
                 outputPaths: [AbsolutePath] = [],
                 outputFileListPaths: [AbsolutePath] = [],
                 showEnvVarsInLog: Bool = true,
-                basedOnDependencyAnalysis: Bool? = nil)
+                basedOnDependencyAnalysis: Bool? = nil,
+                runForInstallBuildsOnly: Bool = false)
     {
         self.name = name
         self.order = order
@@ -120,6 +125,7 @@ public struct TargetAction: Equatable, Codable {
         self.outputFileListPaths = outputFileListPaths
         self.showEnvVarsInLog = showEnvVarsInLog
         self.basedOnDependencyAnalysis = basedOnDependencyAnalysis
+        self.runForInstallBuildsOnly = runForInstallBuildsOnly
     }
 }
 

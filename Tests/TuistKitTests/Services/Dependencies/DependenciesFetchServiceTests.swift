@@ -57,16 +57,18 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
         )
         dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
 
+        dependenciesController.fetchStub = { path, dependencies in
+            XCTAssertEqual(path, stubbedPath)
+            XCTAssertEqual(dependencies, stubbedDependencies)
+        }
+
         // When
         try subject.run(path: stubbedPath.pathString)
 
         // Then
-        XCTAssertTrue(dependenciesController.invokedFetch)
-        XCTAssertEqual(dependenciesController.invokedFetchCount, 1)
-        XCTAssertEqual(dependenciesController.invokedFetchParameters?.path, stubbedPath)
-        XCTAssertEqual(dependenciesController.invokedFetchParameters?.dependencies, stubbedDependencies)
-
         XCTAssertTrue(dependenciesModelLoader.invokedLoadDependencies)
-        XCTAssertEqual(dependenciesModelLoader.invokedLoadDependenciesCount, 1)
+        XCTAssertTrue(dependenciesController.invokedFetch)
+
+        XCTAssertFalse(dependenciesController.invokedUpdate)
     }
 }
