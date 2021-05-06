@@ -5,6 +5,7 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
+// swiftlint:disable:next type_name
 enum SynthesizedResourceInterfaceProjectMapperError: FatalError, Equatable {
     case defaultTemplateNotAvailable(ResourceSynthesizer.Parser)
 
@@ -94,7 +95,6 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
     }
 
     /// - Returns: Modified `Target`, side effects, input paths and output paths which can then be later used in generate script
-    // swiftlint:disable:next function_body_length
     private func renderAndMapTarget(
         _ resourceSynthesizer: ResourceSynthesizer,
         templateString: String,
