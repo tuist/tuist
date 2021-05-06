@@ -39,7 +39,7 @@ tuist generate # Generates Xcode project & workspace
 tuist build # Builds your project
 ```
 
-[Check out](https://tuist.io/docs) the project "Get Started" guide to learn more about Tuist and all its features.
+[Check out](https://docs.tuist.io) the project "Get Started" guide to learn more about Tuist and all its features.
 
 ## Repository structure
 
