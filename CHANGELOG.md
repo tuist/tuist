@@ -16,6 +16,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Fix `tuist focus` not excluding targets from `codeCoverageTargets` of custom schemes by [@Luis Padron](https://github.com/luispadron).
 - Fix rubocop warnings [#2898](https://github.com/tuist/tuist/pull/2898) by [@fortmarek](https://github.com/fortmarek)
+- Add newline to end of generated resource accessor files. [#2895](https://github.com/tuist/tuist/pull/2895) by [@Jake Prickett](https://github.com/Jake-Prickett)
 
 ## 1.41.0
 

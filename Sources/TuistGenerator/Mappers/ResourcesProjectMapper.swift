@@ -116,7 +116,7 @@ public class ResourcesProjectMapper: ProjectMapping {
             }
             // swiftlint:enable all
             // swiftformat:enable all
-            
+
             """
         } else {
             return """
@@ -146,7 +146,7 @@ public class ResourcesProjectMapper: ProjectMapping {
             }
             // swiftlint:enable all
             // swiftformat:enable all
-            
+
             """
         }
     }
