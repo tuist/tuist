@@ -370,6 +370,15 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "gcacoutinho",
+      "name": "Gabriel Coutinho",
+      "avatar_url": "https://avatars.githubusercontent.com/u/17842860?v=4",
+      "profile": "http://coutinho.dev",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
