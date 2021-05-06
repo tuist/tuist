@@ -6,7 +6,8 @@ Then(/^tuist builds the scheme ([a-zA-Z\-]+) from the project$/) do |scheme|
   system("swift", "run", "tuist", "build", scheme, "--path", @dir)
 end
 
-Then(/^tuist builds the scheme ([a-zA-Z\-]+) and configuration ([a-zA-Z\-]+) from the project$/) do |scheme, configuration|
+Then(%r{^tuist builds the scheme ([a-zA-Z\-]+)\
+and configuration ([a-zA-Z\-]+) from the project$}) do |scheme, configuration|
   system("swift", "run", "tuist", "build", scheme, "--path", @dir, "--configuration", configuration)
 end
 

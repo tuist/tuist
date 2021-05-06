@@ -17,6 +17,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - `.strings` Localization file synthesizers are now consistent and reproducible across multiple generations using the `developmentRegion` to choose the source one or defaulting to `en`. [#2887](https://github.com/tuist/tuist/pull/2887) by [@fila95](https://github.com/fila95)
 - Fix `tuist focus` not excluding targets from `codeCoverageTargets` of custom schemes by [@Luis Padron](https://github.com/luispadron).
+- Fix rubocop warnings [#2898](https://github.com/tuist/tuist/pull/2898) by [@fortmarek](https://github.com/fortmarek)
 
 ## 1.41.0
 
