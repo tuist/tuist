@@ -146,6 +146,9 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="http://coutinho.dev"><img src="https://avatars.githubusercontent.com/u/17842860?v=4" width="100px;" alt=""/><br /><sub><b>Gabriel Coutinho</b></sub></a></td>
     <td align="center"><a href="https://medium.com/@riccardocipolleschi"><img src="https://avatars.githubusercontent.com/u/11162307?v=4" width="100px;" alt=""/><br /><sub><b>Riccardo</b></sub></a></td>
   </tr>
+  <tr>
+    <td align="center"><a href="https://github.com/bolismauro"><img src="https://avatars.githubusercontent.com/u/771999?v=4" width="100px;" alt=""/><br /><sub><b>Mauro Bolis</b></sub></a></td>
+  </tr>
 </table>
 
 <!-- markdownlint-restore -->
