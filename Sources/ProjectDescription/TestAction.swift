@@ -156,7 +156,7 @@ public struct TestAction: Equatable, Codable {
                                  preActions: [ExecutionAction] = [],
                                  postActions: [ExecutionAction] = []) -> Self
     {
-      Self.testPlans(testPlans, config: config, preActions: preActions, postActions: postActions)
+        Self.testPlans(testPlans, config: config, preActions: preActions, postActions: postActions)
     }
 
     /// Initializes a new instance of a test action using test plans
@@ -170,7 +170,7 @@ public struct TestAction: Equatable, Codable {
                                  preActions: [ExecutionAction] = [],
                                  postActions: [ExecutionAction] = []) -> Self
     {
-      Self.testPlans(testPlans, configurationName: configurationName, preActions: preActions, postActions: postActions)
+        Self.testPlans(testPlans, configurationName: configurationName, preActions: preActions, postActions: postActions)
     }
 
     /// Initializes a new instance of a test action using test plans
@@ -184,7 +184,7 @@ public struct TestAction: Equatable, Codable {
                                  preActions: [ExecutionAction] = [],
                                  postActions: [ExecutionAction] = []) -> Self
     {
-      Self.testPlans(testPlans, configurationName: config.name, preActions: preActions, postActions: postActions)
+        Self.testPlans(testPlans, configurationName: config.name, preActions: preActions, postActions: postActions)
     }
 
     /// Initializes a new instance of a test action using test plans
