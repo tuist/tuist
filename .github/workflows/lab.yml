@@ -1,0 +1,141 @@
+name: Lab
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - projects/lab/**
+      - .github/workflows/lab.yml
+
+env:
+  RAILS_ENV: test
+  RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+  RUBY_VERSION: '3.0.1'
+jobs:
+  test:
+    name: Test Ruby
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:11-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:4.0.6
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+          ruby-version: ${{ env.RUBY_VERSION }}
+      - name: Install dependencies
+        working-directory: projects/lab
+        run: |
+          sudo apt-get -yqq install libpq-dev
+          gem install bundler
+          bundle config path vendor/bundle
+          bundle install --jobs=4 --retry=3
+      - name: Set up database (to detect schema breaking changes)
+        working-directory: projects/lab
+        run: |
+          cp config/database.ci.yml config/database.yml
+          bundle exec rails db:create
+          bundle exec rails db:schema:load
+      - name: Increase watchers
+        run: echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf && sudo sysctl -p
+      - name: Migrate database
+        working-directory: projects/app
+        run: bin/rails db:migrate
+      - name: Run Ruby tests
+        working-directory: projects/app
+        run: |
+          bundle exec rails test
+  lint_ruby:
+    name: Lint Ruby
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+          ruby-version: ${{ env.RUBY_VERSION }}
+      - name: Install dependencies
+        working-directory: projects/app
+        run: |
+          sudo apt-get -yqq install libpq-dev
+          gem install bundler
+          bundle config path vendor/bundle
+          bundle install --jobs=4 --retry=3
+      - name: Lint Ruby
+        working-directory: projects/app
+        run: |
+          bundle exec rubocop
+  assets_precompile:
+    name: Assets precompile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          bundler-cache: true
+          ruby-version: ${{ env.RUBY_VERSION }}
+      - name: Get yarn cache directory path
+        id: yarn-cache-dir-path
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - uses: actions/cache@v2
+        name: Cache Yarn dependencies
+        id: yarn-cache # use this to check for `cache-hit` (`steps.yarn-cache.outputs.cache-hit != 'true'`)
+        with:
+          path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+      - name: Install dependencies
+        working-directory: projects/app
+        run: |
+          sudo apt-get -yqq install libpq-dev
+          gem install bundler
+          bundle config path vendor/bundle
+          bundle install --jobs=4 --retry=3
+          yarn install --frozen-lockfile
+      - name: Precompile assets
+        working-directory: projects/app
+        run: |
+          bin/rails assets:precompile
+  frontend_type_check:
+    name: Frontend type-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Get yarn cache directory path
+        id: yarn-cache-dir-path
+        run: echo "::set-output name=dir::$(yarn cache dir)"
+      - uses: actions/cache@v2
+        name: Cache Yarn dependencies
+        id: yarn-cache # use this to check for `cache-hit` (`steps.yarn-cache.outputs.cache-hit != 'true'`)
+        with:
+          path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
+          key: ${{ runner.os }}-yarn-${{ hashFiles('**/yarn.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-yarn-
+      - name: Install dependencies
+        working-directory: projects/app
+        run: |
+          yarn install --frozen-lockfile
+      - name: Type-check
+        working-directory: projects/app
+        run: |
+          yarn run type-check

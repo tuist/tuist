@@ -1,0 +1,2 @@
+web: PORT=3000 rails server
+webpacker: ../bin/vite dev 
