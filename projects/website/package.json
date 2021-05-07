@@ -48,7 +48,7 @@
     "gatsby-remark-smartypants": "^2.10.0",
     "gatsby-source-filesystem": "^2.11.1",
     "gatsby-transformer-yaml": "^2.11.0",
-    "graphviz-react": "^1.1.1",
+    "graphviz-react": "^1.2.0",
     "is-absolute-url": "^3.0.3",
     "moment": "^2.29.1",
     "polished": "^4.1.2",

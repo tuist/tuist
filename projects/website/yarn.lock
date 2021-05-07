@@ -9111,10 +9111,10 @@ graphql@^14.6.0:
   dependencies:
     iterall "^1.2.2"
 
-graphviz-react@^1.1.1:
-  version "1.1.1"
-  resolved "https://registry.yarnpkg.com/graphviz-react/-/graphviz-react-1.1.1.tgz#688f92f3da08c0fdf0fbae9887ecd0615e545c26"
-  integrity sha512-iFd3nvqh1kgd2rUDhd5iM13m+oWzGyngcV+JkcNI5DaJAcORIIOnmNblYBqVfy6BDcC7txgxdsmDyMh3dU1d4A==
+graphviz-react@^1.2.0:
+  version "1.2.0"
+  resolved "https://registry.yarnpkg.com/graphviz-react/-/graphviz-react-1.2.0.tgz#ec2fafc5482569408576e1d6844cf62fbe8dda3d"
+  integrity sha512-C3V0LGLSs/gGskGwh5r8QGqGhc3D+H7b+vVGATG6ME5R50FYSl/cQNTTu9p4uOeWlHClVtL/wVZr+/+as9yBKg==
   dependencies:
     d3-graphviz "^2.6.1"
     react "^16.13.1"
