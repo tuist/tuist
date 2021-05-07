@@ -379,6 +379,15 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "cipolleschi",
+      "name": "Riccardo",
+      "avatar_url": "https://avatars.githubusercontent.com/u/11162307?v=4",
+      "profile": "https://medium.com/@riccardocipolleschi",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
