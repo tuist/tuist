@@ -19,6 +19,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
         print(hello())
         print("Custom plist: \(Environment.myKey)")
+        print("Another custom plist: \(AnotherPlist.myKey)")
         print("AppDelegate -> \(framework1.hello())")
         print("Main bundle image: \(String(describing: UIImage(named: "tuist")))")
         print("Asset catalogue image: \(String(describing: AppAsset.assetCatalogLogo.image))")
