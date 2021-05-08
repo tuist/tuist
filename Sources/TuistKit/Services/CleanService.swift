@@ -23,7 +23,7 @@ final class CleanService {
         try cacheDirectoryProviderFactory.cacheDirectories(config: config).cacheDirectories.forEach { directory in
             if FileHandler.shared.exists(directory) {
                 try FileHandler.shared.delete(directory)
-                logger.info("Successfully cleaned artefacts at path \(directory.pathString)", metadata: .success)
+                logger.info("Successfully cleaned artifacts at path \(directory.pathString)", metadata: .success)
             }
         }
     }
