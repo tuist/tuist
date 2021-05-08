@@ -177,7 +177,11 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             editorHelperTarget(
                 name: $0.basenameWithoutExt,
                 filesGroup: manifestsFilesGroup,
-                targetSettings: baseTargetSettings,
+                targetSettings: Settings(
+                    base: targetBaseSettings(for: [projectAutomationPath], swiftVersion: swiftVersion),
+                    configurations: Settings.default.configurations,
+                    defaultSettings: .recommended
+                ),
                 sourcePaths: [$0]
             )
         }

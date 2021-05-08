@@ -37,6 +37,10 @@ public final class ResourceLocator: ResourceLocating {
     public init() {}
 
     // MARK: - ResourceLocating
+    
+    public func projectAutomation() throws -> AbsolutePath {
+        try frameworkPath("ProjectAutomation")
+    }
 
     public func projectAutomation() throws -> AbsolutePath {
         try frameworkPath("ProjectAutomation")
