@@ -24,7 +24,7 @@ struct TaskCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "task",
-            abstract: "Runs task defined in Tasks.swift."
+            abstract: "Runs a task defined in Tuist/Tasks."
         )
     }
 
@@ -104,7 +104,7 @@ extension TaskCommand {
     }
 }
 
-// MARK: - ScaffoldCommand.CodingKeys
+// MARK: - TaskCommand.CodingKeys
 
 extension TaskCommand {
     enum CodingKeys: CodingKey {
@@ -144,8 +144,8 @@ extension TaskCommand {
     }
 }
 
-/// ArgumentParser library gets the list of options from a mirror
-/// Since we do not declare task's options in advance, we need to rewrite the mirror implementation and add them ourselves
+/// ArgumentParser library gets the list of options from a mirror.
+/// Since we do not declare task's options in advance, we need to rewrite the mirror implementation and add them ourselves.
 extension TaskCommand: CustomReflectable {
     var customMirror: Mirror {
         let optionsChildren = TaskCommand.options
@@ -153,7 +153,8 @@ extension TaskCommand: CustomReflectable {
         let children = [
             Mirror.Child(label: "task", value: _task),
             Mirror.Child(label: "path", value: _path),
-        ].filter {
+        ]
+        .filter {
             // Prefer attributes defined in a template if it clashes with predefined ones
             $0.label.map { label in
                 !TaskCommand.options.map(\.name)
