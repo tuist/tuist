@@ -1,5 +1,6 @@
 import Foundation
 import RxSwift
+import TSCBasic
 import struct TSCUtility.Version
 import TuistGraph
 import TuistSupport
@@ -62,5 +63,15 @@ public final class MockSimulatorController: SimulatorControlling {
         deviceName: String?
     ) -> Single<SimulatorDeviceAndRuntime> {
         findAvailableDeviceStub?(platform, version, minVersion, deviceName) ?? .just(SimulatorDeviceAndRuntime.test())
+    }
+
+    public var installAppStub: ((AbsolutePath, SimulatorDevice) throws -> Void)?
+    public func installApp(at path: AbsolutePath, device: SimulatorDevice) throws {
+        try installAppStub?(path, device)
+    }
+
+    public var launchAppStub: ((String, SimulatorDevice, [String]) throws -> Void)?
+    public func launchApp(bundleId: String, device: SimulatorDevice, arguments: [String]) throws {
+        try launchAppStub?(bundleId, device, arguments)
     }
 }

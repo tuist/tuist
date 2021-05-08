@@ -60,9 +60,14 @@ public struct XcodeBuildSettings {
         settings["PRODUCT_NAME"]
     }
 
-    ///  The target swift version.
+    /// The target swift version.
     public var swiftVersion: String? {
         settings["SWIFT_VERSION"]
+    }
+
+    /// The bundle identifier for the product.
+    public var productBundleIdentifier: String? {
+        settings["PRODUCT_BUNDLE_IDENTIFIER"]
     }
 }
 
