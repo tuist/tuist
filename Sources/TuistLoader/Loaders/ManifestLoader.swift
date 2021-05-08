@@ -245,7 +245,6 @@ public class ManifestLoader: ManifestLoading {
         for fileName in fileNames {
             let manifestPath = path.appending(component: fileName)
             if !FileHandler.shared.exists(manifestPath) { continue }
-            let data = try loadDataForManifest(manifest, at: manifestPath)
             return manifestPath
         }
 
@@ -314,27 +313,28 @@ public class ManifestLoader: ManifestLoading {
         let projectDescriptionHelperArguments: [String] = try {
             switch manifest {
             case .config,
-                 .plugin:
+                 .plugin,
+                 .task:
                 return []
             case .dependencies,
                  .galaxy,
                  .project,
                  .setup,
                  .template,
-                 .workspace,
-                 .task:
-                return try projectDescriptionHelpersBuilderFactory
-                    .projectDescriptionHelpersBuilder(cacheDirectory: projectDescriptionHelpersCacheDirectory)
-                    .build(
-                        at: path,
-                        projectDescriptionSearchPaths: searchPaths,
-                        projectDescriptionHelperPlugins: plugins.projectDescriptionHelpers
-                    ).flatMap { [
-                        "-I", $0.path.parentDirectory.pathString,
-                        "-L", $0.path.parentDirectory.pathString,
-                        "-F", $0.path.parentDirectory.pathString,
-                        "-l\($0.name)",
-                    ] }
+                 .workspace:
+                return try projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(
+                    cacheDirectory: projectDescriptionHelpersCacheDirectory
+                )
+                .build(
+                    at: path,
+                    projectDescriptionSearchPaths: searchPaths,
+                    projectDescriptionHelperPlugins: plugins.projectDescriptionHelpers
+                ).flatMap { [
+                    "-I", $0.path.parentDirectory.pathString,
+                    "-L", $0.path.parentDirectory.pathString,
+                    "-F", $0.path.parentDirectory.pathString,
+                    "-l\($0.name)",
+                ] }
             }
         }()
 
