@@ -70,7 +70,7 @@ struct TaskService {
         let path = self.path(path)
         let taskPath = try task(with: taskName, path: path)
         let taskContents = try FileHandler.shared.readTextFile(taskPath)
-        let optionsRegex = try NSRegularExpression(pattern: "\\.optional\\(\"([^\"]*)\"\\),?", options: [])
+        let optionsRegex = try NSRegularExpression(pattern: "\\.option\\(\"([^\"]*)\"\\),?", options: [])
         var options: [String] = []
         optionsRegex.enumerateMatches(
             in: taskContents,
