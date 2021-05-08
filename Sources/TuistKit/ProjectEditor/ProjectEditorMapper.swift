@@ -172,6 +172,15 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                 sourcePaths: templates
             )
         }()
+        
+        let tasksTargets = tasks.map {
+            editorHelperTarget(
+                name: $0.basenameWithoutExt,
+                filesGroup: manifestsFilesGroup,
+                targetSettings: baseTargetSettings,
+                sourcePaths: [$0]
+            )
+        }
 
         let tasksTargets = tasks.map { taskPath in
             editorHelperTarget(
