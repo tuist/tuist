@@ -12,7 +12,7 @@ on:
 env:
   RAILS_ENV: test
   RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
-  RUBY_VERSION: '3.0.1'
+  RUBY_VERSION: '2.7.2'
 jobs:
   test:
     name: Test Ruby
