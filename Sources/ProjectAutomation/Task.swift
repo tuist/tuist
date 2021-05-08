@@ -5,26 +5,7 @@ public struct Task {
     public let task: ([String: String]) throws -> Void
 
     public enum Option: Equatable {
-        case required(String)
-        case optional(String)
-
-        public var isOptional: Bool {
-            switch self {
-            case .required:
-                return false
-            case .optional:
-                return true
-            }
-        }
-
-        public var name: String {
-            switch self {
-            case let .required(name):
-                return name
-            case let .optional(name):
-                return name
-            }
-        }
+        case option(String)
     }
 
     public init(

@@ -3,10 +3,10 @@ import Foundation
 
 let task = Task(
     options: [
-         .optional("fileName"),
+        .option("file-name"),
     ]
 ) { options in
-    let fileName = options["fileName"] ?? "file"
+    let fileName = options["file-name"] ?? "file"
     try "File created with a task".write(
         to: URL(fileURLWithPath: "\(fileName).txt"),
         atomically: true,
