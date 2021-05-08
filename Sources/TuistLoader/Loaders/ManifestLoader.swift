@@ -295,6 +295,20 @@ public class ManifestLoader: ManifestLoading {
     ) throws -> [String] {
         let projectDescriptionPath = try resourceLocator.projectDescription()
         let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
+        let frameworkName: String
+        switch manifest {
+        case .task:
+            frameworkName = "ProjectAutomation"
+        case .config,
+             .plugin,
+             .dependencies,
+             .galaxy,
+             .project,
+             .setup,
+             .template,
+             .workspace:
+            frameworkName = "ProjectDescription"
+        }
         var arguments = [
             "/usr/bin/xcrun",
             "swiftc",
@@ -303,8 +317,8 @@ public class ManifestLoader: ManifestLoading {
             "-I", searchPaths.includeSearchPath.pathString,
             "-L", searchPaths.librarySearchPath.pathString,
             "-F", searchPaths.frameworkSearchPath.pathString,
-            "-lProjectDescription",
-            "-framework", "ProjectDescription",
+            "-l\(frameworkName)",
+            "-framework", frameworkName,
         ]
         let projectDescriptionHelpersCacheDirectory = try cacheDirectoryProviderFactory
             .cacheDirectories(config: nil)

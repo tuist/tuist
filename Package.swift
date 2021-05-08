@@ -26,6 +26,11 @@ let package = Package(
             targets: ["ProjectDescription"]
         ),
         .library(
+            name: "ProjectAutomation",
+            type: .dynamic,
+            targets: ["ProjectAutomation"]
+        ),
+        .library(
             name: "TuistGraph",
             targets: ["TuistGraph"]
         ),
@@ -138,6 +143,7 @@ let package = Package(
                 "TuistCache",
                 "TuistAutomation",
                 "ProjectDescription",
+                "ProjectAutomation",
                 signalsDependency,
                 rxSwiftDependency,
                 rxBlockingDependency,
@@ -165,6 +171,7 @@ let package = Package(
                 "TuistSupportTesting",
                 "TuistCoreTesting",
                 "ProjectDescription",
+                "ProjectAutomation",
                 rxBlockingDependency,
                 "TuistLoaderTesting",
                 "TuistCacheTesting",
@@ -190,6 +197,7 @@ let package = Package(
                 "TuistCoreTesting",
                 "TuistSupportTesting",
                 "ProjectDescription",
+                "ProjectAutomation",
                 rxBlockingDependency,
                 "TuistLoaderTesting",
                 "TuistCloudTesting",
@@ -201,6 +209,7 @@ let package = Package(
             dependencies: [
                 "TuistKit",
                 "ProjectDescription",
+                "ProjectAutomation",
             ]
         ),
         .target(
@@ -236,6 +245,10 @@ let package = Package(
                 "ProjectDescription",
                 "TuistSupportTesting",
             ]
+        ),
+        .target(
+            name: "ProjectAutomation",
+            dependencies: []
         ),
         .target(
             name: "TuistSupport",

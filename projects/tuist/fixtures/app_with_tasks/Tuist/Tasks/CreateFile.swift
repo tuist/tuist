@@ -1,4 +1,4 @@
-import ProjectDescription
+import ProjectAutomation
 import Foundation
 
 let task = Task(
