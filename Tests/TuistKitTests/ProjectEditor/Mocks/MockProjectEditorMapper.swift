@@ -24,7 +24,8 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
         tasks: [AbsolutePath],
-        projectDescriptionPath: AbsolutePath
+        projectDescriptionPath: AbsolutePath,
+        projectAutomationPath: AbsolutePath
     )] = []
 
     func map(
@@ -41,7 +42,8 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
         tasks: [AbsolutePath],
-        projectDescriptionPath: AbsolutePath
+        projectDescriptionPath: AbsolutePath,
+        projectAutomationPath: AbsolutePath
     ) throws -> ValueGraph {
         mapArgs.append((
             name: name,
@@ -57,7 +59,8 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
             helpers: helpers,
             templates: templates,
             tasks: tasks,
-            projectDescriptionPath: projectDescriptionPath
+            projectDescriptionPath: projectDescriptionPath,
+            projectAutomationPath: projectAutomationPath
         ))
 
         if let mapStub = mapStub { return mapStub }

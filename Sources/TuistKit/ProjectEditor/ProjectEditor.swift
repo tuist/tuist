@@ -146,7 +146,8 @@ final class ProjectEditor: ProjectEditing {
             helpers: helpers,
             templates: templates,
             tasks: tasks,
-            projectDescriptionPath: projectDescriptionPath
+            projectDescriptionPath: projectDescriptionPath,
+            projectAutomationPath: try resourceLocator.projectAutomation()
         )
 
         let graphTraverser = ValueGraphTraverser(graph: graph)

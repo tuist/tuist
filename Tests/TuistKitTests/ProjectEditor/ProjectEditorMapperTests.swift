@@ -52,7 +52,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             helpers: helperPaths,
             templates: templates,
             tasks: [],
-            projectDescriptionPath: projectDescriptionPath
+            projectDescriptionPath: projectDescriptionPath,
+            projectAutomationPath: sourceRootPath.appending(component: "ProjectAutomation.framework")
         )
 
         let project = try XCTUnwrap(graph.projects.values.first)
@@ -189,7 +190,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             helpers: helperPaths,
             templates: templates,
             tasks: [],
-            projectDescriptionPath: projectDescriptionPath
+            projectDescriptionPath: projectDescriptionPath,
+            projectAutomationPath: sourceRootPath.appending(component: "ProjectAutomation.framework")
         )
 
         let project = try XCTUnwrap(graph.projects.values.first)
@@ -269,7 +271,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             helpers: helperPaths,
             templates: templates,
             tasks: [],
-            projectDescriptionPath: projectDescriptionPath
+            projectDescriptionPath: projectDescriptionPath,
+            projectAutomationPath: sourceRootPath.appending(component: "ProjectAutomation.framework")
         )
 
         let project = try XCTUnwrap(graph.projects.values.first)
@@ -379,7 +382,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             helpers: helperPaths,
             templates: templates,
             tasks: [],
-            projectDescriptionPath: projectDescriptionPath
+            projectDescriptionPath: projectDescriptionPath,
+            projectAutomationPath: sourceRootPath.appending(component: "ProjectAutomation.framework")
         )
 
         let project = try XCTUnwrap(graph.projects.values.first)
@@ -456,7 +460,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             helpers: helperPaths,
             templates: templates,
             tasks: [],
-            projectDescriptionPath: projectDescriptionPath
+            projectDescriptionPath: projectDescriptionPath,
+            projectAutomationPath: sourceRootPath.appending(component: "ProjectAutomation.framework")
         )
 
         let project = try XCTUnwrap(graph.projects.values.first)
@@ -564,7 +569,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             helpers: helperPaths,
             templates: templates,
             tasks: [],
-            projectDescriptionPath: projectDescriptionPath
+            projectDescriptionPath: projectDescriptionPath,
+            projectAutomationPath: sourceRootPath.appending(component: "ProjectAutomation.framework")
         )
 
         // Then
@@ -604,7 +610,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             helpers: helperPaths,
             templates: templates,
             tasks: [],
-            projectDescriptionPath: projectDescriptionPath
+            projectDescriptionPath: projectDescriptionPath,
+            projectAutomationPath: sourceRootPath.appending(component: "ProjectAutomation.framework")
         )
 
         let project = try XCTUnwrap(graph.projects.values.first)

@@ -20,7 +20,8 @@ protocol ProjectEditorMapping: AnyObject {
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
         tasks: [AbsolutePath],
-        projectDescriptionPath: AbsolutePath
+        projectDescriptionPath: AbsolutePath,
+        projectAutomationPath: AbsolutePath
     ) throws -> ValueGraph
 }
 
@@ -41,7 +42,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
         tasks: [AbsolutePath],
-        projectDescriptionPath: AbsolutePath
+        projectDescriptionPath: AbsolutePath,
+        projectAutomationPath: AbsolutePath
     ) throws -> ValueGraph {
         let swiftVersion = try System.shared.swiftVersion()
 
@@ -57,6 +59,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         let manifestsProject = mapManifestsProject(
             projectManifests: projectManifests,
             projectDescriptionPath: projectDescriptionPath,
+            projectAutomationPath: projectAutomationPath,
             swiftVersion: swiftVersion,
             sourceRootPath: sourceRootPath,
             destinationDirectory: destinationDirectory,
@@ -125,6 +128,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
     private func mapManifestsProject(
         projectManifests: [AbsolutePath],
         projectDescriptionPath: AbsolutePath,
+        projectAutomationPath: AbsolutePath,
         swiftVersion: String,
         sourceRootPath: AbsolutePath,
         destinationDirectory: AbsolutePath,
@@ -173,7 +177,11 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             editorHelperTarget(
                 name: $0.basenameWithoutExt,
                 filesGroup: manifestsFilesGroup,
-                targetSettings: baseTargetSettings,
+                targetSettings: Settings(
+                    base: targetBaseSettings(for: [projectAutomationPath], swiftVersion: swiftVersion),
+                    configurations: Settings.default.configurations,
+                    defaultSettings: .recommended
+                ),
                 sourcePaths: [$0]
             )
         }
