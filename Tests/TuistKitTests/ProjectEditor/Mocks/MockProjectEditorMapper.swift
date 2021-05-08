@@ -23,6 +23,7 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
         pluginProjectDescriptionHelpersModule: [ProjectDescriptionHelpersModule],
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
+        tasks: [AbsolutePath],
         projectDescriptionPath: AbsolutePath
     )] = []
 
@@ -39,6 +40,7 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
         pluginProjectDescriptionHelpersModule: [ProjectDescriptionHelpersModule],
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
+        tasks: [AbsolutePath],
         projectDescriptionPath: AbsolutePath
     ) throws -> ValueGraph {
         mapArgs.append((
@@ -54,6 +56,7 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
             pluginProjectDescriptionHelpersModule: pluginProjectDescriptionHelpersModule,
             helpers: helpers,
             templates: templates,
+            tasks: tasks,
             projectDescriptionPath: projectDescriptionPath
         ))
 

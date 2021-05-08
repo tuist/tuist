@@ -19,6 +19,7 @@ protocol ProjectEditorMapping: AnyObject {
         pluginProjectDescriptionHelpersModule: [ProjectDescriptionHelpersModule],
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
+        tasks: [AbsolutePath],
         projectDescriptionPath: AbsolutePath
     ) throws -> ValueGraph
 }
@@ -39,6 +40,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         pluginProjectDescriptionHelpersModule: [ProjectDescriptionHelpersModule],
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
+        tasks: [AbsolutePath],
         projectDescriptionPath: AbsolutePath
     ) throws -> ValueGraph {
         let swiftVersion = try System.shared.swiftVersion()
@@ -61,6 +63,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             tuistPath: tuistPath,
             helpers: helpers,
             templates: templates,
+            tasks: tasks,
             setupPath: setupPath,
             configPath: configPath,
             dependenciesPath: dependenciesPath,
@@ -128,6 +131,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         tuistPath: AbsolutePath,
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
+        tasks: [AbsolutePath],
         setupPath: AbsolutePath?,
         configPath: AbsolutePath?,
         dependenciesPath: AbsolutePath?,
@@ -164,6 +168,15 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                 sourcePaths: templates
             )
         }()
+        
+        let tasksTargets = tasks.map {
+            editorHelperTarget(
+                name: $0.basenameWithoutExt,
+                filesGroup: manifestsFilesGroup,
+                targetSettings: baseTargetSettings,
+                sourcePaths: [$0]
+            )
+        }
 
         let setupTarget: Target? = {
             guard let setupPath = setupPath else { return nil }
@@ -221,7 +234,10 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             setupTarget,
             configTarget,
             dependenciesTarget,
-        ].compactMap { $0 } + manifestsTargets
+        ]
+        .compactMap { $0 }
+        + manifestsTargets
+        + tasksTargets
 
         let buildAction = BuildAction(targets: targets.map { TargetReference(projectPath: projectPath, name: $0.name) })
         let arguments = Arguments(launchArguments: [LaunchArgument(name: "generate --path \(sourceRootPath)", isEnabled: true)])

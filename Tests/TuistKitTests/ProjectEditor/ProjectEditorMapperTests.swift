@@ -51,6 +51,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             pluginProjectDescriptionHelpersModule: [],
             helpers: helperPaths,
             templates: templates,
+            tasks: [],
             projectDescriptionPath: projectDescriptionPath
         )
 
@@ -187,6 +188,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             pluginProjectDescriptionHelpersModule: [],
             helpers: helperPaths,
             templates: templates,
+            tasks: [],
             projectDescriptionPath: projectDescriptionPath
         )
 
@@ -266,6 +268,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             pluginProjectDescriptionHelpersModule: [],
             helpers: helperPaths,
             templates: templates,
+            tasks: [],
             projectDescriptionPath: projectDescriptionPath
         )
 
@@ -375,6 +378,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             pluginProjectDescriptionHelpersModule: [],
             helpers: helperPaths,
             templates: templates,
+            tasks: [],
             projectDescriptionPath: projectDescriptionPath
         )
 
@@ -451,6 +455,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             pluginProjectDescriptionHelpersModule: [],
             helpers: helperPaths,
             templates: templates,
+            tasks: [],
             projectDescriptionPath: projectDescriptionPath
         )
 
@@ -558,6 +563,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             pluginProjectDescriptionHelpersModule: [],
             helpers: helperPaths,
             templates: templates,
+            tasks: [],
             projectDescriptionPath: projectDescriptionPath
         )
 
@@ -597,6 +603,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             pluginProjectDescriptionHelpersModule: [.init(name: "Plugin", path: pluginHelpersPath)],
             helpers: helperPaths,
             templates: templates,
+            tasks: [],
             projectDescriptionPath: projectDescriptionPath
         )
 

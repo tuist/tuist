@@ -161,6 +161,7 @@ let package = Package(
                 "TuistAnalytics",
                 "TuistPlugin",
                 "TuistGraph",
+                "TuistTasks",
             ]
         ),
         .testTarget(
@@ -407,6 +408,14 @@ let package = Package(
                 rxBlockingDependency,
                 "TuistCoreTesting",
                 "TuistGraphTesting",
+            ]
+        ),
+        .target(
+            name: "TuistTasks",
+            dependencies: [
+                swiftToolsSupportDependency,
+                "TuistCore",
+                "TuistSupport",
             ]
         ),
         .target(
