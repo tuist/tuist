@@ -55,10 +55,10 @@ jobs:
       - name: Increase watchers
         run: echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf && sudo sysctl -p
       - name: Migrate database
-        working-directory: projects/app
+        working-directory: projects/lab
         run: bin/rails db:migrate
       - name: Run Ruby tests
-        working-directory: projects/app
+        working-directory: projects/lab
         run: |
           bundle exec rails test
   lint_ruby:
@@ -72,14 +72,14 @@ jobs:
           bundler-cache: true
           ruby-version: ${{ env.RUBY_VERSION }}
       - name: Install dependencies
-        working-directory: projects/app
+        working-directory: projects/lab
         run: |
           sudo apt-get -yqq install libpq-dev
           gem install bundler
           bundle config path vendor/bundle
           bundle install --jobs=4 --retry=3
       - name: Lint Ruby
-        working-directory: projects/app
+        working-directory: projects/lab
         run: |
           bundle exec rubocop
   assets_precompile:
@@ -104,7 +104,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-yarn-
       - name: Install dependencies
-        working-directory: projects/app
+        working-directory: projects/lab
         run: |
           sudo apt-get -yqq install libpq-dev
           gem install bundler
@@ -112,7 +112,7 @@ jobs:
           bundle install --jobs=4 --retry=3
           yarn install --frozen-lockfile
       - name: Precompile assets
-        working-directory: projects/app
+        working-directory: projects/lab
         run: |
           bin/rails assets:precompile
   frontend_type_check:
@@ -132,10 +132,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-yarn-
       - name: Install dependencies
-        working-directory: projects/app
+        working-directory: projects/lab
         run: |
           yarn install --frozen-lockfile
       - name: Type-check
-        working-directory: projects/app
+        working-directory: projects/lab
         run: |
           yarn run type-check
