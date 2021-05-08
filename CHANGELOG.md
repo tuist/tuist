@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.42.0
+
 ### Added
 
 - Add support for `testPlan` inizialization with an array of `Path`. [#2837](https://github.com/tuist/tuist/pull/2837) by [@cipolleshi](https://github.com/cipolleschi)
