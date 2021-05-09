@@ -4,7 +4,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
-## 1.42.0
+## 1.42.0 - Builders
 
 ### Added
 
