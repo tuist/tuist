@@ -154,7 +154,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(taskOneTarget.sources.map(\.path), [tasksPaths[0]])
         XCTAssertEqual(taskOneTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(taskOneTarget.dependencies)
-        
+
         // Generated TaskTwo target
         let taskTwoTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "TaskTwo" }))
         XCTAssertTrue(targets.contains(taskTwoTarget))
@@ -166,7 +166,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(taskTwoTarget.sources.map(\.path), [tasksPaths[1]])
         XCTAssertEqual(taskTwoTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(taskTwoTarget.dependencies)
-        
+
         // Generated Project
         XCTAssertEqual(project.path, sourceRootPath.appending(component: projectName))
         XCTAssertEqual(project.name, projectName)

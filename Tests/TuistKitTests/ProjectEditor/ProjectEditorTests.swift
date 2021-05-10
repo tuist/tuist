@@ -9,13 +9,13 @@ import TuistPluginTesting
 import TuistSupport
 import XCTest
 
+import TuistTasksTesting
 @testable import TuistCoreTesting
 @testable import TuistGeneratorTesting
 @testable import TuistKit
 @testable import TuistLoaderTesting
 @testable import TuistScaffoldTesting
 @testable import TuistSupportTesting
-import TuistTasksTesting
 
 final class ProjectEditorErrorTests: TuistUnitTestCase {
     func test_type() {

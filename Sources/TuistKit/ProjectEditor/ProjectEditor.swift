@@ -112,7 +112,7 @@ final class ProjectEditor: ProjectEditing {
         let templates = templatesDirectoryLocator.locateUserTemplates(at: editingPath).map {
             FileHandler.shared.glob($0, glob: "**/*.swift") + FileHandler.shared.glob($0, glob: "**/*.stencil")
         } ?? []
-        
+
         let tasks = try tasksLocator.locateTasks(at: editingPath)
 
         let editablePluginManifests = locateEditablePluginManifests(at: editingPath, plugins: plugins)

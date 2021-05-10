@@ -14,10 +14,10 @@ public struct Task {
     ) {
         self.options = options
         self.task = task
-        
+
         runIfNeeded()
     }
-    
+
     private func runIfNeeded() {
         guard
             let taskCommandLineIndex = CommandLine.arguments.firstIndex(of: "--tuist-task"),

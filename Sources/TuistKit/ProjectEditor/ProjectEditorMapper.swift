@@ -172,7 +172,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                 sourcePaths: templates
             )
         }()
-        
+
         let tasksTargets = tasks.map { taskPath in
             editorHelperTarget(
                 name: taskPath.basenameWithoutExt,

@@ -121,7 +121,7 @@ extension String {
 
         return ([first] + rest).joined(separator: "")
     }
-    
+
     public func camelCaseToKebabCase() -> String {
         convertCamelCase(separator: "-")
     }
@@ -129,7 +129,7 @@ extension String {
     public func camelCaseToSnakeCase() -> String {
         convertCamelCase(separator: "_")
     }
-    
+
     private func convertCamelCase(separator: String) -> String {
         let acronymPattern = "([A-Z]+)([A-Z][a-z]|[0-9])"
         let normalPattern = "([a-z0-9])([A-Z])"

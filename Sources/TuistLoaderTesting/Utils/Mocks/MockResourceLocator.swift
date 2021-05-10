@@ -14,7 +14,7 @@ public final class MockResourceLocator: ResourceLocating {
     public func projectAutomation() throws -> AbsolutePath {
         try projectAutomationStub?() ?? AbsolutePath("/")
     }
-    
+
     public func projectDescription() throws -> AbsolutePath {
         projectDescriptionCount += 1
         return try projectDescriptionStub?() ?? AbsolutePath("/")

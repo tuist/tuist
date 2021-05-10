@@ -16,7 +16,7 @@ public final class TasksLocator: TasksLocating {
     public init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {
         self.rootDirectoryLocator = rootDirectoryLocator
     }
-    
+
     public func locateTasks(at path: AbsolutePath) throws -> [AbsolutePath] {
         guard let rootDirectory = rootDirectoryLocator.locate(from: path) else { return [] }
         let tasksDirectory = rootDirectory.appending(

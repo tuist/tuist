@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
-import TuistSupport
 import TuistCore
+import TuistSupport
 import TuistSupportTesting
 import XCTest
 
@@ -44,7 +44,7 @@ final class TasksLocatorIntegrationTests: TuistTestCase {
             ]
         )
     }
-    
+
     func test_locate_when_a_tasks_directory_does_not_exist() throws {
         // Given
         let temporaryDirectory = try temporaryPath()
