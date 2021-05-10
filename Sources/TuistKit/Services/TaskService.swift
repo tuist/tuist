@@ -6,6 +6,7 @@ import TuistGraph
 import TuistLoader
 import TuistPlugin
 import TuistSupport
+import TuistTasks
 
 enum TaskError: FatalError, Equatable {
     case taskNotFound(String, [String])
@@ -26,21 +27,15 @@ enum TaskError: FatalError, Equatable {
 }
 
 struct TaskService {
-    private let configLoader: ConfigLoading
     private let manifestLoader: ManifestLoading
-    private let pluginService: PluginServicing
-    private let rootDirectoryLocator: RootDirectoryLocating
+    private let tasksLocator: TasksLocating
 
     init(
-        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
         manifestLoader: ManifestLoading = ManifestLoader(),
-        pluginService: PluginServicing = PluginService(),
-        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
+        tasksLocator: TasksLocating = TasksLocator()
     ) {
-        self.configLoader = configLoader
         self.manifestLoader = manifestLoader
-        self.pluginService = pluginService
-        self.rootDirectoryLocator = rootDirectoryLocator
+        self.tasksLocator = tasksLocator
     }
 
     func run(
@@ -92,16 +87,12 @@ struct TaskService {
 
     // MARK: - Helpers
     private func task(with name: String, path: AbsolutePath) throws -> AbsolutePath {
-        guard let rootDirectory = rootDirectoryLocator.locate(from: path) else { fatalError() }
-        let tasksDirectory = rootDirectory.appending(
-            components: Constants.tuistDirectoryName, Constants.tasksDirectoryName
-        )
-        let tasks: [String: AbsolutePath] = try FileHandler.shared.contentsOfDirectory(tasksDirectory)
+        let tasks: [String: AbsolutePath] = try tasksLocator.locateTasks(at: path)
             .reduce(into: [:]) { acc, current in
                 acc[current.basenameWithoutExt.camelCaseToKebabCase()] = current
             }
         
-        guard let task = tasks[name] else { throw TaskError.taskNotFound(name, tasks.map(\.key)) }
+        guard let task = tasks[name] else { throw TaskError.taskNotFound(name, tasks.map(\.key).sorted()) }
         return task
     }
 

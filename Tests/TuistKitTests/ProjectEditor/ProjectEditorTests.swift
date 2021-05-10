@@ -83,6 +83,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         // Given
         let directory = try temporaryPath()
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
+        let projectAutomationPath = directory.appending(component: "ProjectAutomation.framework")
         let graph = ValueGraph.test(name: "Edit")
         let helpersDirectory = directory.appending(component: "ProjectDescriptionHelpers")
         try FileHandler.shared.createFolder(helpersDirectory)
@@ -99,6 +100,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         ]
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
+        resourceLocator.projectAutomationStub = { projectAutomationPath }
         manifestFilesLocator.locateProjectManifestsStub = manifests
         manifestFilesLocator.locateConfigStub = configPath
         manifestFilesLocator.locateDependenciesStub = dependenciesPath
@@ -122,9 +124,11 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEqual(mapArgs?.helpers, helpers)
         XCTAssertEqual(mapArgs?.sourceRootPath, directory)
         XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath)
+        XCTAssertEqual(mapArgs?.projectAutomationPath, projectAutomationPath)
         XCTAssertEqual(mapArgs?.configPath, configPath)
         XCTAssertEqual(mapArgs?.setupPath, setupPath)
         XCTAssertEqual(mapArgs?.dependenciesPath, dependenciesPath)
+        XCTAssertEqual(mapArgs?.tasks, locateTasksPaths)
     }
 
     func test_edit_when_there_are_no_editable_files() throws {
