@@ -121,7 +121,7 @@ extension String {
 
         return ([first] + rest).joined(separator: "")
     }
-    
+
     public func camelCaseToKebabCase() -> String {
         convertCamelCase(separator: "-")
     }

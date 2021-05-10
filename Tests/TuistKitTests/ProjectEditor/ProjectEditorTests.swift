@@ -16,7 +16,6 @@ import TuistTasksTesting
 @testable import TuistLoaderTesting
 @testable import TuistScaffoldTesting
 @testable import TuistSupportTesting
-import TuistTasksTesting
 
 final class ProjectEditorErrorTests: TuistUnitTestCase {
     func test_type() {

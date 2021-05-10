@@ -81,17 +81,18 @@ struct TaskService {
                 String(taskContents[range])
             )
         }
-        
+
         return options
     }
 
     // MARK: - Helpers
+
     private func task(with name: String, path: AbsolutePath) throws -> AbsolutePath {
         let tasks: [String: AbsolutePath] = try tasksLocator.locateTasks(at: path)
             .reduce(into: [:]) { acc, current in
                 acc[current.basenameWithoutExt.camelCaseToKebabCase()] = current
             }
-        
+
         guard let task = tasks[name] else { throw TaskError.taskNotFound(name, tasks.map(\.key).sorted()) }
         return task
     }
