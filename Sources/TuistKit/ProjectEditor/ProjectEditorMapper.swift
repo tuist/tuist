@@ -173,16 +173,16 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             )
         }()
         
-        let tasksTargets = tasks.map {
+        let tasksTargets = tasks.map { taskPath in
             editorHelperTarget(
-                name: $0.basenameWithoutExt,
+                name: taskPath.basenameWithoutExt,
                 filesGroup: manifestsFilesGroup,
                 targetSettings: Settings(
                     base: targetBaseSettings(for: [projectAutomationPath], swiftVersion: swiftVersion),
                     configurations: Settings.default.configurations,
                     defaultSettings: .recommended
                 ),
-                sourcePaths: [$0]
+                sourcePaths: [taskPath]
             )
         }
 
