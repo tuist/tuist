@@ -1,11 +1,10 @@
 import Foundation
 
-@discardableResult
-func dumpIfNeeded<E: Encodable>(_ entity: E) -> Bool {
+func dumpIfNeeded<E: Encodable>(_ entity: E) {
     guard
         CommandLine.argc > 0,
         CommandLine.arguments.contains("--tuist-dump")
-    else { return false }
+    else { return }
     let encoder = JSONEncoder()
     // swiftlint:disable:next force_try
     let data = try! encoder.encode(entity)
@@ -13,5 +12,4 @@ func dumpIfNeeded<E: Encodable>(_ entity: E) -> Bool {
     print("TUIST_MANIFEST_START")
     print(manifest)
     print("TUIST_MANIFEST_END")
-    return true
 }

@@ -15,6 +15,7 @@ import XCTest
 @testable import TuistLoaderTesting
 @testable import TuistScaffoldTesting
 @testable import TuistSupportTesting
+import TuistTasksTesting
 
 final class ProjectEditorErrorTests: TuistUnitTestCase {
     func test_type() {
@@ -27,16 +28,17 @@ final class ProjectEditorErrorTests: TuistUnitTestCase {
 }
 
 final class ProjectEditorTests: TuistUnitTestCase {
-    var generator: MockDescriptorGenerator!
-    var projectEditorMapper: MockProjectEditorMapper!
-    var resourceLocator: MockResourceLocator!
-    var manifestFilesLocator: MockManifestFilesLocator!
-    var helpersDirectoryLocator: MockHelpersDirectoryLocator!
-    var writer: MockXcodeProjWriter!
-    var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
-    var projectDescriptionHelpersBuilder: MockProjectDescriptionHelpersBuilder!
-    var projectDescriptionHelpersBuilderFactory: MockProjectDescriptionHelpersBuilderFactory!
-    var subject: ProjectEditor!
+    private var generator: MockDescriptorGenerator!
+    private var projectEditorMapper: MockProjectEditorMapper!
+    private var resourceLocator: MockResourceLocator!
+    private var manifestFilesLocator: MockManifestFilesLocator!
+    private var helpersDirectoryLocator: MockHelpersDirectoryLocator!
+    private var writer: MockXcodeProjWriter!
+    private var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
+    private var projectDescriptionHelpersBuilder: MockProjectDescriptionHelpersBuilder!
+    private var projectDescriptionHelpersBuilderFactory: MockProjectDescriptionHelpersBuilderFactory!
+    private var tasksLocator: MockTasksLocator!
+    private var subject: ProjectEditor!
 
     override func setUp() {
         super.setUp()
@@ -50,6 +52,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         projectDescriptionHelpersBuilder = MockProjectDescriptionHelpersBuilder()
         projectDescriptionHelpersBuilderFactory = MockProjectDescriptionHelpersBuilderFactory()
         projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilderStub = { _ in self.projectDescriptionHelpersBuilder }
+        tasksLocator = MockTasksLocator()
 
         subject = ProjectEditor(
             generator: generator,
@@ -59,19 +62,21 @@ final class ProjectEditorTests: TuistUnitTestCase {
             helpersDirectoryLocator: helpersDirectoryLocator,
             writer: writer,
             templatesDirectoryLocator: templatesDirectoryLocator,
-            projectDescriptionHelpersBuilderFactory: projectDescriptionHelpersBuilderFactory
+            projectDescriptionHelpersBuilderFactory: projectDescriptionHelpersBuilderFactory,
+            tasksLocator: tasksLocator
         )
     }
 
     override func tearDown() {
-        super.tearDown()
         generator = nil
         projectEditorMapper = nil
         resourceLocator = nil
         manifestFilesLocator = nil
         helpersDirectoryLocator = nil
         templatesDirectoryLocator = nil
+        tasksLocator = nil
         subject = nil
+        super.tearDown()
     }
 
     func test_edit() throws {
@@ -88,6 +93,10 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let setupPath = directory.appending(components: "Setup.swift")
         let configPath = directory.appending(components: "Tuist", "Config.swift")
         let dependenciesPath = directory.appending(components: "Tuist", "Dependencies.swif")
+        let locateTasksPaths = [
+            directory.appending(components: "Tuist", "Tasks", "TaskOne.swift"),
+            directory.appending(components: "Tuist", "Tasks", "TaskTwo.swift"),
+        ]
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
         manifestFilesLocator.locateProjectManifestsStub = manifests
@@ -95,6 +104,9 @@ final class ProjectEditorTests: TuistUnitTestCase {
         manifestFilesLocator.locateDependenciesStub = dependenciesPath
         manifestFilesLocator.locateSetupStub = setupPath
         helpersDirectoryLocator.locateStub = helpersDirectory
+        tasksLocator.locateTasksStub = { _ in
+            locateTasksPaths
+        }
         projectEditorMapper.mapStub = graph
         generator.generateWorkspaceStub = { _ in
             .test(xcworkspacePath: directory.appending(component: "Edit.xcworkspacepath"))

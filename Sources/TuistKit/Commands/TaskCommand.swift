@@ -24,7 +24,7 @@ struct TaskCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "task",
-            abstract: "Runs a task defined in Tuist/Tasks."
+            abstract: "Runs a task defined in Tuist/Tasks directory."
         )
     }
 
