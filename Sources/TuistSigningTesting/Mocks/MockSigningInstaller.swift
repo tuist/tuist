@@ -1,12 +1,13 @@
 import TSCBasic
+import TuistCore
 @testable import TuistSigning
 
 public final class MockSigningInstaller: SigningInstalling {
     public init() {}
 
-    var installProvisioningProfileStub: ((ProvisioningProfile) throws -> Void)?
-    public func installProvisioningProfile(_ provisioningProfile: ProvisioningProfile) throws {
-        try installProvisioningProfileStub?(provisioningProfile)
+    var installProvisioningProfileStub: ((ProvisioningProfile) throws -> [LintingIssue])?
+    public func installProvisioningProfile(_ provisioningProfile: ProvisioningProfile) throws -> [LintingIssue] {
+        try installProvisioningProfileStub?(provisioningProfile) ?? []
     }
 
     var installCertificateStub: ((Certificate, AbsolutePath) throws -> Void)?

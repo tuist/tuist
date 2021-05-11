@@ -251,6 +251,8 @@ final class SigningInteractorTests: TuistUnitTestCase {
         var installedProvisioningProfiles: [ProvisioningProfile] = []
         signingInstaller.installProvisioningProfileStub = { profile in
             installedProvisioningProfiles.append(profile)
+
+            return []
         }
 
         // When

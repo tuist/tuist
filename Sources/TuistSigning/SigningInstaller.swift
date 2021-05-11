@@ -1,37 +1,29 @@
 import Foundation
 import TSCBasic
+import TuistCore
 import TuistSupport
 
-enum SigningInstallerError: FatalError, Equatable {
-    case noFileExtension(AbsolutePath)
-    case provisioningProfilePathNotFound(ProvisioningProfile)
-    case revokedCertificate(Certificate)
-    case expiredProvisioningProfile(ProvisioningProfile)
-
-    var type: ErrorType {
-        switch self {
-        case .noFileExtension, .provisioningProfilePathNotFound, .revokedCertificate, .expiredProvisioningProfile:
-            return .abort
-        }
+extension LintingIssue {
+    static func noFileExtension(_ path: AbsolutePath) -> Self {
+        Self(reason: "Unable to parse extension from file at \(path.pathString)", severity: .error)
     }
 
-    var description: String {
-        switch self {
-        case let .noFileExtension(path):
-            return "Unable to parse extension from file at \(path.pathString)"
-        case let .revokedCertificate(certificate):
-            return "The certificate has been revoked \(certificate.name)"
-        case let .expiredProvisioningProfile(provisioningProfile):
-            return "The provisioning profile \(provisioningProfile.name) has expired"
-        case let .provisioningProfilePathNotFound(provisioningProfile):
-            return "Could not find any path for \(provisioningProfile.name)"
-        }
+    static func expiredProvisioningProfile(_ profile: ProvisioningProfile) -> Self {
+        Self(reason: "The provisioning profile \(profile.name) has expired", severity: .warning)
     }
+
+//    static func revokedCertificate(_ certificate: Certificate) -> Self {
+//        Self(reason: "The certificate has been revoked \(certificate.name)", severity: .warning)
+//    }
+//
+//    static func provisioningProfilePathNotFound(_ profile: ProvisioningProfile) -> Self {
+//        Self(reason: "Could not find any path for \(profile.name)", severity: .warning)
+//    }
 }
 
 /// Handles installing for signing (provisioning profiles, certificates ...)
 protocol SigningInstalling {
-    func installProvisioningProfile(_ provisioningProfile: ProvisioningProfile) throws
+    func installProvisioningProfile(_ provisioningProfile: ProvisioningProfile) throws -> [LintingIssue]
     /// Installs certificate to a given keychain
     /// - Parameters:
     ///     - certificate: Certificate to be installed
@@ -46,8 +38,14 @@ final class SigningInstaller: SigningInstalling {
         self.securityController = securityController
     }
 
-    func installProvisioningProfile(_ provisioningProfile: ProvisioningProfile) throws {
-        guard provisioningProfile.expirationDate > Date() else { throw SigningInstallerError.expiredProvisioningProfile(provisioningProfile) }
+    func installProvisioningProfile(_ provisioningProfile: ProvisioningProfile) throws -> [LintingIssue] {
+        var issues = [LintingIssue]()
+
+        if provisioningProfile.expirationDate < Date() {
+            issues.append(.expiredProvisioningProfile(provisioningProfile))
+            return issues
+        }
+
         let provisioningProfilesPath = FileHandler.shared.homeDirectory.appending(RelativePath("Library/MobileDevice/Provisioning Profiles"))
         if !FileHandler.shared.exists(provisioningProfilesPath) {
             try FileHandler.shared.createFolder(provisioningProfilesPath)
@@ -55,7 +53,10 @@ final class SigningInstaller: SigningInstalling {
         let provisioningProfileSourcePath = provisioningProfile.path
         guard
             let profileExtension = provisioningProfileSourcePath.extension
-        else { throw SigningInstallerError.noFileExtension(provisioningProfileSourcePath) }
+        else {
+            issues.append(.noFileExtension(provisioningProfileSourcePath))
+            return issues
+        }
 
         let provisioningProfilePath = provisioningProfilesPath.appending(component: provisioningProfile.uuid + "." + profileExtension)
         if FileHandler.shared.exists(provisioningProfilePath) {
@@ -67,6 +68,8 @@ final class SigningInstaller: SigningInstalling {
         )
 
         logger.debug("Installed provisioning profile \(provisioningProfileSourcePath.pathString) to \(provisioningProfilePath.pathString)")
+        
+        return issues
     }
 
     func installCertificate(_ certificate: Certificate, keychainPath: AbsolutePath) throws {

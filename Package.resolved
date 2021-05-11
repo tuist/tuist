@@ -33,8 +33,8 @@
         "repositoryURL": "https://github.com/pointfreeco/combine-schedulers",
         "state": {
           "branch": null,
-          "revision": "ae2f434e81017bb7de02c168fb0bde83cd8370c1",
-          "version": "0.3.1"
+          "revision": "c37e5ae8012fb654af776cc556ff8ae64398c841",
+          "version": "0.5.0"
         }
       },
       {
@@ -60,8 +60,8 @@
         "repositoryURL": "https://github.com/krzyzanowskim/CryptoSwift.git",
         "state": {
           "branch": null,
-          "revision": "5669f222e46c8134fb1f399c745fa6882b43532e",
-          "version": "1.3.8"
+          "revision": "4e31051c63cc0ddf10a25cf5318856c510cf77f4",
+          "version": "1.4.0"
         }
       },
       {
@@ -114,8 +114,8 @@
         "repositoryURL": "https://github.com/ReactiveX/RxSwift.git",
         "state": {
           "branch": null,
-          "revision": "002d325b0bdee94e7882e1114af5ff4fe1e96afa",
-          "version": "5.1.1"
+          "revision": "254617dd7fae0c45319ba5fbea435bf4d0e15b5d",
+          "version": "5.1.2"
         }
       },
       {
@@ -132,8 +132,8 @@
         "repositoryURL": "https://github.com/stencilproject/Stencil.git",
         "state": {
           "branch": null,
-          "revision": "94197b3adbbf926348ad8765476a158aa4e54f8a",
-          "version": "0.14.0"
+          "revision": "973e190edf5d09274e4a6bc2e636c86899ed84c3",
+          "version": "0.14.1"
         }
       },
       {
@@ -150,8 +150,8 @@
         "repositoryURL": "https://github.com/apple/swift-argument-parser.git",
         "state": {
           "branch": null,
-          "revision": "831ed5e860a70e745bc1337830af4786b2576881",
-          "version": "0.4.1"
+          "revision": "986d191f94cec88f6350056da59c2e59e83d1229",
+          "version": "0.4.3"
         }
       },
       {
@@ -168,8 +168,8 @@
         "repositoryURL": "https://github.com/apple/swift-tools-support-core.git",
         "state": {
           "branch": null,
-          "revision": "2954e55faee5bfee928e844bb09e97fcfa8d24af",
-          "version": "0.2.0"
+          "revision": "ab6339b6a33b69886b3cf2254d3326eddfe58eb0",
+          "version": "0.2.2"
         }
       },
       {
@@ -200,12 +200,21 @@
         }
       },
       {
+        "package": "xctest-dynamic-overlay",
+        "repositoryURL": "https://github.com/pointfreeco/xctest-dynamic-overlay",
+        "state": {
+          "branch": null,
+          "revision": "603974e3909ad4b48ba04aad7e0ceee4f077a518",
+          "version": "0.1.0"
+        }
+      },
+      {
         "package": "Yams",
         "repositoryURL": "https://github.com/jpsim/Yams.git",
         "state": {
           "branch": null,
-          "revision": "9003d51672e516cc59297b7e96bff1dfdedcb4ea",
-          "version": "4.0.4"
+          "revision": "9ff1cc9327586db4e0c8f46f064b6a82ec1566fa",
+          "version": "4.0.6"
         }
       },
       {

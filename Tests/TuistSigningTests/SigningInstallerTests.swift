@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TuistCore
 import TuistSupport
 import XCTest
 @testable import TuistCoreTesting
@@ -23,14 +24,16 @@ final class SigningInstallerTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_installing_provisioning_profile_fails_when_expired() throws {
+    func test_installing_provisioning_profile_warns_when_expired() throws {
         // Given
         let provisioningProfile = ProvisioningProfile.test(expirationDate: Date().addingTimeInterval(-1))
 
         // When
-        XCTAssertThrowsSpecific(
-            try subject.installProvisioningProfile(provisioningProfile),
-            SigningInstallerError.expiredProvisioningProfile(provisioningProfile)
+        let issues = try subject.installProvisioningProfile(provisioningProfile)
+        XCTAssertEqual(issues.count, 1)
+        XCTAssertEqual(
+            issues.first,
+            LintingIssue.expiredProvisioningProfile(provisioningProfile)
         )
     }
 
@@ -40,9 +43,11 @@ final class SigningInstallerTests: TuistUnitTestCase {
         let provisioningProfile = ProvisioningProfile.test(path: provisioningProfilePath)
 
         // When
-        XCTAssertThrowsSpecific(
-            try subject.installProvisioningProfile(provisioningProfile),
-            SigningInstallerError.noFileExtension(provisioningProfilePath)
+        let issues = try subject.installProvisioningProfile(provisioningProfile)
+        XCTAssertEqual(issues.count, 1)
+        XCTAssertEqual(
+            issues.first,
+            LintingIssue.noFileExtension(provisioningProfilePath)
         )
     }
 

@@ -34,6 +34,7 @@
 		B9023E34239BCE2D00666BE6 /* macOS.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = macOS.h; sourceTree = "<group>"; };
 		B9023E35239BCE2D00666BE6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		B9023E3A239BCE3300666BE6 /* macOS.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = macOS.swift; sourceTree = "<group>"; };
+		D5EC368725FB6AFB001EDE80 /* Package */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Package; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -71,6 +72,7 @@
 		B9023DF8239BCDA200666BE6 = {
 			isa = PBXGroup;
 			children = (
+				D5EC368725FB6AFB001EDE80 /* Package */,
 				B9023E04239BCDA200666BE6 /* iOS */,
 				B9023E15239BCDE900666BE6 /* watchOS */,
 				B9023E24239BCE1000666BE6 /* tvOS */,
