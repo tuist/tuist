@@ -31,7 +31,7 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
         let temporaryPath = try self.temporaryPath()
         let frameworksPath = try temporaryFixture("Frameworks")
         let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
-        let target = Target.test(name: "iOS", platform: .iOS, product: .framework, productName: "iOS", dependencies: [.package(product: "Package11")])
+        let target = Target.test(name: "iOS", platform: .iOS, product: .framework, productName: "iOS")
 
         // When
         try subject.build(projectPath: projectPath, target: target, configuration: "Debug", into: temporaryPath)
