@@ -19,7 +19,7 @@ gem "tzinfo-data", platforms: [:mingw, :mswin, :x64_mingw, :jruby]
 gem "devise", "~> 4.8"
 gem "dotenv-rails"
 gem "bugsnag", "~> 6.20"
-gem "vite_rails", "~> 2.0.10"
+gem "vite_rails", "~> 2.0.11"
 gem "vite_plugin_legacy", "~> 0.5.5"
 gem "js_from_routes", "~> 2.0"
 
