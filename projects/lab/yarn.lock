@@ -660,10 +660,10 @@
     regenerator-runtime "^0.13.7"
     systemjs "^6.8.3"
 
-"@vitejs/plugin-react-refresh@^1.3.2":
-  version "1.3.2"
-  resolved "https://registry.yarnpkg.com/@vitejs/plugin-react-refresh/-/plugin-react-refresh-1.3.2.tgz#c807c9c77694943b8e51f0a80babba6b078a3218"
-  integrity sha512-ujHk6wqY9MZh8PkjeQeeDHfds4teTD4mkG34++gVoQJgATO/Hpq7rcEYbFZ5Dyup3zlpe2jyu0gFuqznLnBUyQ==
+"@vitejs/plugin-react-refresh@^1.3.3":
+  version "1.3.3"
+  resolved "https://registry.yarnpkg.com/@vitejs/plugin-react-refresh/-/plugin-react-refresh-1.3.3.tgz#d5afb3e0463f368a8afadfdd7305fe5c5fe78a6a"
+  integrity sha512-J3KFwSQKrEK7fgOwTx0PMTlsolZORUch6BswjsM50q+Y7zSvX1ROIRn+tK2VE8SCvbYRHtzEKFlYW3vsWyTosQ==
   dependencies:
     "@babel/core" "^7.12.13"
     "@babel/plugin-transform-react-jsx-self" "^7.12.13"
