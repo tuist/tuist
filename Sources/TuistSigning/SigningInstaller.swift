@@ -11,14 +11,6 @@ extension LintingIssue {
     static func expiredProvisioningProfile(_ profile: ProvisioningProfile) -> Self {
         Self(reason: "The provisioning profile \(profile.name) has expired", severity: .warning)
     }
-
-//    static func revokedCertificate(_ certificate: Certificate) -> Self {
-//        Self(reason: "The certificate has been revoked \(certificate.name)", severity: .warning)
-//    }
-//
-//    static func provisioningProfilePathNotFound(_ profile: ProvisioningProfile) -> Self {
-//        Self(reason: "Could not find any path for \(profile.name)", severity: .warning)
-//    }
 }
 
 /// Handles installing for signing (provisioning profiles, certificates ...)
