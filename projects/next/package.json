@@ -30,7 +30,7 @@
     "gatsby-plugin-react-helmet": "^3.10.0",
     "gatsby-plugin-sharp": "^2.14.4",
     "gatsby-plugin-sitemap": "^2.12.0",
-    "gatsby-plugin-theme-ui": "^0.7.5",
+    "gatsby-plugin-theme-ui": "^0.8.4",
     "gatsby-plugin-typescript": "^2.12.1",
     "gatsby-plugin-web-font-loader": "^1.0.4",
     "gatsby-source-filesystem": "^2.11.1",
