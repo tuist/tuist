@@ -41,6 +41,9 @@ module Fourier
     desc "update", "Update project's components"
     subcommand "update", Commands::Update
 
+    desc "bundle", "Bundle tuist and tuistenv"
+    subcommand "bundle", Commands::Bundle
+
     desc "focus TARGET", "Edit Tuist's project focusing on the target TARGET"
     def focus(target)
       Services::Focus.call(target: target)
