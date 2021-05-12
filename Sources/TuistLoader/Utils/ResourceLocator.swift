@@ -42,10 +42,6 @@ public final class ResourceLocator: ResourceLocating {
         try frameworkPath("ProjectAutomation")
     }
 
-    public func projectAutomation() throws -> AbsolutePath {
-        try frameworkPath("ProjectAutomation")
-    }
-
     public func projectDescription() throws -> AbsolutePath {
         try frameworkPath("ProjectDescription")
     }

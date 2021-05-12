@@ -9,7 +9,7 @@ public struct Task {
     }
 
     public init(
-        options: [Option],
+        options: [Option] = [],
         task: @escaping ([String: String]) throws -> Void
     ) {
         self.options = options

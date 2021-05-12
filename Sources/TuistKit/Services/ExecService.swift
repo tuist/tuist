@@ -29,13 +29,19 @@ enum ExecError: FatalError, Equatable {
 struct ExecService {
     private let manifestLoader: ManifestLoading
     private let tasksLocator: TasksLocating
+    private let pluginService: PluginServicing
+    private let configLoader: ConfigLoading
 
     init(
         manifestLoader: ManifestLoading = ManifestLoader(),
-        tasksLocator: TasksLocating = TasksLocator()
+        tasksLocator: TasksLocating = TasksLocator(),
+        pluginService: PluginServicing = PluginService(),
+        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader())
     ) {
         self.manifestLoader = manifestLoader
         self.tasksLocator = tasksLocator
+        self.pluginService = pluginService
+        self.configLoader = configLoader
     }
 
     func run(
@@ -88,7 +94,12 @@ struct ExecService {
     // MARK: - Helpers
 
     private func task(with name: String, path: AbsolutePath) throws -> AbsolutePath {
-        let tasks: [String: AbsolutePath] = try tasksLocator.locateTasks(at: path)
+        let config = try configLoader.loadConfig(path: path)
+        let plugins = try pluginService.loadPlugins(using: config)
+        let tasksPaths: [AbsolutePath] = try tasksLocator.locateTasks(at: path)
+            + plugins.tasks.map(\.path)
+            .flatMap(FileHandler.shared.contentsOfDirectory)
+        let tasks: [String: AbsolutePath] = tasksPaths
             .reduce(into: [:]) { acc, current in
                 acc[current.basenameWithoutExt.camelCaseToKebabCase()] = current
             }

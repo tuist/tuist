@@ -126,10 +126,6 @@ extension String {
         convertCamelCase(separator: "-")
     }
 
-    public func camelCaseToKebabCase() -> String {
-        convertCamelCase(separator: "-")
-    }
-
     public func camelCaseToSnakeCase() -> String {
         convertCamelCase(separator: "_")
     }

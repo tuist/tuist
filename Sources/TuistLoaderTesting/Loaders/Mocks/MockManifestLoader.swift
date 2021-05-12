@@ -84,10 +84,5 @@ public final class MockManifestLoader: ManifestLoading {
         try taskLoadArgumentsStub?(path) ?? []
     }
 
-    public var taskLoadArgumentsStub: ((AbsolutePath) throws -> [String])?
-    public func taskLoadArguments(at path: AbsolutePath) throws -> [String] {
-        try taskLoadArgumentsStub?(path) ?? []
-    }
-
     public func register(plugins _: Plugins) {}
 }
