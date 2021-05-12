@@ -8,6 +8,6 @@ Then(/^tuist runs a task (.+) with attribute (.+) as (.+)$/) do |name, attribute
     system("swift", "run", "tuist", "task", name, "--#{attribute}", attributeValue, "--path", @dir)
 end
   
-Then(/^content of a file named (.+) should be equal to (.+)$/) do |file, content|
+Then(/^content of a file named ([a-zA-Z\-_]+) should be equal to (.+)$/) do |file, content|
     assert_equal File.read(File.join(@dir, file)), content
 end
