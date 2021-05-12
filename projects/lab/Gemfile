@@ -16,7 +16,7 @@ gem "sass-rails", ">= 6"
 gem "sidekiq", "~> 6.2"
 gem "turbolinks", "~> 5"
 gem "tzinfo-data", platforms: [:mingw, :mswin, :x64_mingw, :jruby]
-gem "devise", "~> 4.7"
+gem "devise", "~> 4.8"
 gem "dotenv-rails"
 gem "bugsnag", "~> 6.20"
 gem "vite_rails", "~> 2.0.10"
