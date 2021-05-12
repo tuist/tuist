@@ -16,9 +16,9 @@
     "@mdx-js/react": "^1.6.22",
     "@mdx-js/tag": "^0.20.3",
     "@theme-ui/color": "^0.8.4",
-    "@theme-ui/match-media": "^0.3.5",
+    "@theme-ui/match-media": "^0.8.4",
     "@theme-ui/presets": "^0.8.4",
-    "@theme-ui/prism": "^0.3.5",
+    "@theme-ui/prism": "^0.8.4",
     "@theme-ui/sidenav": "^0.8.4",
     "@theme-ui/typography": "^0.8.4",
     "autoprefixer": "^10.2.5",
@@ -78,7 +78,7 @@
     "semantic-ui-react": "^2.0.3",
     "slug": "^5.0.1",
     "tailwindcss": "^2.1.2",
-    "theme-ui": "^0.3.5",
+    "theme-ui": "^0.8.4",
     "url-join": "^4.0.1"
   },
   "keywords": [
