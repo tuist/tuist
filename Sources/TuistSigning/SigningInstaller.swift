@@ -9,7 +9,7 @@ extension LintingIssue {
     }
 
     static func expiredProvisioningProfile(_ profile: ProvisioningProfile) -> Self {
-        Self(reason: "The provisioning profile \(profile.name) has expired", severity: .warning)
+        Self(reason: "The provisioning profile \(profile.name) has expired. Bear in mind that attempting to export or run the app on a device might lead to an error.", severity: .warning)
     }
 }
 
