@@ -8,7 +8,7 @@ import TuistPlugin
 import TuistSupport
 import TuistTasks
 
-enum TaskError: FatalError, Equatable {
+enum ExecError: FatalError, Equatable {
     case taskNotFound(String, [String])
 
     var description: String {
@@ -26,7 +26,7 @@ enum TaskError: FatalError, Equatable {
     }
 }
 
-struct TaskService {
+struct ExecService {
     private let manifestLoader: ManifestLoading
     private let tasksLocator: TasksLocating
 
@@ -93,7 +93,7 @@ struct TaskService {
                 acc[current.basenameWithoutExt.camelCaseToKebabCase()] = current
             }
 
-        guard let task = tasks[name] else { throw TaskError.taskNotFound(name, tasks.map(\.key).sorted()) }
+        guard let task = tasks[name] else { throw ExecError.taskNotFound(name, tasks.map(\.key).sorted()) }
         return task
     }
 

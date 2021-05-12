@@ -12,13 +12,13 @@ import XCTest
 final class TaskServiceTests: TuistUnitTestCase {
     private var manifestLoader: MockManifestLoader!
     private var tasksLocator: MockTasksLocator!
-    private var subject: TaskService!
+    private var subject: ExecService!
 
     override func setUp() {
         super.setUp()
         manifestLoader = MockManifestLoader()
         tasksLocator = MockTasksLocator()
-        subject = TaskService(
+        subject = ExecService(
             manifestLoader: manifestLoader,
             tasksLocator: tasksLocator
         )
@@ -45,7 +45,7 @@ final class TaskServiceTests: TuistUnitTestCase {
         // When / Then
         XCTAssertThrowsSpecific(
             try subject.loadTaskOptions(taskName: "task-a", path: path.pathString),
-            TaskError.taskNotFound("task-a", ["task-b", "task-c"])
+            ExecError.taskNotFound("task-a", ["task-b", "task-c"])
         )
     }
 
@@ -179,7 +179,7 @@ final class TaskServiceTests: TuistUnitTestCase {
         // When / Then
         XCTAssertThrowsSpecific(
             try subject.run("task-a", options: [:], path: path.pathString),
-            TaskError.taskNotFound("task-a", ["task-b", "task-c"])
+            ExecError.taskNotFound("task-a", ["task-b", "task-c"])
         )
     }
 

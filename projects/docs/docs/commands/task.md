@@ -36,7 +36,7 @@ let task = Task(
 }
 ```
 
-If you added this file to `Tuist/Tasks/CreateFile.swift`, you can run it by `tuist task create-file --file-name MyFileName`.
+If you added this file to `Tuist/Tasks/CreateFile.swift`, you can run it by `tuist exec create-file --file-name MyFileName`.
 The `Task` accepts two parameters - `options: [Option]` which defines the possible options of the task.
 Then there is a parameter `task: ([String: String]) throws -> Void` which is a simple closure that is executed when the task is run.
 Note that the closure has input of `[String: String]` -

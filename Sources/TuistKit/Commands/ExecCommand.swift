@@ -2,7 +2,7 @@ import ArgumentParser
 import Foundation
 import TuistSupport
 
-enum TaskCommandError: FatalError, Equatable {
+enum ExecCommandError: FatalError, Equatable {
     case taskNotProvided
 
     var description: String {
@@ -20,10 +20,10 @@ enum TaskCommandError: FatalError, Equatable {
     }
 }
 
-struct TaskCommand: ParsableCommand {
+struct ExecCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
-            commandName: "task",
+            commandName: "exec",
             abstract: "Runs a task defined in Tuist/Tasks directory."
         )
     }
@@ -41,7 +41,7 @@ struct TaskCommand: ParsableCommand {
     var path: String?
 
     func run() throws {
-        try TaskService().run(
+        try ExecService().run(
             task,
             options: taskOptions,
             path: path
@@ -57,7 +57,7 @@ struct TaskCommand: ParsableCommand {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         task = try container.decode(Argument<String>.self, forKey: .task).wrappedValue
         path = try container.decodeIfPresent(Option<String>.self, forKey: .path)?.wrappedValue
-        try TaskCommand.options.forEach { option in
+        try ExecCommand.options.forEach { option in
             guard let value = try container.decode(
                 Option<String?>.self,
                 forKey: .option(option.name)
@@ -71,7 +71,7 @@ struct TaskCommand: ParsableCommand {
 
 // MARK: - Preprocessing
 
-extension TaskCommand {
+extension ExecCommand {
     static var options: [(name: String, option: Option<String?>)] = []
 
     /// We do not know template's option in advance -> we need to dynamically add them
@@ -79,7 +79,7 @@ extension TaskCommand {
         guard
             let arguments = arguments,
             arguments.count >= 2
-        else { throw TaskCommandError.taskNotProvided }
+        else { throw ExecCommandError.taskNotProvided }
         guard !configuration.subcommands.contains(where: { $0.configuration.commandName == arguments[1] }) else { return }
         // We want to parse only the name of a task, not its arguments which will be dynamically added
         // Plucking out path arguments
@@ -92,9 +92,9 @@ extension TaskCommand {
             }
             .flatMap { $0 }
 
-        guard let command = try parseAsRoot([arguments[1]] + filteredArguments) as? TaskCommand else { return }
+        guard let command = try parseAsRoot([arguments[1]] + filteredArguments) as? ExecCommand else { return }
 
-        TaskCommand.options = try TaskService().loadTaskOptions(
+        ExecCommand.options = try ExecService().loadTaskOptions(
             taskName: command.task,
             path: command.path
         )
@@ -106,7 +106,7 @@ extension TaskCommand {
 
 // MARK: - TaskCommand.CodingKeys
 
-extension TaskCommand {
+extension ExecCommand {
     enum CodingKeys: CodingKey {
         case task
         case path
@@ -130,7 +130,7 @@ extension TaskCommand {
             case "path":
                 self = .path
             default:
-                if TaskCommand.options.map(\.name).contains(stringValue) {
+                if ExecCommand.options.map(\.name).contains(stringValue) {
                     self = .option(stringValue)
                 } else {
                     return nil
@@ -146,9 +146,9 @@ extension TaskCommand {
 
 /// ArgumentParser library gets the list of options from a mirror.
 /// Since we do not declare task's options in advance, we need to rewrite the mirror implementation and add them ourselves.
-extension TaskCommand: CustomReflectable {
+extension ExecCommand: CustomReflectable {
     var customMirror: Mirror {
-        let optionsChildren = TaskCommand.options
+        let optionsChildren = ExecCommand.options
             .map { Mirror.Child(label: $0.name, value: $0.option) }
         let children = [
             Mirror.Child(label: "task", value: _task),
@@ -157,10 +157,10 @@ extension TaskCommand: CustomReflectable {
         .filter {
             // Prefer attributes defined in a template if it clashes with predefined ones
             $0.label.map { label in
-                !TaskCommand.options.map(\.name)
+                !ExecCommand.options.map(\.name)
                     .contains(label)
             } ?? true
         }
-        return Mirror(TaskCommand(), children: children + optionsChildren)
+        return Mirror(ExecCommand(), children: children + optionsChildren)
     }
 }
