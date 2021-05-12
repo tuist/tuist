@@ -15,7 +15,7 @@ gem "redis", "~> 4.0"
 gem "sass-rails", ">= 6"
 gem "sidekiq", "~> 6.2"
 gem "turbolinks", "~> 5"
-gem "tzinfo-data", platforms: %i[mingw mswin x64_mingw jruby]
+gem "tzinfo-data", platforms: [:mingw, :mswin, :x64_mingw, :jruby]
 gem "devise", "~> 4.7"
 gem "dotenv-rails"
 gem "bugsnag", "~> 6.20"
@@ -24,7 +24,7 @@ gem "vite_plugin_legacy", "~> 0.5.5"
 gem "js_from_routes", "~> 2.0"
 
 group :development, :test do
-  gem "byebug", platforms: %i[mri mingw x64_mingw]
+  gem "byebug", platforms: [:mri, :mingw, :x64_mingw]
 end
 
 group :development do
@@ -36,6 +36,8 @@ group :development do
   gem "rubocop", "~> 1.11"
   gem "rubocop-rails", "~> 2.10.1"
   gem "rubocop-rails_config"
+  gem "rubocop-shopify", "~> 2.1"
+  gem "rubocop-rake", "~> 0.5.1"
 end
 
 group :test do

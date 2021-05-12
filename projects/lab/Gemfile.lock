@@ -209,6 +209,10 @@ GEM
       rubocop-packaging (~> 0.5)
       rubocop-performance (~> 1.3)
       rubocop-rails (~> 2.0)
+    rubocop-rake (0.5.1)
+      rubocop
+    rubocop-shopify (2.1.0)
+      rubocop (~> 1.13)
     ruby-progressbar (1.11.0)
     rubyzip (2.3.0)
     sass-rails (6.0.0)
@@ -297,6 +301,8 @@ DEPENDENCIES
   rubocop-minitest (~> 0.12.1)
   rubocop-rails (~> 2.10.1)
   rubocop-rails_config
+  rubocop-rake (~> 0.5.1)
+  rubocop-shopify (~> 2.1)
   sass-rails (>= 6)
   selenium-webdriver
   sidekiq (~> 6.2)
