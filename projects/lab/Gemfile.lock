@@ -65,7 +65,7 @@ GEM
     ast (2.4.2)
     bcrypt (3.1.16)
     bindex (0.8.1)
-    bootsnap (1.7.4)
+    bootsnap (1.7.5)
       msgpack (~> 1.0)
     bugsnag (6.20.0)
       concurrent-ruby (~> 1.0)
