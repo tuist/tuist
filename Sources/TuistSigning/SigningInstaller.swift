@@ -35,7 +35,6 @@ final class SigningInstaller: SigningInstalling {
 
         if provisioningProfile.expirationDate < Date() {
             issues.append(.expiredProvisioningProfile(provisioningProfile))
-            return issues
         }
 
         let provisioningProfilesPath = FileHandler.shared.homeDirectory.appending(RelativePath("Library/MobileDevice/Provisioning Profiles"))
