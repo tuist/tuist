@@ -44,6 +44,9 @@ module Fourier
     desc "bundle", "Bundle tuist and tuistenv"
     subcommand "bundle", Commands::Bundle
 
+    desc "encrypt", "Encrypt content in the repository"
+    subcommand "encrypt", Commands::Encrypt
+
     desc "focus TARGET", "Edit Tuist's project focusing on the target TARGET"
     def focus(target)
       Services::Focus.call(target: target)

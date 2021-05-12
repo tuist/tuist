@@ -15,18 +15,6 @@ require "json"
 require "zip"
 require "macho"
 
-desc("Install git hooks")
-task :install_git_hooks do
-  system("cp hooks/pre-commit .git/hooks/pre-commit")
-  system("chmod u+x .git/hooks/pre-commit")
-  puts("pre-commit hook installed on .git/hooks/")
-end
-
-desc("Builds and archive a release version of tuist and tuistenv for local testing.")
-task :local_package do
-  package
-end
-
 desc("Builds, archives, and publishes tuist and tuistenv for release")
 task :release, [:version] do |_task, options|
   decrypt_secrets
@@ -39,24 +27,13 @@ task :release_scripts do
   release_scripts
 end
 
-desc("Encrypt secret keys")
-task :encrypt_secrets do
-  Encrypted::Environment.encrypt_ejson("secrets.ejson", private_key: ENV["SECRET_KEY"])
-end
-
-def decrypt_secrets
-  Encrypted::Environment.load_from_ejson("secrets.ejson", private_key: ENV["SECRET_KEY"])
-end
-
 def release_scripts
   bucket = storage.bucket("tuist-releases")
-  print_section("Uploading installation scripts to the tuist-releases bucket on GCS")
   bucket.create_file("script/install", "scripts/install").acl.public!
   bucket.create_file("script/uninstall", "scripts/uninstall").acl.public!
 end
 
 def package
-  print_section("Building tuist")
   FileUtils.mkdir_p("build")
   system("swift", "build", "--product", "tuist", "--configuration", "release")
   system(
@@ -126,8 +103,6 @@ def release(version)
 
   bucket = storage.bucket("tuist-releases")
 
-  print_section("Uploading to the tuist-releases bucket on GCS")
-
   bucket.create_file("build/tuist.zip", "#{version}/tuist.zip").acl.public!
   bucket.create_file("build/tuistenv.zip", "#{version}/tuistenv.zip").acl.public!
 
@@ -164,8 +139,4 @@ def storage
       client_x509_cert_url: ENV["GCS_CLIENT_X509_CERT_URL"],
     }
   )
-end
-
-def print_section(text)
-  puts(text.bold.green)
 end
