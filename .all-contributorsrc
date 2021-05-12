@@ -397,6 +397,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "iteracticman",
+      "name": "Peter Weishapl",
+      "avatar_url": "https://avatars.githubusercontent.com/u/461805?v=4",
+      "profile": "https://twitter.com/iteractive_man",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
