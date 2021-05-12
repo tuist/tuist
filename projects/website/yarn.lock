@@ -2547,14 +2547,6 @@
   resolved "https://registry.yarnpkg.com/@theme-ui/css/-/css-0.3.5.tgz#cfd228c74bcc7840a7fe9e507858486ee4d403dc"
   integrity sha512-XqsyXmifbnHOui1flSq4V7Lb3U+06Dbn2Q/leyr/cRd6Xgc0naiztdmD0MbXNvxgU51a2Ur9hyP4PnO5wE0yRg==
 
-"@theme-ui/css@0.7.5":
-  version "0.7.5"
-  resolved "https://registry.yarnpkg.com/@theme-ui/css/-/css-0.7.5.tgz#74ac68055fc12775766ed09f2870eb268e262400"
-  integrity sha512-RTg3UTJAZLnfa4cjaRGPpS/3+DnoCM1XrvjXinmbhNd2ECb66Jc3caYDZI6oHzUqriK/WZuu16ACde/qi20LAA==
-  dependencies:
-    "@emotion/react" "^11.1.1"
-    csstype "^3.0.5"
-
 "@theme-ui/css@0.8.4":
   version "0.8.4"
   resolved "https://registry.yarnpkg.com/@theme-ui/css/-/css-0.8.4.tgz#2539c8ccb52054d54593786e5f1e89f118e908c0"
@@ -15637,10 +15629,10 @@ slice-ansi@^2.1.0:
     astral-regex "^1.0.0"
     is-fullwidth-code-point "^2.0.0"
 
-slug@^5.0.0:
-  version "5.0.0"
-  resolved "https://registry.yarnpkg.com/slug/-/slug-5.0.0.tgz#d47dbabeba7578408bb9a1cd07daac4c660e7f1c"
-  integrity sha512-PW24qSh/Hrao5R4LEeJm6aBhQm2lwYDK4cZxncz0UuNApaNKmrtP6AAdNnIejRUEyBAE/7kfWbRFzlrqWmgqtw==
+slug@^5.0.1:
+  version "5.0.1"
+  resolved "https://registry.yarnpkg.com/slug/-/slug-5.0.1.tgz#de3bb7356b7aac39962be8453d32a0ecb49f65a1"
+  integrity sha512-2Jf7lg8IwV4yC93hdd009WJKrZHLB0lpNVHzGdlpgDgJixJuOlUHG/MaD446lQG2yjh7fQFrJeNW5agWvxMHCg==
 
 slugify@^1.4.4:
   version "1.4.7"
