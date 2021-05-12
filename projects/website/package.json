@@ -28,7 +28,7 @@
     "gatsby-image": "^3.4.0",
     "gatsby-plugin-favicon": "^3.1.6",
     "gatsby-plugin-feed": "^2.13.1",
-    "gatsby-plugin-manifest": "^3.4.0",
+    "gatsby-plugin-manifest": "^3.5.0",
     "gatsby-plugin-mdx": "^2.5.0",
     "gatsby-plugin-meta-redirect": "^1.1.1",
     "gatsby-plugin-netlify": "^2.11.0",
