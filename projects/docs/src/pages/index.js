@@ -1,6 +1,5 @@
 import React from 'react'
 import { Redirect, useLocation } from '@docusaurus/router'
-import config from '../../docusaurus.config'
 
 function Home() {
   const location = useLocation()
