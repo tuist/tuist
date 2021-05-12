@@ -6,7 +6,6 @@ require "cucumber"
 require "cucumber/rake/task"
 require "mkmf"
 require "fileutils"
-require "google/cloud/storage"
 require "encrypted/environment"
 require "colorize"
 require "highline"
@@ -115,28 +114,6 @@ def release(version)
   end
 end
 
-def system(*args)
-  Kernel.system(*args) || abort
-end
-
 def cli
   @cli ||= HighLine.new
-end
-
-def storage
-  @storage ||= Google::Cloud::Storage.new(
-    project_id: ENV["GCS_PROJECT_ID"],
-    credentials: {
-      type: ENV["GCS_TYPE"],
-      project_id: ENV["GCS_PROJECT_ID"],
-      private_key_id: ENV["GCS_PRIVATE_KEY_ID"],
-      private_key: ENV["GCS_PRIVATE_KEY"],
-      client_email: ENV["GCS_CLIENT_EMAIL"],
-      client_id: ENV["GCS_CLIENT_ID"],
-      auth_uri: ENV["GCS_AUTH_URI"],
-      token_uri: ENV["GCS_TOKEN_URI"],
-      auth_provider_x509_cert_url: ENV["GCS_AUTH_PROVIDER_X509_CERT_URL"],
-      client_x509_cert_url: ENV["GCS_CLIENT_X509_CERT_URL"],
-    }
-  )
 end
