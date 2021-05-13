@@ -12,6 +12,7 @@ Lint/MissingSuper:
   Enabled: false
 
 AllCops:
+  NewCops: enable
   TargetRubyVersion: 2.5
   DisplayCopNames: true
   DisplayStyleGuide: true
@@ -21,3 +22,5 @@ AllCops:
     - projects/fourier/**/*.rb
   Exclude:
     - vendor/**/*
+    - projects/website/node_modules/**/*
+    - projects/tuist/fixtures/**/*

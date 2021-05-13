@@ -361,6 +361,51 @@
       "contributions": [
         "bug"
       ]
+    },
+    {
+      "login": "tovkal",
+      "name": "Andrés Pizá Bückmann",
+      "avatar_url": "https://avatars.githubusercontent.com/u/5960675?v=4",
+      "profile": "http://twitter.com/tovkal",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "gcacoutinho",
+      "name": "Gabriel Coutinho",
+      "avatar_url": "https://avatars.githubusercontent.com/u/17842860?v=4",
+      "profile": "http://coutinho.dev",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "cipolleschi",
+      "name": "Riccardo",
+      "avatar_url": "https://avatars.githubusercontent.com/u/11162307?v=4",
+      "profile": "https://medium.com/@riccardocipolleschi",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "bolismauro",
+      "name": "Mauro Bolis",
+      "avatar_url": "https://avatars.githubusercontent.com/u/771999?v=4",
+      "profile": "https://github.com/bolismauro",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "iteracticman",
+      "name": "Peter Weishapl",
+      "avatar_url": "https://avatars.githubusercontent.com/u/461805?v=4",
+      "profile": "https://twitter.com/iteractive_man",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

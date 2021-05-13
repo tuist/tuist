@@ -9,9 +9,16 @@ let project = Project(name: "App",
                                infoPlist: "Info.plist",
                                sources: ["Sources/**"],
                                actions: [
-                                .pre(tool: "/bin/echo", arguments: ["\"tuist\""], name: "Tuist", inputPaths: ["Sources/**/*.swift"]),
+                                // Note there are acceptance tests verifying the first `pre` and last `post` action
+                                // additions not part of the acceptance test should be added in-between
+
+                                // first pre-action
+                                .pre(tool: "/bin/echo", arguments: ["\"tuist\""], name: "Tuist", inputPaths: ["Sources/**/*.swift"]), 
+                                .post(script: "echo 'Hello World from install build'", name: "Embedded script install build", runForInstallBuildsOnly: true),
+
+                                // last post-action
                                 .post(tool: "/bin/echo", arguments: ["rocks"], name: "Rocks"),
                                 .pre(path: "script.sh", name: "Run script"),
                                 .pre(script: "echo 'Hello World'", name: "Embedded script"),
-                              ]),
+                            ]),
                       ])

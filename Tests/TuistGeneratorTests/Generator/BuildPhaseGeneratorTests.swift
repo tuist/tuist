@@ -757,7 +757,8 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
                     order: .post,
                     script: .scriptPath(path.appending(component: "script.sh"), args: ["arg"]),
                     showEnvVarsInLog: false,
-                    basedOnDependencyAnalysis: false
+                    basedOnDependencyAnalysis: false,
+                    runForInstallBuildsOnly: true
                 ),
                 TargetAction(
                     name: "pre",
@@ -797,6 +798,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(preBuildPhase.shellScript, "\"$SRCROOT\"/script.sh arg")
         XCTAssertTrue(preBuildPhase.showEnvVarsInLog)
         XCTAssertFalse(preBuildPhase.alwaysOutOfDate)
+        XCTAssertFalse(preBuildPhase.runOnlyForDeploymentPostprocessing)
 
         let postBuildPhase = try XCTUnwrap(pbxTarget.buildPhases.last as? PBXShellScriptBuildPhase)
         XCTAssertEqual(postBuildPhase.name, "post")
@@ -804,6 +806,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(postBuildPhase.shellScript, "\"$SRCROOT\"/script.sh arg")
         XCTAssertFalse(postBuildPhase.showEnvVarsInLog)
         XCTAssertTrue(postBuildPhase.alwaysOutOfDate)
+        XCTAssertTrue(postBuildPhase.runOnlyForDeploymentPostprocessing)
     }
 
     func test_generateEmbedAppClipsBuildPhase() throws {
