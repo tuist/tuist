@@ -9,8 +9,8 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistSupportTesting
 
-final class PruneUITestsProjectMapperTests: TuistUnitTestCase {
-    private var subject: PruneUITestsProjectMapper!
+final class SkipUITestsProjectMapperTests: TuistUnitTestCase {
+    private var subject: SkipUITestsProjectMapper!
 
     override func setUp() {
         super.setUp()

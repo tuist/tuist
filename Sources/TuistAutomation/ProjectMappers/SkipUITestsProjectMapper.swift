@@ -3,7 +3,7 @@ import TSCBasic
 import TuistCore
 import TuistGraph
 
-public final class PruneUITestsProjectMapper: ProjectMapping {
+public final class SkipUITestsProjectMapper: ProjectMapping {
     public init() {}
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {

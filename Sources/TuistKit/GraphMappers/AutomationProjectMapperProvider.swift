@@ -42,7 +42,7 @@ final class AutomationProjectMapperProvider: ProjectMapperProviding {
 
         if skipUITests {
             mappers.append(
-                PruneUITestsProjectMapper()
+                SkipUITestsProjectMapper()
             )
         }
 

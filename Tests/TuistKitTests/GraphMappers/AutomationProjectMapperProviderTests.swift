@@ -54,7 +54,7 @@ final class AutomationProjectMapperProviderTests: TuistUnitTestCase {
             1
         )
         XCTAssertEqual(
-            sequentialProjectMapper.mappers.filter { $0 is PruneUITestsProjectMapper }.count,
+            sequentialProjectMapper.mappers.filter { $0 is SkipUITestsProjectMapper }.count,
             0
         )
     }
@@ -76,7 +76,7 @@ final class AutomationProjectMapperProviderTests: TuistUnitTestCase {
             1
         )
         XCTAssertEqual(
-            sequentialProjectMapper.mappers.filter { $0 is PruneUITestsProjectMapper }.count,
+            sequentialProjectMapper.mappers.filter { $0 is SkipUITestsProjectMapper }.count,
             0
         )
     }
@@ -105,7 +105,7 @@ final class AutomationProjectMapperProviderTests: TuistUnitTestCase {
             1
         )
         XCTAssertEqual(
-            sequentialProjectMapper.mappers.filter { $0 is PruneUITestsProjectMapper }.count,
+            sequentialProjectMapper.mappers.filter { $0 is SkipUITestsProjectMapper }.count,
             1
         )
     }
