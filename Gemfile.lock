@@ -114,8 +114,6 @@ GEM
     down (5.2.1)
       addressable (~> 2.5)
     ejson (1.2.1)
-    encrypted-environment (0.2.0)
-      ejson (~> 1.2)
     erubi (1.10.0)
     escape (0.0.4)
     ethon (0.14.0)
@@ -318,7 +316,7 @@ DEPENDENCIES
   colorize (~> 0.8.1)
   cucumber (~> 6.0)
   down (~> 5.2)
-  encrypted-environment (~> 0.2.0)
+  ejson (~> 1.2)
   google-cloud-storage (~> 1.31)
   highline (~> 2.0)
   minitest
