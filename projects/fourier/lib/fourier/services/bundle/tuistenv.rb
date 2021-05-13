@@ -4,6 +4,7 @@ module Fourier
     module Bundle
       class Tuistenv < Base
         def call
+          # system("swift", "build", "--product", "tuistenv", "--configuration", "release")
         end
       end
     end
