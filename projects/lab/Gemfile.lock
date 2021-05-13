@@ -93,8 +93,7 @@ GEM
     dotenv-rails (2.7.6)
       dotenv (= 2.7.6)
       railties (>= 3.2)
-    dry-cli (0.6.0)
-      concurrent-ruby (~> 1.0)
+    dry-cli (0.7.0)
     erubi (1.10.0)
     ffi (1.15.0)
     foreman (0.87.2)
@@ -250,11 +249,11 @@ GEM
     unicode-display_width (2.0.0)
     vite_plugin_legacy (0.5.5)
       vite_ruby (~> 1.0)
-    vite_rails (2.0.10)
+    vite_rails (2.0.11)
       railties (>= 5.1, < 8)
       vite_ruby (~> 1.0)
-    vite_ruby (1.2.5)
-      dry-cli (~> 0.6)
+    vite_ruby (1.2.11)
+      dry-cli (~> 0.7.0)
       rack-proxy (~> 0.6, >= 0.6.1)
       zeitwerk (~> 2.2)
     warden (1.2.9)
@@ -310,7 +309,7 @@ DEPENDENCIES
   turbolinks (~> 5)
   tzinfo-data
   vite_plugin_legacy (~> 0.5.5)
-  vite_rails (~> 2.0.10)
+  vite_rails (~> 2.0.11)
   web-console (>= 4.1.0)
   webdrivers
 
