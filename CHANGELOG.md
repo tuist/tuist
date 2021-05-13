@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Changed
+
+- Emit warning instead of error when provisioning profiles is expired. [#2919](https://github.com/tuist/tuist/pull/2919) by [@iteracticman](https://github.com/iteracticman)
+
 ## 1.42.0 - Builders
 
 ### Added
