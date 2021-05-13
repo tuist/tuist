@@ -9,7 +9,7 @@
     "@bugsnag/plugin-react": "^7.9.2",
     "react": "^17.0.1",
     "react-dom": "^17.0.1",
-    "theme-ui": "^0.8.3"
+    "theme-ui": "^0.8.4"
   },
   "devDependencies": {
     "@js-from-routes/client": "^1.0.2",
