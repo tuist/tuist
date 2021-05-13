@@ -67,7 +67,7 @@ struct TestCommand: ParsableCommand {
             path: absolutePath,
             deviceName: device,
             osVersion: os,
-            skipUiTests: skipUiTests
+            skipUITests: skipUiTests
         )
     }
 }

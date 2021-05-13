@@ -77,7 +77,7 @@ final class TestService {
         path: AbsolutePath,
         deviceName: String?,
         osVersion: String?,
-        skipUiTests: Bool
+        skipUITests: Bool
     ) throws {
         // Load config
         let manifestLoaderFactory = ManifestLoaderFactory()
@@ -95,7 +95,7 @@ final class TestService {
         let generator = testServiceGeneratorFactory.generator(
             automationPath: Environment.shared.automationPath ?? projectDirectory,
             testsCacheDirectory: testsCacheTemporaryDirectory.path,
-            skipUITests: skipUiTests
+            skipUITests: skipUITests
         )
         logger.notice("Generating project for testing", metadata: .section)
         let graph = try generator.generateWithGraph(

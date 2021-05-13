@@ -275,7 +275,7 @@ private extension TestService {
             path: path,
             deviceName: deviceName,
             osVersion: osVersion,
-            skipUiTests: skipUiTests
+            skipUITests: skipUiTests
         )
     }
 }
