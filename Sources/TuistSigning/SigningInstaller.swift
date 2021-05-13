@@ -59,7 +59,7 @@ final class SigningInstaller: SigningInstalling {
         )
 
         logger.debug("Installed provisioning profile \(provisioningProfileSourcePath.pathString) to \(provisioningProfilePath.pathString)")
-        
+
         return issues
     }
 
