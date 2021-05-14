@@ -406,6 +406,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "cruisediary",
+      "name": "Cruz",
+      "avatar_url": "https://avatars.githubusercontent.com/u/2609775?v=4",
+      "profile": "http://stackoverflow.com/users/1878594/swiftycruz",
+      "contributions": [
+        "content"
+      ]
     }
   ],
   "contributorsPerLine": 7,
