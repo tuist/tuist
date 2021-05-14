@@ -64,7 +64,7 @@ MacStadium supports this project by providing Mac mini hardware that we can use 
 
 ## Contribute 👩‍💻
 
-If you are interested in contributed to the project, our documentation has a section with resources for contributors. We recommend starting from [this page](https://tuist.io/docs/contribution/get-started/).
+If you are interested in contributed to the project, our documentation has a section with resources for contributors. We recommend starting from [this page](https://docs.tuist.io/contributors/get-started).
 
 ## Core Team ✨
 
