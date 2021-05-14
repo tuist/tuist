@@ -149,6 +149,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
   <tr>
     <td align="center"><a href="https://github.com/bolismauro"><img src="https://avatars.githubusercontent.com/u/771999?v=4" width="100px;" alt=""/><br /><sub><b>Mauro Bolis</b></sub></a></td>
     <td align="center"><a href="https://twitter.com/iteractive_man"><img src="https://avatars.githubusercontent.com/u/461805?v=4" width="100px;" alt=""/><br /><sub><b>Peter Weishapl</b></sub></a></td>
+    <td align="center"><a href="http://stackoverflow.com/users/1878594/swiftycruz"><img src="https://avatars.githubusercontent.com/u/2609775?v=4" width="100px;" alt=""/><br /><sub><b>Cruz</b></sub></a></td>
   </tr>
 </table>
 
