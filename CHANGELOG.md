@@ -8,11 +8,16 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Emit warning instead of error when provisioning profiles is expired. [#2919](https://github.com/tuist/tuist/pull/2919) by [@iteracticman](https://github.com/iteracticman)
 
+### Fixed
+
+- `.strings` Localization file synthesizers are now consistent and reproducible across multiple generations using the `developmentRegion` to choose the source one or defaulting to `en`. [#2887](https://github.com/tuist/tuist/pull/2887) by [@fila95](https://github.com/fila95)
+- Fix `tuist scaffold list` not listing plugin templates. [#2958](https://github.com/tuist/tuist/pull/2958) by [@danyf90](https://github.com/danyf90).
+
 ## 1.42.0 - Builders
 
 ### Added
 
-- Add support for `testPlan` inizialization with an array of `Path`. [#2837](https://github.com/tuist/tuist/pull/2837) by [@cipolleshi](https://github.com/cipolleschi)
+- Add support for `testPlan` initialization with an array of `Path`. [#2837](https://github.com/tuist/tuist/pull/2837) by [@cipolleschi](https://github.com/cipolleschi)
 - Add `tuist dependencies update` command. [#2819](https://github.com/tuist/tuist/pull/2819) by [@laxmorek](https://github.com/laxmorek)
 - Add `--build-output-path` option to `tuist build` [#2835](https://github.com/tuist/tuist/pull/2835) by [@Luis Padron](https://github.com/luispadron).
 
