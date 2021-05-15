@@ -117,7 +117,9 @@ extension Config.GenerationOptions {
             self = .enableCodeCoverage
         } else if container.allKeys.contains(.disablePackageVersionLocking), try container.decode(Bool.self, forKey: .disablePackageVersionLocking) {
             self = .disablePackageVersionLocking
-        } else if container.allKeys.contains(.resolveDependenciesWithSystemScm), try container.decode(Bool.self, forKey: .resolveDependenciesWithSystemScm) {
+        } else if container.allKeys.contains(.resolveDependenciesWithSystemScm),
+            try container.decode(Bool.self, forKey: .resolveDependenciesWithSystemScm)
+        {
             self = .resolveDependenciesWithSystemScm
         } else {
             throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown enum case"))

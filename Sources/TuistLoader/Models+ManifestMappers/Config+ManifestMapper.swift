@@ -27,7 +27,8 @@ extension TuistGraph.Config {
         }
 
         if let forcedCacheDirectiory = forcedCacheDirectiory {
-            cache = cache.map { TuistGraph.Cache(profiles: $0.profiles, path: forcedCacheDirectiory) } ?? TuistGraph.Cache(profiles: [], path: forcedCacheDirectiory)
+            cache = cache.map { TuistGraph.Cache(profiles: $0.profiles, path: forcedCacheDirectiory) }
+                ?? TuistGraph.Cache(profiles: [], path: forcedCacheDirectiory)
         }
 
         return TuistGraph.Config(
