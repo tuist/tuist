@@ -1,5 +1,7 @@
 inherit_gem:
   rubocop-shopify: rubocop.yml
+  rubocop-rails_config:
+    - config/rails.yml
 require:
   - rubocop-rake
   - rubocop-minitest
@@ -20,7 +22,13 @@ AllCops:
     - Gemfile
     - Rakefile
     - projects/fourier/**/*.rb
+    - projects/lab/**/*.rb
+
   Exclude:
     - vendor/**/*
     - projects/website/node_modules/**/*
     - projects/tuist/fixtures/**/*
+    - projects/lab/node_modules/**/*
+    - projects/lab/vendor/**/*
+    - projects/lab/db/schema.rb
+    - projects/lab/bin/**/*

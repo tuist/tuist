@@ -33,11 +33,6 @@ group :development do
   # gem "rack-mini-profiler", "~> 2.0"
   gem "spring"
   gem "web-console", ">= 4.1.0"
-  gem "rubocop", "~> 1.14"
-  gem "rubocop-rails", "~> 2.10.1"
-  gem "rubocop-rails_config"
-  gem "rubocop-shopify", "~> 2.1"
-  gem "rubocop-rake", "~> 0.5.1"
 end
 
 group :test do

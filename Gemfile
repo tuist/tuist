@@ -31,6 +31,9 @@ group :development do
   gem "rubocop-shopify"
   gem "rubocop-minitest", "~> 0.12.1"
   gem "rubocop-rake", "~> 0.5.1"
+  gem "rubocop", "~> 1.14"
+  gem "rubocop-rails", "~> 2.10.1"
+  gem "rubocop-rails_config"
 end
 
 group :development, :test do
