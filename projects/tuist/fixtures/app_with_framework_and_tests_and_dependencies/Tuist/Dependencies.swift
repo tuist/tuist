@@ -3,7 +3,7 @@ import ProjectDescription
 let dependencies = Dependencies(
     carthage: .carthage(
         [
-            .github(path: "Alamofire/Alamofire", requirement: .exact("5.0.4"))
+            .github(path: "Moya/Moya", requirement: .exact("14.0.1"))
         ],
         options: [
             .useXCFrameworks,
