@@ -28,7 +28,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_fetch() throws {
+    func test_install_when_shouldNotBeUpdated() throws {
         // Given
         let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
         let dependenciesDirectory = rootPath
@@ -117,10 +117,10 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.fetch(
+        try subject.install(
             dependenciesDirectory: dependenciesDirectory,
             dependencies: depedencies,
-            swiftToolsVersion: swiftToolsVersion
+            shouldUpdate: false
         )
 
         // Then
@@ -153,7 +153,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         XCTAssertFalse(swiftPackageManagerController.invokedUpdate)
     }
 
-    func test_update() throws {
+    func test_install_when_shouldBeUpdated() throws {
         // Given
         let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
         let dependenciesDirectory = rootPath
@@ -179,10 +179,10 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.update(
+        try subject.install(
             dependenciesDirectory: dependenciesDirectory,
             dependencies: depedencies,
-            swiftToolsVersion: nil
+            shouldUpdate: true
         )
 
         // Then

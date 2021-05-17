@@ -73,38 +73,21 @@ public final class DependenciesController: DependenciesControlling {
         self.swiftPackageManagerInteractor = swiftPackageManagerInteractor
     }
 
-    public func fetch(at path: AbsolutePath, dependencies: Dependencies, swiftVersion: String?) throws {
-        let dependenciesDirectory = path
-            .appending(component: Constants.tuistDirectoryName)
-            .appending(component: Constants.DependenciesDirectory.name)
-        let platforms = dependencies.platforms
-
-        guard !platforms.isEmpty else {
-            throw DependenciesControllerError.noPlatforms
-        }
-
-        if let carthageDepedencies = dependencies.carthage, !carthageDepedencies.dependencies.isEmpty {
-            try carthageInteractor.fetch(
-                dependenciesDirectory: dependenciesDirectory,
-                dependencies: carthageDepedencies,
-                platforms: platforms
-            )
-        } else {
-            try carthageInteractor.clean(dependenciesDirectory: dependenciesDirectory)
-        }
-
-        if let swiftPackageManagerDependencies = dependencies.swiftPackageManager, !swiftPackageManagerDependencies.packages.isEmpty {
-            try swiftPackageManagerInteractor.fetch(
-                dependenciesDirectory: dependenciesDirectory,
-                dependencies: swiftPackageManagerDependencies,
-                swiftToolsVersion: swiftVersion
-            )
-        } else {
-            try swiftPackageManagerInteractor.clean(dependenciesDirectory: dependenciesDirectory)
-        }
+    public func fetch(at path: AbsolutePath, dependencies: Dependencies) throws {
+        try install(at: path, dependencies: dependencies, shouldUpdate: false)
     }
 
-    public func update(at path: AbsolutePath, dependencies: Dependencies, swiftVersion: String?) throws {
+    public func update(at path: AbsolutePath, dependencies: Dependencies) throws {
+        try install(at: path, dependencies: dependencies, shouldUpdate: true)
+    }
+    
+    // MARK: - Helpers
+    
+    private func install(
+        at path: AbsolutePath,
+        dependencies: Dependencies,
+        shouldUpdate: Bool
+    ) throws {
         let dependenciesDirectory = path
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
@@ -113,22 +96,23 @@ public final class DependenciesController: DependenciesControlling {
         guard !platforms.isEmpty else {
             throw DependenciesControllerError.noPlatforms
         }
-
+        
         if let carthageDepedencies = dependencies.carthage, !carthageDepedencies.dependencies.isEmpty {
-            try carthageInteractor.update(
+            try carthageInteractor.install(
                 dependenciesDirectory: dependenciesDirectory,
                 dependencies: carthageDepedencies,
-                platforms: platforms
+                platforms: platforms,
+                shouldUpdate: shouldUpdate
             )
         } else {
             try carthageInteractor.clean(dependenciesDirectory: dependenciesDirectory)
         }
 
         if let swiftPackageManagerDependencies = dependencies.swiftPackageManager, !swiftPackageManagerDependencies.packages.isEmpty {
-            try swiftPackageManagerInteractor.update(
+            try swiftPackageManagerInteractor.install(
                 dependenciesDirectory: dependenciesDirectory,
                 dependencies: swiftPackageManagerDependencies,
-                swiftToolsVersion: swiftVersion
+                shouldUpdate: shouldUpdate
             )
         } else {
             try swiftPackageManagerInteractor.clean(dependenciesDirectory: dependenciesDirectory)

@@ -52,26 +52,17 @@ enum CarthageInteractorError: FatalError, Equatable {
 // MARK: - Carthage Interacting
 
 public protocol CarthageInteracting {
-    /// Fetches `Carthage` dependencies.
+    /// Installes `Carthage` dependencies
     /// - Parameters:
     ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
-    ///   - dependencies: List of dependencies to fetch using `Carthage`.
-    ///   - platforms: List of platforms for which you want to fetch dependencies.
-    func fetch(
+    ///   - dependencies:  List of dependencies to install using `Carthage`.
+    ///   - platforms: List of platforms for which you want to install dependencies.
+    ///   - shouldUpdate: Indicates whether dependencies should be updated or fetched basing on the `Tuist/Lockfiles/Cartfile.resolved` lockfile.
+    func install(
         dependenciesDirectory: AbsolutePath,
         dependencies: CarthageDependencies,
-        platforms: Set<Platform>
-    ) throws
-
-    /// Updates `Carthage` dependencies.
-    /// - Parameters:
-    ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
-    ///   - dependencies: List of dependencies to update using `Carthage`.
-    ///   - platforms: List of platforms for which you want to update dependencies.
-    func update(
-        dependenciesDirectory: AbsolutePath,
-        dependencies: CarthageDependencies,
-        platforms: Set<Platform>
+        platforms: Set<Platform>,
+        shouldUpdate: Bool
     ) throws
 
     /// Removes all cached `Carthage` dependencies.
@@ -93,60 +84,14 @@ public final class CarthageInteractor: CarthageInteracting {
         self.carthageController = carthageController
     }
 
-    public func fetch(
-        dependenciesDirectory: AbsolutePath,
-        dependencies: CarthageDependencies,
-        platforms: Set<Platform>
-    ) throws {
-        logger.info("Resolving and fetching Carthage dependencies.", metadata: .subsection)
-
-        try install(
-            dependenciesDirectory: dependenciesDirectory,
-            dependencies: dependencies,
-            platforms: platforms,
-            shouldUpdate: false
-        )
-
-        logger.info("Carthage dependencies resolved and fetched successfully.", metadata: .subsection)
-    }
-
-    public func update(
-        dependenciesDirectory: AbsolutePath,
-        dependencies: CarthageDependencies,
-        platforms: Set<Platform>
-    ) throws {
-        logger.info("Updating Carthage dependencies.", metadata: .subsection)
-
-        try install(
-            dependenciesDirectory: dependenciesDirectory,
-            dependencies: dependencies,
-            platforms: platforms,
-            shouldUpdate: true
-        )
-
-        logger.info("Carthage dependencies updated successfully.", metadata: .subsection)
-    }
-
-    public func clean(dependenciesDirectory: AbsolutePath) throws {
-        let carthageDirectory = dependenciesDirectory
-            .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
-        let cartfileResolvedPath = dependenciesDirectory
-            .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
-            .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
-
-        try fileHandler.delete(carthageDirectory)
-        try fileHandler.delete(cartfileResolvedPath)
-    }
-
-    // MARK: - Installation
-
-    /// Installs given `dependencies` at `dependenciesDirectory`.
-    private func install(
+    public func install(
         dependenciesDirectory: AbsolutePath,
         dependencies: CarthageDependencies,
         platforms: Set<Platform>,
         shouldUpdate: Bool
     ) throws {
+        logger.info("Installing Carthage dependencies.", metadata: .subsection)
+
         // check availability of `carthage`
         guard carthageController.canUseSystemCarthage() else {
             throw CarthageInteractorError.carthageNotFound
@@ -185,7 +130,22 @@ public final class CarthageInteractor: CarthageInteracting {
             // post installation
             try saveDepedencies(pathsProvider: pathsProvider)
         }
+
+        logger.info("Carthage dependencies installed successfully.", metadata: .subsection)
     }
+
+    public func clean(dependenciesDirectory: AbsolutePath) throws {
+        let carthageDirectory = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
+        let cartfileResolvedPath = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
+            .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
+
+        try fileHandler.delete(carthageDirectory)
+        try fileHandler.delete(cartfileResolvedPath)
+    }
+
+    // MARK: - Installation
 
     /// Loads lockfile and dependencies into working directory if they had been saved before.
     private func loadDependencies(pathsProvider: CarthagePathsProvider, dependencies: CarthageDependencies) throws {

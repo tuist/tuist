@@ -6,28 +6,17 @@ import TuistGraph
 public final class MockCarthageInteractor: CarthageInteracting {
     public init() {}
 
-    var invokedFetch = false
-    var fetchStub: ((AbsolutePath, CarthageDependencies, Set<Platform>) throws -> Void)?
+    var invokedInstall = false
+    var installStub: ((AbsolutePath, CarthageDependencies, Set<Platform>, Bool) throws -> Void)?
 
-    public func fetch(
+    public func install(
         dependenciesDirectory: AbsolutePath,
         dependencies: CarthageDependencies,
-        platforms: Set<Platform>
+        platforms: Set<Platform>,
+        shouldUpdate: Bool
     ) throws {
-        invokedFetch = true
-        try fetchStub?(dependenciesDirectory, dependencies, platforms)
-    }
-
-    var invokedUpdate = false
-    var updateStub: ((AbsolutePath, CarthageDependencies, Set<Platform>) throws -> Void)?
-
-    public func update(
-        dependenciesDirectory: AbsolutePath,
-        dependencies: CarthageDependencies,
-        platforms: Set<Platform>
-    ) throws {
-        invokedUpdate = true
-        try updateStub?(dependenciesDirectory, dependencies, platforms)
+        invokedInstall = true
+        try installStub?(dependenciesDirectory, dependencies, platforms, shouldUpdate)
     }
 
     var invokedClean = false

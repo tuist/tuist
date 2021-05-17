@@ -5,10 +5,10 @@ import TSCBasic
 public struct DependenciesGraph: Equatable, Codable {
 //    /// A dictionary that contains the one-to-many dependencies that represent the graph.
 //    public var dependencies: [DependenciesGraphDependency: Set<DependenciesGraphDependency>]
-//    
+//
     /// Create an instance of `DependenciesGraph` model.
     public init(
-//        dependencies: [DependenciesGraphDependency: Set<DependenciesGraphDependency>]
+        //        dependencies: [DependenciesGraphDependency: Set<DependenciesGraphDependency>]
     ) {
 //        self.dependencies = dependencies
     }
