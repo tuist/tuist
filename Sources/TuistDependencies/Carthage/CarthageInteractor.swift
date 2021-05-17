@@ -98,7 +98,7 @@ public final class CarthageInteractor: CarthageInteracting {
         dependencies: CarthageDependencies,
         platforms: Set<Platform>
     ) throws {
-        logger.info("Resolving and fetching Carthage dependencies.", metadata: .section)
+        logger.info("Resolving and fetching Carthage dependencies.", metadata: .subsection)
 
         try install(
             dependenciesDirectory: dependenciesDirectory,
@@ -115,7 +115,7 @@ public final class CarthageInteractor: CarthageInteracting {
         dependencies: CarthageDependencies,
         platforms: Set<Platform>
     ) throws {
-        logger.info("Updating Carthage dependencies.", metadata: .section)
+        logger.info("Updating Carthage dependencies.", metadata: .subsection)
 
         try install(
             dependenciesDirectory: dependenciesDirectory,

@@ -81,7 +81,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
     ) throws {
         logger.warning("Support for Swift Package Manager dependencies is currently being worked on and is not ready to be used yet.")
 
-        logger.info("Resolving and fetching Swift Package Manager dependencies.", metadata: .section)
+        logger.info("Resolving and fetching Swift Package Manager dependencies.", metadata: .subsection)
 
         try install(
             dependenciesDirectory: dependenciesDirectory,
@@ -100,7 +100,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
     ) throws {
         logger.warning("Support for Swift Package Manager dependencies is currently being worked on and is not ready to be used yet.")
 
-        logger.info("Updating Swift Package Manager dependencies.", metadata: .section)
+        logger.info("Updating Swift Package Manager dependencies.", metadata: .subsection)
 
         try install(
             dependenciesDirectory: dependenciesDirectory,
