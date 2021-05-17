@@ -58,6 +58,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         }
 
         // When
+        #warning("LAXMOREK WIP: Test output")
         try subject.install(
             dependenciesDirectory: dependenciesDirectory,
             dependencies: stubbedDependencies,
@@ -152,6 +153,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         }
 
         // When
+        #warning("LAXMOREK WIP: Test output")
         try subject.install(
             dependenciesDirectory: dependenciesDirectory,
             dependencies: stubbedDependencies,

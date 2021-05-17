@@ -58,12 +58,13 @@ public protocol CarthageInteracting {
     ///   - dependencies:  List of dependencies to install using `Carthage`.
     ///   - platforms: List of platforms for which you want to install dependencies.
     ///   - shouldUpdate: Indicates whether dependencies should be updated or fetched basing on the `Tuist/Lockfiles/Cartfile.resolved` lockfile.
+    /// - Returns: A graph that represents dependencies installed using `Carthage`.
     func install(
         dependenciesDirectory: AbsolutePath,
         dependencies: CarthageDependencies,
         platforms: Set<Platform>,
         shouldUpdate: Bool
-    ) throws
+    ) throws -> DependenciesGraph
 
     /// Removes all cached `Carthage` dependencies.
     /// - Parameter dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
@@ -89,7 +90,7 @@ public final class CarthageInteractor: CarthageInteracting {
         dependencies: CarthageDependencies,
         platforms: Set<Platform>,
         shouldUpdate: Bool
-    ) throws {
+    ) throws -> DependenciesGraph {
         logger.info("Installing Carthage dependencies.", metadata: .subsection)
 
         // check availability of `carthage`
@@ -132,6 +133,9 @@ public final class CarthageInteractor: CarthageInteracting {
         }
 
         logger.info("Carthage dependencies installed successfully.", metadata: .subsection)
+        
+        #warning("LAXMOREK WIP: Generate dependencies grah")
+        return DependenciesGraph()
     }
 
     public func clean(dependenciesDirectory: AbsolutePath) throws {
