@@ -7,6 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Changed
 
 - Emit warning instead of error when provisioning profiles is expired. [#2919](https://github.com/tuist/tuist/pull/2919) by [@iteracticman](https://github.com/iteracticman)
+- Updated the required Ruby version to 3.0.1 [#2961](https://github.com/tuist/tuist/pull/2961) by [@pepibumur](https://github.com/pepibumur)
 
 ## 1.42.0 - Builders
 
