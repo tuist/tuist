@@ -22,13 +22,13 @@ AllCops:
     - Gemfile
     - Rakefile
     - projects/fourier/**/*.rb
-    - projects/lab-api/**/*.rb
+    - projects/lab-backend/**/*.rb
 
   Exclude:
     - vendor/**/*
     - projects/website/node_modules/**/*
     - projects/tuist/fixtures/**/*
-    - projects/lab-api/node_modules/**/*
-    - projects/lab-api/vendor/**/*
-    - projects/lab-api/db/schema.rb
-    - projects/lab-api/bin/**/*
+    - projects/lab-backend/node_modules/**/*
+    - projects/lab-backend/vendor/**/*
+    - projects/lab-backend/db/schema.rb
+    - projects/lab-backend/bin/**/*
