@@ -7,24 +7,26 @@ module Fourier
     module Bundle
       class Tuist < Base
         attr_reader :output_directory
+        attr_reader :build_directory
 
-        def initialize(output_directory:)
+        def initialize(output_directory:, build_directory: nil)
           @output_directory = output_directory
+          @build_directory = build_directory
         end
 
         def call
           output_directory = File.expand_path("build", Constants::ROOT_DIRECTORY) if output_directory.nil?
           FileUtils.mkdir_p(output_directory) unless Dir.exist?(output_directory)
 
-          Dir.mktmpdir do |tmp_dir|
+          in_build_directory do |build_directory|
             Utilities::Output.section("Building Tuist...")
-            build_tuist(build_directory: tmp_dir)
+            build_tuist(build_directory: build_directory)
 
             Utilities::Output.section("Building ProjectAutomation...")
             build_project_automation(build_directory: tmp_dir)
 
             Utilities::Output.section("Building ProjectDescription...")
-            build_project_description(build_directory: tmp_dir)
+            build_project_description(build_directory: build_directory)
 
             Dir.mktmpdir do |vendor_directory|
               FileUtils.cp_r(
@@ -41,7 +43,7 @@ module Fourier
                 "ProjectAutomation.swiftmodule", "ProjectAutomation.swiftdoc", "ProjectAutomation.swiftinterface"
               ].each do |file|
                 FileUtils.cp(
-                  File.expand_path("release/#{file}", tmp_dir),
+                  File.expand_path("release/#{file}", build_directory),
                   File.expand_path(file, vendor_directory)
                 )
               end
@@ -69,6 +71,16 @@ module Fourier
         end
 
         private
+          def in_build_directory
+            unless build_directory.nil?
+              yield(build_directory)
+            else
+              Dir.mktmpdir do |tmp_dir|
+                yield(tmp_dir)
+              end
+            end
+          end
+
           def build_tuist(build_directory:)
             Utilities::System.system(
               "swift", "build",
