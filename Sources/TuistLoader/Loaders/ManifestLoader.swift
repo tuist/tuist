@@ -250,7 +250,9 @@ public class ManifestLoader: ManifestLoading {
             "-lProjectDescription",
             "-framework", "ProjectDescription",
         ]
-        let projectDescriptionHelpersCacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories(config: nil).projectDescriptionHelpersCacheDirectory
+        let projectDescriptionHelpersCacheDirectory = try cacheDirectoryProviderFactory
+            .cacheDirectories(config: nil)
+            .projectDescriptionHelpersCacheDirectory
 
         let projectDescriptionHelperArguments: [String] = try {
             switch manifest {
@@ -263,16 +265,18 @@ public class ManifestLoader: ManifestLoading {
                  .setup,
                  .template,
                  .workspace:
-                return try projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(cacheDirectory: projectDescriptionHelpersCacheDirectory).build(
-                    at: path,
-                    projectDescriptionSearchPaths: searchPaths,
-                    projectDescriptionHelperPlugins: plugins.projectDescriptionHelpers
-                ).flatMap { [
-                    "-I", $0.path.parentDirectory.pathString,
-                    "-L", $0.path.parentDirectory.pathString,
-                    "-F", $0.path.parentDirectory.pathString,
-                    "-l\($0.name)",
-                ] }
+                return try projectDescriptionHelpersBuilderFactory
+                    .projectDescriptionHelpersBuilder(cacheDirectory: projectDescriptionHelpersCacheDirectory)
+                    .build(
+                        at: path,
+                        projectDescriptionSearchPaths: searchPaths,
+                        projectDescriptionHelperPlugins: plugins.projectDescriptionHelpers
+                    ).flatMap { [
+                        "-I", $0.path.parentDirectory.pathString,
+                        "-L", $0.path.parentDirectory.pathString,
+                        "-F", $0.path.parentDirectory.pathString,
+                        "-l\($0.name)",
+                    ] }
             }
         }()
 

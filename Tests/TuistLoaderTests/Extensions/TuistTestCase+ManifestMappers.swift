@@ -19,8 +19,8 @@ extension TuistTestCase {
         XCTAssertEqual(settings.base.count, manifest.base.count, file: file, line: line)
 
         let sortedConfigurations = settings.configurations.sorted { (l, r) -> Bool in l.key.name < r.key.name }
-        let sortedManifsetConfigurations = manifest.configurations.sorted(by: { $0.name < $1.name })
-        for (configuration, manifestConfiguration) in zip(sortedConfigurations, sortedManifsetConfigurations) {
+        let sortedManifestConfigurations = manifest.configurations.sorted(by: { $0.name < $1.name })
+        for (configuration, manifestConfiguration) in zip(sortedConfigurations, sortedManifestConfigurations) {
             XCTAssertBuildConfigurationMatchesManifest(configuration: configuration, matches: manifestConfiguration, at: path, generatorPaths: generatorPaths, file: file, line: line)
         }
     }
