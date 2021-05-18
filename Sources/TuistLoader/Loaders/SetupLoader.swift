@@ -33,7 +33,7 @@ public class SetupLoader: SetupLoading {
     /// Linter for up commands.
     private let upLinter: UpLinting
 
-    /// Manifset loader instance to load the setup.
+    /// Manifest loader instance to load the setup.
     private let manifestLoader: ManifestLoading
 
     /// Locator for `Setup.swift` file
@@ -51,7 +51,7 @@ public class SetupLoader: SetupLoading {
     ///
     /// - Parameters:
     ///   - upLinter: Linter for up commands.
-    ///   - manifestLoader: Manifset loader instance to load the setup.
+    ///   - manifestLoader: Manifest loader instance to load the setup.
     ///   - manifestFilesLocator: Locator for `Setup.swift` file
     init(upLinter: UpLinting,
          manifestLoader: ManifestLoading,
