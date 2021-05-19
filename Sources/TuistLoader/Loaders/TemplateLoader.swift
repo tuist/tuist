@@ -73,6 +73,8 @@ extension TuistGraph.Template.Contents {
             return .string(contents)
         case let .file(templatePath):
             return .file(try generatorPaths.resolve(path: templatePath))
+        case let .directory(sourcePath):
+            return .directory(try generatorPaths.resolve(path: sourcePath))
         }
     }
 }

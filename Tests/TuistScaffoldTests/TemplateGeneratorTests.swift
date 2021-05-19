@@ -83,7 +83,7 @@ final class TemplateGeneratorTests: TuistTestCase {
             switch $0.contents {
             case let .string(staticContent):
                 content = staticContent
-            case .file:
+            case .file, .directory:
                 XCTFail("Unexpected type")
                 return nil
             }

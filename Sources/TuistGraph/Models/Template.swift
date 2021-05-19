@@ -40,6 +40,7 @@ public struct Template: Equatable {
     public enum Contents: Equatable {
         case string(String)
         case file(AbsolutePath)
+        case directory(AbsolutePath)
     }
 
     public struct File: Equatable {

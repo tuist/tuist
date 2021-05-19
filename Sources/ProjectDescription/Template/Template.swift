@@ -27,6 +27,9 @@ public struct Template: Codable, Equatable {
         /// File content is defined in a different file from `name_of_template.swift`
         /// Can contain additional logic and anything that is defined in `ProjectDescriptionHelpers`
         case file(Path)
+        /// Directory content is defined in a path
+        /// It is just for copying files without modifications and logic inside
+        case directory(Path)
 
         private enum CodingKeys: String, CodingKey {
             case type
@@ -42,6 +45,9 @@ public struct Template: Codable, Equatable {
             } else if type == "file" {
                 let value = try container.decode(Path.self, forKey: .value)
                 self = .file(value)
+            } else if type == "directory" {
+                let value = try container.decode(Path.self, forKey: .value)
+                self = .directory(value)
             } else {
                 fatalError("Argument '\(type)' not supported")
             }
@@ -56,6 +62,9 @@ public struct Template: Codable, Equatable {
                 try container.encode(contents, forKey: .value)
             case let .file(path):
                 try container.encode("file", forKey: .type)
+                try container.encode(path, forKey: .value)
+            case let .directory(path):
+                try container.encode("directory", forKey: .type)
                 try container.encode(path, forKey: .value)
             }
         }
@@ -130,6 +139,14 @@ public extension Template.File {
     /// - Returns: `Template.File` that is `.file`
     static func file(path: String, templatePath: Path) -> Template.File {
         Template.File(path: path, contents: .file(templatePath))
+    }
+
+    /// - Parameters:
+    ///     - path: Path where will be copied the folder
+    ///     - sourcePath: Path of folder which will be copied
+    /// - Returns: `Template.File` that is `.file`
+    static func directory(path: String, sourcePath: Path) -> Template.File {
+        Template.File(path: path, contents: .directory(sourcePath))
     }
 }
 

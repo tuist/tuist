@@ -150,8 +150,24 @@ public class FileHandler: FileHandling {
     }
 
     public func copy(from: AbsolutePath, to: AbsolutePath) throws {
+        if isFolder(from) {
+            try copyFolder(from: from, to: to)
+        } else {
+            try copyFile(from: from, to: to)
+        }
+    }
+
+    private func copyFile(from: AbsolutePath, to: AbsolutePath) throws {
         logger.debug("Copying file from \(from) to \(to)")
         try fileManager.copyItem(atPath: from.pathString, toPath: to.pathString)
+    }
+
+    private func copyFolder(from: AbsolutePath, to: AbsolutePath) throws {
+        logger.debug("Copying content folder from \(from) to \(to)")
+        try contentsOfDirectory(from)
+            .forEach {
+                try copy(from: $0, to: to)
+            }
     }
 
     public func move(from: AbsolutePath, to: AbsolutePath) throws {

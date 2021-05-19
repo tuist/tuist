@@ -107,6 +107,9 @@ public final class TemplateGenerator: TemplateGenerating {
                 } else {
                     renderedContents = fileContents
                 }
+            case let .directory(path):
+                try FileHandler.shared.copy(from: path, to: destinationPath)
+                renderedContents = ""
             }
             // Generate file only when it has some content
             guard !renderedContents.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
