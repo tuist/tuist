@@ -1001,10 +1001,10 @@ error-stack-parser@^2.0.2, error-stack-parser@^2.0.3:
   dependencies:
     stackframe "^1.1.1"
 
-esbuild@^0.11.20:
-  version "0.11.20"
-  resolved "https://registry.yarnpkg.com/esbuild/-/esbuild-0.11.20.tgz#7cefa1aee8b372c184e42457885f7ce5d3e62a1e"
-  integrity sha512-QOZrVpN/Yz74xfat0H6euSgn3RnwLevY1mJTEXneukz1ln9qB+ieaerRMzSeETpz/UJWsBMzRVR/andBht5WKw==
+esbuild@^0.11.23:
+  version "0.11.23"
+  resolved "https://registry.yarnpkg.com/esbuild/-/esbuild-0.11.23.tgz#c42534f632e165120671d64db67883634333b4b8"
+  integrity sha512-iaiZZ9vUF5wJV8ob1tl+5aJTrwDczlvGP0JoMmnpC2B0ppiMCu8n8gmy5ZTGl5bcG081XBVn+U+jP+mPFm5T5Q==
 
 escalade@^3.1.1:
   version "3.1.1"
@@ -2030,12 +2030,12 @@ vite-plugin-ruby@^2.0.4:
     debug "^4.3.1"
     fast-glob "^3.2.4"
 
-vite@^2.3.2:
-  version "2.3.2"
-  resolved "https://registry.yarnpkg.com/vite/-/vite-2.3.2.tgz#cfac76b04d4dee1c7303b55f563b5b62d32f41fe"
-  integrity sha512-QhLdOompDrfkyryCNTts9HE+eJhvhN9ibKNJ5Q8DpQai+6nOsuIlaveZNg67e1O/2QaWqXeBo82eHnAs1De2bQ==
+vite@^2.3.3:
+  version "2.3.3"
+  resolved "https://registry.yarnpkg.com/vite/-/vite-2.3.3.tgz#7e88a71abd03985c647789938d784cce0ee3b0fd"
+  integrity sha512-eO1iwRbn3/BfkNVMNJDeANAFCZ5NobYOFPu7IqfY7DcI7I9nFGjJIZid0EViTmLDGwwSUPmRAq3cRBbO3+DsMA==
   dependencies:
-    esbuild "^0.11.20"
+    esbuild "^0.11.23"
     postcss "^8.2.10"
     resolve "^1.19.0"
     rollup "^2.38.5"
