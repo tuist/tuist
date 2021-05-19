@@ -112,6 +112,9 @@ module Fourier
       Services::Check.call
     end
 
+    desc "release", "Release the Tuist"
+    subcommand "release", Commands::Release
+
     def self.exit_on_failure?
       true
     end
