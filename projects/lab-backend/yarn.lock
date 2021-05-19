@@ -649,10 +649,10 @@
   dependencies:
     csstype "^3.0.2"
 
-"@vitejs/plugin-legacy@^1.3.4":
-  version "1.3.4"
-  resolved "https://registry.yarnpkg.com/@vitejs/plugin-legacy/-/plugin-legacy-1.3.4.tgz#0618bc2e92af97deb07dfb2d32b7aa2528123d66"
-  integrity sha512-T6+eo9Je05i45atk/e2ONiaULf5IFYgQ7UOQN9mu9lITVk9Oxe7v5h56vN8ZsN1g52/UBXRlG99nQw4CgKJFDQ==
+"@vitejs/plugin-legacy@^1.4.0":
+  version "1.4.0"
+  resolved "https://registry.yarnpkg.com/@vitejs/plugin-legacy/-/plugin-legacy-1.4.0.tgz#1cf30419d75e841d3fe31384b84179d69b5b8a3c"
+  integrity sha512-QcAdw/NkMBjESgyhzOoErQ7O6vAlb81Ij+gsWQqPdf0uwWCWxXgn1eHDGq03bBxl6ZBzfo7hYKYH5hgG6boZrw==
   dependencies:
     "@babel/standalone" "^7.13.12"
     core-js "^3.8.2"
