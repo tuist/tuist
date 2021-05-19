@@ -1,4 +1,4 @@
-name: Lab
+name: Lab Backend
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - main
   pull_request:
     paths:
-      - projects/lab/**
+      - projects/lab-backend-api/**
       - .github/workflows/lab.yml
 
 env:
@@ -40,14 +40,14 @@ jobs:
           bundler-cache: true
           ruby-version: ${{ env.RUBY_VERSION }}
       - name: Install dependencies
-        working-directory: projects/lab
+        working-directory: projects/lab-backend
         run: |
           sudo apt-get -yqq install libpq-dev
           gem install bundler
           bundle config path vendor/bundle
           bundle install --jobs=4 --retry=3
       - name: Set up database (to detect schema breaking changes)
-        working-directory: projects/lab
+        working-directory: projects/lab-backend
         run: |
           cp config/database.ci.yml config/database.yml
           bundle exec rails db:create
@@ -55,10 +55,10 @@ jobs:
       - name: Increase watchers
         run: echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf && sudo sysctl -p
       - name: Migrate database
-        working-directory: projects/lab
+        working-directory: projects/lab-backend
         run: bin/rails db:migrate
       - name: Run Ruby tests
-        working-directory: projects/lab
+        working-directory: projects/lab-backend
         run: |
           bundle exec rails test
   assets_precompile:
@@ -83,7 +83,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-yarn-
       - name: Install dependencies
-        working-directory: projects/lab
+        working-directory: projects/lab-backend
         run: |
           sudo apt-get -yqq install libpq-dev
           gem install bundler
@@ -91,7 +91,7 @@ jobs:
           bundle install --jobs=4 --retry=3
           yarn install --frozen-lockfile
       - name: Precompile assets
-        working-directory: projects/lab
+        working-directory: projects/lab-backend
         run: |
           bin/rails assets:precompile
   frontend_type_check:
@@ -111,10 +111,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-yarn-
       - name: Install dependencies
-        working-directory: projects/lab
+        working-directory: projects/lab-backend
         run: |
           yarn install --frozen-lockfile
       - name: Type-check
-        working-directory: projects/lab
+        working-directory: projects/lab-backend
         run: |
           yarn run type-check

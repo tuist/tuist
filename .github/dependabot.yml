@@ -47,7 +47,7 @@ updates:
       - dependencies
       - automerge
   - package-ecosystem: npm
-    directory: '/projects/lab'
+    directory: '/projects/lab-backend'
     schedule:
       interval: monthly
       time: '11:00'
@@ -58,7 +58,7 @@ updates:
       - dependencies
       - automerge
   - package-ecosystem: bundler
-    directory: '/projects/lab'
+    directory: '/projects/lab-backend'
     schedule:
       interval: monthly
       time: '11:00'
