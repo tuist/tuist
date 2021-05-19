@@ -4,7 +4,7 @@ source "https://rubygems.org"
 
 ruby "3.0.1"
 
-gem "cucumber", "~> 6.0"
+gem "cucumber", "~> 6.1"
 gem "rake", "~> 13.0"
 gem "simctl", "~> 1.6"
 gem "encrypted-environment", "~> 0.2.0"
