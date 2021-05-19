@@ -3,9 +3,9 @@ require "google/cloud/storage"
 
 module Fourier
   module Utilities
-    class GoogleCloudStorage < Google::Cloud::Storage
-      def initialize(environment: ENV)
-        super(
+    class GoogleCloudStorage
+      def self.new(environment: ENV)
+        Google::Cloud::Storage.new(
           project_id: ENV["GCS_PROJECT_ID"],
           credentials: {
             type: ENV["GCS_TYPE"],

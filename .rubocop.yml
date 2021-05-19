@@ -3,7 +3,6 @@ inherit_gem:
   rubocop-rails_config:
     - config/rails.yml
 require:
-  - rubocop-rake
   - rubocop-minitest
 
 Style/ClassAndModuleChildren:
@@ -20,7 +19,6 @@ AllCops:
   DisplayStyleGuide: true
   Include:
     - Gemfile
-    - Rakefile
     - projects/fourier/**/*.rb
 
   Exclude:
