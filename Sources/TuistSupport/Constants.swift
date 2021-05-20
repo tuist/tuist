@@ -13,6 +13,7 @@ public enum Constants {
 
     public static let helpersDirectoryName: String = "ProjectDescriptionHelpers"
     public static let signingDirectoryName: String = "Signing"
+    public static let tasksDirectoryName: String = "Tasks"
 
     public static let masterKey = "master.key"
     public static let encryptedExtension = "encrypted"

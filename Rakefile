@@ -68,6 +68,15 @@ def package
     "-Xswiftc", "-emit-module-interface-path",
     "-Xswiftc", ".build/release/ProjectDescription.swiftinterface"
   )
+  system(
+    "swift", "build",
+    "--product", "ProjectAutomation",
+    "--configuration", "release",
+    "-Xswiftc", "-enable-library-evolution",
+    "-Xswiftc", "-emit-module-interface",
+    "-Xswiftc", "-emit-module-interface-path",
+    "-Xswiftc", ".build/release/ProjectAutomation.swiftinterface"
+  )
   system("swift", "build", "--product", "tuistenv", "--configuration", "release")
 
   build_templates_path = File.join(__dir__, ".build/release/Templates")
@@ -91,6 +100,10 @@ def package
       "ProjectDescription.swiftdoc",
       "libProjectDescription.dylib",
       "ProjectDescription.swiftinterface",
+      "ProjectAutomation.swiftmodule",
+      "ProjectAutomation.swiftdoc",
+      "libProjectAutomation.dylib",
+      "ProjectAutomation.swiftinterface",
       "Templates",
       "vendor",
       "script"
