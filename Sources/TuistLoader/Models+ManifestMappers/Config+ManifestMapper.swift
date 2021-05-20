@@ -17,8 +17,8 @@ extension TuistGraph.Config {
         let plugins = try manifest.plugins.map { try PluginLocation.from(manifest: $0, generatorPaths: generatorPaths) }
 
         var lab: TuistGraph.Lab?
-        if let manifestCloud = manifest.lab {
-            lab = try TuistGraph.Lab.from(manifest: manifestCloud)
+        if let manifestLab = manifest.lab {
+            lab = try TuistGraph.Lab.from(manifest: manifestLab)
         }
 
         var cache: TuistGraph.Cache?

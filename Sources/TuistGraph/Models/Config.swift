@@ -47,7 +47,7 @@ public struct Config: Equatable, Hashable {
     ///
     /// - Parameters:
     ///   - compatibleXcodeVersions: List of Xcode versions the project or set of projects is compatible with.
-    ///   - lab: Cloud configuration.
+    ///   - lab: Lab configuration.
     ///   - plugins: List of locations to a `Plugin` manifest.
     ///   - generationOptions: Generation options.
     ///   - path: The path of the config file.

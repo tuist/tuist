@@ -6,35 +6,35 @@ import TuistGraph
 import TuistSupport
 
 enum LabManifestMapperError: FatalError {
-    /// Thrown when the cloud URL is invalid.
-    case invalidCloudURL(String)
+    /// Thrown when the lab URL is invalid.
+    case invalidLabURL(String)
 
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .invalidCloudURL: return .abort
+        case .invalidLabURL: return .abort
         }
     }
 
     /// Error description.
     var description: String {
         switch self {
-        case let .invalidCloudURL(url):
-            return "The cloud URL '\(url)' is not a valid URL"
+        case let .invalidLabURL(url):
+            return "The lab URL '\(url)' is not a valid URL"
         }
     }
 }
 
 extension TuistGraph.Lab {
     static func from(manifest: ProjectDescription.Lab) throws -> TuistGraph.Lab {
-        var cloudURL: URL!
-        if let manifestCloudURL = URL(string: manifest.url) {
-            cloudURL = manifestCloudURL
+        var labURL: URL!
+        if let manifestLabURL = URL(string: manifest.url) {
+            labURL = manifestLabURL
         } else {
-            throw LabManifestMapperError.invalidCloudURL(manifest.url)
+            throw LabManifestMapperError.invalidLabURL(manifest.url)
         }
         let options = manifest.options.map(TuistGraph.Lab.Option.from)
-        return TuistGraph.Lab(url: cloudURL, projectId: manifest.projectId, options: options)
+        return TuistGraph.Lab(url: labURL, projectId: manifest.projectId, options: options)
     }
 }
 

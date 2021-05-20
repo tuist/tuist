@@ -25,7 +25,7 @@ public struct TuistCommand: ParsableCommand {
                 CreateIssueCommand.self,
                 ScaffoldCommand.self,
                 InitCommand.self,
-                CloudCommand.self,
+                LabCommand.self,
                 CacheCommand.self,
                 SigningCommand.self,
                 MigrationCommand.self,

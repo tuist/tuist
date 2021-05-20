@@ -4,7 +4,7 @@ import RxSwift
 import TSCBasic
 import TuistAutomation
 import TuistCache
-import TuistCloud
+import TuistLab
 import TuistCore
 import TuistGenerator
 import TuistGraph
