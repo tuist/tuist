@@ -22,7 +22,7 @@ final class LabAuthServiceErrorTests: TuistUnitTestCase {
         let got = subject.description
 
         // Then
-        XCTAssertEqual(got, "The cloud URL attribute is missing in your project's configuration.")
+        XCTAssertEqual(got, "The lab URL attribute is missing in your project's configuration.")
     }
 
     func test_type_when_missingCloudURL() {
