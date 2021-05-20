@@ -18,14 +18,14 @@ protocol CloudCacheResourceFactorying {
 }
 
 class CloudCacheResourceFactory: CloudCacheResourceFactorying {
-    private let cloudConfig: Cloud
+    private let labConfig: Lab
 
-    init(cloudConfig: Cloud) {
-        self.cloudConfig = cloudConfig
+    init(labConfig: Lab) {
+        self.labConfig = labConfig
     }
 
     func existsResource(hash: String) throws -> CloudExistsResource {
-        let url = try apiCacheURL(hash: hash, cacheURL: cloudConfig.url, projectId: cloudConfig.projectId)
+        let url = try apiCacheURL(hash: hash, cacheURL: labConfig.url, projectId: labConfig.projectId)
         var request = URLRequest(url: url)
         request.httpMethod = "HEAD"
         return HTTPResource(
@@ -38,8 +38,8 @@ class CloudCacheResourceFactory: CloudCacheResourceFactorying {
     func fetchResource(hash: String) throws -> CloudCacheResource {
         let url = try apiCacheURL(
             hash: hash,
-            cacheURL: cloudConfig.url,
-            projectId: cloudConfig.projectId
+            cacheURL: labConfig.url,
+            projectId: labConfig.projectId
         )
         return HTTPResource.jsonResource(for: url, httpMethod: "GET")
     }
@@ -47,8 +47,8 @@ class CloudCacheResourceFactory: CloudCacheResourceFactorying {
     func storeResource(hash: String, contentMD5: String) throws -> CloudCacheResource {
         let url = try apiCacheURL(
             hash: hash,
-            cacheURL: cloudConfig.url,
-            projectId: cloudConfig.projectId,
+            cacheURL: labConfig.url,
+            projectId: labConfig.projectId,
             contentMD5: contentMD5
         )
         return HTTPResource.jsonResource(for: url, httpMethod: "POST")
@@ -57,8 +57,8 @@ class CloudCacheResourceFactory: CloudCacheResourceFactorying {
     func verifyUploadResource(hash: String, contentMD5: String) throws -> CloudVerifyUploadResource {
         let url = try apiCacheVerifyUploadURL(
             hash: hash,
-            cacheURL: cloudConfig.url,
-            projectId: cloudConfig.projectId,
+            cacheURL: labConfig.url,
+            projectId: labConfig.projectId,
             contentMD5: contentMD5
         )
         return HTTPResource.jsonResource(for: url, httpMethod: "POST")

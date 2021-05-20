@@ -1,26 +1,26 @@
 import Foundation
 
-/// Cloud represents the configuration to connect to the server.
-public struct Cloud: Equatable, Hashable {
-    /// Cloud option.
+/// Lab represents the configuration to connect to the server.
+public struct Lab: Equatable, Hashable {
+    /// Lab option.
     public enum Option: String, Codable, Equatable {
         case insights
     }
 
-    /// The base URL that points to the cloud server
+    /// The base URL that points to the lab server
     public let url: URL
 
     /// The project unique identifier.
     public let projectId: String
 
-    /// Cloud options.
+    /// Lab options.
     public let options: [Option]
 
-    /// Initializes an instance of Cloud.
+    /// Initializes an instance of Lab.
     /// - Parameters:
-    ///   - url: Cloud server base URL.
+    ///   - url: Lab server base URL.
     ///   - projectId: Project unique identifier.
-    ///   - options: Cloud options.
+    ///   - options: Lab options.
     public init(url: URL, projectId: String, options: [Option]) {
         self.url = url
         self.projectId = projectId

@@ -60,9 +60,9 @@ final class CloudAuthService: CloudAuthServicing {
     func authenticate() throws {
         let path = FileHandler.shared.currentPath
         let config = try configLoader.loadConfig(path: path)
-        guard let cloudURL = config.cloud?.url else {
+        guard let labURL = config.lab?.url else {
             throw CloudAuthServiceError.missingCloudURL
         }
-        try cloudSessionController.authenticate(serverURL: cloudURL)
+        try cloudSessionController.authenticate(serverURL: labURL)
     }
 }

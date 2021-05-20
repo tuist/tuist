@@ -34,8 +34,8 @@ final class CloudHTTPRequestAuthenticatorTests: TuistUnitTestCase {
         // Given
         ciChecker.isCIStub = true
         let token = "TOKEN"
-        environmentVariables[Constants.EnvironmentVariables.cloudToken] = token
-        let request = URLRequest(url: URL(string: "https://cloud.tuist.io/path")!)
+        environmentVariables[Constants.EnvironmentVariables.labToken] = token
+        let request = URLRequest(url: URL(string: "https://lab.tuist.io/path")!)
 
         // When
         let got = try subject.authenticate(request: request)
@@ -49,8 +49,8 @@ final class CloudHTTPRequestAuthenticatorTests: TuistUnitTestCase {
         ciChecker.isCIStub = false
         let token = "TOKEN"
         let credentials = Credentials(token: token, account: "test")
-        try credentialsStore.store(credentials: credentials, serverURL: URL(string: "https://cloud.tuist.io")!)
-        let request = URLRequest(url: URL(string: "https://cloud.tuist.io/path")!)
+        try credentialsStore.store(credentials: credentials, serverURL: URL(string: "https://lab.tuist.io")!)
+        let request = URLRequest(url: URL(string: "https://lab.tuist.io/path")!)
 
         // When
         let got = try subject.authenticate(request: request)

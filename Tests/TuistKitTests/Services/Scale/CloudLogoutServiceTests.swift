@@ -62,7 +62,7 @@ final class CloudLogoutServiceTests: TuistUnitTestCase {
     func test_printSession_when_cloudURL_is_missing() {
         // Given
         configLoader.loadConfigStub = { _ in
-            Config.test(cloud: nil)
+            Config.test(lab: nil)
         }
 
         // Then
@@ -71,15 +71,15 @@ final class CloudLogoutServiceTests: TuistUnitTestCase {
 
     func test_printSession() throws {
         // Given
-        let cloudURL = URL.test()
+        let labURL = URL.test()
         configLoader.loadConfigStub = { _ in
-            Config.test(cloud: Cloud(url: cloudURL, projectId: "123", options: []))
+            Config.test(lab: Lab(url: labURL, projectId: "123", options: []))
         }
 
         // When
         try subject.logout()
 
         // Then
-        XCTAssertTrue(cloudSessionController.logoutArgs.contains(cloudURL))
+        XCTAssertTrue(cloudSessionController.logoutArgs.contains(labURL))
     }
 }

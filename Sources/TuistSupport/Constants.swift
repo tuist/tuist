@@ -61,7 +61,7 @@ public enum Constants {
         public static let forceConfigCacheDirectory = "TUIST_FORCE_CONFIG_CACHE_DIRECTORY"
         public static let automationPath = "TUIST_AUTOMATION_PATH"
         public static let queueDirectory = "TUIST_QUEUE_DIRECTORY"
-        public static let cloudToken = "TUIST_CLOUD_TOKEN"
+        public static let labToken = "TUIST_LAB_TOKEN"
         public static let cacheManifests = "TUIST_CACHE_MANIFESTS"
         public static let statsOptOut = "TUIST_STATS_OPT_OUT"
     }

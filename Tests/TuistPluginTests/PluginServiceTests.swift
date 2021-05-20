@@ -244,7 +244,7 @@ final class PluginServiceTests: TuistTestCase {
     private func mockConfig(plugins: [TuistGraph.PluginLocation]) -> TuistGraph.Config {
         Config(
             compatibleXcodeVersions: .all,
-            cloud: nil,
+            lab: nil,
             cache: nil,
             plugins: plugins,
             generationOptions: [],

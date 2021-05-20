@@ -61,9 +61,9 @@ final class CloudLogoutService: CloudLogoutServicing {
     func logout() throws {
         let path = FileHandler.shared.currentPath
         let config = try configLoader.loadConfig(path: path)
-        guard let cloudURL = config.cloud?.url else {
+        guard let labURL = config.lab?.url else {
             throw CloudLogoutServiceError.missingCloudURL
         }
-        try cloudSessionController.logout(serverURL: cloudURL)
+        try cloudSessionController.logout(serverURL: labURL)
     }
 }

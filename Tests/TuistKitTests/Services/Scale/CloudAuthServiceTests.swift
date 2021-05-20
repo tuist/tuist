@@ -62,7 +62,7 @@ final class CloudAuthServiceTests: TuistUnitTestCase {
     func test_authenticate_when_cloudURL_is_missing() {
         // Given
         configLoader.loadConfigStub = { _ in
-            Config.test(cloud: nil)
+            Config.test(lab: nil)
         }
 
         // Then
@@ -71,15 +71,15 @@ final class CloudAuthServiceTests: TuistUnitTestCase {
 
     func test_authenticate() throws {
         // Given
-        let cloudURL = URL.test()
+        let labURL = URL.test()
         configLoader.loadConfigStub = { _ in
-            Config.test(cloud: Cloud(url: cloudURL, projectId: "123", options: []))
+            Config.test(lab: Lab(url: labURL, projectId: "123", options: []))
         }
 
         // When
         try subject.authenticate()
 
         // Then
-        XCTAssertTrue(cloudSessionController.authenticateArgs.contains(cloudURL))
+        XCTAssertTrue(cloudSessionController.authenticateArgs.contains(labURL))
     }
 }

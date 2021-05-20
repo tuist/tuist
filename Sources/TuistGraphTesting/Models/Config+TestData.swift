@@ -4,7 +4,7 @@ import TSCBasic
 
 public extension Config {
     static func test(compatibleXcodeVersions: CompatibleXcodeVersions = .all,
-                     cloud: Cloud? = Cloud.test(),
+                     lab: Lab? = Lab.test(),
                      cache: Cache? = Cache.test(),
                      plugins: [PluginLocation] = [],
                      generationOptions: [GenerationOption] = [],
@@ -12,7 +12,7 @@ public extension Config {
     {
         Config(
             compatibleXcodeVersions: compatibleXcodeVersions,
-            cloud: cloud,
+            lab: lab,
             cache: cache,
             plugins: plugins,
             generationOptions: generationOptions,

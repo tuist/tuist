@@ -5,7 +5,7 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
-enum CloudManifestMapperError: FatalError {
+enum LabManifestMapperError: FatalError {
     /// Thrown when the cloud URL is invalid.
     case invalidCloudURL(String)
 
@@ -25,21 +25,21 @@ enum CloudManifestMapperError: FatalError {
     }
 }
 
-extension TuistGraph.Cloud {
-    static func from(manifest: ProjectDescription.Cloud) throws -> TuistGraph.Cloud {
+extension TuistGraph.Lab {
+    static func from(manifest: ProjectDescription.Lab) throws -> TuistGraph.Lab {
         var cloudURL: URL!
         if let manifestCloudURL = URL(string: manifest.url) {
             cloudURL = manifestCloudURL
         } else {
-            throw CloudManifestMapperError.invalidCloudURL(manifest.url)
+            throw LabManifestMapperError.invalidCloudURL(manifest.url)
         }
-        let options = manifest.options.map(TuistGraph.Cloud.Option.from)
-        return TuistGraph.Cloud(url: cloudURL, projectId: manifest.projectId, options: options)
+        let options = manifest.options.map(TuistGraph.Lab.Option.from)
+        return TuistGraph.Lab(url: cloudURL, projectId: manifest.projectId, options: options)
     }
 }
 
-extension TuistGraph.Cloud.Option {
-    static func from(manifest: ProjectDescription.Cloud.Option) -> TuistGraph.Cloud.Option {
+extension TuistGraph.Lab.Option {
+    static func from(manifest: ProjectDescription.Lab.Option) -> TuistGraph.Lab.Option {
         switch manifest {
         case .insights:
             return .insights

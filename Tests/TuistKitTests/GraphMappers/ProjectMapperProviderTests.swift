@@ -32,7 +32,7 @@ final class ProjectMapperProviderTests: TuistUnitTestCase {
 
         // When
         let got = subject.mapper(
-            config: Config.test(cloud: .test(options: []))
+            config: Config.test(lab: .test(options: []))
         )
 
         // Then

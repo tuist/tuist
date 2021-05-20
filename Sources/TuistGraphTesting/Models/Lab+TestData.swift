@@ -3,11 +3,11 @@ import TSCBasic
 import TuistSupportTesting
 @testable import TuistGraph
 
-public extension Cloud {
+public extension Lab {
     static func test(url: URL = URL.test(),
                      projectId: String = "123",
-                     options: [Cloud.Option] = []) -> Cloud
+                     options: [Lab.Option] = []) -> Lab
     {
-        Cloud(url: url, projectId: projectId, options: options)
+        Lab(url: url, projectId: projectId, options: options)
     }
 }

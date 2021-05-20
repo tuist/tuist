@@ -17,8 +17,8 @@ final class CacheStorageProvider: CacheStorageProviding {
     func storages() throws -> [CacheStoring] {
         let cacheDirectoriesProvider = try cacheDirectoryProviderFactory.cacheDirectories(config: config)
         var storages: [CacheStoring] = [CacheLocalStorage(cacheDirectoriesProvider: cacheDirectoriesProvider)]
-        if let cloudConfig = config.cloud {
-            let storage = CacheRemoteStorage(cloudConfig: cloudConfig, cloudClient: CloudClient(), cacheDirectoriesProvider: cacheDirectoriesProvider)
+        if let cloudConfig = config.lab {
+            let storage = CacheRemoteStorage(labConfig: cloudConfig, cloudClient: CloudClient(), cacheDirectoriesProvider: cacheDirectoriesProvider)
             storages.append(storage)
         }
         return storages
