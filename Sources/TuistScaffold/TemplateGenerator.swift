@@ -89,7 +89,7 @@ public final class TemplateGenerator: TemplateGenerating {
     {
         let environment = stencilSwiftEnvironment()
         try renderedFiles.forEach {
-            let renderedContents: String
+            let renderedContents: String?
             switch $0.contents {
             case let .string(contents):
                 renderedContents = try environment.renderTemplate(
@@ -108,13 +108,18 @@ public final class TemplateGenerator: TemplateGenerating {
                     renderedContents = fileContents
                 }
             case let .directory(path):
-                try FileHandler.shared.copy(from: path, to: destinationPath)
-                renderedContents = ""
+                let destinationContainerPath = destinationPath.appending(components: [$0.path.pathString, path.basename])
+
+                if FileHandler.shared.exists(destinationContainerPath) {
+                    try FileHandler.shared.delete(destinationContainerPath)
+                }
+                try FileHandler.shared.copy(from: path, to: destinationContainerPath)
+                renderedContents = nil
             }
             // Generate file only when it has some content
-            guard !renderedContents.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            guard let rendered = renderedContents, !rendered.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
             try FileHandler.shared.write(
-                renderedContents,
+                rendered,
                 path: destinationPath.appending($0.path),
                 atomically: true
             )
