@@ -415,6 +415,15 @@
       "contributions": [
         "content"
       ]
+    },
+    {
+      "login": "svenmuennich",
+      "name": "Sven Münnich",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1932115?v=4",
+      "profile": "https://github.com/svenmuennich",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
