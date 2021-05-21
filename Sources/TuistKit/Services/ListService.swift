@@ -1,6 +1,8 @@
 import Foundation
 import TSCBasic
+import TuistGraph
 import TuistLoader
+import TuistPlugin
 import TuistScaffold
 import TuistSupport
 
@@ -12,12 +14,19 @@ class ListService {
         case json
     }
 
+    private let configLoader: ConfigLoading
+    private let pluginService: PluginServicing
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateLoader: TemplateLoading
 
-    init(templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
-         templateLoader: TemplateLoading = TemplateLoader())
-    {
+    init(
+        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
+        pluginService: PluginServicing = PluginService(),
+        templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
+        templateLoader: TemplateLoading = TemplateLoader()
+    ) {
+        self.configLoader = configLoader
+        self.pluginService = pluginService
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.templateLoader = templateLoader
     }
@@ -25,7 +34,8 @@ class ListService {
     func run(path: String?, outputFormat format: OutputFormat) throws {
         let path = self.path(path)
 
-        let templateDirectories = try templatesDirectoryLocator.templateDirectories(at: path)
+        let plugins = try loadPlugins(at: path)
+        let templateDirectories = try locateTemplateDirectories(at: path, plugins: plugins)
         let templates: [PrintableTemplate] = try templateDirectories.map { path in
             let template = try templateLoader.loadTemplate(at: path)
             return PrintableTemplate(name: path.basename, description: template.description)
@@ -60,6 +70,23 @@ class ListService {
             let json = try templates.toJSON()
             return json.toString(prettyPrint: true)
         }
+    }
+
+    private func loadPlugins(at path: AbsolutePath) throws -> Plugins {
+        let config = try configLoader.loadConfig(path: path)
+        return try pluginService.loadPlugins(using: config)
+    }
+
+    /// Locates all template directories, local, system, and plugin.
+    /// - Parameter path: The path where the command is being executed.
+    /// - Returns: A list of template directories
+    private func locateTemplateDirectories(
+        at path: AbsolutePath,
+        plugins: Plugins
+    ) throws -> [AbsolutePath] {
+        let templateRelativeDirectories = try templatesDirectoryLocator.templateDirectories(at: path)
+        let templatePluginDirectories = plugins.templateDirectories
+        return templateRelativeDirectories + templatePluginDirectories
     }
 }
 

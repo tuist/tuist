@@ -21,16 +21,16 @@
   "dependencies": {
     "@mdx-js/mdx": "^1.6.22",
     "@mdx-js/react": "^1.6.22",
+    "@stitches/react": "^0.1.9",
     "gatsby": "^2.32.13",
     "gatsby-image": "^3.5.0",
     "gatsby-plugin-manifest": "^2.12.1",
-    "gatsby-plugin-mdx": "^2.5.0",
+    "gatsby-plugin-mdx": "^2.5.1",
     "gatsby-plugin-next-seo": "^1.7.0",
     "gatsby-plugin-offline": "^3.10.2",
     "gatsby-plugin-react-helmet": "^3.10.0",
     "gatsby-plugin-sharp": "^2.14.4",
     "gatsby-plugin-sitemap": "^2.12.0",
-    "gatsby-plugin-theme-ui": "^0.8.4",
     "gatsby-plugin-typescript": "^2.12.1",
     "gatsby-plugin-web-font-loader": "^1.0.4",
     "gatsby-source-filesystem": "^2.11.1",
@@ -40,7 +40,6 @@
     "react-dom": "^17.0.2",
     "react-helmet": "^6.1.0",
     "react-helmet-async": "^1.0.9",
-    "theme-ui": "^0.8.4",
     "typescript": "^4.2.4"
   },
   "devDependencies": {
