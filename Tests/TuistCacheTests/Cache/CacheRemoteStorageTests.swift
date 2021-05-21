@@ -1,10 +1,10 @@
 import RxSwift
 import TSCBasic
 import TuistCacheTesting
-import TuistLab
 import TuistCore
 import TuistGraph
 import TuistGraphTesting
+import TuistLab
 import TuistSupport
 import XCTest
 

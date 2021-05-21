@@ -61,7 +61,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         let xcframeworkPath = try XCTUnwrap(FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").first)
         let infoPlist = try self.infoPlist(xcframeworkPath: xcframeworkPath)
         XCTAssertNotNil(infoPlist.availableLibraries.first(where: { library in
-          library.supportedArchitectures.contains("x86_64") || library.supportedArchitectures.contains("arm64")
+            library.supportedArchitectures.contains("x86_64") || library.supportedArchitectures.contains("arm64")
         }))
         XCTAssertTrue(infoPlist.availableLibraries.allSatisfy { $0.supportedPlatform == "macos" })
         try FileHandler.shared.delete(xcframeworkPath)

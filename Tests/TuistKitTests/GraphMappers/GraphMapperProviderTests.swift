@@ -1,9 +1,9 @@
 import Foundation
 import TuistCache
-import TuistLab
 import TuistCore
 import TuistCoreTesting
 import TuistGenerator
+import TuistLab
 import TuistSigning
 import TuistSupport
 import XCTest

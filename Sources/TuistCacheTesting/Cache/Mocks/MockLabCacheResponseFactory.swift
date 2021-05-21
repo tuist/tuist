@@ -1,7 +1,7 @@
 import Foundation
-import TuistLab
 import TuistCore
 import TuistGraph
+import TuistLab
 import TuistSupport
 import TuistSupportTesting
 @testable import TuistCache

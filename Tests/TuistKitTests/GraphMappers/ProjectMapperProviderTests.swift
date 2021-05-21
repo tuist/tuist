@@ -1,10 +1,10 @@
 import Foundation
 import TuistCache
-import TuistLab
 import TuistCoreTesting
 import TuistGenerator
 import TuistGraph
 import TuistGraphTesting
+import TuistLab
 import TuistSupport
 import XCTest
 

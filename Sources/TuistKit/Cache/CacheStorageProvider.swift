@@ -1,8 +1,8 @@
 import Foundation
 import TuistCache
-import TuistLab
 import TuistCore
 import TuistGraph
+import TuistLab
 import TuistLoader
 
 final class CacheStorageProvider: CacheStorageProviding {
@@ -18,9 +18,11 @@ final class CacheStorageProvider: CacheStorageProviding {
         let cacheDirectoriesProvider = try cacheDirectoryProviderFactory.cacheDirectories(config: config)
         var storages: [CacheStoring] = [CacheLocalStorage(cacheDirectoriesProvider: cacheDirectoriesProvider)]
         if let labConfig = config.lab {
-            let storage = CacheRemoteStorage(labConfig: labConfig,
-                                             labClient: LabClient(),
-                                             cacheDirectoriesProvider: cacheDirectoriesProvider)
+            let storage = CacheRemoteStorage(
+                labConfig: labConfig,
+                labClient: LabClient(),
+                cacheDirectoriesProvider: cacheDirectoriesProvider
+            )
             storages.append(storage)
         }
         return storages

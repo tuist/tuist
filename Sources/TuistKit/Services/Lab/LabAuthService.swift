@@ -1,6 +1,6 @@
 import Foundation
-import TuistLab
 import TuistCore
+import TuistLab
 import TuistLoader
 import TuistSupport
 
