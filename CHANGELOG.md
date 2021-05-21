@@ -4,7 +4,11 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
-## 1.43.0
+## 1.43.0 - Peroxide
+
+### Added
+
+- Add Tasks [#2816](https://github.com/tuist/tuist/pull/2816) by [@fortmarek](https://github.com/fortmarek)
 
 ### Changed
 
