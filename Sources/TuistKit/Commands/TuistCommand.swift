@@ -32,6 +32,7 @@ public struct TuistCommand: ParsableCommand {
                 CleanCommand.self,
                 DocCommand.self,
                 DependenciesCommand.self,
+                ExecCommand.self,
             ]
         )
     }
@@ -52,6 +53,9 @@ public struct TuistCommand: ParsableCommand {
             }
             if processedArguments.first == InitCommand.configuration.commandName {
                 try InitCommand.preprocess(processedArguments)
+            }
+            if processedArguments.first == ExecCommand.configuration.commandName {
+                try ExecCommand.preprocess(processedArguments)
             }
             command = try parseAsRoot(processedArguments)
         } catch {

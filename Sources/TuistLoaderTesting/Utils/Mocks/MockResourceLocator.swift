@@ -10,6 +10,11 @@ public final class MockResourceLocator: ResourceLocating {
     public var embedPathCount: UInt = 0
     public var embedPathStub: (() throws -> AbsolutePath)?
 
+    public var projectAutomationStub: (() throws -> AbsolutePath)?
+    public func projectAutomation() throws -> AbsolutePath {
+        try projectAutomationStub?() ?? AbsolutePath("/")
+    }
+
     public func projectDescription() throws -> AbsolutePath {
         projectDescriptionCount += 1
         return try projectDescriptionStub?() ?? AbsolutePath("/")

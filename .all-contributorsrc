@@ -415,6 +415,24 @@
       "contributions": [
         "content"
       ]
+    },
+    {
+      "login": "svenmuennich",
+      "name": "Sven Münnich",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1932115?v=4",
+      "profile": "https://github.com/svenmuennich",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "santi-d",
+      "name": "Santiago A. Delgado",
+      "avatar_url": "https://avatars.githubusercontent.com/u/993826?v=4",
+      "profile": "https://github.com/santi-d",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

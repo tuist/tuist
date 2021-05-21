@@ -11,7 +11,7 @@ extension Config {
 
 extension Template {
     public static func test(description: String = "Template",
-                            attributes: [Template.Attribute] = [],
+                            attributes: [Attribute] = [],
                             files: [Template.File] = []) -> Template
     {
         Template(

@@ -81,12 +81,5 @@ module.exports = {
         },
       },
     },
-    {
-      resolve: 'gatsby-plugin-theme-ui',
-      options: {
-        prismPreset: 'dracula',
-        preset: '@theme-ui/preset-funk',
-      },
-    },
   ],
 }
