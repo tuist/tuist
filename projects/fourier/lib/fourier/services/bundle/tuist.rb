@@ -23,7 +23,7 @@ module Fourier
             build_tuist(build_directory: build_directory)
 
             Utilities::Output.section("Building ProjectAutomation...")
-            build_project_automation(build_directory: tmp_dir)
+            build_project_automation(build_directory: build_directory)
 
             Utilities::Output.section("Building ProjectDescription...")
             build_project_description(build_directory: build_directory)
