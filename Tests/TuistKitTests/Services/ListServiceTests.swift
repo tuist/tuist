@@ -105,7 +105,7 @@ final class ListServiceTests: TuistUnitTestCase {
 
         let pluginTemplatePath = try temporaryPath().appending(component: "PluginTemplate")
         pluginService.loadPluginsStub = { _ in
-          Plugins.test(templatePaths: [pluginTemplatePath])
+            Plugins.test(templatePaths: [pluginTemplatePath])
         }
 
         templatesDirectoryLocator.templateDirectoriesStub = { _ in
