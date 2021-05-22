@@ -16,8 +16,6 @@ public struct SwiftPackageManagerDependencies: Equatable {
     /// **NOTE** It is a temporary solution until Apple resolves: https://forums.swift.org/t/pitch-package-editor-commands/42224
     public func manifestValue() -> String {
         """
-        // swift-tools-version:5.3
-
         import PackageDescription
 
         let package = Package(
