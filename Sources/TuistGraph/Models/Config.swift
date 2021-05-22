@@ -29,8 +29,8 @@ public struct Config: Equatable, Hashable {
     /// List of Xcode versions the project or set of projects is compatible with.
     public let compatibleXcodeVersions: CompatibleXcodeVersions
 
-    /// Cloud configuration.
-    public let cloud: Cloud?
+    /// Lab configuration.
+    public let lab: Lab?
 
     /// Cache configuration.
     public let cache: Cache?
@@ -40,26 +40,26 @@ public struct Config: Equatable, Hashable {
 
     /// Returns the default Tuist configuration.
     public static var `default`: Config {
-        Config(compatibleXcodeVersions: .all, cloud: nil, cache: nil, plugins: [], generationOptions: [], path: nil)
+        Config(compatibleXcodeVersions: .all, lab: nil, cache: nil, plugins: [], generationOptions: [], path: nil)
     }
 
     /// Initializes the tuist cofiguration.
     ///
     /// - Parameters:
     ///   - compatibleXcodeVersions: List of Xcode versions the project or set of projects is compatible with.
-    ///   - cloud: Cloud configuration.
+    ///   - lab: Lab configuration.
     ///   - plugins: List of locations to a `Plugin` manifest.
     ///   - generationOptions: Generation options.
     ///   - path: The path of the config file.
     public init(compatibleXcodeVersions: CompatibleXcodeVersions,
-                cloud: Cloud?,
+                lab: Lab?,
                 cache: Cache?,
                 plugins: [PluginLocation],
                 generationOptions: [GenerationOption],
                 path: AbsolutePath?)
     {
         self.compatibleXcodeVersions = compatibleXcodeVersions
-        self.cloud = cloud
+        self.lab = lab
         self.cache = cache
         self.plugins = plugins
         self.generationOptions = generationOptions
@@ -70,7 +70,7 @@ public struct Config: Equatable, Hashable {
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(generationOptions)
-        hasher.combine(cloud)
+        hasher.combine(lab)
         hasher.combine(cache)
         hasher.combine(compatibleXcodeVersions)
     }

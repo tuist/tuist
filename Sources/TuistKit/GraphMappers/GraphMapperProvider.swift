@@ -1,10 +1,10 @@
 import Foundation
 import TSCBasic
 import TuistCache
-import TuistCloud
 import TuistCore
 import TuistGenerator
 import TuistGraph
+import TuistLab
 import TuistSigning
 
 /// It defines an interface for providing the mappers to be used for a specific configuration.
