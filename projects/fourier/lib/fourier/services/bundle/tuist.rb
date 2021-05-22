@@ -113,7 +113,7 @@ module Fourier
               "-Xswiftc", "-enable-library-evolution",
               "-Xswiftc", "-emit-module-interface",
               "-Xswiftc", "-emit-module-interface-path",
-              "-Xswiftc", ".build/release/ProjectAutomation.swiftinterface",
+              "-Xswiftc", File.expand_path("release/ProjectAutomation.swiftinterface", build_directory),
               "--build-path", build_directory,
               "--package-path", Constants::ROOT_DIRECTORY
             )
