@@ -1,0 +1,45 @@
+name: Release dry-run
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - Gemfile*
+      - Package.swift
+      - Package.resolved
+      - Sources/**
+      - Project.swift
+
+env:
+  RUBY_VERSION: '3.0.1'
+  TUIST_STATS_OPT_OUT: true
+
+jobs:
+  bundle-all:
+    name: Bundle tuist and tuistenv with Xcode ${{ matrix.xcode }}
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        xcode: ['12']
+    steps:
+      - uses: actions/checkout@v1
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+      - uses: actions/cache@v2
+        with:
+          path: vendor/bundle
+          key: ${{ runner.os }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-gems-
+      - name: Bundle install
+        run: |
+          bundle config path vendor/bundle
+          bundle install --jobs 4 --retry 3
+      - name: Build
+        run: |
+          ./fourier bundle all
