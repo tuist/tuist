@@ -5,11 +5,17 @@ let dependencies = Dependencies(
         [
             .github(path: "Alamofire/Alamofire", requirement: .exact("5.0.4"))
         ],
-        options: [.useXCFrameworks, .noUseBinaries]
+        options: [
+            .useXCFrameworks,
+            .noUseBinaries,
+        ]
     ),
     swiftPackageManager: .swiftPackageManager(
         [
             .package(url: "https://github.com/SnapKit/SnapKit.git", .upToNextMajor(from: "5.0.1"))
+        ],
+        options: [
+            .swiftToolsVersion("5.4.0"),
         ]
     ),
     platforms: [.iOS]
