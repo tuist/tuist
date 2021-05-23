@@ -57,7 +57,6 @@ public struct Config: Codable, Equatable {
     ///   - compatibleXcodeVersions: List of Xcode versions the project is compatible with.
     ///   - cloud: Cloud configuration.
     ///   - cache: Cache configuration.
-    ///   - swiftToolsVersion: Tuist manages the Swift Package Manager dependencies with specific tools version. When `nil` then Tuist will use the environment’s tools version.
     ///   - plugins: A list of plugins to extend Tuist.
     ///   - generationOptions: List of options to use when generating the project.
     public init(
