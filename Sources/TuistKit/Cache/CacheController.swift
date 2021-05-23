@@ -137,7 +137,7 @@ final class CacheController: CacheControlling {
             }
         )
 
-        var errors: [String : Error] = [:]
+        var errors: [String: Error] = [:]
         for (index, target) in sortedCacheableTargets.reversed().enumerated() {
             logger.notice("Building cacheable targets: \(target.target.name), \(index + 1) out of \(sortedCacheableTargets.count)")
 
@@ -151,20 +151,21 @@ final class CacheController: CacheControlling {
             // Build
             do {
                 try buildAndCacheFramework(path: projectPath, target: target, configuration: cacheProfile.configuration, hash: hash)
-            } catch let error {
+            } catch {
                 errors[target.target.name] = error
             }
         }
-        
+
         if errors.isEmpty {
             logger.notice("All cacheable targets have been cached successfully as \(artifactBuilder.cacheOutputType.description)s", metadata: .success)
         } else {
             logger.notice(
                 """
-                Not all cacheable targets have been cached successfully as \(artifactBuilder.cacheOutputType.description)s! Errors:\n\(errors.map({ (target: String, error: Error) in
+                Not all cacheable targets have been cached successfully as \(artifactBuilder.cacheOutputType.description)s! Errors:\n\(errors.map { (target: String, error: Error) in
                     "\(target): \(error.localizedDescription)\n"
-                    }))
-                """, metadata: .success)
+                })
+                """, metadata: .success
+            )
         }
     }
 
