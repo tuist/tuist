@@ -164,7 +164,7 @@ final class CacheController: CacheControlling {
                 Not all cacheable targets have been cached successfully as \(artifactBuilder.cacheOutputType.description)s! Errors:\n\(errors.map({ (target: String, error: Error) in
                     "\(target): \(error.localizedDescription)\n"
                     }))
-                """, metadata: .error)
+                """, metadata: .success)
         }
     }
 
