@@ -29,7 +29,8 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
                 [
                     .local(path: .init(localPackagePath.pathString)),
                     .remote(url: "RemotePackage.com", requirement: .exact("1.2.3")),
-                ]
+                ],
+                options: [.swiftToolsVersion("5.3.0")]
             ),
             platforms: [.iOS, .macOS, .tvOS]
         )
@@ -51,7 +52,8 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
                 [
                     .local(path: localPackagePath),
                     .remote(url: "RemotePackage.com", requirement: .exact("1.2.3")),
-                ]
+                ],
+                options: [.swiftToolsVersion("5.3.0")]
             ),
             platforms: [.iOS, .macOS, .tvOS]
         )

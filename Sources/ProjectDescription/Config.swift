@@ -50,10 +50,6 @@ public struct Config: Codable, Equatable {
 
     /// Cache configuration.
     public let cache: Cache?
-    
-    /// Tuist manages the Swift Package Manager dependencies with specific tools version.
-    /// When `nil` then Tuist will use the environment’s tools version.
-    public let swiftToolsVersion: Version?
 
     /// Initializes the tuist configuration.
     ///
@@ -68,7 +64,6 @@ public struct Config: Codable, Equatable {
         compatibleXcodeVersions: CompatibleXcodeVersions = .all,
         cloud: Cloud? = nil,
         cache: Cache? = nil,
-        swiftToolsVersion: Version? = nil,
         plugins: [PluginLocation] = [],
         generationOptions: [GenerationOptions]
     ) {
@@ -77,7 +72,6 @@ public struct Config: Codable, Equatable {
         self.generationOptions = generationOptions
         self.cloud = cloud
         self.cache = cache
-        self.swiftToolsVersion = swiftToolsVersion
         dumpIfNeeded(self)
     }
 }

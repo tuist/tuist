@@ -76,7 +76,6 @@ final class ConfigLoaderTests: TuistUnitTestCase {
             compatibleXcodeVersions: .all,
             cloud: nil,
             cache: nil,
-            swiftToolsVersion: nil,
             plugins: [],
             generationOptions: [.developmentRegion("fr")],
             path: path
@@ -119,7 +118,6 @@ final class ConfigLoaderTests: TuistUnitTestCase {
             compatibleXcodeVersions: .all,
             cloud: nil,
             cache: nil,
-            swiftToolsVersion: nil,
             plugins: [],
             generationOptions: [.developmentRegion("fr")],
             path: "/project/Tuist/Config.swift"

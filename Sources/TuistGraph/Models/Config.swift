@@ -35,17 +35,13 @@ public struct Config: Equatable, Hashable {
 
     /// Cache configuration.
     public let cache: Cache?
-    
-    /// Tuist manages the Swift Package Manager dependencies with specific tools version.
-    /// When `nil` then Tuist will use the environment’s tools version.
-    public let swiftToolsVersion: String?
 
     /// The path of the config file.
     public let path: AbsolutePath?
 
     /// Returns the default Tuist configuration.
     public static var `default`: Config {
-        Config(compatibleXcodeVersions: .all, cloud: nil, cache: nil, swiftToolsVersion: nil, plugins: [], generationOptions: [], path: nil)
+        Config(compatibleXcodeVersions: .all, cloud: nil, cache: nil, plugins: [], generationOptions: [], path: nil)
     }
 
     /// Initializes the tuist cofiguration.
@@ -54,14 +50,12 @@ public struct Config: Equatable, Hashable {
     ///   - compatibleXcodeVersions: List of Xcode versions the project or set of projects is compatible with.
     ///   - cloud: Cloud configuration.
     ///   - plugins: List of locations to a `Plugin` manifest.
-    ///   - swiftToolsVersion: Tuist manages the Swift Package Manager dependencies with specific tools version. When `nil` then Tuist will use the environment’s tools version.
     ///   - generationOptions: Generation options.
     ///   - path: The path of the config file.
     public init(
         compatibleXcodeVersions: CompatibleXcodeVersions,
         cloud: Cloud?,
         cache: Cache?,
-        swiftToolsVersion: String?,
         plugins: [PluginLocation],
         generationOptions: [GenerationOption],
         path: AbsolutePath?
@@ -69,7 +63,6 @@ public struct Config: Equatable, Hashable {
         self.compatibleXcodeVersions = compatibleXcodeVersions
         self.cloud = cloud
         self.cache = cache
-        self.swiftToolsVersion = swiftToolsVersion
         self.plugins = plugins
         self.generationOptions = generationOptions
         self.path = path

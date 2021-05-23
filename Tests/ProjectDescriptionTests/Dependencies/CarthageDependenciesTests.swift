@@ -10,7 +10,10 @@ final class CarthageDependenciesTests: XCTestCase {
                 .github(path: "Dependency/Dependency", requirement: .revision("xyz")),
                 .git(path: "Git/Git", requirement: .atLeast("1.2.3")),
             ],
-            options: [.useXCFrameworks, .noUseBinaries]
+            options: [
+                .useXCFrameworks,
+                .noUseBinaries,
+            ]
         )
         XCTAssertCodable(subject)
     }

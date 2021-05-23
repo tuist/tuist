@@ -96,7 +96,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             [
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
-            ]
+            ],
+            options: []
         )
         let dependencies = Dependencies(
             carthage: nil,
@@ -144,7 +145,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             [
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
-            ]
+            ],
+            options: []
         )
         let dependencies = Dependencies(
             carthage: carthageDependencies,
@@ -184,7 +186,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         let dependencies = Dependencies(
             carthage: .init([], options: []),
-            swiftPackageManager: .init([]),
+            swiftPackageManager: .init([], options: []),
             platforms: []
         )
 
@@ -201,7 +203,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         let dependencies = Dependencies(
             carthage: .init([], options: []),
-            swiftPackageManager: .init([]),
+            swiftPackageManager: .init([], options: []),
             platforms: [.iOS]
         )
 
@@ -278,7 +280,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             [
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
-            ]
+            ],
+            options: []
         )
         let dependencies = Dependencies(
             carthage: nil,
@@ -326,7 +329,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             [
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
-            ]
+            ],
+            options: []
         )
         let dependencies = Dependencies(
             carthage: carthageDependencies,
@@ -366,7 +370,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         let dependencies = Dependencies(
             carthage: .init([], options: []),
-            swiftPackageManager: .init([]),
+            swiftPackageManager: .init([], options: []),
             platforms: []
         )
 
@@ -383,7 +387,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         let dependencies = Dependencies(
             carthage: .init([], options: []),
-            swiftPackageManager: .init([]),
+            swiftPackageManager: .init([], options: []),
             platforms: [.iOS]
         )
 

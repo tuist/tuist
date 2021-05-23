@@ -35,7 +35,6 @@ extension TuistGraph.Config {
             compatibleXcodeVersions: compatibleXcodeVersions,
             cloud: cloud,
             cache: cache,
-            swiftToolsVersion: manifest.swiftToolsVersion?.description,
             plugins: plugins,
             generationOptions: generationOptions,
             path: path

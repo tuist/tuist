@@ -9,7 +9,8 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
         let subject = SwiftPackageManagerDependencies(
             [
                 .remote(url: "url/url/url", requirement: .branch("branch")),
-            ]
+            ],
+            options: []
         )
 
         // When
@@ -17,8 +18,6 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
 
         // Then
         let expected = """
-        // swift-tools-version:5.3
-
         import PackageDescription
 
         let package = Package(
@@ -42,7 +41,8 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
                 .remote(url: "https://www.google.com/", requirement: .revision("a083aa1435eb35d8a1cb369115a7636cb4b65135")),
                 .remote(url: "url/url/url", requirement: .range(from: "1.2.3", to: "5.2.1")),
                 .local(path: "/path/path/path"),
-            ]
+            ],
+            options: []
         )
 
         // When
@@ -59,8 +59,6 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
             #".package(path: "/path/path/path"),"#,
         ]
         let expected = """
-        // swift-tools-version:5.3
-
         import PackageDescription
 
         let package = Package(

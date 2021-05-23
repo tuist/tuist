@@ -4,11 +4,20 @@ import Foundation
 public struct SwiftPackageManagerDependencies: Equatable {
     /// List of packages that will be installed using Swift Package Manager.
     public let packages: [Package]
+    
+    /// List of options for Carthage installation.
+    public let options: Set<Options>
 
     /// Initializes a new `SwiftPackageManagerDependencies` instance.
-    /// - Parameter packages: List of packages that will be installed using Swift Package Manager.
-    public init(_ packages: [Package]) {
+    /// - Parameters:
+    ///    - packages: List of packages that will be installed using Swift Package Manager.
+    ///    - options: List of options for Swift Package Manager installation.
+    public init(
+        _ packages: [Package],
+        options: Set<Options>
+    ) {
         self.packages = packages
+        self.options = options
     }
 
     /// Returns `Package.swift` representation.
@@ -25,6 +34,17 @@ public struct SwiftPackageManagerDependencies: Equatable {
             ]
         )
         """
+    }
+}
+
+// MARK: - SwiftPackageManagerDependencies.Options
+
+public extension SwiftPackageManagerDependencies {
+    /// The options that you can set for Swift Package Manager installation.
+    enum Options: Equatable, Hashable {
+        /// Tuist manages the Swift Package Manager dependencies with specific tools version.
+        /// When not passed then Tuist will use the environment’s tools version.
+        case swiftToolsVersion(String)
     }
 }
 

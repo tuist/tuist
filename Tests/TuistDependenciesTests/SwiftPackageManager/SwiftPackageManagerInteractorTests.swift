@@ -40,7 +40,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
 
         let depedencies = SwiftPackageManagerDependencies([
             .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
-        ])
+        ], options: [])
 
         swiftPackageManagerController.resolveStub = { path in
             XCTAssertEqual(path, try self.temporaryPath())
@@ -92,7 +92,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
 
         let depedencies = SwiftPackageManagerDependencies([
             .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
-        ])
+        ], options: [])
 
         swiftPackageManagerController.updateStub = { path in
             XCTAssertEqual(path, try self.temporaryPath())
