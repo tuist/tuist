@@ -166,7 +166,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         // create `Package.swift`
         let packageManifestPath = pathsProvider.temporaryDirectoryPath.appending(component: "Package.swift")
         try fileHandler.write(dependencies.manifestValue(), path: packageManifestPath, atomically: true)
-        
+
         // set `swift-tools-version` in `Package.swift`
         try swiftPackageManagerController.setToolsVersion(at: pathsProvider.temporaryDirectoryPath, to: dependencies.swiftToolsVersion)
 

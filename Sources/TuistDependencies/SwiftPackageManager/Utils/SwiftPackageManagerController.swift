@@ -12,7 +12,7 @@ public protocol SwiftPackageManagerControlling {
     /// Updates package dependencies.
     /// - Parameter path: Directory where the `Package.swift` is defined.
     func update(at path: AbsolutePath) throws
-    
+
     /// Sets tools version of package to the given value.
     /// - Parameter path: Directory where the `Package.swift` is defined.
     /// - Parameter version: Version of tools. When `nil` then the environment’s version will be set.
@@ -33,7 +33,7 @@ public final class SwiftPackageManagerController: SwiftPackageManagerControlling
 
         try System.shared.run(command)
     }
-    
+
     public func setToolsVersion(at path: AbsolutePath, to version: String?) throws {
         let subcommand: [String]
         if let version = version {
@@ -41,9 +41,9 @@ public final class SwiftPackageManagerController: SwiftPackageManagerControlling
         } else {
             subcommand = ["tools-version", "--set-current"]
         }
-        
+
         let command = buildSwiftPackageCommand(packagePath: path, subcommand: subcommand)
-        
+
         try System.shared.run(command)
     }
 
@@ -56,6 +56,6 @@ public final class SwiftPackageManagerController: SwiftPackageManagerControlling
             "--package-path",
             packagePath.pathString,
         ]
-        + subcommand
+            + subcommand
     }
 }

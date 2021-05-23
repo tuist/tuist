@@ -4,7 +4,7 @@ import Foundation
 public struct SwiftPackageManagerDependencies: Codable, Equatable {
     /// List of packages that will be installed using Swift Package Manager.
     public let packages: [Package]
-    
+
     /// List of options for Swift Package Manager installation.
     public let options: Set<Options>
 
@@ -44,7 +44,7 @@ extension SwiftPackageManagerDependencies.Options {
         case kind
         case version
     }
-    
+
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)

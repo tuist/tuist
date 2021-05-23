@@ -51,7 +51,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         // When / Then
         XCTAssertNoThrow(try subject.update(at: path))
     }
-    
+
     func test_setToolsVersion_specificVersion() throws {
         // Given
         let path = try temporaryPath()
@@ -65,11 +65,11 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             "--set",
             version,
         ])
-        
+
         // When / Then
         XCTAssertNoThrow(try subject.setToolsVersion(at: path, to: version))
     }
-    
+
     func test_setToolsVersion_currentVersion() throws {
         // Given
         let path = try temporaryPath()
@@ -81,7 +81,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             "tools-version",
             "--set-current",
         ])
-        
+
         // When / Then
         XCTAssertNoThrow(try subject.setToolsVersion(at: path, to: nil))
     }

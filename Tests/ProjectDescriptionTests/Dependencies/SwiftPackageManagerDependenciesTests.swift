@@ -16,9 +16,9 @@ final class SwiftPackageManagerDependenciesTests: XCTestCase {
         )
         XCTAssertCodable(subject)
     }
-    
+
     // MARK: - Carthage Options tests
-    
+
     func test_swiftPackageManagerOptions_swiftToolsVersion_codable() throws {
         let subject: SwiftPackageManagerDependencies.Options = .swiftToolsVersion("1.2.3")
         XCTAssertCodable(subject)

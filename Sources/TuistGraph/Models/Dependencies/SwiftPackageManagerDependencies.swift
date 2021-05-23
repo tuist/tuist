@@ -4,7 +4,7 @@ import Foundation
 public struct SwiftPackageManagerDependencies: Equatable {
     /// List of packages that will be installed using Swift Package Manager.
     public let packages: [Package]
-    
+
     /// List of options for Carthage installation.
     public let options: Set<Options>
 
@@ -32,7 +32,7 @@ extension SwiftPackageManagerDependencies {
                 }
             }.first
     }
-    
+
     /// Returns `Package.swift` representation.
     ///
     /// **NOTE** It is a temporary solution until Apple resolves: https://forums.swift.org/t/pitch-package-editor-commands/42224

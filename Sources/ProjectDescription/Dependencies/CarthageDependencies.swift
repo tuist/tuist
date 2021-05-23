@@ -4,7 +4,7 @@ import Foundation
 public struct CarthageDependencies: Codable, Equatable {
     /// List of depedencies that will be installed using Carthage.
     public let dependencies: [Dependency]
-    
+
     /// List of options for Carthage installation.
     public let options: Set<Options>
 

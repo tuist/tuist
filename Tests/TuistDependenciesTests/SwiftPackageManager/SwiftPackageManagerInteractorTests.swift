@@ -84,12 +84,12 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
                 "repositories",
             ]
         )
-        
+
         XCTAssertTrue(swiftPackageManagerController.invokedResolve)
         XCTAssertTrue(swiftPackageManagerController.invokedSetToolsVersion)
         XCTAssertFalse(swiftPackageManagerController.invokedUpdate)
     }
-    
+
     func test_fetch_with_swiftToolsVersion() throws {
         // Given
         let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
@@ -99,14 +99,14 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
         let swiftPackageManagerDirectory = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
-        
+
         let swiftToolsVersion = "5.3.0"
         let depedencies = SwiftPackageManagerDependencies(
             [
                 .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
             ],
             options: [
-                .swiftToolsVersion(swiftToolsVersion)
+                .swiftToolsVersion(swiftToolsVersion),
             ]
         )
 
@@ -149,7 +149,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
                 "repositories",
             ]
         )
-        
+
         XCTAssertTrue(swiftPackageManagerController.invokedResolve)
         XCTAssertTrue(swiftPackageManagerController.invokedSetToolsVersion)
         XCTAssertFalse(swiftPackageManagerController.invokedUpdate)
@@ -211,7 +211,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
                 "repositories",
             ]
         )
-        
+
         XCTAssertTrue(swiftPackageManagerController.invokedUpdate)
         XCTAssertTrue(swiftPackageManagerController.invokedSetToolsVersion)
         XCTAssertFalse(swiftPackageManagerController.invokedResolve)
@@ -249,7 +249,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
                 "OtherLockfile.lock",
             ]
         )
-        
+
         XCTAssertFalse(swiftPackageManagerController.invokedUpdate)
         XCTAssertFalse(swiftPackageManagerController.invokedSetToolsVersion)
         XCTAssertFalse(swiftPackageManagerController.invokedResolve)

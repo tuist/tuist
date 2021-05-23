@@ -21,11 +21,11 @@ public final class MockSwiftPackageManagerController: SwiftPackageManagerControl
         invokedUpdate = true
         try updateStub?(path)
     }
-    
+
     var invokedSetToolsVersion = false
     var setToolsVersionStub: ((AbsolutePath, String?) throws -> Void)?
 
-    public func setToolsVersion(at path: AbsolutePath, to version: String?)  throws {
+    public func setToolsVersion(at path: AbsolutePath, to version: String?) throws {
         invokedSetToolsVersion = true
         try setToolsVersionStub?(path, version)
     }
