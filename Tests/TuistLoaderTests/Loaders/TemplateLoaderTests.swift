@@ -45,7 +45,7 @@ final class TemplateLoaderTests: TuistUnitTestCase {
         manifestLoader.loadTemplateStub = { _ in
             ProjectDescription.Template(
                 description: "desc",
-                files: [ProjectDescription.Template.File(
+                items: [ProjectDescription.Template.Item(
                     path: "generateOne",
                     contents: .file("fileOne")
                 )]
@@ -58,7 +58,7 @@ final class TemplateLoaderTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got, TuistGraph.Template(
             description: "desc",
-            files: [Template.File(
+            items: [Template.Item(
                 path: RelativePath("generateOne"),
                 contents: .file(temporaryPath.appending(component: "fileOne"))
             )]

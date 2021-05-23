@@ -3,15 +3,27 @@ import TSCBasic
 public struct Template: Equatable {
     public let description: String
     public let attributes: [Attribute]
-    public let files: [File]
+    public let items: [Item]
 
     public init(description: String,
                 attributes: [Attribute] = [],
-                files: [File] = [])
+                items: [Item] = [])
     {
         self.description = description
         self.attributes = attributes
-        self.files = files
+        self.items = items
+    }
+
+    @available(*, deprecated, message: "Use init with `items: [Item]` instead")
+    public init(description: String,
+                attributes: [Attribute] = [],
+                files: [Item] = [])
+    {
+        self.init(
+            description: description,
+            attributes: attributes,
+            items: files
+        )
     }
 
     public enum Attribute: Equatable {
@@ -43,7 +55,7 @@ public struct Template: Equatable {
         case directory(AbsolutePath)
     }
 
-    public struct File: Equatable {
+    public struct Item: Equatable {
         public let path: RelativePath
         public let contents: Contents
 

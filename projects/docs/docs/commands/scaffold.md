@@ -58,6 +58,6 @@ Since platform is an optional argument, we can also call the command without the
 
 If `.string` and `.files` don't provide enough flexibility, you can leverage the [Stencil](https://github.com/stencilproject/Stencil) templating language via the `.file` case. Besides that, you can also use additional filters defined [here](https://github.com/SwiftGen/StencilSwiftKit#filters)
 
-Additionally is given `.directory` which gives the possibility to copy entire folders from one path inside another.
+You can also use `.directory` which gives the possibility to copy entire folders to a given path.
 
 Templates can import [project description helpers](/guides/helpers/). Just add `import ProjectDescriptionHelpers` at the top, and extract reusable logic into the helpers.
