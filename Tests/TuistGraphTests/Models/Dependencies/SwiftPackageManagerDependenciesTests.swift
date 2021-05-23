@@ -70,4 +70,39 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
         """
         XCTAssertEqual(got, expected)
     }
+    
+    func test_swiftToolsVersion() {
+        // Given
+        let swiftToolsVersion = "5.3.0"
+        let subject = SwiftPackageManagerDependencies(
+            [
+                .remote(url: "url/url/url", requirement: .branch("branch")),
+            ],
+            options: [
+                .swiftToolsVersion(swiftToolsVersion)
+            ]
+        )
+        
+        // When
+        let got = subject.swiftToolsVersion
+        
+        // Then
+        XCTAssertEqual(got, swiftToolsVersion)
+    }
+    
+    func test_swiftToolsVersion_unspecified() {
+        // Given
+        let subject = SwiftPackageManagerDependencies(
+            [
+                .remote(url: "url/url/url", requirement: .branch("branch")),
+            ],
+            options: []
+        )
+        
+        // When
+        let got = subject.swiftToolsVersion
+        
+        // Then
+        XCTAssertNil(got)
+    }
 }

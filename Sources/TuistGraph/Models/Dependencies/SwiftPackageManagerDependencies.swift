@@ -19,7 +19,20 @@ public struct SwiftPackageManagerDependencies: Equatable {
         self.packages = packages
         self.options = options
     }
+}
 
+extension SwiftPackageManagerDependencies {
+    /// Returns the version of swift tools that should be used to resolve dependencies or `nil` when the version is unspecified.
+    public var swiftToolsVersion: String? {
+        options
+            .compactMap { option -> String? in
+                switch option {
+                case let .swiftToolsVersion(version):
+                    return version
+                }
+            }.first
+    }
+    
     /// Returns `Package.swift` representation.
     ///
     /// **NOTE** It is a temporary solution until Apple resolves: https://forums.swift.org/t/pitch-package-editor-commands/42224
