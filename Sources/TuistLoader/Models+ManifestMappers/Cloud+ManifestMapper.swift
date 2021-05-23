@@ -5,41 +5,41 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
-enum CloudManifestMapperError: FatalError {
-    /// Thrown when the cloud URL is invalid.
-    case invalidCloudURL(String)
+enum LabManifestMapperError: FatalError {
+    /// Thrown when the lab URL is invalid.
+    case invalidLabURL(String)
 
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .invalidCloudURL: return .abort
+        case .invalidLabURL: return .abort
         }
     }
 
     /// Error description.
     var description: String {
         switch self {
-        case let .invalidCloudURL(url):
-            return "The cloud URL '\(url)' is not a valid URL"
+        case let .invalidLabURL(url):
+            return "The lab URL '\(url)' is not a valid URL"
         }
     }
 }
 
-extension TuistGraph.Cloud {
-    static func from(manifest: ProjectDescription.Cloud) throws -> TuistGraph.Cloud {
-        var cloudURL: URL!
-        if let manifestCloudURL = URL(string: manifest.url) {
-            cloudURL = manifestCloudURL
+extension TuistGraph.Lab {
+    static func from(manifest: ProjectDescription.Lab) throws -> TuistGraph.Lab {
+        var labURL: URL!
+        if let manifestLabURL = URL(string: manifest.url) {
+            labURL = manifestLabURL
         } else {
-            throw CloudManifestMapperError.invalidCloudURL(manifest.url)
+            throw LabManifestMapperError.invalidLabURL(manifest.url)
         }
-        let options = manifest.options.map(TuistGraph.Cloud.Option.from)
-        return TuistGraph.Cloud(url: cloudURL, projectId: manifest.projectId, options: options)
+        let options = manifest.options.map(TuistGraph.Lab.Option.from)
+        return TuistGraph.Lab(url: labURL, projectId: manifest.projectId, options: options)
     }
 }
 
-extension TuistGraph.Cloud.Option {
-    static func from(manifest: ProjectDescription.Cloud.Option) -> TuistGraph.Cloud.Option {
+extension TuistGraph.Lab.Option {
+    static func from(manifest: ProjectDescription.Lab.Option) -> TuistGraph.Lab.Option {
         switch manifest {
         case .insights:
             return .insights

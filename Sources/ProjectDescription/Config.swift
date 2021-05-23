@@ -45,8 +45,8 @@ public struct Config: Codable, Equatable {
     /// List of `Plugin`s used to extend Tuist.
     public let plugins: [PluginLocation]
 
-    /// Cloud configuration.
-    public let cloud: Cloud?
+    /// Lab configuration.
+    public let lab: Lab?
 
     /// Cache configuration.
     public let cache: Cache?
@@ -55,13 +55,13 @@ public struct Config: Codable, Equatable {
     ///
     /// - Parameters:
     ///   - compatibleXcodeVersions: List of Xcode versions the project is compatible with.
-    ///   - cloud: Cloud configuration.
+    ///   - lab: Lab configuration.
     ///   - cache: Cache configuration.
     ///   - plugins: A list of plugins to extend Tuist.
     ///   - generationOptions: List of options to use when generating the project.
     public init(
         compatibleXcodeVersions: CompatibleXcodeVersions = .all,
-        cloud: Cloud? = nil,
+        lab: Lab? = nil,
         cache: Cache? = nil,
         plugins: [PluginLocation] = [],
         generationOptions: [GenerationOptions]
@@ -69,7 +69,7 @@ public struct Config: Codable, Equatable {
         self.compatibleXcodeVersions = compatibleXcodeVersions
         self.plugins = plugins
         self.generationOptions = generationOptions
-        self.cloud = cloud
+        self.lab = lab
         self.cache = cache
         dumpIfNeeded(self)
     }
