@@ -27,8 +27,8 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
 public extension SwiftPackageManagerDependencies {
     /// The options that you can set for Swift Package Manager installation.
     enum Options: Codable, Equatable, Hashable {
-        /// Tuist manages the Swift Package Manager dependencies with specific tools version.
-        /// When not passed then Tuist will use the environment’s tools version.
+        /// When passed, Tuist will add the specified tools version to the `Package.swift` manifest file.
+        /// When not passed, the environment’s tools version will be used.
         case swiftToolsVersion(Version)
     }
 }
