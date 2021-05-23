@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+
+- Add possibility to specify `swift-tools-version` in the `Dependencies.swift` manifest file. [#2998](https://github.com/tuist/tuist/pull/2998) by [@laxmorek](https://github.com/laxmorek)
+
 ## 1.43.0 - Peroxide
 
 ### Added
