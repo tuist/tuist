@@ -54,7 +54,10 @@ final class DependenciesControllerTests: TuistUnitTestCase {
                 .github(path: "Moya", requirement: .exact("1.1.1")),
                 .github(path: "RxSwift", requirement: .exact("2.0.0")),
             ],
-            options: [.useXCFrameworks, .noUseBinaries]
+            options: [
+                .useXCFrameworks,
+                .noUseBinaries,
+            ]
         )
         let dependencies = Dependencies(
             carthage: carthageDependencies,
@@ -97,7 +100,9 @@ final class DependenciesControllerTests: TuistUnitTestCase {
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
             ],
-            options: []
+            options: [
+                .swiftToolsVersion("5.4.0"),
+            ]
         )
         let dependencies = Dependencies(
             carthage: nil,
@@ -139,14 +144,19 @@ final class DependenciesControllerTests: TuistUnitTestCase {
                 .github(path: "Moya", requirement: .exact("1.1.1")),
                 .github(path: "RxSwift", requirement: .exact("2.0.0")),
             ],
-            options: [.useXCFrameworks, .noUseBinaries]
+            options: [
+                .useXCFrameworks,
+                .noUseBinaries,
+            ]
         )
         let swiftPackageManagerDependencies = SwiftPackageManagerDependencies(
             [
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
             ],
-            options: []
+            options: [
+                .swiftToolsVersion("5.4.0"),
+            ]
         )
         let dependencies = Dependencies(
             carthage: carthageDependencies,
@@ -238,7 +248,10 @@ final class DependenciesControllerTests: TuistUnitTestCase {
                 .github(path: "Moya", requirement: .exact("1.1.1")),
                 .github(path: "RxSwift", requirement: .exact("2.0.0")),
             ],
-            options: [.useXCFrameworks, .noUseBinaries]
+            options: [
+                .useXCFrameworks,
+                .noUseBinaries,
+            ]
         )
         let dependencies = Dependencies(
             carthage: carthageDependencies,
@@ -281,7 +294,9 @@ final class DependenciesControllerTests: TuistUnitTestCase {
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
             ],
-            options: []
+            options: [
+                .swiftToolsVersion("5.4.0"),
+            ]
         )
         let dependencies = Dependencies(
             carthage: nil,
@@ -323,14 +338,19 @@ final class DependenciesControllerTests: TuistUnitTestCase {
                 .github(path: "Moya", requirement: .exact("1.1.1")),
                 .github(path: "RxSwift", requirement: .exact("2.0.0")),
             ],
-            options: [.useXCFrameworks, .noUseBinaries]
+            options: [
+                .useXCFrameworks,
+                .noUseBinaries,
+            ]
         )
         let swiftPackageManagerDependencies = SwiftPackageManagerDependencies(
             [
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
             ],
-            options: []
+            options: [
+                .swiftToolsVersion("5.4.0"),
+            ]
         )
         let dependencies = Dependencies(
             carthage: carthageDependencies,

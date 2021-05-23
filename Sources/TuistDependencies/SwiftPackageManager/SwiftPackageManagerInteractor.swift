@@ -131,7 +131,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
             )
 
             // prepare for installation
-            try loadDependencies(pathsProvider: pathsProvider, packageManifestContent: dependencies.manifestValue())
+            try loadDependencies(pathsProvider: pathsProvider, dependencies: dependencies)
 
             // run `Swift Package Manager`
             if shouldUpdate {
@@ -146,7 +146,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
     }
 
     /// Loads lockfile and dependencies into working directory if they had been saved before.
-    private func loadDependencies(pathsProvider: SwiftPackageManagerPathsProvider, packageManifestContent: String) throws {
+    private func loadDependencies(pathsProvider: SwiftPackageManagerPathsProvider, dependencies: SwiftPackageManagerDependencies) throws {
         // copy `.build` directory from previous run if exist
         if fileHandler.exists(pathsProvider.destinationBuildDirectory) {
             try copy(
@@ -165,11 +165,15 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
 
         // create `Package.swift`
         let packageManifestPath = pathsProvider.temporaryDirectoryPath.appending(component: "Package.swift")
-        try fileHandler.write(packageManifestContent, path: packageManifestPath, atomically: true)
+        try fileHandler.write(dependencies.manifestValue(), path: packageManifestPath, atomically: true)
+        
+        // set `swift-tools-version` in `Package.swift`
+        try swiftPackageManagerController.setToolsVersion(at: pathsProvider.temporaryDirectoryPath, to: dependencies.swiftToolsVersion)
 
         // log
+        let generatedManifestContent = try fileHandler.readTextFile(packageManifestPath)
         logger.debug("Package.swift:", metadata: .subsection)
-        logger.debug("\(packageManifestContent)")
+        logger.debug("\(generatedManifestContent)")
     }
 
     /// Saves lockfile resolved depedencies in `Tuist/Depedencies` directory.
