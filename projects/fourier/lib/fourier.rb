@@ -41,6 +41,12 @@ module Fourier
     desc "update", "Update project's components"
     subcommand "update", Commands::Update
 
+    desc "bundle", "Bundle tuist and tuistenv"
+    subcommand "bundle", Commands::Bundle
+
+    desc "encrypt", "Encrypt content in the repository"
+    subcommand "encrypt", Commands::Encrypt
+
     desc "focus TARGET", "Edit Tuist's project focusing on the target TARGET"
     def focus(target)
       Services::Focus.call(target: target)
@@ -105,6 +111,9 @@ module Fourier
     def check
       Services::Check.call
     end
+
+    desc "release", "Release the Tuist"
+    subcommand "release", Commands::Release
 
     def self.exit_on_failure?
       true

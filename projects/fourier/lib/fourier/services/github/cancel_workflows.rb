@@ -5,13 +5,12 @@ module Fourier
       class CancelWorkflows < Base
         attr_reader :github_client
 
-        def initialize(github_client: Utilities::GitHubClient)
+        def initialize(github_client: Utilities::GitHubClient.new)
           @github_client = github_client
         end
 
         def call
-          Utilities::Secrets.decrypt
-          runs = github_client.repository_workflow_runs(Constants::REPOSITORY, status: "queued")
+          runs = github_client.repository_workflow_runs(Constants::REPOSITORY, { status: "queued" })
           runs[:workflow_runs].each do |run|
             puts "Cancelling workflow run with id: #{run[:id]}"
             github_client.cancel_workflow_run(Constants::REPOSITORY, run[:id])

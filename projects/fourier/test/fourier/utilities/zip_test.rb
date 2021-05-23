@@ -27,7 +27,7 @@ module Fourier
         # Then
         test_file = File.join(dst_dir, "test")
 
-        assert(File.exist?(test_file))
+        assert_path_exists(test_file)
       end
     end
   end

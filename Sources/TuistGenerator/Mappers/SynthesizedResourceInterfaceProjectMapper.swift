@@ -5,6 +5,7 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
+// swiftlint:disable:next type_name
 enum SynthesizedResourceInterfaceProjectMapperError: FatalError, Equatable {
     case defaultTemplateNotAvailable(ResourceSynthesizer.Parser)
 
@@ -94,7 +95,6 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
     }
 
     /// - Returns: Modified `Target`, side effects, input paths and output paths which can then be later used in generate script
-    // swiftlint:disable:next function_body_length
     private func renderAndMapTarget(
         _ resourceSynthesizer: ResourceSynthesizer,
         templateString: String,
@@ -108,7 +108,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
             .appending(component: Constants.DerivedDirectory.name)
             .appending(component: Constants.DerivedDirectory.sources)
 
-        let paths = try self.paths(for: resourceSynthesizer, target: target)
+        let paths = try self.paths(for: resourceSynthesizer, target: target, developmentRegion: project.developmentRegion)
             .filter(isResourceEmpty)
 
         let templateName: String
@@ -120,34 +120,10 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         }
 
         let renderedInterfaces: [(String, String)]
-        switch resourceSynthesizer.parser {
-        case .plists, .json, .yaml, .coreData:
-            renderedInterfaces = try paths.map { path in
-                let name = self.name(
-                    for: resourceSynthesizer,
-                    path: path,
-                    target: target
-                )
-                return (
-                    name,
-                    try synthesizedResourceInterfacesGenerator.render(
-                        parser: resourceSynthesizer.parser,
-                        templateString: templateString,
-                        name: name,
-                        paths: [path]
-                    )
-                )
-            }
-        case .assets, .fonts, .strings, .interfaceBuilder:
-            if paths.isEmpty {
-                renderedInterfaces = []
-                break
-            }
-            let name = self.name(
-                for: resourceSynthesizer,
-                path: project.path,
-                target: target
-            )
+        if paths.isEmpty {
+            renderedInterfaces = []
+        } else {
+            let name = target.name.camelized.uppercasingFirst
             renderedInterfaces = [
                 (
                     templateName + "+" + name,
@@ -188,30 +164,43 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         )
     }
 
-    private func name(
-        for resourceSynthesizer: ResourceSynthesizer,
-        path: AbsolutePath,
-        target: Target
-    ) -> String {
-        switch resourceSynthesizer.parser {
-        case .assets, .strings, .fonts, .interfaceBuilder:
-            return target.name.camelized.uppercasingFirst
-        case .plists, .json, .yaml, .coreData:
-            return path.basenameWithoutExt.camelized.uppercasingFirst
-        }
-    }
-
     private func paths(
         for resourceSynthesizer: ResourceSynthesizer,
-        target: Target
+        target: Target,
+        developmentRegion: String?
     ) -> [AbsolutePath] {
         let resourcesPaths = target.resources
             .map(\.path)
 
-        var seen: Set<String> = []
-        return resourcesPaths
+        var paths = resourcesPaths
             .filter { $0.extension.map(resourceSynthesizer.extensions.contains) ?? false }
-            .filter { seen.insert($0.basename).inserted }
+            .sorted()
+
+        switch resourceSynthesizer.parser {
+        case .strings:
+            // This file kind is localizable, let's order files based on it
+            var regionPriorityQueue = ["Base", "en"]
+            if let developmentRegion = developmentRegion {
+                regionPriorityQueue.insert(developmentRegion, at: 0)
+            }
+
+            // Let's sort paths moving the development region localization's one at first
+            let prioritizedPaths = paths.filter { path in
+                regionPriorityQueue.map { path.parentDirectory.basename.contains($0) }.contains(true)
+            }
+
+            let unprioritizedPaths = paths.filter { path in
+                !regionPriorityQueue.map { path.parentDirectory.basename.contains($0) }.contains(true)
+            }
+
+            paths = prioritizedPaths + unprioritizedPaths
+
+        case .assets, .coreData, .fonts, .interfaceBuilder, .json, .plists, .yaml:
+            break
+        }
+
+        var seen: Set<String> = []
+        return paths.filter { seen.insert($0.basename).inserted }
     }
 
     private func isResourceEmpty(_ path: AbsolutePath) throws -> Bool {

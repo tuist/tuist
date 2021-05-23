@@ -4,17 +4,41 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.43.0 - Peroxide
+
 ### Added
 
-- Add `tuist dependencies update` command. [#2819](https://github.com/tuist/tuist/pull/2819) by [@laxmorek](https://github.com/laxmorek)
+- Add Tasks [#2816](https://github.com/tuist/tuist/pull/2816) by [@fortmarek](https://github.com/fortmarek)
 
 ### Changed
 
+- Emit warning instead of error when provisioning profiles is expired. [#2919](https://github.com/tuist/tuist/pull/2919) by [@iteracticman](https://github.com/iteracticman)
+- Updated the required Ruby version to 3.0.1 [#2961](https://github.com/tuist/tuist/pull/2961) by [@pepibumur](https://github.com/pepibumur)
+
+### Fixed
+
+- `.strings` Localization file synthesizers are now consistent and reproducible across multiple generations using the `developmentRegion` to choose the source one or defaulting to `en`. [#2887](https://github.com/tuist/tuist/pull/2887) by [@fila95](https://github.com/fila95)
+- Fix `tuist scaffold list` not listing plugin templates. [#2958](https://github.com/tuist/tuist/pull/2958) by [@danyf90](https://github.com/danyf90).
+
+## 1.42.0 - Builders
+
+### Added
+
+- Add support for `testPlan` initialization with an array of `Path`. [#2837](https://github.com/tuist/tuist/pull/2837) by [@cipolleschi](https://github.com/cipolleschi)
+- Add `tuist dependencies update` command. [#2819](https://github.com/tuist/tuist/pull/2819) by [@laxmorek](https://github.com/laxmorek)
+- Add `--build-output-path` option to `tuist build` [#2835](https://github.com/tuist/tuist/pull/2835) by [@Luis Padron](https://github.com/luispadron).
+
+### Changed
+
+- **Breaking** For some data types (plist, json, yaml and core data) resource synthesizers now group them and let `SwiftGen` output a single fine instead of one for each resource. [#2887](https://github.com/tuist/tuist/pull/2887) by [@fila95](https://github.com/fila95)
 - Warnings for targets with no source files are now suppressed if the target does contain a dependency or action. [#2838](https://github.com/tuist/tuist/pull/2838) by [@jsorge](https://github.com/jsorge)
 
 ### Fixed
 
+- `.strings` Localization file synthesizers are now consistent and reproducible across multiple generations using the `developmentRegion` to choose the source one or defaulting to `en`. [#2887](https://github.com/tuist/tuist/pull/2887) by [@fila95](https://github.com/fila95)
 - Fix `tuist focus` not excluding targets from `codeCoverageTargets` of custom schemes by [@Luis Padron](https://github.com/luispadron).
+- Fix rubocop warnings [#2898](https://github.com/tuist/tuist/pull/2898) by [@fortmarek](https://github.com/fortmarek)
+- Add newline to end of generated resource accessor files. [#2895](https://github.com/tuist/tuist/pull/2895) by [@Jake Prickett](https://github.com/Jake-Prickett)
 
 ## 1.41.0
 
@@ -31,6 +55,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Speed up frameworks metadata reading using Mach-o parsing instead of `file`, `lipo` and `dwarfdump` external processes. [#2814](https://github.com/tuist/tuist/pull/2814) by [@adellibovi](https://github.com/adellibovi)
 
 ### Fixed
+
 - `tuist generate` your projects without having to re-open them! 🧑‍💻 [#2828] by [@ferologics](https://github.com/ferologics)
 - Fix a bug for which when generating a `Resources` target from a `staticLibrary` or `staticFramework`, the parent's deployment target isn't passed to the new target. [#2830](https://github.com/tuist/tuist/pull/2830) by [@fila95](https://github.com/fila95)
 - Fix `.messagesExtension` default settings to include the appropriate `LD_RUNPATH_SEARCH_PATHS` [#2824](https://github.com/tuist/tuist/pull/2824) by [@kwridan](https://github.com/kwridan)

@@ -26,18 +26,21 @@ final class BuildServiceErrorTests: TuistUnitTestCase {
 
 final class BuildServiceTests: TuistUnitTestCase {
     var generator: MockGenerator!
-    var xcodebuildController: MockXcodeBuildController!
+    var xcodeBuildController: MockXcodeBuildController!
     var buildgraphInspector: MockBuildGraphInspector!
+    var xcodeProjectBuildDirectoryLocator: MockXcodeProjectBuildDirectoryLocator!
     var subject: BuildService!
 
     override func setUp() {
         super.setUp()
         generator = MockGenerator()
-        xcodebuildController = MockXcodeBuildController()
+        xcodeBuildController = MockXcodeBuildController()
         buildgraphInspector = MockBuildGraphInspector()
+        xcodeProjectBuildDirectoryLocator = MockXcodeProjectBuildDirectoryLocator()
         subject = BuildService(
             generator: generator,
-            xcodebuildController: xcodebuildController,
+            xcodeBuildController: xcodeBuildController,
+            xcodeProjectBuildDirectoryLocator: xcodeProjectBuildDirectoryLocator,
             buildGraphInspector: buildgraphInspector
         )
     }
@@ -45,7 +48,7 @@ final class BuildServiceTests: TuistUnitTestCase {
     override func tearDown() {
         super.tearDown()
         generator = nil
-        xcodebuildController = nil
+        xcodeBuildController = nil
         buildgraphInspector = nil
         subject = nil
     }
@@ -83,7 +86,7 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
         }
-        xcodebuildController.buildStub = { _target, _scheme, _clean, _arguments in
+        xcodeBuildController.buildStub = { _target, _scheme, _clean, _arguments in
             XCTAssertEqual(_target, .workspace(workspacePath))
             XCTAssertEqual(_scheme, scheme.name)
             XCTAssertTrue(_clean)
@@ -130,7 +133,7 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
         }
-        xcodebuildController.buildStub = { _target, _scheme, _clean, _arguments in
+        xcodeBuildController.buildStub = { _target, _scheme, _clean, _arguments in
             XCTAssertEqual(_target, .workspace(workspacePath))
             XCTAssertEqual(_scheme, scheme.name)
             XCTAssertTrue(_clean)
@@ -178,7 +181,7 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
         }
-        xcodebuildController.buildStub = { _target, _scheme, _clean, _arguments in
+        xcodeBuildController.buildStub = { _target, _scheme, _clean, _arguments in
             XCTAssertEqual(_target, .workspace(workspacePath))
             XCTAssertEqual(_arguments, buildArguments)
 
@@ -234,7 +237,7 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
         }
-        xcodebuildController.buildStub = { _target, _scheme, _clean, _arguments in
+        xcodeBuildController.buildStub = { _target, _scheme, _clean, _arguments in
             XCTAssertEqual(_target, .workspace(workspacePath))
             XCTAssertEqual(_arguments, buildArguments)
 
@@ -284,6 +287,44 @@ final class BuildServiceTests: TuistUnitTestCase {
         // Then
         XCTAssertPrinterContains("Found the following buildable schemes: A, B", at: .debug, ==)
     }
+
+    func test_run_copiesBuildProducts_to_outputPath() throws {
+        // Given
+        let path = try temporaryPath()
+        let buildOutputPath = path.appending(component: ".build")
+        let workspacePath = path.appending(component: "App.xcworkspace")
+        let graph = ValueGraph.test()
+        let schemeA = Scheme.test(name: "A")
+
+        generator.loadStub = { _ in graph }
+        buildgraphInspector.workspacePathStub = { _ in workspacePath }
+        buildgraphInspector.buildableSchemesStub = { _ in [schemeA] }
+        xcodeBuildController.buildStub = { _, _, _, _ in Observable.just(.standardOutput(.init(raw: "success"))) }
+
+        let xcodeBuildPath = path.appending(components: "Xcode", "DerivedData", "MyProject-hash", "Debug")
+        xcodeProjectBuildDirectoryLocator.locateStub = { _, _, _ in xcodeBuildPath }
+        try createFiles([
+            "Xcode/DerivedData/MyProject-hash/debug/App.app",
+            "Xcode/DerivedData/MyProject-hash/debug/App.swiftmodule",
+        ])
+
+        // When
+        try subject.testRun(schemeName: "A", buildOutputPath: buildOutputPath, path: path)
+
+        // Then
+        XCTAssertEqual(
+            try fileHandler.contentsOfDirectory(buildOutputPath).sorted(),
+            [buildOutputPath.appending(component: "Debug")]
+        )
+
+        XCTAssertEqual(
+            try fileHandler.contentsOfDirectory(buildOutputPath.appending(component: "Debug")).sorted(),
+            [
+                buildOutputPath.appending(components: "Debug", "App.app"),
+                buildOutputPath.appending(components: "Debug", "App.swiftmodule"),
+            ]
+        )
+    }
 }
 
 // MARK: - Helpers
@@ -294,6 +335,7 @@ private extension BuildService {
         generate: Bool = false,
         clean: Bool = true,
         configuration: String? = nil,
+        buildOutputPath: AbsolutePath? = nil,
         path: AbsolutePath
     ) throws {
         try run(
@@ -301,6 +343,7 @@ private extension BuildService {
             generate: generate,
             clean: clean,
             configuration: configuration,
+            buildOutputPath: buildOutputPath,
             path: path
         )
     }

@@ -47,3 +47,12 @@ tuist build MyScheme
 :::note Standard commands
 One of the benefits of using Tuist over other automation tools is that developers can get familiar with a set of commands that they can use in any Tuist project.
 :::
+
+#### Customizing builds
+
+Sometimes for CI or when creating automations you may like to customize the build more. 
+
+**Build the project to a custom directory**
+
+`tuist build --build-output-path .build`
+

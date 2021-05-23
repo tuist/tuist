@@ -1,5 +1,3 @@
-/** @jsx jsx */
-import { jsx } from 'theme-ui'
 import * as React from 'react'
 import MainLayout from '../layouts/MainLayout'
 import featureManifestImage from './images/feature-manifest.svg'
@@ -10,7 +8,7 @@ import communitySlackImage from './images/community-slack.svg'
 import companiesImage from './images/companies.svg'
 
 const FeaturesSection = (): React.ReactElement => {
-  return <section sx={{ bg: 'red' }}>Yolo</section>
+  return <section>Yolo</section>
 }
 const IndexPage = (): React.ReactElement => {
   return (

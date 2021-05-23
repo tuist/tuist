@@ -21,7 +21,6 @@ Then(/^([a-zA-Z]+) links the framework ([a-zA-Z]+) from the cache/) do |target_n
   projects = Xcode.projects(@workspace_path)
   target = projects.flat_map(&:targets).detect { |t| t.name == target_name }
   flunk("Target #{target_name} doesn't exist in any of the projects' targets of the workspace") if target.nil?
-  framework_deps = target.frameworks_build_phases.file_display_names.filter { |d| d.include?(".framework") }
   build_file = target.frameworks_build_phases.files.filter do |f|
     f.display_name.include?("#{framework_name}.framework")
   end .first
@@ -30,7 +29,10 @@ Then(/^([a-zA-Z]+) links the framework ([a-zA-Z]+) from the cache/) do |target_n
   end
   framework_path = File.expand_path(build_file.file_ref.full_path.to_s, @dir)
   unless framework_path.include?(@cache_dir)
-    flunk("The framework '#{framework_name}' linked from target '#{target_name}' has a path outside the cache: #{framework_path}")
+    flunk(
+      "The framework '#{framework_name}' linked from target '#{target_name}' \
+      has a path outside the cache: #{framework_path}"
+    )
   end
 end
 
@@ -40,7 +42,10 @@ Then(/^([a-zA-Z]+) links the xcframework ([a-zA-Z]+)$/) do |target_name, xcframe
   flunk("Target #{target_name} doesn't exist in any of the projects' targets of the workspace") if target.nil?
   xcframework_deps = target.frameworks_build_phases.file_display_names.filter { |d| d.include?(".xcframework") }
   unless xcframework_deps.include?("#{xcframework}.xcframework")
-    flunk("Target #{target_name} doesn't link the xcframework #{xcframework}. It links the xcframeworks: #{xcframework_deps.join(", ")}")
+    flunk(
+      "Target #{target_name} doesn't link the xcframework #{xcframework}. \
+      It links the xcframeworks: #{xcframework_deps.join(", ")}"
+    )
   end
 end
 
@@ -50,7 +55,8 @@ Then(/^([a-zA-Z]+) links the framework ([a-zA-Z]+)$/) do |target_name, framework
   flunk("Target #{target_name} doesn't exist in any of the projects' targets of the workspace") if target.nil?
   framework_deps = target.frameworks_build_phases.file_display_names.filter { |d| d.include?(".framework") }
   unless framework_deps.include?("#{framework}.framework")
-    flunk("Target #{target_name} doesn't link the framework #{framework}. It links the frameworks: #{framework_deps.join(", ")}")
+    flunk("Target #{target_name} doesn't link the framework #{framework}. \
+    It links the frameworks: #{framework_deps.join(", ")}")
   end
 end
 
@@ -64,7 +70,8 @@ Then(/^([a-zA-Z]+) embeds the xcframework ([a-zA-Z]+)$/) do |target_name, xcfram
     .flat_map(&:file_display_names)
     .filter { |d| d.include?(".xcframework") }
   unless xcframework_deps.include?("#{xcframework}.xcframework")
-    flunk("Target #{target_name} doesn't embed the xcframework #{xcframework}. It embeds the xcframeworks: #{xcframework_deps.join(", ")}")
+    flunk("Target #{target_name} doesn't embed the xcframework #{xcframework}. \
+    It embeds the xcframeworks: #{xcframework_deps.join(", ")}")
   end
 end
 
@@ -78,7 +85,8 @@ Then(/^([a-zA-Z]+) embeds the framework ([a-zA-Z]+)$/) do |target_name, framewor
     .flat_map(&:file_display_names)
     .filter { |d| d.include?(".framework") }
   unless framework_deps.include?("#{framework}.framework")
-    flunk("Target #{target_name} doesn't embed the framework #{framework}. It embeds the frameworks: #{framework_deps.join(", ")}")
+    flunk("Target #{target_name} doesn't embed the framework #{framework}. \
+    It embeds the frameworks: #{framework_deps.join(", ")}")
   end
 end
 
@@ -106,6 +114,7 @@ Then(/^([a-zA-Z]+) does not embed any xcframeworks$/) do |target_name|
     .flat_map(&:file_display_names)
     .filter { |d| d.include?(".xcframework") }
   unless xcframework_deps.empty?
-    flunk("Target #{target_name} should not embed any xcframeworks, although it does embed the following xcframeworks: #{xcframework_deps.join(", ")}")
+    flunk("Target #{target_name} should not embed any xcframeworks, \
+    although it does embed the following xcframeworks: #{xcframework_deps.join(", ")}")
   end
 end

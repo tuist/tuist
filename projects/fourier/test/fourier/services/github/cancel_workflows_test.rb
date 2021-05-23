@@ -7,7 +7,6 @@ module Fourier
       class CancelWorkflowsTest < TestCase
         def test_cancels_workflows
           # Given
-          Utilities::Secrets.expects(:decrypt)
           github_client = mock("github_client")
             .responds_like_instance_of(Utilities::GitHubClient)
           queued_jobs = {

@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - '*'
+env:
+  RUBY_VERSION: '3.0.1'
 
 jobs:
   release:
@@ -18,7 +20,7 @@ jobs:
           fetch-depth: 0
       - uses: ruby/setup-ruby@v1
         with:
-          ruby-version: '2.7.2'
+          ruby-version: ${{ env.RUBY_VERSION }}
       - name: Install Bundler 2.1.4
         run: gem install bundler --version 2.1.4
       - uses: actions/cache@v2

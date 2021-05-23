@@ -29,6 +29,7 @@ module.exports = {
         'commands/generate',
         'commands/focus',
         'commands/signing',
+        'commands/task',
         'commands/build',
         'commands/test',
         'commands/scaffold',

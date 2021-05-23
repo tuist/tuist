@@ -1,5 +1,3 @@
-/** @jsx jsx */
-import { jsx } from 'theme-ui'
 import React from 'react'
 import { GatsbySeo } from 'gatsby-plugin-next-seo'
 import Footer from '../components/Footer'

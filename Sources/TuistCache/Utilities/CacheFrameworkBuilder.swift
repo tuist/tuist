@@ -43,7 +43,8 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
     /// Developer's environment.
     private let developerEnvironment: DeveloperEnvironmenting
 
-    private let derivedDataLocator: DerivedDataLocating
+    /// Locator for getting Xcode build directory.
+    private let xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating
 
     // MARK: - Init
 
@@ -52,16 +53,17 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
     ///   - xcodeBuildController: Xcode build controller.
     ///   - simulatorController: Simulator controller.
     ///   - developerEnvironment: Developer environment.
+    ///   - xcodeProjectBuildDirectoryLocator: Locator for Xcode builds.
     public init(
         xcodeBuildController: XcodeBuildControlling,
         simulatorController: SimulatorControlling = SimulatorController(),
         developerEnvironment: DeveloperEnvironmenting = DeveloperEnvironment.shared,
-        derivedDataLocator: DerivedDataLocating = DerivedDataLocator()
+        xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating = XcodeProjectBuildDirectoryLocator()
     ) {
         self.xcodeBuildController = xcodeBuildController
         self.simulatorController = simulatorController
         self.developerEnvironment = developerEnvironment
-        self.derivedDataLocator = derivedDataLocator
+        self.xcodeProjectBuildDirectoryLocator = xcodeProjectBuildDirectoryLocator
     }
 
     // MARK: - ArtifactBuilding
@@ -124,11 +126,10 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
             arguments: arguments
         )
 
-        let buildDirectory = try self.buildDirectory(
-            for: projectTarget,
-            target: target,
-            configuration: configuration,
-            sdk: sdk
+        let buildDirectory = try xcodeProjectBuildDirectoryLocator.locate(
+            platform: target.platform,
+            projectPath: projectTarget.path,
+            configuration: configuration
         )
 
         try exportFrameworksAndDSYMs(
@@ -136,26 +137,6 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
             into: outputDirectory,
             target: target
         )
-    }
-
-    fileprivate func buildDirectory(for projectTarget: XcodeBuildTarget,
-                                    target: Target,
-                                    configuration: String,
-                                    sdk: String) throws -> AbsolutePath
-    {
-        let projectPath = projectTarget.path
-
-        let derivedDataPath = try derivedDataLocator.locate(for: projectPath)
-        var buildDirectory = derivedDataPath
-            .appending(component: "Build")
-            .appending(component: "Products")
-        if target.platform == .macOS {
-            buildDirectory = buildDirectory.appending(component: "\(configuration)")
-        } else {
-            buildDirectory = buildDirectory.appending(component: "\(configuration)-\(sdk)")
-        }
-
-        return buildDirectory
     }
 
     fileprivate func arguments(target: Target,

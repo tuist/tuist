@@ -3,6 +3,7 @@ import TSCBasic
 import TuistSupport
 
 public protocol ResourceLocating: AnyObject {
+    func projectAutomation() throws -> AbsolutePath
     func projectDescription() throws -> AbsolutePath
     func cliPath() throws -> AbsolutePath
 }
@@ -36,6 +37,10 @@ public final class ResourceLocator: ResourceLocating {
     public init() {}
 
     // MARK: - ResourceLocating
+
+    public func projectAutomation() throws -> AbsolutePath {
+        try frameworkPath("ProjectAutomation")
+    }
 
     public func projectDescription() throws -> AbsolutePath {
         try frameworkPath("ProjectDescription")

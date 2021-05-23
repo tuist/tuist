@@ -37,34 +37,33 @@ module Fourier
         end
 
         private
+          def download(temporary_dir:)
+            puts(::CLI::UI.fmt("Downloading source code from {{info:#{SOURCE_TAR_URL}}}"))
+            sources_zip_path = File.join(temporary_dir, "swiftdoc.zip")
+            Down.download(SOURCE_TAR_URL, destination: sources_zip_path)
+            sources_zip_path
+          end
 
-        def download(temporary_dir:)
-          puts(::CLI::UI.fmt("Downloading source code from {{info:#{SOURCE_TAR_URL}}}"))
-          sources_zip_path = File.join(temporary_dir, "swiftdoc.zip")
-          Down.download(SOURCE_TAR_URL, destination: sources_zip_path)
-          sources_zip_path
-        end
+          def extract(sources_zip_path)
+            puts("Extracting source code...")
+            zip_content_path = File.join(File.dirname(sources_zip_path), "content")
+            Utilities::Zip.extract(zip: sources_zip_path, into: zip_content_path)
+            Dir.glob(File.join(zip_content_path, "*/")).first
+          end
 
-        def extract(sources_zip_path)
-          puts("Extracting source code...")
-          zip_content_path = File.join(File.dirname(sources_zip_path), "content")
-          Utilities::Zip.extract(zip: sources_zip_path, into: zip_content_path)
-          Dir.glob(File.join(zip_content_path, "*/")).first
-        end
+          def build(sources_path, into:)
+            puts("Building...")
+            Utilities::SwiftPackageManager.build_fat_release_binary(
+              path: sources_path,
+              binary_name: "swift-doc",
+              output_directory: into
+            )
 
-        def build(sources_path, into:)
-          puts("Building...")
-          Utilities::SwiftPackageManager.build_fat_release_binary(
-            path: sources_path,
-            binary_name: "swift-doc",
-            output_directory: into
-          )
-
-          FileUtils.copy_entry(
-            File.join(sources_path, ".build/arm64-apple-macosx/release/swift-doc_swift-doc.bundle"),
-            File.join(into, "swift-doc_swift-doc.bundle")
-          )
-        end
+            FileUtils.copy_entry(
+              File.join(sources_path, ".build/arm64-apple-macosx/release/swift-doc_swift-doc.bundle"),
+              File.join(into, "swift-doc_swift-doc.bundle")
+            )
+          end
       end
     end
   end

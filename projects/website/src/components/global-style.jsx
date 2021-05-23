@@ -9,7 +9,7 @@ import { darken } from '@theme-ui/color'
 const GlobalStyle = () => {
   return (
     <Global
-      styles={theme => ({
+      styles={(theme) => ({
         '*': {
           padding: '0px',
           margin: '0px',
@@ -30,10 +30,6 @@ const GlobalStyle = () => {
         //   overflow: 'auto',
         //   fontSize: theme.fontSizes[1],
         // },
-        body: {
-          bg: theme.colors.background,
-          color: theme.colors.text,
-        },
         "div[class*='token-line']": {
           overflowWrap: 'normal',
         },
