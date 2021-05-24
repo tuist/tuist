@@ -1,0 +1,35 @@
+@font-face {
+  font-family: 'ModernEra';
+  src: url('/fonts/ModernEra-ExtraBold.otf');
+  font-style: normal;
+  font-weight: 650;
+  font-display: auto;
+}
+
+@font-face {
+  font-family: 'ModernEra';
+  src: url('/fonts/ModernEra-Regular.otf');
+  font-style: normal;
+  font-weight: 400;
+  font-display: auto;
+}
+
+@font-face {
+  font-family: 'ModernEraMono';
+  src: url('/fonts/ModernEraMono-Bold.otf');
+  font-style: normal;
+  font-weight: 600;
+  font-display: auto;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+  font-family: ModernEra, system-ui, -apple-system, BlinkMacSystemFont,
+    'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}

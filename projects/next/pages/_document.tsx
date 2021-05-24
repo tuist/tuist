@@ -1,4 +1,4 @@
-import Document, { Main, NextScript } from 'next/document'
+import Document, { Html, Head, Main, NextScript } from 'next/document'
 import { InitializeColorMode } from 'theme-ui'
 
 export default class extends Document {
@@ -10,13 +10,14 @@ export default class extends Document {
   render() {
     // Replace html lang attribute value with your language.
     return (
-      <html lang="en">
+      <Html>
+        <Head />
         <body>
           <InitializeColorMode />
           <Main />
           <NextScript />
         </body>
-      </html>
+      </Html>
     )
   }
 }
