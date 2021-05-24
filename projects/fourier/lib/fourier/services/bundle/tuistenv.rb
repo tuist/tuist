@@ -58,7 +58,9 @@ module Fourier
               "--product", "tuistenv",
               "--configuration", "release",
               "--build-path", build_directory,
-              "--package-path", Constants::ROOT_DIRECTORY
+              "--package-path", Constants::ROOT_DIRECTORY,
+              "--arch", "arm64",
+              "--arch", "x86_64"
             )
           end
       end

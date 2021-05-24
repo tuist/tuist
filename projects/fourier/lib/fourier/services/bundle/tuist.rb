@@ -89,7 +89,9 @@ module Fourier
               "--product", "tuist",
               "--configuration", "release",
               "--build-path", build_directory,
-              "--package-path", Constants::ROOT_DIRECTORY
+              "--package-path", Constants::ROOT_DIRECTORY,
+              "--arch", "arm64",
+              "--arch", "x86_64"
             )
           end
 
@@ -103,7 +105,9 @@ module Fourier
               "-Xswiftc", "-emit-module-interface-path",
               "-Xswiftc", File.expand_path("release/ProjectDescription.swiftinterface", build_directory),
               "--build-path", build_directory,
-              "--package-path", Constants::ROOT_DIRECTORY
+              "--package-path", Constants::ROOT_DIRECTORY,
+              "--arch", "arm64",
+              "--arch", "x86_64"
             )
           end
 
@@ -117,7 +121,9 @@ module Fourier
               "-Xswiftc", "-emit-module-interface-path",
               "-Xswiftc", File.expand_path("release/ProjectAutomation.swiftinterface", build_directory),
               "--build-path", build_directory,
-              "--package-path", Constants::ROOT_DIRECTORY
+              "--package-path", Constants::ROOT_DIRECTORY,
+              "--arch", "arm64",
+              "--arch", "x86_64"
             )
           end
       end
