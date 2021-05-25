@@ -7,18 +7,18 @@ public final class MockDependenciesController: DependenciesControlling {
     public init() {}
 
     var invokedFetch = false
-    var fetchStub: ((AbsolutePath, Dependencies) throws -> Void)?
+    var fetchStub: ((AbsolutePath, Dependencies, String?) throws -> Void)?
 
-    public func fetch(at path: AbsolutePath, dependencies: Dependencies) throws {
+    public func fetch(at path: AbsolutePath, dependencies: Dependencies, swiftVersion: String?) throws {
         invokedFetch = true
-        try fetchStub?(path, dependencies)
+        try fetchStub?(path, dependencies, swiftVersion)
     }
 
     var invokedUpdate = false
-    var updateStub: ((AbsolutePath, Dependencies) throws -> Void)?
+    var updateStub: ((AbsolutePath, Dependencies, String?) throws -> Void)?
 
-    public func update(at path: AbsolutePath, dependencies: Dependencies) throws {
+    public func update(at path: AbsolutePath, dependencies: Dependencies, swiftVersion: String?) throws {
         invokedUpdate = true
-        try updateStub?(path, dependencies)
+        try updateStub?(path, dependencies, swiftVersion)
     }
 }

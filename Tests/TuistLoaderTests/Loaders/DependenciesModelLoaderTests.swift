@@ -48,8 +48,7 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
                     [
                         .local(path: Path(localSwiftPackagePath.pathString)),
                         .remote(url: "RemoteUrl.com", requirement: .exact("1.2.3")),
-                    ],
-                    options: [.swiftToolsVersion("5.4.0")]
+                    ]
                 ),
                 platforms: [.iOS, .macOS]
             )
@@ -71,8 +70,7 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
                 [
                     .local(path: localSwiftPackagePath),
                     .remote(url: "RemoteUrl.com", requirement: .exact("1.2.3")),
-                ],
-                options: [.swiftToolsVersion("5.4.0")]
+                ]
             ),
             platforms: [.iOS, .macOS]
         )

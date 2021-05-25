@@ -5,34 +5,17 @@ public struct SwiftPackageManagerDependencies: Equatable {
     /// List of packages that will be installed using Swift Package Manager.
     public let packages: [Package]
 
-    /// List of options for Carthage installation.
-    public let options: Set<Options>
-
     /// Initializes a new `SwiftPackageManagerDependencies` instance.
     /// - Parameters:
     ///    - packages: List of packages that will be installed using Swift Package Manager.
-    ///    - options: List of options for Swift Package Manager installation.
     public init(
-        _ packages: [Package],
-        options: Set<Options>
+        _ packages: [Package]
     ) {
         self.packages = packages
-        self.options = options
     }
 }
 
 extension SwiftPackageManagerDependencies {
-    /// Returns the version of swift tools that should be used to resolve dependencies or `nil` when the version is unspecified.
-    public var swiftToolsVersion: String? {
-        options
-            .compactMap { option -> String? in
-                switch option {
-                case let .swiftToolsVersion(version):
-                    return version
-                }
-            }.first
-    }
-
     /// Returns `Package.swift` representation.
     ///
     /// **NOTE** It is a temporary solution until Apple resolves: https://forums.swift.org/t/pitch-package-editor-commands/42224
@@ -47,17 +30,6 @@ extension SwiftPackageManagerDependencies {
             ]
         )
         """
-    }
-}
-
-// MARK: - SwiftPackageManagerDependencies.Options
-
-public extension SwiftPackageManagerDependencies {
-    /// The options that you can set for Swift Package Manager installation.
-    enum Options: Equatable, Hashable {
-        /// When passed, Tuist will add the specified tools version to the `Package.swift` manifest file.
-        /// When not passed, the environment’s tools version will be used.
-        case swiftToolsVersion(String)
     }
 }
 

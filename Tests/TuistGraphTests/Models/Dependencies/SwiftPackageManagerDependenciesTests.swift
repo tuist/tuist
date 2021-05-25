@@ -9,8 +9,7 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
         let subject = SwiftPackageManagerDependencies(
             [
                 .remote(url: "url/url/url", requirement: .branch("branch")),
-            ],
-            options: []
+            ]
         )
 
         // When
@@ -41,8 +40,7 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
                 .remote(url: "https://www.google.com/", requirement: .revision("a083aa1435eb35d8a1cb369115a7636cb4b65135")),
                 .remote(url: "url/url/url", requirement: .range(from: "1.2.3", to: "5.2.1")),
                 .local(path: "/path/path/path"),
-            ],
-            options: []
+            ]
         )
 
         // When
@@ -69,40 +67,5 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
         )
         """
         XCTAssertEqual(got, expected)
-    }
-
-    func test_swiftToolsVersion() {
-        // Given
-        let swiftToolsVersion = "5.3.0"
-        let subject = SwiftPackageManagerDependencies(
-            [
-                .remote(url: "url/url/url", requirement: .branch("branch")),
-            ],
-            options: [
-                .swiftToolsVersion(swiftToolsVersion),
-            ]
-        )
-
-        // When
-        let got = subject.swiftToolsVersion
-
-        // Then
-        XCTAssertEqual(got, swiftToolsVersion)
-    }
-
-    func test_swiftToolsVersion_unspecified() {
-        // Given
-        let subject = SwiftPackageManagerDependencies(
-            [
-                .remote(url: "url/url/url", requirement: .branch("branch")),
-            ],
-            options: []
-        )
-
-        // When
-        let got = subject.swiftToolsVersion
-
-        // Then
-        XCTAssertNil(got)
     }
 }

@@ -35,12 +35,16 @@ public struct Config: Equatable, Hashable {
     /// Cache configuration.
     public let cache: Cache?
 
+    /// The specified version of Swift that will be used by Tuist.
+    /// When `nil` is passed then Tuist will use the environment’s version.
+    public let swiftVersion: String?
+    
     /// The path of the config file.
     public let path: AbsolutePath?
 
     /// Returns the default Tuist configuration.
     public static var `default`: Config {
-        Config(compatibleXcodeVersions: .all, lab: nil, cache: nil, plugins: [], generationOptions: [], path: nil)
+        Config(compatibleXcodeVersions: .all, lab: nil, cache: nil, swiftVersion: nil, plugins: [], generationOptions: [], path: nil)
     }
 
     /// Initializes the tuist cofiguration.
@@ -48,6 +52,8 @@ public struct Config: Equatable, Hashable {
     /// - Parameters:
     ///   - compatibleXcodeVersions: List of Xcode versions the project or set of projects is compatible with.
     ///   - lab: Lab configuration.
+    ///   - cache: Cache configuration.
+    ///   - swiftVersion: The specified version of Swift that will be used by Tuist.
     ///   - plugins: List of locations to a `Plugin` manifest.
     ///   - generationOptions: Generation options.
     ///   - path: The path of the config file.
@@ -55,6 +61,7 @@ public struct Config: Equatable, Hashable {
         compatibleXcodeVersions: CompatibleXcodeVersions,
         lab: Lab?,
         cache: Cache?,
+        swiftVersion: String?,
         plugins: [PluginLocation],
         generationOptions: [GenerationOption],
         path: AbsolutePath?
@@ -62,6 +69,7 @@ public struct Config: Equatable, Hashable {
         self.compatibleXcodeVersions = compatibleXcodeVersions
         self.lab = lab
         self.cache = cache
+        self.swiftVersion = swiftVersion
         self.plugins = plugins
         self.generationOptions = generationOptions
         self.path = path
@@ -73,6 +81,7 @@ public struct Config: Equatable, Hashable {
         hasher.combine(generationOptions)
         hasher.combine(lab)
         hasher.combine(cache)
+        hasher.combine(swiftVersion)
         hasher.combine(compatibleXcodeVersions)
     }
 }

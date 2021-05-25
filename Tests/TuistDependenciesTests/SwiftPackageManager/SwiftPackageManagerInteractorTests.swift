@@ -41,8 +41,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let depedencies = SwiftPackageManagerDependencies(
             [
                 .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
-            ],
-            options: []
+            ]
         )
 
         swiftPackageManagerController.resolveStub = { path in
@@ -51,13 +50,14 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         }
         swiftPackageManagerController.setToolsVersionStub = { path, version in
             XCTAssertEqual(path, try self.temporaryPath())
-            XCTAssertNil(version) // swift-tools-version is not specified in options
+            XCTAssertNil(version) // swift-tools-version is not specified
         }
 
         // When
         try subject.fetch(
             dependenciesDirectory: dependenciesDirectory,
-            dependencies: depedencies
+            dependencies: depedencies,
+            swiftToolsVersion: nil
         )
 
         // Then
@@ -104,9 +104,6 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let depedencies = SwiftPackageManagerDependencies(
             [
                 .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
-            ],
-            options: [
-                .swiftToolsVersion(swiftToolsVersion),
             ]
         )
 
@@ -116,13 +113,14 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         }
         swiftPackageManagerController.setToolsVersionStub = { path, version in
             XCTAssertEqual(path, try self.temporaryPath())
-            XCTAssertEqual(version, swiftToolsVersion) // version should be eqaul to the version that has been specified in options
+            XCTAssertEqual(version, swiftToolsVersion) // version should be eqaul to the version that has been specified
         }
 
         // When
         try subject.fetch(
             dependenciesDirectory: dependenciesDirectory,
-            dependencies: depedencies
+            dependencies: depedencies,
+            swiftToolsVersion: swiftToolsVersion
         )
 
         // Then
@@ -168,8 +166,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let depedencies = SwiftPackageManagerDependencies(
             [
                 .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
-            ],
-            options: []
+            ]
         )
 
         swiftPackageManagerController.updateStub = { path in
@@ -178,13 +175,14 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         }
         swiftPackageManagerController.setToolsVersionStub = { path, version in
             XCTAssertEqual(path, try self.temporaryPath())
-            XCTAssertNil(version) // swift-tools-version is not specified in options
+            XCTAssertNil(version) // swift-tools-version is not specified
         }
 
         // When
         try subject.update(
             dependenciesDirectory: dependenciesDirectory,
-            dependencies: depedencies
+            dependencies: depedencies,
+            swiftToolsVersion: nil
         )
 
         // Then
