@@ -7,7 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Add option to `Scaffolding` for copy folder with option `.directory(path: "destinationContainerFolder", sourcePath: "sourceFolder")`. [#2985](https://github.com/tuist/tuist/pull/2985) by [@santi-d](https://github.com/santi-d)
-- Add possibility to specify `swift-tools-version` in the `Dependencies.swift` manifest file. [#2998](https://github.com/tuist/tuist/pull/2998) by [@laxmorek](https://github.com/laxmorek)
+- Add possibility to specify version of Swift in the `Config.swift` manifest file. [#2998](https://github.com/tuist/tuist/pull/2998) by [@laxmorek](https://github.com/laxmorek)
 
 ## 1.43.0 - Peroxide
 
