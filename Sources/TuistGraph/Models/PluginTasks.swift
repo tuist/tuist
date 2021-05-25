@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
 
-/// Resource synthesizer plugin model
+/// Tasks plugin model
 public struct PluginTasks: Equatable {
     /// Name of the plugin.
     public let name: String
