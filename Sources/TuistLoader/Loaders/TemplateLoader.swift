@@ -38,7 +38,7 @@ public class TemplateLoader: TemplateLoading {
 extension TuistGraph.Template {
     static func from(manifest: ProjectDescription.Template, generatorPaths: GeneratorPaths) throws -> TuistGraph.Template {
         let attributes = try manifest.attributes.map(TuistGraph.Template.Attribute.from)
-        let files = try manifest.files.map { File(
+        let items = try manifest.items.map { Item(
             path: RelativePath($0.path),
             contents: try TuistGraph.Template.Contents.from(
                 manifest: $0.contents,
@@ -48,7 +48,7 @@ extension TuistGraph.Template {
         return TuistGraph.Template(
             description: manifest.description,
             attributes: attributes,
-            files: files
+            items: items
         )
     }
 }
@@ -73,6 +73,8 @@ extension TuistGraph.Template.Contents {
             return .string(contents)
         case let .file(templatePath):
             return .file(try generatorPaths.resolve(path: templatePath))
+        case let .directory(sourcePath):
+            return .directory(try generatorPaths.resolve(path: sourcePath))
         }
     }
 }
