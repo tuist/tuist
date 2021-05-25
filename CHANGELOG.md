@@ -6,6 +6,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
+- Add possibility to share tasks via a plugin [#3013](https://github.com/tuist/tuist/pull/3013) by [@fortmarek](https://github.com/fortmarek)
 - Add option to `Scaffolding` for copy folder with option `.directory(path: "destinationContainerFolder", sourcePath: "sourceFolder")`. [#2985](https://github.com/tuist/tuist/pull/2985) by [@santi-d](https://github.com/santi-d)
 
 ## 1.43.0 - Peroxide
