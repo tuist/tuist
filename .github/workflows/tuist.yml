@@ -103,6 +103,7 @@ jobs:
             'test',
             'up',
             'graph',
+            'tasks',
           ]
     steps:
       - uses: actions/checkout@v1
