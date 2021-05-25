@@ -51,7 +51,7 @@ final class ListServiceTests: TuistUnitTestCase {
         }
 
         templateLoader.loadTemplateStub = { _ in
-            Template(description: "description")
+            Template(description: "description", items: [])
         }
 
         // When
@@ -82,7 +82,7 @@ final class ListServiceTests: TuistUnitTestCase {
         }
 
         templateLoader.loadTemplateStub = { _ in
-            Template(description: "description")
+            Template(description: "description", items: [])
         }
 
         // When
@@ -113,7 +113,7 @@ final class ListServiceTests: TuistUnitTestCase {
         }
 
         templateLoader.loadTemplateStub = { _ in
-            Template(description: "description")
+            Template(description: "description", items: [])
         }
 
         // When

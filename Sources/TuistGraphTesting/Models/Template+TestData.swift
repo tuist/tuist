@@ -5,21 +5,21 @@ import TSCBasic
 extension Template {
     public static func test(description: String = "Template",
                             attributes: [Attribute] = [],
-                            files: [Template.File] = []) -> Template
+                            items: [Template.Item] = []) -> Template
     {
         Template(
             description: description,
             attributes: attributes,
-            files: files
+            items: items
         )
     }
 }
 
-extension Template.File {
+extension Template.Item {
     public static func test(path: RelativePath,
-                            contents: Template.Contents = .string("test content")) -> Template.File
+                            contents: Template.Contents = .string("test content")) -> Template.Item
     {
-        Template.File(
+        Template.Item(
             path: path,
             contents: contents
         )

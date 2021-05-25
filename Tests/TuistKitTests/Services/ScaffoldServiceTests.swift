@@ -54,7 +54,8 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
                 attributes: [
                     .required("required"),
                     .optional("optional", default: ""),
-                ]
+                ],
+                items: []
             )
         }
 
@@ -83,7 +84,8 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
                 attributes: [
                     .required("required"),
                     .optional("optional", default: ""),
-                ]
+                ],
+                items: []
             )
         }
 
