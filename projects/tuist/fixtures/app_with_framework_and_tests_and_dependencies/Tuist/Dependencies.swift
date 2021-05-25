@@ -13,9 +13,6 @@ let dependencies = Dependencies(
     swiftPackageManager: .swiftPackageManager(
         [
             .package(url: "https://github.com/SnapKit/SnapKit.git", .upToNextMajor(from: "5.0.1"))
-        ],
-        options: [
-            .swiftToolsVersion("5.3.0"),
         ]
     ),
     platforms: [.iOS]
