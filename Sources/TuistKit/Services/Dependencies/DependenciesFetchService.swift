@@ -25,10 +25,10 @@ final class DependenciesFetchService {
 
         let path = self.path(path)
         let dependencies = try dependenciesModelLoader.loadDependencies(at: path)
-        
+
         let config = try configLoading.loadConfig(path: path)
         let swiftVersion = config.swiftVersion
-        
+
         try dependenciesController.fetch(
             at: path,
             dependencies: dependencies,

@@ -63,7 +63,7 @@ final class DependenciesUpdateServiceTests: TuistUnitTestCase {
 
         let stubbedSwiftVersion = "5.3.0"
         configLoader.loadConfigStub = { _ in Config.test(swiftVersion: stubbedSwiftVersion) }
-        
+
         dependenciesController.updateStub = { path, dependencies, swiftVersion in
             XCTAssertEqual(path, stubbedPath)
             XCTAssertEqual(dependencies, stubbedDependencies)

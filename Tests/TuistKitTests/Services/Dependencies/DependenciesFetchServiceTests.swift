@@ -60,7 +60,7 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
             platforms: [.iOS, .macOS]
         )
         dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
-        
+
         let stubbedSwiftVersion = "5.3.0"
         configLoader.loadConfigStub = { _ in Config.test(swiftVersion: stubbedSwiftVersion) }
 

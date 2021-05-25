@@ -27,10 +27,10 @@ final class DependenciesUpdateService {
 
         let path = self.path(path)
         let dependencies = try dependenciesModelLoader.loadDependencies(at: path)
-        
+
         let config = try configLoading.loadConfig(path: path)
         let swiftVersion = config.swiftVersion
-        
+
         try dependenciesController.update(
             at: path,
             dependencies: dependencies,

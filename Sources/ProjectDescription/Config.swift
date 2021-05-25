@@ -50,7 +50,7 @@ public struct Config: Codable, Equatable {
 
     /// Cache configuration.
     public let cache: Cache?
-    
+
     /// The specified version of Swift that will be used by Tuist.
     /// When `nil` is passed then Tuist will use the environment’s version.
     public let swiftVersion: Version?

@@ -38,7 +38,7 @@ public struct Config: Equatable, Hashable {
     /// The specified version of Swift that will be used by Tuist.
     /// When `nil` is passed then Tuist will use the environment’s version.
     public let swiftVersion: String?
-    
+
     /// The path of the config file.
     public let path: AbsolutePath?
 

@@ -38,7 +38,7 @@ final class ConfigTests: XCTestCase {
 
         XCTAssertCodable(config)
     }
-    
+
     func test_config_toJSON_WITH_swiftVersion() {
         let config = Config(
             swiftVersion: "5.3.0",
