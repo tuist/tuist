@@ -164,7 +164,7 @@ final class PluginServiceTests: TuistTestCase {
         )
         XCTAssertEqual(plugins, expectedPlugins)
     }
-    
+
     func test_loadPlugins_WHEN_localTasks() throws {
         // Given
         let pluginPath = try temporaryPath()
@@ -193,7 +193,7 @@ final class PluginServiceTests: TuistTestCase {
         )
         XCTAssertEqual(plugins, expectedPlugins)
     }
-    
+
     func test_loadPlugins_WHEN_gitTasks() throws {
         // Given
         let pluginGitUrl = "https://url/to/repo.git"

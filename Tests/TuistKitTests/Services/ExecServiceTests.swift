@@ -3,10 +3,10 @@ import TSCBasic
 import TuistCore
 import TuistGraph
 import TuistLoaderTesting
+import TuistPluginTesting
 import TuistSupport
 import TuistSupportTesting
 import TuistTasksTesting
-import TuistPluginTesting
 import XCTest
 
 @testable import TuistKit
@@ -212,7 +212,7 @@ final class TaskServiceTests: TuistUnitTestCase {
             )
         )
     }
-    
+
     func test_run_when_task_from_plugin() throws {
         // Given
         let path = try temporaryPath()
@@ -230,7 +230,7 @@ final class TaskServiceTests: TuistUnitTestCase {
                 templatePaths: [],
                 resourceSynthesizers: [],
                 tasks: [
-                    PluginTasks(name: "Plugins", path: tasksDirectory)
+                    PluginTasks(name: "Plugins", path: tasksDirectory),
                 ]
             )
         }
@@ -256,7 +256,7 @@ final class TaskServiceTests: TuistUnitTestCase {
             )
         )
     }
-    
+
     private static let taskContent = """
                    import ProjectAutomation
                    import Foundation

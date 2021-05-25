@@ -11,7 +11,7 @@ public struct Plugins: Equatable {
 
     /// List of paths pointing to resource templates
     public let resourceSynthesizers: [PluginResourceSynthesizer]
-    
+
     /// List of tasks plugins.
     public let tasks: [PluginTasks]
 
