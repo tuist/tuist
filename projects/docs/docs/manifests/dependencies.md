@@ -73,11 +73,3 @@ Contains the description of a dependency that can be installed using Swift Packa
 | Property   | Description                                                          | Type                                      | Required | Default |
 | ---------- | -------------------------------------------------------------------- | ----------------------------------------- | -------- | ------- |
 | `packages` | List of packages that will be installed using Swift Package Manager. | [`[Package]`](/manifests/project#package) | Yes      |         |
-
-### SwiftPackageManagerDependencies Options
-
-The options that you can set for Swift Package Manager installation.
-
-| Case                 | Description                                                                                                                                                  |
-| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `.swiftToolsVersion` | When passed, Tuist will add the specified tools version to the `Package.swift` manifest file. When not passed, the environment’s tools version will be used. |
