@@ -510,6 +510,10 @@ Diagnostics options represent the configurable diagnostics-related settings in t
 
 #### Archive Action
 
+:::note Archive action definition
+Take in count that `ArchiveAction` when is defined in a `Scheme`, needs also a definition of `BuildAction` in the signature of the scheme. Without the previously option commented the scheme will have the archive action by default.
+:::
+
 | Property                   | Description                                                              | Type                                     | Required | Default |
 | -------------------------- | ------------------------------------------------------------------------ | ---------------------------------------- | -------- | ------- |
 | `configurationName`        | Indicates the build configuration to run the archive with.               | `String`                                 | Yes      |         |
