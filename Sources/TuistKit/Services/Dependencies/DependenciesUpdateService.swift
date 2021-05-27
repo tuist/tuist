@@ -10,12 +10,16 @@ import TuistSupport
 final class DependenciesUpdateService {
     private let dependenciesController: DependenciesControlling
     private let dependenciesModelLoader: DependenciesModelLoading
+    private let configLoading: ConfigLoading
 
-    init(dependenciesController: DependenciesControlling = DependenciesController(),
-         dependenciesModelLoader: DependenciesModelLoading = DependenciesModelLoader())
-    {
+    init(
+        dependenciesController: DependenciesControlling = DependenciesController(),
+        dependenciesModelLoader: DependenciesModelLoading = DependenciesModelLoader(),
+        configLoading: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader())
+    ) {
         self.dependenciesController = dependenciesController
         self.dependenciesModelLoader = dependenciesModelLoader
+        self.configLoading = configLoading
     }
 
     func run(path: String?) throws {
@@ -23,7 +27,15 @@ final class DependenciesUpdateService {
 
         let path = self.path(path)
         let dependencies = try dependenciesModelLoader.loadDependencies(at: path)
-        try dependenciesController.update(at: path, dependencies: dependencies)
+
+        let config = try configLoading.loadConfig(path: path)
+        let swiftVersion = config.swiftVersion
+
+        try dependenciesController.update(
+            at: path,
+            dependencies: dependencies,
+            swiftVersion: swiftVersion
+        )
 
         logger.info("Dependencies updated successfully.", metadata: .success)
     }

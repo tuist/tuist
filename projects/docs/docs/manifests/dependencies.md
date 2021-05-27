@@ -18,7 +18,10 @@ let dependencies = Dependencies(
         [
             .github(path: "Alamofire/Alamofire", requirement: .exact("5.0.4"))
         ],
-        options: [.useXCFrameworks, .noUseBinaries]
+        options: [
+            .useXCFrameworks,
+            .noUseBinaries,
+        ]
     ),
     swiftPackageManager: nil, // work in progress, pass `nil`
     platforms: [.iOS]
@@ -35,7 +38,7 @@ A `Dependencies` manifest allows for defining external dependencies for Tuist.
 | `swiftPackageManager` | The description of a dependency that can be installed using Swift Package Manager. | [`SwiftPackageManagerDependencies`](#swift-package-manager-dependencies) | No       | `nil`                    |
 | `platforms`           | List of platforms for which you want to install depedencies.                       | [`Set<Platform>`](/manifests/project#platform)                           | No       | `Set(Platform.allCases)` |
 
-### Carthage Dependencies
+### CarthageDependencies
 
 Contains the description of a dependency that can be installed using Carthage.
 
@@ -44,7 +47,7 @@ Contains the description of a dependency that can be installed using Carthage.
 | `dependencies` | List of depedencies that will be installed using Carthage. | [`[CarthageDependencies.Dependency]`](#carthage-dependencies-dependency) | Yes      |         |
 | `options`      | List of options for Carthage installation.                 | [`Set<CarthageDependencies.Options>`](#carthage-dependencies-options)    | No       | `[]`    |
 
-### Carthage Dependencies Dependency
+### CarthageDependencies Dependency
 
 Specifies origin of Carthage dependency.
 
@@ -54,7 +57,7 @@ Specifies origin of Carthage dependency.
 | `.git(String, Requirement)`    | Other Git repositories.                                                |
 | `.binary(String, Requirement)` | Dependencies that are only available as compiled binary `.framework`s. |
 
-### Carthage Dependencies Options
+### CarthageDependencies Options
 
 The options that you can set for Carthage installation.
 

@@ -17,8 +17,6 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
 
         // Then
         let expected = """
-        // swift-tools-version:5.3
-
         import PackageDescription
 
         let package = Package(
@@ -59,8 +57,6 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
             #".package(path: "/path/path/path"),"#,
         ]
         let expected = """
-        // swift-tools-version:5.3
-
         import PackageDescription
 
         let package = Package(
