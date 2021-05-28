@@ -37,7 +37,7 @@ public protocol SwiftPackageManagerInteracting {
     /// - Parameters:
     ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
     ///   - dependencies: List of dependencies to fetch using `Swift Package Manager`.
-    ///   - swiftToolsVersion: The version of Swift tools that will be used to resolve dependencies. When `nil` is passed then the environment’s version will be used.
+    ///   - swiftToolsVersion: The version of Swift tools that will be used to resolve dependencies. If `nil` is passed then the environment’s version will be used.
     func fetch(
         dependenciesDirectory: AbsolutePath,
         dependencies: SwiftPackageManagerDependencies,
@@ -48,7 +48,7 @@ public protocol SwiftPackageManagerInteracting {
     /// - Parameters:
     ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
     ///   - dependencies: List of dependencies to update using `Swift Package Manager`.
-    ///   - swiftToolsVersion: The version of Swift tools that will be used to resolve dependencies. When `nil` is passed then the environment’s version will be used.
+    ///   - swiftToolsVersion: The version of Swift tools that will be used to resolve dependencies. If `nil` is passed then the environment’s version will be used.
     func update(
         dependenciesDirectory: AbsolutePath,
         dependencies: SwiftPackageManagerDependencies,
