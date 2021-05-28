@@ -35,8 +35,8 @@ public struct Config: Equatable, Hashable {
     /// Cache configuration.
     public let cache: Cache?
 
-    /// The specified version of Swift that will be used by Tuist.
-    /// When `nil` is passed then Tuist will use the environment’s version.
+    /// The version of Swift that will be used by Tuist.
+    /// If `nil` is passed then Tuist will use the environment’s version.
     public let swiftVersion: String?
 
     /// The path of the config file.
@@ -53,7 +53,7 @@ public struct Config: Equatable, Hashable {
     ///   - compatibleXcodeVersions: List of Xcode versions the project or set of projects is compatible with.
     ///   - lab: Lab configuration.
     ///   - cache: Cache configuration.
-    ///   - swiftVersion: The specified version of Swift that will be used by Tuist.
+    ///   - swiftVersion: The version of Swift that will be used by Tuist.
     ///   - plugins: List of locations to a `Plugin` manifest.
     ///   - generationOptions: Generation options.
     ///   - path: The path of the config file.

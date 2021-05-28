@@ -51,8 +51,8 @@ public struct Config: Codable, Equatable {
     /// Cache configuration.
     public let cache: Cache?
 
-    /// The specified version of Swift that will be used by Tuist.
-    /// When `nil` is passed then Tuist will use the environment’s version.
+    /// The version of Swift that will be used by Tuist.
+    /// If `nil` is passed then Tuist will use the environment’s version.
     public let swiftVersion: Version?
 
     /// Initializes the tuist configuration.
@@ -61,7 +61,7 @@ public struct Config: Codable, Equatable {
     ///   - compatibleXcodeVersions: List of Xcode versions the project is compatible with.
     ///   - lab: Lab configuration.
     ///   - cache: Cache configuration.
-    ///   - swiftVersion: The specified version of Swift that will be used by Tuist.
+    ///   - swiftVersion: The version of Swift that will be used by Tuist.
     ///   - plugins: A list of plugins to extend Tuist.
     ///   - generationOptions: List of options to use when generating the project.
     public init(

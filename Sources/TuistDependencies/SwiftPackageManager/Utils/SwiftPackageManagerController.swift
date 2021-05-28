@@ -23,39 +23,39 @@ public final class SwiftPackageManagerController: SwiftPackageManagerControlling
     public init() {}
 
     public func resolve(at path: AbsolutePath) throws {
-        let command = buildSwiftPackageCommand(packagePath: path, subcommand: ["resolve"])
+        let command = buildSwiftPackageCommand(packagePath: path, extraArguments: ["resolve"])
 
         try System.shared.run(command)
     }
 
     public func update(at path: AbsolutePath) throws {
-        let command = buildSwiftPackageCommand(packagePath: path, subcommand: ["update"])
+        let command = buildSwiftPackageCommand(packagePath: path, extraArguments: ["update"])
 
         try System.shared.run(command)
     }
 
     public func setToolsVersion(at path: AbsolutePath, to version: String?) throws {
-        let subcommand: [String]
+        let extraArguments: [String]
         if let version = version {
-            subcommand = ["tools-version", "--set", version]
+            extraArguments = ["tools-version", "--set", version]
         } else {
-            subcommand = ["tools-version", "--set-current"]
+            extraArguments = ["tools-version", "--set-current"]
         }
 
-        let command = buildSwiftPackageCommand(packagePath: path, subcommand: subcommand)
+        let command = buildSwiftPackageCommand(packagePath: path, extraArguments: extraArguments)
 
         try System.shared.run(command)
     }
 
     // MARK: - Helpers
 
-    private func buildSwiftPackageCommand(packagePath: AbsolutePath, subcommand: [String]) -> [String] {
+    private func buildSwiftPackageCommand(packagePath: AbsolutePath, extraArguments: [String]) -> [String] {
         [
             "swift",
             "package",
             "--package-path",
             packagePath.pathString,
         ]
-            + subcommand
+            + extraArguments
     }
 }

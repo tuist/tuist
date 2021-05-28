@@ -37,7 +37,7 @@ public protocol DependenciesControlling {
     /// Fetches dependencies.
     /// - Parameter path: Directory whose project's dependencies will be fetched.
     /// - Parameter dependencies: List of dependencies to fetch.
-    /// - Parameter swiftVersion: The specified version of Swift. When `nil` is passed then the environment’s version will be used.
+    /// - Parameter swiftVersion: The specified version of Swift. If `nil` is passed then the environment’s version will be used.
     func fetch(
         at path: AbsolutePath,
         dependencies: Dependencies,
@@ -48,7 +48,7 @@ public protocol DependenciesControlling {
     /// - Parameters:
     ///   - path: Directory whose project's dependencies will be updated.
     ///   - dependencies: List of dependencies to update.
-    ///   - swiftVersion: The specified version of Swift. When `nil` is passed then will use the environment’s version will be used.
+    ///   - swiftVersion: The specified version of Swift. If `nil` is passed then will use the environment’s version will be used.
     func update(
         at path: AbsolutePath,
         dependencies: Dependencies,
