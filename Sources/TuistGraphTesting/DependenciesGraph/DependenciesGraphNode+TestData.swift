@@ -2,7 +2,7 @@ import Foundation
 import TSCBasic
 import TuistGraph
 
-public extension DependenciesGraphDependency {
+public extension DependenciesGraphNode {
     static func testXCFramework(
         path: AbsolutePath = AbsolutePath.root.appending(RelativePath("Test.xcframework"))
     ) -> Self {

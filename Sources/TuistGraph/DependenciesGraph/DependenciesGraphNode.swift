@@ -2,14 +2,14 @@ import Foundation
 import TSCBasic
 
 // A node of the third party dependency graph.
-public enum DependenciesGraphDependency: Hashable, Equatable, Codable {
+public enum DependenciesGraphNode: Hashable, Equatable, Codable {
     /// A dependency that represents a pre-compiled .xcframework.
     case xcframework(path: AbsolutePath)
 }
 
 // MARK: - Codable
 
-extension DependenciesGraphDependency {
+extension DependenciesGraphNode {
     private enum Kind: String, Codable {
         case xcframework
     }

@@ -131,11 +131,10 @@ public final class CarthageInteractor: CarthageInteracting {
             // post installation
             try saveDepedencies(pathsProvider: pathsProvider)
         }
-
         logger.info("Carthage dependencies installed successfully.", metadata: .subsection)
         
         #warning("LAXMOREK WIP: Generate dependencies grah")
-        return DependenciesGraph()
+        return DependenciesGraph(nodes: [:])
     }
 
     public func clean(dependenciesDirectory: AbsolutePath) throws {
