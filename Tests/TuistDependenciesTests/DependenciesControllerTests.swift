@@ -109,10 +109,11 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         )
         let swiftVersion = "5.4.0"
 
-        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg3 in
+        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
             XCTAssertEqual(arg1, swiftPackageManagerDependencies)
-            XCTAssertFalse(arg3)
+            XCTAssertFalse(arg2)
+            XCTAssertEqual(arg3, swiftVersion)
         }
 
         // When
@@ -168,10 +169,11 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             
             return .test()
         }
-        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2 in
+        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
             XCTAssertEqual(arg1, swiftPackageManagerDependencies)
             XCTAssertFalse(arg2)
+            XCTAssertEqual(arg3, swiftVersion)
         }
 
         // When
@@ -299,10 +301,11 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         )
         let swiftVersion = "5.4.0"
 
-        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2 in
+        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
             XCTAssertEqual(arg1, swiftPackageManagerDependencies)
             XCTAssertTrue(arg2)
+            XCTAssertEqual(arg3, swiftVersion)
         }
 
         // When
@@ -358,10 +361,11 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             
             return .test()
         }
-        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2 in
+        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
             XCTAssertEqual(arg1, swiftPackageManagerDependencies)
             XCTAssertTrue(arg2)
+            XCTAssertEqual(arg3, swiftVersion)
         }
 
         // When

@@ -7,15 +7,16 @@ public final class MockSwiftPackageManagerInteractor: SwiftPackageManagerInterac
     public init() {}
 
     var invokedInstall = false
-    var installStub: ((AbsolutePath, SwiftPackageManagerDependencies, Bool) throws -> Void)?
+    var installStub: ((AbsolutePath, SwiftPackageManagerDependencies, Bool, String?) throws -> Void)?
 
     public func install(
         dependenciesDirectory: AbsolutePath,
         dependencies: SwiftPackageManagerDependencies,
-        shouldUpdate: Bool
+        shouldUpdate: Bool,
+        swiftToolsVersion: String?
     ) throws {
         invokedInstall = true
-        try installStub?(dependenciesDirectory, dependencies, shouldUpdate)
+        try installStub?(dependenciesDirectory, dependencies, shouldUpdate, swiftToolsVersion)
     }
 
     var invokedClean = false

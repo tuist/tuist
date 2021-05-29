@@ -73,12 +73,30 @@ public final class DependenciesController: DependenciesControlling {
         self.swiftPackageManagerInteractor = swiftPackageManagerInteractor
     }
 
-    public func fetch(at path: AbsolutePath, dependencies: Dependencies) throws {
-        try install(at: path, dependencies: dependencies, shouldUpdate: false)
+    public func fetch(
+        at path: AbsolutePath,
+        dependencies: Dependencies,
+        swiftVersion: String?
+    ) throws {
+        try install(
+            at: path,
+            dependencies: dependencies,
+            shouldUpdate: false,
+            swiftVersion: swiftVersion
+        )
     }
 
-    public func update(at path: AbsolutePath, dependencies: Dependencies) throws {
-        try install(at: path, dependencies: dependencies, shouldUpdate: true)
+    public func update(
+        at path: AbsolutePath,
+        dependencies: Dependencies,
+        swiftVersion: String?
+    ) throws {
+        try install(
+            at: path,
+            dependencies: dependencies,
+            shouldUpdate: true,
+            swiftVersion: swiftVersion
+        )
     }
     
     // MARK: - Helpers
@@ -86,7 +104,8 @@ public final class DependenciesController: DependenciesControlling {
     private func install(
         at path: AbsolutePath,
         dependencies: Dependencies,
-        shouldUpdate: Bool
+        shouldUpdate: Bool,
+        swiftVersion: String?
     ) throws {
         let dependenciesDirectory = path
             .appending(component: Constants.tuistDirectoryName)
@@ -113,7 +132,8 @@ public final class DependenciesController: DependenciesControlling {
             try swiftPackageManagerInteractor.install(
                 dependenciesDirectory: dependenciesDirectory,
                 dependencies: swiftPackageManagerDependencies,
-                shouldUpdate: shouldUpdate
+                shouldUpdate: shouldUpdate,
+                swiftToolsVersion: swiftVersion
             )
         } else {
             try swiftPackageManagerInteractor.clean(dependenciesDirectory: dependenciesDirectory)
