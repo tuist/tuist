@@ -61,7 +61,7 @@ let package = Package(
         .package(url: "https://github.com/kishikawakatsumi/KeychainAccess.git", .upToNextMajor(from: "4.2.2")),
         .package(name: "Swifter", url: "https://github.com/httpswift/swifter.git", .upToNextMajor(from: "1.5.0")),
         .package(url: "https://github.com/apple/swift-tools-support-core.git", .upToNextMinor(from: "0.2.0")),
-        .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMajor(from: "0.4.1")),
+        .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMajor(from: "0.4.3")),
         .package(url: "https://github.com/marmelroy/Zip.git", .upToNextMinor(from: "2.1.1")),
         .package(url: "https://github.com/tuist/GraphViz.git", .branch("tuist")),
         .package(url: "https://github.com/fortmarek/SwiftGen", .revision("ef8d6b186a03622cec8d228b18f0e2b3bb20b81c")),
@@ -84,7 +84,15 @@ let package = Package(
         ),
         .target(
             name: "TuistCore",
-            dependencies: [swiftToolsSupportDependency, "TuistSupport", "TuistGraph", "XcodeProj", "Checksum"]
+            dependencies: [
+                rxSwiftDependency,
+                rxBlockingDependency,
+                swiftToolsSupportDependency,
+                "TuistSupport",
+                "TuistGraph",
+                "XcodeProj",
+                "Checksum",
+            ]
         ),
         .target(
             name: "TuistCoreTesting",
@@ -483,6 +491,7 @@ let package = Package(
             name: "TuistAutomationTests",
             dependencies: [
                 "TuistAutomation",
+                "TuistAutomationTesting",
                 "TuistSupportTesting",
                 "TuistCoreTesting",
                 "TuistGraphTesting",

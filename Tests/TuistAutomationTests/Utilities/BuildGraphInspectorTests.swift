@@ -148,8 +148,8 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let got = subject.buildableTarget(scheme: scheme, graphTraverser: graphTraverser)
 
         // Then
-        XCTAssertEqual(got?.0, project)
-        XCTAssertEqual(got?.1, target)
+        XCTAssertEqual(got?.project, project)
+        XCTAssertEqual(got?.target, target)
     }
 
     func test_buildableSchemes() throws {

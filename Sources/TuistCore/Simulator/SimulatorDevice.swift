@@ -44,7 +44,7 @@ public struct SimulatorDevice: Decodable, Hashable, CustomStringConvertible {
         logPath: AbsolutePath,
         udid: String,
         isAvailable: Bool,
-        deviceTypeIdentifier: String,
+        deviceTypeIdentifier: String?,
         state: String,
         name: String,
         availabilityError: String?,
