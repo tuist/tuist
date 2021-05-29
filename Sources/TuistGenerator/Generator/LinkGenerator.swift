@@ -198,7 +198,8 @@ final class LinkGenerator: LinkGenerating {
                             pbxTarget: PBXTarget,
                             pbxproj: PBXProj,
                             fileElements: ProjectFileElements,
-                            sourceRootPath: AbsolutePath) throws
+                            sourceRootPath: AbsolutePath
+                            ) throws
     {
         let precompiledEmbedPhase = PBXShellScriptBuildPhase(name: "Embed Precompiled Frameworks")
         let embedPhase = PBXCopyFilesBuildPhase(
@@ -221,26 +222,36 @@ final class LinkGenerator: LinkGenerating {
             case .library:
                 // Do nothing
                 break
-            case let .xcframework(path, _, _, _):
+            case let .xcframework(path, _, _, _, codeSignOnCopy):
                 guard let fileRef = fileElements.file(path: path) else {
                     throw LinkGeneratorError.missingReference(path: path)
                 }
+                var attributes = ["RemoveHeadersOnCopy"]
+                if codeSignOnCopy {
+                    attributes.insert("CodeSignOnCopy", at: 0)
+                }
+                let settings = ["ATTRIBUTES": attributes]
                 let buildFile = PBXBuildFile(
                     file: fileRef,
-                    settings: ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]
+                    settings: settings
                 )
                 pbxproj.add(object: buildFile)
                 embedPhase.files?.append(buildFile)
             case .sdk:
                 // Do nothing
                 break
-            case let .product(target, _):
+            case let .product(target, _, codeSignOnCopy):
                 guard let fileRef = fileElements.product(target: target) else {
                     throw LinkGeneratorError.missingProduct(name: target)
                 }
+                var attributes = ["RemoveHeadersOnCopy"]
+                if codeSignOnCopy {
+                    attributes.insert("CodeSignOnCopy", at: 0)
+                }
+                let settings = ["ATTRIBUTES": attributes]
                 let buildFile = PBXBuildFile(
                     file: fileRef,
-                    settings: ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]
+                    settings: settings
                 )
                 pbxproj.add(object: buildFile)
                 embedPhase.files?.append(buildFile)
@@ -376,13 +387,13 @@ final class LinkGenerator: LinkGenerating {
             .sorted()
             .forEach { dependency in
                 switch dependency {
-                case let .framework(path, _, _, _, _, _, _, _):
+                case let .framework(path, _, _, _, _, _, _, _, _):
                     try addBuildFile(path)
                 case let .library(path, _, _, _):
                     try addBuildFile(path)
-                case let .xcframework(path, _, _, _):
+                case let .xcframework(path, _, _, _, _):
                     try addBuildFile(path)
-                case let .product(target, _):
+                case let .product(target, _, _):
                     guard let fileRef = fileElements.product(target: target) else {
                         throw LinkGeneratorError.missingProduct(name: target)
                     }
@@ -441,7 +452,7 @@ final class LinkGenerator: LinkGenerating {
     {
         var files: [PBXBuildFile] = []
 
-        for case let .product(target, _) in dependencies.sorted() {
+        for case let .product(target, _, _) in dependencies.sorted() {
             guard let fileRef = fileElements.product(target: target) else {
                 throw LinkGeneratorError.missingProduct(name: target)
             }

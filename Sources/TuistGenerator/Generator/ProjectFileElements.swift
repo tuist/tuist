@@ -208,9 +208,9 @@ class ProjectFileElements {
 
         try sortedDependencies.forEach { dependency in
             switch dependency {
-            case let .xcframework(path, _, _, _):
+            case let .xcframework(path, _, _, _, _):
                 try generatePrecompiled(path)
-            case let .framework(path, _, _, _, _, _, _, _):
+            case let .framework(path, _, _, _, _, _, _, _, _):
                 try generatePrecompiled(path)
             case let .library(path, _, _, _):
                 try generatePrecompiled(path)
@@ -220,7 +220,7 @@ class ProjectFileElements {
                     toGroup: groups.frameworks,
                     pbxproj: pbxproj
                 )
-            case let .product(target: target, productName: productName):
+            case let .product(target: target, productName: productName, _):
                 generateProduct(
                     targetName: target,
                     productName: productName,

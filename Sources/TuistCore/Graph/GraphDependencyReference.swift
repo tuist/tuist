@@ -7,7 +7,8 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         path: AbsolutePath,
         infoPlist: XCFrameworkInfoPlist,
         primaryBinaryPath: AbsolutePath,
-        binaryPath: AbsolutePath
+        binaryPath: AbsolutePath,
+        codeSignOnCopy: Bool = true
     )
     case library(
         path: AbsolutePath,
@@ -23,9 +24,14 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         bcsymbolmapPaths: [AbsolutePath],
         linking: BinaryLinking,
         architectures: [BinaryArchitecture],
-        product: Product
+        product: Product,
+        codeSignOnCopy: Bool = true
     )
-    case product(target: String, productName: String)
+    case product(
+            target: String,
+            productName: String,
+            codeSignOnCopy: Bool = true
+    )
     case sdk(path: AbsolutePath, status: SDKStatus, source: SDKSource)
 
     init(_ dependency: ValueGraphDependency) {
@@ -64,11 +70,11 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         switch self {
         case let .library(path, _, _, _):
             hasher.combine(path)
-        case let .framework(path, _, _, _, _, _, _, _):
+        case let .framework(path, _, _, _, _, _, _, _, _):
             hasher.combine(path)
-        case let .xcframework(path, _, _, _):
+        case let .xcframework(path, _, _, _, _):
             hasher.combine(path)
-        case let .product(target, productName):
+        case let .product(target, productName, _):
             hasher.combine(target)
             hasher.combine(productName)
         case let .sdk(path, status, source):
@@ -82,11 +88,11 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     /// this attribute returns the path to them.
     public var precompiledPath: AbsolutePath? {
         switch self {
-        case let .framework(path, _, _, _, _, _, _, _):
+        case let .framework(path, _, _, _, _, _, _, _, _):
             return path
         case let .library(path, _, _, _):
             return path
-        case let .xcframework(path, _, _, _):
+        case let .xcframework(path, _, _, _, _):
             return path
         default:
             return nil
@@ -95,13 +101,13 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
 
     public static func < (lhs: GraphDependencyReference, rhs: GraphDependencyReference) -> Bool {
         switch (lhs, rhs) {
-        case let (.framework(lhsPath, _, _, _, _, _, _, _), .framework(rhsPath, _, _, _, _, _, _, _)):
+        case let (.framework(lhsPath, _, _, _, _, _, _, _, _), .framework(rhsPath, _, _, _, _, _, _, _, _)):
             return lhsPath < rhsPath
-        case let (.xcframework(lhsPath, _, _, _), .xcframework(rhsPath, _, _, _)):
+        case let (.xcframework(lhsPath, _, _, _, _), .xcframework(rhsPath, _, _, _, _)):
             return lhsPath < rhsPath
         case let (.library(lhsPath, _, _, _), .library(rhsPath, _, _, _)):
             return lhsPath < rhsPath
-        case let (.product(lhsTarget, lhsProductName), .product(rhsTarget, rhsProductName)):
+        case let (.product(lhsTarget, lhsProductName, _), .product(rhsTarget, rhsProductName, _)):
             if lhsTarget == rhsTarget {
                 return lhsProductName < rhsProductName
             }

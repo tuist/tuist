@@ -60,7 +60,8 @@ protocol CacheControlling {
     ///   - path: Path to the directory that contains a workspace or a project.
     ///   - cacheProfile: The caching profile.
     ///   - targets: If present, a list of target to build.
-    func cache(path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile, targetsToFilter: [String]) throws
+    ///   - continueOnError: If true, build continues on errors.
+    func cache(path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile, targetsToFilter: [String], continueOnError: Bool) throws
 }
 
 final class CacheController: CacheControlling {
@@ -105,7 +106,7 @@ final class CacheController: CacheControlling {
         self.cacheGraphLinter = cacheGraphLinter
     }
 
-    func cache(path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile, targetsToFilter: [String]) throws {
+    func cache(path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile, targetsToFilter: [String], continueOnError: Bool) throws {
         let generator = projectGeneratorProvider.generator()
         let (projectPath, graph) = try generator.generateWithGraph(path: path, projectOnly: false)
 
@@ -149,10 +150,14 @@ final class CacheController: CacheControlling {
             }
 
             // Build
-            do {
+            if !continueOnError {
                 try buildAndCacheFramework(path: projectPath, target: target, configuration: cacheProfile.configuration, hash: hash)
-            } catch {
-                errors[target.target.name] = error
+            } else {
+                do {
+                    try buildAndCacheFramework(path: projectPath, target: target, configuration: cacheProfile.configuration, hash: hash)
+                } catch {
+                    errors[target.target.name] = error
+                }
             }
         }
 
