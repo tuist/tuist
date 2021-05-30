@@ -4,13 +4,13 @@ import Foundation
 public struct CarthageDependencies: Codable, Equatable {
     /// List of depedencies that will be installed using Carthage.
     public let dependencies: [Dependency]
+
     /// List of options for Carthage installation.
     public let options: Set<Options>
 
     /// Creates `CarthageDependencies` instance.
     /// - Parameters:
     ///   - dependencies: List of depedencies that can be installed using Carthage.
-    ///   - platforms: List of platforms for which you want to install depedencies. Refers to `--platform` Carthage flag.
     ///   - options: List of options for Carthage installation.
     public static func carthage(
         _ dependencies: [Dependency],

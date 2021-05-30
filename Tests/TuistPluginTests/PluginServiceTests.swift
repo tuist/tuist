@@ -246,6 +246,7 @@ final class PluginServiceTests: TuistTestCase {
             compatibleXcodeVersions: .all,
             lab: nil,
             cache: nil,
+            swiftVersion: nil,
             plugins: plugins,
             generationOptions: [],
             path: nil

@@ -27,6 +27,7 @@ import ProjectDescription
 
 let config = Config(
     compatibleXcodeVersions: ["10.3"],
+    swiftVersion: "5.4.0",
     generationOptions: [
         .xcodeProjectName("SomePrefix-\(.projectName)-SomeSuffix"),
         .organizationName("Tuist"),
@@ -39,10 +40,11 @@ let config = Config(
 
 It allows configuring Tuist and share the configuration across several projects.
 
-| Property                  | Description                                                    | Type                                                    | Required | Default |
-| ------------------------- | -------------------------------------------------------------- | ------------------------------------------------------- | -------- | ------- |
-| `compatibleXcodeVersions` | Set the versions of Xcode that the project is compatible with. | [`CompatibleXcodeVersions`](#compatible-xcode-versions) | No       | `.all`  |
-| `generationOptions`       | Options to configure the generation of Xcode projects.         | [`[GenerationOption]`](#generationoption)               | No       | `[]`    |
+| Property                  | Description                                                                                                                    | Type                                                    | Required | Default |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------- | -------- | ------- |
+| `compatibleXcodeVersions` | Set the versions of Xcode that the project is compatible with.                                                                 | [`CompatibleXcodeVersions`](#compatible-xcode-versions) | No       | `.all`  |
+| `swiftVersion`            | The specified version of Swift that will be used by Tuist. When `nil` is passed then Tuist will use the environment’s version. | Version                                                 | No       |         |
+| `generationOptions`       | Options to configure the generation of Xcode projects.                                                                         | [`[GenerationOption]`](#generationoption)               | No       | `[]`    |
 
 ### Compatible Xcode versions
 

@@ -52,9 +52,8 @@ One of the benefits of using Tuist over other automation tools is that developer
 
 | Argument            | Short | Description                                                         | Default           | Required |
 | ------------------- | ----- | ------------------------------------------------------------------- | ----------------- | -------- |
+| `--clean`           | n/a   | `When passed, it cleans the project before testing it.`             | False             | No       |
 | `--path`            | `-p`  | `The path to the directory that contains the project to be tested.` | Current directory | No       |
 | `--device`          | `-d`  | `Test on a specific device.`                                        |                   | No       |
 | `--os`              | `-o`  | `Test with a specific version of the OS.`                           |                   | No       |
 | `--configuration`   | `-C`  | `The configuration to be used when building the scheme.`            |                   | No       |
-| `--automation-path` | `-a`  | `Path where the automation project will be generated..`             |                   | No       |
-| `--clean`           | `-c`  | `When passed, it cleans the project before testing it.`             | False             | No       |

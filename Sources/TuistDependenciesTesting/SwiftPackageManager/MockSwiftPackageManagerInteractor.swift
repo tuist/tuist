@@ -7,25 +7,27 @@ public final class MockSwiftPackageManagerInteractor: SwiftPackageManagerInterac
     public init() {}
 
     var invokedFetch = false
-    var fetchStub: ((AbsolutePath, SwiftPackageManagerDependencies) throws -> Void)?
+    var fetchStub: ((AbsolutePath, SwiftPackageManagerDependencies, String?) throws -> Void)?
 
     public func fetch(
         dependenciesDirectory: AbsolutePath,
-        dependencies: SwiftPackageManagerDependencies
+        dependencies: SwiftPackageManagerDependencies,
+        swiftToolsVersion: String?
     ) throws {
         invokedFetch = true
-        try fetchStub?(dependenciesDirectory, dependencies)
+        try fetchStub?(dependenciesDirectory, dependencies, swiftToolsVersion)
     }
 
     var invokedUpdate = false
-    var updateStub: ((AbsolutePath, SwiftPackageManagerDependencies) throws -> Void)?
+    var updateStub: ((AbsolutePath, SwiftPackageManagerDependencies, String?) throws -> Void)?
 
     public func update(
         dependenciesDirectory: AbsolutePath,
-        dependencies: SwiftPackageManagerDependencies
+        dependencies: SwiftPackageManagerDependencies,
+        swiftToolsVersion: String?
     ) throws {
         invokedUpdate = true
-        try updateStub?(dependenciesDirectory, dependencies)
+        try updateStub?(dependenciesDirectory, dependencies, swiftToolsVersion)
     }
 
     var invokedClean = false

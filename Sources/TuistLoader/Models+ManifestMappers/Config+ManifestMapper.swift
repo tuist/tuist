@@ -15,6 +15,7 @@ extension TuistGraph.Config {
         let compatibleXcodeVersions = TuistGraph.CompatibleXcodeVersions.from(manifest: manifest.compatibleXcodeVersions)
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         let plugins = try manifest.plugins.map { try PluginLocation.from(manifest: $0, generatorPaths: generatorPaths) }
+        let swiftVersion = manifest.swiftVersion?.description
 
         var lab: TuistGraph.Lab?
         if let manifestLab = manifest.lab {
@@ -35,6 +36,7 @@ extension TuistGraph.Config {
             compatibleXcodeVersions: compatibleXcodeVersions,
             lab: lab,
             cache: cache,
+            swiftVersion: swiftVersion,
             plugins: plugins,
             generationOptions: generationOptions,
             path: path

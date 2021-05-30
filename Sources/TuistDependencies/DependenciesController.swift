@@ -37,13 +37,23 @@ public protocol DependenciesControlling {
     /// Fetches dependencies.
     /// - Parameter path: Directory whose project's dependencies will be fetched.
     /// - Parameter dependencies: List of dependencies to fetch.
-    func fetch(at path: AbsolutePath, dependencies: Dependencies) throws
+    /// - Parameter swiftVersion: The specified version of Swift. If `nil` is passed then the environment’s version will be used.
+    func fetch(
+        at path: AbsolutePath,
+        dependencies: Dependencies,
+        swiftVersion: String?
+    ) throws
 
     /// Updates dependencies.
     /// - Parameters:
     ///   - path: Directory whose project's dependencies will be updated.
     ///   - dependencies: List of dependencies to update.
-    func update(at path: AbsolutePath, dependencies: Dependencies) throws
+    ///   - swiftVersion: The specified version of Swift. If `nil` is passed then will use the environment’s version will be used.
+    func update(
+        at path: AbsolutePath,
+        dependencies: Dependencies,
+        swiftVersion: String?
+    ) throws
 }
 
 // MARK: - Dependencies Controller
@@ -63,7 +73,7 @@ public final class DependenciesController: DependenciesControlling {
         self.swiftPackageManagerInteractor = swiftPackageManagerInteractor
     }
 
-    public func fetch(at path: AbsolutePath, dependencies: Dependencies) throws {
+    public func fetch(at path: AbsolutePath, dependencies: Dependencies, swiftVersion: String?) throws {
         let dependenciesDirectory = path
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
@@ -86,14 +96,15 @@ public final class DependenciesController: DependenciesControlling {
         if let swiftPackageManagerDependencies = dependencies.swiftPackageManager, !swiftPackageManagerDependencies.packages.isEmpty {
             try swiftPackageManagerInteractor.fetch(
                 dependenciesDirectory: dependenciesDirectory,
-                dependencies: swiftPackageManagerDependencies
+                dependencies: swiftPackageManagerDependencies,
+                swiftToolsVersion: swiftVersion
             )
         } else {
             try swiftPackageManagerInteractor.clean(dependenciesDirectory: dependenciesDirectory)
         }
     }
 
-    public func update(at path: AbsolutePath, dependencies: Dependencies) throws {
+    public func update(at path: AbsolutePath, dependencies: Dependencies, swiftVersion: String?) throws {
         let dependenciesDirectory = path
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
@@ -116,7 +127,8 @@ public final class DependenciesController: DependenciesControlling {
         if let swiftPackageManagerDependencies = dependencies.swiftPackageManager, !swiftPackageManagerDependencies.packages.isEmpty {
             try swiftPackageManagerInteractor.update(
                 dependenciesDirectory: dependenciesDirectory,
-                dependencies: swiftPackageManagerDependencies
+                dependencies: swiftPackageManagerDependencies,
+                swiftToolsVersion: swiftVersion
             )
         } else {
             try swiftPackageManagerInteractor.clean(dependenciesDirectory: dependenciesDirectory)
