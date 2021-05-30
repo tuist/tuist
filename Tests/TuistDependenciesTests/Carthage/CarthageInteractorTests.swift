@@ -11,18 +11,22 @@ import XCTest
 final class CarthageInteractorTests: TuistUnitTestCase {
     private var subject: CarthageInteractor!
     private var carthageController: MockCarthageController!
+    private var carthageGraphGenerator: MockCarthageGraphGenerator!
 
     override func setUp() {
         super.setUp()
 
         carthageController = MockCarthageController()
+        carthageGraphGenerator = MockCarthageGraphGenerator()
         subject = CarthageInteractor(
-            carthageController: carthageController
+            carthageController: carthageController,
+            carthageGraphGenerator: carthageGraphGenerator
         )
     }
 
     override func tearDown() {
         carthageController = nil
+        carthageGraphGenerator = nil
         subject = nil
 
         super.tearDown()
@@ -58,7 +62,8 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         }
 
         // When
-        #warning("LAXMOREK WIP: Test output")
+        #warning("laxmorek WIP: Test output")
+        #warning("laxmorek: test CarthageGraphGenerator calls")
         try subject.install(
             dependenciesDirectory: dependenciesDirectory,
             dependencies: stubbedDependencies,
@@ -153,7 +158,8 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         }
 
         // When
-        #warning("LAXMOREK WIP: Test output")
+        #warning("laxmorek WIP: Test output")
+        #warning("laxmorek: test CarthageGraphGenerator calls")
         try subject.install(
             dependenciesDirectory: dependenciesDirectory,
             dependencies: stubbedDependencies,

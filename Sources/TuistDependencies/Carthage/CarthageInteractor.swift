@@ -76,13 +76,16 @@ public protocol CarthageInteracting {
 public final class CarthageInteractor: CarthageInteracting {
     private let fileHandler: FileHandling
     private let carthageController: CarthageControlling
+    private let carthageGraphGenerator: CarthageGraphGenerating
 
     public init(
         fileHandler: FileHandling = FileHandler.shared,
-        carthageController: CarthageControlling = CarthageController.shared
+        carthageController: CarthageControlling = CarthageController.shared,
+        carthageGraphGenerator: CarthageGraphGenerating = CarthageGraphGenerator()
     ) {
         self.fileHandler = fileHandler
         self.carthageController = carthageController
+        self.carthageGraphGenerator = carthageGraphGenerator
     }
 
     public func install(
@@ -103,38 +106,44 @@ public final class CarthageInteractor: CarthageInteracting {
             throw CarthageInteractorError.xcFrameworksProductionNotSupported
         }
 
-        try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in
-            // prepare paths
-            let pathsProvider = CarthagePathsProvider(
-                dependenciesDirectory: dependenciesDirectory,
-                temporaryDirectoryPath: temporaryDirectoryPath
-            )
-
-            // prepare for installation
-            try loadDependencies(pathsProvider: pathsProvider, dependencies: dependencies)
-
-            // run `Carthage`
-            if shouldUpdate {
-                try carthageController.update(
-                    at: temporaryDirectoryPath,
-                    platforms: platforms,
-                    options: dependencies.options
+        // install depedencies and generate dependencies graph
+        let dependenciesGraph: DependenciesGraph = try fileHandler
+            .inTemporaryDirectory { temporaryDirectoryPath in
+                // prepare paths
+                let pathsProvider = CarthagePathsProvider(
+                    dependenciesDirectory: dependenciesDirectory,
+                    temporaryDirectoryPath: temporaryDirectoryPath
                 )
-            } else {
-                try carthageController.bootstrap(
-                    at: temporaryDirectoryPath,
-                    platforms: platforms,
-                    options: dependencies.options
-                )
+
+                // prepare for installation
+                try loadDependencies(pathsProvider: pathsProvider, dependencies: dependencies)
+
+                // run `Carthage`
+                if shouldUpdate {
+                    try carthageController.update(
+                        at: temporaryDirectoryPath,
+                        platforms: platforms,
+                        options: dependencies.options
+                    )
+                } else {
+                    try carthageController.bootstrap(
+                        at: temporaryDirectoryPath,
+                        platforms: platforms,
+                        options: dependencies.options
+                    )
+                }
+
+                // post installation
+                try saveDepedencies(pathsProvider: pathsProvider)
+                
+                // generate dependencies graph
+                return try carthageGraphGenerator
+                    .generate(at: pathsProvider.temporaryCarthageBuildDirectory)
             }
-
-            // post installation
-            try saveDepedencies(pathsProvider: pathsProvider)
-        }
+        
         logger.info("Carthage dependencies installed successfully.", metadata: .subsection)
         
-        #warning("LAXMOREK WIP: Generate dependencies grah")
-        return DependenciesGraph(nodes: [:])
+        return dependenciesGraph
     }
 
     public func clean(dependenciesDirectory: AbsolutePath) throws {
