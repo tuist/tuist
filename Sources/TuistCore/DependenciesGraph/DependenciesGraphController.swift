@@ -27,6 +27,8 @@ public final class DependenciesGraphController: DependenciesGraphControlling {
     
     public func save(_ dependenciesGraph: DependenciesGraph, at path: AbsolutePath) throws {
         let jsonEncoder = JSONEncoder()
+        jsonEncoder.outputFormatting = .prettyPrinted
+        
         let encodedGraph = try jsonEncoder.encode(dependenciesGraph)
         #warning("WIP: handle force unwrapping better!")
         let encodedGraphContent = String(data: encodedGraph, encoding: .utf8)!
