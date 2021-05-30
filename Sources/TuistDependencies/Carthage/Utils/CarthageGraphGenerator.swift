@@ -27,33 +27,15 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
             .filter { $0.extension == "version" }
         
         let jsonDecoder = JSONDecoder()
-        let versionFiles = try versionFilePaths
+        let products = try versionFilePaths
             .map { try fileHandler.readFile($0) }
             .map { try jsonDecoder.decode(CarthageVersionFile.self, from: $0) }
+            .flatMap { $0.allProducts }
         
-//        logger.info("\(path)")
-//        logger.info("\(versionFilePaths)")
-//        logger.info("\(versionFiles)")
-        
-        #warning("laxmorek: WIP version, refactor me!")
-        let nodes = versionFiles
-            .reduce(into: [String: DependenciesGraphNode]()) { result, versionFile in
-                versionFile.iOS
-                    .forEach {
-                        result[$0.name] = .xcframework(path: AbsolutePath("/" +  $0.container))
-                    }
-                versionFile.tvOS
-                    .forEach {
-                        result[$0.name] = .xcframework(path: AbsolutePath("/" +  $0.container))
-                    }
-                versionFile.macOS
-                    .forEach {
-                        result[$0.name] = .xcframework(path: AbsolutePath("/" +  $0.container))
-                    }
-                versionFile.watchOS
-                    .forEach {
-                        result[$0.name] = .xcframework(path: AbsolutePath("/" +  $0.container))
-                    }
+        let nodes = Dictionary(grouping: products, by: { $0.name })
+            .reduce(into: [String: DependenciesGraphNode]()) { result, next in
+                let architectures: Set<BinaryArchitecture> = Set(next.value.flatMap { $0.architectures })
+                result[next.key] = .xcframework(path: AbsolutePath("/XYZ"), architectures: architectures)
             }
         
         return DependenciesGraph(nodes: nodes)

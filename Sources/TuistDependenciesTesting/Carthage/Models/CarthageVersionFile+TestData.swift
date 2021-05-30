@@ -4,6 +4,22 @@ import TSCBasic
 @testable import TuistDependencies
 
 extension CarthageVersionFile {
+    static func test(
+        commitish: String = "",
+        iOS: [Product] = [],
+        macOS: [Product] = [],
+        watchOS: [Product] = [],
+        tvOS: [Product] = []
+    ) -> Self {
+        .init(
+            commitish: commitish,
+            iOS: iOS,
+            macOS: macOS,
+            watchOS: watchOS,
+            tvOS: tvOS
+        )
+    }
+    
     static var testAlamofire: Self {
         .init(
             commitish: "5.4.3",
@@ -616,5 +632,23 @@ extension CarthageVersionFile {
           ]
         }
         """
+    }
+}
+
+extension CarthageVersionFile.Product {
+    static func test(
+        swiftToolchainVersion: String = "",
+        hash: String = "",
+        name: String = "",
+        container: String = "",
+        identifier: String = ""
+    ) -> Self {
+        .init(
+            swiftToolchainVersion: swiftToolchainVersion,
+            hash: hash,
+            name: name,
+            container: container,
+            identifier: identifier
+        )
     }
 }
