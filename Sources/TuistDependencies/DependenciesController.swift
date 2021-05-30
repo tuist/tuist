@@ -62,15 +62,18 @@ public final class DependenciesController: DependenciesControlling {
     private let carthageInteractor: CarthageInteracting
     private let cocoaPodsInteractor: CocoaPodsInteracting
     private let swiftPackageManagerInteractor: SwiftPackageManagerInteracting
+    private let dependenciesGraphController: DependenciesGraphControlling
 
     public init(
         carthageInteractor: CarthageInteracting = CarthageInteractor(),
         cocoaPodsInteractor: CocoaPodsInteracting = CocoaPodsInteractor(),
-        swiftPackageManagerInteractor: SwiftPackageManagerInteracting = SwiftPackageManagerInteractor()
+        swiftPackageManagerInteractor: SwiftPackageManagerInteracting = SwiftPackageManagerInteractor(),
+        dependenciesGraphController: DependenciesGraphControlling = DependenciesGraphController()
     ) {
         self.carthageInteractor = carthageInteractor
         self.cocoaPodsInteractor = cocoaPodsInteractor
         self.swiftPackageManagerInteractor = swiftPackageManagerInteractor
+        self.dependenciesGraphController = dependenciesGraphController
     }
 
     public func fetch(
@@ -116,9 +119,11 @@ public final class DependenciesController: DependenciesControlling {
             throw DependenciesControllerError.noPlatforms
         }
         
+        #warning("laxmorek: Refactor me!")
+        var dependenciesGraph: DependenciesGraph?
+        
         if let carthageDepedencies = dependencies.carthage, !carthageDepedencies.dependencies.isEmpty {
-            #warning("laxmorek WIP: Save graph")
-            try carthageInteractor.install(
+            dependenciesGraph = try carthageInteractor.install(
                 dependenciesDirectory: dependenciesDirectory,
                 dependencies: carthageDepedencies,
                 platforms: platforms,
@@ -137,6 +142,12 @@ public final class DependenciesController: DependenciesControlling {
             )
         } else {
             try swiftPackageManagerInteractor.clean(dependenciesDirectory: dependenciesDirectory)
+        }
+        
+        if let dependenciesGraph = dependenciesGraph {
+            try dependenciesGraphController.save(dependenciesGraph, at: path)
+        } else {
+            #warning("laxmorek: no graph, remove already cached?")
         }
     }
 }

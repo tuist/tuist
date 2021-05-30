@@ -6,6 +6,7 @@ import XCTest
 
 @testable import TuistDependencies
 @testable import TuistDependenciesTesting
+@testable import TuistCoreTesting
 @testable import TuistSupportTesting
 
 final class DependenciesControllerTests: TuistUnitTestCase {
@@ -14,6 +15,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
     private var carthageInteractor: MockCarthageInteractor!
     private var cocoaPodsInteractor: MockCocoaPodsInteractor!
     private var swiftPackageManagerInteractor: MockSwiftPackageManagerInteractor!
+    private var dependenciesGraphController: MockDependenciesGraphController!
 
     override func setUp() {
         super.setUp()
@@ -21,11 +23,15 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         carthageInteractor = MockCarthageInteractor()
         cocoaPodsInteractor = MockCocoaPodsInteractor()
         swiftPackageManagerInteractor = MockSwiftPackageManagerInteractor()
+        dependenciesGraphController = MockDependenciesGraphController()
 
+        #warning("laxmorek: test MockDependenciesGraphController calls")
+        
         subject = DependenciesController(
             carthageInteractor: carthageInteractor,
             cocoaPodsInteractor: cocoaPodsInteractor,
-            swiftPackageManagerInteractor: swiftPackageManagerInteractor
+            swiftPackageManagerInteractor: swiftPackageManagerInteractor,
+            dependenciesGraphController: dependenciesGraphController
         )
     }
 
@@ -35,6 +41,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         carthageInteractor = nil
         cocoaPodsInteractor = nil
         swiftPackageManagerInteractor = nil
+        dependenciesGraphController = nil
 
         super.tearDown()
     }
