@@ -20,4 +20,10 @@ struct CacheOptions: ParsableArguments {
         help: "When passed it caches the targets for simulator and device using xcframeworks."
     )
     var xcframeworks: Bool = false
+    
+    @Flag(
+        name: [.customShort("e"), .long],
+        help: "When passed it continues on Errors. Cache can't be garanteed! Only for testing and (xc)framework generation"
+    )
+    var continueOnError: Bool = false
 }

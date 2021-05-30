@@ -20,6 +20,6 @@ struct CacheWarmCommand: ParsableCommand {
     var targets: [String] = []
 
     func run() throws {
-        try CacheWarmService().run(path: options.path, profile: options.profile, xcframeworks: options.xcframeworks, targets: targets)
+        try CacheWarmService().run(path: options.path, profile: options.profile, xcframeworks: options.xcframeworks, targets: targets, continueOnError: options.continueOnError)
     }
 }
