@@ -27,13 +27,12 @@ public final class DependenciesGraphController: DependenciesGraphControlling {
     
     public func save(_ dependenciesGraph: DependenciesGraph, at path: AbsolutePath) throws {
         let jsonEncoder = JSONEncoder()
-        let encodedGraph = try jsonEncoder
-            .encode(dependenciesGraph)
-            .base64EncodedString()
-
+        let encodedGraph = try jsonEncoder.encode(dependenciesGraph)
+        #warning("WIP: handle force unwrapping better!")
+        let encodedGraphContent = String(data: encodedGraph, encoding: .utf8)!
         let graphPath = graphPath(at: path)
         
-        try fileHandler.write(encodedGraph, path: graphPath, atomically: true)
+        try fileHandler.write(encodedGraphContent, path: graphPath, atomically: true)
     }
     
     public func load(at path: AbsolutePath) throws -> DependenciesGraph {
