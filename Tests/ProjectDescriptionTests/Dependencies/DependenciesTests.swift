@@ -26,7 +26,7 @@ final class DependenciesTests: XCTestCase {
         )
         XCTAssertCodable(subject)
     }
-
+    
     func test_dependencies_codable_copyPath_names() throws {
         let subject = Dependencies(
             carthage: .carthage(
