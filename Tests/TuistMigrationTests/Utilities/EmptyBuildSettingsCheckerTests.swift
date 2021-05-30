@@ -3,7 +3,6 @@ import TSCBasic
 import XCTest
 @testable import TuistMigration
 @testable import TuistSupportTesting
-import ProjectDescription
 
 final class EmptyBuildSettingsCheckerErrorTests: TuistUnitTestCase {
     func test_description() {

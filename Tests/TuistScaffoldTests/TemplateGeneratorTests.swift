@@ -102,7 +102,7 @@ final class TemplateGeneratorTests: TuistTestCase {
             XCTAssertEqual(try FileHandler.shared.readTextFile($0.0), $0.1)
         }
     }
-    
+
     func test_files_are_generated_with_attributes() throws {
         // Given
         let sourcePath = try temporaryPath()
