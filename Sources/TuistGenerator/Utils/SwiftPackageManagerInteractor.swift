@@ -22,8 +22,9 @@ public protocol SwiftPackageManagerInteracting {
     ///         and workspaces to disk.
     ///
     /// - Parameters:
-    ///   - graph: The graph traverser.
+    ///   - graphTraverser: The graph traverser.
     ///   - workspaceName: The name GraphTraversing the generated workspace (e.g. `MyWorkspace.xcworkspace`)
+    ///   - config: The configuration to apply when installing.
     func install(graphTraverser: GraphTraversing, workspaceName: String, config: Config) throws
 }
 

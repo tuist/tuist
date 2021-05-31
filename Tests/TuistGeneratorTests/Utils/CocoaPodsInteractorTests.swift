@@ -98,4 +98,32 @@ final class CocoaPodsInteractorTests: TuistUnitTestCase {
         XCTAssertPrinterOutputContains("The local CocoaPods specs repository is outdated. Re-running 'pod install' updating the repository.")
         XCTAssertPrinterOutputContains("Installing CocoaPods dependencies defined in /")
     }
+
+    func test_install_when_cocoaPodsInstallIsDisabledInConfig() throws {
+        // Given
+        let graph = ValueGraph.test(dependencies: [ValueGraphDependency.cocoapods(path: "/"): Set()])
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let config = Config(
+            compatibleXcodeVersions: .all,
+            lab: nil,
+            cache: nil,
+            swiftVersion: nil,
+            plugins: [],
+            generationOptions: [.disableCocoaPodsInstall],
+            path: nil
+        )
+
+        system.errorCommand(["bundle", "show", "cocoapods"])
+        system.whichStub = {
+            if $0 == "pod" { return "/path/to/pod" }
+            else { throw NSError.test() }
+        }
+        system.succeedCommand(["pod", "install", "--project-directory=/"])
+
+        // When
+        try subject.install(graphTraverser: graphTraverser, config: config)
+
+        // Then
+        XCTAssertFalse(system.called(["pod", "install", "--project-directory=/"]))
+    }
 }

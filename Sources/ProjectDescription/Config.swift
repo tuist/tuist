@@ -34,6 +34,10 @@ public struct Config: Codable, Equatable {
         /// Disables locking Swift packages. This can speed up generation but does increase risk if packages are not locked
         /// in their declarations.
         case disablePackageVersionLocking
+
+        /// Disables automatically running `pod install`. This can speed up generation but does increase risk of using
+        /// outdated dependencies.
+        case disableCocoaPodsInstall
     }
 
     /// Generation options.
@@ -93,6 +97,7 @@ extension Config.GenerationOptions {
         case enableCodeCoverage
         case resolveDependenciesWithSystemScm
         case disablePackageVersionLocking
+        case disableCocoaPodsInstall
     }
 
     public init(from decoder: Decoder) throws {
@@ -124,6 +129,8 @@ extension Config.GenerationOptions {
             self = .enableCodeCoverage
         } else if container.allKeys.contains(.disablePackageVersionLocking), try container.decode(Bool.self, forKey: .disablePackageVersionLocking) {
             self = .disablePackageVersionLocking
+        } else if container.allKeys.contains(.disableCocoaPodsInstall), try container.decode(Bool.self, forKey: .disableCocoaPodsInstall) {
+            self = .disableCocoaPodsInstall
         } else if container.allKeys.contains(.resolveDependenciesWithSystemScm),
             try container.decode(Bool.self, forKey: .resolveDependenciesWithSystemScm)
         {
@@ -158,6 +165,8 @@ extension Config.GenerationOptions {
             try container.encode(true, forKey: .resolveDependenciesWithSystemScm)
         case .disablePackageVersionLocking:
             try container.encode(true, forKey: .disablePackageVersionLocking)
+        case .disableCocoaPodsInstall:
+            try container.encode(true, forKey: .disableCocoaPodsInstall)
         }
     }
 }

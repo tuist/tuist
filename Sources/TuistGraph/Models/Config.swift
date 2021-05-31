@@ -18,6 +18,9 @@ public struct Config: Equatable, Hashable {
         /// Disables locking Swift packages. This can speed up generation but does increase risk if packages are not locked
         /// in their declarations.
         case disablePackageVersionLocking
+        /// Disables automatically running `pod install`. This can speed up generation but does increase risk of using
+        /// outdated dependencies.
+        case disableCocoaPodsInstall
     }
 
     /// List of `Plugin`s used to extend Tuist.
