@@ -1,5 +1,6 @@
 import Foundation
 import TuistCore
+import TuistGraph
 import TuistSupport
 
 enum CocoaPodsInteractorError: FatalError, Equatable {
@@ -31,9 +32,11 @@ enum CocoaPodsInteractorError: FatalError, Equatable {
 public protocol CocoaPodsInteracting {
     /// Runs 'pod install' for all the CocoaPods dependencies that have been indicated in the graph.
     ///
-    /// - Parameter graph: Project graph.
+    /// - Parameters:
+    ///   - graphTraverser: The graph traverser.
+    ///   - config: The configuration to apply when installing.
     /// - Throws: An error if the installation of the pods fails.
-    func install(graphTraverser: GraphTraversing) throws
+    func install(graphTraverser: GraphTraversing, config: Config) throws
 }
 
 public final class CocoaPodsInteractor: CocoaPodsInteracting {
@@ -41,11 +44,13 @@ public final class CocoaPodsInteractor: CocoaPodsInteracting {
 
     /// Runs 'pod install' for all the CocoaPods dependencies that have been indicated in the graph.
     ///
-    /// - Parameter graph: Project graph.
+    /// - Parameters:
+    ///   - graphTraverser: The graph traverser.
+    ///   - config: The configuration to apply when installing.
     /// - Throws: An error if the installation of the pods fails.
-    public func install(graphTraverser: GraphTraversing) throws {
+    public func install(graphTraverser: GraphTraversing, config: Config = .default) throws {
         do {
-            try install(graphTraverser: graphTraverser, updatingRepo: false)
+            try install(graphTraverser: graphTraverser, updatingRepo: false, config: config)
         } catch let error as CocoaPodsInteractorError {
             if case CocoaPodsInteractorError.outdatedRepository = error {
                 logger.warning("The local CocoaPods specs repository is outdated. Re-running 'pod install' updating the repository.")
@@ -56,8 +61,11 @@ public final class CocoaPodsInteractor: CocoaPodsInteracting {
         }
     }
 
-    fileprivate func install(graphTraverser: GraphTraversing, updatingRepo: Bool) throws {
+    fileprivate func install(graphTraverser: GraphTraversing, updatingRepo: Bool, config: Config = .default) throws {
         guard !graphTraverser.cocoapodsPaths().isEmpty else {
+            return
+        }
+        guard !config.generationOptions.contains(.disableCocoaPodsInstall) else {
             return
         }
 
