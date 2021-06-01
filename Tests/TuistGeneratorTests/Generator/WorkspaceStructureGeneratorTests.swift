@@ -368,6 +368,10 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
             path
         }
 
+        func fileAttributes(at _: AbsolutePath) throws -> [FileAttributeKey: Any] {
+            [:]
+        }
+
         func write(_: String, path _: AbsolutePath, atomically _: Bool) throws {
             // Do nothing
         }

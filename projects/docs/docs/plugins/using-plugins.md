@@ -77,6 +77,11 @@ let config = Config(
 )
 ```
 
+#### Tasks
+
+To use a task plugin, simply import the plugin in `Config.swift` and it will be automatically available by running `tuist exec my-plugin-task`.
+You can read more about tasks [here](/commands/task).
+
 #### Project description helpers
 
 You can import a project description helper plugin with the name defined in the [`Plugin.swift`](/plugins/creating-plugins/) manifest, which can then be used in a project manfiest:

@@ -1,5 +1,7 @@
 import Foundation
+import RxBlocking
 import RxSwift
+import TSCBasic
 import struct TSCUtility.Version
 import TuistGraph
 import TuistSupport
@@ -35,15 +37,31 @@ public protocol SimulatorControlling {
         minVersion: Version?,
         deviceName: String?
     ) -> Single<SimulatorDeviceAndRuntime>
+
+    /// Installs an app on a given simulator.
+    /// - Parameters:
+    ///   - path: The path to the app to install in the simulator.
+    ///   - device: The simulator device to install the app on.
+    func installApp(at path: AbsolutePath, device: SimulatorDevice) throws
+
+    /// Opens the simulator application & launches app on the given simulator.
+    /// - Parameters:
+    ///   - bundleId: The bundle id of the app to launch.
+    ///   - device: The simulator device to install the app on.
+    ///   - arguments: Any additional arguments to pass the app on launch.
+    func launchApp(bundleId: String, device: SimulatorDevice, arguments: [String]) throws
 }
 
-public enum SimulatorControllerError: FatalError {
+public enum SimulatorControllerError: Equatable, FatalError {
     case simctlError(String)
     case deviceNotFound(Platform, Version?, String?, [SimulatorDeviceAndRuntime])
+    case simulatorNotFound(udid: String)
 
     public var type: ErrorType {
         switch self {
-        case .simctlError, .deviceNotFound:
+        case .simctlError,
+             .deviceNotFound,
+             .simulatorNotFound:
             return .abort
         }
     }
@@ -54,6 +72,8 @@ public enum SimulatorControllerError: FatalError {
             return output
         case let .deviceNotFound(platform, version, deviceName, devices):
             return "Could not find a suitable device for \(platform.caseValue)\(version.map { " \($0)" } ?? "")\(deviceName.map { ", device name \($0)" } ?? ""). Did find \(devices.map { "\($0.device.name) (\($0.runtime.description))" }.joined(separator: ", "))"
+        case let .simulatorNotFound(udid):
+            return "Could not find simulator with UDID: \(udid)"
         }
     }
 }
@@ -162,10 +182,43 @@ public final class SimulatorController: SimulatorControlling {
                 return .just(device)
             }
     }
+
+    public func installApp(at path: AbsolutePath, device: SimulatorDevice) throws {
+        logger.debug("Installing app at \(path) on simulator device with id \(device.udid)")
+        let device = try device.booted()
+        try System.shared.run(["/usr/bin/xcrun", "simctl", "install", device.udid, path.pathString])
+    }
+
+    public func launchApp(bundleId: String, device: SimulatorDevice, arguments: [String]) throws {
+        logger.debug("Launching app with bundle id \(bundleId) on simulator device with id \(device.udid)")
+        let device = try device.booted()
+        try System.shared.run(["/usr/bin/open", "-a", "Simulator"])
+        try System.shared.run(["/usr/bin/xcrun", "simctl", "launch", device.udid, bundleId] + arguments)
+    }
 }
 
 public extension SimulatorControlling {
     func findAvailableDevice(platform: Platform) -> Single<SimulatorDeviceAndRuntime> {
         self.findAvailableDevice(platform: platform, version: nil, minVersion: nil, deviceName: nil)
+    }
+}
+
+private extension SimulatorDevice {
+    /// Attempts to boot the simulator.
+    /// - returns: The `SimulatorDevice` with updated `isShutdown` field.
+    func booted() throws -> Self {
+        guard isShutdown else { return self }
+        try System.shared.run(["/usr/bin/xcrun", "simctl", "boot", udid])
+        return SimulatorDevice(
+            dataPath: dataPath,
+            logPath: logPath,
+            udid: udid,
+            isAvailable: isAvailable,
+            deviceTypeIdentifier: deviceTypeIdentifier,
+            state: "Booted",
+            name: name,
+            availabilityError: availabilityError,
+            runtimeIdentifier: runtimeIdentifier
+        )
     }
 }

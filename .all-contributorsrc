@@ -370,6 +370,69 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "gcacoutinho",
+      "name": "Gabriel Coutinho",
+      "avatar_url": "https://avatars.githubusercontent.com/u/17842860?v=4",
+      "profile": "http://coutinho.dev",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "cipolleschi",
+      "name": "Riccardo",
+      "avatar_url": "https://avatars.githubusercontent.com/u/11162307?v=4",
+      "profile": "https://medium.com/@riccardocipolleschi",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "bolismauro",
+      "name": "Mauro Bolis",
+      "avatar_url": "https://avatars.githubusercontent.com/u/771999?v=4",
+      "profile": "https://github.com/bolismauro",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "iteracticman",
+      "name": "Peter Weishapl",
+      "avatar_url": "https://avatars.githubusercontent.com/u/461805?v=4",
+      "profile": "https://twitter.com/iteractive_man",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "cruisediary",
+      "name": "Cruz",
+      "avatar_url": "https://avatars.githubusercontent.com/u/2609775?v=4",
+      "profile": "http://stackoverflow.com/users/1878594/swiftycruz",
+      "contributions": [
+        "content"
+      ]
+    },
+    {
+      "login": "svenmuennich",
+      "name": "Sven Münnich",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1932115?v=4",
+      "profile": "https://github.com/svenmuennich",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "santi-d",
+      "name": "Santiago A. Delgado",
+      "avatar_url": "https://avatars.githubusercontent.com/u/993826?v=4",
+      "profile": "https://github.com/santi-d",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

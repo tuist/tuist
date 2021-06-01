@@ -357,6 +357,10 @@ When generating the default target schemes, the 'Debug' configuration is used fo
 Schemes for extensions have additional properties and settings, Tuist automatically applies those to any scheme in which the first Target in the Build Action's list of targets is an extension.
 :::
 
+:::note Archive, profile & analyze actions definition
+Take in count that `ArchiveAction`, `ProfileAction` and `AnalyzeAction` when are defined in a `Scheme` in isolated or in set, needs also a definition of `BuildAction` in the signature of the scheme. Without the previously option commented the scheme will have the these their definitions by default.
+:::
+
 #### Build Action
 
 It represents the scheme action that builds targets:

@@ -6,6 +6,7 @@ import TuistGraph
 import TuistLoader
 import TuistScaffold
 import TuistSupport
+import TuistTasks
 
 enum ProjectEditorError: FatalError, Equatable {
     /// This error is thrown when we try to edit in a project in a directory that has no editable files.
@@ -60,8 +61,8 @@ final class ProjectEditor: ProjectEditing {
     let templatesDirectoryLocator: TemplatesDirectoryLocating
 
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
-
     private let projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring
+    private let tasksLocator: TasksLocating
 
     /// Xcode Project writer
     private let writer: XcodeProjWriting
@@ -75,7 +76,8 @@ final class ProjectEditor: ProjectEditing {
         writer: XcodeProjWriting = XcodeProjWriter(),
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory(),
-        projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring = ProjectDescriptionHelpersBuilderFactory()
+        projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring = ProjectDescriptionHelpersBuilderFactory(),
+        tasksLocator: TasksLocating = TasksLocator()
     ) {
         self.generator = generator
         self.projectEditorMapper = projectEditorMapper
@@ -86,6 +88,7 @@ final class ProjectEditor: ProjectEditing {
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
         self.projectDescriptionHelpersBuilderFactory = projectDescriptionHelpersBuilderFactory
+        self.tasksLocator = tasksLocator
     }
 
     func edit(
@@ -109,6 +112,8 @@ final class ProjectEditor: ProjectEditing {
         let templates = templatesDirectoryLocator.locateUserTemplates(at: editingPath).map {
             FileHandler.shared.glob($0, glob: "**/*.swift") + FileHandler.shared.glob($0, glob: "**/*.stencil")
         } ?? []
+
+        let tasks = try tasksLocator.locateTasks(at: editingPath)
 
         let editablePluginManifests = locateEditablePluginManifests(at: editingPath, plugins: plugins)
         let builtPluginHelperModules = try buildRemotePluginModules(
@@ -140,7 +145,9 @@ final class ProjectEditor: ProjectEditing {
             pluginProjectDescriptionHelpersModule: builtPluginHelperModules,
             helpers: helpers,
             templates: templates,
-            projectDescriptionPath: projectDescriptionPath
+            tasks: tasks,
+            projectDescriptionPath: projectDescriptionPath,
+            projectAutomationPath: try resourceLocator.projectAutomation()
         )
 
         let graphTraverser = ValueGraphTraverser(graph: graph)

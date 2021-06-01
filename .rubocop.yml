@@ -1,7 +1,8 @@
 inherit_gem:
   rubocop-shopify: rubocop.yml
+  rubocop-rails_config:
+    - config/rails.yml
 require:
-  - rubocop-rake
   - rubocop-minitest
 
 Style/ClassAndModuleChildren:
@@ -12,12 +13,15 @@ Lint/MissingSuper:
   Enabled: false
 
 AllCops:
+  NewCops: enable
   TargetRubyVersion: 2.5
   DisplayCopNames: true
   DisplayStyleGuide: true
   Include:
     - Gemfile
-    - Rakefile
     - projects/fourier/**/*.rb
+
   Exclude:
     - vendor/**/*
+    - projects/website/node_modules/**/*
+    - projects/tuist/fixtures/**/*

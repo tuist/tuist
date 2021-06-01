@@ -1,5 +1,4 @@
 import Foundation
-import RxBlocking
 import TSCBasic
 import TuistAutomation
 import TuistCache
@@ -8,47 +7,45 @@ import TuistGraph
 import TuistSupport
 
 enum BuildServiceError: FatalError {
-    case schemeNotFound(scheme: String, existing: [String])
+    case workspaceNotFound(path: String)
     case schemeWithoutBuildableTargets(scheme: String)
+    case schemeNotFound(scheme: String, existing: [String])
 
-    // Error description
     var description: String {
         switch self {
-        case let .schemeNotFound(scheme, existing):
-            return "Couldn't find scheme \(scheme). The available schemes are: \(existing.joined(separator: ", "))."
         case let .schemeWithoutBuildableTargets(scheme):
             return "The scheme \(scheme) cannot be built because it contains no buildable targets."
+        case let .workspaceNotFound(path):
+            return "Workspace not found expected xcworkspace at \(path)"
+        case let .schemeNotFound(scheme, existing):
+            return "Couldn't find scheme \(scheme). The available schemes are: \(existing.joined(separator: ", "))."
         }
     }
 
-    // Error type
     var type: ErrorType {
         switch self {
-        case .schemeNotFound:
-            return .abort
-        case .schemeWithoutBuildableTargets:
+        case .workspaceNotFound:
+            return .bug
+        case .schemeNotFound,
+             .schemeWithoutBuildableTargets:
             return .abort
         }
     }
 }
 
 final class BuildService {
-    /// Generator
-    let generator: Generating
+    private let generator: Generating
+    private let buildGraphInspector: BuildGraphInspecting
+    private let targetBuilder: TargetBuilding
 
-    /// Xcode build controller.
-    let xcodebuildController: XcodeBuildControlling
-
-    /// Build graph inspector.
-    let buildGraphInspector: BuildGraphInspecting
-
-    init(generator: Generating = Generator(contentHasher: CacheContentHasher()),
-         xcodebuildController: XcodeBuildControlling = XcodeBuildController(),
-         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector())
-    {
+    init(
+        generator: Generating = Generator(contentHasher: CacheContentHasher()),
+        buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
+        targetBuilder: TargetBuilding = TargetBuilder()
+    ) {
         self.generator = generator
-        self.xcodebuildController = xcodebuildController
         self.buildGraphInspector = buildGraphInspector
+        self.targetBuilder = targetBuilder
     }
 
     func run(
@@ -56,6 +53,7 @@ final class BuildService {
         generate: Bool,
         clean: Bool,
         configuration: String?,
+        buildOutputPath: AbsolutePath?,
         path: AbsolutePath
     ) throws {
         let graph: ValueGraph
@@ -64,8 +62,12 @@ final class BuildService {
         } else {
             graph = try generator.load(path: path)
         }
-        let graphTraverser = ValueGraphTraverser(graph: graph)
 
+        guard let workspacePath = try buildGraphInspector.workspacePath(directory: path) else {
+            throw BuildServiceError.workspaceNotFound(path: path.pathString)
+        }
+
+        let graphTraverser = ValueGraphTraverser(graph: graph)
         let buildableSchemes = buildGraphInspector.buildableSchemes(graphTraverser: graphTraverser)
 
         logger.log(level: .debug, "Found the following buildable schemes: \(buildableSchemes.map(\.name).joined(separator: ", "))")
@@ -74,37 +76,40 @@ final class BuildService {
             guard let scheme = buildableSchemes.first(where: { $0.name == schemeName }) else {
                 throw BuildServiceError.schemeNotFound(scheme: schemeName, existing: buildableSchemes.map(\.name))
             }
-            try buildScheme(scheme: scheme, graphTraverser: graphTraverser, path: path, clean: clean, configuration: configuration)
+
+            guard let graphTarget = buildGraphInspector.buildableTarget(scheme: scheme, graphTraverser: graphTraverser) else {
+                throw TargetBuilderError.schemeWithoutBuildableTargets(scheme: scheme.name)
+            }
+
+            try targetBuilder.buildTarget(
+                graphTarget,
+                workspacePath: workspacePath,
+                schemeName: scheme.name,
+                clean: clean,
+                configuration: configuration,
+                buildOutputPath: buildOutputPath
+            )
         } else {
             var cleaned: Bool = false
-            // Run only buildable entry schemes when specific schemes has not been passed
+            // Build only buildable entry schemes when specific schemes has not been passed
             let buildableEntrySchemes = buildGraphInspector.buildableEntrySchemes(graphTraverser: graphTraverser)
-            try buildableEntrySchemes.forEach {
-                try buildScheme(scheme: $0, graphTraverser: graphTraverser, path: path, clean: !cleaned && clean, configuration: configuration)
+            try buildableEntrySchemes.forEach { scheme in
+                guard let graphTarget = buildGraphInspector.buildableTarget(scheme: scheme, graphTraverser: graphTraverser) else {
+                    throw TargetBuilderError.schemeWithoutBuildableTargets(scheme: scheme.name)
+                }
+
+                try targetBuilder.buildTarget(
+                    graphTarget,
+                    workspacePath: workspacePath,
+                    schemeName: scheme.name,
+                    clean: !cleaned && clean,
+                    configuration: configuration,
+                    buildOutputPath: buildOutputPath
+                )
                 cleaned = true
             }
         }
 
         logger.log(level: .notice, "The project built successfully", metadata: .success)
-    }
-
-    // MARK: - private
-
-    private func buildScheme(scheme: Scheme, graphTraverser: GraphTraversing, path: AbsolutePath, clean: Bool, configuration: String?) throws {
-        logger.log(level: .notice, "Building scheme \(scheme.name)", metadata: .section)
-        guard let (project, target) = buildGraphInspector.buildableTarget(scheme: scheme, graphTraverser: graphTraverser) else {
-            throw BuildServiceError.schemeWithoutBuildableTargets(scheme: scheme.name)
-        }
-        let workspacePath = try buildGraphInspector.workspacePath(directory: path)!
-        let buildArguments = buildGraphInspector.buildArguments(project: project, target: target, configuration: configuration, skipSigning: false)
-        _ = try xcodebuildController.build(
-            .workspace(workspacePath),
-            scheme: scheme.name,
-            clean: clean,
-            arguments: buildArguments
-        )
-        .printFormattedOutput()
-        .toBlocking()
-        .last()
     }
 }

@@ -91,10 +91,19 @@ public final class PluginService: PluginServicing {
         .filter { _, path in FileHandler.shared.exists(path) }
         .map(PluginResourceSynthesizer.init)
 
+        let tasks = zip(
+            (localPluginManifests + remotePluginManifests).map(\.name),
+            pluginPaths
+                .map { $0.appending(component: Constants.tasksDirectoryName) }
+        )
+        .filter { _, path in FileHandler.shared.exists(path) }
+        .map(PluginTasks.init)
+
         return Plugins(
             projectDescriptionHelpers: localProjectDescriptionHelperPlugins + remoteProjectDescriptionHelperPlugins,
             templatePaths: templatePaths,
-            resourceSynthesizers: resourceSynthesizerPlugins
+            resourceSynthesizers: resourceSynthesizerPlugins,
+            tasks: tasks
         )
     }
 

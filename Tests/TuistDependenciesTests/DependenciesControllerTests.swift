@@ -54,7 +54,10 @@ final class DependenciesControllerTests: TuistUnitTestCase {
                 .github(path: "Moya", requirement: .exact("1.1.1")),
                 .github(path: "RxSwift", requirement: .exact("2.0.0")),
             ],
-            options: [.useXCFrameworks, .noUseBinaries]
+            options: [
+                .useXCFrameworks,
+                .noUseBinaries,
+            ]
         )
         let dependencies = Dependencies(
             carthage: carthageDependencies,
@@ -69,7 +72,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.fetch(at: rootPath, dependencies: dependencies)
+        try subject.fetch(at: rootPath, dependencies: dependencies, swiftVersion: nil)
 
         // Then
         XCTAssertFalse(carthageInteractor.invokedClean)
@@ -103,14 +106,16 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             swiftPackageManager: swiftPackageManagerDependencies,
             platforms: platforms
         )
+        let swiftVersion = "5.4.0"
 
-        swiftPackageManagerInteractor.fetchStub = { arg0, arg1 in
+        swiftPackageManagerInteractor.fetchStub = { arg0, arg1, arg2 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
             XCTAssertEqual(arg1, swiftPackageManagerDependencies)
+            XCTAssertEqual(arg2, swiftVersion)
         }
 
         // When
-        try subject.fetch(at: rootPath, dependencies: dependencies)
+        try subject.fetch(at: rootPath, dependencies: dependencies, swiftVersion: swiftVersion)
 
         // Then
         XCTAssertFalse(swiftPackageManagerInteractor.invokedClean)
@@ -138,7 +143,10 @@ final class DependenciesControllerTests: TuistUnitTestCase {
                 .github(path: "Moya", requirement: .exact("1.1.1")),
                 .github(path: "RxSwift", requirement: .exact("2.0.0")),
             ],
-            options: [.useXCFrameworks, .noUseBinaries]
+            options: [
+                .useXCFrameworks,
+                .noUseBinaries,
+            ]
         )
         let swiftPackageManagerDependencies = SwiftPackageManagerDependencies(
             [
@@ -151,19 +159,21 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             swiftPackageManager: swiftPackageManagerDependencies,
             platforms: platforms
         )
+        let swiftVersion = "5.4.0"
 
         carthageInteractor.fetchStub = { arg0, arg1, arg2 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
             XCTAssertEqual(arg1, carthageDependencies)
             XCTAssertEqual(arg2, platforms)
         }
-        swiftPackageManagerInteractor.fetchStub = { arg0, arg1 in
+        swiftPackageManagerInteractor.fetchStub = { arg0, arg1, arg2 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
             XCTAssertEqual(arg1, swiftPackageManagerDependencies)
+            XCTAssertEqual(arg2, swiftVersion)
         }
 
         // When
-        try subject.fetch(at: rootPath, dependencies: dependencies)
+        try subject.fetch(at: rootPath, dependencies: dependencies, swiftVersion: swiftVersion)
 
         // Then
         XCTAssertTrue(carthageInteractor.invokedFetch)
@@ -190,7 +200,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         // When / Then
         XCTAssertThrowsSpecific(
-            try subject.fetch(at: rootPath, dependencies: dependencies),
+            try subject.fetch(at: rootPath, dependencies: dependencies, swiftVersion: nil),
             DependenciesControllerError.noPlatforms
         )
     }
@@ -206,7 +216,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         )
 
         // When
-        try subject.fetch(at: rootPath, dependencies: dependencies)
+        try subject.fetch(at: rootPath, dependencies: dependencies, swiftVersion: nil)
 
         // Then
         XCTAssertFalse(carthageInteractor.invokedFetch)
@@ -236,7 +246,10 @@ final class DependenciesControllerTests: TuistUnitTestCase {
                 .github(path: "Moya", requirement: .exact("1.1.1")),
                 .github(path: "RxSwift", requirement: .exact("2.0.0")),
             ],
-            options: [.useXCFrameworks, .noUseBinaries]
+            options: [
+                .useXCFrameworks,
+                .noUseBinaries,
+            ]
         )
         let dependencies = Dependencies(
             carthage: carthageDependencies,
@@ -251,7 +264,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.update(at: rootPath, dependencies: dependencies)
+        try subject.update(at: rootPath, dependencies: dependencies, swiftVersion: nil)
 
         // Then
         XCTAssertFalse(carthageInteractor.invokedClean)
@@ -285,14 +298,16 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             swiftPackageManager: swiftPackageManagerDependencies,
             platforms: platforms
         )
+        let swiftVersion = "5.4.0"
 
-        swiftPackageManagerInteractor.fetchStub = { arg0, arg1 in
+        swiftPackageManagerInteractor.fetchStub = { arg0, arg1, arg2 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
             XCTAssertEqual(arg1, swiftPackageManagerDependencies)
+            XCTAssertEqual(arg2, swiftVersion)
         }
 
         // When
-        try subject.update(at: rootPath, dependencies: dependencies)
+        try subject.update(at: rootPath, dependencies: dependencies, swiftVersion: swiftVersion)
 
         // Then
         XCTAssertFalse(swiftPackageManagerInteractor.invokedClean)
@@ -320,7 +335,10 @@ final class DependenciesControllerTests: TuistUnitTestCase {
                 .github(path: "Moya", requirement: .exact("1.1.1")),
                 .github(path: "RxSwift", requirement: .exact("2.0.0")),
             ],
-            options: [.useXCFrameworks, .noUseBinaries]
+            options: [
+                .useXCFrameworks,
+                .noUseBinaries,
+            ]
         )
         let swiftPackageManagerDependencies = SwiftPackageManagerDependencies(
             [
@@ -333,19 +351,21 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             swiftPackageManager: swiftPackageManagerDependencies,
             platforms: platforms
         )
+        let swiftVersion = "5.4.0"
 
         carthageInteractor.updateStub = { arg0, arg1, arg2 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
             XCTAssertEqual(arg1, carthageDependencies)
             XCTAssertEqual(arg2, platforms)
         }
-        swiftPackageManagerInteractor.fetchStub = { arg0, arg1 in
+        swiftPackageManagerInteractor.fetchStub = { arg0, arg1, arg2 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
             XCTAssertEqual(arg1, swiftPackageManagerDependencies)
+            XCTAssertEqual(arg2, swiftVersion)
         }
 
         // When
-        try subject.update(at: rootPath, dependencies: dependencies)
+        try subject.update(at: rootPath, dependencies: dependencies, swiftVersion: swiftVersion)
 
         // Then
         XCTAssertFalse(carthageInteractor.invokedClean)
@@ -372,7 +392,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         // When / Then
         XCTAssertThrowsSpecific(
-            try subject.update(at: rootPath, dependencies: dependencies),
+            try subject.update(at: rootPath, dependencies: dependencies, swiftVersion: nil),
             DependenciesControllerError.noPlatforms
         )
     }
@@ -388,7 +408,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         )
 
         // When
-        try subject.update(at: rootPath, dependencies: dependencies)
+        try subject.update(at: rootPath, dependencies: dependencies, swiftVersion: nil)
 
         // Then
         XCTAssertFalse(carthageInteractor.invokedFetch)

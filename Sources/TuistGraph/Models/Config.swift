@@ -29,38 +29,47 @@ public struct Config: Equatable, Hashable {
     /// List of Xcode versions the project or set of projects is compatible with.
     public let compatibleXcodeVersions: CompatibleXcodeVersions
 
-    /// Cloud configuration.
-    public let cloud: Cloud?
+    /// Lab configuration.
+    public let lab: Lab?
 
     /// Cache configuration.
     public let cache: Cache?
+
+    /// The version of Swift that will be used by Tuist.
+    /// If `nil` is passed then Tuist will use the environment’s version.
+    public let swiftVersion: String?
 
     /// The path of the config file.
     public let path: AbsolutePath?
 
     /// Returns the default Tuist configuration.
     public static var `default`: Config {
-        Config(compatibleXcodeVersions: .all, cloud: nil, cache: nil, plugins: [], generationOptions: [], path: nil)
+        Config(compatibleXcodeVersions: .all, lab: nil, cache: nil, swiftVersion: nil, plugins: [], generationOptions: [], path: nil)
     }
 
     /// Initializes the tuist cofiguration.
     ///
     /// - Parameters:
     ///   - compatibleXcodeVersions: List of Xcode versions the project or set of projects is compatible with.
-    ///   - cloud: Cloud configuration.
+    ///   - lab: Lab configuration.
+    ///   - cache: Cache configuration.
+    ///   - swiftVersion: The version of Swift that will be used by Tuist.
     ///   - plugins: List of locations to a `Plugin` manifest.
     ///   - generationOptions: Generation options.
     ///   - path: The path of the config file.
-    public init(compatibleXcodeVersions: CompatibleXcodeVersions,
-                cloud: Cloud?,
-                cache: Cache?,
-                plugins: [PluginLocation],
-                generationOptions: [GenerationOption],
-                path: AbsolutePath?)
-    {
+    public init(
+        compatibleXcodeVersions: CompatibleXcodeVersions,
+        lab: Lab?,
+        cache: Cache?,
+        swiftVersion: String?,
+        plugins: [PluginLocation],
+        generationOptions: [GenerationOption],
+        path: AbsolutePath?
+    ) {
         self.compatibleXcodeVersions = compatibleXcodeVersions
-        self.cloud = cloud
+        self.lab = lab
         self.cache = cache
+        self.swiftVersion = swiftVersion
         self.plugins = plugins
         self.generationOptions = generationOptions
         self.path = path
@@ -70,8 +79,9 @@ public struct Config: Equatable, Hashable {
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(generationOptions)
-        hasher.combine(cloud)
+        hasher.combine(lab)
         hasher.combine(cache)
+        hasher.combine(swiftVersion)
         hasher.combine(compatibleXcodeVersions)
     }
 }

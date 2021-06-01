@@ -6,20 +6,31 @@ public struct Template: Codable, Equatable {
     public let description: String
     /// Attributes to be passed to template
     public let attributes: [Attribute]
-    /// Files to generate
-    public let files: [File]
+    /// Items to generate
+    public let items: [Item]
 
     public init(description: String,
                 attributes: [Attribute] = [],
-                files: [File] = [])
+                items: [Item] = [])
     {
         self.description = description
         self.attributes = attributes
-        self.files = files
+        self.items = items
         dumpIfNeeded(self)
     }
 
-    /// Enum containing information about how to generate file
+    @available(*, deprecated, message: "Use init with `items: [Item]` instead")
+    public init(description: String,
+                attributes: [Attribute] = [],
+                files: [Item] = [])
+    {
+        self.description = description
+        self.attributes = attributes
+        items = files
+        dumpIfNeeded(self)
+    }
+
+    /// Enum containing information about how to generate item
     public enum Contents: Codable, Equatable {
         /// String Contents is defined in `name_of_template.swift` and contains a simple `String`
         /// Can not contain any additional logic apart from plain `String` from `arguments`
@@ -27,6 +38,9 @@ public struct Template: Codable, Equatable {
         /// File content is defined in a different file from `name_of_template.swift`
         /// Can contain additional logic and anything that is defined in `ProjectDescriptionHelpers`
         case file(Path)
+        /// Directory content is defined in a path
+        /// It is just for copying files without modifications and logic inside
+        case directory(Path)
 
         private enum CodingKeys: String, CodingKey {
             case type
@@ -42,6 +56,9 @@ public struct Template: Codable, Equatable {
             } else if type == "file" {
                 let value = try container.decode(Path.self, forKey: .value)
                 self = .file(value)
+            } else if type == "directory" {
+                let value = try container.decode(Path.self, forKey: .value)
+                self = .directory(value)
             } else {
                 fatalError("Argument '\(type)' not supported")
             }
@@ -57,12 +74,15 @@ public struct Template: Codable, Equatable {
             case let .file(path):
                 try container.encode("file", forKey: .type)
                 try container.encode(path, forKey: .value)
+            case let .directory(path):
+                try container.encode("directory", forKey: .type)
+                try container.encode(path, forKey: .value)
             }
         }
     }
 
     /// File description for generating
-    public struct File: Codable, Equatable {
+    public struct Item: Codable, Equatable {
         public let path: String
         public let contents: Contents
 
@@ -115,21 +135,29 @@ public struct Template: Codable, Equatable {
     }
 }
 
-public extension Template.File {
+public extension Template.Item {
     /// - Parameters:
     ///     - path: Path where to generate file
     ///     - contents: String Contents
-    /// - Returns: `Template.File` that is `.string`
-    static func string(path: String, contents: String) -> Template.File {
-        Template.File(path: path, contents: .string(contents))
+    /// - Returns: `Template.Item` that is `.string`
+    static func string(path: String, contents: String) -> Template.Item {
+        Template.Item(path: path, contents: .string(contents))
     }
 
     /// - Parameters:
     ///     - path: Path where to generate file
     ///     - templatePath: Path of file where the template is defined
-    /// - Returns: `Template.File` that is `.file`
-    static func file(path: String, templatePath: Path) -> Template.File {
-        Template.File(path: path, contents: .file(templatePath))
+    /// - Returns: `Template.Item` that is `.file`
+    static func file(path: String, templatePath: Path) -> Template.Item {
+        Template.Item(path: path, contents: .file(templatePath))
+    }
+
+    /// - Parameters:
+    ///     - path: Path where will be copied the folder
+    ///     - sourcePath: Path of folder which will be copied
+    /// - Returns: `Template.Item` that is `.directory`
+    static func directory(path: String, sourcePath: Path) -> Template.Item {
+        Template.Item(path: path, contents: .directory(sourcePath))
     }
 }
 

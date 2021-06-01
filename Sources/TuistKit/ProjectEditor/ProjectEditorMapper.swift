@@ -19,7 +19,9 @@ protocol ProjectEditorMapping: AnyObject {
         pluginProjectDescriptionHelpersModule: [ProjectDescriptionHelpersModule],
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
-        projectDescriptionPath: AbsolutePath
+        tasks: [AbsolutePath],
+        projectDescriptionPath: AbsolutePath,
+        projectAutomationPath: AbsolutePath
     ) throws -> ValueGraph
 }
 
@@ -39,7 +41,9 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         pluginProjectDescriptionHelpersModule: [ProjectDescriptionHelpersModule],
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
-        projectDescriptionPath: AbsolutePath
+        tasks: [AbsolutePath],
+        projectDescriptionPath: AbsolutePath,
+        projectAutomationPath: AbsolutePath
     ) throws -> ValueGraph {
         let swiftVersion = try System.shared.swiftVersion()
 
@@ -55,12 +59,14 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         let manifestsProject = mapManifestsProject(
             projectManifests: projectManifests,
             projectDescriptionPath: projectDescriptionPath,
+            projectAutomationPath: projectAutomationPath,
             swiftVersion: swiftVersion,
             sourceRootPath: sourceRootPath,
             destinationDirectory: destinationDirectory,
             tuistPath: tuistPath,
             helpers: helpers,
             templates: templates,
+            tasks: tasks,
             setupPath: setupPath,
             configPath: configPath,
             dependenciesPath: dependenciesPath,
@@ -122,12 +128,14 @@ final class ProjectEditorMapper: ProjectEditorMapping {
     private func mapManifestsProject(
         projectManifests: [AbsolutePath],
         projectDescriptionPath: AbsolutePath,
+        projectAutomationPath: AbsolutePath,
         swiftVersion: String,
         sourceRootPath: AbsolutePath,
         destinationDirectory: AbsolutePath,
         tuistPath: AbsolutePath,
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
+        tasks: [AbsolutePath],
         setupPath: AbsolutePath?,
         configPath: AbsolutePath?,
         dependenciesPath: AbsolutePath?,
@@ -164,6 +172,19 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                 sourcePaths: templates
             )
         }()
+
+        let tasksTargets = tasks.map { taskPath in
+            editorHelperTarget(
+                name: taskPath.basenameWithoutExt,
+                filesGroup: manifestsFilesGroup,
+                targetSettings: Settings(
+                    base: targetBaseSettings(for: [projectAutomationPath], swiftVersion: swiftVersion),
+                    configurations: Settings.default.configurations,
+                    defaultSettings: .recommended
+                ),
+                sourcePaths: [taskPath]
+            )
+        }
 
         let setupTarget: Target? = {
             guard let setupPath = setupPath else { return nil }
@@ -221,7 +242,10 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             setupTarget,
             configTarget,
             dependenciesTarget,
-        ].compactMap { $0 } + manifestsTargets
+        ]
+        .compactMap { $0 }
+        + manifestsTargets
+        + tasksTargets
 
         let buildAction = BuildAction(targets: targets.map { TargetReference(projectPath: projectPath, name: $0.name) })
         let arguments = Arguments(launchArguments: [LaunchArgument(name: "generate --path \(sourceRootPath)", isEnabled: true)])

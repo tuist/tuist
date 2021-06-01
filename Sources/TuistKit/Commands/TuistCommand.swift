@@ -11,27 +11,29 @@ public struct TuistCommand: ParsableCommand {
             commandName: "tuist",
             abstract: "Generate, build and test your Xcode projects.",
             subcommands: [
-                GenerateCommand.self,
-                UpCommand.self,
-                FocusCommand.self,
-                EditCommand.self,
-                SecretCommand.self,
-                DumpCommand.self,
-                GraphCommand.self,
-                LintCommand.self,
-                VersionCommand.self,
                 BuildCommand.self,
-                TestCommand.self,
-                CreateIssueCommand.self,
-                ScaffoldCommand.self,
-                InitCommand.self,
-                CloudCommand.self,
                 CacheCommand.self,
-                SigningCommand.self,
-                MigrationCommand.self,
                 CleanCommand.self,
-                DocCommand.self,
+                CreateIssueCommand.self,
                 DependenciesCommand.self,
+                DocCommand.self,
+                DumpCommand.self,
+                EditCommand.self,
+                ExecCommand.self,
+                FocusCommand.self,
+                GenerateCommand.self,
+                GraphCommand.self,
+                InitCommand.self,
+                LabCommand.self,
+                LintCommand.self,
+                MigrationCommand.self,
+                RunCommand.self,
+                ScaffoldCommand.self,
+                SecretCommand.self,
+                SigningCommand.self,
+                TestCommand.self,
+                UpCommand.self,
+                VersionCommand.self,
             ]
         )
     }
@@ -52,6 +54,9 @@ public struct TuistCommand: ParsableCommand {
             }
             if processedArguments.first == InitCommand.configuration.commandName {
                 try InitCommand.preprocess(processedArguments)
+            }
+            if processedArguments.first == ExecCommand.configuration.commandName {
+                try ExecCommand.preprocess(processedArguments)
             }
             command = try parseAsRoot(processedArguments)
         } catch {

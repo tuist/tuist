@@ -4,6 +4,7 @@ module Fourier
     class GitHub < Base
       desc "cancel-workflows SUBCOMMAND ...ARGS", "Cancels all the running workflows"
       def cancel_workflows
+        Utilities::Secrets.decrypt
         Services::GitHub::CancelWorkflows.call
       end
     end

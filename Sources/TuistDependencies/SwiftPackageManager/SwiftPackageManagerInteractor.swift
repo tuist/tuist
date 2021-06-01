@@ -37,18 +37,22 @@ public protocol SwiftPackageManagerInteracting {
     /// - Parameters:
     ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
     ///   - dependencies: List of dependencies to fetch using `Swift Package Manager`.
+    ///   - swiftToolsVersion: The version of Swift tools that will be used to resolve dependencies. If `nil` is passed then the environment’s version will be used.
     func fetch(
         dependenciesDirectory: AbsolutePath,
-        dependencies: SwiftPackageManagerDependencies
+        dependencies: SwiftPackageManagerDependencies,
+        swiftToolsVersion: String?
     ) throws
 
     /// Updates `Swift Package Manager` dependencies.
     /// - Parameters:
     ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
     ///   - dependencies: List of dependencies to update using `Swift Package Manager`.
+    ///   - swiftToolsVersion: The version of Swift tools that will be used to resolve dependencies. If `nil` is passed then the environment’s version will be used.
     func update(
         dependenciesDirectory: AbsolutePath,
-        dependencies: SwiftPackageManagerDependencies
+        dependencies: SwiftPackageManagerDependencies,
+        swiftToolsVersion: String?
     ) throws
 
     /// Removes all cached `Swift Package Manager` dependencies.
@@ -72,7 +76,8 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
 
     public func fetch(
         dependenciesDirectory: AbsolutePath,
-        dependencies: SwiftPackageManagerDependencies
+        dependencies: SwiftPackageManagerDependencies,
+        swiftToolsVersion: String?
     ) throws {
         logger.warning("Support for Swift Package Manager dependencies is currently being worked on and is not ready to be used yet.")
 
@@ -81,7 +86,8 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         try install(
             dependenciesDirectory: dependenciesDirectory,
             dependencies: dependencies,
-            shouldUpdate: false
+            shouldUpdate: false,
+            swiftToolsVersion: swiftToolsVersion
         )
 
         logger.info("Packages resolved and fetched successfully.", metadata: .subsection)
@@ -89,7 +95,8 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
 
     public func update(
         dependenciesDirectory: AbsolutePath,
-        dependencies: SwiftPackageManagerDependencies
+        dependencies: SwiftPackageManagerDependencies,
+        swiftToolsVersion: String?
     ) throws {
         logger.warning("Support for Swift Package Manager dependencies is currently being worked on and is not ready to be used yet.")
 
@@ -98,7 +105,8 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         try install(
             dependenciesDirectory: dependenciesDirectory,
             dependencies: dependencies,
-            shouldUpdate: true
+            shouldUpdate: true,
+            swiftToolsVersion: swiftToolsVersion
         )
 
         logger.info("Updating resolved and fetched successfully.", metadata: .subsection)
@@ -121,7 +129,8 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
     private func install(
         dependenciesDirectory: AbsolutePath,
         dependencies: SwiftPackageManagerDependencies,
-        shouldUpdate: Bool
+        shouldUpdate: Bool,
+        swiftToolsVersion: String?
     ) throws {
         try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in
             // prepare paths
@@ -131,7 +140,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
             )
 
             // prepare for installation
-            try loadDependencies(pathsProvider: pathsProvider, packageManifestContent: dependencies.manifestValue())
+            try loadDependencies(pathsProvider: pathsProvider, dependencies: dependencies, swiftToolsVersion: swiftToolsVersion)
 
             // run `Swift Package Manager`
             if shouldUpdate {
@@ -146,7 +155,11 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
     }
 
     /// Loads lockfile and dependencies into working directory if they had been saved before.
-    private func loadDependencies(pathsProvider: SwiftPackageManagerPathsProvider, packageManifestContent: String) throws {
+    private func loadDependencies(
+        pathsProvider: SwiftPackageManagerPathsProvider,
+        dependencies: SwiftPackageManagerDependencies,
+        swiftToolsVersion: String?
+    ) throws {
         // copy `.build` directory from previous run if exist
         if fileHandler.exists(pathsProvider.destinationBuildDirectory) {
             try copy(
@@ -165,11 +178,15 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
 
         // create `Package.swift`
         let packageManifestPath = pathsProvider.temporaryDirectoryPath.appending(component: "Package.swift")
-        try fileHandler.write(packageManifestContent, path: packageManifestPath, atomically: true)
+        try fileHandler.write(dependencies.manifestValue(), path: packageManifestPath, atomically: true)
+
+        // set `swift-tools-version` in `Package.swift`
+        try swiftPackageManagerController.setToolsVersion(at: pathsProvider.temporaryDirectoryPath, to: swiftToolsVersion)
 
         // log
+        let generatedManifestContent = try fileHandler.readTextFile(packageManifestPath)
         logger.debug("Package.swift:", metadata: .subsection)
-        logger.debug("\(packageManifestContent)")
+        logger.debug("\(generatedManifestContent)")
     }
 
     /// Saves lockfile resolved depedencies in `Tuist/Depedencies` directory.

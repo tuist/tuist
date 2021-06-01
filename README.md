@@ -39,14 +39,18 @@ tuist generate # Generates Xcode project & workspace
 tuist build # Builds your project
 ```
 
-[Check out](https://tuist.io/docs) the project "Get Started" guide to learn more about Tuist and all its features.
+[Check out](https://docs.tuist.io) the project "Get Started" guide to learn more about Tuist and all its features.
 
 ## Repository structure
 
 The repository is a monorepo with multiple projects:
 
-- [Swift Package (CLI) 📦](/../..)
-- [Main Website 🌍](projects/website)
+- [Swift Package (CLI)](/)
+- [Main Website](projects/website)
+- [Next Website](projects/next)
+- [Benchmarking tool](projects/tuistbench)
+- [Fixture generator](projects/fixturegen)
+- [Documentation website](projects/docs)
 
 ## Documentation 📝
 
@@ -64,7 +68,7 @@ MacStadium supports this project by providing Mac mini hardware that we can use 
 
 ## Contribute 👩‍💻
 
-If you are interested in contributed to the project, our documentation has a section with resources for contributors. We recommend starting from [this page](https://tuist.io/docs/contribution/get-started/).
+If you are interested in contributed to the project, our documentation has a section with resources for contributors. We recommend starting from [this page](https://docs.tuist.io/contributors/get-started).
 
 ## Core Team ✨
 
@@ -143,6 +147,15 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="https://github.com/rmnblm"><img src="https://avatars.githubusercontent.com/u/5942764?v=4" width="100px;" alt=""/><br /><sub><b>Roman Blum</b></sub></a></td>
     <td align="center"><a href="http://nanotek.me"><img src="https://avatars.githubusercontent.com/u/7265334?v=4" width="100px;" alt=""/><br /><sub><b>Giovanni Filaferro</b></sub></a></td>
     <td align="center"><a href="http://twitter.com/tovkal"><img src="https://avatars.githubusercontent.com/u/5960675?v=4" width="100px;" alt=""/><br /><sub><b>Andrés Pizá Bückmann</b></sub></a></td>
+    <td align="center"><a href="http://coutinho.dev"><img src="https://avatars.githubusercontent.com/u/17842860?v=4" width="100px;" alt=""/><br /><sub><b>Gabriel Coutinho</b></sub></a></td>
+    <td align="center"><a href="https://medium.com/@riccardocipolleschi"><img src="https://avatars.githubusercontent.com/u/11162307?v=4" width="100px;" alt=""/><br /><sub><b>Riccardo</b></sub></a></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="https://github.com/bolismauro"><img src="https://avatars.githubusercontent.com/u/771999?v=4" width="100px;" alt=""/><br /><sub><b>Mauro Bolis</b></sub></a></td>
+    <td align="center"><a href="https://twitter.com/iteractive_man"><img src="https://avatars.githubusercontent.com/u/461805?v=4" width="100px;" alt=""/><br /><sub><b>Peter Weishapl</b></sub></a></td>
+    <td align="center"><a href="http://stackoverflow.com/users/1878594/swiftycruz"><img src="https://avatars.githubusercontent.com/u/2609775?v=4" width="100px;" alt=""/><br /><sub><b>Cruz</b></sub></a></td>
+    <td align="center"><a href="https://github.com/svenmuennich"><img src="https://avatars.githubusercontent.com/u/1932115?v=4" width="100px;" alt=""/><br /><sub><b>Sven Münnich</b></sub></a></td>
+    <td align="center"><a href="https://github.com/santi-d"><img src="https://avatars.githubusercontent.com/u/993826?v=4" width="100px;" alt=""/><br /><sub><b>Santiago A. Delgado</b></sub></a></td>
   </tr>
 </table>
 

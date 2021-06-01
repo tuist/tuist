@@ -40,5 +40,5 @@ Feature: Generate a new project using Tuist (suite 2)
     Then a file App/Derived/Sources/Strings+App.swift exists
     Then a file App/Derived/Sources/Assets+App.swift exists
     Then a file App/Derived/Sources/Fonts+App.swift exists
-    Then a file App/Derived/Sources/Environment.swift exists
+    Then a file App/Derived/Sources/Plists+App.swift exists
     Then a file StaticFramework3/Derived/Sources/Assets+StaticFramework3.swift exists

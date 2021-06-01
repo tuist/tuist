@@ -351,7 +351,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     }
 
     private func createConfig() -> Config {
-        Config(compatibleXcodeVersions: .all, cloud: nil, cache: .default, plugins: [], generationOptions: [], path: nil)
+        Config(compatibleXcodeVersions: .all, lab: nil, cache: .default, swiftVersion: nil, plugins: [], generationOptions: [], path: nil)
     }
 
     private func createWorkspace(path: AbsolutePath, projects: [String]) throws -> Workspace {

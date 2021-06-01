@@ -2,10 +2,11 @@
 
 source "https://rubygems.org"
 
+ruby "3.0.1"
+
 gem "cucumber", "~> 6.0"
 gem "rake", "~> 13.0"
 gem "simctl", "~> 1.6"
-gem "encrypted-environment", "~> 0.2.0"
 gem "google-cloud-storage", "~> 1.31"
 gem "colorize", "~> 0.8.1"
 gem "cocoapods", "~> 1.10"
@@ -20,6 +21,7 @@ gem "zeitwerk", "~> 2.4"
 gem "cli-kit", "~> 3.3"
 gem "semantic", "~> 1.6"
 gem "down", "~> 5.2"
+gem "ejson", "~> 1.2"
 
 group :test do
   gem "mocha", "~> 1.12"
@@ -31,6 +33,9 @@ group :development do
   gem "rubocop-shopify"
   gem "rubocop-minitest", "~> 0.12.1"
   gem "rubocop-rake", "~> 0.5.1"
+  gem "rubocop", "~> 1.14"
+  gem "rubocop-rails", "~> 2.10.1"
+  gem "rubocop-rails_config"
 end
 
 group :development, :test do

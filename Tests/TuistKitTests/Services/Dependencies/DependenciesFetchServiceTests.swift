@@ -14,6 +14,7 @@ import XCTest
 final class DependenciesFetchServiceTests: TuistUnitTestCase {
     private var dependenciesController: MockDependenciesController!
     private var dependenciesModelLoader: MockDependenciesModelLoader!
+    private var configLoader: MockConfigLoader!
 
     private var subject: DependenciesFetchService!
 
@@ -22,10 +23,12 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
 
         dependenciesController = MockDependenciesController()
         dependenciesModelLoader = MockDependenciesModelLoader()
+        configLoader = MockConfigLoader()
 
         subject = DependenciesFetchService(
             dependenciesController: dependenciesController,
-            dependenciesModelLoader: dependenciesModelLoader
+            dependenciesModelLoader: dependenciesModelLoader,
+            configLoading: configLoader
         )
     }
 
@@ -34,6 +37,7 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
 
         dependenciesController = nil
         dependenciesModelLoader = nil
+        configLoader = nil
 
         super.tearDown()
     }
@@ -57,9 +61,13 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
         )
         dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
 
-        dependenciesController.fetchStub = { path, dependencies in
+        let stubbedSwiftVersion = "5.3.0"
+        configLoader.loadConfigStub = { _ in Config.test(swiftVersion: stubbedSwiftVersion) }
+
+        dependenciesController.fetchStub = { path, dependencies, swiftVersion in
             XCTAssertEqual(path, stubbedPath)
             XCTAssertEqual(dependencies, stubbedDependencies)
+            XCTAssertEqual(swiftVersion, stubbedSwiftVersion)
         }
 
         // When

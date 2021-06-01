@@ -6,13 +6,14 @@ public enum Constants {
     public static let binName = "tuist"
     public static let gitRepositoryURL = "https://github.com/tuist/tuist.git"
     public static let communityURL = "https://community.tuist.io"
-    public static let version = "1.41.0"
+    public static let version = "1.43.0"
     public static let bundleName: String = "tuist.zip"
     public static let trueValues: [String] = ["1", "true", "TRUE", "yes", "YES"]
     public static let tuistDirectoryName: String = "Tuist"
 
     public static let helpersDirectoryName: String = "ProjectDescriptionHelpers"
     public static let signingDirectoryName: String = "Signing"
+    public static let tasksDirectoryName: String = "Tasks"
 
     public static let masterKey = "master.key"
     public static let encryptedExtension = "encrypted"
@@ -60,7 +61,7 @@ public enum Constants {
         public static let forceConfigCacheDirectory = "TUIST_FORCE_CONFIG_CACHE_DIRECTORY"
         public static let automationPath = "TUIST_AUTOMATION_PATH"
         public static let queueDirectory = "TUIST_QUEUE_DIRECTORY"
-        public static let cloudToken = "TUIST_CLOUD_TOKEN"
+        public static let labToken = "TUIST_LAB_TOKEN"
         public static let cacheManifests = "TUIST_CACHE_MANIFESTS"
         public static let statsOptOut = "TUIST_STATS_OPT_OUT"
     }

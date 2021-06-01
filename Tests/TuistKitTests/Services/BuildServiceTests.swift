@@ -14,39 +14,50 @@ import XCTest
 
 final class BuildServiceErrorTests: TuistUnitTestCase {
     func test_description() {
-        XCTAssertEqual(BuildServiceError.schemeNotFound(scheme: "A", existing: ["B", "C"]).description, "Couldn't find scheme A. The available schemes are: B, C.")
-        XCTAssertEqual(BuildServiceError.schemeWithoutBuildableTargets(scheme: "Scheme").description, "The scheme Scheme cannot be built because it contains no buildable targets.")
+        XCTAssertEqual(
+            BuildServiceError.schemeNotFound(scheme: "A", existing: ["B", "C"]).description,
+            "Couldn't find scheme A. The available schemes are: B, C."
+        )
+        XCTAssertEqual(
+            BuildServiceError.schemeWithoutBuildableTargets(scheme: "MyScheme").description,
+            "The scheme MyScheme cannot be built because it contains no buildable targets."
+        )
+        XCTAssertEqual(
+            BuildServiceError.workspaceNotFound(path: "/path/to/workspace").description,
+            "Workspace not found expected xcworkspace at /path/to/workspace"
+        )
     }
 
     func test_type() {
         XCTAssertEqual(BuildServiceError.schemeNotFound(scheme: "A", existing: ["B", "C"]).type, .abort)
-        XCTAssertEqual(BuildServiceError.schemeWithoutBuildableTargets(scheme: "Scheme").type, .abort)
+        XCTAssertEqual(BuildServiceError.schemeWithoutBuildableTargets(scheme: "MyScheme").type, .abort)
+        XCTAssertEqual(BuildServiceError.workspaceNotFound(path: "/path/to/workspace").type, .bug)
     }
 }
 
 final class BuildServiceTests: TuistUnitTestCase {
     var generator: MockGenerator!
-    var xcodebuildController: MockXcodeBuildController!
-    var buildgraphInspector: MockBuildGraphInspector!
+    var buildGraphInspector: MockBuildGraphInspector!
+    var targetBuilder: MockTargetBuilder!
     var subject: BuildService!
 
     override func setUp() {
         super.setUp()
         generator = MockGenerator()
-        xcodebuildController = MockXcodeBuildController()
-        buildgraphInspector = MockBuildGraphInspector()
+        buildGraphInspector = MockBuildGraphInspector()
+        targetBuilder = MockTargetBuilder()
         subject = BuildService(
             generator: generator,
-            xcodebuildController: xcodebuildController,
-            buildGraphInspector: buildgraphInspector
+            buildGraphInspector: buildGraphInspector,
+            targetBuilder: targetBuilder
         )
     }
 
     override func tearDown() {
         super.tearDown()
         generator = nil
-        xcodebuildController = nil
-        buildgraphInspector = nil
+        buildGraphInspector = nil
+        targetBuilder = nil
         subject = nil
     }
 
@@ -66,29 +77,27 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertFalse(_projectOnly)
             return (path, graph)
         }
-        buildgraphInspector.buildableSchemesStub = { _ in
+        buildGraphInspector.buildableSchemesStub = { _ in
             [scheme]
         }
-        buildgraphInspector.buildableTargetStub = { _scheme, _ in
+        buildGraphInspector.buildableTargetStub = { _scheme, _ in
             XCTAssertEqual(_scheme, scheme)
-            return (project, target)
+            return ValueGraphTarget.test(path: project.path, target: target, project: project)
         }
-        buildgraphInspector.workspacePathStub = { _path in
+        buildGraphInspector.workspacePathStub = { _path in
             XCTAssertEqual(_path, path)
             return workspacePath
         }
-        buildgraphInspector.buildArgumentsStub = { _project, _target, _, _skipSigning in
+        buildGraphInspector.buildArgumentsStub = { _project, _target, _, _skipSigning in
             XCTAssertEqual(_project, project)
             XCTAssertEqual(_target, target)
             XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
         }
-        xcodebuildController.buildStub = { _target, _scheme, _clean, _arguments in
-            XCTAssertEqual(_target, .workspace(workspacePath))
-            XCTAssertEqual(_scheme, scheme.name)
+        targetBuilder.buildTargetStub = { _, _workspacePath, _schemeName, _clean, _, _ in
+            XCTAssertEqual(_workspacePath, workspacePath)
+            XCTAssertEqual(_schemeName, scheme.name)
             XCTAssertTrue(_clean)
-            XCTAssertEqual(_arguments, buildArguments)
-            return Observable.just(.standardOutput(.init(raw: "success")))
         }
 
         // Then
@@ -113,29 +122,27 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_path, path)
             return graph
         }
-        buildgraphInspector.buildableSchemesStub = { _ in
+        buildGraphInspector.buildableSchemesStub = { _ in
             [scheme]
         }
-        buildgraphInspector.buildableTargetStub = { _scheme, _ in
+        buildGraphInspector.buildableTargetStub = { _scheme, _ in
             XCTAssertEqual(_scheme, scheme)
-            return (project, target)
+            return ValueGraphTarget.test(path: project.path, target: target, project: project)
         }
-        buildgraphInspector.workspacePathStub = { _path in
+        buildGraphInspector.workspacePathStub = { _path in
             XCTAssertEqual(_path, path)
             return workspacePath
         }
-        buildgraphInspector.buildArgumentsStub = { _project, _target, _, _skipSigning in
+        buildGraphInspector.buildArgumentsStub = { _project, _target, _, _skipSigning in
             XCTAssertEqual(_project, project)
             XCTAssertEqual(_target, target)
             XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
         }
-        xcodebuildController.buildStub = { _target, _scheme, _clean, _arguments in
-            XCTAssertEqual(_target, .workspace(workspacePath))
-            XCTAssertEqual(_scheme, scheme.name)
+        targetBuilder.buildTargetStub = { _, _workspacePath, _schemeName, _clean, _, _ in
+            XCTAssertEqual(_workspacePath, workspacePath)
+            XCTAssertEqual(_schemeName, scheme.name)
             XCTAssertTrue(_clean)
-            XCTAssertEqual(_arguments, buildArguments)
-            return Observable.just(.standardOutput(.init(raw: "success")))
         }
 
         // Then
@@ -162,37 +169,35 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_path, path)
             return graph
         }
-        buildgraphInspector.buildableSchemesStub = { _ in
+        buildGraphInspector.buildableSchemesStub = { _ in
             [schemeA, schemeB]
         }
-        buildgraphInspector.buildableTargetStub = { _scheme, _ in
-            if _scheme == schemeA { return (project, targetA) }
-            else if _scheme == schemeB { return (project, targetB) }
-            else { XCTFail("unexpected scheme"); return (project, targetA) }
+        buildGraphInspector.buildableTargetStub = { _scheme, _ in
+            if _scheme == schemeA { return ValueGraphTarget.test(path: project.path, target: targetA, project: project) }
+            else if _scheme == schemeB { return ValueGraphTarget.test(path: project.path, target: targetB, project: project) }
+            else { XCTFail("unexpected scheme"); return ValueGraphTarget.test(path: project.path, target: targetA, project: project) }
         }
-        buildgraphInspector.workspacePathStub = { _path in
+        buildGraphInspector.workspacePathStub = { _path in
             XCTAssertEqual(_path, path)
             return workspacePath
         }
-        buildgraphInspector.buildArgumentsStub = { _, _, _, _skipSigning in
+        buildGraphInspector.buildArgumentsStub = { _, _, _, _skipSigning in
             XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
         }
-        xcodebuildController.buildStub = { _target, _scheme, _clean, _arguments in
-            XCTAssertEqual(_target, .workspace(workspacePath))
-            XCTAssertEqual(_arguments, buildArguments)
+        targetBuilder.buildTargetStub = { _, _workspacePath, _schemeName, _clean, _, _ in
+            XCTAssertEqual(_workspacePath, workspacePath)
 
-            if _scheme == "A" {
-                XCTAssertEqual(_scheme, "A")
+            if _schemeName == "A" {
+                XCTAssertEqual(_schemeName, schemeA.name)
                 XCTAssertTrue(_clean)
-            } else if _scheme == "B" {
+            } else if _schemeName == "B" {
                 // When running the second scheme clean should be false
-                XCTAssertEqual(_scheme, "B")
+                XCTAssertEqual(_schemeName, schemeB.name)
                 XCTAssertFalse(_clean)
             } else {
-                XCTFail("unexpected scheme \(_scheme)")
+                XCTFail("unexpected scheme \(_schemeName)")
             }
-            return Observable.just(.standardOutput(.init(raw: "success")))
         }
 
         // Then
@@ -201,7 +206,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_run_only_runs_the_given_scheme_when_passed() throws {
+    func test_run_only_builds_the_given_scheme_when_passed() throws {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
@@ -218,33 +223,31 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_path, path)
             return graph
         }
-        buildgraphInspector.buildableSchemesStub = { _ in
+        buildGraphInspector.buildableSchemesStub = { _ in
             [schemeA, schemeB]
         }
-        buildgraphInspector.buildableTargetStub = { _scheme, _ in
-            if _scheme == schemeA { return (project, targetA) }
-            else if _scheme == schemeB { return (project, targetB) }
-            else { XCTFail("unexpected scheme"); return (project, targetA) }
+        buildGraphInspector.buildableTargetStub = { _scheme, _ in
+            if _scheme == schemeA { return ValueGraphTarget.test(path: project.path, target: targetA, project: project) }
+            else if _scheme == schemeB { return ValueGraphTarget.test(path: project.path, target: targetB, project: project) }
+            else { XCTFail("unexpected scheme"); return ValueGraphTarget.test(path: project.path, target: targetA, project: project) }
         }
-        buildgraphInspector.workspacePathStub = { _path in
+        buildGraphInspector.workspacePathStub = { _path in
             XCTAssertEqual(_path, path)
             return workspacePath
         }
-        buildgraphInspector.buildArgumentsStub = { _, _, _, _skipSigning in
+        buildGraphInspector.buildArgumentsStub = { _, _, _, _skipSigning in
             XCTAssertEqual(_skipSigning, skipSigning)
             return buildArguments
         }
-        xcodebuildController.buildStub = { _target, _scheme, _clean, _arguments in
-            XCTAssertEqual(_target, .workspace(workspacePath))
-            XCTAssertEqual(_arguments, buildArguments)
+        targetBuilder.buildTargetStub = { _, _workspacePath, _schemeName, _clean, _, _ in
+            XCTAssertEqual(_workspacePath, workspacePath)
 
-            if _scheme == "A" {
-                XCTAssertEqual(_scheme, "A")
+            if _schemeName == "A" {
+                XCTAssertEqual(_schemeName, schemeA.name)
                 XCTAssertTrue(_clean)
             } else {
-                XCTFail("unexpected scheme \(_scheme)")
+                XCTFail("unexpected scheme \(_schemeName)")
             }
-            return Observable.just(.standardOutput(.init(raw: "success")))
         }
 
         // Then
@@ -265,11 +268,11 @@ final class BuildServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_path, path)
             return graph
         }
-        buildgraphInspector.workspacePathStub = { _path in
+        buildGraphInspector.workspacePathStub = { _path in
             XCTAssertEqual(_path, path)
             return workspacePath
         }
-        buildgraphInspector.buildableSchemesStub = { _ in
+        buildGraphInspector.buildableSchemesStub = { _ in
             [
                 schemeA,
                 schemeB,
@@ -294,6 +297,7 @@ private extension BuildService {
         generate: Bool = false,
         clean: Bool = true,
         configuration: String? = nil,
+        buildOutputPath: AbsolutePath? = nil,
         path: AbsolutePath
     ) throws {
         try run(
@@ -301,6 +305,7 @@ private extension BuildService {
             generate: generate,
             clean: clean,
             configuration: configuration,
+            buildOutputPath: buildOutputPath,
             path: path
         )
     }

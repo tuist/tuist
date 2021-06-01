@@ -15,10 +15,11 @@ extension TuistGraph.Config {
         let compatibleXcodeVersions = TuistGraph.CompatibleXcodeVersions.from(manifest: manifest.compatibleXcodeVersions)
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         let plugins = try manifest.plugins.map { try PluginLocation.from(manifest: $0, generatorPaths: generatorPaths) }
+        let swiftVersion = manifest.swiftVersion?.description
 
-        var cloud: TuistGraph.Cloud?
-        if let manifestCloud = manifest.cloud {
-            cloud = try TuistGraph.Cloud.from(manifest: manifestCloud)
+        var lab: TuistGraph.Lab?
+        if let manifestLab = manifest.lab {
+            lab = try TuistGraph.Lab.from(manifest: manifestLab)
         }
 
         var cache: TuistGraph.Cache?
@@ -27,13 +28,15 @@ extension TuistGraph.Config {
         }
 
         if let forcedCacheDirectiory = forcedCacheDirectiory {
-            cache = cache.map { TuistGraph.Cache(profiles: $0.profiles, path: forcedCacheDirectiory) } ?? TuistGraph.Cache(profiles: [], path: forcedCacheDirectiory)
+            cache = cache.map { TuistGraph.Cache(profiles: $0.profiles, path: forcedCacheDirectiory) }
+                ?? TuistGraph.Cache(profiles: [], path: forcedCacheDirectiory)
         }
 
         return TuistGraph.Config(
             compatibleXcodeVersions: compatibleXcodeVersions,
-            cloud: cloud,
+            lab: lab,
             cache: cache,
+            swiftVersion: swiftVersion,
             plugins: plugins,
             generationOptions: generationOptions,
             path: path

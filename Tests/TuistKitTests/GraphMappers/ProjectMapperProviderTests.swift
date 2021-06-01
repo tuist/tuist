@@ -1,10 +1,10 @@
 import Foundation
 import TuistCache
-import TuistCloud
 import TuistCoreTesting
 import TuistGenerator
 import TuistGraph
 import TuistGraphTesting
+import TuistLab
 import TuistSupport
 import XCTest
 
@@ -32,7 +32,7 @@ final class ProjectMapperProviderTests: TuistUnitTestCase {
 
         // When
         let got = subject.mapper(
-            config: Config.test(cloud: .test(options: []))
+            config: Config.test(lab: .test(options: []))
         )
 
         // Then

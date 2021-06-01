@@ -88,6 +88,10 @@ public protocol ManifestLoading {
     ///     -  path: Path to the directory that contains Dependencies.swift
     func loadDependencies(at path: AbsolutePath) throws -> ProjectDescription.Dependencies
 
+    /// Returns arguments for loading `Tasks.swift`
+    /// You can append this list to insert your own custom flag
+    func taskLoadArguments(at path: AbsolutePath) throws -> [String]
+
     /// Loads the Plugin.swift in the given directory.
     /// - Parameter path: Path to the directory that contains Plugin.swift
     func loadPlugin(at path: AbsolutePath) throws -> ProjectDescription.Plugin
@@ -199,6 +203,10 @@ public class ManifestLoader: ManifestLoading {
         return try decoder.decode(Dependencies.self, from: dependenciesData)
     }
 
+    public func taskLoadArguments(at path: AbsolutePath) throws -> [String] {
+        try buildArguments(.task, at: path)
+    }
+
     public func loadPlugin(at path: AbsolutePath) throws -> ProjectDescription.Plugin {
         try loadManifest(.plugin, at: path)
     }
@@ -213,6 +221,22 @@ public class ManifestLoader: ManifestLoading {
         _ manifest: Manifest,
         at path: AbsolutePath
     ) throws -> T {
+        let manifestPath = try self.manifestPath(
+            manifest,
+            at: path
+        )
+        let data = try loadDataForManifest(manifest, at: manifestPath)
+        if Environment.shared.isVerbose {
+            let string = String(data: data, encoding: .utf8)
+            logger.debug("Trying to load the manifest represented by the following JSON representation:\n\(string ?? "")")
+        }
+        return try decoder.decode(T.self, from: data)
+    }
+
+    private func manifestPath(
+        _ manifest: Manifest,
+        at path: AbsolutePath
+    ) throws -> AbsolutePath {
         var fileNames = [manifest.fileName(path)]
         if let deprecatedFileName = manifest.deprecatedFileName {
             fileNames.insert(deprecatedFileName, at: 0)
@@ -221,64 +245,20 @@ public class ManifestLoader: ManifestLoading {
         for fileName in fileNames {
             let manifestPath = path.appending(component: fileName)
             if !FileHandler.shared.exists(manifestPath) { continue }
-            let data = try loadDataForManifest(manifest, at: manifestPath)
-            if Environment.shared.isVerbose {
-                let string = String(data: data, encoding: .utf8)
-                logger.debug("Trying to load the manifest represented by the following JSON representation:\n\(string ?? "")")
-            }
-            return try decoder.decode(T.self, from: data)
+            return manifestPath
         }
 
         throw ManifestLoaderError.manifestNotFound(manifest, path)
     }
 
-    // swiftlint:disable:next function_body_length
     private func loadDataForManifest(
         _ manifest: Manifest,
         at path: AbsolutePath
     ) throws -> Data {
-        let projectDescriptionPath = try resourceLocator.projectDescription()
-        let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
-        var arguments = [
-            "/usr/bin/xcrun",
-            "swiftc",
-            "--driver-mode=swift",
-            "-suppress-warnings",
-            "-I", searchPaths.includeSearchPath.pathString,
-            "-L", searchPaths.librarySearchPath.pathString,
-            "-F", searchPaths.frameworkSearchPath.pathString,
-            "-lProjectDescription",
-            "-framework", "ProjectDescription",
-        ]
-        let projectDescriptionHelpersCacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories(config: nil).projectDescriptionHelpersCacheDirectory
-
-        let projectDescriptionHelperArguments: [String] = try {
-            switch manifest {
-            case .config,
-                 .plugin:
-                return []
-            case .dependencies,
-                 .galaxy,
-                 .project,
-                 .setup,
-                 .template,
-                 .workspace:
-                return try projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(cacheDirectory: projectDescriptionHelpersCacheDirectory).build(
-                    at: path,
-                    projectDescriptionSearchPaths: searchPaths,
-                    projectDescriptionHelperPlugins: plugins.projectDescriptionHelpers
-                ).flatMap { [
-                    "-I", $0.path.parentDirectory.pathString,
-                    "-L", $0.path.parentDirectory.pathString,
-                    "-F", $0.path.parentDirectory.pathString,
-                    "-l\($0.name)",
-                ] }
-            }
-        }()
-
-        arguments.append(contentsOf: projectDescriptionHelperArguments)
-        arguments.append(path.pathString)
-        arguments.append("--tuist-dump")
+        let arguments = try buildArguments(
+            manifest,
+            at: path
+        ) + ["--tuist-dump"]
 
         let result = System.shared
             .observable(arguments, verbose: false, environment: environment.manifestLoadingVariables)
@@ -306,6 +286,75 @@ public class ManifestLoader: ManifestLoading {
             logPluginHelperBuildErrorIfNeeded(in: path, error: error, manifest: manifest)
             throw error
         }
+    }
+
+    private func buildArguments(
+        _ manifest: Manifest,
+        at path: AbsolutePath
+    ) throws -> [String] {
+        let projectDescriptionPath = try resourceLocator.projectDescription()
+        let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
+        let frameworkName: String
+        switch manifest {
+        case .task:
+            frameworkName = "ProjectAutomation"
+        case .config,
+             .plugin,
+             .dependencies,
+             .galaxy,
+             .project,
+             .setup,
+             .template,
+             .workspace:
+            frameworkName = "ProjectDescription"
+        }
+        var arguments = [
+            "/usr/bin/xcrun",
+            "swiftc",
+            "--driver-mode=swift",
+            "-suppress-warnings",
+            "-I", searchPaths.includeSearchPath.pathString,
+            "-L", searchPaths.librarySearchPath.pathString,
+            "-F", searchPaths.frameworkSearchPath.pathString,
+            "-l\(frameworkName)",
+            "-framework", frameworkName,
+        ]
+        let projectDescriptionHelpersCacheDirectory = try cacheDirectoryProviderFactory
+            .cacheDirectories(config: nil)
+            .projectDescriptionHelpersCacheDirectory
+
+        let projectDescriptionHelperArguments: [String] = try {
+            switch manifest {
+            case .config,
+                 .plugin,
+                 .task:
+                return []
+            case .dependencies,
+                 .galaxy,
+                 .project,
+                 .setup,
+                 .template,
+                 .workspace:
+                return try projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(
+                    cacheDirectory: projectDescriptionHelpersCacheDirectory
+                )
+                .build(
+                    at: path,
+                    projectDescriptionSearchPaths: searchPaths,
+                    projectDescriptionHelperPlugins: plugins.projectDescriptionHelpers
+                ).flatMap { [
+                    "-I", $0.path.parentDirectory.pathString,
+                    "-L", $0.path.parentDirectory.pathString,
+                    "-F", $0.path.parentDirectory.pathString,
+                    "-l\($0.name)",
+                ] }
+            }
+        }()
+
+        arguments.append(contentsOf: projectDescriptionHelperArguments)
+        arguments.append(path.pathString)
+
+        return arguments
     }
 
     private func logUnexpectedImportErrorIfNeeded(in path: AbsolutePath, error: Error, manifest: Manifest) {

@@ -45,32 +45,39 @@ public struct Config: Codable, Equatable {
     /// List of `Plugin`s used to extend Tuist.
     public let plugins: [PluginLocation]
 
-    /// Cloud configuration.
-    public let cloud: Cloud?
+    /// Lab configuration.
+    public let lab: Lab?
 
     /// Cache configuration.
     public let cache: Cache?
+
+    /// The version of Swift that will be used by Tuist.
+    /// If `nil` is passed then Tuist will use the environment’s version.
+    public let swiftVersion: Version?
 
     /// Initializes the tuist configuration.
     ///
     /// - Parameters:
     ///   - compatibleXcodeVersions: List of Xcode versions the project is compatible with.
-    ///   - cloud: Cloud configuration.
+    ///   - lab: Lab configuration.
     ///   - cache: Cache configuration.
+    ///   - swiftVersion: The version of Swift that will be used by Tuist.
     ///   - plugins: A list of plugins to extend Tuist.
     ///   - generationOptions: List of options to use when generating the project.
     public init(
         compatibleXcodeVersions: CompatibleXcodeVersions = .all,
-        cloud: Cloud? = nil,
+        lab: Lab? = nil,
         cache: Cache? = nil,
+        swiftVersion: Version? = nil,
         plugins: [PluginLocation] = [],
         generationOptions: [GenerationOptions]
     ) {
         self.compatibleXcodeVersions = compatibleXcodeVersions
         self.plugins = plugins
         self.generationOptions = generationOptions
-        self.cloud = cloud
+        self.lab = lab
         self.cache = cache
+        self.swiftVersion = swiftVersion
         dumpIfNeeded(self)
     }
 }
@@ -117,7 +124,9 @@ extension Config.GenerationOptions {
             self = .enableCodeCoverage
         } else if container.allKeys.contains(.disablePackageVersionLocking), try container.decode(Bool.self, forKey: .disablePackageVersionLocking) {
             self = .disablePackageVersionLocking
-        } else if container.allKeys.contains(.resolveDependenciesWithSystemScm), try container.decode(Bool.self, forKey: .resolveDependenciesWithSystemScm) {
+        } else if container.allKeys.contains(.resolveDependenciesWithSystemScm),
+            try container.decode(Bool.self, forKey: .resolveDependenciesWithSystemScm)
+        {
             self = .resolveDependenciesWithSystemScm
         } else {
             throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown enum case"))

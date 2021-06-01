@@ -24,29 +24,28 @@ module Fourier
         end
 
         private
+          def download(temporary_dir:)
+            puts(::CLI::UI.fmt("Downloading source code from {{info:#{SOURCE_TAR_URL}}}"))
+            sources_zip_path = File.join(temporary_dir, "xcbeautify.zip")
+            Down.download(SOURCE_TAR_URL, destination: sources_zip_path)
+            sources_zip_path
+          end
 
-        def download(temporary_dir:)
-          puts(::CLI::UI.fmt("Downloading source code from {{info:#{SOURCE_TAR_URL}}}"))
-          sources_zip_path = File.join(temporary_dir, "xcbeautify.zip")
-          Down.download(SOURCE_TAR_URL, destination: sources_zip_path)
-          sources_zip_path
-        end
+          def extract(sources_zip_path)
+            puts("Extracting source code...")
+            content_path = File.join(File.dirname(sources_zip_path), "content")
+            Utilities::Zip.extract(zip: sources_zip_path, into: content_path)
+            Dir.glob(File.join(content_path, "*/")).first
+          end
 
-        def extract(sources_zip_path)
-          puts("Extracting source code...")
-          content_path = File.join(File.dirname(sources_zip_path), "content")
-          Utilities::Zip.extract(zip: sources_zip_path, into: content_path)
-          Dir.glob(File.join(content_path, "*/")).first
-        end
-
-        def build(sources_path, into:)
-          puts("Building...")
-          Utilities::SwiftPackageManager.build_fat_release_binary(
-            path: sources_path,
-            binary_name: "xcbeautify",
-            output_directory: into
-          )
-        end
+          def build(sources_path, into:)
+            puts("Building...")
+            Utilities::SwiftPackageManager.build_fat_release_binary(
+              path: sources_path,
+              binary_name: "xcbeautify",
+              output_directory: into
+            )
+          end
       end
     end
   end

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
-Then("the product {string} with destination {string} contains the framework {string} with architecture {string}") do |product, destination, framework, architecture|
+Then("the product {string} with destination {string} contains \
+the framework {string} with architecture {string}") do |product, destination, framework, architecture|
   framework_path = Xcode.find_framework(
     product: product,
     destination: destination,
@@ -15,7 +16,8 @@ Then("the product {string} with destination {string} contains the framework {str
   assert(out.include?(architecture))
 end
 
-Then("the product {string} with destination {string} contains the framework {string} without architecture {string}") do |product, destination, framework, architecture|
+Then("the product {string} with destination {string} contains \
+the framework {string} without architecture {string}") do |product, destination, framework, architecture|
   framework_path = Xcode.find_framework(
     product: product,
     destination: destination,
@@ -30,7 +32,8 @@ Then("the product {string} with destination {string} contains the framework {str
   refute(out.include?(architecture))
 end
 
-Then("the product {string} with destination {string} does not contain the framework {string}") do |product, destination, framework|
+Then("the product {string} with destination {string} does \
+not contain the framework {string}") do |product, destination, framework|
   framework_path = Xcode.find_framework(
     product: product,
     destination: destination,
@@ -52,7 +55,8 @@ Then("the product {string} with destination {string} contains resource {string}"
   assert(resource_path)
 end
 
-Then("the product {string} with destination {string} does not contain resource {string}") do |product, destination, resource|
+Then("the product {string} with destination {string} does \
+not contain resource {string}") do |product, destination, resource|
   resource_path = Xcode.find_resource(
     product: product,
     destination: destination,
@@ -64,7 +68,8 @@ Then("the product {string} with destination {string} does not contain resource {
   refute(resource_path)
 end
 
-Then("the product {string} with destination {string} contains the Info.plist key {string}") do |product, destination, key|
+Then("the product {string} with destination {string} contains \
+the Info.plist key {string}") do |product, destination, key|
   info_plist_path = Xcode.find_resource(
     product: product,
     destination: destination,
@@ -78,7 +83,8 @@ Then("the product {string} with destination {string} contains the Info.plist key
   end
 end
 
-Then("the product {string} with destination {string} contains the Info.plist key {string} with value {string}") do |product, destination, key, value|
+Then("the product {string} with destination {string} contains \
+the Info.plist key {string} with value {string}") do |product, destination, key, value|
   info_plist_path = Xcode.find_resource(
     product: product,
     destination: destination,
@@ -127,7 +133,8 @@ Then(/^a directory (.+) exists$/) do |directory|
   assert(Dir.exist?(directory_path), "#{directory_path} does not exist")
 end
 
-Then("the product {string} with destination {string} contains the appClip {string} with architecture {string}") do |product, destination, app_clip, architecture|
+Then("the product {string} with destination {string} contains \
+the appClip {string} with architecture {string}") do |product, destination, app_clip, architecture|
   app_clip_path = Xcode.find_app_clip(
     product: product,
     destination: destination,
@@ -142,7 +149,8 @@ Then("the product {string} with destination {string} contains the appClip {strin
   assert(out.include?(architecture))
 end
 
-Then("the product {string} with destination {string} contains the appClip {string} without architecture {string}") do |product, destination, app_clip, architecture|
+Then("the product {string} with destination {string} contains \
+the appClip {string} without architecture {string}") do |product, destination, app_clip, architecture|
   app_clip_path = Xcode.find_app_clip(
     product: product,
     destination: destination,

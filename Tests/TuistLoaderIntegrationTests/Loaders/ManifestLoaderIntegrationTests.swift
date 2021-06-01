@@ -132,7 +132,8 @@ final class ManifestLoaderTests: TuistTestCase {
         import ProjectDescription
 
         let template = Template(
-            description: "Template description"
+            description: "Template description",
+            items: []
         )
         """
 
@@ -158,7 +159,8 @@ final class ManifestLoaderTests: TuistTestCase {
         import ProjectDescription
 
         let template = Template(
-            description: "Template description"
+            description: "Template description",
+            items: []
         )
         """
 

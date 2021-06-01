@@ -8,12 +8,16 @@ import TuistSupport
 final class DependenciesFetchService {
     private let dependenciesController: DependenciesControlling
     private let dependenciesModelLoader: DependenciesModelLoading
+    private let configLoading: ConfigLoading
 
-    init(dependenciesController: DependenciesControlling = DependenciesController(),
-         dependenciesModelLoader: DependenciesModelLoading = DependenciesModelLoader())
-    {
+    init(
+        dependenciesController: DependenciesControlling = DependenciesController(),
+        dependenciesModelLoader: DependenciesModelLoading = DependenciesModelLoader(),
+        configLoading: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader())
+    ) {
         self.dependenciesController = dependenciesController
         self.dependenciesModelLoader = dependenciesModelLoader
+        self.configLoading = configLoading
     }
 
     func run(path: String?) throws {
@@ -21,7 +25,15 @@ final class DependenciesFetchService {
 
         let path = self.path(path)
         let dependencies = try dependenciesModelLoader.loadDependencies(at: path)
-        try dependenciesController.fetch(at: path, dependencies: dependencies)
+
+        let config = try configLoading.loadConfig(path: path)
+        let swiftVersion = config.swiftVersion
+
+        try dependenciesController.fetch(
+            at: path,
+            dependencies: dependencies,
+            swiftVersion: swiftVersion
+        )
 
         logger.info("Dependencies resolved and fetched successfully.", metadata: .success)
     }
