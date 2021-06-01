@@ -2727,12 +2727,12 @@
     "@theme-ui/css" "0.9.1"
     "@theme-ui/mdx" "0.9.1"
 
-"@theme-ui/typography@^0.8.4":
-  version "0.8.4"
-  resolved "https://registry.yarnpkg.com/@theme-ui/typography/-/typography-0.8.4.tgz#5446b92cca85f650d93e1e616f9a36ae3745138e"
-  integrity sha512-aA694PWKUxTAbES0W7rNIQ9HaMUJa1id42/VsdO5DTDlYKJdQbFxjJa+IzyFcW/sHQEtUzyjZUpN7DE7k1v7zA==
+"@theme-ui/typography@^0.9.1":
+  version "0.9.1"
+  resolved "https://registry.yarnpkg.com/@theme-ui/typography/-/typography-0.9.1.tgz#b88f3c0b4484a0da2e07b51d1b45d9d1984bb701"
+  integrity sha512-QUbKRMWQ2PxmUZ8nJxkyXHKOiavWGdXQAzuQAzSVo31JHXPluqrVvIZJ5f4W8Dxhot6FDB+42naUnGoqvK0BRw==
   dependencies:
-    "@theme-ui/css" "0.8.4"
+    "@theme-ui/css" "0.9.1"
     "@types/compass-vertical-rhythm" "^1.4.1"
     "@types/modularscale" "^2.0.0"
     "@types/typography" "^0.16.3"
