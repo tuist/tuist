@@ -3,7 +3,7 @@ import ProjectDescription
 let dependencies = Dependencies(
     carthage: .carthage(
         [
-            .github(path: "Moya/Moya", requirement: .exact("14.0.1"))
+            .github(path: "ReactiveX/RxSwift", requirement: .exact("5.1.2")),
         ],
         options: [
             .useXCFrameworks,

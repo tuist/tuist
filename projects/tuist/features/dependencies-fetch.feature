@@ -10,4 +10,5 @@ Feature: Install dependencies Tuist.
         Then a file Tuist/Dependencies/Lockfiles/Cartfile.resolved exists
         Then a directory Tuist/Dependencies/SwiftPackageManager/checkouts/SnapKit exists
         Then a file Tuist/Dependencies/Lockfiles/Package.resolved exists
+        Then a file Tuist/Dependencies/graph.json exists
 
