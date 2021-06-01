@@ -16,7 +16,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
     //    case watchExtension = "watch_extension"
     case watch2Extension = "watch_2_extension"
     case tvTopShelfExtension = "tv_top_shelf_extension"
-    case tvIntentsExtension = "tv_intents_extension"
+    // case tvIntentsExtension = "tv_intents_extension"
     //    case messagesApplication = "messages_application"
     case messagesExtension = "messages_extension"
     case stickerPackExtension = "sticker_pack_extension"
@@ -52,8 +52,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
             return "watch2Extension"
         case .tvTopShelfExtension:
             return "tvTopShelfExtension"
-        case .tvIntentsExtension:
-            return "tvIntentsExtension"
+        // case .tvIntentsExtension:
+        //    return "tvIntentsExtension"
         //        case .messagesApplication:
         //            return "messagesApplication"
         case .messagesExtension:
@@ -97,8 +97,8 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
             return "watch 2 extension"
         case .tvTopShelfExtension:
             return "tv top shelf extension"
-        case .tvIntentsExtension:
-            return "tv intents extension"
+        // case .tvIntentsExtension:
+        //    return "tv intents extension"
         //        case .messagesApplication:
         //            return "iMessage application"
         case .messagesExtension:
