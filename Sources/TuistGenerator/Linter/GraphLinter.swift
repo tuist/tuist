@@ -432,7 +432,7 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .tvOS, product: .framework),
             LintableTarget(platform: .tvOS, product: .staticFramework),
             LintableTarget(platform: .tvOS, product: .bundle),
-            LintableTarget(platform: .tvOS, product: .tvExtension),
+            LintableTarget(platform: .tvOS, product: .tvTopShelfExtension),
         ],
         LintableTarget(platform: .tvOS, product: .staticLibrary): [
             LintableTarget(platform: .tvOS, product: .staticLibrary),
@@ -461,7 +461,7 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .tvOS, product: .framework),
             LintableTarget(platform: .tvOS, product: .staticFramework),
         ],
-        LintableTarget(platform: .tvOS, product: .tvExtension): [
+        LintableTarget(platform: .tvOS, product: .tvTopShelfExtension): [
             LintableTarget(platform: .tvOS, product: .staticLibrary),
             LintableTarget(platform: .tvOS, product: .dynamicLibrary),
             LintableTarget(platform: .tvOS, product: .framework),

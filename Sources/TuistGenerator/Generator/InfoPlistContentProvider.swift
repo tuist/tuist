@@ -111,7 +111,7 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
             packageType = "FMWK"
         case .watch2App, .watch2Extension:
             packageType = "$(PRODUCT_BUNDLE_PACKAGE_TYPE)"
-        case .appExtension, .stickerPackExtension, .messagesExtension, .tvExtension:
+        case .appExtension, .stickerPackExtension, .messagesExtension, .tvTopShelfExtension, .tvIntentsExtension:
             packageType = "XPC!"
         case .commandLineTool:
             packageType = nil

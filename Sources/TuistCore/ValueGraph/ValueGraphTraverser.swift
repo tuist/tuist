@@ -182,7 +182,7 @@ public class ValueGraphTraverser: GraphTraversing {
 
     public func appExtensionDependencies(path: AbsolutePath, name: String) -> Set<ValueGraphTarget> {
         let validProducts: [Product] = [
-            .appExtension, .stickerPackExtension, .watch2Extension, .tvExtension, .messagesExtension,
+            .appExtension, .stickerPackExtension, .watch2Extension, .tvTopShelfExtension, .messagesExtension,
         ]
         return Set(directLocalTargetDependencies(path: path, name: name)
             .filter { validProducts.contains($0.target.product) })
@@ -625,7 +625,7 @@ public class ValueGraphTraverser: GraphTraversing {
             .unitTests,
             .uiTests,
             .watch2Extension,
-            .tvExtension,
+            .tvTopShelfExtension,
         ]
         return validProducts.contains(target.product)
     }

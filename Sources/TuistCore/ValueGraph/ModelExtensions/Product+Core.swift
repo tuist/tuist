@@ -31,7 +31,9 @@ extension Product {
         //            return .watchExtension
         case .watch2Extension:
             return .watch2Extension
-        case .tvExtension:
+        case .tvTopShelfExtension: // Important Note: https://github.com/tuist/XcodeProj/pull/609
+            return .appExtension
+        case .tvIntentsExtension: // Important Note: https://github.com/tuist/XcodeProj/pull/609
             return .tvExtension
         //        case .messagesApplication:
         //            return .messagesApplication

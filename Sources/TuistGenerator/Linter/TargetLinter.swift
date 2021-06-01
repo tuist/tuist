@@ -203,7 +203,7 @@ class TargetLinter: TargetLinting {
 
     private func lintValidPlatformProductCombinations(target: Target) -> [LintingIssue] {
         let invalidProductsForPlatforms: [Platform: [Product]] = [
-            .iOS: [.watch2App, .watch2Extension, .tvExtension],
+            .iOS: [.watch2App, .watch2Extension, .tvTopShelfExtension],
         ]
 
         if let invalidProducts = invalidProductsForPlatforms[target.platform],
