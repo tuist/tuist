@@ -34,8 +34,16 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
         
         let nodes = Dictionary(grouping: products, by: { $0.name })
             .reduce(into: [String: DependenciesGraphNode]()) { result, next in
+                guard let frameworkName = next.value.first?.container else { return }
+                
+                let path = AbsolutePath("/")
+                    .appending(component: Constants.tuistDirectoryName)
+                    .appending(component: Constants.DependenciesDirectory.name)
+                    .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
+                    .appending(component: frameworkName)
+                
                 let architectures: Set<BinaryArchitecture> = Set(next.value.flatMap { $0.architectures })
-                result[next.key] = .xcframework(path: AbsolutePath("/XYZ"), architectures: architectures)
+                result[next.key] = .xcframework(path: path, architectures: architectures)
             }
         
         return DependenciesGraph(nodes: nodes)
