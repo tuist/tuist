@@ -68,7 +68,7 @@ The folder structure below shows how Tuist organizes dependencies:
 Tuist
     |- Dependencies.swift # Manifest
     |- Dependencies
-        |- graph.json # coming soon
+        |- graph.json
         |- Lockfiles
             |- Carthage.resolved
             |- Package.resolved
