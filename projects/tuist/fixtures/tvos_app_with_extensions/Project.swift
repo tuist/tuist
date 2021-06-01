@@ -13,7 +13,7 @@ let project = Project(name: "App",
                                 ]),
                         Target(name: "TopShelfExtension",
                                platform: .tvOS,
-                               product: .tvExtension,
+                               product: .tvTopShelfExtension,
                                bundleId: "io.tuist.App.TopShelfExtension",
                                infoPlist: .extendingDefault(with: [
                                        "CFBundleDisplayName": "$(PRODUCT_NAME)",
