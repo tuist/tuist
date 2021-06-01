@@ -1,7 +1,9 @@
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistLoaderTesting
+import TuistPluginTesting
 import TuistSupport
 import TuistSupportTesting
 import TuistTasksTesting
@@ -12,21 +14,25 @@ import XCTest
 final class TaskServiceTests: TuistUnitTestCase {
     private var manifestLoader: MockManifestLoader!
     private var tasksLocator: MockTasksLocator!
+    private var pluginService: MockPluginService!
     private var subject: ExecService!
 
     override func setUp() {
         super.setUp()
         manifestLoader = MockManifestLoader()
         tasksLocator = MockTasksLocator()
+        pluginService = MockPluginService()
         subject = ExecService(
             manifestLoader: manifestLoader,
-            tasksLocator: tasksLocator
+            tasksLocator: tasksLocator,
+            pluginService: pluginService
         )
     }
 
     override func tearDown() {
         manifestLoader = nil
         tasksLocator = nil
+        pluginService = nil
         subject = nil
 
         super.tearDown()
@@ -90,17 +96,7 @@ final class TaskServiceTests: TuistUnitTestCase {
         let path = try temporaryPath()
         let taskPath = path.appending(component: "TaskA.swift")
         try fileHandler.write(
-            """
-               import ProjectAutomation
-               import Foundation
-
-               let task = Task(
-                   options: [.option("option-a"), .option("option-b")]
-               ) { options in
-                    // some task code
-               }
-
-            """,
+            Self.taskContent,
             path: taskPath,
             atomically: true
         )
@@ -216,4 +212,59 @@ final class TaskServiceTests: TuistUnitTestCase {
             )
         )
     }
+
+    func test_run_when_task_from_plugin() throws {
+        // Given
+        let path = try temporaryPath()
+        let tasksDirectory = path.appending(component: "TaskPlugins")
+        try fileHandler.createFolder(tasksDirectory)
+        let taskPath = tasksDirectory.appending(component: "TaskA.swift")
+        try fileHandler.write(
+            Self.taskContent,
+            path: taskPath,
+            atomically: true
+        )
+        pluginService.loadPluginsStub = { _ in
+            Plugins(
+                projectDescriptionHelpers: [],
+                templatePaths: [],
+                resourceSynthesizers: [],
+                tasks: [
+                    PluginTasks(name: "Plugins", path: tasksDirectory),
+                ]
+            )
+        }
+        manifestLoader.taskLoadArgumentsStub = {
+            [
+                "load",
+                $0.pathString,
+            ]
+        }
+        system.succeedCommand(
+            "load",
+            taskPath.pathString,
+            "--tuist-task",
+            "{}"
+        )
+
+        // When / Then
+        XCTAssertNoThrow(
+            try subject.run(
+                "task-a",
+                options: [:],
+                path: path.pathString
+            )
+        )
+    }
+
+    private static let taskContent = """
+                   import ProjectAutomation
+                   import Foundation
+
+                   let task = Task(
+                       options: [.option("option-a"), .option("option-b")]
+                   ) { options in
+                        // some task code
+                   }
+    """
 }
