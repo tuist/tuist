@@ -19,7 +19,7 @@
     "@theme-ui/match-media": "^0.8.4",
     "@theme-ui/presets": "^0.8.4",
     "@theme-ui/prism": "^0.8.4",
-    "@theme-ui/sidenav": "^0.8.4",
+    "@theme-ui/sidenav": "^0.9.1",
     "@theme-ui/typography": "^0.8.4",
     "autoprefixer": "^10.2.5",
     "copy-text-to-clipboard": "^3.0.1",
