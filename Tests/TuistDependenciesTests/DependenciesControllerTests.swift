@@ -4,9 +4,9 @@ import TuistGraph
 import TuistSupport
 import XCTest
 
+@testable import TuistCoreTesting
 @testable import TuistDependencies
 @testable import TuistDependenciesTesting
-@testable import TuistCoreTesting
 @testable import TuistSupportTesting
 
 final class DependenciesControllerTests: TuistUnitTestCase {
@@ -26,7 +26,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         dependenciesGraphController = MockDependenciesGraphController()
 
         #warning("laxmorek: test MockDependenciesGraphController calls")
-        
+
         subject = DependenciesController(
             carthageInteractor: carthageInteractor,
             cocoaPodsInteractor: cocoaPodsInteractor,
@@ -77,7 +77,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             XCTAssertEqual(arg1, carthageDependencies)
             XCTAssertEqual(arg2, platforms)
             XCTAssertFalse(arg3)
-            
+
             return .test()
         }
 
@@ -173,7 +173,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             XCTAssertEqual(arg1, carthageDependencies)
             XCTAssertEqual(arg2, platforms)
             XCTAssertFalse(arg3)
-            
+
             return .test()
         }
         swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3 in
@@ -269,7 +269,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             XCTAssertEqual(arg1, carthageDependencies)
             XCTAssertEqual(arg2, platforms)
             XCTAssertTrue(arg3)
-            
+
             return .test()
         }
 
@@ -365,7 +365,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             XCTAssertEqual(arg1, carthageDependencies)
             XCTAssertEqual(arg2, platforms)
             XCTAssertTrue(arg3)
-            
+
             return .test()
         }
         swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3 in

@@ -101,9 +101,9 @@ public final class DependenciesController: DependenciesControlling {
             swiftVersion: swiftVersion
         )
     }
-    
+
     // MARK: - Helpers
-    
+
     private func install(
         at path: AbsolutePath,
         dependencies: Dependencies,
@@ -118,10 +118,10 @@ public final class DependenciesController: DependenciesControlling {
         guard !platforms.isEmpty else {
             throw DependenciesControllerError.noPlatforms
         }
-        
+
         #warning("laxmorek: Refactor me!")
         var dependenciesGraph: DependenciesGraph?
-        
+
         if let carthageDepedencies = dependencies.carthage, !carthageDepedencies.dependencies.isEmpty {
             dependenciesGraph = try carthageInteractor.install(
                 dependenciesDirectory: dependenciesDirectory,
@@ -143,7 +143,7 @@ public final class DependenciesController: DependenciesControlling {
         } else {
             try swiftPackageManagerInteractor.clean(dependenciesDirectory: dependenciesDirectory)
         }
-        
+
         if let dependenciesGraph = dependenciesGraph {
             try dependenciesGraphController.save(dependenciesGraph, at: path)
         } else {

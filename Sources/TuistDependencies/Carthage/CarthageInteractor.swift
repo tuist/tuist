@@ -135,14 +135,14 @@ public final class CarthageInteractor: CarthageInteracting {
 
                 // post installation
                 try saveDepedencies(pathsProvider: pathsProvider)
-                
+
                 // generate dependencies graph
                 return try carthageGraphGenerator
                     .generate(at: pathsProvider.temporaryCarthageBuildDirectory)
             }
-        
+
         logger.info("Carthage dependencies installed successfully.", metadata: .subsection)
-        
+
         return dependenciesGraph
     }
 

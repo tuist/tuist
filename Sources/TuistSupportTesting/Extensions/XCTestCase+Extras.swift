@@ -139,28 +139,28 @@ public extension XCTestCase {
             XCTFail("Failed comparing the subject to the given JSON. Has the JSON the right format?")
         }
     }
-    
+
     /// Asserts that a `json` object decoded as a `T` type is equal to an `expected` value.
     func XCTAssertDecodableEqualToJson<C: Decodable & Equatable>(_ json: String, _ expected: C, file: StaticString = #file, line: UInt = #line) {
         guard let jsonData = json.data(using: .utf8) else {
             XCTFail("Invalid JSON.", file: file, line: line)
             return
         }
-        
+
         let decoder = JSONDecoder()
         let decoded = XCTTry(try decoder.decode(C.self, from: jsonData), file: file, line: line)
-        
+
         let errorString = """
         The JSON-decoded object doesn't match the expected value:
         Given
         =======
         \(decoded)
-        
+
         Expected
         =======
         \(expected)
         """
-        
+
         XCTAssertEqual(decoded, expected, errorString, file: file, line: line)
     }
 

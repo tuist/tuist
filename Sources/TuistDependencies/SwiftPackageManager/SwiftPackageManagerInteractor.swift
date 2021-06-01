@@ -45,7 +45,7 @@ public protocol SwiftPackageManagerInteracting {
         shouldUpdate: Bool,
         swiftToolsVersion: String?
     ) throws
-    
+
     /// Removes all cached `Swift Package Manager` dependencies.
     /// - Parameter dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
     func clean(dependenciesDirectory: AbsolutePath) throws
@@ -64,7 +64,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         self.fileHandler = fileHandler
         self.swiftPackageManagerController = swiftPackageManagerController
     }
-    
+
     public func install(
         dependenciesDirectory: AbsolutePath,
         dependencies: SwiftPackageManagerDependencies,
@@ -73,7 +73,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
     ) throws {
         logger.warning("Support for Swift Package Manager dependencies is currently being worked on and is not ready to be used yet.")
         logger.info("Installing Swift Package Manager dependencies.", metadata: .subsection)
-        
+
         try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in
             // prepare paths
             let pathsProvider = SwiftPackageManagerPathsProvider(
@@ -94,7 +94,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
             // post installation
             try saveDepedencies(pathsProvider: pathsProvider)
         }
-        
+
         logger.info("Swift Package Manager dependencies installed successfully.", metadata: .subsection)
     }
 
