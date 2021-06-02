@@ -145,6 +145,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
 
         if platform == .tvOS {
             base.append(.tvTopShelfExtension)
+            // base.append(.tvIntentsExtension)
         }
 
         if platform == .macOS ||

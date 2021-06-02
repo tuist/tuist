@@ -21,6 +21,7 @@ public enum Product: String, Codable, Equatable {
 //    case watchExtension
     case watch2Extension
     case tvTopShelfExtension
+//    case tvIntentsExtension
 //    case messagesApplication
     case messagesExtension
     case stickerPackExtension = "sticker_pack_extension"
