@@ -78,7 +78,7 @@
     "semantic-ui-react": "^2.0.3",
     "slug": "^5.0.1",
     "tailwindcss": "^2.1.2",
-    "theme-ui": "^0.8.4",
+    "theme-ui": "^0.9.1",
     "url-join": "^4.0.1"
   },
   "keywords": [
