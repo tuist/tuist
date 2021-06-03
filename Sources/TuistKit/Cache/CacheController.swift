@@ -60,7 +60,8 @@ protocol CacheControlling {
     ///   - path: Path to the directory that contains a workspace or a project.
     ///   - cacheProfile: The caching profile.
     ///   - targets: If present, a list of target to build.
-    func cache(path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile, targetsToFilter: [String]) throws
+    ///   - targets: If present, a list of target to skip the build.
+    func cache(path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile, targetsToFilter: [String], targetsToSkip: [String]) throws
 }
 
 final class CacheController: CacheControlling {
@@ -105,7 +106,7 @@ final class CacheController: CacheControlling {
         self.cacheGraphLinter = cacheGraphLinter
     }
 
-    func cache(path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile, targetsToFilter: [String]) throws {
+    func cache(path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile, targetsToFilter: [String], targetsToSkip: [String]) throws {
         let generator = projectGeneratorProvider.generator()
         let (projectPath, graph) = try generator.generateWithGraph(path: path, projectOnly: false)
 
@@ -120,23 +121,40 @@ final class CacheController: CacheControlling {
             cacheOutputType: artifactBuilder.cacheOutputType
         )
 
-        let filteredTargets: [ValueGraphTarget]
+        var filteredTargets: [ValueGraphTarget]
         if targetsToFilter.isEmpty {
             filteredTargets = Array(hashesByCacheableTarget.keys)
         } else {
             filteredTargets = Array(hashesByCacheableTarget.keys.filter { targetsToFilter.contains($0.target.name) })
         }
+        
+        let graphTraveser = ValueGraphTraverser(graph: graph)
+        
+        var skipTargetsWithDependencies: [ValueGraphTarget] = []
+        if !targetsToSkip.isEmpty {
+            let skipTargets = Array(hashesByCacheableTarget.keys.filter { targetsToSkip.contains($0.target.name) })
+            skipTargetsWithDependencies = try topologicalSort(
+                skipTargets,
+                successors: {
+                    Array(graphTraveser.directTargetDependencies(path: $0.path, name: $0.target.name))
+                }
+            )
+            filteredTargets = filteredTargets.filter { !skipTargetsWithDependencies.contains($0) }
+        }
 
         logger.notice("Building cacheable targets")
 
-        let graphTraveser = ValueGraphTraverser(graph: graph)
-        let sortedCacheableTargets = try topologicalSort(
+        var sortedCacheableTargets = try topologicalSort(
             filteredTargets,
             successors: {
                 Array(graphTraveser.directTargetDependencies(path: $0.path, name: $0.target.name))
             }
         )
-
+        
+        if !skipTargetsWithDependencies.isEmpty {
+            sortedCacheableTargets = sortedCacheableTargets.filter { !skipTargetsWithDependencies.contains($0) }
+        }
+        
         for (index, target) in sortedCacheableTargets.reversed().enumerated() {
             logger.notice("Building cacheable targets: \(target.target.name), \(index + 1) out of \(sortedCacheableTargets.count)")
 

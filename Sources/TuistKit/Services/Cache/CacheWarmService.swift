@@ -13,7 +13,7 @@ final class CacheWarmService {
         configLoader = ConfigLoader(manifestLoader: ManifestLoader())
     }
 
-    func run(path: String?, profile: String?, xcframeworks: Bool, targets: [String]) throws {
+    func run(path: String?, profile: String?, xcframeworks: Bool, targets: [String], targetsToSkip: [String]) throws {
         let path = self.path(path)
         let config = try configLoader.loadConfig(path: path)
         let cache = Cache(storageProvider: CacheStorageProvider(config: config))
@@ -27,7 +27,7 @@ final class CacheWarmService {
         }
 
         let profile = try CacheProfileResolver().resolveCacheProfile(named: profile, from: config)
-        try cacheController.cache(path: path, cacheProfile: profile, targetsToFilter: targets)
+        try cacheController.cache(path: path, cacheProfile: profile, targetsToFilter: targets, targetsToSkip: targetsToSkip)
     }
 
     // MARK: - Helpers
