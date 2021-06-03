@@ -103,8 +103,8 @@ final class ProjectEditor: ProjectEditing {
         let cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories(config: nil)
         let projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilderFactory
             .projectDescriptionHelpersBuilder(
-            cacheDirectory: cacheDirectory.projectDescriptionHelpersCacheDirectory
-        )
+                cacheDirectory: cacheDirectory.projectDescriptionHelpersCacheDirectory
+            )
         let dependenciesPath = manifestFilesLocator.locateDependencies(at: editingPath)
         let setupPath = manifestFilesLocator.locateSetup(at: editingPath)
 
