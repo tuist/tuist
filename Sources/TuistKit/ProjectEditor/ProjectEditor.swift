@@ -91,6 +91,7 @@ final class ProjectEditor: ProjectEditing {
         self.tasksLocator = tasksLocator
     }
 
+    // swiftlint:disable:next function_body_length
     func edit(
         at editingPath: AbsolutePath,
         in destinationDirectory: AbsolutePath,
@@ -100,8 +101,10 @@ final class ProjectEditor: ProjectEditing {
         let projectManifests = manifestFilesLocator.locateProjectManifests(at: editingPath)
         let configPath = manifestFilesLocator.locateConfig(at: editingPath)
         let cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories(config: nil)
-        let projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(
-            cacheDirectory: cacheDirectory.projectDescriptionHelpersCacheDirectory)
+        let projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilderFactory
+            .projectDescriptionHelpersBuilder(
+            cacheDirectory: cacheDirectory.projectDescriptionHelpersCacheDirectory
+        )
         let dependenciesPath = manifestFilesLocator.locateDependencies(at: editingPath)
         let setupPath = manifestFilesLocator.locateSetup(at: editingPath)
 

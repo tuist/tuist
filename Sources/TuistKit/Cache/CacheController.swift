@@ -106,7 +106,13 @@ final class CacheController: CacheControlling {
         self.cacheGraphLinter = cacheGraphLinter
     }
 
-    func cache(path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile, targetsToFilter: [String], continueOnError: Bool) throws {
+    // swiftlint:disable:next function_body_length
+    func cache(
+        path: AbsolutePath,
+        cacheProfile: TuistGraph.Cache.Profile,
+        targetsToFilter: [String],
+        continueOnError: Bool
+    ) throws {
         let generator = projectGeneratorProvider.generator()
         let (projectPath, graph) = try generator.generateWithGraph(path: path, projectOnly: false)
 
