@@ -14,7 +14,7 @@
     "theme-ui": "^0.8.4"
   },
   "devDependencies": {
-    "@netlify/plugin-nextjs": "^3.3.0",
+    "@netlify/plugin-nextjs": "^3.4.0",
     "@types/react": "^17.0.8",
     "@types/theme-ui": "^0.6.0",
     "typescript": "^4.3.2"
