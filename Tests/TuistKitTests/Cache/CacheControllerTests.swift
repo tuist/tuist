@@ -199,7 +199,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         XCTAssertEqual(artifactBuilder.invokedBuildWorkspacePathParametersList[0].target, aTarget)
         XCTAssertEqual(artifactBuilder.invokedBuildWorkspacePathParametersList[1].target, bTarget)
     }
-    
+
     func test_skipped_targets_cache_builds_and_caches_the_frameworks() throws {
         // Given
         let path = try temporaryPath()
@@ -258,17 +258,17 @@ final class CacheControllerTests: TuistUnitTestCase {
         try subject.cache(path: path, cacheProfile: .test(configuration: "Debug"), targetsToFilter: [], targetsToSkip: [bTarget.name])
 
         // Then
-        
+
         // TODO: FIX TEST!!!!
         /*
-        XCTAssertPrinterOutputContains("""
-        Hashing cacheable targets
-        Building cacheable targets
-        Building cacheable targets: \(aTarget.name), 1 out of 1
-        All cacheable targets have been cached successfully as xcframeworks
-        """)
-        */
+         XCTAssertPrinterOutputContains("""
+         Hashing cacheable targets
+         Building cacheable targets
+         Building cacheable targets: \(aTarget.name), 1 out of 1
+         All cacheable targets have been cached successfully as xcframeworks
+         """)
+         */
         XCTAssertEqual(cacheGraphLinter.invokedLintCount, 1)
-        //XCTAssertEqual(artifactBuilder.invokedBuildWorkspacePathParametersList[0].target, aTarget)
+        // XCTAssertEqual(artifactBuilder.invokedBuildWorkspacePathParametersList[0].target, aTarget)
     }
 }

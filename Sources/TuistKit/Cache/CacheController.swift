@@ -127,9 +127,9 @@ final class CacheController: CacheControlling {
         } else {
             filteredTargets = Array(hashesByCacheableTarget.keys.filter { targetsToFilter.contains($0.target.name) })
         }
-        
+
         let graphTraveser = ValueGraphTraverser(graph: graph)
-        
+
         var skipTargetsWithDependencies: [ValueGraphTarget] = []
         if !targetsToSkip.isEmpty {
             let skipTargets = Array(hashesByCacheableTarget.keys.filter { targetsToSkip.contains($0.target.name) })
@@ -150,11 +150,11 @@ final class CacheController: CacheControlling {
                 Array(graphTraveser.directTargetDependencies(path: $0.path, name: $0.target.name))
             }
         )
-        
+
         if !skipTargetsWithDependencies.isEmpty {
             sortedCacheableTargets = sortedCacheableTargets.filter { !skipTargetsWithDependencies.contains($0) }
         }
-        
+
         for (index, target) in sortedCacheableTargets.reversed().enumerated() {
             logger.notice("Building cacheable targets: \(target.target.name), \(index + 1) out of \(sortedCacheableTargets.count)")
 

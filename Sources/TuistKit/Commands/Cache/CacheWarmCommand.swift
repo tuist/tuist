@@ -18,7 +18,7 @@ struct CacheWarmCommand: ParsableCommand {
 
     @Argument(help: "A list of targets to cache. Those and their dependent targets will be cached.")
     var targets: [String] = []
-    
+
     @Argument(help: "A list of targets to skip in the cache. Those and their dependent targets won't be cached.")
     var targetsToSkip: [String] = []
 
