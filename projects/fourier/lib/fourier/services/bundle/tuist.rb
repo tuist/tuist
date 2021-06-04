@@ -84,6 +84,14 @@ module Fourier
           end
 
           def build_tuist(build_directory:)
+            Utilities::SwiftPackageManager.build_fat_release_binary(
+              path: Constants::ROOT_DIRECTORY,
+              binary_name: "tuist",
+              output_directory: File.join(build_directory, "release")
+            )
+          end
+
+          def build_project_description(build_directory:)
             Utilities::System.system(
               "swift", "build",
               "--product", "tuist",
@@ -93,9 +101,6 @@ module Fourier
               "--arch", "arm64",
               "--arch", "x86_64"
             )
-          end
-
-          def build_project_description(build_directory:)
             Utilities::System.system(
               "swift", "build",
               "--product", "ProjectDescription",
@@ -106,12 +111,19 @@ module Fourier
               "-Xswiftc", File.expand_path("release/ProjectDescription.swiftinterface", build_directory),
               "--build-path", build_directory,
               "--package-path", Constants::ROOT_DIRECTORY,
-              "--arch", "arm64",
-              "--arch", "x86_64"
             )
           end
 
           def build_project_automation(build_directory:)
+            Utilities::System.system(
+              "swift", "build",
+              "--product", "ProjectAutomation",
+              "--configuration", "release",
+              "--build-path", build_directory,
+              "--package-path", Constants::ROOT_DIRECTORY,
+              "--arch", "arm64",
+              "--arch", "x86_64"
+            )
             Utilities::System.system(
               "swift", "build",
               "--product", "ProjectAutomation",
@@ -121,9 +133,7 @@ module Fourier
               "-Xswiftc", "-emit-module-interface-path",
               "-Xswiftc", File.expand_path("release/ProjectAutomation.swiftinterface", build_directory),
               "--build-path", build_directory,
-              "--package-path", Constants::ROOT_DIRECTORY,
-              "--arch", "arm64",
-              "--arch", "x86_64"
+              "--package-path", Constants::ROOT_DIRECTORY
             )
           end
       end

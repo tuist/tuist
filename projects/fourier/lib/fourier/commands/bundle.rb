@@ -15,7 +15,7 @@ module Fourier
       def tuist
         output_directory = options[:output]
         output_directory ||= File.expand_path("build", Constants::ROOT_DIRECTORY)
-        Services::Bundle::Tuist.call(output_directory: output_directory)
+        Services::Bundle::Tuist.call(output_directory: output_directory, build_directory: Constants::ROOT_DIRECTORY)
       end
 
       desc "tuistenv", "Bundle tuistenv"

@@ -7,7 +7,8 @@ module Fourier
           "swift", "build",
           "--configuration", "release",
           "--disable-sandbox",
-          "--package-path", path
+          "--package-path", path,
+          "--product", binary_name
         ]
 
         arm_64 = [*command, "--triple", "arm64-apple-macosx"]
@@ -15,6 +16,10 @@ module Fourier
 
         x86 = [*command, "--triple", "x86_64-apple-macosx"]
         Utilities::System.system(*x86)
+
+        unless File.exist?(output_directory)
+          Dir.mkdir output_directory
+        end
 
         Utilities::System.system(
           "lipo", "-create", "-output", File.join(output_directory, binary_name),
