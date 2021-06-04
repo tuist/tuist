@@ -15,6 +15,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - **Breaking** Remove `tuist create-issue` command [#3194](https://github.com/tuist/tuist/pull/3194) by [@pepibumur](https://github.com/pepibumur).
 - **Breaking** Remove `tuist secret` command [#3194](https://github.com/tuist/tuist/pull/3194) by [@pepibumur](https://github.com/pepibumur).
 
+### Changed
+
+- Remove the `sudo` requirement for the install and uninstall scripts. [#3056](https://github.com/tuist/tuist/pull/3056) by [@luispadron](https://github.com/luispadron).
+
 ## 1.46.1
 
 ### Fixed
