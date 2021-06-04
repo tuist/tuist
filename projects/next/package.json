@@ -11,7 +11,7 @@
     "next": "^10.2.3",
     "react": "17.0.1",
     "react-dom": "17.0.1",
-    "theme-ui": "^0.8.4"
+    "theme-ui": "^0.9.1"
   },
   "devDependencies": {
     "@netlify/plugin-nextjs": "^3.3.0",
