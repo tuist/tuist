@@ -12,8 +12,8 @@ module Fourier
         Utilities::Output.section("Uploading tuist and tuistenv scripts to GCS...")
         Services::Release::Tuist.call(
           version: version,
-          tuistenv_zip_path: File.join(output_directory, "tuist.zip"),
-          tuist_zip_path: File.join(output_directory, "tuistenv.zip"),
+          tuistenv_zip_path: File.join(output_directory, "tuistenv.zip"),
+          tuist_zip_path: File.join(output_directory, "tuist.zip"),
         )
         Utilities::Output.success("tuist and tuistenv uploaded to GCS")
       end
