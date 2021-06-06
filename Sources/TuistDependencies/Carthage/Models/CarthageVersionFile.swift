@@ -1,7 +1,7 @@
 import Foundation
 import TuistGraph
 
-/// A model that represents the `Carhtage` version file.
+/// A model that represents the `Carthage` version file.
 /// Reference: https://github.com/Carthage/Carthage/blob/master/Documentation/VersionFile.md#version-files
 struct CarthageVersionFile: Decodable, Equatable {
     enum CodingKeys: String, CodingKey {

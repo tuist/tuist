@@ -35,7 +35,7 @@ enum DependenciesControllerError: FatalError {
 ///     4. Generating dependencies graph under `./Tuist/Dependencies/graph.json`.
 public protocol DependenciesControlling {
     /// Fetches dependencies.
-    /// - Parameter path: Directory whose project's dependencies will be fetched.
+    /// - Parameter path: Directory where project's dependencies will be fetched.
     /// - Parameter dependencies: List of dependencies to fetch.
     /// - Parameter swiftVersion: The specified version of Swift. If `nil` is passed then the environment’s version will be used.
     func fetch(
@@ -46,7 +46,7 @@ public protocol DependenciesControlling {
 
     /// Updates dependencies.
     /// - Parameters:
-    ///   - path: Directory whose project's dependencies will be updated.
+    ///   - path: Directory where project's dependencies will be updated.
     ///   - dependencies: List of dependencies to update.
     ///   - swiftVersion: The specified version of Swift. If `nil` is passed then will use the environment’s version will be used.
     func update(

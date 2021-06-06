@@ -49,7 +49,7 @@ public protocol CarthageInteracting {
     ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
     ///   - dependencies:  List of dependencies to install using `Carthage`.
     ///   - platforms: List of platforms for which you want to install dependencies.
-    ///   - shouldUpdate: Indicates whether dependencies should be updated or fetched basing on the `Tuist/Lockfiles/Cartfile.resolved` lockfile.
+    ///   - shouldUpdate: Indicates whether dependencies should be updated or fetched based on the `Tuist/Lockfiles/Cartfile.resolved` lockfile.
     /// - Returns: A graph that represents dependencies installed using `Carthage`.
     func install(
         dependenciesDirectory: AbsolutePath,
@@ -66,16 +66,13 @@ public protocol CarthageInteracting {
 // MARK: - Carthage Interactor
 
 public final class CarthageInteractor: CarthageInteracting {
-    private let fileHandler: FileHandling
     private let carthageController: CarthageControlling
     private let carthageGraphGenerator: CarthageGraphGenerating
 
     public init(
-        fileHandler: FileHandling = FileHandler.shared,
         carthageController: CarthageControlling = CarthageController.shared,
         carthageGraphGenerator: CarthageGraphGenerating = CarthageGraphGenerator()
     ) {
-        self.fileHandler = fileHandler
         self.carthageController = carthageController
         self.carthageGraphGenerator = carthageGraphGenerator
     }
@@ -94,7 +91,7 @@ public final class CarthageInteractor: CarthageInteracting {
         }
 
         // install depedencies and generate dependencies graph
-        let dependenciesGraph: DependenciesGraph = try fileHandler
+        let dependenciesGraph: DependenciesGraph = try FileHandler.shared
             .inTemporaryDirectory { temporaryDirectoryPath in
                 // prepare paths
                 let pathsProvider = CarthagePathsProvider(
@@ -138,8 +135,8 @@ public final class CarthageInteractor: CarthageInteracting {
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
             .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
 
-        try fileHandler.delete(carthageDirectory)
-        try fileHandler.delete(cartfileResolvedPath)
+        try FileHandler.shared.delete(carthageDirectory)
+        try FileHandler.shared.delete(cartfileResolvedPath)
     }
 
     // MARK: - Installation
@@ -147,7 +144,7 @@ public final class CarthageInteractor: CarthageInteracting {
     /// Loads lockfile and dependencies into working directory if they had been saved before.
     private func loadDependencies(pathsProvider: CarthagePathsProvider, dependencies: CarthageDependencies) throws {
         // copy build directory from previous run if exist
-        if fileHandler.exists(pathsProvider.destinationCarthageDirectory) {
+        if FileHandler.shared.exists(pathsProvider.destinationCarthageDirectory) {
             try copy(
                 from: pathsProvider.destinationCarthageDirectory,
                 to: pathsProvider.temporaryCarthageBuildDirectory
@@ -155,7 +152,7 @@ public final class CarthageInteractor: CarthageInteracting {
         }
 
         // copy `Cartfile.resolved` directory from previous run if exist
-        if fileHandler.exists(pathsProvider.destinationCarfileResolvedPath) {
+        if FileHandler.shared.exists(pathsProvider.destinationCarfileResolvedPath) {
             try copy(
                 from: pathsProvider.destinationCarfileResolvedPath,
                 to: pathsProvider.temporaryCarfileResolvedPath
@@ -165,7 +162,7 @@ public final class CarthageInteractor: CarthageInteracting {
         // create `Cartfile`
         let cartfileContent = dependencies.cartfileValue()
         let cartfilePath = pathsProvider.temporaryDirectoryPath.appending(component: "Cartfile")
-        try fileHandler.write(cartfileContent, path: cartfilePath, atomically: true)
+        try FileHandler.shared.write(cartfileContent, path: cartfilePath, atomically: true)
 
         // log
         logger.debug("Cartfile:", metadata: .subsection)
@@ -175,10 +172,10 @@ public final class CarthageInteractor: CarthageInteracting {
     /// Saves lockfile resolved depedencies in `Tuist/Depedencies` directory.
     private func saveDepedencies(pathsProvider: CarthagePathsProvider) throws {
         // validation
-        guard fileHandler.exists(pathsProvider.temporaryCarfileResolvedPath) else {
+        guard FileHandler.shared.exists(pathsProvider.temporaryCarfileResolvedPath) else {
             throw CarthageInteractorError.cartfileResolvedNotFound
         }
-        guard fileHandler.exists(pathsProvider.temporaryCarthageBuildDirectory) else {
+        guard FileHandler.shared.exists(pathsProvider.temporaryCarthageBuildDirectory) else {
             throw CarthageInteractorError.buildDirectoryNotFound
         }
 
@@ -198,11 +195,11 @@ public final class CarthageInteractor: CarthageInteracting {
     // MARK: - Helpers
 
     private func copy(from fromPath: AbsolutePath, to toPath: AbsolutePath) throws {
-        if fileHandler.exists(toPath) {
-            try fileHandler.replace(toPath, with: fromPath)
+        if FileHandler.shared.exists(toPath) {
+            try FileHandler.shared.replace(toPath, with: fromPath)
         } else {
-            try fileHandler.createFolder(toPath.removingLastComponent())
-            try fileHandler.copy(from: fromPath, to: toPath)
+            try FileHandler.shared.createFolder(toPath.removingLastComponent())
+            try FileHandler.shared.copy(from: fromPath, to: toPath)
         }
     }
 }

@@ -8,22 +8,16 @@ public protocol DependenciesGraphControlling {
     /// Saves the `DependenciesGraph` as `graph.json`.
     /// - Parameters:
     ///   - dependenciesGraph: A model that will be saved.
-    ///   - path: Directory whose project's dependencies graph will be saved.
+    ///   - path: Directory where project's dependencies graph will be saved.
     func save(_ dependenciesGraph: DependenciesGraph, to path: AbsolutePath) throws
 
     /// Loads the `DependenciesGraph` from `graph.json` file.
-    /// - Parameter path: Directory whose project's dependencies graph will be loaded.
+    /// - Parameter path: Directory where project's dependencies graph will be loaded.
     func load(at path: AbsolutePath) throws -> DependenciesGraph
 }
 
 public final class DependenciesGraphController: DependenciesGraphControlling {
-    private let fileHandler: FileHandling
-
-    public init(
-        fileHandler: FileHandling = FileHandler.shared
-    ) {
-        self.fileHandler = fileHandler
-    }
+    public init() { }
 
     public func save(_ dependenciesGraph: DependenciesGraph, to path: AbsolutePath) throws {
         let jsonEncoder = JSONEncoder()
@@ -32,14 +26,14 @@ public final class DependenciesGraphController: DependenciesGraphControlling {
         let encodedGraph = try jsonEncoder.encode(dependenciesGraph)
         #warning("WIP: handle force unwrapping better!")
         let encodedGraphContent = String(data: encodedGraph, encoding: .utf8)!
-        let graphPath = graphPath(at: path)
+        let graphPath = self.graphPath(at: path)
 
-        try fileHandler.write(encodedGraphContent, path: graphPath, atomically: true)
+        try FileHandler.shared.write(encodedGraphContent, path: graphPath, atomically: true)
     }
 
     public func load(at path: AbsolutePath) throws -> DependenciesGraph {
         let graphPath = graphPath(at: path)
-        let graphData = try fileHandler.readFile(graphPath)
+        let graphData = try FileHandler.shared.readFile(graphPath)
 
         let jsonDecoder = JSONDecoder()
         let decodedGraph = try jsonDecoder.decode(DependenciesGraph.self, from: graphData)
@@ -51,12 +45,10 @@ public final class DependenciesGraphController: DependenciesGraphControlling {
 
     private func graphPath(at path: AbsolutePath) -> AbsolutePath {
         path
-            .appending(
-                components: [
-                    Constants.tuistDirectoryName,
-                    Constants.DependenciesDirectory.name,
-                    Constants.DependenciesDirectory.graphName
-                ]
-            )
+            .appending(components: [
+                Constants.tuistDirectoryName,
+                Constants.DependenciesDirectory.name,
+                Constants.DependenciesDirectory.graphName
+            ])
     }
 }

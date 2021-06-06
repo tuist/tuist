@@ -37,7 +37,7 @@ public protocol SwiftPackageManagerInteracting {
     /// - Parameters:
     ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
     ///   - dependencies: List of dependencies to install using `Swift Package Manager`.
-    ///   - shouldUpdate: Indicates whether dependencies should be updated or fetched basing on the `Tuist/Lockfiles/Package.resolved` lockfile.
+    ///   - shouldUpdate: Indicates whether dependencies should be updated or fetched based on the `Tuist/Lockfiles/Package.resolved` lockfile.
     ///   - swiftToolsVersion: The version of Swift tools that will be used to resolve dependencies. If `nil` is passed then the environment’s version will be used.
     func install(
         dependenciesDirectory: AbsolutePath,

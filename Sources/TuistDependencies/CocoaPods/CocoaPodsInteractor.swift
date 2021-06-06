@@ -29,7 +29,7 @@ public protocol CocoaPodsInteracting {
     /// Installs `CocoaPods` dependencies.
     /// - Parameters:
     ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
-    ///   - shouldUpdate: Indicates whether dependencies should be updated or fetched basing on the `Tuist/Lockfiles/Podfile.lock` lockfile.
+    ///   - shouldUpdate: Indicates whether dependencies should be updated or fetched based on the `Tuist/Lockfiles/Podfile.lock` lockfile.
     func install(dependenciesDirectory: AbsolutePath, shouldUpdate: Bool) throws
     
     /// Removes all cached `CocoaPods` dependencies.
