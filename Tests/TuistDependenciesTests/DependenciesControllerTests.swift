@@ -23,8 +23,6 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         swiftPackageManagerInteractor = MockSwiftPackageManagerInteractor()
         dependenciesGraphController = MockDependenciesGraphController()
 
-        #warning("laxmorek: test MockDependenciesGraphController calls")
-
         subject = DependenciesController(
             carthageInteractor: carthageInteractor,
             cocoaPodsInteractor: cocoaPodsInteractor,
@@ -74,6 +72,10 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
             return .test()
         }
+        dependenciesGraphController.saveStub = { arg0, arg1 in
+            XCTAssertEqual(.test(), arg0)
+            XCTAssertEqual(rootPath, arg1)
+        }
 
         // When
         try subject.fetch(at: rootPath, dependencies: dependencies, swiftVersion: nil)
@@ -87,6 +89,9 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertFalse(cocoaPodsInteractor.invokedClean)
         XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
+        
+        XCTAssertTrue(dependenciesGraphController.invokedSave)
+        XCTAssertFalse(dependenciesGraphController.invokedClean)
     }
 
     func test_fetch_swiftPackageManger() throws {
@@ -116,6 +121,10 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             XCTAssertFalse(arg2)
             XCTAssertEqual(arg3, swiftVersion)
         }
+        dependenciesGraphController.saveStub = { arg0, arg1 in
+            XCTAssertEqual(.test(), arg0)
+            XCTAssertEqual(rootPath, arg1)
+        }
 
         // When
         try subject.fetch(at: rootPath, dependencies: dependencies, swiftVersion: swiftVersion)
@@ -129,6 +138,9 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertFalse(cocoaPodsInteractor.invokedClean)
         XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
+        
+        XCTAssertFalse(dependenciesGraphController.invokedSave)
+        XCTAssertTrue(dependenciesGraphController.invokedClean)
     }
 
     func test_fetch_carthage_swiftPackageManger() throws {
@@ -172,6 +184,10 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             XCTAssertFalse(arg2)
             XCTAssertEqual(arg3, swiftVersion)
         }
+        dependenciesGraphController.saveStub = { arg0, arg1 in
+            XCTAssertEqual(.test(), arg0)
+            XCTAssertEqual(rootPath, arg1)
+        }
 
         // When
         try subject.fetch(at: rootPath, dependencies: dependencies, swiftVersion: swiftVersion)
@@ -185,6 +201,9 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertFalse(cocoaPodsInteractor.invokedClean)
         XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
+        
+        XCTAssertTrue(dependenciesGraphController.invokedSave)
+        XCTAssertFalse(dependenciesGraphController.invokedClean)
     }
 
     func test_fetch_throws_when_noPlatforms() throws {
@@ -226,6 +245,9 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertFalse(cocoaPodsInteractor.invokedClean)
         XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
+        
+        XCTAssertFalse(dependenciesGraphController.invokedSave)
+        XCTAssertTrue(dependenciesGraphController.invokedClean)
     }
 
     // MARK: - Update
@@ -258,6 +280,10 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
             return .test()
         }
+        dependenciesGraphController.saveStub = { arg0, arg1 in
+            XCTAssertEqual(.test(), arg0)
+            XCTAssertEqual(rootPath, arg1)
+        }
 
         // When
         try subject.update(at: rootPath, dependencies: dependencies, swiftVersion: nil)
@@ -271,6 +297,9 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertFalse(cocoaPodsInteractor.invokedClean)
         XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
+        
+        XCTAssertTrue(dependenciesGraphController.invokedSave)
+        XCTAssertFalse(dependenciesGraphController.invokedClean)
     }
 
     func test_update_swiftPackageManger() throws {
@@ -300,6 +329,10 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             XCTAssertTrue(arg2)
             XCTAssertEqual(arg3, swiftVersion)
         }
+        dependenciesGraphController.saveStub = { arg0, arg1 in
+            XCTAssertEqual(.test(), arg0)
+            XCTAssertEqual(rootPath, arg1)
+        }
 
         // When
         try subject.update(at: rootPath, dependencies: dependencies, swiftVersion: swiftVersion)
@@ -313,6 +346,9 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertFalse(cocoaPodsInteractor.invokedClean)
         XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
+        
+        XCTAssertFalse(dependenciesGraphController.invokedSave)
+        XCTAssertTrue(dependenciesGraphController.invokedClean)
     }
 
     func test_update_carthage_swiftPackageManger() throws {
@@ -356,6 +392,10 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             XCTAssertTrue(arg2)
             XCTAssertEqual(arg3, swiftVersion)
         }
+        dependenciesGraphController.saveStub = { arg0, arg1 in
+            XCTAssertEqual(.test(), arg0)
+            XCTAssertEqual(rootPath, arg1)
+        }
 
         // When
         try subject.update(at: rootPath, dependencies: dependencies, swiftVersion: swiftVersion)
@@ -369,6 +409,9 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertFalse(cocoaPodsInteractor.invokedClean)
         XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
+        
+        XCTAssertTrue(dependenciesGraphController.invokedSave)
+        XCTAssertFalse(dependenciesGraphController.invokedClean)
     }
 
     func test_update_throws_when_noPlatforms() throws {
@@ -410,5 +453,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertFalse(cocoaPodsInteractor.invokedClean)
         XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
+        
+        XCTAssertFalse(dependenciesGraphController.invokedSave)
+        XCTAssertTrue(dependenciesGraphController.invokedClean)
     }
 }
