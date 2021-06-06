@@ -2,7 +2,7 @@ import Foundation
 import TSCBasic
 import TuistGraph
 
-@testable import TuistCore
+@testable import TuistDependencies
 
 public final class MockDependenciesGraphController: DependenciesGraphControlling {
     public init() {}

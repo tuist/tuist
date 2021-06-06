@@ -3,8 +3,8 @@ import TSCBasic
 import TuistSupport
 import XCTest
 
-@testable import TuistCore
-@testable import TuistCoreTesting
+@testable import TuistDependencies
+@testable import TuistDependenciesTesting
 @testable import TuistSupportTesting
 
 public final class DependenciesGraphControllerTests: TuistUnitTestCase {
