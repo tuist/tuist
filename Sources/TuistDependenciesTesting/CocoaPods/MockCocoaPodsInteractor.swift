@@ -6,19 +6,22 @@ import TuistCore
 public final class MockCocoaPodsInteractor: CocoaPodsInteracting {
     public init() {}
 
-    var invokedFetch = false
-    var fetchStub: ((AbsolutePath) throws -> Void)?
+    var invokedInstall = false
+    var installStub: ((AbsolutePath, Bool) throws -> Void)?
 
-    public func fetch(dependenciesDirectory: AbsolutePath) throws {
-        invokedFetch = true
-        try fetchStub?(dependenciesDirectory)
+    public func install(
+        dependenciesDirectory: AbsolutePath,
+        shouldUpdate: Bool
+    ) throws {
+        invokedInstall = true
+        try installStub?(dependenciesDirectory, shouldUpdate)
     }
 
-    var invokedUpdate = false
-    var updateStub: ((AbsolutePath) throws -> Void)?
+    var invokedClean = false
+    var cleanStub: ((AbsolutePath) throws -> Void)?
 
-    public func update(dependenciesDirectory: AbsolutePath) throws {
-        invokedUpdate = true
-        try updateStub?(dependenciesDirectory)
+    public func clean(dependenciesDirectory: AbsolutePath) throws {
+        invokedClean = true
+        try cleanStub?(dependenciesDirectory)
     }
 }
