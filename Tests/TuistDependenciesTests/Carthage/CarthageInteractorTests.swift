@@ -57,11 +57,13 @@ final class CarthageInteractorTests: TuistUnitTestCase {
 
             try self.simulateCarthageOutput(at: arg0)
         }
+        carthageGraphGenerator.generateStub = { arg0 in
+            XCTAssertEqual(arg0, try self.temporaryPath().appending(components: "Carthage", "Build"))
+            return .test()
+        }
 
         // When
-        #warning("laxmorek WIP: Test output")
-        #warning("laxmorek: test CarthageGraphGenerator calls")
-        try subject.install(
+        let got = try subject.install(
             dependenciesDirectory: dependenciesDirectory,
             dependencies: stubbedDependencies,
             platforms: platforms,
@@ -69,6 +71,9 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         )
 
         // Then
+        XCTAssertEqual(got, .test())
+        XCTAssertTrue(carthageGraphGenerator.invokedGenerate)
+        
         try XCTAssertDirectoryContentEqual(
             dependenciesDirectory,
             [
@@ -150,11 +155,13 @@ final class CarthageInteractorTests: TuistUnitTestCase {
 
             try self.simulateCarthageOutput(at: arg0)
         }
+        carthageGraphGenerator.generateStub = { arg0 in
+            XCTAssertEqual(arg0, try self.temporaryPath().appending(components: "Carthage", "Build"))
+            return .test()
+        }
 
         // When
-        #warning("laxmorek WIP: Test output")
-        #warning("laxmorek: test CarthageGraphGenerator calls")
-        try subject.install(
+        let got = try subject.install(
             dependenciesDirectory: dependenciesDirectory,
             dependencies: stubbedDependencies,
             platforms: platforms,
@@ -162,6 +169,9 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         )
 
         // Then
+        XCTAssertEqual(got, .test())
+        XCTAssertTrue(carthageGraphGenerator.invokedGenerate)
+        
         try XCTAssertDirectoryContentEqual(
             dependenciesDirectory,
             [
