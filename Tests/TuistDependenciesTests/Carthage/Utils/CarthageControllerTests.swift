@@ -58,7 +58,7 @@ final class CarthageControllerTests: TuistUnitTestCase {
     func test_bootstrap() throws {
         // Given
         system.stubs["/usr/bin/env carthage version"] = (stderror: nil, stdout: "0.37.0", exitstatus: 0)
-        
+
         let path = try temporaryPath()
         system.succeedCommand([
             "carthage",
@@ -79,7 +79,7 @@ final class CarthageControllerTests: TuistUnitTestCase {
     func test_bootstrap_with_platforms() throws {
         // Given
         system.stubs["/usr/bin/env carthage version"] = (stderror: nil, stdout: "0.37.0", exitstatus: 0)
-        
+
         let path = try temporaryPath()
         system.succeedCommand([
             "carthage",
@@ -98,12 +98,12 @@ final class CarthageControllerTests: TuistUnitTestCase {
         // When / Then
         XCTAssertNoThrow(try subject.bootstrap(at: path, platforms: [.iOS]))
     }
-    
+
     func test_bootstrap_with_platforms_throws_when_xcFrameworkdProductionUnsupported() throws {
         // Given
         let carthageVersion = Version("0.36.0")
         system.stubs["/usr/bin/env carthage version"] = (stderror: nil, stdout: carthageVersion.description, exitstatus: 0)
-        
+
         let path = try temporaryPath()
         system.succeedCommand([
             "carthage",
@@ -129,7 +129,7 @@ final class CarthageControllerTests: TuistUnitTestCase {
     func test_update() throws {
         // Given
         system.stubs["/usr/bin/env carthage version"] = (stderror: nil, stdout: "0.37.0", exitstatus: 0)
-        
+
         let path = try temporaryPath()
         system.succeedCommand([
             "carthage",
@@ -150,7 +150,7 @@ final class CarthageControllerTests: TuistUnitTestCase {
     func test_update_with_platforms() throws {
         // Given
         system.stubs["/usr/bin/env carthage version"] = (stderror: nil, stdout: "0.37.0", exitstatus: 0)
-        
+
         let path = try temporaryPath()
         system.succeedCommand([
             "carthage",
@@ -169,12 +169,12 @@ final class CarthageControllerTests: TuistUnitTestCase {
         // When / Then
         XCTAssertNoThrow(try subject.update(at: path, platforms: [.iOS]))
     }
-    
+
     func test_update_with_platforms_throws_when_xcFrameworkdProductionUnsupported() throws {
         // Given
         let carthageVersion = Version("0.36.0")
         system.stubs["/usr/bin/env carthage version"] = (stderror: nil, stdout: carthageVersion.description, exitstatus: 0)
-        
+
         let path = try temporaryPath()
         system.succeedCommand([
             "carthage",

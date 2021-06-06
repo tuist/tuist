@@ -22,10 +22,10 @@ public final class MockDependenciesGraphController: DependenciesGraphControlling
         invokedLoad = true
         return try loadStub?(path) ?? .test()
     }
-    
+
     var invokedClean = false
     var cleanStub: ((AbsolutePath) throws -> Void)?
-    
+
     public func clean(at path: AbsolutePath) throws {
         invokedClean = true
         try cleanStub?(path)

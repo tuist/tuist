@@ -31,7 +31,7 @@ public protocol CocoaPodsInteracting {
     ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
     ///   - shouldUpdate: Indicates whether dependencies should be updated or fetched based on the `Tuist/Lockfiles/Podfile.lock` lockfile.
     func install(dependenciesDirectory: AbsolutePath, shouldUpdate: Bool) throws
-    
+
     /// Removes all cached `CocoaPods` dependencies.
     /// - Parameter dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
     func clean(dependenciesDirectory: AbsolutePath) throws
@@ -42,11 +42,11 @@ public protocol CocoaPodsInteracting {
 public final class CocoaPodsInteractor: CocoaPodsInteracting {
     public init() {}
 
-    public func install(dependenciesDirectory: AbsolutePath, shouldUpdate: Bool) throws {
+    public func install(dependenciesDirectory _: AbsolutePath, shouldUpdate _: Bool) throws {
         throw CocoaPodsInteractorError.unimplemented
     }
-    
-    public func clean(dependenciesDirectory: AbsolutePath) throws {
+
+    public func clean(dependenciesDirectory _: AbsolutePath) throws {
         throw CocoaPodsInteractorError.unimplemented
     }
 }

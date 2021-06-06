@@ -13,7 +13,7 @@ public protocol CarthageGraphGenerating {
 }
 
 public final class CarthageGraphGenerator: CarthageGraphGenerating {
-    public init() { }
+    public init() {}
 
     public func generate(at path: AbsolutePath) throws -> DependenciesGraph {
         let versionFilePaths = try FileHandler.shared
@@ -35,7 +35,7 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
                         Constants.tuistDirectoryName,
                         Constants.DependenciesDirectory.name,
                         Constants.DependenciesDirectory.carthageDirectoryName,
-                        frameworkName
+                        frameworkName,
                     ])
 
                 let architectures: Set<BinaryArchitecture> = Set(product.value.flatMap { $0.architectures })

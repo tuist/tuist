@@ -7,14 +7,14 @@ import TuistSupport
 
 enum DependenciesGraphControllerError: FatalError, Equatable {
     case failedToEncodeDependeniesGraph
-    
+
     var type: ErrorType {
         switch self {
         case .failedToEncodeDependeniesGraph:
             return .bug
         }
     }
-    
+
     var description: String {
         switch self {
         case .failedToEncodeDependeniesGraph:
@@ -36,7 +36,7 @@ public protocol DependenciesGraphControlling {
     /// Loads the `DependenciesGraph` from `graph.json` file.
     /// - Parameter path: Directory where project's dependencies graph will be loaded.
     func load(at path: AbsolutePath) throws -> DependenciesGraph
-    
+
     /// Removes cached `graph.json`.
     /// - Parameter path: Directory where project's dependencies graph was saved.
     func clean(at path: AbsolutePath) throws
@@ -45,18 +45,18 @@ public protocol DependenciesGraphControlling {
 // MARK: - Dependencies Graph Controller
 
 public final class DependenciesGraphController: DependenciesGraphControlling {
-    public init() { }
+    public init() {}
 
     public func save(_ dependenciesGraph: DependenciesGraph, to path: AbsolutePath) throws {
         let jsonEncoder = JSONEncoder()
         jsonEncoder.outputFormatting = .prettyPrinted
 
         let encodedGraph = try jsonEncoder.encode(dependenciesGraph)
-        
+
         guard let encodedGraphContent = String(data: encodedGraph, encoding: .utf8) else {
             throw DependenciesGraphControllerError.failedToEncodeDependeniesGraph
         }
-        
+
         let graphPath = self.graphPath(at: path)
 
         try FileHandler.shared.touch(graphPath)
@@ -72,10 +72,10 @@ public final class DependenciesGraphController: DependenciesGraphControlling {
 
         return decodedGraph
     }
-    
+
     public func clean(at path: AbsolutePath) throws {
         let graphPath = self.graphPath(at: path)
-        
+
         try FileHandler.shared.delete(graphPath)
     }
 
@@ -86,7 +86,7 @@ public final class DependenciesGraphController: DependenciesGraphControlling {
             .appending(components: [
                 Constants.tuistDirectoryName,
                 Constants.DependenciesDirectory.name,
-                Constants.DependenciesDirectory.graphName
+                Constants.DependenciesDirectory.graphName,
             ])
     }
 }

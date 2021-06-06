@@ -73,7 +73,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got, .test())
         XCTAssertTrue(carthageGraphGenerator.invokedGenerate)
-        
+
         try XCTAssertDirectoryContentEqual(
             dependenciesDirectory,
             [
@@ -171,7 +171,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got, .test())
         XCTAssertTrue(carthageGraphGenerator.invokedGenerate)
-        
+
         try XCTAssertDirectoryContentEqual(
             dependenciesDirectory,
             [

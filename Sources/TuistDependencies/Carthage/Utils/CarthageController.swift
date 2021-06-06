@@ -110,7 +110,7 @@ public final class CarthageController: CarthageControlling {
         guard try isXCFrameworksProductionSupported() else {
             throw CarthageControllerError.xcFrameworksProductionNotSupported(installedVersion: try carthageVersion())
         }
-        
+
         let command = buildCarthageCommand(path: path, platforms: platforms, subcommand: "bootstrap")
         try System.shared.run(command)
     }
@@ -119,7 +119,7 @@ public final class CarthageController: CarthageControlling {
         guard try isXCFrameworksProductionSupported() else {
             throw CarthageControllerError.xcFrameworksProductionNotSupported(installedVersion: try carthageVersion())
         }
-        
+
         let command = buildCarthageCommand(path: path, platforms: platforms, subcommand: "update")
         try System.shared.run(command)
     }
@@ -158,7 +158,7 @@ public final class CarthageController: CarthageControlling {
 
         return commandComponents
     }
-    
+
     private func isXCFrameworksProductionSupported() throws -> Bool {
         // Carthage has supported XCFrameworks production since 0.37.0
         // More info here: https://github.com/Carthage/Carthage/releases/tag/0.37.0

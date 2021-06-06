@@ -89,7 +89,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertFalse(cocoaPodsInteractor.invokedClean)
         XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
-        
+
         XCTAssertTrue(dependenciesGraphController.invokedSave)
         XCTAssertFalse(dependenciesGraphController.invokedClean)
     }
@@ -138,7 +138,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertFalse(cocoaPodsInteractor.invokedClean)
         XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
-        
+
         XCTAssertFalse(dependenciesGraphController.invokedSave)
         XCTAssertTrue(dependenciesGraphController.invokedClean)
     }
@@ -201,7 +201,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertFalse(cocoaPodsInteractor.invokedClean)
         XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
-        
+
         XCTAssertTrue(dependenciesGraphController.invokedSave)
         XCTAssertFalse(dependenciesGraphController.invokedClean)
     }
@@ -245,7 +245,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertFalse(cocoaPodsInteractor.invokedClean)
         XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
-        
+
         XCTAssertFalse(dependenciesGraphController.invokedSave)
         XCTAssertTrue(dependenciesGraphController.invokedClean)
     }
@@ -297,7 +297,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertFalse(cocoaPodsInteractor.invokedClean)
         XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
-        
+
         XCTAssertTrue(dependenciesGraphController.invokedSave)
         XCTAssertFalse(dependenciesGraphController.invokedClean)
     }
@@ -346,7 +346,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertFalse(cocoaPodsInteractor.invokedClean)
         XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
-        
+
         XCTAssertFalse(dependenciesGraphController.invokedSave)
         XCTAssertTrue(dependenciesGraphController.invokedClean)
     }
@@ -409,7 +409,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertFalse(cocoaPodsInteractor.invokedClean)
         XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
-        
+
         XCTAssertTrue(dependenciesGraphController.invokedSave)
         XCTAssertFalse(dependenciesGraphController.invokedClean)
     }
@@ -453,7 +453,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertFalse(cocoaPodsInteractor.invokedClean)
         XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
-        
+
         XCTAssertFalse(dependenciesGraphController.invokedSave)
         XCTAssertTrue(dependenciesGraphController.invokedClean)
     }

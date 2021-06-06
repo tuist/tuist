@@ -24,7 +24,7 @@ public extension DependenciesGraph {
         }
         """
     }
-    
+
     static func test(
         thirdPartyDependencies: [String: ThirdPartyDependency] = [:]
     ) -> Self {
