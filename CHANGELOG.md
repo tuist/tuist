@@ -4,6 +4,18 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+
+- The `tuist dependencies` command generates a `graph.json` file for the `Carthage` dependencies. [#3043](https://github.com/tuist/tuist/pull/3043) by [@laxmorek](https://github.com/laxmorek)
+
+### Changed
+
+- **breaking** The `tuist dependencies` command requires the `Carthage` in version at least `0.37.0`. [#3043](https://github.com/tuist/tuist/pull/3043) by [@laxmorek](https://github.com/laxmorek)
+
+### Removed
+
+- **breaking** Remove the `CarthageDependencies.Options` from the `Dependencies.swift` manifest model. [#3043](https://github.com/tuist/tuist/pull/3043) by [@laxmorek](https://github.com/laxmorek)
+
 ## 1.44.0
 
 ### Added
