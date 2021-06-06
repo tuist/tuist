@@ -119,7 +119,6 @@ public final class DependenciesController: DependenciesControlling {
             throw DependenciesControllerError.noPlatforms
         }
 
-        #warning("laxmorek: Refactor me!")
         var dependenciesGraph: DependenciesGraph?
 
         if let carthageDepedencies = dependencies.carthage, !carthageDepedencies.dependencies.isEmpty {
@@ -147,7 +146,7 @@ public final class DependenciesController: DependenciesControlling {
         if let dependenciesGraph = dependenciesGraph {
             try dependenciesGraphController.save(dependenciesGraph, to: path)
         } else {
-            #warning("laxmorek: no graph, remove already cached?")
+            try dependenciesGraphController.clean(at: path)
         }
     }
 }
