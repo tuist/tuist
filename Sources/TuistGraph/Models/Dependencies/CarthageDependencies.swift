@@ -5,19 +5,13 @@ public struct CarthageDependencies: Equatable {
     /// List of depedencies that can be installed using Carthage.
     public let dependencies: [Dependency]
 
-    /// List of options for Carthage installation.
-    public let options: Set<Options>
-
     /// Initializes a new `CarthageDependencies` instance.
     /// - Parameters:
     ///   - dependencies: List of depedencies that can be installed using Carthage.
-    ///   - options: List of options for Carthage installation.
     public init(
-        _ dependencies: [Dependency],
-        options: Set<Options>
+        _ dependencies: [Dependency]
     ) {
         self.dependencies = dependencies
-        self.options = options
     }
 
     /// Returns `Cartfile` representation.
@@ -75,14 +69,5 @@ public extension CarthageDependencies {
                 return #""\#(revision)""#
             }
         }
-    }
-}
-
-// MARK: - CarthageDependencies.Options
-
-public extension CarthageDependencies {
-    enum Options: Equatable {
-        case useXCFrameworks
-        case noUseBinaries
     }
 }

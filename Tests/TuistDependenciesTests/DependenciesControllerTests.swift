@@ -58,10 +58,6 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
                 .github(path: "RxSwift", requirement: .exact("2.0.0")),
-            ],
-            options: [
-                .useXCFrameworks,
-                .noUseBinaries,
             ]
         )
         let dependencies = Dependencies(
@@ -147,10 +143,6 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
                 .github(path: "RxSwift", requirement: .exact("2.0.0")),
-            ],
-            options: [
-                .useXCFrameworks,
-                .noUseBinaries,
             ]
         )
         let swiftPackageManagerDependencies = SwiftPackageManagerDependencies(
@@ -200,7 +192,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         let rootPath = try temporaryPath()
 
         let dependencies = Dependencies(
-            carthage: .init([], options: []),
+            carthage: .init([]),
             swiftPackageManager: .init([]),
             platforms: []
         )
@@ -217,7 +209,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         let rootPath = try temporaryPath()
 
         let dependencies = Dependencies(
-            carthage: .init([], options: []),
+            carthage: .init([]),
             swiftPackageManager: .init([]),
             platforms: [.iOS]
         )
@@ -250,10 +242,6 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
                 .github(path: "RxSwift", requirement: .exact("2.0.0")),
-            ],
-            options: [
-                .useXCFrameworks,
-                .noUseBinaries,
             ]
         )
         let dependencies = Dependencies(
@@ -339,10 +327,6 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
                 .github(path: "RxSwift", requirement: .exact("2.0.0")),
-            ],
-            options: [
-                .useXCFrameworks,
-                .noUseBinaries,
             ]
         )
         let swiftPackageManagerDependencies = SwiftPackageManagerDependencies(
@@ -392,7 +376,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         let rootPath = try temporaryPath()
 
         let dependencies = Dependencies(
-            carthage: .init([], options: []),
+            carthage: .init([]),
             swiftPackageManager: .init([]),
             platforms: []
         )
@@ -409,7 +393,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         let rootPath = try temporaryPath()
 
         let dependencies = Dependencies(
-            carthage: .init([], options: []),
+            carthage: .init([]),
             swiftPackageManager: .init([]),
             platforms: [.iOS]
         )

@@ -9,8 +9,7 @@ final class CarthageDependenciesTests: TuistUnitTestCase {
         let carthageDependencies: CarthageDependencies = .init(
             [
                 .github(path: "Dependency/Dependency", requirement: .exact("1.1.1")),
-            ],
-            options: []
+            ]
         )
         let expected = """
         github "Dependency/Dependency" == 1.1.1
@@ -34,8 +33,7 @@ final class CarthageDependenciesTests: TuistUnitTestCase {
                 .github(path: "XYZ/Bar", requirement: .upToNext("1.1.1")),
                 .binary(path: "https://my.domain.com/release/MyFramework.json", requirement: .upToNext("1.0.1")),
                 .binary(path: "file:///some/local/path/MyFramework.json", requirement: .atLeast("1.1.0")),
-            ],
-            options: []
+            ]
         )
         let expected = """
         github "Dependency/Dependency" == 2.1.1

@@ -22,8 +22,7 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
                     .github(path: "Dependency1", requirement: .exact("1.1.1")),
                     .git(path: "Dependency.git", requirement: .branch("BranchName")),
                     .binary(path: "DependencyXYZ", requirement: .atLeast("2.3.1")),
-                ],
-                options: [.useXCFrameworks, .noUseBinaries]
+                ]
             ),
             swiftPackageManager: .swiftPackageManager(
                 [
@@ -44,8 +43,7 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
                     .github(path: "Dependency1", requirement: .exact("1.1.1")),
                     .git(path: "Dependency.git", requirement: .branch("BranchName")),
                     .binary(path: "DependencyXYZ", requirement: .atLeast("2.3.1")),
-                ],
-                options: [.useXCFrameworks, .noUseBinaries]
+                ]
             ),
             swiftPackageManager: .init(
                 [

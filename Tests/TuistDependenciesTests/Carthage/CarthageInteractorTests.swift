@@ -45,18 +45,15 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
 
         let platforms: Set<Platform> = [.iOS, .watchOS, .macOS, .tvOS]
-        let options = Set<CarthageDependencies.Options>([])
         let stubbedDependencies = CarthageDependencies(
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
-            ],
-            options: options
+            ]
         )
 
-        carthageController.bootstrapStub = { arg0, arg1, arg2 in
+        carthageController.bootstrapStub = { arg0, arg1 in
             XCTAssertEqual(arg0, try self.temporaryPath())
             XCTAssertEqual(arg1, platforms)
-            XCTAssertEqual(arg2, options)
 
             try self.simulateCarthageOutput(at: arg0)
         }
@@ -141,18 +138,15 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
 
         let platforms: Set<Platform> = [.iOS, .watchOS, .macOS, .tvOS]
-        let options = Set<CarthageDependencies.Options>([])
         let stubbedDependencies = CarthageDependencies(
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
-            ],
-            options: options
+            ]
         )
 
-        carthageController.updateStub = { arg0, arg1, arg2 in
+        carthageController.updateStub = { arg0, arg1 in
             XCTAssertEqual(arg0, try self.temporaryPath())
             XCTAssertEqual(arg1, platforms)
-            XCTAssertEqual(arg2, options)
 
             try self.simulateCarthageOutput(at: arg0)
         }
@@ -234,8 +228,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         let dependencies = CarthageDependencies(
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
-            ],
-            options: []
+            ]
         )
         let platforms: Set<Platform> = [.iOS]
 
@@ -248,34 +241,6 @@ final class CarthageInteractorTests: TuistUnitTestCase {
                 shouldUpdate: true
             ),
             CarthageInteractorError.carthageNotFound
-        )
-    }
-
-    func test_install_throws_when_xcFrameworkdProductionUnsupported_and_useXCFrameworksSpecifiedInOptions() throws {
-        // Given
-        carthageController.canUseSystemCarthageStub = { true }
-        carthageController.isXCFrameworksProductionSupportedStub = { false }
-
-        let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
-        let dependenciesDirectory = rootPath
-            .appending(component: Constants.DependenciesDirectory.name)
-        let dependencies = CarthageDependencies(
-            [
-                .github(path: "Moya", requirement: .exact("1.1.1")),
-            ],
-            options: [.useXCFrameworks]
-        )
-        let platforms: Set<Platform> = [.iOS]
-
-        // When / Then
-        XCTAssertThrowsSpecific(
-            try subject.install(
-                dependenciesDirectory: dependenciesDirectory,
-                dependencies: dependencies,
-                platforms: platforms,
-                shouldUpdate: true
-            ),
-            CarthageInteractorError.xcFrameworksProductionNotSupported
         )
     }
 

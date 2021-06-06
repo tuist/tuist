@@ -41,8 +41,7 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
                     [
                         .github(path: "Dependency1", requirement: .exact("1.1.1")),
                         .git(path: "Dependency1", requirement: .exact("2.3.4")),
-                    ],
-                    options: [.useXCFrameworks, .noUseBinaries]
+                    ]
                 ),
                 swiftPackageManager: .swiftPackageManager(
                     [
@@ -63,8 +62,7 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
                 [
                     .github(path: "Dependency1", requirement: .exact("1.1.1")),
                     .git(path: "Dependency1", requirement: .exact("2.3.4")),
-                ],
-                options: [.useXCFrameworks, .noUseBinaries]
+                ]
             ),
             swiftPackageManager: .init(
                 [

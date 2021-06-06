@@ -13,8 +13,6 @@ enum CarthageInteractorError: FatalError, Equatable {
     case cartfileResolvedNotFound
     /// Thrown when `Carthage/Build` directory cannot be found in temporary directory after Carthage installation.
     case buildDirectoryNotFound
-    /// Thrown when version of Carthage installed in environment does not support XCFrameworks production.
-    case xcFrameworksProductionNotSupported
 
     /// Error type.
     var type: ErrorType {
@@ -22,8 +20,7 @@ enum CarthageInteractorError: FatalError, Equatable {
         case .cartfileResolvedNotFound,
              .buildDirectoryNotFound:
             return .bug
-        case .carthageNotFound,
-             .xcFrameworksProductionNotSupported:
+        case .carthageNotFound:
             return .abort
         }
     }
@@ -40,11 +37,6 @@ enum CarthageInteractorError: FatalError, Equatable {
             return "The Cartfile.resolved lockfile was not found after resolving the dependencies using the Carthage."
         case .buildDirectoryNotFound:
             return "The Carthage/Build directory was not found after resolving the dependencies using the Carthage."
-        case .xcFrameworksProductionNotSupported:
-            return """
-            The version of Carthage installed in your environment doesn't suppport production of XCFrameworks.
-            Update the tool or disable XCFrameworks in your Dependencies.swift manifest.
-            """
         }
     }
 }
@@ -101,11 +93,6 @@ public final class CarthageInteractor: CarthageInteracting {
             throw CarthageInteractorError.carthageNotFound
         }
 
-        // check if XCFrameworks production supported if it is needed
-        if dependencies.options.contains(.useXCFrameworks), !(try carthageController.isXCFrameworksProductionSupported()) {
-            throw CarthageInteractorError.xcFrameworksProductionNotSupported
-        }
-
         // install depedencies and generate dependencies graph
         let dependenciesGraph: DependenciesGraph = try fileHandler
             .inTemporaryDirectory { temporaryDirectoryPath in
@@ -122,14 +109,12 @@ public final class CarthageInteractor: CarthageInteracting {
                 if shouldUpdate {
                     try carthageController.update(
                         at: temporaryDirectoryPath,
-                        platforms: platforms,
-                        options: dependencies.options
+                        platforms: platforms
                     )
                 } else {
                     try carthageController.bootstrap(
                         at: temporaryDirectoryPath,
-                        platforms: platforms,
-                        options: dependencies.options
+                        platforms: platforms
                     )
                 }
 

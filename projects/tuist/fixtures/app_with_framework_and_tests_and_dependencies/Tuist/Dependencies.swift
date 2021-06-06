@@ -4,10 +4,6 @@ let dependencies = Dependencies(
     carthage: .carthage(
         [
             .github(path: "ReactiveX/RxSwift", requirement: .exact("5.1.2")),
-        ],
-        options: [
-            .useXCFrameworks,
-            .noUseBinaries,
         ]
     ),
     swiftPackageManager: .swiftPackageManager(
