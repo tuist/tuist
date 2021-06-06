@@ -1,12 +1,76 @@
 import Foundation
 import TSCBasic
 import TuistSupport
+import TuistGraph
 import XCTest
 
 @testable import TuistDependencies
 @testable import TuistDependenciesTesting
 @testable import TuistSupportTesting
+@testable import TuistGraphTesting
 
 public final class DependenciesGraphControllerTests: TuistUnitTestCase {
-    #warning("laxmorek: add unit tests!")
+    private var subject: DependenciesGraphController!
+    
+    public override func setUp() {
+        super.setUp()
+        
+        subject = DependenciesGraphController()
+    }
+    
+    public override func tearDown() {
+        super.tearDown()
+        
+        subject = nil
+    }
+    
+    func test_save() throws {
+        // Given
+        let root = try temporaryPath()
+        let graph = DependenciesGraph.test()
+        
+        // When
+        try subject.save(graph, to: root)
+        
+        // Then
+        let graphPath = root.appending(components: "Tuist", "Dependencies", "graph.json")
+        XCTAssertTrue(fileHandler.exists(graphPath))
+    }
+    
+    func test_load() throws {
+        // Given
+        let root = try temporaryPath()
+        let graphPath = root.appending(components: "Tuist", "Dependencies", "graph.json")
+        try fileHandler.touch(graphPath)
+        
+        try fileHandler.write(DependenciesGraph.testJson, path: graphPath, atomically: true)
+        
+        // When
+        let got = try subject.load(at: root)
+        
+        // Then
+        let expected = DependenciesGraph.test(
+            thirdPartyDependencies: [
+                "RxSwift": .xcframework(
+                    path: "/Tuist/Dependencies/Carthage/RxSwift.xcframework",
+                    architectures: [.arm6432, .x8664, .armv7, .armv7k, .arm64, .i386]
+                )
+            ]
+        )
+        
+        XCTAssertEqual(got, expected)
+    }
+    
+    func test_clean() throws {
+        // Given
+        let root = try temporaryPath()
+        let graphPath = root.appending(components: "Tuist", "Dependencies", "graph.json")
+        try fileHandler.touch(graphPath)
+        
+        // When
+        try subject.clean(at: root)
+        
+        // Then
+        XCTAssertFalse(fileHandler.exists(graphPath))
+    }
 }

@@ -59,6 +59,7 @@ public final class DependenciesGraphController: DependenciesGraphControlling {
         
         let graphPath = self.graphPath(at: path)
 
+        try FileHandler.shared.touch(graphPath)
         try FileHandler.shared.write(encodedGraphContent, path: graphPath, atomically: true)
     }
 
