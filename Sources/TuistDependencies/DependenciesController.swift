@@ -145,7 +145,7 @@ public final class DependenciesController: DependenciesControlling {
         }
 
         if let dependenciesGraph = dependenciesGraph {
-            try dependenciesGraphController.save(dependenciesGraph, at: path)
+            try dependenciesGraphController.save(dependenciesGraph, to: path)
         } else {
             #warning("laxmorek: no graph, remove already cached?")
         }

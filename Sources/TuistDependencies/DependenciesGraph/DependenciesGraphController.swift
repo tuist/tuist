@@ -9,7 +9,7 @@ public protocol DependenciesGraphControlling {
     /// - Parameters:
     ///   - dependenciesGraph: A model that will be saved.
     ///   - path: Directory whose project's dependencies graph will be saved.
-    func save(_ dependenciesGraph: DependenciesGraph, at path: AbsolutePath) throws
+    func save(_ dependenciesGraph: DependenciesGraph, to path: AbsolutePath) throws
 
     /// Loads the `DependenciesGraph` from `graph.json` file.
     /// - Parameter path: Directory whose project's dependencies graph will be loaded.
@@ -25,7 +25,7 @@ public final class DependenciesGraphController: DependenciesGraphControlling {
         self.fileHandler = fileHandler
     }
 
-    public func save(_ dependenciesGraph: DependenciesGraph, at path: AbsolutePath) throws {
+    public func save(_ dependenciesGraph: DependenciesGraph, to path: AbsolutePath) throws {
         let jsonEncoder = JSONEncoder()
         jsonEncoder.outputFormatting = .prettyPrinted
 
@@ -51,8 +51,12 @@ public final class DependenciesGraphController: DependenciesGraphControlling {
 
     private func graphPath(at path: AbsolutePath) -> AbsolutePath {
         path
-            .appending(component: Constants.tuistDirectoryName)
-            .appending(component: Constants.DependenciesDirectory.name)
-            .appending(component: Constants.DependenciesDirectory.graphName)
+            .appending(
+                components: [
+                    Constants.tuistDirectoryName,
+                    Constants.DependenciesDirectory.name,
+                    Constants.DependenciesDirectory.graphName
+                ]
+            )
     }
 }

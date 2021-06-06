@@ -52,7 +52,7 @@ enum CarthageInteractorError: FatalError, Equatable {
 // MARK: - Carthage Interacting
 
 public protocol CarthageInteracting {
-    /// Installes `Carthage` dependencies
+    /// Installs `Carthage` dependencies
     /// - Parameters:
     ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
     ///   - dependencies:  List of dependencies to install using `Carthage`.

@@ -33,7 +33,7 @@ enum SwiftPackageManagerInteractorError: FatalError, Equatable {
 // MARK: - Swift Package Manager Interacting
 
 public protocol SwiftPackageManagerInteracting {
-    /// Installes `Swift Package Manager` dependencies.
+    /// Installs `Swift Package Manager` dependencies.
     /// - Parameters:
     ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
     ///   - dependencies: List of dependencies to install using `Swift Package Manager`.
