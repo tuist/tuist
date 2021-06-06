@@ -120,26 +120,6 @@ export default ({ menuOpen, setMenuOpen, menuRef }) => {
                   >
                     DOCS
                   </a>
-                  <a
-                    sx={{
-                      ...linkStyle,
-                      ml: [0, 4],
-                      variant: 'text.header',
-                    }}
-                    href={shopUrl}
-                  >
-                    SHOP
-                  </a>
-                  <a
-                    sx={{
-                      ...linkStyle,
-                      ml: [0, 4],
-                      variant: 'text.header',
-                    }}
-                    href="https://forms.gle/NH5fTq3GffZB9j4z5"
-                  >
-                    STICKERS
-                  </a>
                   <Link
                     sx={{
                       ...linkStyle,

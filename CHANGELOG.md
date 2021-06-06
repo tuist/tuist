@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.44.0
+
 ### Added
 
 - Add possibility to share tasks via a plugin [#3013](https://github.com/tuist/tuist/pull/3013) by [@fortmarek](https://github.com/fortmarek)
