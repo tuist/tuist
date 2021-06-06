@@ -4,10 +4,10 @@ import TuistGraph
 
 public extension DependenciesGraph {
     static func test(
-        nodes: [String: DependenciesGraphNode] = [:]
+        thirdPartyDependencies: [String: ThirdPartyDependency] = [:]
     ) -> Self {
         .init(
-            nodes: nodes
+            thirdPartyDependencies: thirdPartyDependencies
         )
     }
 }

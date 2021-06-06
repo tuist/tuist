@@ -4,10 +4,10 @@ import XCTest
 @testable import TuistGraph
 @testable import TuistSupportTesting
 
-final class DependenciesGraphNodeTests: TuistUnitTestCase {
+final class ThirdPartyDependencyTests: TuistUnitTestCase {
     func test_codable_xcframework() {
         // Given
-        let subject = DependenciesGraphNode.testXCFramework(
+        let subject = ThirdPartyDependency.testXCFramework(
             architectures: [.arm64, .i386, .arm6432]
         )
 
