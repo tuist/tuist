@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+- Add `tvTopShelfExtension` and `tvIntentsExtension` target product. [#2793](https://github.com/tuist/tuist/pull/2793) by [@rmnblm](https://github.com/rmnblm)
+
 ## 1.44.0
 
 ### Added
@@ -12,7 +14,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Add option to `Scaffolding` for copy folder with option `.directory(path: "destinationContainerFolder", sourcePath: "sourceFolder")`. [#2985](https://github.com/tuist/tuist/pull/2985) by [@santi-d](https://github.com/santi-d)
 - Add possibility to specify version of Swift in the `Config.swift` manifest file. [#2998](https://github.com/tuist/tuist/pull/2998) by [@laxmorek](https://github.com/laxmorek)
 - Add `tuist run` command which allows running schemes of a project. [#2917](https://github.com/tuist/tuist/pull/2917) by [@luispadron](https://github.com/luispadron)
-- Add `tvTopShelfExtension` and `tvIntentsExtension` target product. [#2793](https://github.com/tuist/tuist/pull/2793) by [@rmnblm](https://github.com/rmnblm)
 
 ### Changed
 

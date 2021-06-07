@@ -625,7 +625,6 @@ public class ValueGraphTraverser: GraphTraversing {
             .unitTests,
             .uiTests,
             .watch2Extension,
-            .tvTopShelfExtension,
         ]
         return validProducts.contains(target.product)
     }
