@@ -25,11 +25,11 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
             .map { try FileHandler.shared.readFile($0) }
             .map { try jsonDecoder.decode(CarthageVersionFile.self, from: $0) }
             .flatMap { $0.allProducts }
-        
+
         let thirdPartyDependencies: [String: ThirdPartyDependency] = Dictionary(grouping: products, by: \.name)
             .compactMapValues { product in
                 guard let frameworkName = product.first?.container else { return nil }
-                
+
                 let path = AbsolutePath("/")
                     .appending(components: [
                         Constants.tuistDirectoryName,
@@ -37,7 +37,7 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
                         Constants.DependenciesDirectory.carthageDirectoryName,
                         frameworkName,
                     ])
-                
+
                 let architectures: Set<BinaryArchitecture> = Set(product.flatMap { $0.architectures })
                 return .xcframework(path: path, architectures: architectures)
             }

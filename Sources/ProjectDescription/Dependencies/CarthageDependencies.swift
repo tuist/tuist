@@ -10,7 +10,7 @@ public struct CarthageDependencies: Codable, Equatable {
     public static func carthage(_ dependencies: [Dependency]) -> Self {
         .init(dependencies)
     }
-    
+
     /// Creates `CarthageDependencies` instance.
     /// - Parameter dependencies: List of depedencies that can be installed using Carthage.
     public init(_ dependencies: [Dependency]) {
@@ -22,7 +22,7 @@ public struct CarthageDependencies: Codable, Equatable {
 
 extension CarthageDependencies: ExpressibleByArrayLiteral {
     public init(arrayLiteral elements: Dependency...) {
-        self.dependencies = elements
+        dependencies = elements
     }
 }
 
