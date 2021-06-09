@@ -26,9 +26,9 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
             .map { try jsonDecoder.decode(CarthageVersionFile.self, from: $0) }
             .flatMap { $0.allProducts }
 
-        let thirdPartyDependencies = Dictionary(grouping: products, by: { $0.name })
-            .reduce(into: [String: ThirdPartyDependency]()) { result, product in
-                guard let frameworkName = product.value.first?.container else { return }
+        let thirdPartyDependencies: [String: ThirdPartyDependency] = Dictionary(grouping: products, by: \.name)
+            .compactMapValues { product in
+                guard let frameworkName = product.first?.container else { return nil }
 
                 let path = AbsolutePath("/")
                     .appending(components: [
@@ -38,8 +38,8 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
                         frameworkName,
                     ])
 
-                let architectures: Set<BinaryArchitecture> = Set(product.value.flatMap { $0.architectures })
-                result[product.key] = .xcframework(path: path, architectures: architectures)
+                let architectures: Set<BinaryArchitecture> = Set(product.flatMap { $0.architectures })
+                return .xcframework(path: path, architectures: architectures)
             }
 
         return DependenciesGraph(thirdPartyDependencies: thirdPartyDependencies)

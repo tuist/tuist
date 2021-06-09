@@ -45,11 +45,9 @@ The snippet below shows an example `Dependencies.swift` manifest file:
 import ProjectDescription
 
 let dependencies = Dependencies(
-    carthage: .carthage(
-        [
-            .github(path: "Alamofire/Alamofire", requirement: .exact("5.0.4"))
-        ]
-    ),
+    carthage: [
+        .github(path: "Alamofire/Alamofire", requirement: .exact("5.0.4"))
+    ],
     swiftPackageManager: nil, // work in progress, pass `nil`
     platforms: [.iOS]
 )

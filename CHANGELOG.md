@@ -6,17 +6,18 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
+- Add `tvTopShelfExtension` and `tvIntentsExtension` target product. [#2793](https://github.com/tuist/tuist/pull/2793) by [@rmnblm](https://github.com/rmnblm)
 - The `tuist dependencies` command generates a `graph.json` file for the `Carthage` dependencies. [#3043](https://github.com/tuist/tuist/pull/3043) by [@laxmorek](https://github.com/laxmorek)
 
 ### Changed
 
-- **breaking** The `tuist dependencies` command requires the `Carthage` in version at least `0.37.0`. [#3043](https://github.com/tuist/tuist/pull/3043) by [@laxmorek](https://github.com/laxmorek)
+- **breaking** The `tuist dependencies` command requires the `Carthage` version to be at least `0.37.0`. [#3043](https://github.com/tuist/tuist/pull/3043) by [@laxmorek](https://github.com/laxmorek)
 
 ### Removed
 
 - **breaking** Remove the `CarthageDependencies.Options` from the `Dependencies.swift` manifest model. [#3043](https://github.com/tuist/tuist/pull/3043) by [@laxmorek](https://github.com/laxmorek)
 
-## 1.44.0
+## 1.44.0 - DubDub
 
 ### Added
 

@@ -40,6 +40,7 @@ module Fourier
               [
                 "tuist", "ProjectDescription.swiftmodule", "ProjectDescription.swiftdoc",
                 "libProjectDescription.dylib", "ProjectDescription.swiftinterface",
+                "libProjectAutomation.dylib",
                 "ProjectAutomation.swiftmodule", "ProjectAutomation.swiftdoc", "ProjectAutomation.swiftinterface"
               ].each do |file|
                 FileUtils.cp(
@@ -61,6 +62,7 @@ module Fourier
                   "ProjectDescription.swiftinterface",
                   "ProjectAutomation.swiftmodule",
                   "ProjectAutomation.swiftdoc",
+                  "libProjectAutomation.dylib",
                   "ProjectAutomation.swiftinterface",
                   "Templates",
                   "vendor"
