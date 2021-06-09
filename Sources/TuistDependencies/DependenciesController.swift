@@ -143,6 +143,10 @@ public final class DependenciesController: DependenciesControlling {
             try swiftPackageManagerInteractor.clean(dependenciesDirectory: dependenciesDirectory)
         }
 
-        try dependenciesGraphController.save(dependenciesGraph, to: path)
+        if dependenciesGraph.thirdPartyDependencies.isEmpty {
+            try dependenciesGraphController.clean(at: path)
+        } else {
+            try dependenciesGraphController.save(dependenciesGraph, to: path)
+        }
     }
 }
