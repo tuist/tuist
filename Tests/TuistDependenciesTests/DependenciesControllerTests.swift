@@ -63,6 +63,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             swiftPackageManager: nil,
             platforms: platforms
         )
+        let graph: DependenciesGraph = .test(thirdPartyDependencies: ["Name": .testXCFramework()])
 
         carthageInteractor.installStub = { arg0, arg1, arg2, arg3 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
@@ -70,10 +71,10 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             XCTAssertEqual(arg2, platforms)
             XCTAssertFalse(arg3)
 
-            return .test()
+            return graph
         }
         dependenciesGraphController.saveStub = { arg0, arg1 in
-            XCTAssertEqual(.test(), arg0)
+            XCTAssertEqual(graph, arg0)
             XCTAssertEqual(rootPath, arg1)
         }
 
@@ -169,6 +170,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             platforms: platforms
         )
         let swiftVersion = "5.4.0"
+        let graph: DependenciesGraph = .test(thirdPartyDependencies: ["Name": .testXCFramework()])
 
         carthageInteractor.installStub = { arg0, arg1, arg2, arg3 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
@@ -176,7 +178,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             XCTAssertEqual(arg2, platforms)
             XCTAssertFalse(arg3)
 
-            return .test()
+            return graph
         }
         swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
@@ -185,7 +187,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             XCTAssertEqual(arg3, swiftVersion)
         }
         dependenciesGraphController.saveStub = { arg0, arg1 in
-            XCTAssertEqual(.test(), arg0)
+            XCTAssertEqual(graph, arg0)
             XCTAssertEqual(rootPath, arg1)
         }
 
@@ -271,6 +273,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             swiftPackageManager: nil,
             platforms: platforms
         )
+        let graph: DependenciesGraph = .test(thirdPartyDependencies: ["Name": .testXCFramework()])
 
         carthageInteractor.installStub = { arg0, arg1, arg2, arg3 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
@@ -278,10 +281,10 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             XCTAssertEqual(arg2, platforms)
             XCTAssertTrue(arg3)
 
-            return .test()
+            return graph
         }
         dependenciesGraphController.saveStub = { arg0, arg1 in
-            XCTAssertEqual(.test(), arg0)
+            XCTAssertEqual(graph, arg0)
             XCTAssertEqual(rootPath, arg1)
         }
 
@@ -377,6 +380,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             platforms: platforms
         )
         let swiftVersion = "5.4.0"
+        let graph: DependenciesGraph = .test(thirdPartyDependencies: ["Name": .testXCFramework()])
 
         carthageInteractor.installStub = { arg0, arg1, arg2, arg3 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
@@ -384,7 +388,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             XCTAssertEqual(arg2, platforms)
             XCTAssertTrue(arg3)
 
-            return .test()
+            return graph
         }
         swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
@@ -393,7 +397,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             XCTAssertEqual(arg3, swiftVersion)
         }
         dependenciesGraphController.saveStub = { arg0, arg1 in
-            XCTAssertEqual(.test(), arg0)
+            XCTAssertEqual(graph, arg0)
             XCTAssertEqual(rootPath, arg1)
         }
 
