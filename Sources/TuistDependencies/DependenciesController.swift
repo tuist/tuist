@@ -119,7 +119,7 @@ public final class DependenciesController: DependenciesControlling {
             throw DependenciesControllerError.noPlatforms
         }
 
-        var dependenciesGraph: DependenciesGraph?
+        var dependenciesGraph = DependenciesGraph(thirdPartyDependencies: [:])
 
         if let carthageDepedencies = dependencies.carthage, !carthageDepedencies.dependencies.isEmpty {
             dependenciesGraph = try carthageInteractor.install(
@@ -143,10 +143,6 @@ public final class DependenciesController: DependenciesControlling {
             try swiftPackageManagerInteractor.clean(dependenciesDirectory: dependenciesDirectory)
         }
 
-        if let dependenciesGraph = dependenciesGraph {
-            try dependenciesGraphController.save(dependenciesGraph, to: path)
-        } else {
-            try dependenciesGraphController.clean(at: path)
-        }
+        try dependenciesGraphController.save(dependenciesGraph, to: path)
     }
 }
