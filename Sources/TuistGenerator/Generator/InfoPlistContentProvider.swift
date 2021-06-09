@@ -109,7 +109,7 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
             packageType = "BNDL"
         case .staticFramework, .framework:
             packageType = "FMWK"
-        case .watch2App, .watch2Extension:
+        case .watch2App, .watch2Extension, .tvTopShelfExtension:
             packageType = "$(PRODUCT_BUNDLE_PACKAGE_TYPE)"
         case .appExtension, .stickerPackExtension, .messagesExtension:
             packageType = "XPC!"
