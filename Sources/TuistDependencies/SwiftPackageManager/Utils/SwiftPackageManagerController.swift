@@ -18,7 +18,7 @@ public protocol SwiftPackageManagerControlling {
     /// - Parameter version: Version of tools. When `nil` then the environment’s version will be set.
     func setToolsVersion(at path: AbsolutePath, to version: String?) throws
 
-    /// Loads the information from of the package.
+    /// Loads the information from the package.
     /// - Parameter path: Directory where the `Package.swift` is defined.
     func loadPackageInfo(at path: AbsolutePath) throws -> PackageInfo
 }

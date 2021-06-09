@@ -224,22 +224,20 @@ extension PackageInfo.Target.Dependency: Decodable {
             throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Did not find a matching key"))
         }
 
+        var unkeyedValues = try values.nestedUnkeyedContainer(forKey: key)
         switch key {
         case .target:
-            var unkeyedValues = try values.nestedUnkeyedContainer(forKey: key)
             self = .target(
                 name: try unkeyedValues.decode(String.self),
                 condition: try unkeyedValues.decodeIfPresent(PackageConditionDescription.self)
             )
         case .product:
-            var unkeyedValues = try values.nestedUnkeyedContainer(forKey: key)
             self = .product(
                 name: try unkeyedValues.decode(String.self),
                 package: try unkeyedValues.decodeIfPresent(String.self),
                 condition: try unkeyedValues.decodeIfPresent(PackageConditionDescription.self)
             )
         case .byName:
-            var unkeyedValues = try values.nestedUnkeyedContainer(forKey: key)
             self = .byName(
                 name: try unkeyedValues.decode(String.self),
                 condition: try unkeyedValues.decodeIfPresent(PackageConditionDescription.self)
