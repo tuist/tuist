@@ -13,14 +13,16 @@ struct CarthageVersionFile: Decodable, Equatable {
     }
 
     let commitish: String
-    let iOS: [Product]
-    let macOS: [Product]
-    let watchOS: [Product]
-    let tvOS: [Product]
+    let iOS: [Product]?
+    let macOS: [Product]?
+    let watchOS: [Product]?
+    let tvOS: [Product]?
 
     /// Returns all products.
     var allProducts: [Product] {
-        iOS + macOS + watchOS + tvOS
+        [iOS, macOS, watchOS, tvOS]
+            .compactMap { $0 }
+            .flatMap { $0 }
     }
 }
 
