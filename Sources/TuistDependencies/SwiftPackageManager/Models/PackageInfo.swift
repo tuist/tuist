@@ -172,7 +172,6 @@ extension PackageInfo.Target {
 extension PackageInfo.Target {
     /// A namespace for target-specific build settings.
     public enum TargetBuildSettingDescription {
-
         /// The tool for which a build setting is declared.
         public enum Tool: String, Decodable, Equatable, CaseIterable {
             case c
@@ -192,7 +191,6 @@ extension PackageInfo.Target {
 
         /// An individual build setting.
         public struct Setting: Decodable, Equatable {
-
             /// The tool associated with this setting.
             public let tool: Tool
 

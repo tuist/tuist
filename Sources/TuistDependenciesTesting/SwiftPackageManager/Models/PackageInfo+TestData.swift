@@ -193,7 +193,7 @@ extension PackageInfo {
                         "customSources",
                     ],
                     resources: [
-                        .init(rule: .copy, path: "resources")
+                        .init(rule: .copy, path: "resources"),
                     ],
                     exclude: [],
                     dependencies: [
@@ -203,7 +203,7 @@ extension PackageInfo {
                     publicHeadersPath: nil,
                     type: .regular,
                     settings: [
-                        .init(tool: .swift, name: .linkedLibrary, condition: nil, value: ["settingValue"])
+                        .init(tool: .swift, name: .linkedLibrary, condition: nil, value: ["settingValue"]),
                     ],
                     checksum: nil
                 ),
@@ -236,7 +236,7 @@ extension PackageInfo {
                     type: .test,
                     settings: [],
                     checksum: nil
-                )
+                ),
             ]
         )
     }
