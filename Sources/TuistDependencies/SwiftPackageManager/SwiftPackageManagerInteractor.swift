@@ -44,7 +44,7 @@ public protocol SwiftPackageManagerInteracting {
         dependencies: SwiftPackageManagerDependencies,
         shouldUpdate: Bool,
         swiftToolsVersion: String?
-    ) throws
+    ) throws -> DependenciesGraph
 
     /// Removes all cached `Swift Package Manager` dependencies.
     /// - Parameter dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
@@ -56,13 +56,18 @@ public protocol SwiftPackageManagerInteracting {
 public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
     private let fileHandler: FileHandling
     private let swiftPackageManagerController: SwiftPackageManagerControlling
+    private let swiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGenerating
 
     public init(
         fileHandler: FileHandling = FileHandler.shared,
-        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController()
+        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
+        swiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGenerating = SwiftPackageManagerGraphGenerator(
+            swiftPackageManagerController: SwiftPackageManagerController()
+        )
     ) {
         self.fileHandler = fileHandler
         self.swiftPackageManagerController = swiftPackageManagerController
+        self.swiftPackageManagerGraphGenerator = swiftPackageManagerGraphGenerator
     }
 
     public func install(
@@ -70,11 +75,11 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         dependencies: SwiftPackageManagerDependencies,
         shouldUpdate: Bool,
         swiftToolsVersion: String?
-    ) throws {
+    ) throws -> DependenciesGraph {
         logger.warning("Support for Swift Package Manager dependencies is currently being worked on and is not ready to be used yet.")
         logger.info("Installing Swift Package Manager dependencies.", metadata: .subsection)
 
-        try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in
+        let dependenciesGraph: DependenciesGraph = try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in
             // prepare paths
             let pathsProvider = SwiftPackageManagerPathsProvider(
                 dependenciesDirectory: dependenciesDirectory,
@@ -93,9 +98,14 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
 
             // post installation
             try saveDepedencies(pathsProvider: pathsProvider)
+
+            // generate dependencies graph
+            return try swiftPackageManagerGraphGenerator.generate(at: pathsProvider.temporaryBuildDirectory)
         }
 
         logger.info("Swift Package Manager dependencies installed successfully.", metadata: .subsection)
+
+        return dependenciesGraph
     }
 
     public func clean(dependenciesDirectory: AbsolutePath) throws {

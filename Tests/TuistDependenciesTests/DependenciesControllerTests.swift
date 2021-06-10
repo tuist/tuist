@@ -121,6 +121,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             XCTAssertEqual(arg1, swiftPackageManagerDependencies)
             XCTAssertFalse(arg2)
             XCTAssertEqual(arg3, swiftVersion)
+            return .test()
         }
         dependenciesGraphController.saveStub = { arg0, arg1 in
             XCTAssertEqual(.test(), arg0)
@@ -170,7 +171,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             platforms: platforms
         )
         let swiftVersion = "5.4.0"
-        let graph: DependenciesGraph = .test(thirdPartyDependencies: ["Name": .testXCFramework()])
+        let carthageGraph: DependenciesGraph = .test(thirdPartyDependencies: ["Carthage": .testXCFramework()])
+        let spmGraph: DependenciesGraph = .test(thirdPartyDependencies: ["SPM": .testXCFramework()])
 
         carthageInteractor.installStub = { arg0, arg1, arg2, arg3 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
@@ -178,16 +180,20 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             XCTAssertEqual(arg2, platforms)
             XCTAssertFalse(arg3)
 
-            return graph
+            return carthageGraph
         }
         swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
             XCTAssertEqual(arg1, swiftPackageManagerDependencies)
             XCTAssertFalse(arg2)
             XCTAssertEqual(arg3, swiftVersion)
+            return spmGraph
         }
         dependenciesGraphController.saveStub = { arg0, arg1 in
-            XCTAssertEqual(graph, arg0)
+            XCTAssertEqual(
+                arg0,
+                .init(thirdPartyDependencies: ["Carthage": .testXCFramework(), "SPM": .testXCFramework()])
+            )
             XCTAssertEqual(rootPath, arg1)
         }
 
@@ -205,6 +211,48 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
 
         XCTAssertTrue(dependenciesGraphController.invokedSave)
+        XCTAssertFalse(dependenciesGraphController.invokedClean)
+    }
+
+    func test_fetch_carthage_swiftPackageManger_throws_when_duplicatedDependency() throws {
+        // Given
+        let rootPath = try temporaryPath()
+        let dependencies = Dependencies(
+            carthage: .init([
+                .github(path: "Moya", requirement: .exact("1.1.1")),
+            ]),
+            swiftPackageManager: .init([
+                .remote(url: "Moya", requirement: .exact("2.3.4")),
+            ]),
+            platforms: [.iOS]
+        )
+        let carthageGraph: DependenciesGraph = .test(thirdPartyDependencies: ["Duplicated": .testXCFramework()])
+        let spmGraph: DependenciesGraph = .test(thirdPartyDependencies: ["Duplicated": .testXCFramework()])
+
+        carthageInteractor.installStub = { _, _, _, _ in
+            carthageGraph
+        }
+        swiftPackageManagerInteractor.installStub = { _, _, _, _ in
+            spmGraph
+        }
+
+        // When / Then
+        XCTAssertThrowsSpecific(
+            try subject.fetch(at: rootPath, dependencies: dependencies, swiftVersion: nil),
+            DependenciesControllerError.duplicatedDependency("Duplicated")
+        )
+
+        // Then
+        XCTAssertTrue(carthageInteractor.invokedInstall)
+        XCTAssertFalse(carthageInteractor.invokedClean)
+
+        XCTAssertTrue(swiftPackageManagerInteractor.invokedInstall)
+        XCTAssertFalse(swiftPackageManagerInteractor.invokedClean)
+
+        XCTAssertFalse(cocoaPodsInteractor.invokedClean)
+        XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
+
+        XCTAssertFalse(dependenciesGraphController.invokedSave)
         XCTAssertFalse(dependenciesGraphController.invokedClean)
     }
 
@@ -331,6 +379,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             XCTAssertEqual(arg1, swiftPackageManagerDependencies)
             XCTAssertTrue(arg2)
             XCTAssertEqual(arg3, swiftVersion)
+            return .test()
         }
         dependenciesGraphController.saveStub = { arg0, arg1 in
             XCTAssertEqual(.test(), arg0)
@@ -395,6 +444,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             XCTAssertEqual(arg1, swiftPackageManagerDependencies)
             XCTAssertTrue(arg2)
             XCTAssertEqual(arg3, swiftVersion)
+            return .test()
         }
         dependenciesGraphController.saveStub = { arg0, arg1 in
             XCTAssertEqual(graph, arg0)

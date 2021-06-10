@@ -11,13 +11,16 @@ import XCTest
 final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
     private var subject: SwiftPackageManagerInteractor!
     private var swiftPackageManagerController: MockSwiftPackageManagerController!
+    private var swiftPackageManagerGraphGenerator: MockSwiftPackageManagerGraphGenerator!
 
     override func setUp() {
         super.setUp()
 
         swiftPackageManagerController = MockSwiftPackageManagerController()
+        swiftPackageManagerGraphGenerator = MockSwiftPackageManagerGraphGenerator()
         subject = SwiftPackageManagerInteractor(
-            swiftPackageManagerController: swiftPackageManagerController
+            swiftPackageManagerController: swiftPackageManagerController,
+            swiftPackageManagerGraphGenerator: swiftPackageManagerGraphGenerator
         )
     }
 
@@ -53,8 +56,13 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             XCTAssertNil(version) // swift-tools-version is not specified
         }
 
+        swiftPackageManagerGraphGenerator.generateStub = { path in
+            XCTAssertEqual(path, try self.temporaryPath().appending(.init(".build")))
+            return .test()
+        }
+
         // When
-        try subject.install(
+        let dependenciesGraph = try subject.install(
             dependenciesDirectory: dependenciesDirectory,
             dependencies: depedencies,
             shouldUpdate: false,
@@ -62,6 +70,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         )
 
         // Then
+        XCTAssertEqual(dependenciesGraph, .test())
         try XCTAssertDirectoryContentEqual(
             dependenciesDirectory,
             [
@@ -117,8 +126,13 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             XCTAssertEqual(version, swiftToolsVersion) // version should be eqaul to the version that has been specified
         }
 
+        swiftPackageManagerGraphGenerator.generateStub = { path in
+            XCTAssertEqual(path, try self.temporaryPath().appending(.init(".build")))
+            return .test()
+        }
+
         // When
-        try subject.install(
+        let dependenciesGraph = try subject.install(
             dependenciesDirectory: dependenciesDirectory,
             dependencies: depedencies,
             shouldUpdate: false,
@@ -126,6 +140,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         )
 
         // Then
+        XCTAssertEqual(dependenciesGraph, .test())
         try XCTAssertDirectoryContentEqual(
             dependenciesDirectory,
             [
@@ -180,8 +195,13 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             XCTAssertNil(version) // swift-tools-version is not specified
         }
 
+        swiftPackageManagerGraphGenerator.generateStub = { path in
+            XCTAssertEqual(path, try self.temporaryPath().appending(.init(".build")))
+            return .test()
+        }
+
         // When
-        try subject.install(
+        let dependenciesGraph = try subject.install(
             dependenciesDirectory: dependenciesDirectory,
             dependencies: depedencies,
             shouldUpdate: true,
@@ -189,6 +209,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         )
 
         // Then
+        XCTAssertEqual(dependenciesGraph, .test())
         try XCTAssertDirectoryContentEqual(
             dependenciesDirectory,
             [

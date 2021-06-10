@@ -5,14 +5,17 @@ import TuistSupport
 
 // MARK: - Dependencies Controller Error
 
-enum DependenciesControllerError: FatalError {
+enum DependenciesControllerError: FatalError, Equatable {
     /// Thrown when platforms for dependencies to install are not determined in `Dependencies.swift`.
     case noPlatforms
+
+    /// Thrown when the same dependency is defined more than once.
+    case duplicatedDependency(String)
 
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .noPlatforms:
+        case .noPlatforms, .duplicatedDependency:
             return .abort
         }
     }
@@ -22,6 +25,8 @@ enum DependenciesControllerError: FatalError {
         switch self {
         case .noPlatforms:
             return "Platforms were not determined. Select platforms in `Dependencies.swift` manifest file."
+        case let .duplicatedDependency(name):
+            return "The \(name) dependency is defined more than once."
         }
     }
 }
@@ -30,7 +35,7 @@ enum DependenciesControllerError: FatalError {
 
 /// `DependenciesControlling` controls:
 ///     1. Fetching/updating dependencies defined in `./Tuist/Dependencies.swift` by running appropriate dependencies managers (`Cocoapods`, `Carthage`, `SPM`).
-///     2. Compiling fetched/updated depedencies into `.framework.`/`.xcframework.`.
+///     2. Compiling fetched/updated dependencies into `.framework.`/`.xcframework.`.
 ///     3. Saving compiled frameworks under `./Tuist/Dependencies/*`.
 ///     4. Generating dependencies graph under `./Tuist/Dependencies/graph.json`.
 public protocol DependenciesControlling {
@@ -121,24 +126,26 @@ public final class DependenciesController: DependenciesControlling {
 
         var dependenciesGraph = DependenciesGraph(thirdPartyDependencies: [:])
 
-        if let carthageDepedencies = dependencies.carthage, !carthageDepedencies.dependencies.isEmpty {
-            dependenciesGraph = try carthageInteractor.install(
+        if let carthageDependencies = dependencies.carthage, !carthageDependencies.dependencies.isEmpty {
+            let carthageDependenciesGraph = try carthageInteractor.install(
                 dependenciesDirectory: dependenciesDirectory,
-                dependencies: carthageDepedencies,
+                dependencies: carthageDependencies,
                 platforms: platforms,
                 shouldUpdate: shouldUpdate
             )
+            dependenciesGraph = try dependenciesGraph.merging(with: carthageDependenciesGraph)
         } else {
             try carthageInteractor.clean(dependenciesDirectory: dependenciesDirectory)
         }
 
         if let swiftPackageManagerDependencies = dependencies.swiftPackageManager, !swiftPackageManagerDependencies.packages.isEmpty {
-            try swiftPackageManagerInteractor.install(
+            let swiftPackageManagerDependenciesGraph = try swiftPackageManagerInteractor.install(
                 dependenciesDirectory: dependenciesDirectory,
                 dependencies: swiftPackageManagerDependencies,
                 shouldUpdate: shouldUpdate,
                 swiftToolsVersion: swiftVersion
             )
+            dependenciesGraph = try dependenciesGraph.merging(with: swiftPackageManagerDependenciesGraph)
         } else {
             try swiftPackageManagerInteractor.clean(dependenciesDirectory: dependenciesDirectory)
         }
@@ -148,5 +155,15 @@ public final class DependenciesController: DependenciesControlling {
         } else {
             try dependenciesGraphController.save(dependenciesGraph, to: path)
         }
+    }
+}
+
+extension DependenciesGraph {
+    fileprivate func merging(with other: Self) throws -> Self {
+        let mergedThirdPartyDependencies = try thirdPartyDependencies.merging(other.thirdPartyDependencies) { old, _ in
+            let name = self.thirdPartyDependencies.first { $0.value == old }!.key
+            throw DependenciesControllerError.duplicatedDependency(name)
+        }
+        return .init(thirdPartyDependencies: mergedThirdPartyDependencies)
     }
 }
