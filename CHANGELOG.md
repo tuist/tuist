@@ -4,7 +4,13 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+
 - Add `tvTopShelfExtension` and `tvIntentsExtension` target product. [#2793](https://github.com/tuist/tuist/pull/2793) by [@rmnblm](https://github.com/rmnblm)
+
+### Fixed
+
+- Fix manifest loading when using Swift 5.5 [#3062](https://github.com/tuist/tuist/pull/3062) by [@kwridan](https://github.com/kwridan)
 
 ## 1.44.0 - DubDub
 
