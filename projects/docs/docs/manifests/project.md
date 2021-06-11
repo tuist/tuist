@@ -72,7 +72,7 @@ A `Project.swift` should initialize a variable of type `Project`. It can take an
 | `settings`            | Project build settings and configuration files                                                                                                                                                                  | [`Settings`](#settings)                          | No       | `[]`       |
 | `fileHeaderTemplate`  | Lets you define custom file header template macro for built-in Xcode file templates.                                                                                                                            | [`FileHeaderTemplate`](#file-header-template)    | No       |            |
 | `additionalFiles`     | List of files to include in the project - these won't be included in any of the build phases.                                                                                                                   | [`[FileElement]`](#fileelement)                  | No       | `[]`       |
-| `resourceSynthesizer` | List of resource synthesizer for generating accessors for resources.                                                                                                                                            | [`[ResourceSynthesizer]`](#resource-synthesizer) | No       | `.default` |
+| `resourceSynthesizers` | List of resource synthesizer for generating accessors for resources.                                                                                                                                            | [`[ResourceSynthesizer]`](#resource-synthesizer) | No       | `.default` |
 
 ### Package
 

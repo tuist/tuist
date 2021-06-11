@@ -310,8 +310,7 @@ public class ManifestLoader: ManifestLoading {
         }
         var arguments = [
             "/usr/bin/xcrun",
-            "swiftc",
-            "--driver-mode=swift",
+            "swift",
             "-suppress-warnings",
             "-I", searchPaths.includeSearchPath.pathString,
             "-L", searchPaths.librarySearchPath.pathString,
