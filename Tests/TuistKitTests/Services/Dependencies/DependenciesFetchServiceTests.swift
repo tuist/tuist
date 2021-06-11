@@ -49,8 +49,7 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
             carthage: .init(
                 [
                     .github(path: "Dependency1", requirement: .exact("1.1.1")),
-                ],
-                options: []
+                ]
             ),
             swiftPackageManager: .init(
                 [

@@ -32,6 +32,7 @@ public enum Constants {
 
     public enum DependenciesDirectory {
         public static let name = "Dependencies"
+        public static let graphName = "graph.json"
         public static let lockfilesDirectoryName = "Lockfiles"
         public static let cartfileResolvedName = "Cartfile.resolved"
         public static let packageResolvedName = "Package.resolved"

@@ -11,24 +11,28 @@ import XCTest
 final class CarthageInteractorTests: TuistUnitTestCase {
     private var subject: CarthageInteractor!
     private var carthageController: MockCarthageController!
+    private var carthageGraphGenerator: MockCarthageGraphGenerator!
 
     override func setUp() {
         super.setUp()
 
         carthageController = MockCarthageController()
+        carthageGraphGenerator = MockCarthageGraphGenerator()
         subject = CarthageInteractor(
-            carthageController: carthageController
+            carthageController: carthageController,
+            carthageGraphGenerator: carthageGraphGenerator
         )
     }
 
     override func tearDown() {
         carthageController = nil
+        carthageGraphGenerator = nil
         subject = nil
 
         super.tearDown()
     }
 
-    func test_fetch() throws {
+    func test_install_when_shouldNotBeUpdated() throws {
         // Given
         carthageController.canUseSystemCarthageStub = { true }
 
@@ -41,30 +45,35 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
 
         let platforms: Set<Platform> = [.iOS, .watchOS, .macOS, .tvOS]
-        let options = Set<CarthageDependencies.Options>([])
         let stubbedDependencies = CarthageDependencies(
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
-            ],
-            options: options
+            ]
         )
 
-        carthageController.bootstrapStub = { arg0, arg1, arg2 in
+        carthageController.bootstrapStub = { arg0, arg1 in
             XCTAssertEqual(arg0, try self.temporaryPath())
             XCTAssertEqual(arg1, platforms)
-            XCTAssertEqual(arg2, options)
 
             try self.simulateCarthageOutput(at: arg0)
         }
+        carthageGraphGenerator.generateStub = { arg0 in
+            XCTAssertEqual(arg0, try self.temporaryPath().appending(components: "Carthage", "Build"))
+            return .test()
+        }
 
         // When
-        try subject.fetch(
+        let got = try subject.install(
             dependenciesDirectory: dependenciesDirectory,
             dependencies: stubbedDependencies,
-            platforms: platforms
+            platforms: platforms,
+            shouldUpdate: false
         )
 
         // Then
+        XCTAssertEqual(got, .test())
+        XCTAssertTrue(carthageGraphGenerator.invokedGenerate)
+
         try XCTAssertDirectoryContentEqual(
             dependenciesDirectory,
             [
@@ -121,59 +130,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         )
     }
 
-    func test_fetch_throws_when_carthageUnavailableInEnvironment() throws {
-        // Given
-        carthageController.canUseSystemCarthageStub = { false }
-
-        let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
-        let dependenciesDirectory = rootPath
-            .appending(component: Constants.DependenciesDirectory.name)
-        let dependencies = CarthageDependencies(
-            [
-                .github(path: "Moya", requirement: .exact("1.1.1")),
-            ],
-            options: []
-        )
-        let platforms: Set<Platform> = [.iOS]
-
-        // When / Then
-        XCTAssertThrowsSpecific(
-            try subject.fetch(
-                dependenciesDirectory: dependenciesDirectory,
-                dependencies: dependencies,
-                platforms: platforms
-            ),
-            CarthageInteractorError.carthageNotFound
-        )
-    }
-
-    func test_fetch_throws_when_xcFrameworkdProductionUnsupported_and_useXCFrameworksSpecifiedInOptions() throws {
-        // Given
-        carthageController.canUseSystemCarthageStub = { true }
-        carthageController.isXCFrameworksProductionSupportedStub = { false }
-
-        let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
-        let dependenciesDirectory = rootPath
-            .appending(component: Constants.DependenciesDirectory.name)
-        let dependencies = CarthageDependencies(
-            [
-                .github(path: "Moya", requirement: .exact("1.1.1")),
-            ],
-            options: [.useXCFrameworks]
-        )
-        let platforms: Set<Platform> = [.iOS]
-
-        XCTAssertThrowsSpecific(
-            try subject.fetch(
-                dependenciesDirectory: dependenciesDirectory,
-                dependencies: dependencies,
-                platforms: platforms
-            ),
-            CarthageInteractorError.xcFrameworksProductionNotSupported
-        )
-    }
-
-    func test_update() throws {
+    func test_install_when_shouldBeUpdated() throws {
         // Given
         carthageController.canUseSystemCarthageStub = { true }
 
@@ -186,30 +143,35 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
 
         let platforms: Set<Platform> = [.iOS, .watchOS, .macOS, .tvOS]
-        let options = Set<CarthageDependencies.Options>([])
         let stubbedDependencies = CarthageDependencies(
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
-            ],
-            options: options
+            ]
         )
 
-        carthageController.updateStub = { arg0, arg1, arg2 in
+        carthageController.updateStub = { arg0, arg1 in
             XCTAssertEqual(arg0, try self.temporaryPath())
             XCTAssertEqual(arg1, platforms)
-            XCTAssertEqual(arg2, options)
 
             try self.simulateCarthageOutput(at: arg0)
         }
+        carthageGraphGenerator.generateStub = { arg0 in
+            XCTAssertEqual(arg0, try self.temporaryPath().appending(components: "Carthage", "Build"))
+            return .test()
+        }
 
         // When
-        try subject.update(
+        let got = try subject.install(
             dependenciesDirectory: dependenciesDirectory,
             dependencies: stubbedDependencies,
-            platforms: platforms
+            platforms: platforms,
+            shouldUpdate: true
         )
 
         // Then
+        XCTAssertEqual(got, .test())
+        XCTAssertTrue(carthageGraphGenerator.invokedGenerate)
+
         try XCTAssertDirectoryContentEqual(
             dependenciesDirectory,
             [
@@ -266,7 +228,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         )
     }
 
-    func test_update_throws_when_carthageUnavailableInEnvironment() throws {
+    func test_install_throws_when_carthageUnavailableInEnvironment() throws {
         // Given
         carthageController.canUseSystemCarthageStub = { false }
 
@@ -276,45 +238,19 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         let dependencies = CarthageDependencies(
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
-            ],
-            options: []
+            ]
         )
         let platforms: Set<Platform> = [.iOS]
 
         // When / Then
         XCTAssertThrowsSpecific(
-            try subject.update(
+            try subject.install(
                 dependenciesDirectory: dependenciesDirectory,
                 dependencies: dependencies,
-                platforms: platforms
+                platforms: platforms,
+                shouldUpdate: true
             ),
             CarthageInteractorError.carthageNotFound
-        )
-    }
-
-    func test_update_throws_when_xcFrameworkdProductionUnsupported_and_useXCFrameworksSpecifiedInOptions() throws {
-        // Given
-        carthageController.canUseSystemCarthageStub = { true }
-        carthageController.isXCFrameworksProductionSupportedStub = { false }
-
-        let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
-        let dependenciesDirectory = rootPath
-            .appending(component: Constants.DependenciesDirectory.name)
-        let dependencies = CarthageDependencies(
-            [
-                .github(path: "Moya", requirement: .exact("1.1.1")),
-            ],
-            options: [.useXCFrameworks]
-        )
-        let platforms: Set<Platform> = [.iOS]
-
-        XCTAssertThrowsSpecific(
-            try subject.update(
-                dependenciesDirectory: dependenciesDirectory,
-                dependencies: dependencies,
-                platforms: platforms
-            ),
-            CarthageInteractorError.xcFrameworksProductionNotSupported
         )
     }
 

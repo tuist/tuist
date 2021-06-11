@@ -140,6 +140,30 @@ public extension XCTestCase {
         }
     }
 
+    /// Asserts that a `json` object decoded as a `T` type is equal to an `expected` value.
+    func XCTAssertDecodableEqualToJson<C: Decodable & Equatable>(_ json: String, _ expected: C, file: StaticString = #file, line: UInt = #line) {
+        guard let jsonData = json.data(using: .utf8) else {
+            XCTFail("Invalid JSON.", file: file, line: line)
+            return
+        }
+
+        let decoder = JSONDecoder()
+        let decoded = XCTTry(try decoder.decode(C.self, from: jsonData), file: file, line: line)
+
+        let errorString = """
+        The JSON-decoded object doesn't match the expected value:
+        Given
+        =======
+        \(decoded)
+
+        Expected
+        =======
+        \(expected)
+        """
+
+        XCTAssertEqual(decoded, expected, errorString, file: file, line: line)
+    }
+
     func XCTEmpty<S>(_ array: [S], file: StaticString = #file, line: UInt = #line) {
         XCTAssertTrue(array.isEmpty, "Expected array to be empty but it's not. It contains the following elements: \(array)", file: file, line: line)
     }

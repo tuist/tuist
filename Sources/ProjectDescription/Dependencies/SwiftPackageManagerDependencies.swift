@@ -7,11 +7,15 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
 
     /// Creates `SwiftPackageManagerDependencies` instance.
     /// - Parameter packages: List of packages that will be installed using Swift Package Manager.
-    public static func swiftPackageManager(
-        _ packages: [Package]
-    ) -> Self {
-        .init(
-            packages: packages
-        )
+    public init(_ packages: [Package]) {
+        self.packages = packages
+    }
+}
+
+// MARK: - ExpressibleByArrayLiteral
+
+extension SwiftPackageManagerDependencies: ExpressibleByArrayLiteral {
+    public init(arrayLiteral elements: Package...) {
+        packages = elements
     }
 }

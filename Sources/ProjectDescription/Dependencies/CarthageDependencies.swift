@@ -5,21 +5,18 @@ public struct CarthageDependencies: Codable, Equatable {
     /// List of depedencies that will be installed using Carthage.
     public let dependencies: [Dependency]
 
-    /// List of options for Carthage installation.
-    public let options: Set<Options>
-
     /// Creates `CarthageDependencies` instance.
-    /// - Parameters:
-    ///   - dependencies: List of depedencies that can be installed using Carthage.
-    ///   - options: List of options for Carthage installation.
-    public static func carthage(
-        _ dependencies: [Dependency],
-        options: Set<Options> = []
-    ) -> Self {
-        .init(
-            dependencies: dependencies,
-            options: options
-        )
+    /// - Parameter dependencies: List of depedencies that can be installed using Carthage.
+    public init(_ dependencies: [Dependency]) {
+        self.dependencies = dependencies
+    }
+}
+
+// MARK: - ExpressibleByArrayLiteral
+
+extension CarthageDependencies: ExpressibleByArrayLiteral {
+    public init(arrayLiteral elements: Dependency...) {
+        dependencies = elements
     }
 }
 
@@ -43,17 +40,6 @@ public extension CarthageDependencies {
         case atLeast(Version)
         case branch(String)
         case revision(String)
-    }
-
-    /// The options that you can set for Carthage installation.
-    enum Options: String, Codable, Equatable {
-        /// When passed, Carthage will produce XCFrameworks instead of regular frameworks.
-        /// Refers to `--use-xcframeworks` Carthage flag.
-        /// **Note: It requires Carthage in version at least 0.37.0.**
-        case useXCFrameworks
-        /// When passed, Carthage will rebuild dependencies from source instead of using downloaded binaries when possible.
-        /// Refers to `--no-use-binaries` Carthage flag.
-        case noUseBinaries
     }
 }
 

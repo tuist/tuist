@@ -13,8 +13,6 @@ enum CarthageInteractorError: FatalError, Equatable {
     case cartfileResolvedNotFound
     /// Thrown when `Carthage/Build` directory cannot be found in temporary directory after Carthage installation.
     case buildDirectoryNotFound
-    /// Thrown when version of Carthage installed in environment does not support XCFrameworks production.
-    case xcFrameworksProductionNotSupported
 
     /// Error type.
     var type: ErrorType {
@@ -22,8 +20,7 @@ enum CarthageInteractorError: FatalError, Equatable {
         case .cartfileResolvedNotFound,
              .buildDirectoryNotFound:
             return .bug
-        case .carthageNotFound,
-             .xcFrameworksProductionNotSupported:
+        case .carthageNotFound:
             return .abort
         }
     }
@@ -40,11 +37,6 @@ enum CarthageInteractorError: FatalError, Equatable {
             return "The Cartfile.resolved lockfile was not found after resolving the dependencies using the Carthage."
         case .buildDirectoryNotFound:
             return "The Carthage/Build directory was not found after resolving the dependencies using the Carthage."
-        case .xcFrameworksProductionNotSupported:
-            return """
-            The version of Carthage installed in your environment doesn't suppport production of XCFrameworks.
-            Update the tool or disable XCFrameworks in your Dependencies.swift manifest.
-            """
         }
     }
 }
@@ -52,27 +44,19 @@ enum CarthageInteractorError: FatalError, Equatable {
 // MARK: - Carthage Interacting
 
 public protocol CarthageInteracting {
-    /// Fetches `Carthage` dependencies.
+    /// Installs `Carthage` dependencies
     /// - Parameters:
     ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
-    ///   - dependencies: List of dependencies to fetch using `Carthage`.
-    ///   - platforms: List of platforms for which you want to fetch dependencies.
-    func fetch(
+    ///   - dependencies:  List of dependencies to install using `Carthage`.
+    ///   - platforms: List of platforms for which you want to install dependencies.
+    ///   - shouldUpdate: Indicates whether dependencies should be updated or fetched based on the `Tuist/Lockfiles/Cartfile.resolved` lockfile.
+    /// - Returns: A graph that represents dependencies installed using `Carthage`.
+    func install(
         dependenciesDirectory: AbsolutePath,
         dependencies: CarthageDependencies,
-        platforms: Set<Platform>
-    ) throws
-
-    /// Updates `Carthage` dependencies.
-    /// - Parameters:
-    ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
-    ///   - dependencies: List of dependencies to update using `Carthage`.
-    ///   - platforms: List of platforms for which you want to update dependencies.
-    func update(
-        dependenciesDirectory: AbsolutePath,
-        dependencies: CarthageDependencies,
-        platforms: Set<Platform>
-    ) throws
+        platforms: Set<Platform>,
+        shouldUpdate: Bool
+    ) throws -> DependenciesGraph
 
     /// Removes all cached `Carthage` dependencies.
     /// - Parameter dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
@@ -82,49 +66,66 @@ public protocol CarthageInteracting {
 // MARK: - Carthage Interactor
 
 public final class CarthageInteractor: CarthageInteracting {
-    private let fileHandler: FileHandling
     private let carthageController: CarthageControlling
+    private let carthageGraphGenerator: CarthageGraphGenerating
 
     public init(
-        fileHandler: FileHandling = FileHandler.shared,
-        carthageController: CarthageControlling = CarthageController.shared
+        carthageController: CarthageControlling = CarthageController.shared,
+        carthageGraphGenerator: CarthageGraphGenerating = CarthageGraphGenerator()
     ) {
-        self.fileHandler = fileHandler
         self.carthageController = carthageController
+        self.carthageGraphGenerator = carthageGraphGenerator
     }
 
-    public func fetch(
+    public func install(
         dependenciesDirectory: AbsolutePath,
         dependencies: CarthageDependencies,
-        platforms: Set<Platform>
-    ) throws {
-        logger.info("Resolving and fetching Carthage dependencies.", metadata: .section)
+        platforms: Set<Platform>,
+        shouldUpdate: Bool
+    ) throws -> DependenciesGraph {
+        logger.info("Installing Carthage dependencies.", metadata: .subsection)
 
-        try install(
-            dependenciesDirectory: dependenciesDirectory,
-            dependencies: dependencies,
-            platforms: platforms,
-            shouldUpdate: false
-        )
+        // check availability of `carthage`
+        guard carthageController.canUseSystemCarthage() else {
+            throw CarthageInteractorError.carthageNotFound
+        }
 
-        logger.info("Carthage dependencies resolved and fetched successfully.", metadata: .subsection)
-    }
+        // install depedencies and generate dependencies graph
+        let dependenciesGraph: DependenciesGraph = try FileHandler.shared
+            .inTemporaryDirectory { temporaryDirectoryPath in
+                // prepare paths
+                let pathsProvider = CarthagePathsProvider(
+                    dependenciesDirectory: dependenciesDirectory,
+                    temporaryDirectoryPath: temporaryDirectoryPath
+                )
 
-    public func update(
-        dependenciesDirectory: AbsolutePath,
-        dependencies: CarthageDependencies,
-        platforms: Set<Platform>
-    ) throws {
-        logger.info("Updating Carthage dependencies.", metadata: .section)
+                // prepare for installation
+                try loadDependencies(pathsProvider: pathsProvider, dependencies: dependencies)
 
-        try install(
-            dependenciesDirectory: dependenciesDirectory,
-            dependencies: dependencies,
-            platforms: platforms,
-            shouldUpdate: true
-        )
+                // run `Carthage`
+                if shouldUpdate {
+                    try carthageController.update(
+                        at: temporaryDirectoryPath,
+                        platforms: platforms
+                    )
+                } else {
+                    try carthageController.bootstrap(
+                        at: temporaryDirectoryPath,
+                        platforms: platforms
+                    )
+                }
 
-        logger.info("Carthage dependencies updated successfully.", metadata: .subsection)
+                // post installation
+                try saveDepedencies(pathsProvider: pathsProvider)
+
+                // generate dependencies graph
+                return try carthageGraphGenerator
+                    .generate(at: pathsProvider.temporaryCarthageBuildDirectory)
+            }
+
+        logger.info("Carthage dependencies installed successfully.", metadata: .subsection)
+
+        return dependenciesGraph
     }
 
     public func clean(dependenciesDirectory: AbsolutePath) throws {
@@ -134,63 +135,16 @@ public final class CarthageInteractor: CarthageInteracting {
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
             .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
 
-        try fileHandler.delete(carthageDirectory)
-        try fileHandler.delete(cartfileResolvedPath)
+        try FileHandler.shared.delete(carthageDirectory)
+        try FileHandler.shared.delete(cartfileResolvedPath)
     }
 
     // MARK: - Installation
 
-    /// Installs given `dependencies` at `dependenciesDirectory`.
-    private func install(
-        dependenciesDirectory: AbsolutePath,
-        dependencies: CarthageDependencies,
-        platforms: Set<Platform>,
-        shouldUpdate: Bool
-    ) throws {
-        // check availability of `carthage`
-        guard carthageController.canUseSystemCarthage() else {
-            throw CarthageInteractorError.carthageNotFound
-        }
-
-        // check if XCFrameworks production supported if it is needed
-        if dependencies.options.contains(.useXCFrameworks), !(try carthageController.isXCFrameworksProductionSupported()) {
-            throw CarthageInteractorError.xcFrameworksProductionNotSupported
-        }
-
-        try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in
-            // prepare paths
-            let pathsProvider = CarthagePathsProvider(
-                dependenciesDirectory: dependenciesDirectory,
-                temporaryDirectoryPath: temporaryDirectoryPath
-            )
-
-            // prepare for installation
-            try loadDependencies(pathsProvider: pathsProvider, dependencies: dependencies)
-
-            // run `Carthage`
-            if shouldUpdate {
-                try carthageController.update(
-                    at: temporaryDirectoryPath,
-                    platforms: platforms,
-                    options: dependencies.options
-                )
-            } else {
-                try carthageController.bootstrap(
-                    at: temporaryDirectoryPath,
-                    platforms: platforms,
-                    options: dependencies.options
-                )
-            }
-
-            // post installation
-            try saveDepedencies(pathsProvider: pathsProvider)
-        }
-    }
-
     /// Loads lockfile and dependencies into working directory if they had been saved before.
     private func loadDependencies(pathsProvider: CarthagePathsProvider, dependencies: CarthageDependencies) throws {
         // copy build directory from previous run if exist
-        if fileHandler.exists(pathsProvider.destinationCarthageDirectory) {
+        if FileHandler.shared.exists(pathsProvider.destinationCarthageDirectory) {
             try copy(
                 from: pathsProvider.destinationCarthageDirectory,
                 to: pathsProvider.temporaryCarthageBuildDirectory
@@ -198,7 +152,7 @@ public final class CarthageInteractor: CarthageInteracting {
         }
 
         // copy `Cartfile.resolved` directory from previous run if exist
-        if fileHandler.exists(pathsProvider.destinationCarfileResolvedPath) {
+        if FileHandler.shared.exists(pathsProvider.destinationCarfileResolvedPath) {
             try copy(
                 from: pathsProvider.destinationCarfileResolvedPath,
                 to: pathsProvider.temporaryCarfileResolvedPath
@@ -208,7 +162,7 @@ public final class CarthageInteractor: CarthageInteracting {
         // create `Cartfile`
         let cartfileContent = dependencies.cartfileValue()
         let cartfilePath = pathsProvider.temporaryDirectoryPath.appending(component: "Cartfile")
-        try fileHandler.write(cartfileContent, path: cartfilePath, atomically: true)
+        try FileHandler.shared.write(cartfileContent, path: cartfilePath, atomically: true)
 
         // log
         logger.debug("Cartfile:", metadata: .subsection)
@@ -218,10 +172,10 @@ public final class CarthageInteractor: CarthageInteracting {
     /// Saves lockfile resolved depedencies in `Tuist/Depedencies` directory.
     private func saveDepedencies(pathsProvider: CarthagePathsProvider) throws {
         // validation
-        guard fileHandler.exists(pathsProvider.temporaryCarfileResolvedPath) else {
+        guard FileHandler.shared.exists(pathsProvider.temporaryCarfileResolvedPath) else {
             throw CarthageInteractorError.cartfileResolvedNotFound
         }
-        guard fileHandler.exists(pathsProvider.temporaryCarthageBuildDirectory) else {
+        guard FileHandler.shared.exists(pathsProvider.temporaryCarthageBuildDirectory) else {
             throw CarthageInteractorError.buildDirectoryNotFound
         }
 
@@ -241,11 +195,11 @@ public final class CarthageInteractor: CarthageInteracting {
     // MARK: - Helpers
 
     private func copy(from fromPath: AbsolutePath, to toPath: AbsolutePath) throws {
-        if fileHandler.exists(toPath) {
-            try fileHandler.replace(toPath, with: fromPath)
+        if FileHandler.shared.exists(toPath) {
+            try FileHandler.shared.replace(toPath, with: fromPath)
         } else {
-            try fileHandler.createFolder(toPath.removingLastComponent())
-            try fileHandler.copy(from: fromPath, to: toPath)
+            try FileHandler.shared.createFolder(toPath.removingLastComponent())
+            try FileHandler.shared.copy(from: fromPath, to: toPath)
         }
     }
 }

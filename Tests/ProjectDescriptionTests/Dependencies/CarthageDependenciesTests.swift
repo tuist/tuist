@@ -5,16 +5,10 @@ import XCTest
 
 final class CarthageDependenciesTests: XCTestCase {
     func test_carthageDependencies_codable() throws {
-        let subject: CarthageDependencies = .carthage(
-            [
-                .github(path: "Dependency/Dependency", requirement: .revision("xyz")),
-                .git(path: "Git/Git", requirement: .atLeast("1.2.3")),
-            ],
-            options: [
-                .useXCFrameworks,
-                .noUseBinaries,
-            ]
-        )
+        let subject: CarthageDependencies = [
+            .github(path: "Dependency/Dependency", requirement: .revision("xyz")),
+            .git(path: "Git/Git", requirement: .atLeast("1.2.3")),
+        ]
         XCTAssertCodable(subject)
     }
 
@@ -59,18 +53,6 @@ final class CarthageDependenciesTests: XCTestCase {
 
     func test_carthageRequirement_revision_codable() throws {
         let subject: CarthageDependencies.Requirement = .revision("revision")
-        XCTAssertCodable(subject)
-    }
-
-    // MARK: - Carthage Options tests
-
-    func test_carthageOptions_useXCFrameworks_codable() throws {
-        let subject: CarthageDependencies.Options = .useXCFrameworks
-        XCTAssertCodable(subject)
-    }
-
-    func test_carthageOptions_noUseBinaries_codable() throws {
-        let subject: CarthageDependencies.Options = .noUseBinaries
         XCTAssertCodable(subject)
     }
 }
