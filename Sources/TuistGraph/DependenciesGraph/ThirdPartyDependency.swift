@@ -2,20 +2,67 @@ import Foundation
 import TSCBasic
 
 // A enum containing information about third party dependency.
-public enum ThirdPartyDependency: Hashable, Equatable, Codable {
+public enum ThirdPartyDependency: Hashable, Codable {
+    /// A dependency that is imported as source code.
+    case sources(products: [Product], targets: [Target]) // TODO: add the supported platforms read from the SPM package to `sources`
+
     /// A dependency that represents a pre-compiled .xcframework.
     case xcframework(path: AbsolutePath, architectures: Set<BinaryArchitecture>)
+}
+
+extension ThirdPartyDependency {
+    /// A product that can be imported from projects depending on this dependency.
+    public struct Product: Codable, Hashable {
+        /// The name of the product.
+        public let name: String
+
+        /// Tha targets belonging to the product.
+        public let targets: [String]
+
+        // TODO: add the product type read from the SPM package (e.g. static or dynamic library)
+    }
+}
+
+extension ThirdPartyDependency {
+    public struct Target: Codable, Hashable {
+        /// The paths containing the target sources.
+        public let sources: [AbsolutePath]
+
+        /// The paths containing the target resources.
+        public let resources: [AbsolutePath]
+
+        /// The target dependencies
+        public let dependencies: [Dependency]
+
+        // TODO: check and add any other information needed to compile the sources (e.g. build flags)
+    }
+}
+
+extension ThirdPartyDependency.Target {
+    public enum Dependency: Codable, Hashable {
+        /// A target belonging to the dependency itself.
+        case target(name: String)
+
+        /// A target belonging to the another dependency.
+        case thirdPartyTarget(dependency: String, target: String)
+
+        /// A binary dependency.
+        case xcframework(path: AbsolutePath)
+    }
 }
 
 // MARK: - Codable
 
 extension ThirdPartyDependency {
     private enum Kind: String, Codable {
+        case sources
         case xcframework
     }
 
     private enum CodingKeys: String, CodingKey {
         case kind
+        case products
+        case targets
         case path
         case architectures
     }
@@ -24,6 +71,10 @@ extension ThirdPartyDependency {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
         switch kind {
+        case .sources:
+            let products = try container.decode([Product].self, forKey: .products)
+            let targets = try container.decode([Target].self, forKey: .targets)
+            self = .sources(products: products, targets: targets)
         case .xcframework:
             let path = try container.decode(AbsolutePath.self, forKey: .path)
             let architectures = try container.decode(Set<BinaryArchitecture>.self, forKey: .architectures)
@@ -34,10 +85,62 @@ extension ThirdPartyDependency {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
+        case let .sources(products, targets):
+            try container.encode(Kind.sources, forKey: .kind)
+            try container.encode(products, forKey: .products)
+            try container.encode(targets, forKey: .targets)
         case let .xcframework(path, architectures):
             try container.encode(Kind.xcframework, forKey: .kind)
             try container.encode(path, forKey: .path)
             try container.encode(architectures, forKey: .architectures)
+        }
+    }
+}
+
+extension ThirdPartyDependency.Target.Dependency {
+    private enum Kind: String, Codable {
+        case target
+        case thirdPartyTarget
+        case xcframework
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case kind
+        case dependency
+        case target
+        case path
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let kind = try container.decode(Kind.self, forKey: .kind)
+        switch kind {
+        case .target:
+            let name = try container.decode(String.self, forKey: .target)
+            self = .target(name: name)
+        case .thirdPartyTarget:
+            let dependency = try container.decode(String.self, forKey: .dependency)
+            let target = try container.decode(String.self, forKey: .target)
+            self = .thirdPartyTarget(dependency: dependency, target: target)
+        case .xcframework:
+            let path = try container.decode(AbsolutePath.self, forKey: .path)
+            self = .xcframework(path: path)
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case let .target(name):
+            try container.encode(Kind.target, forKey: .kind)
+            try container.encode(name, forKey: .target)
+        case let .thirdPartyTarget(dependency, target):
+            try container.encode(Kind.thirdPartyTarget, forKey: .kind)
+            try container.encode(dependency, forKey: .dependency)
+            try container.encode(target, forKey: .target)
+        case let .xcframework(path):
+            try container.encode(Kind.xcframework, forKey: .kind)
+            try container.encode(path, forKey: .path)
         }
     }
 }
