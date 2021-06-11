@@ -7,12 +7,6 @@ public struct CarthageDependencies: Codable, Equatable {
 
     /// Creates `CarthageDependencies` instance.
     /// - Parameter dependencies: List of depedencies that can be installed using Carthage.
-    public static func carthage(_ dependencies: [Dependency]) -> Self {
-        .init(dependencies)
-    }
-
-    /// Creates `CarthageDependencies` instance.
-    /// - Parameter dependencies: List of depedencies that can be installed using Carthage.
     public init(_ dependencies: [Dependency]) {
         self.dependencies = dependencies
     }

@@ -17,19 +17,15 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
 
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         let manifest: ProjectDescription.Dependencies = Dependencies(
-            carthage: .carthage(
-                [
-                    .github(path: "Dependency1", requirement: .exact("1.1.1")),
-                    .git(path: "Dependency.git", requirement: .branch("BranchName")),
-                    .binary(path: "DependencyXYZ", requirement: .atLeast("2.3.1")),
-                ]
-            ),
-            swiftPackageManager: .swiftPackageManager(
-                [
-                    .local(path: .init(localPackagePath.pathString)),
-                    .remote(url: "RemotePackage.com", requirement: .exact("1.2.3")),
-                ]
-            ),
+            carthage: [
+                .github(path: "Dependency1", requirement: .exact("1.1.1")),
+                .git(path: "Dependency.git", requirement: .branch("BranchName")),
+                .binary(path: "DependencyXYZ", requirement: .atLeast("2.3.1")),
+            ],
+            swiftPackageManager: [
+                .local(path: .init(localPackagePath.pathString)),
+                .remote(url: "RemotePackage.com", requirement: .exact("1.2.3")),
+            ],
             platforms: [.iOS, .macOS, .tvOS]
         )
 

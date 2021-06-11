@@ -5,12 +5,10 @@ import XCTest
 
 final class CarthageDependenciesTests: XCTestCase {
     func test_carthageDependencies_codable() throws {
-        let subject: CarthageDependencies = .carthage(
-            [
-                .github(path: "Dependency/Dependency", requirement: .revision("xyz")),
-                .git(path: "Git/Git", requirement: .atLeast("1.2.3")),
-            ]
-        )
+        let subject: CarthageDependencies = [
+            .github(path: "Dependency/Dependency", requirement: .revision("xyz")),
+            .git(path: "Git/Git", requirement: .atLeast("1.2.3")),
+        ]
         XCTAssertCodable(subject)
     }
 
