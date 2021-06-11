@@ -17,6 +17,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - **breaking** Remove the `CarthageDependencies.Options` from the `Dependencies.swift` manifest model. [#3043](https://github.com/tuist/tuist/pull/3043) by [@laxmorek](https://github.com/laxmorek)
 
+### Fixed
+
+- Fix manifest loading when using Swift 5.5 [#3062](https://github.com/tuist/tuist/pull/3062) by [@kwridan](https://github.com/kwridan)
+
 ## 1.44.0 - DubDub
 
 ### Added
