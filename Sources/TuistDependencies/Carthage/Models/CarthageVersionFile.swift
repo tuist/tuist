@@ -39,8 +39,11 @@ extension CarthageVersionFile {
         /// Returns architectures the product is built for.
         var architectures: [BinaryArchitecture] {
             // example identifier: `ios-arm64_i386_x86_64-simulator`
-            identifier
-                .components(separatedBy: "-")[1]
+
+            let identifierComponents = identifier.components(separatedBy: ["-"])
+            guard identifierComponents.count >= 2 else { return [] }
+
+            return identifierComponents[1]
                 .replacingOccurrences(of: "x86_64", with: "x8664")
                 .replacingOccurrences(of: "arm64_32", with: "arm6432")
                 .components(separatedBy: ["_"])
