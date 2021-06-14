@@ -27,12 +27,15 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             result[packageFolder.basename] = packageInfo
         }
 
-        let thirdPartyDependencies = try packageInfos.mapValues { try Self.mapToThirdPartyDependency(packageInfo: $0) }
+        let thirdPartyDependencies = Dictionary(uniqueKeysWithValues: try packageInfos.map { name, packageInfo in
+            (name, try Self.mapToThirdPartyDependency(name: name, packageInfo: packageInfo))
+        })
+
         return DependenciesGraph(thirdPartyDependencies: thirdPartyDependencies)
     }
 
-    private static func mapToThirdPartyDependency(packageInfo _: PackageInfo) throws -> ThirdPartyDependency {
+    private static func mapToThirdPartyDependency(name: String, packageInfo _: PackageInfo) throws -> ThirdPartyDependency {
         // TODO: map `PackageInfo` to actual `ThirdPartyDependency`
-        return .xcframework(path: .root, architectures: [])
+        return .xcframework(name: name, path: .root, architectures: [])
     }
 }
