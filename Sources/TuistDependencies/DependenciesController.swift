@@ -9,13 +9,10 @@ enum DependenciesControllerError: FatalError, Equatable {
     /// Thrown when platforms for dependencies to install are not determined in `Dependencies.swift`.
     case noPlatforms
 
-    /// Thrown when the same dependency is defined more than once.
-    case duplicatedDependency(String)
-
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .noPlatforms, .duplicatedDependency:
+        case .noPlatforms:
             return .abort
         }
     }
@@ -25,8 +22,6 @@ enum DependenciesControllerError: FatalError, Equatable {
         switch self {
         case .noPlatforms:
             return "Platforms were not determined. Select platforms in `Dependencies.swift` manifest file."
-        case let .duplicatedDependency(name):
-            return "The \(name) dependency is defined more than once."
         }
     }
 }
@@ -155,15 +150,5 @@ public final class DependenciesController: DependenciesControlling {
         } else {
             try dependenciesGraphController.save(dependenciesGraph, to: path)
         }
-    }
-}
-
-extension DependenciesGraph {
-    fileprivate func merging(with other: Self) throws -> Self {
-        let mergedThirdPartyDependencies = try thirdPartyDependencies.merging(other.thirdPartyDependencies) { old, _ in
-            let name = self.thirdPartyDependencies.first { $0.value == old }!.key
-            throw DependenciesControllerError.duplicatedDependency(name)
-        }
-        return .init(thirdPartyDependencies: mergedThirdPartyDependencies)
     }
 }

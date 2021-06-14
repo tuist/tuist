@@ -4,10 +4,20 @@ import TSCBasic
 // A enum containing information about third party dependency.
 public enum ThirdPartyDependency: Hashable, Codable {
     /// A dependency that is imported as source code.
-    case sources(products: [Product], targets: [Target]) // TODO: add the supported platforms read from the SPM package to `sources`
+    case sources(name: String, products: [Product], targets: [Target]) // TODO: add the supported platforms read from the SPM package to `sources`
 
     /// A dependency that represents a pre-compiled .xcframework.
-    case xcframework(path: AbsolutePath, architectures: Set<BinaryArchitecture>)
+    case xcframework(name: String, path: AbsolutePath, architectures: Set<BinaryArchitecture>)
+}
+
+extension ThirdPartyDependency {
+    /// The name of the third party dependency.
+    public var name: String {
+        switch self {
+        case let .xcframework(name, _, _):
+            return name
+        }
+    }
 }
 
 extension ThirdPartyDependency {
@@ -61,6 +71,7 @@ extension ThirdPartyDependency {
 
     private enum CodingKeys: String, CodingKey {
         case kind
+        case name
         case products
         case targets
         case path
@@ -76,21 +87,24 @@ extension ThirdPartyDependency {
             let targets = try container.decode([Target].self, forKey: .targets)
             self = .sources(products: products, targets: targets)
         case .xcframework:
+            let name = try container.decode(String.self, forKey: .name)
             let path = try container.decode(AbsolutePath.self, forKey: .path)
             let architectures = try container.decode(Set<BinaryArchitecture>.self, forKey: .architectures)
-            self = .xcframework(path: path, architectures: architectures)
+            self = .xcframework(name: name, path: path, architectures: architectures)
         }
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
-        case let .sources(products, targets):
+        case let .sources(name, products, targets):
             try container.encode(Kind.sources, forKey: .kind)
+            try container.encode(name, forKey: .name)
             try container.encode(products, forKey: .products)
             try container.encode(targets, forKey: .targets)
-        case let .xcframework(path, architectures):
+        case let .xcframework(name, path, architectures):
             try container.encode(Kind.xcframework, forKey: .kind)
+            try container.encode(name, forKey: .name)
             try container.encode(path, forKey: .path)
             try container.encode(architectures, forKey: .architectures)
         }

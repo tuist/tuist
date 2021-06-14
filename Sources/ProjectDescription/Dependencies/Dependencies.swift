@@ -8,14 +8,14 @@ public struct Dependencies: Codable, Equatable {
     /// The description of a dependency that can be installed using Swift Package Manager.
     public let swiftPackageManager: SwiftPackageManagerDependencies?
 
-    /// List of platforms for which you want to install depedencies.
+    /// List of platforms for which you want to install dependencies.
     public let platforms: Set<Platform>
 
     /// Initializes a new `Dependencies` manifest instance.
     /// - Parameters:
     ///   - carthage: The description of dependencies that can be installed using Carthage. Pass `nil` if you don't have dependencies from Carthage.
     ///   - swiftPackageManager: WIP - it doesnt ready for use, pass `nil`.
-    ///   - platforms: List of platforms for which you want to install depedencies.
+    ///   - platforms: List of platforms for which you want to install dependencies.
     public init(
         carthage: CarthageDependencies? = nil,
         swiftPackageManager: SwiftPackageManagerDependencies? = nil,

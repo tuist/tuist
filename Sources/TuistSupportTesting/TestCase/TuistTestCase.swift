@@ -23,6 +23,14 @@ public final class MockFileHandler: FileHandler {
     // swiftlint:disable:next force_try
     override public var currentPath: AbsolutePath { try! temporaryDirectory() }
 
+    public var stubContentsOfDirectory: ((AbsolutePath) throws -> [AbsolutePath])?
+    override public func contentsOfDirectory(_ path: AbsolutePath) throws -> [AbsolutePath] {
+        guard let stubContentsOfDirectory = stubContentsOfDirectory else {
+            return try super.contentsOfDirectory(path)
+        }
+        return try stubContentsOfDirectory(path)
+    }
+
     public var stubExists: ((AbsolutePath) -> Bool)?
     override public func exists(_ path: AbsolutePath) -> Bool {
         guard let stubExists = stubExists else {

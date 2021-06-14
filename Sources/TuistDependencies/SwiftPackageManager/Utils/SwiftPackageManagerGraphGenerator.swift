@@ -15,24 +15,27 @@ public protocol SwiftPackageManagerGraphGenerating {
 public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGenerating {
     private let swiftPackageManagerController: SwiftPackageManagerControlling
 
-    public init(swiftPackageManagerController: SwiftPackageManagerControlling) {
+    public init(swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController()) {
         self.swiftPackageManagerController = swiftPackageManagerController
     }
 
     public func generate(at path: AbsolutePath) throws -> DependenciesGraph {
-        let packageFolders = try FileHandler.shared.contentsOfDirectory(path.appending(.init("checkouts")))
+        let packageFolders = try FileHandler.shared.contentsOfDirectory(path.appending(component: "checkouts"))
         let packageInfos: [String: PackageInfo] = try packageFolders.reduce(into: [:]) { result, packageFolder in
-            let manifest = packageFolder.appending(.init("Package.swift"))
+            let manifest = packageFolder.appending(component: "Package.swift")
             let packageInfo = try swiftPackageManagerController.loadPackageInfo(at: manifest)
             result[packageFolder.basename] = packageInfo
         }
 
-        let thirdPartyDependencies = try packageInfos.mapValues { try Self.mapToThirdPartyDependency(packageInfo: $0) }
+        let thirdPartyDependencies = Dictionary(uniqueKeysWithValues: try packageInfos.map { name, packageInfo in
+            (name, try Self.mapToThirdPartyDependency(name: name, packageInfo: packageInfo))
+        })
+
         return DependenciesGraph(thirdPartyDependencies: thirdPartyDependencies)
     }
 
-    private static func mapToThirdPartyDependency(packageInfo _: PackageInfo) throws -> ThirdPartyDependency {
+    private static func mapToThirdPartyDependency(name: String, packageInfo _: PackageInfo) throws -> ThirdPartyDependency {
         // TODO: map `PackageInfo` to actual `ThirdPartyDependency`
-        return .xcframework(path: .root, architectures: [])
+        return .xcframework(name: name, path: .root, architectures: [])
     }
 }

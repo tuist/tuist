@@ -30,7 +30,7 @@ A `Dependencies` manifest allows for defining external dependencies for Tuist.
 | --------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------ | -------- | ------------------------ |
 | `carthage`            | The description of a dependency that can be installed using Carthage.              | [`CarthageDependencies`](#carthage-dependencies)                         | No       | `nil`                    |
 | `swiftPackageManager` | The description of a dependency that can be installed using Swift Package Manager. | [`SwiftPackageManagerDependencies`](#swift-package-manager-dependencies) | No       | `nil`                    |
-| `platforms`           | List of platforms for which you want to install depedencies.                       | [`Set<Platform>`](/manifests/project#platform)                           | No       | `Set(Platform.allCases)` |
+| `platforms`           | List of platforms for which you want to install dependencies.                       | [`Set<Platform>`](/manifests/project#platform)                           | No       | `Set(Platform.allCases)` |
 
 ### CarthageDependencies
 
@@ -38,7 +38,7 @@ Contains the description of a dependency that can be installed using Carthage.
 
 | Property       | Description                                                | Type                                                                     | Required | Default |
 | -------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------ | -------- | ------- |
-| `dependencies` | List of depedencies that will be installed using Carthage. | [`[CarthageDependencies.Dependency]`](#carthage-dependencies-dependency) | Yes      |         |
+| `dependencies` | List of dependencies that will be installed using Carthage. | [`[CarthageDependencies.Dependency]`](#carthage-dependencies-dependency) | Yes      |         |
 
 ### CarthageDependencies Dependency
 

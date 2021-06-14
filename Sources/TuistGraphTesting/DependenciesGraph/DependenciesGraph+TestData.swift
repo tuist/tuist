@@ -10,6 +10,7 @@ public extension DependenciesGraph {
           "thirdPartyDependencies" : {
             "RxSwift" : {
               "kind" : "xcframework",
+              "name" : "RxSwift",
               "path" : "/Tuist/Dependencies/Carthage/RxSwift.xcframework",
               "architectures" : [
                 "arm64_32",

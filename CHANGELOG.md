@@ -11,6 +11,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
+- Fixed a typo on the `tuist generate` command documentation for argument --skip-test-targets. [#3069](https://github.com/tuist/tuist/pull/3069) by [@mrcloud](https://github.com/mrcloud)
 - **breaking** The `tuist dependencies` command requires the `Carthage` version to be at least `0.37.0`. [#3043](https://github.com/tuist/tuist/pull/3043) by [@laxmorek](https://github.com/laxmorek)
 
 ### Removed
@@ -193,7 +194,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Remove build action for project generated in `tuist test` [#2592](https://github.com/tuist/tuist/pull/2592) [@fortmarek](https://github.com/fortmarek)
 - Change the graph tree-shaker mapper to work with the value graph too [#2545](https://github.com/tuist/tuist/pull/2545) by [@pepibumur](https://github.com/pepibumur).
 - Migrate `GraphViz` to `ValueGraph` [#2542](https://github.com/tuist/tuist/pull/2542) by [@fortmarek](https://github.com/fortmarek)
-- Rename `TuistGraph.Dependency` to `TuistGraph.TargetDepedency`. [#2614](https://github.com/tuist/tuist/pull/2614) by [@laxmorek](https://github.com/laxmorek)
+- Rename `TuistGraph.Dependency` to `TuistGraph.TargetDependency`. [#2614](https://github.com/tuist/tuist/pull/2614) by [@laxmorek](https://github.com/laxmorek)
 
 ### Fixed
 

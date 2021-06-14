@@ -60,7 +60,7 @@ final class GitHandlerTests: TuistUnitTestCase {
         let expectedCommand = [
             "git",
             "--git-dir",
-            path.appending(.init(".git")).pathString,
+            path.appending(component: ".git").pathString,
             "--work-tree",
             path.pathString,
             "checkout",
@@ -73,7 +73,7 @@ final class GitHandlerTests: TuistUnitTestCase {
         XCTAssertTrue(system.called(
             "git",
             "--git-dir",
-            path.appending(.init(".git")).pathString,
+            path.appending(component: ".git").pathString,
             "--work-tree",
             path.pathString,
             "checkout",
