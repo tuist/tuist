@@ -31,8 +31,8 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
         fileHandler.stubContentsOfDirectory = { path in
             XCTAssertEqual(path, checkoutsPath)
             return [
-                checkoutsPath.appending(component: "alamofire"),
-                checkoutsPath.appending(component: "google-app-measurement"),
+                checkoutsPath.appending(component: "Alamofire"),
+                checkoutsPath.appending(component: "GoogleAppMeasurement"),
                 checkoutsPath.appending(component: "test"),
             ]
         }
@@ -42,10 +42,10 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
             loadPackageInfoCalls += 1
             switch loadPackageInfoCalls {
             case 1:
-                XCTAssertEqual(path, checkoutsPath.appending(component: "alamofire").appending(component: "Package.swift"))
+                XCTAssertEqual(path, checkoutsPath.appending(component: "Alamofire").appending(component: "Package.swift"))
                 return PackageInfo.alamofire
             case 2:
-                XCTAssertEqual(path, checkoutsPath.appending(component: "google-app-measurement").appending(component: "Package.swift"))
+                XCTAssertEqual(path, checkoutsPath.appending(component: "GoogleAppMeasurement").appending(component: "Package.swift"))
                 return PackageInfo.googleAppMeasurement
             case 3:
                 XCTAssertEqual(path, checkoutsPath.appending(component: "test").appending(component: "Package.swift"))
@@ -62,35 +62,9 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
         // Then
         let expected = DependenciesGraph(
             thirdPartyDependencies: [
-                "alamofire": .sources(
-                    name: "alamofire",
-                    products: [],
-                    targets: [],
-                    minDeploymentTargets: [
-                        .iOS("10.0", .all),
-                        .macOS("10.12"),
-                        .tvOS("10.0"),
-                        .watchOS("3.0"),
-                    ]
-                ),
-                "google-app-measurement": .sources(
-                    name: "google-app-measurement",
-                    products: [],
-                    targets: [],
-                    minDeploymentTargets: [
-                        .iOS("10.0", .all),
-                    ]
-                ),
-                "test": .sources(
-                    name: "test",
-                    products: [],
-                    targets: [],
-                    minDeploymentTargets: [
-                        .iOS("13.0", .all),
-                        .macOS("10.15"),
-                        .watchOS("6.0"),
-                    ]
-                ),
+                "Alamofire": PackageInfo.alamofireThirdPartyDependency,
+                "GoogleAppMeasurement": PackageInfo.googleAppMeasurementThirdPartyDependency,
+                "test": PackageInfo.testThirdPartyDependency,
             ]
         )
 

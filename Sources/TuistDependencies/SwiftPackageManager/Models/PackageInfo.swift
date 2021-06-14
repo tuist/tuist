@@ -4,11 +4,14 @@
 /// It decodes data encoded from Manifest.swift: https://github.com/apple/swift-package-manager/blob/06f9b30f4593940272f57f6284e5614d817d2f22/Sources/PackageModel/Manifest.swift#L372-L409
 /// Fields not needed by tuist are commented out and not decoded at all.
 public struct PackageInfo: Decodable, Equatable {
-    /// The declared platforms in the manifest.
-    public let platforms: [Platform]
+    /// The products declared in the manifest.
+    public let products: [Product]
 
     /// The targets declared in the manifest.
     public let targets: [Target]
+
+    /// The declared platforms in the manifest.
+    public let platforms: [Platform]
 
     // TODO: verify whether these properties are required to generate the Tuist graph
 
@@ -38,15 +41,13 @@ public struct PackageInfo: Decodable, Equatable {
     // /// The declared package dependencies.
     // public let dependencies: [PackageDependencyDescription]
 
-    // /// The products declared in the manifest.
-    // public let products: [ProductDescription]
-
     // /// Whether kind of package this manifest is from.
     // public let packageKind: PackageReference.Kind
 
-    public init(platforms: [Platform], targets: [Target]) {
-        self.platforms = platforms
+    public init(products: [Product], targets: [Target], platforms: [Platform]) {
+        self.products = products
         self.targets = targets
+        self.platforms = platforms
     }
 }
 
@@ -66,6 +67,61 @@ extension PackageInfo {
     public struct PackageConditionDescription: Decodable, Equatable {
         public let platformNames: [String]
         public let config: String?
+    }
+}
+
+// MARK: Product
+
+extension PackageInfo {
+    public struct Product: Decodable, Equatable {
+        /// The name of the product.
+        public let name: String
+
+        /// The type of product to create.
+        public let type: Product.ProductType
+
+        /// The list of targets to combine to form the product.
+        ///
+        /// This is never empty, and is only the targets which are required to be in
+        /// the product, but not necessarily their transitive dependencies.
+        public let targets: [String]
+    }
+}
+
+extension PackageInfo.Product {
+    public enum ProductType: Equatable {
+        /// The type of library.
+        public enum LibraryType: String, Codable {
+            /// Static library.
+            case `static`
+
+            /// Dynamic library.
+            case `dynamic`
+
+            /// The type of library is unspecified and should be decided by package manager.
+            case automatic
+        }
+
+        /// A library product.
+        case library(LibraryType)
+
+        /// An executable product.
+        case executable
+
+        /// An plugin product.
+        case plugin
+
+        /// A test product.
+        case test
+
+        public var isLibrary: Bool {
+            switch self {
+            case .library:
+                return true
+            case .executable, .plugin, .test:
+                return false
+            }
+        }
     }
 }
 
@@ -240,6 +296,31 @@ extension PackageInfo.Target.Dependency: Decodable {
                 name: try unkeyedValues.decode(String.self),
                 condition: try unkeyedValues.decodeIfPresent(PackageConditionDescription.self)
             )
+        }
+    }
+}
+
+extension PackageInfo.Product.ProductType: Decodable {
+    private enum CodingKeys: String, CodingKey {
+        case library, executable, plugin, test
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        guard let key = values.allKeys.first(where: values.contains) else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Did not find a matching key"))
+        }
+        switch key {
+        case .library:
+            var unkeyedValues = try values.nestedUnkeyedContainer(forKey: key)
+            let libraryType = try unkeyedValues.decode(PackageInfo.Product.ProductType.LibraryType.self)
+            self = .library(libraryType)
+        case .test:
+            self = .test
+        case .executable:
+            self = .executable
+        case .plugin:
+            self = .plugin
         }
     }
 }

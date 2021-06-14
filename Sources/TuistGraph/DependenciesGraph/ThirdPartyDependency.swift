@@ -23,13 +23,32 @@ extension ThirdPartyDependency {
 extension ThirdPartyDependency {
     /// A product that can be imported from projects depending on this dependency.
     public struct Product: Codable, Hashable {
+        /// The type of product.
+        public enum LibraryType: String, Codable {
+            /// Static library.
+            case `static`
+
+            /// Dynamic library.
+            case `dynamic`
+
+            /// The type of library is unspecified and should be decided at generation time.
+            case automatic
+        }
+
         /// The name of the product.
         public let name: String
 
         /// Tha targets belonging to the product.
         public let targets: [String]
 
-        // TODO: add the product type read from the SPM package (e.g. static or dynamic library)
+        /// The type of product.
+        public let libraryType: LibraryType
+
+        public init(name: String, targets: [String], libraryType: LibraryType) {
+            self.name = name
+            self.targets = targets
+            self.libraryType = libraryType
+        }
     }
 }
 

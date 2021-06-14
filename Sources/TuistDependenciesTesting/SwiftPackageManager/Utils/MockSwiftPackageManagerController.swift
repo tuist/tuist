@@ -35,6 +35,6 @@ public final class MockSwiftPackageManagerController: SwiftPackageManagerControl
 
     public func loadPackageInfo(at path: AbsolutePath) throws -> PackageInfo {
         invokedLoadPackageInfo = true
-        return try loadPackageInfoStub?(path) ?? .init(platforms: [], targets: [])
+        return try loadPackageInfoStub?(path) ?? .init(products: [], targets: [], platforms: [])
     }
 }

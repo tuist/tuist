@@ -60,11 +60,25 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
     }
 
     private static func mapToThirdPartyDependency(name: String, packageInfo: PackageInfo) throws -> ThirdPartyDependency {
+        let products: [ThirdPartyDependency.Product] = packageInfo.products.compactMap { product in
+            guard let libraryType = product.type.libraryType else {
+                return nil
+            }
+
+            return .init(
+                name: product.name,
+                targets: product.targets,
+                libraryType: libraryType
+            )
+        }
+
+        let minDeploymentTargets = Set(try packageInfo.platforms.map { try DeploymentTarget.from(platform: $0) })
+
         return .sources(
             name: name,
-            products: [],
+            products: products,
             targets: [],
-            minDeploymentTargets: Set(try packageInfo.platforms.map { try DeploymentTarget.from(platform: $0) })
+            minDeploymentTargets: minDeploymentTargets
         )
     }
 }
@@ -83,6 +97,25 @@ extension DeploymentTarget {
             return .watchOS(version)
         default:
             throw SwiftPackageManagerGraphGeneratorError.unknownPlatform(platform.platformName)
+        }
+    }
+}
+
+
+extension PackageInfo.Product.ProductType {
+    fileprivate var libraryType: ThirdPartyDependency.Product.LibraryType? {
+        switch self {
+        case let .library(libraryType):
+            switch libraryType {
+            case .static:
+                return .static
+            case .dynamic:
+                return .dynamic
+            case .automatic:
+                return .automatic
+            }
+        case .executable, .plugin, .test:
+            return nil
         }
     }
 }

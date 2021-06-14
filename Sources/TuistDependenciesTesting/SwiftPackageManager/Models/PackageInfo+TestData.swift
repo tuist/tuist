@@ -1,3 +1,4 @@
+import TuistGraph
 @testable import TuistDependencies
 
 extension PackageInfo {
@@ -64,11 +65,11 @@ extension PackageInfo {
             {
               "name" : "Tuist",
               "targets" : [
-                "TuistTuist"
+                "Tuist"
               ],
               "type" : {
                 "library" : [
-                  "automatic"
+                  "static"
                 ]
               }
             }
@@ -171,10 +172,8 @@ extension PackageInfo {
 
     static var test: PackageInfo {
         return .init(
-            platforms: [
-                .init(platformName: "ios", version: "13.0", options: []),
-                .init(platformName: "macos", version: "10.15", options: []),
-                .init(platformName: "watchos", version: "6.0", options: []),
+            products: [
+                .init(name: "Tuist", type: .library(.static), targets: ["Tuist"])
             ],
             targets: [
                 .init(
@@ -229,6 +228,26 @@ extension PackageInfo {
                     settings: [],
                     checksum: nil
                 ),
+            ],
+            platforms: [
+                .init(platformName: "ios", version: "13.0", options: []),
+                .init(platformName: "macos", version: "10.15", options: []),
+                .init(platformName: "watchos", version: "6.0", options: []),
+            ]
+        )
+    }
+
+    static var testThirdPartyDependency: ThirdPartyDependency {
+        return .sources(
+            name: "test",
+            products: [
+                .init(name: "Tuist", targets: ["Tuist"], libraryType: .static)
+            ],
+            targets: [],
+            minDeploymentTargets: [
+                .iOS("13.0", .all),
+                .macOS("10.15"),
+                .watchOS("6.0"),
             ]
         )
     }
@@ -356,11 +375,8 @@ extension PackageInfo {
 
     static var alamofire: PackageInfo {
         return .init(
-            platforms: [
-                .init(platformName: "macos", version: "10.12", options: []),
-                .init(platformName: "ios", version: "10.0", options: []),
-                .init(platformName: "tvos", version: "10.0", options: []),
-                .init(platformName: "watchos", version: "3.0", options: []),
+            products: [
+                .init(name: "Alamofire", type: .library(.automatic), targets: ["Alamofire"])
             ],
             targets: [
                 .init(
@@ -401,6 +417,28 @@ extension PackageInfo {
                     settings: [],
                     checksum: nil
                 ),
+            ],
+            platforms: [
+                .init(platformName: "macos", version: "10.12", options: []),
+                .init(platformName: "ios", version: "10.0", options: []),
+                .init(platformName: "tvos", version: "10.0", options: []),
+                .init(platformName: "watchos", version: "3.0", options: []),
+            ]
+        )
+    }
+
+    static var alamofireThirdPartyDependency: ThirdPartyDependency {
+        return .sources(
+            name: "Alamofire",
+            products: [
+                .init(name: "Alamofire", targets: ["Alamofire"], libraryType: .automatic)
+            ],
+            targets: [],
+            minDeploymentTargets: [
+                .iOS("10.0", .all),
+                .macOS("10.12"),
+                .tvOS("10.0"),
+                .watchOS("3.0"),
             ]
         )
     }
@@ -694,8 +732,9 @@ extension PackageInfo {
 
     static var googleAppMeasurement: PackageInfo {
         return .init(
-            platforms: [
-                .init(platformName: "ios", version: "10.0", options: []),
+            products: [
+                .init(name: "GoogleAppMeasurement", type: .library(.automatic), targets: ["GoogleAppMeasurementTarget"]),
+                .init(name: "GoogleAppMeasurementWithoutAdIdSupport", type: .library(.automatic), targets: ["GoogleAppMeasurementWithoutAdIdSupportTarget"]),
             ],
             targets: [
                 .init(
@@ -814,7 +853,25 @@ extension PackageInfo {
                     settings: [],
                     checksum: "e367d34b193cc65e4beb441092a28112007de4aa67323a85487067de62710718"
                 ),
+            ],
+            platforms: [
+                .init(platformName: "ios", version: "10.0", options: []),
             ]
         )
     }
+
+    static var googleAppMeasurementThirdPartyDependency: ThirdPartyDependency {
+        return .sources(
+            name: "GoogleAppMeasurement",
+            products: [
+                .init(name: "GoogleAppMeasurement", targets: ["GoogleAppMeasurementTarget"], libraryType: .automatic),
+                .init(name: "GoogleAppMeasurementWithoutAdIdSupport", targets: ["GoogleAppMeasurementWithoutAdIdSupportTarget"], libraryType: .automatic)
+            ],
+            targets: [],
+            minDeploymentTargets: [
+                .iOS("10.0", .all),
+            ]
+        )
+    }
+
 }
