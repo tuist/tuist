@@ -2,11 +2,11 @@ import Foundation
 
 /// Contains the description of a dependency that can be installed using Carthage.
 public struct CarthageDependencies: Codable, Equatable {
-    /// List of depedencies that will be installed using Carthage.
+    /// List of dependencies that will be installed using Carthage.
     public let dependencies: [Dependency]
 
     /// Creates `CarthageDependencies` instance.
-    /// - Parameter dependencies: List of depedencies that can be installed using Carthage.
+    /// - Parameter dependencies: List of dependencies that can be installed using Carthage.
     public init(_ dependencies: [Dependency]) {
         self.dependencies = dependencies
     }
@@ -33,7 +33,7 @@ public extension CarthageDependencies {
         case binary(path: String, requirement: Requirement)
     }
 
-    /// Specifies version requirement for Carthage depedency.
+    /// Specifies version requirement for Carthage dependency.
     enum Requirement: Codable, Equatable {
         case exact(Version)
         case upToNext(Version)
