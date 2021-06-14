@@ -56,13 +56,6 @@ extension PackageInfo {
               "options" : [
 
               ],
-              "platformName" : "tvos",
-              "version" : "13.0"
-            },
-            {
-              "options" : [
-
-              ],
               "platformName" : "watchos",
               "version" : "6.0"
             }
@@ -181,7 +174,6 @@ extension PackageInfo {
             platforms: [
                 .init(platformName: "ios", version: "13.0", options: []),
                 .init(platformName: "macos", version: "10.15", options: []),
-                .init(platformName: "tvos", version: "13.0", options: []),
                 .init(platformName: "watchos", version: "6.0", options: []),
             ],
             targets: [

@@ -33,6 +33,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
             return [
                 checkoutsPath.appending(component: "alamofire"),
                 checkoutsPath.appending(component: "google-app-measurement"),
+                checkoutsPath.appending(component: "test"),
             ]
         }
 
@@ -46,6 +47,9 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
             case 2:
                 XCTAssertEqual(path, checkoutsPath.appending(component: "google-app-measurement").appending(component: "Package.swift"))
                 return PackageInfo.googleAppMeasurement
+            case 3:
+                XCTAssertEqual(path, checkoutsPath.appending(component: "test").appending(component: "Package.swift"))
+                return PackageInfo.test
             default:
                 XCTFail("Unexpected function call")
                 return .test
@@ -58,15 +62,34 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
         // Then
         let expected = DependenciesGraph(
             thirdPartyDependencies: [
-                "alamofire": .xcframework(
+                "alamofire": .sources(
                     name: "alamofire",
-                    path: .root,
-                    architectures: []
+                    products: [],
+                    targets: [],
+                    minDeploymentTargets: [
+                        .iOS("10.0", .all),
+                        .macOS("10.12"),
+                        .tvOS("10.0"),
+                        .watchOS("3.0"),
+                    ]
                 ),
-                "google-app-measurement": .xcframework(
+                "google-app-measurement": .sources(
                     name: "google-app-measurement",
-                    path: .root,
-                    architectures: []
+                    products: [],
+                    targets: [],
+                    minDeploymentTargets: [
+                        .iOS("10.0", .all),
+                    ]
+                ),
+                "test": .sources(
+                    name: "test",
+                    products: [],
+                    targets: [],
+                    minDeploymentTargets: [
+                        .iOS("13.0", .all),
+                        .macOS("10.15"),
+                        .watchOS("6.0"),
+                    ]
                 ),
             ]
         )

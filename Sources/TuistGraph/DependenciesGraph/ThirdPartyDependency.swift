@@ -4,7 +4,7 @@ import TSCBasic
 // A enum containing information about third party dependency.
 public enum ThirdPartyDependency: Hashable, Codable {
     /// A dependency that is imported as source code.
-    case sources(name: String, products: [Product], targets: [Target]) // TODO: add the supported platforms read from the SPM package to `sources`
+    case sources(name: String, products: [Product], targets: [Target], minDeploymentTargets: Set<DeploymentTarget>)
 
     /// A dependency that represents a pre-compiled .xcframework.
     case xcframework(name: String, path: AbsolutePath, architectures: Set<BinaryArchitecture>)
@@ -14,7 +14,7 @@ extension ThirdPartyDependency {
     /// The name of the third party dependency.
     public var name: String {
         switch self {
-        case let .xcframework(name, _, _):
+        case let .sources(name, _, _, _), let .xcframework(name, _, _):
             return name
         }
     }
@@ -53,7 +53,7 @@ extension ThirdPartyDependency.Target {
         /// A target belonging to the dependency itself.
         case target(name: String)
 
-        /// A target belonging to the another dependency.
+        /// A target belonging to another dependency.
         case thirdPartyTarget(dependency: String, target: String)
 
         /// A binary dependency.
@@ -74,6 +74,7 @@ extension ThirdPartyDependency {
         case name
         case products
         case targets
+        case minDeploymentTargets
         case path
         case architectures
     }
@@ -83,9 +84,11 @@ extension ThirdPartyDependency {
         let kind = try container.decode(Kind.self, forKey: .kind)
         switch kind {
         case .sources:
+            let name = try container.decode(String.self, forKey: .name)
             let products = try container.decode([Product].self, forKey: .products)
             let targets = try container.decode([Target].self, forKey: .targets)
-            self = .sources(products: products, targets: targets)
+            let minDeploymentTargets = try container.decode(Set<DeploymentTarget>.self, forKey: .minDeploymentTargets)
+            self = .sources(name: name, products: products, targets: targets, minDeploymentTargets: minDeploymentTargets)
         case .xcframework:
             let name = try container.decode(String.self, forKey: .name)
             let path = try container.decode(AbsolutePath.self, forKey: .path)
@@ -97,11 +100,12 @@ extension ThirdPartyDependency {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
-        case let .sources(name, products, targets):
+        case let .sources(name, products, targets, minDeploymentTargets):
             try container.encode(Kind.sources, forKey: .kind)
             try container.encode(name, forKey: .name)
             try container.encode(products, forKey: .products)
             try container.encode(targets, forKey: .targets)
+            try container.encode(minDeploymentTargets, forKey: .minDeploymentTargets)
         case let .xcframework(name, path, architectures):
             try container.encode(Kind.xcframework, forKey: .kind)
             try container.encode(name, forKey: .name)

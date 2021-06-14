@@ -5,6 +5,31 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
+// MARK: - Swift Package Manager Graph Generator Errors
+
+enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
+    /// Thrown when `PackageInfo.Platform` name cannot be mapped to a `DeploymentTarget`.
+    case unknownPlatform(String)
+
+    /// Error type.
+    var type: ErrorType {
+        switch self {
+        case .unknownPlatform:
+            return .abort
+        }
+    }
+
+    /// Error description.
+    var description: String {
+        switch self {
+        case let .unknownPlatform(platform):
+            return "The \(platform) is not supported."
+        }
+    }
+}
+
+// MARK: - Swift Package Manager Graph Generator Errors
+
 /// A protocol that defines an interface to generate the `DependenciesGraph` for the `SwiftPackageManager` dependencies.
 public protocol SwiftPackageManagerGraphGenerating {
     /// Generates the `DependenciesGraph` for the `SwiftPackageManager` dependencies.
@@ -34,8 +59,30 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         return DependenciesGraph(thirdPartyDependencies: thirdPartyDependencies)
     }
 
-    private static func mapToThirdPartyDependency(name: String, packageInfo _: PackageInfo) throws -> ThirdPartyDependency {
-        // TODO: map `PackageInfo` to actual `ThirdPartyDependency`
-        return .xcframework(name: name, path: .root, architectures: [])
+    private static func mapToThirdPartyDependency(name: String, packageInfo: PackageInfo) throws -> ThirdPartyDependency {
+        return .sources(
+            name: name,
+            products: [],
+            targets: [],
+            minDeploymentTargets: Set(try packageInfo.platforms.map { try DeploymentTarget.from(platform: $0) })
+        )
+    }
+}
+
+extension DeploymentTarget {
+    fileprivate static func from(platform: PackageInfo.Platform) throws -> DeploymentTarget {
+        let version = platform.version
+        switch platform.platformName {
+        case "ios":
+            return .iOS(version, .all)
+        case "macos":
+            return .macOS(version)
+        case "tvos":
+            return .tvOS(version)
+        case "watchos":
+            return .watchOS(version)
+        default:
+            throw SwiftPackageManagerGraphGeneratorError.unknownPlatform(platform.platformName)
+        }
     }
 }
