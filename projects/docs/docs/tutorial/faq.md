@@ -8,7 +8,7 @@ description: Frequently Asked Questions
 
 There are some key differences that make Tuist a better option to scale up projects:
 
-- **Workspaces:** Tuist support defining workspaces made by projects that can have dependencies between them. Those dependencies are defined in a plain language and easy language that Tuist translates into build settings and build phases.
+- **Workspaces:** Tuist supports defining workspaces made by projects that can have dependencies between them. Those dependencies are defined in a plain language and easy language that Tuist translates into build settings and build phases.
 - **Conceptual compression:** Tuist abstract Xcode intricacies to provide an easy interface to define projects. We believe projects should be easy to maintain regardless of their size.
 - **Linting:** We know how precious your time is and for that reason Tuist prevents you from having to compile the app until the build system throws an error due to an invalid configuration. To do so we validate your projects and warn you of potential sources of errors.
 - **Swift:** Projects are defined using Swift. That allows using Xcode as an editor and benefit from its autocompletion and the documentation. Moreover the definition of projects can be extracted into files that are shared across the project. For instance, you can define a function `func makeFrameworkProject(name: String) -> Project` that acts as a factory of projects.
