@@ -2,6 +2,8 @@ import TSCBasic
 import TuistGraph
 @testable import TuistDependencies
 
+// MARK: - Test package
+
 extension PackageInfo {
     static var testJSON: String {
         """
@@ -238,6 +240,62 @@ extension PackageInfo {
         )
     }
 
+    static var aDependency: PackageInfo {
+        return .init(
+            products: [
+                .init(name: "ALibrary", type: .library(.automatic), targets: ["ALibrary"]),
+            ],
+            targets: [
+                .init(
+                    name: "ALibrary",
+                    path: nil,
+                    url: nil,
+                    sources: nil,
+                    resources: [],
+                    exclude: [],
+                    dependencies: [],
+                    publicHeadersPath: nil,
+                    type: .regular,
+                    settings: [],
+                    checksum: nil
+                ),
+            ],
+            platforms: [
+                .init(platformName: "ios", version: "13.0", options: []),
+                .init(platformName: "macos", version: "10.15", options: []),
+                .init(platformName: "watchos", version: "6.0", options: []),
+            ]
+        )
+    }
+
+    static var anotherDependency: PackageInfo {
+        return .init(
+            products: [
+                .init(name: "AnotherLibrary", type: .library(.automatic), targets: ["AnotherLibrary"]),
+            ],
+            targets: [
+                .init(
+                    name: "AnotherLibrary",
+                    path: nil,
+                    url: nil,
+                    sources: nil,
+                    resources: [],
+                    exclude: [],
+                    dependencies: [],
+                    publicHeadersPath: nil,
+                    type: .regular,
+                    settings: [],
+                    checksum: nil
+                ),
+            ],
+            platforms: [
+                .init(platformName: "ios", version: "13.0", options: []),
+                .init(platformName: "macos", version: "10.15", options: []),
+                .init(platformName: "watchos", version: "6.0", options: []),
+            ]
+        )
+    }
+
     static func testThirdPartyDependency(packageFolder: AbsolutePath) -> ThirdPartyDependency {
         return .sources(
             name: "test",
@@ -253,11 +311,42 @@ extension PackageInfo {
                     name: "Tuist",
                     sources: [packageFolder.appending(RelativePath("customPath/customSources"))],
                     resources: [packageFolder.appending(RelativePath("customPath/resources"))],
-                    dependencies: []
+                    dependencies: [
+                        .target(name: "TuistKit"),
+                        .thirdPartyTarget(dependency: "a-dependency", product: "ALibrary"),
+                    ]
                 ),
                 .init(
                     name: "TuistKit",
                     sources: [packageFolder.appending(RelativePath("Sources/TuistKit"))],
+                    resources: [],
+                    dependencies: [
+                        .thirdPartyTarget(dependency: "another-dependency", product: "AnotherLibrary"),
+                    ]
+                ),
+            ],
+            minDeploymentTargets: [
+                .iOS("13.0", .all),
+                .macOS("10.15"),
+                .watchOS("6.0"),
+            ]
+        )
+    }
+
+    static func aDependencyThirdPartyDependency(packageFolder: AbsolutePath) -> ThirdPartyDependency {
+        return .sources(
+            name: "a-dependency",
+            products: [
+                .init(
+                    name: "ALibrary",
+                    targets: ["ALibrary"],
+                    libraryType: .automatic
+                ),
+            ],
+            targets: [
+                .init(
+                    name: "ALibrary",
+                    sources: [packageFolder.appending(RelativePath("Sources/ALibrary"))],
                     resources: [],
                     dependencies: []
                 ),
@@ -270,6 +359,36 @@ extension PackageInfo {
         )
     }
 
+    static func anotherDependencyThirdPartyDependency(packageFolder: AbsolutePath) -> ThirdPartyDependency {
+        return .sources(
+            name: "another-dependency",
+            products: [
+                .init(
+                    name: "AnotherLibrary",
+                    targets: ["AnotherLibrary"],
+                    libraryType: .automatic
+                ),
+            ],
+            targets: [
+                .init(
+                    name: "AnotherLibrary",
+                    sources: [packageFolder.appending(RelativePath("Sources/AnotherLibrary"))],
+                    resources: [],
+                    dependencies: []
+                ),
+            ],
+            minDeploymentTargets: [
+                .iOS("13.0", .all),
+                .macOS("10.15"),
+                .watchOS("6.0"),
+            ]
+        )
+    }
+}
+
+// MARK: - Alamofire package
+
+extension PackageInfo {
     static var alamofireJSON: String {
         """
         {
@@ -471,7 +590,11 @@ extension PackageInfo {
             ]
         )
     }
+}
 
+// MARK: - GoogleAppMeasurement package
+
+extension PackageInfo {
     static var googleAppMeasurementJSON: String {
         """
         {
@@ -889,6 +1012,100 @@ extension PackageInfo {
         )
     }
 
+    static var googleUtilities: PackageInfo {
+        return .init(
+            products: [
+                .init(name: "GULAppDelegateSwizzler", type: .library(.automatic), targets: ["GULAppDelegateSwizzler"]),
+                .init(name: "GULMethodSwizzler", type: .library(.automatic), targets: ["GULMethodSwizzler"]),
+                .init(name: "GULNSData", type: .library(.automatic), targets: ["GULNSData"]),
+                .init(name: "GULNetwork", type: .library(.automatic), targets: ["GULNetwork"]),
+            ],
+            targets: [
+                .init(
+                    name: "GULAppDelegateSwizzler",
+                    path: nil,
+                    url: nil,
+                    sources: nil,
+                    resources: [],
+                    exclude: [],
+                    dependencies: [],
+                    publicHeadersPath: nil,
+                    type: .regular,
+                    settings: [],
+                    checksum: nil
+                ),
+                .init(
+                    name: "GULMethodSwizzler",
+                    path: nil,
+                    url: nil,
+                    sources: nil,
+                    resources: [],
+                    exclude: [],
+                    dependencies: [],
+                    publicHeadersPath: nil,
+                    type: .regular,
+                    settings: [],
+                    checksum: nil
+                ),
+                .init(
+                    name: "GULNSData",
+                    path: nil,
+                    url: nil,
+                    sources: nil,
+                    resources: [],
+                    exclude: [],
+                    dependencies: [],
+                    publicHeadersPath: nil,
+                    type: .regular,
+                    settings: [],
+                    checksum: nil
+                ),
+                .init(
+                    name: "GULNetwork",
+                    path: nil,
+                    url: nil,
+                    sources: nil,
+                    resources: [],
+                    exclude: [],
+                    dependencies: [],
+                    publicHeadersPath: nil,
+                    type: .regular,
+                    settings: [],
+                    checksum: nil
+                ),
+            ],
+            platforms: [
+                .init(platformName: "ios", version: "10.0", options: []),
+            ]
+        )
+    }
+
+    static var nanopb: PackageInfo {
+        return .init(
+            products: [
+                .init(name: "nanopb", type: .library(.automatic), targets: ["nanopb"]),
+            ],
+            targets: [
+                .init(
+                    name: "nanopb",
+                    path: nil,
+                    url: nil,
+                    sources: nil,
+                    resources: [],
+                    exclude: [],
+                    dependencies: [],
+                    publicHeadersPath: nil,
+                    type: .regular,
+                    settings: [],
+                    checksum: nil
+                ),
+            ],
+            platforms: [
+                .init(platformName: "ios", version: "10.0", options: []),
+            ]
+        )
+    }
+
     static func googleAppMeasurementThirdPartyDependency(packageFolder: AbsolutePath) -> ThirdPartyDependency {
         return .sources(
             name: "GoogleAppMeasurement",
@@ -909,11 +1126,106 @@ extension PackageInfo {
                     name: "GoogleAppMeasurementTarget",
                     sources: [packageFolder.appending(RelativePath("GoogleAppMeasurementWrapper"))],
                     resources: [],
-                    dependencies: []
+                    dependencies: [
+                        .target(name: "GoogleAppMeasurement"),
+                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULAppDelegateSwizzler"),
+                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULMethodSwizzler"),
+                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULNSData"),
+                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULNetwork"),
+                        .thirdPartyTarget(dependency: "nanopb", product: "nanopb"),
+                    ]
                 ),
                 .init(
                     name: "GoogleAppMeasurementWithoutAdIdSupportTarget",
                     sources: [packageFolder.appending(RelativePath("GoogleAppMeasurementWithoutAdIdSupportWrapper"))],
+                    resources: [],
+                    dependencies: [
+                        .target(name: "GoogleAppMeasurementWithoutAdIdSupport"),
+                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULAppDelegateSwizzler"),
+                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULMethodSwizzler"),
+                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULNSData"),
+                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULNetwork"),
+                        .thirdPartyTarget(dependency: "nanopb", product: "nanopb"),
+                    ]
+                ),
+            ],
+            minDeploymentTargets: [
+                .iOS("10.0", .all),
+            ]
+        )
+    }
+
+    static func googleUtilitiesThirdPartyDependency(packageFolder: AbsolutePath) -> ThirdPartyDependency {
+        return .sources(
+            name: "GoogleUtilities",
+            products: [
+                .init(
+                    name: "GULAppDelegateSwizzler",
+                    targets: ["GULAppDelegateSwizzler"],
+                    libraryType: .automatic
+                ),
+                .init(
+                    name: "GULMethodSwizzler",
+                    targets: ["GULMethodSwizzler"],
+                    libraryType: .automatic
+                ),
+                .init(
+                    name: "GULNSData",
+                    targets: ["GULNSData"],
+                    libraryType: .automatic
+                ),
+                .init(
+                    name: "GULNetwork",
+                    targets: ["GULNetwork"],
+                    libraryType: .automatic
+                ),
+            ],
+            targets: [
+                .init(
+                    name: "GULAppDelegateSwizzler",
+                    sources: [packageFolder.appending(RelativePath("Sources/GULAppDelegateSwizzler"))],
+                    resources: [],
+                    dependencies: []
+                ),
+                .init(
+                    name: "GULMethodSwizzler",
+                    sources: [packageFolder.appending(RelativePath("Sources/GULMethodSwizzler"))],
+                    resources: [],
+                    dependencies: []
+                ),
+                .init(
+                    name: "GULNSData",
+                    sources: [packageFolder.appending(RelativePath("Sources/GULNSData"))],
+                    resources: [],
+                    dependencies: []
+                ),
+                .init(
+                    name: "GULNetwork",
+                    sources: [packageFolder.appending(RelativePath("Sources/GULNetwork"))],
+                    resources: [],
+                    dependencies: []
+                ),
+            ],
+            minDeploymentTargets: [
+                .iOS("10.0", .all),
+            ]
+        )
+    }
+
+    static func nanopbThirdPartyDependency(packageFolder: AbsolutePath) -> ThirdPartyDependency {
+        return .sources(
+            name: "nanopb",
+            products: [
+                .init(
+                    name: "nanopb",
+                    targets: ["nanopb"],
+                    libraryType: .automatic
+                ),
+            ],
+            targets: [
+                .init(
+                    name: "nanopb",
+                    sources: [packageFolder.appending(RelativePath("Sources/nanopb"))],
                     resources: [],
                     dependencies: []
                 ),

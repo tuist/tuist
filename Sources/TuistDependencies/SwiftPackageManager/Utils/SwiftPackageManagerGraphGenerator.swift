@@ -8,13 +8,16 @@ import TuistSupport
 // MARK: - Swift Package Manager Graph Generator Errors
 
 enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
+    /// Thrown when `PackageInfo.Target.Dependency.byName` dependency cannot be resolved.
+    case unknownByNameDependency(String)
+
     /// Thrown when `PackageInfo.Platform` name cannot be mapped to a `DeploymentTarget`.
     case unknownPlatform(String)
 
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .unknownPlatform:
+        case .unknownByNameDependency, .unknownPlatform:
             return .abort
         }
     }
@@ -22,6 +25,8 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
     /// Error description.
     var description: String {
         switch self {
+        case let .unknownByNameDependency(name):
+            return "The package associated to the \(name) dependency cannot be found."
         case let .unknownPlatform(platform):
             return "The \(platform) is not supported."
         }
@@ -46,24 +51,26 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
 
     public func generate(at path: AbsolutePath) throws -> DependenciesGraph {
         let packageFolders = try FileHandler.shared.contentsOfDirectory(path.appending(component: "checkouts"))
-        let packageInfos: [AbsolutePath: PackageInfo] = try packageFolders.reduce(into: [:]) { result, packageFolder in
+        let packageInfos: [(name: String, folder: AbsolutePath, info: PackageInfo)] = try packageFolders.map { packageFolder in
             let manifest = packageFolder.appending(component: "Package.swift")
             let packageInfo = try swiftPackageManagerController.loadPackageInfo(at: manifest)
-            result[packageFolder] = packageInfo
+            return (name: packageFolder.basename, folder: packageFolder, info: packageInfo)
         }
 
-        let thirdPartyDependencies: [String: ThirdPartyDependency] = Dictionary(uniqueKeysWithValues: try packageInfos.map { packageFolder, packageInfo in
-            let dependency = try Self.mapToThirdPartyDependency(packageFolder: packageFolder, packageInfo: packageInfo)
+        let productToPackage: [String: String] = packageInfos.reduce(into: [:]) { result, packageInfo in
+            packageInfo.info.products.forEach { result[$0.name] = packageInfo.name }
+        }
+
+        let thirdPartyDependencies: [String: ThirdPartyDependency] = Dictionary(uniqueKeysWithValues: try packageInfos.map { packageInfo in
+            let dependency = try Self.mapToThirdPartyDependency(name: packageInfo.name, folder: packageInfo.folder, info: packageInfo.info, productToPackage: productToPackage)
             return (dependency.name, dependency)
         })
 
         return DependenciesGraph(thirdPartyDependencies: thirdPartyDependencies)
     }
 
-    private static func mapToThirdPartyDependency(packageFolder: AbsolutePath, packageInfo: PackageInfo) throws -> ThirdPartyDependency {
-        let name = packageFolder.basename
-
-        let products: [ThirdPartyDependency.Product] = packageInfo.products.compactMap { product in
+    private static func mapToThirdPartyDependency(name: String, folder: AbsolutePath, info: PackageInfo, productToPackage: [String: String]) throws -> ThirdPartyDependency {
+        let products: [ThirdPartyDependency.Product] = info.products.compactMap { product in
             guard let libraryType = product.type.libraryType else {
                 return nil
             }
@@ -75,16 +82,19 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             )
         }
 
-        let targets: [ThirdPartyDependency.Target] = packageInfo.targets.compactMap { target in
+        let targets: [ThirdPartyDependency.Target] = try info.targets.compactMap { target in
             switch target.type {
             case .regular:
                 break
-            case .executable, .test, .system, .binary, .plugin:
+            case .binary:
+                // TODO: handle binary dependencies
+                return nil
+            case .executable, .test, .system, .plugin:
                 logger.debug("Target \(target.name) of type \(target.type) ignored")
                 return nil
             }
 
-            let path = packageFolder.appending(RelativePath(target.path ?? "Sources/\(target.name)"))
+            let path = folder.appending(RelativePath(target.path ?? "Sources/\(target.name)"))
             let sources: [AbsolutePath]
             if let customSources = target.sources {
                 sources = customSources.map { path.appending(RelativePath($0)) }
@@ -92,12 +102,30 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 sources = [path]
             }
 
-            let resoures = target.resources.map { path.appending(RelativePath($0.path)) }
+            let resources = target.resources.map { path.appending(RelativePath($0.path)) }
 
-            return .init(name: target.name, sources: sources, resources: resoures, dependencies: [])
+            // TODO: handle dependency condition
+            let dependencies: [ThirdPartyDependency.Target.Dependency] = try target.dependencies.map { dependency in
+                switch dependency {
+                case let .target(name, _):
+                    return .target(name: name)
+                case let .product(name, package, _):
+                    return .thirdPartyTarget(dependency: package, product: name)
+                case let .byName(name, _):
+                    if info.targets.contains(where: { $0.name == name }) {
+                        return .target(name: name)
+                    } else if let package = productToPackage[name] {
+                        return .thirdPartyTarget(dependency: package, product: name)
+                    } else {
+                        throw SwiftPackageManagerGraphGeneratorError.unknownByNameDependency(name)
+                    }
+                }
+            }
+
+            return .init(name: target.name, sources: sources, resources: resources, dependencies: dependencies)
         }
 
-        let minDeploymentTargets = Set(try packageInfo.platforms.map { try DeploymentTarget.from(platform: $0) })
+        let minDeploymentTargets = Set(try info.platforms.map { try DeploymentTarget.from(platform: $0) })
 
         return .sources(
             name: name,

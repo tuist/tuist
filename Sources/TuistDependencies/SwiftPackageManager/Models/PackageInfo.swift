@@ -167,14 +167,20 @@ extension PackageInfo {
 // MARK: Target.Dependency
 
 extension PackageInfo.Target {
+    /// A dependency of the target.
     public enum Dependency: Equatable {
         public struct PackageConditionDescription: Decodable, Equatable {
             public let platformNames: [String]
             public let config: String?
         }
 
+        /// A dependency internal to the same package.
         case target(name: String, condition: PackageConditionDescription?)
-        case product(name: String, package: String?, condition: PackageConditionDescription?)
+
+        /// A product from a third party package.
+        case product(name: String, package: String, condition: PackageConditionDescription?)
+
+        /// A dependency to be resolved by name.
         case byName(name: String, condition: PackageConditionDescription?)
     }
 }
@@ -288,7 +294,7 @@ extension PackageInfo.Target.Dependency: Decodable {
         case .product:
             self = .product(
                 name: try unkeyedValues.decode(String.self),
-                package: try unkeyedValues.decodeIfPresent(String.self),
+                package: try unkeyedValues.decode(String.self),
                 condition: try unkeyedValues.decodeIfPresent(PackageConditionDescription.self)
             )
         case .byName:

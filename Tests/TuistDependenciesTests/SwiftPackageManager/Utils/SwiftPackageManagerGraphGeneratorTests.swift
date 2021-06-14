@@ -27,16 +27,30 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
         // Given
         let path = try temporaryPath()
         let checkoutsPath = path.appending(component: "checkouts")
+
+        // Alamofire package and its dependencies
         let alamofirePath = checkoutsPath.appending(component: "Alamofire")
+
+        // GoogleAppMeasurement package and its dependencies
         let googleAppMeasurementPath = checkoutsPath.appending(component: "GoogleAppMeasurement")
+        let googleUtilitiesPath = checkoutsPath.appending(component: "GoogleUtilities")
+        let nanopbPath = checkoutsPath.appending(component: "nanopb")
+
+        // Test package and its dependencies
         let testPath = checkoutsPath.appending(component: "test")
+        let aDependencyPath = checkoutsPath.appending(component: "a-dependency")
+        let anotherDependencyPath = checkoutsPath.appending(component: "another-dependency")
 
         fileHandler.stubContentsOfDirectory = { path in
             XCTAssertEqual(path, checkoutsPath)
             return [
-                checkoutsPath.appending(component: "Alamofire"),
-                checkoutsPath.appending(component: "GoogleAppMeasurement"),
-                checkoutsPath.appending(component: "test"),
+                alamofirePath,
+                googleAppMeasurementPath,
+                googleUtilitiesPath,
+                nanopbPath,
+                testPath,
+                aDependencyPath,
+                anotherDependencyPath,
             ]
         }
 
@@ -51,8 +65,20 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
                 XCTAssertEqual(path, googleAppMeasurementPath.appending(component: "Package.swift"))
                 return PackageInfo.googleAppMeasurement
             case 3:
+                XCTAssertEqual(path, googleUtilitiesPath.appending(component: "Package.swift"))
+                return PackageInfo.googleUtilities
+            case 4:
+                XCTAssertEqual(path, nanopbPath.appending(component: "Package.swift"))
+                return PackageInfo.nanopb
+            case 5:
                 XCTAssertEqual(path, testPath.appending(component: "Package.swift"))
                 return PackageInfo.test
+            case 6:
+                XCTAssertEqual(path, aDependencyPath.appending(component: "Package.swift"))
+                return PackageInfo.aDependency
+            case 7:
+                XCTAssertEqual(path, anotherDependencyPath.appending(component: "Package.swift"))
+                return PackageInfo.anotherDependency
             default:
                 XCTFail("Unexpected function call")
                 return .test
@@ -67,7 +93,11 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
             thirdPartyDependencies: [
                 "Alamofire": PackageInfo.alamofireThirdPartyDependency(packageFolder: alamofirePath),
                 "GoogleAppMeasurement": PackageInfo.googleAppMeasurementThirdPartyDependency(packageFolder: googleAppMeasurementPath),
+                "GoogleUtilities": PackageInfo.googleUtilitiesThirdPartyDependency(packageFolder: googleUtilitiesPath),
+                "nanopb": PackageInfo.nanopbThirdPartyDependency(packageFolder: nanopbPath),
                 "test": PackageInfo.testThirdPartyDependency(packageFolder: testPath),
+                "a-dependency": PackageInfo.aDependencyThirdPartyDependency(packageFolder: aDependencyPath),
+                "another-dependency": PackageInfo.anotherDependencyThirdPartyDependency(packageFolder: anotherDependencyPath),
             ]
         )
 

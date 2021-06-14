@@ -83,7 +83,7 @@ extension ThirdPartyDependency.Target {
         case target(name: String)
 
         /// A target belonging to another dependency.
-        case thirdPartyTarget(dependency: String, target: String)
+        case thirdPartyTarget(dependency: String, product: String)
 
         /// A binary dependency.
         case xcframework(path: AbsolutePath)
@@ -155,6 +155,7 @@ extension ThirdPartyDependency.Target.Dependency {
         case kind
         case dependency
         case target
+        case product
         case path
     }
 
@@ -167,8 +168,8 @@ extension ThirdPartyDependency.Target.Dependency {
             self = .target(name: name)
         case .thirdPartyTarget:
             let dependency = try container.decode(String.self, forKey: .dependency)
-            let target = try container.decode(String.self, forKey: .target)
-            self = .thirdPartyTarget(dependency: dependency, target: target)
+            let product = try container.decode(String.self, forKey: .product)
+            self = .thirdPartyTarget(dependency: dependency, product: product)
         case .xcframework:
             let path = try container.decode(AbsolutePath.self, forKey: .path)
             self = .xcframework(path: path)
@@ -181,9 +182,9 @@ extension ThirdPartyDependency.Target.Dependency {
         case let .target(name):
             try container.encode(Kind.target, forKey: .kind)
             try container.encode(name, forKey: .target)
-        case let .thirdPartyTarget(dependency, target):
+        case let .thirdPartyTarget(product, target):
             try container.encode(Kind.thirdPartyTarget, forKey: .kind)
-            try container.encode(dependency, forKey: .dependency)
+            try container.encode(product, forKey: .product)
             try container.encode(target, forKey: .target)
         case let .xcframework(path):
             try container.encode(Kind.xcframework, forKey: .kind)
