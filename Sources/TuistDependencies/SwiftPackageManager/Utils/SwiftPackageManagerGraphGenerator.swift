@@ -15,7 +15,7 @@ public protocol SwiftPackageManagerGraphGenerating {
 public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGenerating {
     private let swiftPackageManagerController: SwiftPackageManagerControlling
 
-    public init(swiftPackageManagerController: SwiftPackageManagerControlling) {
+    public init(swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController()) {
         self.swiftPackageManagerController = swiftPackageManagerController
     }
 
