@@ -57,7 +57,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         }
 
         swiftPackageManagerGraphGenerator.generateStub = { path in
-            XCTAssertEqual(path, try self.temporaryPath().appending(.init(".build")))
+            XCTAssertEqual(path, try self.temporaryPath().appending(component: ".build"))
             return .test()
         }
 
@@ -123,11 +123,11 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         }
         swiftPackageManagerController.setToolsVersionStub = { path, version in
             XCTAssertEqual(path, try self.temporaryPath())
-            XCTAssertEqual(version, swiftToolsVersion) // version should be eqaul to the version that has been specified
+            XCTAssertEqual(version, swiftToolsVersion) // version should be equal to the version that has been specified
         }
 
         swiftPackageManagerGraphGenerator.generateStub = { path in
-            XCTAssertEqual(path, try self.temporaryPath().appending(.init(".build")))
+            XCTAssertEqual(path, try self.temporaryPath().appending(component: ".build"))
             return .test()
         }
 
@@ -196,7 +196,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         }
 
         swiftPackageManagerGraphGenerator.generateStub = { path in
-            XCTAssertEqual(path, try self.temporaryPath().appending(.init(".build")))
+            XCTAssertEqual(path, try self.temporaryPath().appending(component: ".build"))
             return .test()
         }
 

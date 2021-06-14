@@ -20,9 +20,9 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
     }
 
     public func generate(at path: AbsolutePath) throws -> DependenciesGraph {
-        let packageFolders = try FileHandler.shared.contentsOfDirectory(path.appending(.init("checkouts")))
+        let packageFolders = try FileHandler.shared.contentsOfDirectory(path.appending(component: "checkouts"))
         let packageInfos: [String: PackageInfo] = try packageFolders.reduce(into: [:]) { result, packageFolder in
-            let manifest = packageFolder.appending(.init("Package.swift"))
+            let manifest = packageFolder.appending(component: "Package.swift")
             let packageInfo = try swiftPackageManagerController.loadPackageInfo(at: manifest)
             result[packageFolder.basename] = packageInfo
         }
