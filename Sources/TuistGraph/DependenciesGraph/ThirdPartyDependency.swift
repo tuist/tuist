@@ -29,7 +29,7 @@ extension ThirdPartyDependency {
             case `static`
 
             /// Dynamic library.
-            case `dynamic`
+            case dynamic
 
             /// The type of library is unspecified and should be decided at generation time.
             case automatic

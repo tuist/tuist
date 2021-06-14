@@ -96,7 +96,7 @@ extension PackageInfo.Product {
             case `static`
 
             /// Dynamic library.
-            case `dynamic`
+            case dynamic
 
             /// The type of library is unspecified and should be decided by package manager.
             case automatic

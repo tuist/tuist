@@ -173,7 +173,7 @@ extension PackageInfo {
     static var test: PackageInfo {
         return .init(
             products: [
-                .init(name: "Tuist", type: .library(.static), targets: ["Tuist"])
+                .init(name: "Tuist", type: .library(.static), targets: ["Tuist"]),
             ],
             targets: [
                 .init(
@@ -241,7 +241,7 @@ extension PackageInfo {
         return .sources(
             name: "test",
             products: [
-                .init(name: "Tuist", targets: ["Tuist"], libraryType: .static)
+                .init(name: "Tuist", targets: ["Tuist"], libraryType: .static),
             ],
             targets: [],
             minDeploymentTargets: [
@@ -376,7 +376,7 @@ extension PackageInfo {
     static var alamofire: PackageInfo {
         return .init(
             products: [
-                .init(name: "Alamofire", type: .library(.automatic), targets: ["Alamofire"])
+                .init(name: "Alamofire", type: .library(.automatic), targets: ["Alamofire"]),
             ],
             targets: [
                 .init(
@@ -431,7 +431,7 @@ extension PackageInfo {
         return .sources(
             name: "Alamofire",
             products: [
-                .init(name: "Alamofire", targets: ["Alamofire"], libraryType: .automatic)
+                .init(name: "Alamofire", targets: ["Alamofire"], libraryType: .automatic),
             ],
             targets: [],
             minDeploymentTargets: [
@@ -865,7 +865,7 @@ extension PackageInfo {
             name: "GoogleAppMeasurement",
             products: [
                 .init(name: "GoogleAppMeasurement", targets: ["GoogleAppMeasurementTarget"], libraryType: .automatic),
-                .init(name: "GoogleAppMeasurementWithoutAdIdSupport", targets: ["GoogleAppMeasurementWithoutAdIdSupportTarget"], libraryType: .automatic)
+                .init(name: "GoogleAppMeasurementWithoutAdIdSupport", targets: ["GoogleAppMeasurementWithoutAdIdSupportTarget"], libraryType: .automatic),
             ],
             targets: [],
             minDeploymentTargets: [
@@ -873,5 +873,4 @@ extension PackageInfo {
             ]
         )
     }
-
 }

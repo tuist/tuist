@@ -101,7 +101,6 @@ extension DeploymentTarget {
     }
 }
 
-
 extension PackageInfo.Product.ProductType {
     fileprivate var libraryType: ThirdPartyDependency.Product.LibraryType? {
         switch self {
