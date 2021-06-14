@@ -97,7 +97,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
             }
 
             // post installation
-            try saveDepedencies(pathsProvider: pathsProvider)
+            try saveDependencies(pathsProvider: pathsProvider)
 
             // generate dependencies graph
             return try swiftPackageManagerGraphGenerator.generate(at: pathsProvider.temporaryBuildDirectory)
@@ -156,8 +156,8 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         logger.debug("\(generatedManifestContent)")
     }
 
-    /// Saves lockfile resolved depedencies in `Tuist/Depedencies` directory.
-    private func saveDepedencies(pathsProvider: SwiftPackageManagerPathsProvider) throws {
+    /// Saves lockfile resolved dependencies in `Tuist/Dependencies` directory.
+    private func saveDependencies(pathsProvider: SwiftPackageManagerPathsProvider) throws {
         // validation
         guard fileHandler.exists(pathsProvider.temporaryPackageResolvedPath) else {
             throw SwiftPackageManagerInteractorError.packageResolvedNotFound

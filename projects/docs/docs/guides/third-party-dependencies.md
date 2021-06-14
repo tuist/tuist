@@ -28,7 +28,7 @@ Learn how to define the contract between the dependency managers (Cocoapods, Car
 4. Add `import ProjectDescription` on the top of file.
 5. Define your dependencies.
 
-Example of project structure with added `Depedencies.swift` manifest file:
+Example of project structure with added `Dependencies.swift` manifest file:
 
 ```bash
 AwesomeProject
