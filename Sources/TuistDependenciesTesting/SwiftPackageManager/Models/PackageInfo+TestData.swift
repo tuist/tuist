@@ -1,3 +1,4 @@
+import TSCBasic
 import TuistGraph
 @testable import TuistDependencies
 
@@ -237,13 +238,30 @@ extension PackageInfo {
         )
     }
 
-    static var testThirdPartyDependency: ThirdPartyDependency {
+    static func testThirdPartyDependency(packageFolder: AbsolutePath) -> ThirdPartyDependency {
         return .sources(
             name: "test",
             products: [
-                .init(name: "Tuist", targets: ["Tuist"], libraryType: .static),
+                .init(
+                    name: "Tuist",
+                    targets: ["Tuist"],
+                    libraryType: .static
+                ),
             ],
-            targets: [],
+            targets: [
+                .init(
+                    name: "Tuist",
+                    sources: [packageFolder.appending(RelativePath("customPath/customSources"))],
+                    resources: [packageFolder.appending(RelativePath("customPath/resources"))],
+                    dependencies: []
+                ),
+                .init(
+                    name: "TuistKit",
+                    sources: [packageFolder.appending(RelativePath("Sources/TuistKit"))],
+                    resources: [],
+                    dependencies: []
+                ),
+            ],
             minDeploymentTargets: [
                 .iOS("13.0", .all),
                 .macOS("10.15"),
@@ -427,13 +445,24 @@ extension PackageInfo {
         )
     }
 
-    static var alamofireThirdPartyDependency: ThirdPartyDependency {
+    static func alamofireThirdPartyDependency(packageFolder: AbsolutePath) -> ThirdPartyDependency {
         return .sources(
             name: "Alamofire",
             products: [
-                .init(name: "Alamofire", targets: ["Alamofire"], libraryType: .automatic),
+                .init(
+                    name: "Alamofire",
+                    targets: ["Alamofire"],
+                    libraryType: .automatic
+                ),
             ],
-            targets: [],
+            targets: [
+                .init(
+                    name: "Alamofire",
+                    sources: [packageFolder.appending(RelativePath("Source"))],
+                    resources: [],
+                    dependencies: []
+                ),
+            ],
             minDeploymentTargets: [
                 .iOS("10.0", .all),
                 .macOS("10.12"),
@@ -860,14 +889,35 @@ extension PackageInfo {
         )
     }
 
-    static var googleAppMeasurementThirdPartyDependency: ThirdPartyDependency {
+    static func googleAppMeasurementThirdPartyDependency(packageFolder: AbsolutePath) -> ThirdPartyDependency {
         return .sources(
             name: "GoogleAppMeasurement",
             products: [
-                .init(name: "GoogleAppMeasurement", targets: ["GoogleAppMeasurementTarget"], libraryType: .automatic),
-                .init(name: "GoogleAppMeasurementWithoutAdIdSupport", targets: ["GoogleAppMeasurementWithoutAdIdSupportTarget"], libraryType: .automatic),
+                .init(
+                    name: "GoogleAppMeasurement",
+                    targets: ["GoogleAppMeasurementTarget"],
+                    libraryType: .automatic
+                ),
+                .init(
+                    name: "GoogleAppMeasurementWithoutAdIdSupport",
+                    targets: ["GoogleAppMeasurementWithoutAdIdSupportTarget"],
+                    libraryType: .automatic
+                ),
             ],
-            targets: [],
+            targets: [
+                .init(
+                    name: "GoogleAppMeasurementTarget",
+                    sources: [packageFolder.appending(RelativePath("GoogleAppMeasurementWrapper"))],
+                    resources: [],
+                    dependencies: []
+                ),
+                .init(
+                    name: "GoogleAppMeasurementWithoutAdIdSupportTarget",
+                    sources: [packageFolder.appending(RelativePath("GoogleAppMeasurementWithoutAdIdSupportWrapper"))],
+                    resources: [],
+                    dependencies: []
+                ),
+            ],
             minDeploymentTargets: [
                 .iOS("10.0", .all),
             ]

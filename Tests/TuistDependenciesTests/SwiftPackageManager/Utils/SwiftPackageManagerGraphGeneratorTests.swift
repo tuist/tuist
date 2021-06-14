@@ -27,6 +27,9 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
         // Given
         let path = try temporaryPath()
         let checkoutsPath = path.appending(component: "checkouts")
+        let alamofirePath = checkoutsPath.appending(component: "Alamofire")
+        let googleAppMeasurementPath = checkoutsPath.appending(component: "GoogleAppMeasurement")
+        let testPath = checkoutsPath.appending(component: "test")
 
         fileHandler.stubContentsOfDirectory = { path in
             XCTAssertEqual(path, checkoutsPath)
@@ -42,13 +45,13 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
             loadPackageInfoCalls += 1
             switch loadPackageInfoCalls {
             case 1:
-                XCTAssertEqual(path, checkoutsPath.appending(component: "Alamofire").appending(component: "Package.swift"))
+                XCTAssertEqual(path, alamofirePath.appending(component: "Package.swift"))
                 return PackageInfo.alamofire
             case 2:
-                XCTAssertEqual(path, checkoutsPath.appending(component: "GoogleAppMeasurement").appending(component: "Package.swift"))
+                XCTAssertEqual(path, googleAppMeasurementPath.appending(component: "Package.swift"))
                 return PackageInfo.googleAppMeasurement
             case 3:
-                XCTAssertEqual(path, checkoutsPath.appending(component: "test").appending(component: "Package.swift"))
+                XCTAssertEqual(path, testPath.appending(component: "Package.swift"))
                 return PackageInfo.test
             default:
                 XCTFail("Unexpected function call")
@@ -62,9 +65,9 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
         // Then
         let expected = DependenciesGraph(
             thirdPartyDependencies: [
-                "Alamofire": PackageInfo.alamofireThirdPartyDependency,
-                "GoogleAppMeasurement": PackageInfo.googleAppMeasurementThirdPartyDependency,
-                "test": PackageInfo.testThirdPartyDependency,
+                "Alamofire": PackageInfo.alamofireThirdPartyDependency(packageFolder: alamofirePath),
+                "GoogleAppMeasurement": PackageInfo.googleAppMeasurementThirdPartyDependency(packageFolder: googleAppMeasurementPath),
+                "test": PackageInfo.testThirdPartyDependency(packageFolder: testPath),
             ]
         )
 

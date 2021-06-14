@@ -46,20 +46,23 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
 
     public func generate(at path: AbsolutePath) throws -> DependenciesGraph {
         let packageFolders = try FileHandler.shared.contentsOfDirectory(path.appending(component: "checkouts"))
-        let packageInfos: [String: PackageInfo] = try packageFolders.reduce(into: [:]) { result, packageFolder in
+        let packageInfos: [AbsolutePath: PackageInfo] = try packageFolders.reduce(into: [:]) { result, packageFolder in
             let manifest = packageFolder.appending(component: "Package.swift")
             let packageInfo = try swiftPackageManagerController.loadPackageInfo(at: manifest)
-            result[packageFolder.basename] = packageInfo
+            result[packageFolder] = packageInfo
         }
 
-        let thirdPartyDependencies = Dictionary(uniqueKeysWithValues: try packageInfos.map { name, packageInfo in
-            (name, try Self.mapToThirdPartyDependency(name: name, packageInfo: packageInfo))
+        let thirdPartyDependencies: [String: ThirdPartyDependency] = Dictionary(uniqueKeysWithValues: try packageInfos.map { packageFolder, packageInfo in
+            let dependency = try Self.mapToThirdPartyDependency(packageFolder: packageFolder, packageInfo: packageInfo)
+            return (dependency.name, dependency)
         })
 
         return DependenciesGraph(thirdPartyDependencies: thirdPartyDependencies)
     }
 
-    private static func mapToThirdPartyDependency(name: String, packageInfo: PackageInfo) throws -> ThirdPartyDependency {
+    private static func mapToThirdPartyDependency(packageFolder: AbsolutePath, packageInfo: PackageInfo) throws -> ThirdPartyDependency {
+        let name = packageFolder.basename
+
         let products: [ThirdPartyDependency.Product] = packageInfo.products.compactMap { product in
             guard let libraryType = product.type.libraryType else {
                 return nil
@@ -72,12 +75,34 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             )
         }
 
+        let targets: [ThirdPartyDependency.Target] = packageInfo.targets.compactMap { target in
+            switch target.type {
+            case .regular:
+                break
+            case .executable, .test, .system, .binary, .plugin:
+                logger.debug("Target \(target.name) of type \(target.type) ignored")
+                return nil
+            }
+
+            let path = packageFolder.appending(RelativePath(target.path ?? "Sources/\(target.name)"))
+            let sources: [AbsolutePath]
+            if let customSources = target.sources {
+                sources = customSources.map { path.appending(RelativePath($0)) }
+            } else {
+                sources = [path]
+            }
+
+            let resoures = target.resources.map { path.appending(RelativePath($0.path)) }
+
+            return .init(name: target.name, sources: sources, resources: resoures, dependencies: [])
+        }
+
         let minDeploymentTargets = Set(try packageInfo.platforms.map { try DeploymentTarget.from(platform: $0) })
 
         return .sources(
             name: name,
             products: products,
-            targets: [],
+            targets: targets,
             minDeploymentTargets: minDeploymentTargets
         )
     }
@@ -116,5 +141,11 @@ extension PackageInfo.Product.ProductType {
         case .executable, .plugin, .test:
             return nil
         }
+    }
+}
+
+extension PackageInfo.Target {
+    fileprivate var pathOrDefault: String {
+        return path ?? "Sources/\(name)"
     }
 }

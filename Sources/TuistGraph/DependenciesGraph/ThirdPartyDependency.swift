@@ -54,6 +54,9 @@ extension ThirdPartyDependency {
 
 extension ThirdPartyDependency {
     public struct Target: Codable, Hashable {
+        /// The name of the target.
+        public let name: String
+
         /// The paths containing the target sources.
         public let sources: [AbsolutePath]
 
@@ -64,6 +67,13 @@ extension ThirdPartyDependency {
         public let dependencies: [Dependency]
 
         // TODO: check and add any other information needed to compile the sources (e.g. build flags)
+
+        public init(name: String, sources: [AbsolutePath], resources: [AbsolutePath], dependencies: [Dependency]) {
+            self.name = name
+            self.sources = sources
+            self.resources = resources
+            self.dependencies = dependencies
+        }
     }
 }
 
