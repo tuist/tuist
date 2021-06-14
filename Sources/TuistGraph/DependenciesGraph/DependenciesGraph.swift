@@ -17,7 +17,7 @@ public struct DependenciesGraph: Equatable, Codable {
 
 public enum DependenciesGraphError: FatalError, Equatable {
     /// Thrown when the same dependency is defined more than once.
-    case duplicatedDependency(String)
+    case duplicatedDependency(String, ThirdPartyDependency, ThirdPartyDependency)
 
     /// Error type.
     public var type: ErrorType {
@@ -30,17 +30,20 @@ public enum DependenciesGraphError: FatalError, Equatable {
     // Error description.
     public var description: String {
         switch self {
-        case let .duplicatedDependency(name):
-            return "The \(name) dependency is defined more than once across different dependency managers."
+        case let .duplicatedDependency(name, first, second):
+            return """
+            The \(name) dependency is defined twice across different dependency managers:
+            First: \(first)
+            Second: \(second)
+            """
         }
     }
 }
 
 extension DependenciesGraph {
     public func merging(with other: Self) throws -> Self {
-        let mergedThirdPartyDependencies = try thirdPartyDependencies.merging(other.thirdPartyDependencies) { old, _ in
-            let name = self.thirdPartyDependencies.first { $0.value == old }!.key
-            throw DependenciesGraphError.duplicatedDependency(name)
+        let mergedThirdPartyDependencies = try thirdPartyDependencies.merging(other.thirdPartyDependencies) { old, new in
+            throw DependenciesGraphError.duplicatedDependency(old.name, old, new)
         }
         return .init(thirdPartyDependencies: mergedThirdPartyDependencies)
     }

@@ -226,8 +226,10 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             ]),
             platforms: [.iOS]
         )
-        let carthageGraph: DependenciesGraph = .test(thirdPartyDependencies: ["Duplicated": .testXCFramework()])
-        let spmGraph: DependenciesGraph = .test(thirdPartyDependencies: ["Duplicated": .testXCFramework()])
+        let carthageDependency = ThirdPartyDependency.testXCFramework(name: "Duplicated", path: rootPath.appending(component: "Carthage"), architectures: [])
+        let carthageGraph: DependenciesGraph = .test(thirdPartyDependencies: ["Duplicated": carthageDependency])
+        let spmDependency = ThirdPartyDependency.testXCFramework(name: "Duplicated", path: rootPath.appending(component: "SPM"), architectures: [])
+        let spmGraph: DependenciesGraph = .test(thirdPartyDependencies: ["Duplicated": spmDependency])
 
         carthageInteractor.installStub = { _, _, _, _ in
             carthageGraph
@@ -239,7 +241,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         // When / Then
         XCTAssertThrowsSpecific(
             try subject.fetch(at: rootPath, dependencies: dependencies, swiftVersion: nil),
-            DependenciesGraphError.duplicatedDependency("Duplicated")
+            DependenciesGraphError.duplicatedDependency("Duplicated", carthageDependency, spmDependency)
         )
 
         // Then
