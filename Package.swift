@@ -72,7 +72,10 @@ let package = Package(
     targets: [
         .target(
             name: "TuistGraph",
-            dependencies: [swiftToolsSupportDependency]
+            dependencies: [
+                swiftToolsSupportDependency,
+                "TuistSupport",
+            ]
         ),
         .target(
             name: "TuistGraphTesting",

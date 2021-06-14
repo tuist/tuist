@@ -239,7 +239,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         // When / Then
         XCTAssertThrowsSpecific(
             try subject.fetch(at: rootPath, dependencies: dependencies, swiftVersion: nil),
-            DependenciesControllerError.duplicatedDependency("Duplicated")
+            DependenciesGraphError.duplicatedDependency("Duplicated")
         )
 
         // Then
