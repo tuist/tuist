@@ -160,19 +160,14 @@ extension PackageInfo {
 extension PackageInfo.Target {
     /// A dependency of the target.
     public enum Dependency: Equatable {
-        public struct PackageConditionDescription: Decodable, Equatable {
-            public let platformNames: [String]
-            public let config: String?
-        }
-
         /// A dependency internal to the same package.
-        case target(name: String, condition: PackageConditionDescription?)
+        case target(name: String, condition: PackageInfo.PackageConditionDescription?)
 
         /// A product from a third party package.
-        case product(name: String, package: String, condition: PackageConditionDescription?)
+        case product(name: String, package: String, condition: PackageInfo.PackageConditionDescription?)
 
         /// A dependency to be resolved by name.
-        case byName(name: String, condition: PackageConditionDescription?)
+        case byName(name: String, condition: PackageInfo.PackageConditionDescription?)
     }
 }
 
@@ -280,18 +275,18 @@ extension PackageInfo.Target.Dependency: Decodable {
         case .target:
             self = .target(
                 name: try unkeyedValues.decode(String.self),
-                condition: try unkeyedValues.decodeIfPresent(PackageConditionDescription.self)
+                condition: try unkeyedValues.decodeIfPresent(PackageInfo.PackageConditionDescription.self)
             )
         case .product:
             self = .product(
                 name: try unkeyedValues.decode(String.self),
                 package: try unkeyedValues.decode(String.self),
-                condition: try unkeyedValues.decodeIfPresent(PackageConditionDescription.self)
+                condition: try unkeyedValues.decodeIfPresent(PackageInfo.PackageConditionDescription.self)
             )
         case .byName:
             self = .byName(
                 name: try unkeyedValues.decode(String.self),
-                condition: try unkeyedValues.decodeIfPresent(PackageConditionDescription.self)
+                condition: try unkeyedValues.decodeIfPresent(PackageInfo.PackageConditionDescription.self)
             )
         }
     }

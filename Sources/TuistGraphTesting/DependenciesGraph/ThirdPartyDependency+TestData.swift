@@ -115,7 +115,9 @@ public extension ThirdPartyDependency {
                     name: "Alamofire",
                     sources: [packageFolder.appending(RelativePath("Source"))],
                     resources: [],
-                    dependencies: []
+                    dependencies: [
+                        .linkedFramework(name: "CFNetwork", platforms: [.iOS, .macOS, .tvOS, .watchOS])
+                    ]
                 ),
             ],
             minDeploymentTargets: [
@@ -126,6 +128,7 @@ public extension ThirdPartyDependency {
             ]
         )
     }
+
     static func googleAppMeasurement(artifactsFolder: AbsolutePath, packageFolder: AbsolutePath) -> Self {
         return .sources(
             name: "GoogleAppMeasurement",
@@ -153,6 +156,10 @@ public extension ThirdPartyDependency {
                         .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULNSData", platforms: nil),
                         .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULNetwork", platforms: nil),
                         .thirdPartyTarget(dependency: "nanopb", product: "nanopb", platforms: nil),
+                        .linkedLibrary(name: "sqlite3", platforms: nil),
+                        .linkedLibrary(name: "c++", platforms: nil),
+                        .linkedLibrary(name: "z", platforms: nil),
+                        .linkedFramework(name: "StoreKit", platforms: nil),
                     ]
                 ),
                 .init(
@@ -169,6 +176,10 @@ public extension ThirdPartyDependency {
                         .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULNSData", platforms: nil),
                         .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULNetwork", platforms: nil),
                         .thirdPartyTarget(dependency: "nanopb", product: "nanopb", platforms: nil),
+                        .linkedLibrary(name: "sqlite3", platforms: nil),
+                        .linkedLibrary(name: "c++", platforms: nil),
+                        .linkedLibrary(name: "z", platforms: nil),
+                        .linkedFramework(name: "StoreKit", platforms: nil),
                     ]
                 ),
             ],

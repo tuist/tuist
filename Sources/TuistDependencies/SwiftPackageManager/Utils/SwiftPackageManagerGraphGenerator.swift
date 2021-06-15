@@ -117,20 +117,46 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
 
             let resources = target.resources.map { path.appending(RelativePath($0.path)) }
 
-            let dependencies: [ThirdPartyDependency.Target.Dependency] = try target.dependencies.map { dependency in
+            var dependencies: [ThirdPartyDependency.Target.Dependency] = []
+
+            try target.dependencies.forEach { dependency in
                 switch dependency {
                 case let .target(name, condition):
-                    return Self.localDependency(name: name, packageInfo: info, artifactsFolder: artifactsFolder, platforms: try condition?.platforms())
+                    dependencies.append(
+                        Self.localDependency(name: name, packageInfo: info, artifactsFolder: artifactsFolder, platforms: try condition?.platforms())
+                    )
                 case let .product(name, package, condition):
-                    return .thirdPartyTarget(dependency: package, product: name, platforms: try condition?.platforms())
+                    dependencies.append(.thirdPartyTarget(dependency: package, product: name, platforms: try condition?.platforms()))
                 case let .byName(name, condition):
                     if info.targets.contains(where: { $0.name == name }) {
-                        return Self.localDependency(name: name, packageInfo: info, artifactsFolder: artifactsFolder, platforms: try condition?.platforms())
+                        dependencies.append(
+                            Self.localDependency(name: name, packageInfo: info, artifactsFolder: artifactsFolder, platforms: try condition?.platforms())
+                        )
                     } else if let package = productToPackage[name] {
-                        return .thirdPartyTarget(dependency: package, product: name, platforms: try condition?.platforms())
+                        dependencies.append(.thirdPartyTarget(dependency: package, product: name, platforms: try condition?.platforms()))
                     } else {
                         throw SwiftPackageManagerGraphGeneratorError.unknownByNameDependency(name)
                     }
+                }
+            }
+
+            try target.settings.forEach { setting in
+                switch (setting.tool, setting.name) {
+                case (.c, _):
+                    // TODO: map C settings
+                    break
+                case (.cxx, _):
+                    // TODO: map CXX settings
+                    break
+                case (.swift, _):
+                    // TODO: map swift settings
+                    break
+                case (.linker, .linkedFramework):
+                    dependencies.append(.linkedFramework(name: setting.value[0], platforms: try setting.condition?.platforms()))
+                case (.linker, .linkedLibrary):
+                    dependencies.append(.linkedLibrary(name: setting.value[0], platforms: try setting.condition?.platforms()))
+                case (.linker, .headerSearchPath), (.linker, .define), (.linker, .unsafeFlags):
+                    break
                 }
             }
 
@@ -208,7 +234,7 @@ extension PackageInfo.Target {
     }
 }
 
-extension PackageInfo.Target.Dependency.PackageConditionDescription {
+extension PackageInfo.PackageConditionDescription {
     func platforms() throws -> Set<TuistGraph.Platform> {
         return Set(try self.platformNames.map { platformName in
             guard let platform = Platform(rawValue: platformName) else {
