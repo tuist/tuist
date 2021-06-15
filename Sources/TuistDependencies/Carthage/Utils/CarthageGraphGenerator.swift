@@ -27,9 +27,9 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
             .flatMap { $0.allProducts }
 
         let thirdPartyDependencies: [String: ThirdPartyDependency] = Dictionary(grouping: products, by: \.name)
-            .compactMapValues { product in
+            .compactMapValues { products in
                 // All the products grouped by name have the same name and framework
-                guard let firstProduct = product.first else { return nil }
+                guard let firstProduct = products.first else { return nil }
                 let dependencyName = firstProduct.name
                 let frameworkName = firstProduct.container
 
@@ -41,7 +41,7 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
                         frameworkName,
                     ])
 
-                let architectures: Set<BinaryArchitecture> = Set(product.flatMap { $0.architectures })
+                let architectures: Set<BinaryArchitecture> = Set(products.flatMap { $0.architectures })
                 return .xcframework(name: dependencyName, path: path, architectures: architectures)
             }
 

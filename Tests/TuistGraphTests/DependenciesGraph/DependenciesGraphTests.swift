@@ -1,4 +1,5 @@
 import Foundation
+import TuistSupport
 import XCTest
 
 @testable import TuistGraph
@@ -11,5 +12,54 @@ final class DependenciesGraphTests: TuistUnitTestCase {
 
         // Then
         XCTAssertCodable(subject)
+    }
+
+    func test_merging() throws {
+        // Given
+        let subject = DependenciesGraph.test(
+            thirdPartyDependencies: [
+                "A": .xcframework(name: "A", path: .current, architectures: [])
+            ]
+        )
+        let other = DependenciesGraph.test(
+            thirdPartyDependencies: [
+                "B": .xcframework(name: "B", path: .current, architectures: [])
+            ]
+        )
+
+        // Then
+        XCTAssertEqual(
+            try subject.merging(with: other),
+            DependenciesGraph.test(
+                thirdPartyDependencies: [
+                    "A": .xcframework(name: "A", path: .current, architectures: []),
+                    "B": .xcframework(name: "B", path: .current, architectures: []),
+                ]
+            )
+        )
+    }
+
+    func test_merging_duplicate() throws {
+        // Given
+        let subject = DependenciesGraph.test(
+            thirdPartyDependencies: [
+                "A": .xcframework(name: "A", path: .current, architectures: [])
+            ]
+        )
+        let other = DependenciesGraph.test(
+            thirdPartyDependencies: [
+                "A": .xcframework(name: "A", path: .current, architectures: [])
+            ]
+        )
+
+        // Then
+        XCTAssertThrowsSpecific(
+            try subject.merging(with: other),
+            DependenciesGraphError.duplicatedDependency(
+                "A",
+                .xcframework(name: "A", path: .current, architectures: []),
+                .xcframework(name: "A", path: .current, architectures: [])
+            )
+        )
     }
 }

@@ -10,17 +10,15 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
 
     override func setUp() {
         super.setUp()
-
         swiftPackageManagerController = MockSwiftPackageManagerController()
         subject = SwiftPackageManagerGraphGenerator(swiftPackageManagerController: swiftPackageManagerController)
     }
 
     override func tearDown() {
-        super.tearDown()
-
         fileHandler = nil
         swiftPackageManagerController = nil
         subject = nil
+        super.tearDown()
     }
 
     func test_generate() throws {
@@ -36,18 +34,14 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
             ]
         }
 
-        var loadPackageInfoCalls = 0
         swiftPackageManagerController.loadPackageInfoStub = { path in
-            loadPackageInfoCalls += 1
-            switch loadPackageInfoCalls {
-            case 1:
-                XCTAssertEqual(path, checkoutsPath.appending(component: "alamofire").appending(component: "Package.swift"))
+            switch path {
+            case checkoutsPath.appending(component: "alamofire").appending(component: "Package.swift"):
                 return PackageInfo.alamofire
-            case 2:
-                XCTAssertEqual(path, checkoutsPath.appending(component: "google-app-measurement").appending(component: "Package.swift"))
+            case checkoutsPath.appending(component: "google-app-measurement").appending(component: "Package.swift"):
                 return PackageInfo.googleAppMeasurement
             default:
-                XCTFail("Unexpected function call")
+                XCTFail("Unexpected path: \(path)")
                 return .test
             }
         }
