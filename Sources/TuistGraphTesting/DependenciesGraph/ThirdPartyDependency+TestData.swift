@@ -27,8 +27,8 @@ public extension ThirdPartyDependency {
                     sources: [packageFolder.appending(RelativePath("customPath/customSources"))],
                     resources: [packageFolder.appending(RelativePath("customPath/resources"))],
                     dependencies: [
-                        .target(name: "TuistKit"),
-                        .thirdPartyTarget(dependency: "a-dependency", product: "ALibrary"),
+                        .target(name: "TuistKit", platforms: nil),
+                        .thirdPartyTarget(dependency: "a-dependency", product: "ALibrary", platforms: [.iOS]),
                     ]
                 ),
                 .init(
@@ -36,7 +36,7 @@ public extension ThirdPartyDependency {
                     sources: [packageFolder.appending(RelativePath("Sources/TuistKit"))],
                     resources: [],
                     dependencies: [
-                        .thirdPartyTarget(dependency: "another-dependency", product: "AnotherLibrary"),
+                        .thirdPartyTarget(dependency: "another-dependency", product: "AnotherLibrary", platforms: nil),
                     ]
                 ),
             ],
@@ -147,12 +147,12 @@ public extension ThirdPartyDependency {
                     sources: [packageFolder.appending(RelativePath("GoogleAppMeasurementWrapper"))],
                     resources: [],
                     dependencies: [
-                        .xcframework(path: artifactsFolder.appending(component: "GoogleAppMeasurement.xcframework")),
-                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULAppDelegateSwizzler"),
-                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULMethodSwizzler"),
-                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULNSData"),
-                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULNetwork"),
-                        .thirdPartyTarget(dependency: "nanopb", product: "nanopb"),
+                        .xcframework(path: artifactsFolder.appending(component: "GoogleAppMeasurement.xcframework"), platforms: nil),
+                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULAppDelegateSwizzler", platforms: nil),
+                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULMethodSwizzler", platforms: nil),
+                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULNSData", platforms: nil),
+                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULNetwork", platforms: nil),
+                        .thirdPartyTarget(dependency: "nanopb", product: "nanopb", platforms: nil),
                     ]
                 ),
                 .init(
@@ -160,12 +160,15 @@ public extension ThirdPartyDependency {
                     sources: [packageFolder.appending(RelativePath("GoogleAppMeasurementWithoutAdIdSupportWrapper"))],
                     resources: [],
                     dependencies: [
-                        .xcframework(path: artifactsFolder.appending(component: "GoogleAppMeasurementWithoutAdIdSupport.xcframework")),
-                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULAppDelegateSwizzler"),
-                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULMethodSwizzler"),
-                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULNSData"),
-                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULNetwork"),
-                        .thirdPartyTarget(dependency: "nanopb", product: "nanopb"),
+                        .xcframework(
+                          path: artifactsFolder.appending(component: "GoogleAppMeasurementWithoutAdIdSupport.xcframework"),
+                          platforms: nil
+                        ),
+                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULAppDelegateSwizzler", platforms: nil),
+                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULMethodSwizzler", platforms: nil),
+                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULNSData", platforms: nil),
+                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULNetwork", platforms: nil),
+                        .thirdPartyTarget(dependency: "nanopb", product: "nanopb", platforms: nil),
                     ]
                 ),
             ],

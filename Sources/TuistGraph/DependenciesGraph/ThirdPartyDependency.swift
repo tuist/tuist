@@ -80,13 +80,13 @@ extension ThirdPartyDependency {
 extension ThirdPartyDependency.Target {
     public enum Dependency: Codable, Hashable {
         /// A target belonging to the dependency itself.
-        case target(name: String)
+        case target(name: String, platforms: Set<Platform>?)
 
         /// A target belonging to another dependency.
-        case thirdPartyTarget(dependency: String, product: String)
+        case thirdPartyTarget(dependency: String, product: String, platforms: Set<Platform>?)
 
         /// A binary dependency.
-        case xcframework(path: AbsolutePath)
+        case xcframework(path: AbsolutePath, platforms: Set<Platform>?)
     }
 }
 
@@ -155,6 +155,7 @@ extension ThirdPartyDependency.Target.Dependency {
         case kind
         case dependency
         case target
+        case platforms
         case product
         case path
     }
@@ -162,33 +163,37 @@ extension ThirdPartyDependency.Target.Dependency {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
+        let platforms = try container.decode(Set<Platform>.self, forKey: .platforms)
         switch kind {
         case .target:
             let name = try container.decode(String.self, forKey: .target)
-            self = .target(name: name)
+            self = .target(name: name, platforms: platforms)
         case .thirdPartyTarget:
             let dependency = try container.decode(String.self, forKey: .dependency)
             let product = try container.decode(String.self, forKey: .product)
-            self = .thirdPartyTarget(dependency: dependency, product: product)
+            self = .thirdPartyTarget(dependency: dependency, product: product, platforms: platforms)
         case .xcframework:
             let path = try container.decode(AbsolutePath.self, forKey: .path)
-            self = .xcframework(path: path)
+            self = .xcframework(path: path, platforms: platforms)
         }
     }
 
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
-        case let .target(name):
+        case let .target(name, platforms):
             try container.encode(Kind.target, forKey: .kind)
             try container.encode(name, forKey: .target)
-        case let .thirdPartyTarget(product, target):
+            try container.encode(platforms, forKey: .platforms)
+        case let .thirdPartyTarget(product, target, platforms):
             try container.encode(Kind.thirdPartyTarget, forKey: .kind)
             try container.encode(product, forKey: .product)
             try container.encode(target, forKey: .target)
-        case let .xcframework(path):
+            try container.encode(platforms, forKey: .platforms)
+        case let .xcframework(path, platforms):
             try container.encode(Kind.xcframework, forKey: .kind)
             try container.encode(path, forKey: .path)
+            try container.encode(platforms, forKey: .platforms)
         }
     }
 }

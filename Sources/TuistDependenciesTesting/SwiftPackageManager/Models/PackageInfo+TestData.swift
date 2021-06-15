@@ -92,7 +92,11 @@ extension PackageInfo {
                   "product" : [
                     "ALibrary",
                     "a-dependency",
-                    null
+                    {
+                      "platformNames" : [
+                        "ios"
+                      ]
+                    }
                   ]
                 },
               ],
@@ -192,7 +196,7 @@ extension PackageInfo {
                     exclude: [],
                     dependencies: [
                         .target(name: "TuistKit", condition: nil),
-                        .product(name: "ALibrary", package: "a-dependency", condition: nil),
+                        .product(name: "ALibrary", package: "a-dependency", condition: .init(platformNames: ["ios"], config: nil)),
                     ],
                     publicHeadersPath: nil,
                     type: .regular,

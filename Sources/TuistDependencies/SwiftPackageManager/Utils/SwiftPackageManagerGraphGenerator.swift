@@ -117,18 +117,17 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
 
             let resources = target.resources.map { path.appending(RelativePath($0.path)) }
 
-            // TODO: handle dependency condition
             let dependencies: [ThirdPartyDependency.Target.Dependency] = try target.dependencies.map { dependency in
                 switch dependency {
-                case let .target(name, _):
-                    return Self.localDependency(name: name, packageInfo: info, artifactsFolder: artifactsFolder)
-                case let .product(name, package, _):
-                    return .thirdPartyTarget(dependency: package, product: name)
-                case let .byName(name, _):
+                case let .target(name, condition):
+                    return Self.localDependency(name: name, packageInfo: info, artifactsFolder: artifactsFolder, platforms: try condition?.platforms())
+                case let .product(name, package, condition):
+                    return .thirdPartyTarget(dependency: package, product: name, platforms: try condition?.platforms())
+                case let .byName(name, condition):
                     if info.targets.contains(where: { $0.name == name }) {
-                        return Self.localDependency(name: name, packageInfo: info, artifactsFolder: artifactsFolder)
+                        return Self.localDependency(name: name, packageInfo: info, artifactsFolder: artifactsFolder, platforms: try condition?.platforms())
                     } else if let package = productToPackage[name] {
-                        return .thirdPartyTarget(dependency: package, product: name)
+                        return .thirdPartyTarget(dependency: package, product: name, platforms: try condition?.platforms())
                     } else {
                         throw SwiftPackageManagerGraphGeneratorError.unknownByNameDependency(name)
                     }
@@ -151,7 +150,8 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
     private static func localDependency(
         name: String,
         packageInfo: PackageInfo,
-        artifactsFolder: AbsolutePath
+        artifactsFolder: AbsolutePath,
+        platforms: Set<TuistGraph.Platform>?
     ) -> ThirdPartyDependency.Target.Dependency {
         if let target = packageInfo.targets.first(where: { $0.name == name }),
             let targetURL = target.url,
@@ -159,9 +159,9 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         {
             let xcframeworkRelativePath = RelativePath("\(xcframeworkRemoteURL.deletingPathExtension().lastPathComponent).xcframework")
             let xcframeworkPath = artifactsFolder.appending(xcframeworkRelativePath)
-            return .xcframework(path: xcframeworkPath)
+            return .xcframework(path: xcframeworkPath, platforms: platforms)
         } else {
-            return .target(name: name)
+            return .target(name: name, platforms: platforms)
         }
     }
 }
@@ -205,5 +205,16 @@ extension PackageInfo.Product.ProductType {
 extension PackageInfo.Target {
     fileprivate var pathOrDefault: String {
         return path ?? "Sources/\(name)"
+    }
+}
+
+extension PackageInfo.Target.Dependency.PackageConditionDescription {
+    func platforms() throws -> Set<TuistGraph.Platform> {
+        return Set(try self.platformNames.map { platformName in
+            guard let platform = Platform(rawValue: platformName) else {
+                throw SwiftPackageManagerGraphGeneratorError.unknownPlatform(platformName)
+            }
+            return platform
+        })
     }
 }
