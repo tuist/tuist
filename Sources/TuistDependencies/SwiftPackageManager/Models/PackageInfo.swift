@@ -108,20 +108,11 @@ extension PackageInfo.Product {
         /// An executable product.
         case executable
 
-        /// An plugin product.
+        /// A plugin product.
         case plugin
 
         /// A test product.
         case test
-
-        public var isLibrary: Bool {
-            switch self {
-            case .library:
-                return true
-            case .executable, .plugin, .test:
-                return false
-            }
-        }
     }
 }
 
