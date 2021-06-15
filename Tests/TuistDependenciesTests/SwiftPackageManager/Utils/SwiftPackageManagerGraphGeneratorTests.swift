@@ -10,17 +10,15 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
 
     override func setUp() {
         super.setUp()
-
         swiftPackageManagerController = MockSwiftPackageManagerController()
         subject = SwiftPackageManagerGraphGenerator(swiftPackageManagerController: swiftPackageManagerController)
     }
 
     override func tearDown() {
-        super.tearDown()
-
         fileHandler = nil
         swiftPackageManagerController = nil
         subject = nil
+        super.tearDown()
     }
 
     func test_generate() throws {
@@ -56,33 +54,24 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
             ]
         }
 
-        var loadPackageInfoCalls = 0
         swiftPackageManagerController.loadPackageInfoStub = { path in
-            loadPackageInfoCalls += 1
-            switch loadPackageInfoCalls {
-            case 1:
-                XCTAssertEqual(path, alamofirePath.appending(component: "Package.swift"))
+            switch path {
+            case alamofirePath:
                 return PackageInfo.alamofire
-            case 2:
-                XCTAssertEqual(path, googleAppMeasurementPath.appending(component: "Package.swift"))
+            case googleAppMeasurementPath:
                 return PackageInfo.googleAppMeasurement
-            case 3:
-                XCTAssertEqual(path, googleUtilitiesPath.appending(component: "Package.swift"))
+            case googleUtilitiesPath:
                 return PackageInfo.googleUtilities
-            case 4:
-                XCTAssertEqual(path, nanopbPath.appending(component: "Package.swift"))
+            case nanopbPath:
                 return PackageInfo.nanopb
-            case 5:
-                XCTAssertEqual(path, testPath.appending(component: "Package.swift"))
+            case testPath:
                 return PackageInfo.test
-            case 6:
-                XCTAssertEqual(path, aDependencyPath.appending(component: "Package.swift"))
+            case aDependencyPath:
                 return PackageInfo.aDependency
-            case 7:
-                XCTAssertEqual(path, anotherDependencyPath.appending(component: "Package.swift"))
+            case anotherDependencyPath:
                 return PackageInfo.anotherDependency
             default:
-                XCTFail("Unexpected function call")
+                XCTFail("Unexpected path: \(path)")
                 return .test
             }
         }

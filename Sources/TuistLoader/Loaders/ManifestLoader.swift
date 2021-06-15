@@ -288,6 +288,7 @@ public class ManifestLoader: ManifestLoading {
         }
     }
 
+    // swiftlint:disable:next function_body_length
     private func buildArguments(
         _ manifest: Manifest,
         at path: AbsolutePath

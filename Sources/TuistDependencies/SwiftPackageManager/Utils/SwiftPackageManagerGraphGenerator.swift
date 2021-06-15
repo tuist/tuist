@@ -54,8 +54,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         let packageInfos: [(name: String, folder: AbsolutePath, artifactsFolder: AbsolutePath, info: PackageInfo)]
         packageInfos = try packageFolders.map { packageFolder in
             let name = packageFolder.basename
-            let manifest = packageFolder.appending(component: "Package.swift")
-            let packageInfo = try swiftPackageManagerController.loadPackageInfo(at: manifest)
+            let packageInfo = try swiftPackageManagerController.loadPackageInfo(at: packageFolder)
             return (
                 name: name,
                 folder: packageFolder,
