@@ -33,7 +33,7 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
     }
 }
 
-// MARK: - Swift Package Manager Graph Generator Errors
+// MARK: - Swift Package Manager Graph Generator
 
 /// A protocol that defines an interface to generate the `DependenciesGraph` for the `SwiftPackageManager` dependencies.
 public protocol SwiftPackageManagerGraphGenerating {

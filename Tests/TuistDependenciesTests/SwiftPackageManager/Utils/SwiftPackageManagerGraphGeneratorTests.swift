@@ -82,13 +82,13 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
         // Then
         let expected = DependenciesGraph(
             thirdPartyDependencies: [
-                "Alamofire": PackageInfo.alamofireThirdPartyDependency(packageFolder: alamofirePath),
-                "GoogleAppMeasurement": PackageInfo.googleAppMeasurementThirdPartyDependency(artifactsFolder: googleAppMeasurementArtifactsPath, packageFolder: googleAppMeasurementPath),
-                "GoogleUtilities": PackageInfo.googleUtilitiesThirdPartyDependency(packageFolder: googleUtilitiesPath),
-                "nanopb": PackageInfo.nanopbThirdPartyDependency(packageFolder: nanopbPath),
-                "test": PackageInfo.testThirdPartyDependency(packageFolder: testPath),
-                "a-dependency": PackageInfo.aDependencyThirdPartyDependency(packageFolder: aDependencyPath),
-                "another-dependency": PackageInfo.anotherDependencyThirdPartyDependency(packageFolder: anotherDependencyPath),
+                "Alamofire": .alamofire(packageFolder: alamofirePath),
+                "GoogleAppMeasurement": .googleAppMeasurement(artifactsFolder: googleAppMeasurementArtifactsPath, packageFolder: googleAppMeasurementPath),
+                "GoogleUtilities": .googleUtilities(packageFolder: googleUtilitiesPath),
+                "nanopb": .nanopb(packageFolder: nanopbPath),
+                "test": .test(packageFolder: testPath),
+                "a-dependency": .aDependency(packageFolder: aDependencyPath),
+                "another-dependency": .anotherDependency(packageFolder: anotherDependencyPath),
             ]
         )
 

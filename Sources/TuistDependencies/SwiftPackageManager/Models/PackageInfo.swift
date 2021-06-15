@@ -1,4 +1,4 @@
-// MARK: PackageInfo
+// MARK: - PackageInfo
 
 /// The Swift Package Manager package information.
 /// It decodes data encoded from Manifest.swift: https://github.com/apple/swift-package-manager/blob/06f9b30f4593940272f57f6284e5614d817d2f22/Sources/PackageModel/Manifest.swift#L372-L409
@@ -70,7 +70,7 @@ extension PackageInfo {
     }
 }
 
-// MARK: Product
+// MARK: - Product
 
 extension PackageInfo {
     public struct Product: Decodable, Equatable {
@@ -116,7 +116,7 @@ extension PackageInfo.Product {
     }
 }
 
-// MARK: Target
+// MARK: - Target
 
 extension PackageInfo {
     public struct Target: Decodable, Equatable {
