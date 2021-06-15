@@ -56,6 +56,7 @@ final class RunService {
         self.targetRunner = targetRunner
     }
 
+    // swiftlint:disable:next function_body_length
     func run(
         path: String?,
         schemeName: String,

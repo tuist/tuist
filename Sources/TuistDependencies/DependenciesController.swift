@@ -5,7 +5,7 @@ import TuistSupport
 
 // MARK: - Dependencies Controller Error
 
-enum DependenciesControllerError: FatalError {
+enum DependenciesControllerError: FatalError, Equatable {
     /// Thrown when platforms for dependencies to install are not determined in `Dependencies.swift`.
     case noPlatforms
 
@@ -30,7 +30,7 @@ enum DependenciesControllerError: FatalError {
 
 /// `DependenciesControlling` controls:
 ///     1. Fetching/updating dependencies defined in `./Tuist/Dependencies.swift` by running appropriate dependencies managers (`Cocoapods`, `Carthage`, `SPM`).
-///     2. Compiling fetched/updated depedencies into `.framework.`/`.xcframework.`.
+///     2. Compiling fetched/updated dependencies into `.framework.`/`.xcframework.`.
 ///     3. Saving compiled frameworks under `./Tuist/Dependencies/*`.
 ///     4. Generating dependencies graph under `./Tuist/Dependencies/graph.json`.
 public protocol DependenciesControlling {
@@ -121,24 +121,26 @@ public final class DependenciesController: DependenciesControlling {
 
         var dependenciesGraph = DependenciesGraph(thirdPartyDependencies: [:])
 
-        if let carthageDepedencies = dependencies.carthage, !carthageDepedencies.dependencies.isEmpty {
-            dependenciesGraph = try carthageInteractor.install(
+        if let carthageDependencies = dependencies.carthage, !carthageDependencies.dependencies.isEmpty {
+            let carthageDependenciesGraph = try carthageInteractor.install(
                 dependenciesDirectory: dependenciesDirectory,
-                dependencies: carthageDepedencies,
+                dependencies: carthageDependencies,
                 platforms: platforms,
                 shouldUpdate: shouldUpdate
             )
+            dependenciesGraph = try dependenciesGraph.merging(with: carthageDependenciesGraph)
         } else {
             try carthageInteractor.clean(dependenciesDirectory: dependenciesDirectory)
         }
 
         if let swiftPackageManagerDependencies = dependencies.swiftPackageManager, !swiftPackageManagerDependencies.packages.isEmpty {
-            try swiftPackageManagerInteractor.install(
+            let swiftPackageManagerDependenciesGraph = try swiftPackageManagerInteractor.install(
                 dependenciesDirectory: dependenciesDirectory,
                 dependencies: swiftPackageManagerDependencies,
                 shouldUpdate: shouldUpdate,
                 swiftToolsVersion: swiftVersion
             )
+            dependenciesGraph = try dependenciesGraph.merging(with: swiftPackageManagerDependenciesGraph)
         } else {
             try swiftPackageManagerInteractor.clean(dependenciesDirectory: dependenciesDirectory)
         }
