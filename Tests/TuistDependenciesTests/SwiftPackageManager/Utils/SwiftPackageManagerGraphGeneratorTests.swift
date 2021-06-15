@@ -26,6 +26,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
     func test_generate() throws {
         // Given
         let path = try temporaryPath()
+        let artifactsPath = path.appending(component: "artifacts")
         let checkoutsPath = path.appending(component: "checkouts")
 
         // Alamofire package and its dependencies
@@ -33,6 +34,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
 
         // GoogleAppMeasurement package and its dependencies
         let googleAppMeasurementPath = checkoutsPath.appending(component: "GoogleAppMeasurement")
+        let googleAppMeasurementArtifactsPath = artifactsPath.appending(component: "GoogleAppMeasurement")
         let googleUtilitiesPath = checkoutsPath.appending(component: "GoogleUtilities")
         let nanopbPath = checkoutsPath.appending(component: "nanopb")
 
@@ -92,7 +94,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
         let expected = DependenciesGraph(
             thirdPartyDependencies: [
                 "Alamofire": PackageInfo.alamofireThirdPartyDependency(packageFolder: alamofirePath),
-                "GoogleAppMeasurement": PackageInfo.googleAppMeasurementThirdPartyDependency(packageFolder: googleAppMeasurementPath),
+                "GoogleAppMeasurement": PackageInfo.googleAppMeasurementThirdPartyDependency(artifactsFolder: googleAppMeasurementArtifactsPath, packageFolder: googleAppMeasurementPath),
                 "GoogleUtilities": PackageInfo.googleUtilitiesThirdPartyDependency(packageFolder: googleUtilitiesPath),
                 "nanopb": PackageInfo.nanopbThirdPartyDependency(packageFolder: nanopbPath),
                 "test": PackageInfo.testThirdPartyDependency(packageFolder: testPath),

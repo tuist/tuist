@@ -51,10 +51,17 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
 
     public func generate(at path: AbsolutePath) throws -> DependenciesGraph {
         let packageFolders = try FileHandler.shared.contentsOfDirectory(path.appending(component: "checkouts"))
-        let packageInfos: [(name: String, folder: AbsolutePath, info: PackageInfo)] = try packageFolders.map { packageFolder in
+        let packageInfos: [(name: String, folder: AbsolutePath, artifactsFolder: AbsolutePath, info: PackageInfo)]
+        packageInfos = try packageFolders.map { packageFolder in
+            let name = packageFolder.basename
             let manifest = packageFolder.appending(component: "Package.swift")
             let packageInfo = try swiftPackageManagerController.loadPackageInfo(at: manifest)
-            return (name: packageFolder.basename, folder: packageFolder, info: packageInfo)
+            return (
+                name: name,
+                folder: packageFolder,
+                artifactsFolder: path.appending(component: "artifacts").appending(component: name),
+                info: packageInfo
+            )
         }
 
         let productToPackage: [String: String] = packageInfos.reduce(into: [:]) { result, packageInfo in
@@ -62,18 +69,28 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         }
 
         let thirdPartyDependencies: [String: ThirdPartyDependency] = Dictionary(uniqueKeysWithValues: try packageInfos.map { packageInfo in
-            let dependency = try Self.mapToThirdPartyDependency(name: packageInfo.name, folder: packageInfo.folder, info: packageInfo.info, productToPackage: productToPackage)
+            let dependency = try Self.mapToThirdPartyDependency(
+                name: packageInfo.name,
+                folder: packageInfo.folder,
+                info: packageInfo.info,
+                artifactsFolder: packageInfo.artifactsFolder,
+                productToPackage: productToPackage
+            )
             return (dependency.name, dependency)
         })
 
         return DependenciesGraph(thirdPartyDependencies: thirdPartyDependencies)
     }
 
-    private static func mapToThirdPartyDependency(name: String, folder: AbsolutePath, info: PackageInfo, productToPackage: [String: String]) throws -> ThirdPartyDependency {
+    private static func mapToThirdPartyDependency(
+        name: String,
+        folder: AbsolutePath,
+        info: PackageInfo,
+        artifactsFolder: AbsolutePath,
+        productToPackage: [String: String]
+    ) throws -> ThirdPartyDependency {
         let products: [ThirdPartyDependency.Product] = info.products.compactMap { product in
-            guard let libraryType = product.type.libraryType else {
-                return nil
-            }
+            guard let libraryType = product.type.libraryType else { return nil }
 
             return .init(
                 name: product.name,
@@ -86,10 +103,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             switch target.type {
             case .regular:
                 break
-            case .binary:
-                // TODO: handle binary dependencies
-                return nil
-            case .executable, .test, .system, .plugin:
+            case .executable, .test, .system, .binary, .plugin:
                 logger.debug("Target \(target.name) of type \(target.type) ignored")
                 return nil
             }
@@ -108,12 +122,12 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             let dependencies: [ThirdPartyDependency.Target.Dependency] = try target.dependencies.map { dependency in
                 switch dependency {
                 case let .target(name, _):
-                    return .target(name: name)
+                    return Self.localDependency(name: name, packageInfo: info, artifactsFolder: artifactsFolder)
                 case let .product(name, package, _):
                     return .thirdPartyTarget(dependency: package, product: name)
                 case let .byName(name, _):
                     if info.targets.contains(where: { $0.name == name }) {
-                        return .target(name: name)
+                        return Self.localDependency(name: name, packageInfo: info, artifactsFolder: artifactsFolder)
                     } else if let package = productToPackage[name] {
                         return .thirdPartyTarget(dependency: package, product: name)
                     } else {
@@ -133,6 +147,23 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             targets: targets,
             minDeploymentTargets: minDeploymentTargets
         )
+    }
+
+    private static func localDependency(
+        name: String,
+        packageInfo: PackageInfo,
+        artifactsFolder: AbsolutePath
+    ) -> ThirdPartyDependency.Target.Dependency {
+        if let target = packageInfo.targets.first(where: { $0.name == name }),
+            let targetURL = target.url,
+            let xcframeworkRemoteURL = URL(string: targetURL)
+        {
+            let xcframeworkRelativePath = RelativePath("\(xcframeworkRemoteURL.deletingPathExtension().lastPathComponent).xcframework")
+            let xcframeworkPath = artifactsFolder.appending(xcframeworkRelativePath)
+            return .xcframework(path: xcframeworkPath)
+        } else {
+            return .target(name: name)
+        }
     }
 }
 

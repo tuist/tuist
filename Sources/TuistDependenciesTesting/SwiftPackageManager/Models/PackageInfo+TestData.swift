@@ -885,8 +885,16 @@ extension PackageInfo {
     static var googleAppMeasurement: PackageInfo {
         return .init(
             products: [
-                .init(name: "GoogleAppMeasurement", type: .library(.automatic), targets: ["GoogleAppMeasurementTarget"]),
-                .init(name: "GoogleAppMeasurementWithoutAdIdSupport", type: .library(.automatic), targets: ["GoogleAppMeasurementWithoutAdIdSupportTarget"]),
+                .init(
+                    name: "GoogleAppMeasurement",
+                    type: .library(.automatic),
+                    targets: ["GoogleAppMeasurementTarget"]
+                ),
+                .init(
+                    name: "GoogleAppMeasurementWithoutAdIdSupport",
+                    type: .library(.automatic),
+                    targets: ["GoogleAppMeasurementWithoutAdIdSupportTarget"]
+                ),
             ],
             targets: [
                 .init(
@@ -1106,7 +1114,7 @@ extension PackageInfo {
         )
     }
 
-    static func googleAppMeasurementThirdPartyDependency(packageFolder: AbsolutePath) -> ThirdPartyDependency {
+    static func googleAppMeasurementThirdPartyDependency(artifactsFolder: AbsolutePath, packageFolder: AbsolutePath) -> ThirdPartyDependency {
         return .sources(
             name: "GoogleAppMeasurement",
             products: [
@@ -1127,7 +1135,7 @@ extension PackageInfo {
                     sources: [packageFolder.appending(RelativePath("GoogleAppMeasurementWrapper"))],
                     resources: [],
                     dependencies: [
-                        .target(name: "GoogleAppMeasurement"),
+                        .xcframework(path: artifactsFolder.appending(component: "GoogleAppMeasurement.xcframework")),
                         .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULAppDelegateSwizzler"),
                         .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULMethodSwizzler"),
                         .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULNSData"),
@@ -1140,7 +1148,7 @@ extension PackageInfo {
                     sources: [packageFolder.appending(RelativePath("GoogleAppMeasurementWithoutAdIdSupportWrapper"))],
                     resources: [],
                     dependencies: [
-                        .target(name: "GoogleAppMeasurementWithoutAdIdSupport"),
+                        .xcframework(path: artifactsFolder.appending(component: "GoogleAppMeasurementWithoutAdIdSupport.xcframework")),
                         .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULAppDelegateSwizzler"),
                         .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULMethodSwizzler"),
                         .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULNSData"),
@@ -1155,6 +1163,7 @@ extension PackageInfo {
         )
     }
 
+    // swiftlint:disable:next function_body_length
     static func googleUtilitiesThirdPartyDependency(packageFolder: AbsolutePath) -> ThirdPartyDependency {
         return .sources(
             name: "GoogleUtilities",
