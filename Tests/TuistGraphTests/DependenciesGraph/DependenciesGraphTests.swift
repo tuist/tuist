@@ -18,12 +18,12 @@ final class DependenciesGraphTests: TuistUnitTestCase {
         // Given
         let subject = DependenciesGraph.test(
             thirdPartyDependencies: [
-                "A": .xcframework(name: "A", path: .current, architectures: [])
+                "A": .xcframework(name: "A", path: .current, architectures: []),
             ]
         )
         let other = DependenciesGraph.test(
             thirdPartyDependencies: [
-                "B": .xcframework(name: "B", path: .current, architectures: [])
+                "B": .xcframework(name: "B", path: .current, architectures: []),
             ]
         )
 
@@ -43,12 +43,12 @@ final class DependenciesGraphTests: TuistUnitTestCase {
         // Given
         let subject = DependenciesGraph.test(
             thirdPartyDependencies: [
-                "A": .xcframework(name: "A", path: .current, architectures: [])
+                "A": .xcframework(name: "A", path: .current, architectures: []),
             ]
         )
         let other = DependenciesGraph.test(
             thirdPartyDependencies: [
-                "A": .xcframework(name: "A", path: .current, architectures: [])
+                "A": .xcframework(name: "A", path: .current, architectures: []),
             ]
         )
 

@@ -36,9 +36,9 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
 
         swiftPackageManagerController.loadPackageInfoStub = { path in
             switch path {
-            case checkoutsPath.appending(component: "alamofire").appending(component: "Package.swift"):
+            case checkoutsPath.appending(component: "alamofire"):
                 return PackageInfo.alamofire
-            case checkoutsPath.appending(component: "google-app-measurement").appending(component: "Package.swift"):
+            case checkoutsPath.appending(component: "google-app-measurement"):
                 return PackageInfo.googleAppMeasurement
             default:
                 XCTFail("Unexpected path: \(path)")
