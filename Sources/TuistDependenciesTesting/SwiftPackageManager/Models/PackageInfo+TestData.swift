@@ -98,13 +98,14 @@ extension PackageInfo {
                       ]
                     }
                   ]
-                },
+                }
               ],
               "exclude" : [
 
               ],
               "name" : "Tuist",
-              "path": "customPath",
+              "path" : "customPath",
+              "publicHeadersPath" : "customPublicHeadersPath",
               "sources": [
                 "customSources"
               ],
@@ -116,13 +117,62 @@ extension PackageInfo {
               ],
               "settings" : [
                 {
-                  "tool": "swift",
-                  "name": "linkedLibrary",
+                  "tool": "c",
+                  "name": "headerSearchPath",
                   "value": [
-                    "settingValue"
+                    "cSearchPath"
+                  ]
+                },
+                {
+                  "tool": "cxx",
+                  "name": "headerSearchPath",
+                  "value": [
+                    "cxxSearchPath"
+                  ]
+                },
+                {
+                  "tool": "c",
+                  "name": "unsafeFlags",
+                  "value": [
+                    "CUSTOM_C_FLAG"
+                  ]
+                },
+                {
+                  "tool": "cxx",
+                  "name": "unsafeFlags",
+                  "value": [
+                    "CUSTOM_CXX_FLAG"
+                  ]
+                },
+                {
+                  "tool": "swift",
+                  "name": "unsafeFlags",
+                  "value": [
+                    "CUSTOM_SWIFT_FLAG1",
+                    "CUSTOM_SWIFT_FLAG2"
+                  ]
+                },
+                {
+                  "tool": "c",
+                  "name": "define",
+                  "value": [
+                    "C_DEFINE=C_VALUE"
+                  ]
+                },
+                {
+                  "tool": "cxx",
+                  "name": "define",
+                  "value": [
+                    "CXX_DEFINE=CXX_VALUE"
+                  ]
+                },
+                {
+                  "tool": "swift",
+                  "name": "define",
+                  "value": [
+                    "SWIFT_DEFINE"
                   ]
                 }
-
               ],
               "type" : "regular"
             },
@@ -198,10 +248,17 @@ extension PackageInfo {
                         .target(name: "TuistKit", condition: nil),
                         .product(name: "ALibrary", package: "a-dependency", condition: .init(platformNames: ["ios"], config: nil)),
                     ],
-                    publicHeadersPath: nil,
+                    publicHeadersPath: "customPublicHeadersPath",
                     type: .regular,
                     settings: [
-                        .init(tool: .swift, name: .linkedLibrary, condition: nil, value: ["settingValue"]),
+                        .init(tool: .c, name: .headerSearchPath, condition: nil, value: ["cSearchPath"]),
+                        .init(tool: .cxx, name: .headerSearchPath, condition: nil, value: ["cxxSearchPath"]),
+                        .init(tool: .c, name: .unsafeFlags, condition: nil, value: ["CUSTOM_C_FLAG"]),
+                        .init(tool: .cxx, name: .unsafeFlags, condition: nil, value: ["CUSTOM_CXX_FLAG"]),
+                        .init(tool: .swift, name: .unsafeFlags, condition: nil, value: ["CUSTOM_SWIFT_FLAG1", "CUSTOM_SWIFT_FLAG2"]),
+                        .init(tool: .c, name: .define, condition: nil, value: ["C_DEFINE=C_VALUE"]),
+                        .init(tool: .cxx, name: .define, condition: nil, value: ["CXX_DEFINE=CXX_VALUE"]),
+                        .init(tool: .swift, name: .define, condition: nil, value: ["SWIFT_DEFINE"]),
                     ],
                     checksum: nil
                 ),

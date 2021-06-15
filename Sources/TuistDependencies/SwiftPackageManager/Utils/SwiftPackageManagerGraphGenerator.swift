@@ -14,10 +14,13 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
     /// Thrown when `PackageInfo.Platform` name cannot be mapped to a `DeploymentTarget`.
     case unknownPlatform(String)
 
+    /// Thrown when unsupported `PackageInfo.Target.TargetBuildSettingDescription` `Tool`/`SettingName` pair is found.
+    case unsupportedSetting(PackageInfo.Target.TargetBuildSettingDescription.Tool, PackageInfo.Target.TargetBuildSettingDescription.SettingName)
+
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .unknownByNameDependency, .unknownPlatform:
+        case .unknownByNameDependency, .unknownPlatform, .unsupportedSetting:
             return .abort
         }
     }
@@ -29,6 +32,8 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
             return "The package associated to the \(name) dependency cannot be found."
         case let .unknownPlatform(platform):
             return "The \(platform) is not supported."
+        case let .unsupportedSetting(tool, setting):
+            return "The \(tool) and \(setting) pair is not a supported setting."
         }
     }
 }
@@ -81,6 +86,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         return DependenciesGraph(thirdPartyDependencies: thirdPartyDependencies)
     }
 
+    // swiftlint:disable:next function_body_length
     private static func mapToThirdPartyDependency(
         name: String,
         folder: AbsolutePath,
@@ -128,39 +134,79 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 case let .product(name, package, condition):
                     dependencies.append(.thirdPartyTarget(dependency: package, product: name, platforms: try condition?.platforms()))
                 case let .byName(name, condition):
+                    let platforms = try condition?.platforms()
                     if info.targets.contains(where: { $0.name == name }) {
                         dependencies.append(
-                            Self.localDependency(name: name, packageInfo: info, artifactsFolder: artifactsFolder, platforms: try condition?.platforms())
+                            Self.localDependency(name: name, packageInfo: info, artifactsFolder: artifactsFolder, platforms: platforms)
                         )
                     } else if let package = productToPackage[name] {
-                        dependencies.append(.thirdPartyTarget(dependency: package, product: name, platforms: try condition?.platforms()))
+                        dependencies.append(.thirdPartyTarget(dependency: package, product: name, platforms: platforms))
                     } else {
                         throw SwiftPackageManagerGraphGeneratorError.unknownByNameDependency(name)
                     }
                 }
             }
 
+            var cHeaderSearchPaths: [String] = []
+            var cxxHeaderSearchPaths: [String] = []
+            var cDefines: [String: String] = [:]
+            var cxxDefines: [String: String] = [:]
+            var swiftDefines: [String: String] = [:]
+            var cFlags: [String] = []
+            var cxxFlags: [String] = []
+            var swiftFlags: [String] = []
+
             try target.settings.forEach { setting in
+                let platforms = try setting.condition?.platforms()
                 switch (setting.tool, setting.name) {
-                case (.c, _):
-                    // TODO: map C settings
-                    break
-                case (.cxx, _):
-                    // TODO: map CXX settings
-                    break
-                case (.swift, _):
-                    // TODO: map swift settings
-                    break
+                case (.c, .headerSearchPath):
+                    cHeaderSearchPaths.append(setting.value[0])
+                case (.c, .define):
+                    let (name, value) = setting.extractDefine
+                    cDefines[name] = value
+                case (.c, .unsafeFlags):
+                    cFlags.append(contentsOf: setting.value)
+
+                case (.cxx, .define):
+                    let (name, value) = setting.extractDefine
+                    cxxDefines[name] = value
+                case (.cxx, .headerSearchPath):
+                    cxxHeaderSearchPaths.append(setting.value[0])
+                case (.cxx, .unsafeFlags):
+                    cxxFlags.append(contentsOf: setting.value)
+
+                case (.swift, .define):
+                    let (name, value) = setting.extractDefine
+                    swiftDefines[name] = value
+                case (.swift, .unsafeFlags):
+                    swiftFlags.append(contentsOf: setting.value)
+
                 case (.linker, .linkedFramework):
-                    dependencies.append(.linkedFramework(name: setting.value[0], platforms: try setting.condition?.platforms()))
+                    dependencies.append(.linkedFramework(name: setting.value[0], platforms: platforms))
                 case (.linker, .linkedLibrary):
-                    dependencies.append(.linkedLibrary(name: setting.value[0], platforms: try setting.condition?.platforms()))
-                case (.linker, .headerSearchPath), (.linker, .define), (.linker, .unsafeFlags):
-                    break
+                    dependencies.append(.linkedLibrary(name: setting.value[0], platforms: platforms))
+                case (.c, .linkedFramework), (.c, .linkedLibrary), (.cxx, .linkedFramework), (.cxx, .linkedLibrary),
+                     (.swift, .headerSearchPath), (.swift, .linkedFramework), (.swift, .linkedLibrary),
+                     (.linker, .headerSearchPath), (.linker, .define), (.linker, .unsafeFlags):
+                    throw SwiftPackageManagerGraphGeneratorError.unsupportedSetting(setting.tool, setting.name)
                 }
             }
 
-            return .init(name: target.name, sources: sources, resources: resources, dependencies: dependencies)
+            return .init(
+                name: target.name,
+                sources: sources,
+                resources: resources,
+                dependencies: dependencies,
+                publicHeadersPath: target.publicHeadersPath,
+                cHeaderSearchPaths: cHeaderSearchPaths,
+                cxxHeaderSearchPaths: cxxHeaderSearchPaths,
+                cDefines: cDefines,
+                cxxDefines: cxxDefines,
+                swiftDefines: swiftDefines,
+                cFlags: cFlags,
+                cxxFlags: cxxFlags,
+                swiftFlags: swiftFlags
+            )
         }
 
         let minDeploymentTargets = Set(try info.platforms.map { try DeploymentTarget.from(platform: $0) })
@@ -236,11 +282,23 @@ extension PackageInfo.Target {
 
 extension PackageInfo.PackageConditionDescription {
     func platforms() throws -> Set<TuistGraph.Platform> {
-        return Set(try self.platformNames.map { platformName in
+        return Set(try platformNames.map { platformName in
             guard let platform = Platform(rawValue: platformName) else {
                 throw SwiftPackageManagerGraphGeneratorError.unknownPlatform(platformName)
             }
             return platform
         })
+    }
+}
+
+extension PackageInfo.Target.TargetBuildSettingDescription.Setting {
+    public var extractDefine: (name: String, value: String) {
+        let define = self.value[0]
+        if define.contains("=") {
+            let split = define.split(separator: "=", maxSplits: 1)
+            return (name: String(split[0]), value: String(split[1]))
+        } else {
+            return (name: define, value: "1")
+        }
     }
 }

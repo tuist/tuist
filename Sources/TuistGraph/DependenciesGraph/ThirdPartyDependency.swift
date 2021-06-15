@@ -63,16 +63,64 @@ extension ThirdPartyDependency {
         /// The paths containing the target resources.
         public let resources: [AbsolutePath]
 
-        /// The target dependencies
+        /// The target dependencies.
         public let dependencies: [Dependency]
 
-        // TODO: check and add any other information needed to compile the sources (e.g. build flags)
+        /// The custom public headers path.
+        public let publicHeadersPath: String?
 
-        public init(name: String, sources: [AbsolutePath], resources: [AbsolutePath], dependencies: [Dependency]) {
+        /// The header search paths for C code.
+        public let cHeaderSearchPaths: [String]
+
+        /// The header search paths for CXX code.
+        public let cxxHeaderSearchPaths: [String]
+
+        /// The compilation conditions to be defined for C code.
+        public let cDefines: [String: String]
+
+        /// The compilation conditions to be defined for CXX code.
+        public let cxxDefines: [String: String]
+
+        /// The compilation conditions to be definedfor Swift code.
+        public let swiftDefines: [String: String]
+
+        /// The additional build flags for C code.
+        public let cFlags: [String]
+
+        /// The additional build flags for CXX code.
+        public let cxxFlags: [String]
+
+        /// The additional build flags for Swift code.
+        public let swiftFlags: [String]
+
+        public init(
+            name: String,
+            sources: [AbsolutePath],
+            resources: [AbsolutePath],
+            dependencies: [Dependency],
+            publicHeadersPath: String?,
+            cHeaderSearchPaths: [String],
+            cxxHeaderSearchPaths: [String],
+            cDefines: [String: String],
+            cxxDefines: [String: String],
+            swiftDefines: [String: String],
+            cFlags: [String],
+            cxxFlags: [String],
+            swiftFlags: [String]
+        ) {
             self.name = name
             self.sources = sources
             self.resources = resources
             self.dependencies = dependencies
+            self.publicHeadersPath = publicHeadersPath
+            self.cHeaderSearchPaths = cHeaderSearchPaths
+            self.cxxHeaderSearchPaths = cxxHeaderSearchPaths
+            self.cDefines = cDefines
+            self.cxxDefines = cxxDefines
+            self.swiftDefines = swiftDefines
+            self.cFlags = cFlags
+            self.cxxFlags = cxxFlags
+            self.swiftFlags = swiftFlags
         }
     }
 }
