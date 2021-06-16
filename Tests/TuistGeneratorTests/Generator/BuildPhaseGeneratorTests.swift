@@ -342,6 +342,55 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         ])
     }
 
+    func test_generateResourcesBuildPhase_whenLocalizedXibFiles() throws {
+        // Given
+        let path = try temporaryPath()
+        let pbxproj = PBXProj()
+        let fileElements = ProjectFileElements()
+        let nativeTarget = PBXNativeTarget(name: "Test")
+        let files = try createFiles([
+            "resources/fr.lproj/Controller.strings",
+            "resources/Base.lproj/Controller.xib",
+            "resources/Base.lproj/Storyboard.storyboard",
+            "resources/en.lproj/Controller.xib",
+            "resources/en.lproj/Storyboard.strings",
+            "resources/fr.lproj/Storyboard.strings",
+        ])
+        let groups = ProjectGroups.generate(
+            project: .test(path: "/path", sourceRootPath: "/path", xcodeProjPath: "/path/Project.xcodeproj"),
+            pbxproj: pbxproj
+        )
+        try files.forEach {
+            try fileElements.generate(
+                fileElement: GroupFileElement(
+                    path: $0,
+                    group: .group(name: "Project"),
+                    isReference: true
+                ),
+                groups: groups,
+                pbxproj: pbxproj,
+                sourceRootPath: path
+            )
+        }
+
+        // When
+        try subject.generateResourcesBuildPhase(
+            path: "/path",
+            target: .test(resources: files.map { .file(path: $0) }),
+            graphTraverser: ValueGraphTraverser(graph: .test(path: path)),
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let buildPhase = nativeTarget.buildPhases.first
+        XCTAssertEqual(buildPhase?.files?.map(\.file?.nameOrPath), [
+            "Controller.xib",
+            "Storyboard.storyboard",
+        ])
+    }
+
     func test_generateSourcesBuildPhase_whenCoreDataModel() throws {
         // Given
         let coreDataModel = CoreDataModel(

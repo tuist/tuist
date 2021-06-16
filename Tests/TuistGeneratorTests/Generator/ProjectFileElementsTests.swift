@@ -245,8 +245,10 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         let resources = try createFiles([
             "resources/en.lproj/App.strings",
+            "resources/en.lproj/App.stringsdict",
             "resources/en.lproj/Extension.strings",
             "resources/fr.lproj/App.strings",
+            "resources/fr.lproj/App.stringsdict",
             "resources/fr.lproj/Extension.strings",
         ])
 
@@ -273,13 +275,63 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         XCTAssertEqual(projectGroup?.flattenedChildren, [
             "resources/App.strings/en",
             "resources/App.strings/fr",
+            "resources/App.stringsdict/en",
+            "resources/App.stringsdict/fr",
             "resources/Extension.strings/en",
             "resources/Extension.strings/fr",
         ])
 
         XCTAssertEqual(projectGroup?.debugVariantGroupPaths, [
             "resources/App.strings",
+            "resources/App.stringsdict",
             "resources/Extension.strings",
+        ])
+    }
+
+    func test_addElement_lproj_xib_variant_groups() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        let resources = try createFiles([
+            "resources/fr.lproj/Controller.strings",
+            "resources/Base.lproj/Controller.xib",
+            "resources/Base.lproj/Storyboard.storyboard",
+            "resources/en.lproj/Controller.xib",
+            "resources/en.lproj/Storyboard.strings",
+            "resources/fr.lproj/Storyboard.strings",
+        ])
+
+        let elements = resources.map {
+            GroupFileElement(
+                path: $0,
+                group: .group(name: "Project"),
+                isReference: true
+            )
+        }
+
+        // When
+        try elements.forEach {
+            try subject.generate(
+                fileElement: $0,
+                groups: groups,
+                pbxproj: pbxproj,
+                sourceRootPath: temporaryPath
+            )
+        }
+
+        // Then
+        let projectGroup = groups.sortedMain.group(named: "Project")
+        XCTAssertEqual(projectGroup?.flattenedChildren, [
+            "resources/Controller.xib/Base",
+            "resources/Controller.xib/en",
+            "resources/Controller.xib/fr",
+            "resources/Storyboard.storyboard/Base",
+            "resources/Storyboard.storyboard/en",
+            "resources/Storyboard.storyboard/fr",
+        ])
+
+        XCTAssertEqual(projectGroup?.debugVariantGroupPaths, [
+            "resources/Controller.xib",
+            "resources/Storyboard.storyboard",
         ])
     }
 
