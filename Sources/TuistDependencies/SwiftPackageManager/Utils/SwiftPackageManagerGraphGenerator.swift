@@ -81,6 +81,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         return DependenciesGraph(thirdPartyDependencies: thirdPartyDependencies)
     }
 
+    // swiftlint:disable:next function_body_length
     private static func mapToThirdPartyDependency(
         name: String,
         folder: AbsolutePath,
@@ -123,20 +124,20 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                     switch dependency {
                     case let .target(name, condition):
                         return Self.localDependency(
-                          name: name,
-                          packageInfo: packageInfo,
-                          artifactsFolder: artifactsFolder,
-                          platforms: try condition?.platforms()
+                            name: name,
+                            packageInfo: packageInfo,
+                            artifactsFolder: artifactsFolder,
+                            platforms: try condition?.platforms()
                         )
                     case let .product(name, package, condition):
                         return .thirdPartyTarget(dependency: package, product: name, platforms: try condition?.platforms())
                     case let .byName(name, condition):
                         if packageInfo.targets.contains(where: { $0.name == name }) {
                             return Self.localDependency(
-                              name: name,
-                              packageInfo: packageInfo,
-                              artifactsFolder: artifactsFolder,
-                              platforms: try condition?.platforms()
+                                name: name,
+                                packageInfo: packageInfo,
+                                artifactsFolder: artifactsFolder,
+                                platforms: try condition?.platforms()
                             )
                         } else if let package = productToPackage[name] {
                             return .thirdPartyTarget(dependency: package, product: name, platforms: try condition?.platforms())
@@ -222,7 +223,7 @@ extension PackageInfo.Target {
 
 extension PackageInfo.Target.Dependency.PackageConditionDescription {
     func platforms() throws -> Set<TuistGraph.Platform> {
-        return Set(try self.platformNames.map { platformName in
+        return Set(try platformNames.map { platformName in
             guard let platform = Platform(rawValue: platformName) else {
                 throw SwiftPackageManagerGraphGeneratorError.unknownPlatform(platformName)
             }

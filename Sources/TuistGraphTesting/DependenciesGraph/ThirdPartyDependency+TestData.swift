@@ -126,6 +126,7 @@ public extension ThirdPartyDependency {
             ]
         )
     }
+
     static func googleAppMeasurement(artifactsFolder: AbsolutePath, packageFolder: AbsolutePath) -> Self {
         return .sources(
             name: "GoogleAppMeasurement",
@@ -161,8 +162,8 @@ public extension ThirdPartyDependency {
                     resources: [],
                     dependencies: [
                         .xcframework(
-                          path: artifactsFolder.appending(component: "GoogleAppMeasurementWithoutAdIdSupport.xcframework"),
-                          platforms: nil
+                            path: artifactsFolder.appending(component: "GoogleAppMeasurementWithoutAdIdSupport.xcframework"),
+                            platforms: nil
                         ),
                         .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULAppDelegateSwizzler", platforms: nil),
                         .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULMethodSwizzler", platforms: nil),
