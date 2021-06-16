@@ -71,7 +71,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             let dependency = try Self.mapToThirdPartyDependency(
                 name: packageInfo.name,
                 folder: packageInfo.folder,
-                info: packageInfo.info,
+                packageInfo: packageInfo.info,
                 artifactsFolder: packageInfo.artifactsFolder,
                 productToPackage: productToPackage
             )
@@ -84,11 +84,11 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
     private static func mapToThirdPartyDependency(
         name: String,
         folder: AbsolutePath,
-        info: PackageInfo,
+        packageInfo: PackageInfo,
         artifactsFolder: AbsolutePath,
         productToPackage: [String: String]
     ) throws -> ThirdPartyDependency {
-        let products: [ThirdPartyDependency.Product] = info.products.compactMap { product in
+        let products: [ThirdPartyDependency.Product] = packageInfo.products.compactMap { product in
             guard let libraryType = product.type.libraryType else { return nil }
 
             return .init(
@@ -98,7 +98,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             )
         }
 
-        let targets: [ThirdPartyDependency.Target] = try info.targets.compactMap { target in
+        let targets: [ThirdPartyDependency.Target] = try packageInfo.targets.compactMap { target in
             switch target.type {
             case .regular:
                 break
@@ -120,12 +120,22 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             let dependencies: [ThirdPartyDependency.Target.Dependency] = try target.dependencies.map { dependency in
                 switch dependency {
                 case let .target(name, condition):
-                    return Self.localDependency(name: name, packageInfo: info, artifactsFolder: artifactsFolder, platforms: try condition?.platforms())
+                    return Self.localDependency(
+                      name: name,
+                      packageInfo: packageInfo,
+                      artifactsFolder: artifactsFolder,
+                      platforms: try condition?.platforms()
+                    )
                 case let .product(name, package, condition):
                     return .thirdPartyTarget(dependency: package, product: name, platforms: try condition?.platforms())
                 case let .byName(name, condition):
-                    if info.targets.contains(where: { $0.name == name }) {
-                        return Self.localDependency(name: name, packageInfo: info, artifactsFolder: artifactsFolder, platforms: try condition?.platforms())
+                    if packageInfo.targets.contains(where: { $0.name == name }) {
+                        return Self.localDependency(
+                          name: name,
+                          packageInfo: packageInfo,
+                          artifactsFolder: artifactsFolder,
+                          platforms: try condition?.platforms()
+                        )
                     } else if let package = productToPackage[name] {
                         return .thirdPartyTarget(dependency: package, product: name, platforms: try condition?.platforms())
                     } else {
@@ -137,7 +147,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             return .init(name: target.name, sources: sources, resources: resources, dependencies: dependencies)
         }
 
-        let minDeploymentTargets = Set(try info.platforms.map { try DeploymentTarget.from(platform: $0) })
+        let minDeploymentTargets = Set(try packageInfo.platforms.map { try DeploymentTarget.from(platform: $0) })
 
         return .sources(
             name: name,
