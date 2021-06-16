@@ -98,54 +98,56 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             )
         }
 
-        let targets: [ThirdPartyDependency.Target] = try packageInfo.targets.compactMap { target in
-            switch target.type {
-            case .regular:
-                break
-            case .executable, .test, .system, .binary, .plugin:
-                logger.debug("Target \(target.name) of type \(target.type) ignored")
-                return nil
+        let targets: [ThirdPartyDependency.Target] = try packageInfo.targets
+            .filter { target in
+                switch target.type {
+                case .regular:
+                    return true
+                case .executable, .test, .system, .binary, .plugin:
+                    logger.debug("Target \(target.name) of type \(target.type) ignored")
+                    return false
+                }
             }
+            .map { target in
+                let path = folder.appending(RelativePath(target.path ?? "Sources/\(target.name)"))
+                let sources: [AbsolutePath]
+                if let customSources = target.sources {
+                    sources = customSources.map { path.appending(RelativePath($0)) }
+                } else {
+                    sources = [path]
+                }
 
-            let path = folder.appending(RelativePath(target.path ?? "Sources/\(target.name)"))
-            let sources: [AbsolutePath]
-            if let customSources = target.sources {
-                sources = customSources.map { path.appending(RelativePath($0)) }
-            } else {
-                sources = [path]
-            }
+                let resources = target.resources.map { path.appending(RelativePath($0.path)) }
 
-            let resources = target.resources.map { path.appending(RelativePath($0.path)) }
-
-            let dependencies: [ThirdPartyDependency.Target.Dependency] = try target.dependencies.map { dependency in
-                switch dependency {
-                case let .target(name, condition):
-                    return Self.localDependency(
-                      name: name,
-                      packageInfo: packageInfo,
-                      artifactsFolder: artifactsFolder,
-                      platforms: try condition?.platforms()
-                    )
-                case let .product(name, package, condition):
-                    return .thirdPartyTarget(dependency: package, product: name, platforms: try condition?.platforms())
-                case let .byName(name, condition):
-                    if packageInfo.targets.contains(where: { $0.name == name }) {
+                let dependencies: [ThirdPartyDependency.Target.Dependency] = try target.dependencies.map { dependency in
+                    switch dependency {
+                    case let .target(name, condition):
                         return Self.localDependency(
                           name: name,
                           packageInfo: packageInfo,
                           artifactsFolder: artifactsFolder,
                           platforms: try condition?.platforms()
                         )
-                    } else if let package = productToPackage[name] {
+                    case let .product(name, package, condition):
                         return .thirdPartyTarget(dependency: package, product: name, platforms: try condition?.platforms())
-                    } else {
-                        throw SwiftPackageManagerGraphGeneratorError.unknownByNameDependency(name)
+                    case let .byName(name, condition):
+                        if packageInfo.targets.contains(where: { $0.name == name }) {
+                            return Self.localDependency(
+                              name: name,
+                              packageInfo: packageInfo,
+                              artifactsFolder: artifactsFolder,
+                              platforms: try condition?.platforms()
+                            )
+                        } else if let package = productToPackage[name] {
+                            return .thirdPartyTarget(dependency: package, product: name, platforms: try condition?.platforms())
+                        } else {
+                            throw SwiftPackageManagerGraphGeneratorError.unknownByNameDependency(name)
+                        }
                     }
                 }
-            }
 
-            return .init(name: target.name, sources: sources, resources: resources, dependencies: dependencies)
-        }
+                return .init(name: target.name, sources: sources, resources: resources, dependencies: dependencies)
+            }
 
         let minDeploymentTargets = Set(try packageInfo.platforms.map { try DeploymentTarget.from(platform: $0) })
 
