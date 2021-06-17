@@ -53,6 +53,22 @@ In order for Tuist to locate the templates for a plugin, they must be placed in 
 └── ...
 ```
 
+### Tasks
+
+Tasks serve as automation files written in Swift that can be easily edited in Xcode. Similarly to templates, Tuist finds all tasks defined in `Tasks`.
+For example, if you wanted to create a plugin task for releasing apps, you can create a file called `ReleaseApp.swift` in the `Tasks` directory of your plugin.
+To read more about how you can define tasks themselves, head over to the [Tasks documentation](/commands/task).
+
+```
+.
+├── ...
+├── Plugin.swift
+├── Tasks
+├───── ReleaseApp.swift
+├───── ...
+└── ...
+```
+
 ## ResourceSynthesizers
 
 ResourceSynthesizer plugins are for sharing & reusing templates for [synthesizing resources](/guides/resources/). If you want to use one of the predefined resource synthesizers, the template must also adhere to a specific naming.

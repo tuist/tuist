@@ -5,6 +5,7 @@ import TuistGraph
 public final class MockXcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating {
     public init() {}
 
+    // swiftlint:disable:next type_name
     enum MockXcodeProjectBuildDirectoryLocatorError: Error {
         case noStub
     }

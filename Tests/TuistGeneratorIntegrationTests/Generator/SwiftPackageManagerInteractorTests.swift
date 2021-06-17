@@ -59,7 +59,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
     func test_generate_usesSystemGitCredentials() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
-        let config = Config(compatibleXcodeVersions: .all, cloud: nil, cache: nil, plugins: [], generationOptions: [.resolveDependenciesWithSystemScm], path: nil)
+        let config = Config(compatibleXcodeVersions: .all, lab: nil, cache: nil, swiftVersion: nil, plugins: [], generationOptions: [.resolveDependenciesWithSystemScm], path: nil)
 
         let target = anyTarget(dependencies: [
             .package(product: "Example"),

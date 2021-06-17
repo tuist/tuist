@@ -106,6 +106,7 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
         }
     }
 
+    // swiftlint:disable:next large_tuple
     private func readMetadatasFromFatHeader(binary: FileHandle, binaryPath: AbsolutePath) throws -> [(BinaryArchitecture, BinaryLinking, UUID?)] {
         let currentOffset = binary.currentOffset
         let magic: UInt32 = binary.read()
@@ -139,6 +140,7 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
         }
     }
 
+    // swiftlint:disable:next function_body_length large_tuple
     private func readMetadataFromMachHeaderIfAvailable(binary: FileHandle) throws -> (BinaryArchitecture, BinaryLinking, UUID?)? {
         readArchiveFormatIfAvailable(binary: binary)
 

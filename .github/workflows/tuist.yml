@@ -15,7 +15,7 @@ on:
       - projects/tuist/fixtures/**
 
 env:
-  RUBY_VERSION: '2.7.2'
+  RUBY_VERSION: '3.0.1'
   TUIST_STATS_OPT_OUT: true
 
 jobs:
@@ -95,14 +95,17 @@ jobs:
             'generate-6',
             'generate-7',
             'generate-8',
+            'graph',
             'init',
             'lint-code',
             'lint-project',
             'precompiled',
+            'run',
             'scaffold',
             'test',
             'up',
             'graph',
+            'tasks'
           ]
     steps:
       - uses: actions/checkout@v1

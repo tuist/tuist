@@ -6,26 +6,17 @@ import TuistGraph
 public final class MockSwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
     public init() {}
 
-    var invokedFetch = false
-    var fetchStub: ((AbsolutePath, SwiftPackageManagerDependencies) throws -> Void)?
+    var invokedInstall = false
+    var installStub: ((AbsolutePath, SwiftPackageManagerDependencies, Bool, String?) throws -> Void)?
 
-    public func fetch(
+    public func install(
         dependenciesDirectory: AbsolutePath,
-        dependencies: SwiftPackageManagerDependencies
+        dependencies: SwiftPackageManagerDependencies,
+        shouldUpdate: Bool,
+        swiftToolsVersion: String?
     ) throws {
-        invokedFetch = true
-        try fetchStub?(dependenciesDirectory, dependencies)
-    }
-
-    var invokedUpdate = false
-    var updateStub: ((AbsolutePath, SwiftPackageManagerDependencies) throws -> Void)?
-
-    public func update(
-        dependenciesDirectory: AbsolutePath,
-        dependencies: SwiftPackageManagerDependencies
-    ) throws {
-        invokedUpdate = true
-        try updateStub?(dependenciesDirectory, dependencies)
+        invokedInstall = true
+        try installStub?(dependenciesDirectory, dependencies, shouldUpdate, swiftToolsVersion)
     }
 
     var invokedClean = false

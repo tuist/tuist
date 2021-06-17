@@ -11,13 +11,13 @@ extension Config {
 
 extension Template {
     public static func test(description: String = "Template",
-                            attributes: [Template.Attribute] = [],
-                            files: [Template.File] = []) -> Template
+                            attributes: [Attribute] = [],
+                            items: [Template.Item] = []) -> Template
     {
         Template(
             description: description,
             attributes: attributes,
-            files: files
+            items: items
         )
     }
 }

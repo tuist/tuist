@@ -10,10 +10,9 @@ let config = TapestryConfig(
             .pre(tool: "sudo", arguments: ["xcode-select", "-s", "/Applications/Xcode_12.app"]),
             .pre(.dependenciesCompatibility([.spm(.all)])),
             .pre(tool: "swift", arguments: ["test"]),
-            // .pre(tool: "bundle", arguments: ["exec", "rake", "features"]),
             .pre(.docsUpdate),
-            .post(tool: "bundle", arguments: ["exec", "rake", "release[\(Argument.version)]"]),
-            .post(tool: "bundle", arguments: ["exec", "rake", "release_scripts"]),
+            .post(tool: "./fourier", arguments: ["release", "tuist", "\(Argument.version)"]),
+            .post(tool: "./fourier", arguments: ["release", "scripts"]),
             .post(
                 .githubRelease(
                     owner: "tuist",

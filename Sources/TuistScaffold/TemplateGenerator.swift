@@ -25,17 +25,17 @@ public final class TemplateGenerator: TemplateGenerating {
                          to destinationPath: AbsolutePath,
                          attributes: [String: String]) throws
     {
-        let renderedFiles = renderFiles(
+        let renderedItems = renderItems(
             template: template,
             attributes: attributes
         )
         try generateDirectories(
-            renderedFiles: renderedFiles,
+            renderedItems: renderedItems,
             destinationPath: destinationPath
         )
 
-        try generateFiles(
-            renderedFiles: renderedFiles,
+        try generateItems(
+            renderedItems: renderedItems,
             attributes: attributes,
             destinationPath: destinationPath
         )
@@ -43,12 +43,12 @@ public final class TemplateGenerator: TemplateGenerating {
 
     // MARK: - Helpers
 
-    /// Renders files' paths in format  path_to_dir/{{ attribute_name }} with `attributes`
-    private func renderFiles(template: Template,
-                             attributes: [String: String]) -> [Template.File]
+    /// Renders items' paths in format  path_to_dir/{{ attribute_name }} with `attributes`
+    private func renderItems(template: Template,
+                             attributes: [String: String]) -> [Template.Item]
     {
-        attributes.reduce(template.files) { files, attribute in
-            files.map {
+        attributes.reduce(template.items) { items, attribute in
+            items.map {
                 let path = RelativePath($0.path.pathString.replacingOccurrences(of: "{{ \(attribute.key) }}", with: attribute.value))
 
                 var contents = $0.contents
@@ -62,16 +62,16 @@ public final class TemplateGenerator: TemplateGenerating {
                     )
                 }
 
-                return Template.File(path: path, contents: contents)
+                return Template.Item(path: path, contents: contents)
             }
         }
     }
 
     /// Generate all necessary directories
-    private func generateDirectories(renderedFiles: [Template.File],
+    private func generateDirectories(renderedItems: [Template.Item],
                                      destinationPath: AbsolutePath) throws
     {
-        try renderedFiles
+        try renderedItems
             .map(\.path)
             .map {
                 destinationPath.appending(RelativePath($0.dirname))
@@ -82,14 +82,14 @@ public final class TemplateGenerator: TemplateGenerating {
             }
     }
 
-    /// Generate all `renderedFiles`
-    private func generateFiles(renderedFiles: [Template.File],
+    /// Generate all `renderedItems`
+    private func generateItems(renderedItems: [Template.Item],
                                attributes: [String: String],
                                destinationPath: AbsolutePath) throws
     {
         let environment = stencilSwiftEnvironment()
-        try renderedFiles.forEach {
-            let renderedContents: String
+        try renderedItems.forEach {
+            let renderedContents: String?
             switch $0.contents {
             case let .string(contents):
                 renderedContents = try environment.renderTemplate(
@@ -107,11 +107,22 @@ public final class TemplateGenerator: TemplateGenerating {
                 } else {
                     renderedContents = fileContents
                 }
+            case let .directory(path):
+                let destinationDirectoryPath = destinationPath.appending(components: $0.path.pathString, path.basename)
+                // workaround for creating folder tree of destinationDirectoryPath
+                if !FileHandler.shared.exists(destinationDirectoryPath.parentDirectory) {
+                    try FileHandler.shared.createFolder(destinationDirectoryPath.parentDirectory)
+                }
+                if FileHandler.shared.exists(destinationDirectoryPath) {
+                    try FileHandler.shared.delete(destinationDirectoryPath)
+                }
+                try FileHandler.shared.copy(from: path, to: destinationDirectoryPath)
+                renderedContents = nil
             }
             // Generate file only when it has some content
-            guard !renderedContents.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            guard let rendered = renderedContents, !rendered.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
             try FileHandler.shared.write(
-                renderedContents,
+                rendered,
                 path: destinationPath.appending($0.path),
                 atomically: true
             )

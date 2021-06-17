@@ -72,7 +72,7 @@ A `Project.swift` should initialize a variable of type `Project`. It can take an
 | `settings`            | Project build settings and configuration files                                                                                                                                                                  | [`Settings`](#settings)                          | No       | `[]`       |
 | `fileHeaderTemplate`  | Lets you define custom file header template macro for built-in Xcode file templates.                                                                                                                            | [`FileHeaderTemplate`](#file-header-template)    | No       |            |
 | `additionalFiles`     | List of files to include in the project - these won't be included in any of the build phases.                                                                                                                   | [`[FileElement]`](#fileelement)                  | No       | `[]`       |
-| `resourceSynthesizer` | List of resource synthesizer for generating accessors for resources.                                                                                                                                            | [`[ResourceSynthesizer]`](#resource-synthesizer) | No       | `.default` |
+| `resourceSynthesizers` | List of resource synthesizer for generating accessors for resources.                                                                                                                                            | [`[ResourceSynthesizer]`](#resource-synthesizer) | No       | `.default` |
 
 ### Package
 
@@ -355,6 +355,10 @@ When generating the default target schemes, the 'Debug' configuration is used fo
 
 :::note Extension Schemes
 Schemes for extensions have additional properties and settings, Tuist automatically applies those to any scheme in which the first Target in the Build Action's list of targets is an extension.
+:::
+
+:::note Archive, profile & analyze actions definition
+Take in count that `ArchiveAction`, `ProfileAction` and `AnalyzeAction` when are defined in a `Scheme` in isolated or in set, needs also a definition of `BuildAction` in the signature of the scheme. Without the previously option commented the scheme will have the these their definitions by default.
 :::
 
 #### Build Action

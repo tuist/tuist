@@ -11,12 +11,15 @@ enum CarthageControllerError: FatalError, Equatable {
     case carthageNotFound
     /// Thrown when version of Carthage cannot be determined.
     case unrecognizedCarthageVersion
+    /// Thrown when version of Carthage installed in environment does not support XCFrameworks production.
+    case xcFrameworksProductionNotSupported(installedVersion: Version)
 
     /// Error type.
     var type: ErrorType {
         switch self {
         case .carthageNotFound,
-             .unrecognizedCarthageVersion:
+             .unrecognizedCarthageVersion,
+             .xcFrameworksProductionNotSupported:
             return .abort
         }
     }
@@ -25,9 +28,20 @@ enum CarthageControllerError: FatalError, Equatable {
     var description: String {
         switch self {
         case .carthageNotFound:
-            return "Carthage was not found in the environment. It's possible that the tool is not installed or hasn't been exposed to your environment." // swiftlint:disable:this line_length
+            return """
+            Carthage was not found in the environment.
+            It's possible that the tool is not installed or hasn't been exposed to your environment.
+            """
         case .unrecognizedCarthageVersion:
-            return "Version of Carthage cannot be determined. It's possible that the tool is not installed or hasn't been exposed to your environment." // swiftlint:disable:this line_length
+            return """
+            The version of Carthage cannot be determined.
+            It's possible that the tool is not installed or hasn't been exposed to your environment.
+            """
+        case let .xcFrameworksProductionNotSupported(installedVersion):
+            return """
+            The version of Carthage installed in your environment (\(installedVersion.description)) doesn't suppport production of XCFrameworks.
+            You have to update the tool to at least 0.37.0 version.
+            """
         }
     }
 }
@@ -42,22 +56,17 @@ public protocol CarthageControlling {
     /// Return version of Carthage that is available in the environment.
     func carthageVersion() throws -> Version
 
-    /// Returns true if version of Carthage available in the environment supports producing XCFrameworks.
-    func isXCFrameworksProductionSupported() throws -> Bool
-
     /// Checkouts and builds the project's dependencies
     /// - Parameters:
-    ///   - path: Directory whose project's dependencies will be installed.
+    ///   - path: Directory where project's dependencies will be installed.
     ///   - platforms: The platforms to build for.
-    ///   - options: The options for Carthage installation.
-    func bootstrap(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>, options: Set<CarthageDependencies.Options>) throws
+    func bootstrap(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>) throws
 
     /// Updates and rebuilds the project's dependencies
     /// - Parameters:
-    ///   - path: Directory whose project's dependencies will be installed.
+    ///   - path: Directory where project's dependencies will be installed.
     ///   - platforms: The platforms to build for.
-    ///   - options: The options for Carthage installation.
-    func update(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>, options: Set<CarthageDependencies.Options>) throws
+    func update(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>) throws
 }
 
 // MARK: - Carthage Controller
@@ -97,19 +106,21 @@ public final class CarthageController: CarthageControlling {
         return version
     }
 
-    public func isXCFrameworksProductionSupported() throws -> Bool {
-        // Carthage has supported XCFrameworks production since 0.37.0
-        // More info here: https://github.com/Carthage/Carthage/releases/tag/0.37.0
-        try carthageVersion() >= Version(0, 37, 0)
-    }
+    public func bootstrap(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>) throws {
+        guard try isXCFrameworksProductionSupported() else {
+            throw CarthageControllerError.xcFrameworksProductionNotSupported(installedVersion: try carthageVersion())
+        }
 
-    public func bootstrap(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>, options: Set<CarthageDependencies.Options>) throws {
-        let command = buildCarthageCommand(path: path, platforms: platforms, options: options, subcommand: "bootstrap")
+        let command = buildCarthageCommand(path: path, platforms: platforms, subcommand: "bootstrap")
         try System.shared.run(command)
     }
 
-    public func update(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>, options: Set<CarthageDependencies.Options>) throws {
-        let command = buildCarthageCommand(path: path, platforms: platforms, options: options, subcommand: "update")
+    public func update(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>) throws {
+        guard try isXCFrameworksProductionSupported() else {
+            throw CarthageControllerError.xcFrameworksProductionNotSupported(installedVersion: try carthageVersion())
+        }
+
+        let command = buildCarthageCommand(path: path, platforms: platforms, subcommand: "update")
         try System.shared.run(command)
     }
 
@@ -118,7 +129,6 @@ public final class CarthageController: CarthageControlling {
     private func buildCarthageCommand(
         path: AbsolutePath,
         platforms: Set<TuistGraph.Platform>,
-        options: Set<CarthageDependencies.Options>,
         subcommand: String
     ) -> [String] {
         var commandComponents: [String] = [
@@ -138,25 +148,20 @@ public final class CarthageController: CarthageControlling {
             ]
         }
 
-        if !options.isEmpty {
-            commandComponents += options
-                .map { option in
-                    switch option {
-                    case .useXCFrameworks:
-                        return "--use-xcframeworks"
-                    case .noUseBinaries:
-                        return "--no-use-binaries"
-                    }
-                }
-                .sorted()
-        }
-
         commandComponents += [
+            "--use-xcframeworks",
+            "--no-use-binaries",
             "--use-netrc",
             "--cache-builds",
             "--new-resolver",
         ]
 
         return commandComponents
+    }
+
+    private func isXCFrameworksProductionSupported() throws -> Bool {
+        // Carthage has supported XCFrameworks production since 0.37.0
+        // More info here: https://github.com/Carthage/Carthage/releases/tag/0.37.0
+        try carthageVersion() >= Version(0, 37, 0)
     }
 }

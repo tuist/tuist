@@ -194,8 +194,12 @@ public final class MockSystem: Systeming {
         }
     }
 
-    public func called(_ args: String...) -> Bool {
+    public func called(_ args: [String]) -> Bool {
         let command = args.joined(separator: " ")
         return calls.contains(command)
+    }
+
+    public func called(_ args: String...) -> Bool {
+        called(args)
     }
 }

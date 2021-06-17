@@ -73,7 +73,7 @@ class TargetLinter: TargetLinting {
         if target.productName.unicodeScalars.allSatisfy(allowed.contains) == false {
             let reason = "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9) and underscore (_) characters."
 
-            return [LintingIssue(reason: reason, severity: .error)]
+            return [LintingIssue(reason: reason, severity: .warning)]
         }
 
         return []
@@ -203,7 +203,7 @@ class TargetLinter: TargetLinting {
 
     private func lintValidPlatformProductCombinations(target: Target) -> [LintingIssue] {
         let invalidProductsForPlatforms: [Platform: [Product]] = [
-            .iOS: [.watch2App, .watch2Extension],
+            .iOS: [.watch2App, .watch2Extension, .tvTopShelfExtension],
         ]
 
         if let invalidProducts = invalidProductsForPlatforms[target.platform],

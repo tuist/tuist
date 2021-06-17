@@ -18,19 +18,19 @@ final class CocoaPodsInteractorTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_fetch() throws {
+    func test_install_unimplemented() throws {
         // Given
         let stubbedPath = try temporaryPath()
 
         // When/Then
-        XCTAssertThrowsSpecific(try subject.fetch(dependenciesDirectory: stubbedPath), CocoaPodsInteractorError.unimplemented)
+        XCTAssertThrowsSpecific(try subject.install(dependenciesDirectory: stubbedPath, shouldUpdate: false), CocoaPodsInteractorError.unimplemented)
     }
 
-    func test_update() throws {
+    func test_clean_unimplemented() throws {
         // Given
         let stubbedPath = try temporaryPath()
 
         // When/Then
-        XCTAssertThrowsSpecific(try subject.update(dependenciesDirectory: stubbedPath), CocoaPodsInteractorError.unimplemented)
+        XCTAssertThrowsSpecific(try subject.clean(dependenciesDirectory: stubbedPath), CocoaPodsInteractorError.unimplemented)
     }
 }

@@ -12,9 +12,10 @@ class TemplateTests: XCTestCase {
                 .optional("aName", default: "defaultName"),
                 .optional("bName", default: ""),
             ],
-            files: [
+            items: [
                 .string(path: "static.swift", contents: "content"),
                 .file(path: "generated.swift", templatePath: "generate.swift"),
+                .directory(path: "destinationFolder", sourcePath: "sourceFolder"),
             ]
         )
 

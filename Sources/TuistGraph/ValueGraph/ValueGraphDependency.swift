@@ -1,6 +1,7 @@
 import Foundation
 import TSCBasic
 
+// swiftlint:disable:next type_body_length
 public enum ValueGraphDependency: Hashable, CustomStringConvertible, Comparable, Codable {
     /// A dependency that represents a pre-compiled .xcframework.
     case xcframework(
@@ -166,6 +167,7 @@ public enum ValueGraphDependency: Hashable, CustomStringConvertible, Comparable,
         case source
     }
 
+    // swiftlint:disable:next function_body_length
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
@@ -236,6 +238,7 @@ public enum ValueGraphDependency: Hashable, CustomStringConvertible, Comparable,
         }
     }
 
+    // swiftlint:disable:next function_body_length
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {

@@ -26,6 +26,23 @@ Feature: Scaffold a project using Tuist
       // Generated file with platform: iOS and snake case name: template_project
 
       """
+    Then tuist scaffolds a custom_using_copy_folder template to TemplateProject named TemplateProject
+    Then content of a file named TemplateProject/custom.swift in a directory TemplateProject should be equal to // this is test TemplateProject content
+    Then content of a file named TemplateProject/generated.swift in a directory TemplateProject should be equal to:
+      """
+      // Generated file with platform: ios and name: TemplateProject
+
+      """
+    Then content of a file named TemplateProject/sourceFolder/file1.txt in a directory TemplateProject should be equal to:
+      """
+      Content of file 1
+
+      """
+    Then content of a file named TemplateProject/sourceFolder/subFolder/file2.txt in a directory TemplateProject should be equal to:
+      """
+      Content of file 2
+
+      """
 
   Scenario: The project is an application with templates from plugins (app_with_plugins)
     Given that tuist is available
