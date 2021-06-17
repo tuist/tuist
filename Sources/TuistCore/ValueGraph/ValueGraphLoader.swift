@@ -213,6 +213,10 @@ public final class ValueGraphLoader: ValueGraphLoading {
 
         case .xctest:
             return try loadXCTestSDK(platform: fromPlatform)
+
+        case .thirdParty:
+            // A dependency imported through Dependencies.swift.
+            fatalError("TargetDependency.thirdParty not implemented yet")
         }
     }
 
