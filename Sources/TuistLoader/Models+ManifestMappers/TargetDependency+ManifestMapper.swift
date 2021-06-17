@@ -25,7 +25,6 @@ extension TuistGraph.TargetDependency {
             )
         case let .package(product):
             return .package(product: product)
-
         case let .sdk(name, status):
             return .sdk(
                 name: name,
@@ -37,6 +36,8 @@ extension TuistGraph.TargetDependency {
             return .xcFramework(path: try generatorPaths.resolve(path: path))
         case .xctest:
             return .xctest
+        case let .thirdParty(name):
+            return .thirdParty(name: name)
         }
     }
 }
