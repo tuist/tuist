@@ -1,4 +1,8 @@
+import TSCBasic
+import TuistGraph
 @testable import TuistDependencies
+
+// MARK: - Test package
 
 extension PackageInfo {
     static var testJSON: String {
@@ -56,13 +60,6 @@ extension PackageInfo {
               "options" : [
 
               ],
-              "platformName" : "tvos",
-              "version" : "13.0"
-            },
-            {
-              "options" : [
-
-              ],
               "platformName" : "watchos",
               "version" : "6.0"
             }
@@ -71,11 +68,11 @@ extension PackageInfo {
             {
               "name" : "Tuist",
               "targets" : [
-                "TuistTuist"
+                "Tuist"
               ],
               "type" : {
                 "library" : [
-                  "automatic"
+                  "static"
                 ]
               }
             }
@@ -95,7 +92,11 @@ extension PackageInfo {
                   "product" : [
                     "ALibrary",
                     "a-dependency",
-                    null
+                    {
+                      "platformNames" : [
+                        "ios"
+                      ]
+                    }
                   ]
                 },
               ],
@@ -178,11 +179,8 @@ extension PackageInfo {
 
     static var test: PackageInfo {
         return .init(
-            platforms: [
-                .init(platformName: "ios", version: "13.0", options: []),
-                .init(platformName: "macos", version: "10.15", options: []),
-                .init(platformName: "tvos", version: "13.0", options: []),
-                .init(platformName: "watchos", version: "6.0", options: []),
+            products: [
+                .init(name: "Tuist", type: .library(.static), targets: ["Tuist"]),
             ],
             targets: [
                 .init(
@@ -198,7 +196,7 @@ extension PackageInfo {
                     exclude: [],
                     dependencies: [
                         .target(name: "TuistKit", condition: nil),
-                        .product(name: "ALibrary", package: "a-dependency", condition: nil),
+                        .product(name: "ALibrary", package: "a-dependency", condition: .init(platformNames: ["ios"], config: nil)),
                     ],
                     publicHeadersPath: nil,
                     type: .regular,
@@ -237,10 +235,75 @@ extension PackageInfo {
                     settings: [],
                     checksum: nil
                 ),
+            ],
+            platforms: [
+                .init(platformName: "ios", version: "13.0", options: []),
+                .init(platformName: "macos", version: "10.15", options: []),
+                .init(platformName: "watchos", version: "6.0", options: []),
             ]
         )
     }
 
+    static var aDependency: PackageInfo {
+        return .init(
+            products: [
+                .init(name: "ALibrary", type: .library(.automatic), targets: ["ALibrary"]),
+            ],
+            targets: [
+                .init(
+                    name: "ALibrary",
+                    path: nil,
+                    url: nil,
+                    sources: nil,
+                    resources: [],
+                    exclude: [],
+                    dependencies: [],
+                    publicHeadersPath: nil,
+                    type: .regular,
+                    settings: [],
+                    checksum: nil
+                ),
+            ],
+            platforms: [
+                .init(platformName: "ios", version: "13.0", options: []),
+                .init(platformName: "macos", version: "10.15", options: []),
+                .init(platformName: "watchos", version: "6.0", options: []),
+            ]
+        )
+    }
+
+    static var anotherDependency: PackageInfo {
+        return .init(
+            products: [
+                .init(name: "AnotherLibrary", type: .library(.automatic), targets: ["AnotherLibrary"]),
+            ],
+            targets: [
+                .init(
+                    name: "AnotherLibrary",
+                    path: nil,
+                    url: nil,
+                    sources: nil,
+                    resources: [],
+                    exclude: [],
+                    dependencies: [],
+                    publicHeadersPath: nil,
+                    type: .regular,
+                    settings: [],
+                    checksum: nil
+                ),
+            ],
+            platforms: [
+                .init(platformName: "ios", version: "13.0", options: []),
+                .init(platformName: "macos", version: "10.15", options: []),
+                .init(platformName: "watchos", version: "6.0", options: []),
+            ]
+        )
+    }
+}
+
+// MARK: - Alamofire package
+
+extension PackageInfo {
     static var alamofireJSON: String {
         """
         {
@@ -364,11 +427,8 @@ extension PackageInfo {
 
     static var alamofire: PackageInfo {
         return .init(
-            platforms: [
-                .init(platformName: "macos", version: "10.12", options: []),
-                .init(platformName: "ios", version: "10.0", options: []),
-                .init(platformName: "tvos", version: "10.0", options: []),
-                .init(platformName: "watchos", version: "3.0", options: []),
+            products: [
+                .init(name: "Alamofire", type: .library(.automatic), targets: ["Alamofire"]),
             ],
             targets: [
                 .init(
@@ -409,10 +469,20 @@ extension PackageInfo {
                     settings: [],
                     checksum: nil
                 ),
+            ],
+            platforms: [
+                .init(platformName: "macos", version: "10.12", options: []),
+                .init(platformName: "ios", version: "10.0", options: []),
+                .init(platformName: "tvos", version: "10.0", options: []),
+                .init(platformName: "watchos", version: "3.0", options: []),
             ]
         )
     }
+}
 
+// MARK: - GoogleAppMeasurement package
+
+extension PackageInfo {
     static var googleAppMeasurementJSON: String {
         """
         {
@@ -702,8 +772,17 @@ extension PackageInfo {
 
     static var googleAppMeasurement: PackageInfo {
         return .init(
-            platforms: [
-                .init(platformName: "ios", version: "10.0", options: []),
+            products: [
+                .init(
+                    name: "GoogleAppMeasurement",
+                    type: .library(.automatic),
+                    targets: ["GoogleAppMeasurementTarget"]
+                ),
+                .init(
+                    name: "GoogleAppMeasurementWithoutAdIdSupport",
+                    type: .library(.automatic),
+                    targets: ["GoogleAppMeasurementWithoutAdIdSupportTarget"]
+                ),
             ],
             targets: [
                 .init(
@@ -822,6 +901,103 @@ extension PackageInfo {
                     settings: [],
                     checksum: "e367d34b193cc65e4beb441092a28112007de4aa67323a85487067de62710718"
                 ),
+            ],
+            platforms: [
+                .init(platformName: "ios", version: "10.0", options: []),
+            ]
+        )
+    }
+
+    static var googleUtilities: PackageInfo {
+        return .init(
+            products: [
+                .init(name: "GULAppDelegateSwizzler", type: .library(.automatic), targets: ["GULAppDelegateSwizzler"]),
+                .init(name: "GULMethodSwizzler", type: .library(.automatic), targets: ["GULMethodSwizzler"]),
+                .init(name: "GULNSData", type: .library(.automatic), targets: ["GULNSData"]),
+                .init(name: "GULNetwork", type: .library(.automatic), targets: ["GULNetwork"]),
+            ],
+            targets: [
+                .init(
+                    name: "GULAppDelegateSwizzler",
+                    path: nil,
+                    url: nil,
+                    sources: nil,
+                    resources: [],
+                    exclude: [],
+                    dependencies: [],
+                    publicHeadersPath: nil,
+                    type: .regular,
+                    settings: [],
+                    checksum: nil
+                ),
+                .init(
+                    name: "GULMethodSwizzler",
+                    path: nil,
+                    url: nil,
+                    sources: nil,
+                    resources: [],
+                    exclude: [],
+                    dependencies: [],
+                    publicHeadersPath: nil,
+                    type: .regular,
+                    settings: [],
+                    checksum: nil
+                ),
+                .init(
+                    name: "GULNSData",
+                    path: nil,
+                    url: nil,
+                    sources: nil,
+                    resources: [],
+                    exclude: [],
+                    dependencies: [],
+                    publicHeadersPath: nil,
+                    type: .regular,
+                    settings: [],
+                    checksum: nil
+                ),
+                .init(
+                    name: "GULNetwork",
+                    path: nil,
+                    url: nil,
+                    sources: nil,
+                    resources: [],
+                    exclude: [],
+                    dependencies: [],
+                    publicHeadersPath: nil,
+                    type: .regular,
+                    settings: [],
+                    checksum: nil
+                ),
+            ],
+            platforms: [
+                .init(platformName: "ios", version: "10.0", options: []),
+            ]
+        )
+    }
+
+    static var nanopb: PackageInfo {
+        return .init(
+            products: [
+                .init(name: "nanopb", type: .library(.automatic), targets: ["nanopb"]),
+            ],
+            targets: [
+                .init(
+                    name: "nanopb",
+                    path: nil,
+                    url: nil,
+                    sources: nil,
+                    resources: [],
+                    exclude: [],
+                    dependencies: [],
+                    publicHeadersPath: nil,
+                    type: .regular,
+                    settings: [],
+                    checksum: nil
+                ),
+            ],
+            platforms: [
+                .init(platformName: "ios", version: "10.0", options: []),
             ]
         )
     }
