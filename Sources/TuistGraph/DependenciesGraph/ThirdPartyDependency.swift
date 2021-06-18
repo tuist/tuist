@@ -72,13 +72,13 @@ extension ThirdPartyDependency {
         /// The header search paths for C code.
         public let cHeaderSearchPaths: [String]
 
-        /// The header search paths for CXX code.
+        /// The header search paths for C++ code.
         public let cxxHeaderSearchPaths: [String]
 
         /// The compilation conditions to be defined for C code.
         public let cDefines: [String: String]
 
-        /// The compilation conditions to be defined for CXX code.
+        /// The compilation conditions to be defined for C++ code.
         public let cxxDefines: [String: String]
 
         /// The compilation conditions to be definedfor Swift code.
@@ -87,7 +87,7 @@ extension ThirdPartyDependency {
         /// The additional build flags for C code.
         public let cFlags: [String]
 
-        /// The additional build flags for CXX code.
+        /// The additional build flags for C++ code.
         public let cxxFlags: [String]
 
         /// The additional build flags for Swift code.
