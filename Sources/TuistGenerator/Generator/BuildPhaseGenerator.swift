@@ -375,9 +375,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             var element: (element: PBXFileElement, path: AbsolutePath)?
 
             if isLocalized {
-                let name = buildFilePath.basename
-                let path = buildFilePath.parentDirectory.parentDirectory.appending(component: name)
-                guard let group = fileElements.group(path: path) else {
+                guard let (group, path) = fileElements.variantGroup(containing: buildFilePath) else {
                     throw BuildPhaseGenerationError.missingFileReference(buildFilePath)
                 }
                 element = (group, path)
