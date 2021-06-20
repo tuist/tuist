@@ -423,7 +423,9 @@ final class ProjectEditorMapper: ProjectEditorMapping {
     }
 
     private func targetBaseSettings(for includes: [AbsolutePath], swiftVersion: String) -> SettingsDictionary {
-        let includePaths = includes.map(\.parentDirectory.pathString)
+        let includePaths = includes
+            .map(\.parentDirectory.pathString)
+            .map { "\"\($0)\"" }
         return [
             "FRAMEWORK_SEARCH_PATHS": .array(includePaths),
             "LIBRARY_SEARCH_PATHS": .array(includePaths),
