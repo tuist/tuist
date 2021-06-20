@@ -1,5 +1,6 @@
 import Foundation
 import ProjectDescription
+import ProjectAutomation
 import TSCBasic
 import TuistCore
 import TuistGraph
@@ -28,17 +29,20 @@ enum ExecError: FatalError, Equatable {
 
 struct ExecService {
     private let manifestLoader: ManifestLoading
+    private let manifestGraphLoader: ManifestGraphLoading
     private let tasksLocator: TasksLocating
     private let pluginService: PluginServicing
     private let configLoader: ConfigLoading
 
     init(
         manifestLoader: ManifestLoading = ManifestLoader(),
+        manifestGraphLoader: ManifestGraphLoading = ManifestGraphLoader(manifestLoader: ManifestLoader()),
         tasksLocator: TasksLocating = TasksLocator(),
         pluginService: PluginServicing = PluginService(),
         configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader())
     ) {
         self.manifestLoader = manifestLoader
+        self.manifestGraphLoader = manifestGraphLoader
         self.tasksLocator = tasksLocator
         self.pluginService = pluginService
         self.configLoader = configLoader
@@ -49,12 +53,19 @@ struct ExecService {
         options: [String: String],
         path: String?
     ) throws {
+        // TODO: Run only when necessary
         let path = self.path(path)
+        let graph = try manifestGraphLoader.loadGraph(at: path)
         let taskPath = try task(with: taskName, path: path)
+        let encoder = JSONEncoder()
         let runArguments = try manifestLoader.taskLoadArguments(at: taskPath)
             + [
                 "--tuist-task",
-                String(data: try JSONEncoder().encode(options), encoding: .utf8)!,
+                String(data: try encoder.encode(options), encoding: .utf8)!,
+                String(
+                    data: try encoder.encode(automationGraph(from: graph)),
+                    encoding: .utf8
+                )!,
             ]
         try ProcessEnv.chdir(path)
         try System.shared.runAndPrint(
@@ -92,6 +103,19 @@ struct ExecService {
     }
 
     // MARK: - Helpers
+    
+    private func automationGraph(from graph: TuistGraph.ValueGraph) -> ProjectAutomation.Graph {
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+        return ProjectAutomation.Graph(
+            targets: graphTraverser.allTargets()
+                .map { target in
+                    ProjectAutomation.Target(
+                        name: target.target.name,
+                        sources: target.target.sources.map(\.path.pathString)
+                    )
+                }
+        )
+    }
 
     private func task(with name: String, path: AbsolutePath) throws -> AbsolutePath {
         let config = try configLoader.loadConfig(path: path)

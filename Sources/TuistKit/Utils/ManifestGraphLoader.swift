@@ -77,7 +77,7 @@ final class ManifestGraphLoader: ManifestGraphLoading {
     }
 
     // MARK: - Private
-
+    
     private func loadProjectGraph(at path: AbsolutePath) throws -> (Project, ValueGraph) {
         let plugins = try loadPlugins(at: path)
         let manifests = try recursiveManifestLoader.loadProject(at: path)
