@@ -56,7 +56,7 @@ final class BuildService {
         buildOutputPath: AbsolutePath?,
         path: AbsolutePath
     ) throws {
-        let graph: ValueGraph
+        let graph: Graph
         if try (generate || buildGraphInspector.workspacePath(directory: path) == nil) {
             graph = try generator.generateWithGraph(path: path, projectOnly: false).1
         } else {
@@ -67,7 +67,7 @@ final class BuildService {
             throw BuildServiceError.workspaceNotFound(path: path.pathString)
         }
 
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
         let buildableSchemes = buildGraphInspector.buildableSchemes(graphTraverser: graphTraverser)
 
         logger.log(level: .debug, "Found the following buildable schemes: \(buildableSchemes.map(\.name).joined(separator: ", "))")

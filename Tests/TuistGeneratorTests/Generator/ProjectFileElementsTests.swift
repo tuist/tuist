@@ -449,8 +449,8 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             .test(name: "Framework", product: .framework),
             .test(name: "Library", product: .staticLibrary),
         ])
-        let graph = ValueGraph.test()
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graph = Graph.test()
+        let graphTraverser = GraphTraverser(graph: graph)
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
         // When
@@ -488,8 +488,8 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                 xcodeProjPath: AbsolutePath.root.appending(component: "Project.xcodeproj"),
                 targets: targets
             )
-            let graph = ValueGraph.test()
-            let graphTraverser = ValueGraphTraverser(graph: graph)
+            let graph = Graph.test()
+            let graphTraverser = GraphTraverser(graph: graph)
             let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
             // When
@@ -523,8 +523,8 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                 .test(name: "App", product: .app),
             ]
         )
-        let graph = ValueGraph.test()
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graph = Graph.test()
+        let graphTraverser = GraphTraverser(graph: graph)
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
         // When
@@ -802,13 +802,13 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             targets: [target],
             packages: [.remote(url: "url", requirement: .branch("master"))]
         )
-        let graphTarget: ValueGraphTarget = .test(path: project.path, target: target, project: project)
+        let graphTarget: GraphTarget = .test(path: project.path, target: target, project: project)
         let groups = ProjectGroups.generate(
             project: .test(path: .root, sourceRootPath: .root, xcodeProjPath: AbsolutePath.root.appending(component: "Project.xcodeproj")),
             pbxproj: pbxproj
         )
 
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             projects: [project.path: project],
             packages: [
                 project.path: [
@@ -826,7 +826,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                 ],
             ]
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         try subject.generateProjectFiles(

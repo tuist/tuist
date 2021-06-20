@@ -74,15 +74,15 @@ final class CacheControllerTests: TuistUnitTestCase {
         try FileHandler.shared.createFolder(bFrameworkPath)
         try FileHandler.shared.createFolder(cFrameworkPath)
 
-        let aGraphTarget = ValueGraphTarget.test(path: project.path, target: aTarget, project: project)
-        let bGraphTarget = ValueGraphTarget.test(path: project.path, target: bTarget, project: project)
-        let cGraphTarget = ValueGraphTarget.test(path: project.path, target: cTarget, project: project)
+        let aGraphTarget = GraphTarget.test(path: project.path, target: aTarget, project: project)
+        let bGraphTarget = GraphTarget.test(path: project.path, target: bTarget, project: project)
+        let cGraphTarget = GraphTarget.test(path: project.path, target: cTarget, project: project)
         let nodeWithHashes = [
             aGraphTarget: "\(aTarget.name)_HASH",
             bGraphTarget: "\(bTarget.name)_HASH",
             cGraphTarget: "\(cTarget.name)_HASH",
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             projects: [project.path: project],
             targets: nodeWithHashes.keys.reduce(into: [project.path: [String: Target]()]) { $0[project.path]?[$1.target.name] = $1.target },
             dependencies: [
@@ -99,7 +99,7 @@ final class CacheControllerTests: TuistUnitTestCase {
             XCTAssertEqual(loadPath, path)
             return Set(arrayLiteral: .project)
         }
-        generator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, ValueGraph) in
+        generator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graph) in
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
@@ -146,15 +146,15 @@ final class CacheControllerTests: TuistUnitTestCase {
         try FileHandler.shared.createFolder(bFrameworkPath)
         try FileHandler.shared.createFolder(cFrameworkPath)
 
-        let aGraphTarget = ValueGraphTarget.test(path: project.path, target: aTarget, project: project)
-        let bGraphTarget = ValueGraphTarget.test(path: project.path, target: bTarget, project: project)
-        let cGraphTarget = ValueGraphTarget.test(path: project.path, target: cTarget, project: project)
+        let aGraphTarget = GraphTarget.test(path: project.path, target: aTarget, project: project)
+        let bGraphTarget = GraphTarget.test(path: project.path, target: bTarget, project: project)
+        let cGraphTarget = GraphTarget.test(path: project.path, target: cTarget, project: project)
         let nodeWithHashes = [
             aGraphTarget: "\(aTarget.name)_HASH",
             bGraphTarget: "\(bTarget.name)_HASH",
             cGraphTarget: "\(cTarget.name)_HASH",
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             projects: [project.path: project],
             targets: nodeWithHashes.keys.reduce(into: [project.path: [String: Target]()]) { $0[project.path]?[$1.target.name] = $1.target },
             dependencies: [
@@ -171,7 +171,7 @@ final class CacheControllerTests: TuistUnitTestCase {
             XCTAssertEqual(loadPath, path)
             return Set(arrayLiteral: .project)
         }
-        generator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, ValueGraph) in
+        generator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graph) in
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }

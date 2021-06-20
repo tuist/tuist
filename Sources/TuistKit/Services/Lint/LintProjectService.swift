@@ -65,7 +65,7 @@ final class LintProjectService {
 
         logger.notice("Loading the dependency graph at \(path)")
         let graph = try manifestGraphLoader.loadGraph(at: path)
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         logger.notice("Running linters")
 

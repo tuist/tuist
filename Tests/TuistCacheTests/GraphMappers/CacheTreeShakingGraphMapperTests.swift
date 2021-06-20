@@ -25,13 +25,13 @@ final class CacheTreeShakingGraphMapperTests: TuistUnitTestCase {
         let target = Target.test(prune: true)
         let project = Project.test(targets: [target])
 
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
             targets: [project.path: [target.name: target]]
         )
 
-        let expectedGraph = ValueGraph.test(
+        let expectedGraph = Graph.test(
             path: project.path,
             projects: [:],
             targets: [:]
@@ -54,7 +54,7 @@ final class CacheTreeShakingGraphMapperTests: TuistUnitTestCase {
         let secondTarget = Target.test(name: "second", prune: true)
         let project = Project.test(targets: [firstTarget, secondTarget])
 
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
             targets: [project.path: [firstTarget.name: firstTarget, secondTarget.name: secondTarget]],
@@ -81,7 +81,7 @@ final class CacheTreeShakingGraphMapperTests: TuistUnitTestCase {
         ]
         let project = Project.test(path: path, targets: [target], schemes: schemes)
 
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
             targets: [project.path: [target.name: target]],
@@ -115,7 +115,7 @@ final class CacheTreeShakingGraphMapperTests: TuistUnitTestCase {
         )
 
         // Given
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: project.path,
             workspace: workspace,
             projects: [project.path: project],
@@ -145,7 +145,7 @@ final class CacheTreeShakingGraphMapperTests: TuistUnitTestCase {
             schemes: schemes
         )
 
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: project.path,
             workspace: workspace,
             projects: [project.path: project],
@@ -178,7 +178,7 @@ final class CacheTreeShakingGraphMapperTests: TuistUnitTestCase {
             )
         )
         let project = Project.test(path: path, targets: targets, schemes: [scheme])
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
             targets: [project.path: Dictionary(uniqueKeysWithValues: targets.map { ($0.name, $0) })]
@@ -195,7 +195,7 @@ final class CacheTreeShakingGraphMapperTests: TuistUnitTestCase {
             )
         )
         let expectedProject = Project.test(path: path, targets: unprunedTargets, schemes: [schemeWithUnprunedTargets])
-        let expectedGraph = ValueGraph.test(
+        let expectedGraph = Graph.test(
             path: expectedProject.path,
             projects: [expectedProject.path: expectedProject],
             targets: [expectedProject.path: Dictionary(uniqueKeysWithValues: unprunedTargets.map { ($0.name, $0) })]

@@ -17,7 +17,7 @@ import TuistSupport
 protocol ManifestGraphLoading {
     /// Loads a Workspace or Project Graph at a given path based on manifest availability
     /// - Note: This will search for a Workspace manifest first, then fallback to searching for a Project manifest
-    func loadGraph(at path: AbsolutePath) throws -> ValueGraph
+    func loadGraph(at path: AbsolutePath) throws -> Graph
 }
 
 final class ManifestGraphLoader: ManifestGraphLoading {
@@ -25,7 +25,7 @@ final class ManifestGraphLoader: ManifestGraphLoading {
     private let manifestLoader: ManifestLoading
     private let recursiveManifestLoader: RecursiveManifestLoader
     private let converter: ManifestModelConverting
-    private let graphLoader: ValueGraphLoading
+    private let graphLoader: GraphLoading
     private let pluginsService: PluginServicing
 
     convenience init(manifestLoader: ManifestLoading) {
@@ -36,7 +36,7 @@ final class ManifestGraphLoader: ManifestGraphLoading {
             converter: ManifestModelConverter(
                 manifestLoader: manifestLoader
             ),
-            graphLoader: ValueGraphLoader(),
+            graphLoader: GraphLoader(),
             pluginsService: PluginService(manifestLoader: manifestLoader)
         )
     }
@@ -46,7 +46,7 @@ final class ManifestGraphLoader: ManifestGraphLoading {
         manifestLoader: ManifestLoading,
         recursiveManifestLoader: RecursiveManifestLoader,
         converter: ManifestModelConverting,
-        graphLoader: ValueGraphLoading,
+        graphLoader: GraphLoading,
         pluginsService: PluginServicing
     ) {
         self.configLoader = configLoader
@@ -57,7 +57,7 @@ final class ManifestGraphLoader: ManifestGraphLoading {
         self.pluginsService = pluginsService
     }
 
-    func loadGraph(at path: AbsolutePath) throws -> ValueGraph {
+    func loadGraph(at path: AbsolutePath) throws -> Graph {
         let manifests = manifestLoader.manifests(at: path)
         if manifests.contains(.workspace) {
             return try loadWorkspaceGraph(at: path)
@@ -78,14 +78,14 @@ final class ManifestGraphLoader: ManifestGraphLoading {
 
     // MARK: - Private
 
-    private func loadProjectGraph(at path: AbsolutePath) throws -> (Project, ValueGraph) {
+    private func loadProjectGraph(at path: AbsolutePath) throws -> (Project, Graph) {
         let plugins = try loadPlugins(at: path)
         let manifests = try recursiveManifestLoader.loadProject(at: path)
         let models = try convert(manifests: manifests, plugins: plugins)
         return try graphLoader.loadProject(at: path, projects: models)
     }
 
-    private func loadWorkspaceGraph(at path: AbsolutePath) throws -> ValueGraph {
+    private func loadWorkspaceGraph(at path: AbsolutePath) throws -> Graph {
         let plugins = try loadPlugins(at: path)
         let manifests = try recursiveManifestLoader.loadWorkspace(at: path)
         let models = try convert(manifests: manifests, plugins: plugins)

@@ -38,12 +38,12 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             targets: [target],
             packages: [package]
         )
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: project.path,
             packages: [project.path: ["Test": package]],
-            dependencies: [ValueGraphDependency.packageProduct(path: project.path, product: "Test"): Set()]
+            dependencies: [GraphDependency.packageProduct(path: project.path, product: "Test"): Set()]
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         let workspacePath = temporaryPath.appending(component: "\(project.name).xcworkspace")
         system.succeedCommand(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
@@ -72,12 +72,12 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             targets: [target],
             packages: [package]
         )
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: project.path,
             packages: [project.path: ["Test": package]],
-            dependencies: [ValueGraphDependency.packageProduct(path: project.path, product: "Test"): Set()]
+            dependencies: [GraphDependency.packageProduct(path: project.path, product: "Test"): Set()]
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         let workspacePath = temporaryPath.appending(component: "\(project.name).xcworkspace")
         system.succeedCommand(["xcodebuild", "-resolvePackageDependencies", "-scmProvider", "system", "-workspace", workspacePath.pathString, "-list"])
@@ -106,12 +106,12 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
                 package,
             ]
         )
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: project.path,
             packages: [project.path: ["Test": package]],
-            dependencies: [ValueGraphDependency.packageProduct(path: project.path, product: "Test"): Set()]
+            dependencies: [GraphDependency.packageProduct(path: project.path, product: "Test"): Set()]
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         let workspace = Workspace.test(
             name: project.name,
@@ -149,8 +149,8 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             settings: .default,
             targets: [target]
         )
-        let graph = ValueGraph.test()
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graph = Graph.test()
+        let graphTraverser = GraphTraverser(graph: graph)
 
         let workspace = Workspace.test(projects: [project.path])
         let workspacePath = temporaryPath.appending(component: workspace.name + ".xcworkspace")

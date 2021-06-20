@@ -29,15 +29,15 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let framework = Target.test(name: "Framework", product: .framework)
         let project = Project.test(path: "/tmp/app", name: "AppProject")
         let package = Package.remote(url: "https://test.tuist.io", requirement: .branch("main"))
-        let appDependency = ValueGraphDependency.target(name: app.name, path: path)
-        let frameworkDependency = ValueGraphDependency.target(name: framework.name, path: path)
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let frameworkDependency = GraphDependency.target(name: framework.name, path: path)
 
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
             appDependency: Set([frameworkDependency, .packageProduct(path: path, product: "Package")]),
             frameworkDependency: Set([.packageProduct(path: path, product: "Package")]),
             .packageProduct(path: path, product: "Package"): Set(),
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: path,
             projects: [path: project],
             packages: [path: ["Package": package]],
@@ -45,7 +45,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
                              framework.name: framework]],
             dependencies: dependencies
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         let results = subject.lint(graphTraverser: graphTraverser)
@@ -62,23 +62,23 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let app = Target.test(name: "App")
         let framework = Target.test(name: "Framework", product: .framework)
         let project = Project.test(targets: [app, framework])
-        let appDependency = ValueGraphDependency.target(name: app.name, path: path)
-        let frameworkDependency = ValueGraphDependency.target(name: framework.name, path: path)
-        let libraryDependency = ValueGraphDependency.testLibrary(path: "/path/to/library", publicHeaders: "/path/to/library/include", linking: .static)
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let frameworkDependency = GraphDependency.target(name: framework.name, path: path)
+        let libraryDependency = GraphDependency.testLibrary(path: "/path/to/library", publicHeaders: "/path/to/library/include", linking: .static)
 
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
             appDependency: Set([frameworkDependency, libraryDependency]),
             frameworkDependency: Set([libraryDependency]),
             libraryDependency: Set(),
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: path,
             projects: [path: project],
             targets: [path: [app.name: app,
                              framework.name: framework]],
             dependencies: dependencies
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         let results = subject.lint(graphTraverser: graphTraverser)
@@ -97,16 +97,16 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let framework = Target.test(name: "Framework", product: .framework)
         let project = Project.test(targets: [app, framework, staticFramework])
 
-        let appDependency = ValueGraphDependency.target(name: app.name, path: path)
-        let staticFrameworkDependency = ValueGraphDependency.target(name: staticFramework.name, path: path)
-        let frameworkDependency = ValueGraphDependency.target(name: framework.name, path: path)
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let staticFrameworkDependency = GraphDependency.target(name: staticFramework.name, path: path)
+        let frameworkDependency = GraphDependency.target(name: framework.name, path: path)
 
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
             appDependency: Set([staticFrameworkDependency, frameworkDependency]),
             frameworkDependency: Set([staticFrameworkDependency]),
             staticFrameworkDependency: Set(),
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: path,
             projects: [path: project],
             targets: [path: [app.name: app,
@@ -114,7 +114,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
                              staticFramework.name: staticFramework]],
             dependencies: dependencies
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         let results = subject.lint(graphTraverser: graphTraverser)
@@ -137,15 +137,15 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let frameworkC = Target.test(name: "FrameworkC", product: .framework)
         let project = Project.test(targets: [app, staticFrameworkA, staticFrameworkB, staticFrameworkC, frameworkA, frameworkB, frameworkC])
 
-        let appDependency = ValueGraphDependency.target(name: app.name, path: path)
-        let staticFrameworkAdependency = ValueGraphDependency.target(name: staticFrameworkA.name, path: path)
-        let staticFrameworkBdependency = ValueGraphDependency.target(name: staticFrameworkB.name, path: path)
-        let staticFrameworkCdependency = ValueGraphDependency.target(name: staticFrameworkC.name, path: path)
-        let frameworkADependency = ValueGraphDependency.target(name: frameworkA.name, path: path)
-        let frameworkBDependency = ValueGraphDependency.target(name: frameworkB.name, path: path)
-        let frameworkCDependency = ValueGraphDependency.target(name: frameworkC.name, path: path)
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let staticFrameworkAdependency = GraphDependency.target(name: staticFrameworkA.name, path: path)
+        let staticFrameworkBdependency = GraphDependency.target(name: staticFrameworkB.name, path: path)
+        let staticFrameworkCdependency = GraphDependency.target(name: staticFrameworkC.name, path: path)
+        let frameworkADependency = GraphDependency.target(name: frameworkA.name, path: path)
+        let frameworkBDependency = GraphDependency.target(name: frameworkB.name, path: path)
+        let frameworkCDependency = GraphDependency.target(name: frameworkC.name, path: path)
 
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
             appDependency: Set([staticFrameworkCdependency, frameworkADependency]),
             frameworkADependency: Set([frameworkBDependency]),
             frameworkBDependency: Set([frameworkCDependency]),
@@ -154,7 +154,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
             staticFrameworkBdependency: Set([staticFrameworkCdependency]),
             staticFrameworkCdependency: Set([]),
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: path,
             projects: [path: project],
             targets: [path: [app.name: app,
@@ -166,7 +166,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
                              frameworkC.name: frameworkC]],
             dependencies: dependencies
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         let results = subject.lint(graphTraverser: graphTraverser)
@@ -189,15 +189,15 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let frameworkC = Target.test(name: "FrameworkC", product: .framework)
         let project = Project.test(targets: [app, staticFrameworkA, staticFrameworkB, staticFrameworkC, frameworkA, frameworkB, frameworkC])
 
-        let appDependency = ValueGraphDependency.target(name: app.name, path: path)
-        let staticFrameworkAdependency = ValueGraphDependency.target(name: staticFrameworkA.name, path: path)
-        let staticFrameworkBdependency = ValueGraphDependency.target(name: staticFrameworkB.name, path: path)
-        let staticFrameworkCdependency = ValueGraphDependency.target(name: staticFrameworkC.name, path: path)
-        let frameworkADependency = ValueGraphDependency.target(name: frameworkA.name, path: path)
-        let frameworkBDependency = ValueGraphDependency.target(name: frameworkB.name, path: path)
-        let frameworkCDependency = ValueGraphDependency.target(name: frameworkC.name, path: path)
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let staticFrameworkAdependency = GraphDependency.target(name: staticFrameworkA.name, path: path)
+        let staticFrameworkBdependency = GraphDependency.target(name: staticFrameworkB.name, path: path)
+        let staticFrameworkCdependency = GraphDependency.target(name: staticFrameworkC.name, path: path)
+        let frameworkADependency = GraphDependency.target(name: frameworkA.name, path: path)
+        let frameworkBDependency = GraphDependency.target(name: frameworkB.name, path: path)
+        let frameworkCDependency = GraphDependency.target(name: frameworkC.name, path: path)
 
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
             appDependency: Set([staticFrameworkCdependency, frameworkADependency]),
             frameworkADependency: Set([frameworkBDependency, frameworkCDependency]),
             frameworkBDependency: Set([frameworkCDependency]),
@@ -206,7 +206,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
             staticFrameworkBdependency: Set([staticFrameworkCdependency]),
             staticFrameworkCdependency: Set([]),
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: path,
             projects: [path: project],
             targets: [path: [app.name: app,
@@ -218,7 +218,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
                              frameworkC.name: frameworkC]],
             dependencies: dependencies
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         let results = subject.lint(graphTraverser: graphTraverser)
@@ -240,14 +240,14 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let frameworkD = Target.test(name: "FrameworkD", product: .framework)
         let project = Project.test(targets: [app, frameworkA, frameworkB, frameworkC, staticFrameworkA])
 
-        let appDependency = ValueGraphDependency.target(name: app.name, path: path)
-        let staticFrameworkAdependency = ValueGraphDependency.target(name: staticFrameworkA.name, path: path)
-        let frameworkADependency = ValueGraphDependency.target(name: frameworkA.name, path: path)
-        let frameworkBDependency = ValueGraphDependency.target(name: frameworkB.name, path: path)
-        let frameworkCDependency = ValueGraphDependency.target(name: frameworkC.name, path: path)
-        let frameworkDDependency = ValueGraphDependency.target(name: frameworkD.name, path: path)
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let staticFrameworkAdependency = GraphDependency.target(name: staticFrameworkA.name, path: path)
+        let frameworkADependency = GraphDependency.target(name: frameworkA.name, path: path)
+        let frameworkBDependency = GraphDependency.target(name: frameworkB.name, path: path)
+        let frameworkCDependency = GraphDependency.target(name: frameworkC.name, path: path)
+        let frameworkDDependency = GraphDependency.target(name: frameworkD.name, path: path)
 
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
             appDependency: Set([frameworkADependency, staticFrameworkAdependency]),
             frameworkADependency: Set([frameworkBDependency, frameworkCDependency]),
             frameworkBDependency: Set([frameworkCDependency]),
@@ -255,7 +255,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
             staticFrameworkAdependency: Set([]),
             frameworkDDependency: Set([frameworkCDependency, staticFrameworkAdependency]),
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: path,
             projects: [path: project],
             targets: [path: [app.name: app,
@@ -266,7 +266,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
                              frameworkD.name: frameworkD]],
             dependencies: dependencies
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         let results = subject.lint(graphTraverser: graphTraverser)
@@ -286,16 +286,16 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let framework = Target.test(name: "Framework", product: .framework)
         let project = Project.test(targets: [app, staticFramework, framework])
 
-        let appDependency = ValueGraphDependency.target(name: app.name, path: path)
-        let staticFrameworkDependency = ValueGraphDependency.target(name: staticFramework.name, path: path)
-        let frameworkDependency = ValueGraphDependency.target(name: framework.name, path: path)
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let staticFrameworkDependency = GraphDependency.target(name: staticFramework.name, path: path)
+        let frameworkDependency = GraphDependency.target(name: framework.name, path: path)
 
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
             appDependency: Set([staticFrameworkDependency, frameworkDependency]),
             frameworkDependency: Set([staticFrameworkDependency]),
             staticFrameworkDependency: Set([]),
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: path,
             projects: [path: project],
             targets: [path: [app.name: app,
@@ -303,7 +303,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
                              framework.name: framework]],
             dependencies: dependencies
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         let results = subject.lint(graphTraverser: graphTraverser)
@@ -324,15 +324,15 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let frameworkC = Target.test(name: "FrameworkC", product: .framework)
         let project = Project.test(targets: [app, frameworkA, frameworkB, frameworkC, staticFrameworkA, staticFrameworkB, staticFrameworkC])
 
-        let appDependency = ValueGraphDependency.target(name: app.name, path: path)
-        let frameworkADependency = ValueGraphDependency.target(name: frameworkA.name, path: path)
-        let frameworkBDependency = ValueGraphDependency.target(name: frameworkB.name, path: path)
-        let frameworkCDependency = ValueGraphDependency.target(name: frameworkC.name, path: path)
-        let staticFrameworkAdependency = ValueGraphDependency.target(name: staticFrameworkA.name, path: path)
-        let staticFrameworkBdependency = ValueGraphDependency.target(name: staticFrameworkB.name, path: path)
-        let staticFrameworkCdependency = ValueGraphDependency.target(name: staticFrameworkC.name, path: path)
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let frameworkADependency = GraphDependency.target(name: frameworkA.name, path: path)
+        let frameworkBDependency = GraphDependency.target(name: frameworkB.name, path: path)
+        let frameworkCDependency = GraphDependency.target(name: frameworkC.name, path: path)
+        let staticFrameworkAdependency = GraphDependency.target(name: staticFrameworkA.name, path: path)
+        let staticFrameworkBdependency = GraphDependency.target(name: staticFrameworkB.name, path: path)
+        let staticFrameworkCdependency = GraphDependency.target(name: staticFrameworkC.name, path: path)
 
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
             appDependency: Set([staticFrameworkBdependency, staticFrameworkAdependency, frameworkADependency]),
             frameworkADependency: Set([frameworkBDependency]),
             frameworkBDependency: Set([frameworkCDependency]),
@@ -341,7 +341,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
             staticFrameworkBdependency: Set([staticFrameworkCdependency]),
             staticFrameworkCdependency: Set([]),
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: path,
             projects: [path: project],
             targets: [path: [app.name: app,
@@ -353,7 +353,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
                              staticFrameworkC.name: staticFrameworkC]],
             dependencies: dependencies
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         let results = subject.lint(graphTraverser: graphTraverser)
@@ -370,16 +370,16 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let frameworkTests = Target.test(name: "FrameworkTests", product: .unitTests)
         let project = Project.test(targets: [app, staticFramework, frameworkTests])
 
-        let appDependency = ValueGraphDependency.target(name: app.name, path: path)
-        let staticFrameworkDependency = ValueGraphDependency.target(name: staticFramework.name, path: path)
-        let frameworkTestsDependency = ValueGraphDependency.target(name: frameworkTests.name, path: path)
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let staticFrameworkDependency = GraphDependency.target(name: staticFramework.name, path: path)
+        let frameworkTestsDependency = GraphDependency.target(name: frameworkTests.name, path: path)
 
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
             appDependency: Set([staticFrameworkDependency]),
             staticFrameworkDependency: Set([]),
             frameworkTestsDependency: Set([staticFrameworkDependency]),
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: path,
             projects: [path: project],
             targets: [path: [app.name: app,
@@ -387,7 +387,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
                              frameworkTests.name: frameworkTests]],
             dependencies: dependencies
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         let results = subject.lint(graphTraverser: graphTraverser)
@@ -405,18 +405,18 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let frameworkTests = Target.test(name: "FrameworkTests", product: .unitTests)
         let project = Project.test(targets: [app, staticFramework, frameworkTests])
 
-        let appDependency = ValueGraphDependency.target(name: app.name, path: path)
-        let frameworkDependency = ValueGraphDependency.target(name: framework.name, path: path)
-        let staticFrameworkDependency = ValueGraphDependency.target(name: staticFramework.name, path: path)
-        let frameworkTestsDependency = ValueGraphDependency.target(name: frameworkTests.name, path: path)
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let frameworkDependency = GraphDependency.target(name: framework.name, path: path)
+        let staticFrameworkDependency = GraphDependency.target(name: staticFramework.name, path: path)
+        let frameworkTestsDependency = GraphDependency.target(name: frameworkTests.name, path: path)
 
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
             appDependency: Set([]),
             frameworkDependency: Set([staticFrameworkDependency]),
             staticFrameworkDependency: Set([]),
             frameworkTestsDependency: Set([frameworkDependency, staticFrameworkDependency]),
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: path,
             projects: [path: project],
             targets: [path: [app.name: app,
@@ -425,7 +425,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
                              frameworkTests.name: frameworkTests]],
             dependencies: dependencies
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         let results = subject.lint(graphTraverser: graphTraverser)
@@ -444,16 +444,16 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
         let project = Project.test(targets: [app, appTestsTarget, staticFramework])
 
-        let appDependency = ValueGraphDependency.target(name: app.name, path: path)
-        let appTestsDependency = ValueGraphDependency.target(name: appTestsTarget.name, path: path)
-        let staticFrameworkDependency = ValueGraphDependency.target(name: staticFramework.name, path: path)
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let appTestsDependency = GraphDependency.target(name: appTestsTarget.name, path: path)
+        let staticFrameworkDependency = GraphDependency.target(name: staticFramework.name, path: path)
 
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
             appDependency: Set([staticFrameworkDependency]),
             appTestsDependency: Set([staticFrameworkDependency, appDependency]),
             staticFrameworkDependency: Set([]),
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: path,
             projects: [path: project],
             targets: [path: [app.name: app,
@@ -461,7 +461,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
                              staticFramework.name: staticFramework]],
             dependencies: dependencies
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         let results = subject.lint(graphTraverser: graphTraverser)
@@ -494,22 +494,22 @@ class StaticProductsGraphLinterTests: XCTestCase {
                                              staticFrameworkA, staticFrameworkB, staticFrameworkC,
                                              staticFrameworkATests, staticFrameworkBTests, staticFrameworkCTests])
 
-        let appDependency = ValueGraphDependency.target(name: app.name, path: path)
-        let appTestsDependency = ValueGraphDependency.target(name: appTests.name, path: path)
-        let appUITestsDependency = ValueGraphDependency.target(name: appUITests.name, path: path)
-        let frameworkADependency = ValueGraphDependency.target(name: frameworkA.name, path: path)
-        let frameworkBDependency = ValueGraphDependency.target(name: frameworkB.name, path: path)
-        let frameworkCDependency = ValueGraphDependency.target(name: frameworkC.name, path: path)
-        let frameworkTestsDependency = ValueGraphDependency.target(name: frameworkTests.name, path: path)
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let appTestsDependency = GraphDependency.target(name: appTests.name, path: path)
+        let appUITestsDependency = GraphDependency.target(name: appUITests.name, path: path)
+        let frameworkADependency = GraphDependency.target(name: frameworkA.name, path: path)
+        let frameworkBDependency = GraphDependency.target(name: frameworkB.name, path: path)
+        let frameworkCDependency = GraphDependency.target(name: frameworkC.name, path: path)
+        let frameworkTestsDependency = GraphDependency.target(name: frameworkTests.name, path: path)
 
-        let staticFrameworkADependency = ValueGraphDependency.target(name: staticFrameworkA.name, path: path)
-        let staticFrameworkBDependency = ValueGraphDependency.target(name: staticFrameworkB.name, path: path)
-        let staticFrameworkCDependency = ValueGraphDependency.target(name: staticFrameworkC.name, path: path)
-        let staticFrameworkATestsDependency = ValueGraphDependency.target(name: staticFrameworkATests.name, path: path)
-        let staticFrameworkBTestsDependency = ValueGraphDependency.target(name: staticFrameworkBTests.name, path: path)
-        let staticFrameworkCTestsDependency = ValueGraphDependency.target(name: staticFrameworkCTests.name, path: path)
+        let staticFrameworkADependency = GraphDependency.target(name: staticFrameworkA.name, path: path)
+        let staticFrameworkBDependency = GraphDependency.target(name: staticFrameworkB.name, path: path)
+        let staticFrameworkCDependency = GraphDependency.target(name: staticFrameworkC.name, path: path)
+        let staticFrameworkATestsDependency = GraphDependency.target(name: staticFrameworkATests.name, path: path)
+        let staticFrameworkBTestsDependency = GraphDependency.target(name: staticFrameworkBTests.name, path: path)
+        let staticFrameworkCTestsDependency = GraphDependency.target(name: staticFrameworkCTests.name, path: path)
 
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
             appDependency: Set([frameworkADependency]),
             appTestsDependency: Set([appDependency]),
             appUITestsDependency: Set([appDependency]),
@@ -524,7 +524,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
             staticFrameworkBTestsDependency: Set([staticFrameworkBDependency, frameworkBDependency]),
             staticFrameworkCTestsDependency: Set([staticFrameworkCDependency, staticFrameworkBDependency]),
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: path,
             projects: [path: project],
             targets: [path: [app.name: app,
@@ -542,7 +542,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
                              staticFrameworkCTests.name: staticFrameworkCTests]],
             dependencies: dependencies
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         let results = subject.lint(graphTraverser: graphTraverser)
@@ -570,18 +570,18 @@ class StaticProductsGraphLinterTests: XCTestCase {
                                              frameworkA, frameworkB, frameworkC, frameworkTests,
                                              staticFrameworkA, staticFrameworkB, staticFrameworkC])
 
-        let appDependency = ValueGraphDependency.target(name: app.name, path: path)
-        let appTestsDependency = ValueGraphDependency.target(name: appTests.name, path: path)
-        let frameworkADependency = ValueGraphDependency.target(name: frameworkA.name, path: path)
-        let frameworkBDependency = ValueGraphDependency.target(name: frameworkB.name, path: path)
-        let frameworkCDependency = ValueGraphDependency.target(name: frameworkC.name, path: path)
-        let frameworkTestsDependency = ValueGraphDependency.target(name: frameworkTests.name, path: path)
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let appTestsDependency = GraphDependency.target(name: appTests.name, path: path)
+        let frameworkADependency = GraphDependency.target(name: frameworkA.name, path: path)
+        let frameworkBDependency = GraphDependency.target(name: frameworkB.name, path: path)
+        let frameworkCDependency = GraphDependency.target(name: frameworkC.name, path: path)
+        let frameworkTestsDependency = GraphDependency.target(name: frameworkTests.name, path: path)
 
-        let staticFrameworkADependency = ValueGraphDependency.target(name: staticFrameworkA.name, path: path)
-        let staticFrameworkBDependency = ValueGraphDependency.target(name: staticFrameworkB.name, path: path)
-        let staticFrameworkCDependency = ValueGraphDependency.target(name: staticFrameworkC.name, path: path)
+        let staticFrameworkADependency = GraphDependency.target(name: staticFrameworkA.name, path: path)
+        let staticFrameworkBDependency = GraphDependency.target(name: staticFrameworkB.name, path: path)
+        let staticFrameworkCDependency = GraphDependency.target(name: staticFrameworkC.name, path: path)
 
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
             appDependency: Set([frameworkADependency]),
             appTestsDependency: Set([appDependency, staticFrameworkADependency]),
             frameworkADependency: Set([frameworkBDependency, staticFrameworkADependency]),
@@ -592,7 +592,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
             staticFrameworkBDependency: Set(),
             staticFrameworkCDependency: Set(),
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: path,
             projects: [path: project],
             targets: [path: [app.name: app,
@@ -606,7 +606,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
                              staticFrameworkC.name: staticFrameworkC]],
             dependencies: dependencies
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         let results = subject.lint(graphTraverser: graphTraverser)
@@ -629,20 +629,20 @@ class StaticProductsGraphLinterTests: XCTestCase {
 
         let project = Project.test(targets: [app, appTests, appUITests, frameworkA, staticFrameworkA])
 
-        let appDependency = ValueGraphDependency.target(name: app.name, path: path)
-        let appTestsDependency = ValueGraphDependency.target(name: appTests.name, path: path)
-        let appUITestsDependency = ValueGraphDependency.target(name: appUITests.name, path: path)
-        let frameworkADependency = ValueGraphDependency.target(name: frameworkA.name, path: path)
-        let staticFrameworkADependency = ValueGraphDependency.target(name: staticFrameworkA.name, path: path)
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let appTestsDependency = GraphDependency.target(name: appTests.name, path: path)
+        let appUITestsDependency = GraphDependency.target(name: appUITests.name, path: path)
+        let frameworkADependency = GraphDependency.target(name: frameworkA.name, path: path)
+        let staticFrameworkADependency = GraphDependency.target(name: staticFrameworkA.name, path: path)
 
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
             appDependency: Set([frameworkADependency]),
             appTestsDependency: Set([appDependency, staticFrameworkADependency]),
             appUITestsDependency: Set([appDependency, frameworkADependency, staticFrameworkADependency]),
             frameworkADependency: Set([staticFrameworkADependency]),
             staticFrameworkADependency: Set([]),
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: path,
             projects: [path: project],
             targets: [path: [app.name: app,
@@ -652,7 +652,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
                              staticFrameworkA.name: staticFrameworkA]],
             dependencies: dependencies
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         let results = subject.lint(graphTraverser: graphTraverser)
@@ -673,18 +673,18 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let staticFrameworkA = Target.test(name: "StaticFrameworkA", product: .staticFramework)
         let project = Project.test(targets: [app, appUITests, frameworkA, staticFrameworkA])
 
-        let appDependency = ValueGraphDependency.target(name: app.name, path: path)
-        let appUITestsDependency = ValueGraphDependency.target(name: appUITests.name, path: path)
-        let frameworkADependency = ValueGraphDependency.target(name: frameworkA.name, path: path)
-        let staticFrameworkADependency = ValueGraphDependency.target(name: staticFrameworkA.name, path: path)
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let appUITestsDependency = GraphDependency.target(name: appUITests.name, path: path)
+        let frameworkADependency = GraphDependency.target(name: frameworkA.name, path: path)
+        let staticFrameworkADependency = GraphDependency.target(name: staticFrameworkA.name, path: path)
 
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
             appDependency: Set([frameworkADependency]),
             appUITestsDependency: Set([appDependency, staticFrameworkADependency]),
             frameworkADependency: Set([staticFrameworkADependency]),
             staticFrameworkADependency: Set([]),
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: path,
             projects: [path: project],
             targets: [path: [app.name: app,
@@ -693,7 +693,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
                              staticFrameworkA.name: staticFrameworkA]],
             dependencies: dependencies
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         let results = subject.lint(graphTraverser: graphTraverser)
@@ -716,18 +716,18 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let staticFrameworkA = Target.test(name: "StaticFrameworkA", product: .staticFramework)
         let project = Project.test(targets: [app, appUITests, frameworkA, staticFrameworkA])
 
-        let appDependency = ValueGraphDependency.target(name: app.name, path: path)
-        let appUITestsDependency = ValueGraphDependency.target(name: appUITests.name, path: path)
-        let frameworkADependency = ValueGraphDependency.target(name: frameworkA.name, path: path)
-        let staticFrameworkADependency = ValueGraphDependency.target(name: staticFrameworkA.name, path: path)
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let appUITestsDependency = GraphDependency.target(name: appUITests.name, path: path)
+        let frameworkADependency = GraphDependency.target(name: frameworkA.name, path: path)
+        let staticFrameworkADependency = GraphDependency.target(name: staticFrameworkA.name, path: path)
 
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
             appDependency: Set([frameworkADependency]),
             appUITestsDependency: Set([appDependency, staticFrameworkADependency, frameworkADependency]),
             frameworkADependency: Set([staticFrameworkADependency]),
             staticFrameworkADependency: Set([]),
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: path,
             projects: [path: project],
             targets: [path: [app.name: app,
@@ -736,7 +736,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
                              staticFrameworkA.name: staticFrameworkA]],
             dependencies: dependencies
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         let results = subject.lint(graphTraverser: graphTraverser)
@@ -758,18 +758,18 @@ class StaticProductsGraphLinterTests: XCTestCase {
 
         // App ----> Framework A
 
-        let appDependency = ValueGraphDependency.target(name: app.name, path: path)
-        let appUITestsDependency = ValueGraphDependency.target(name: appUITests.name, path: path)
-        let frameworkADependency = ValueGraphDependency.target(name: frameworkA.name, path: path)
-        let staticFrameworkADependency = ValueGraphDependency.target(name: staticFrameworkA.name, path: path)
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let appUITestsDependency = GraphDependency.target(name: appUITests.name, path: path)
+        let frameworkADependency = GraphDependency.target(name: frameworkA.name, path: path)
+        let staticFrameworkADependency = GraphDependency.target(name: staticFrameworkA.name, path: path)
 
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
             appDependency: Set([frameworkADependency, staticFrameworkADependency]),
             appUITestsDependency: Set([appDependency, staticFrameworkADependency, frameworkADependency]),
             frameworkADependency: Set([staticFrameworkADependency]),
             staticFrameworkADependency: Set([]),
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: path,
             projects: [path: project],
             targets: [path: [app.name: app,
@@ -778,7 +778,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
                              staticFrameworkA.name: staticFrameworkA]],
             dependencies: dependencies
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         let results = subject.lint(graphTraverser: graphTraverser)
@@ -798,17 +798,17 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
         let project = Project.test(targets: [app, appExtension, staticFramework])
 
-        let appDependency = ValueGraphDependency.target(name: app.name, path: path)
-        let appExtensionDependency = ValueGraphDependency.target(name: appExtension.name, path: path)
-        let staticFrameworkDependency = ValueGraphDependency.target(name: staticFramework.name, path: path)
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let appExtensionDependency = GraphDependency.target(name: appExtension.name, path: path)
+        let staticFrameworkDependency = GraphDependency.target(name: staticFramework.name, path: path)
 
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
             // apps declare they bundle extensions via dependencies
             appDependency: Set([staticFrameworkDependency, appExtensionDependency]),
             appExtensionDependency: Set([staticFrameworkDependency]),
             staticFrameworkDependency: Set([]),
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: path,
             projects: [path: project],
             targets: [path: [
@@ -818,7 +818,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         let results = subject.lint(graphTraverser: graphTraverser)
@@ -836,19 +836,19 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
         let project = Project.test(targets: [app, appExtension, framework, staticFramework])
 
-        let appDependency = ValueGraphDependency.target(name: app.name, path: path)
-        let appExtensionDependency = ValueGraphDependency.target(name: appExtension.name, path: path)
-        let frameworkDependency = ValueGraphDependency.target(name: framework.name, path: path)
-        let staticFrameworkDependency = ValueGraphDependency.target(name: staticFramework.name, path: path)
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let appExtensionDependency = GraphDependency.target(name: appExtension.name, path: path)
+        let frameworkDependency = GraphDependency.target(name: framework.name, path: path)
+        let staticFrameworkDependency = GraphDependency.target(name: staticFramework.name, path: path)
 
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
             // apps declare they bundle extensions via dependencies
             appDependency: Set([staticFrameworkDependency, appExtensionDependency]),
             appExtensionDependency: Set([staticFrameworkDependency, frameworkDependency]),
             frameworkDependency: Set([staticFrameworkDependency]),
             staticFrameworkDependency: Set([]),
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: path,
             projects: [path: project],
             targets: [path: [
@@ -859,7 +859,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         let results = subject.lint(graphTraverser: graphTraverser)
@@ -878,17 +878,17 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
         let project = Project.test(targets: [app, appClip, staticFramework])
 
-        let appDependency = ValueGraphDependency.target(name: app.name, path: path)
-        let appClipDependency = ValueGraphDependency.target(name: appClip.name, path: path)
-        let staticFrameworkDependency = ValueGraphDependency.target(name: staticFramework.name, path: path)
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let appClipDependency = GraphDependency.target(name: appClip.name, path: path)
+        let staticFrameworkDependency = GraphDependency.target(name: staticFramework.name, path: path)
 
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
             // apps declare they bundle app clips via dependencies
             appDependency: Set([staticFrameworkDependency, appClipDependency]),
             appClipDependency: Set([staticFrameworkDependency]),
             staticFrameworkDependency: Set([]),
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: path,
             projects: [path: project],
             targets: [path: [
@@ -898,7 +898,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         let results = subject.lint(graphTraverser: graphTraverser)
@@ -916,19 +916,19 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
         let project = Project.test(targets: [app, appClip, framework, staticFramework])
 
-        let appDependency = ValueGraphDependency.target(name: app.name, path: path)
-        let appClipDependency = ValueGraphDependency.target(name: appClip.name, path: path)
-        let frameworkDependency = ValueGraphDependency.target(name: framework.name, path: path)
-        let staticFrameworkDependency = ValueGraphDependency.target(name: staticFramework.name, path: path)
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let appClipDependency = GraphDependency.target(name: appClip.name, path: path)
+        let frameworkDependency = GraphDependency.target(name: framework.name, path: path)
+        let staticFrameworkDependency = GraphDependency.target(name: staticFramework.name, path: path)
 
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
             // apps declare they bundle app clips via dependencies
             appDependency: Set([staticFrameworkDependency, appClipDependency]),
             appClipDependency: Set([frameworkDependency, staticFrameworkDependency]),
             frameworkDependency: Set([staticFrameworkDependency]),
             staticFrameworkDependency: Set([]),
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: path,
             projects: [path: project],
             targets: [path: [
@@ -939,7 +939,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         let results = subject.lint(graphTraverser: graphTraverser)
@@ -958,19 +958,19 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let watchAppExtension = Target.test(name: "WatchAppExtension", platform: .watchOS, product: .watch2Extension)
         let project = Project.test(targets: [app, watchApp, watchAppExtension])
 
-        let appDependency = ValueGraphDependency.target(name: app.name, path: path)
-        let watchAppDependency = ValueGraphDependency.target(name: watchApp.name, path: path)
-        let watchAppExtensionDependency = ValueGraphDependency.target(name: watchAppExtension.name, path: path)
-        let swiftPackage = ValueGraphDependency.packageProduct(path: "/path/to/package", product: "LocalPackage")
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let watchAppDependency = GraphDependency.target(name: watchApp.name, path: path)
+        let watchAppExtensionDependency = GraphDependency.target(name: watchAppExtension.name, path: path)
+        let swiftPackage = GraphDependency.packageProduct(path: "/path/to/package", product: "LocalPackage")
 
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
             // apps declare they bundle watch apps via dependencies
             appDependency: Set([swiftPackage, watchAppDependency]),
             // apps declare they bundle extensions via dependencies
             watchAppDependency: Set([watchAppExtensionDependency]),
             watchAppExtensionDependency: Set([swiftPackage]),
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: path,
             projects: [path: project],
             targets: [path: [
@@ -980,7 +980,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         let results = subject.lint(graphTraverser: graphTraverser)
@@ -998,13 +998,13 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let watchFramework = Target.test(name: "WatchFramework", platform: .watchOS, product: .framework)
         let project = Project.test(targets: [app, watchApp, watchAppExtension, watchFramework])
 
-        let appDependency = ValueGraphDependency.target(name: app.name, path: path)
-        let watchAppDependency = ValueGraphDependency.target(name: watchApp.name, path: path)
-        let watchAppExtensionDependency = ValueGraphDependency.target(name: watchAppExtension.name, path: path)
-        let watchFrameworkDependency = ValueGraphDependency.target(name: watchFramework.name, path: path)
-        let swiftPackage = ValueGraphDependency.packageProduct(path: "/path/to/package", product: "LocalPackage")
+        let appDependency = GraphDependency.target(name: app.name, path: path)
+        let watchAppDependency = GraphDependency.target(name: watchApp.name, path: path)
+        let watchAppExtensionDependency = GraphDependency.target(name: watchAppExtension.name, path: path)
+        let watchFrameworkDependency = GraphDependency.target(name: watchFramework.name, path: path)
+        let swiftPackage = GraphDependency.packageProduct(path: "/path/to/package", product: "LocalPackage")
 
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
             // apps declare they bundle watch apps via dependencies
             appDependency: Set([swiftPackage, watchAppDependency]),
             // apps declare they bundle extensions via dependencies
@@ -1012,7 +1012,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
             watchAppExtensionDependency: Set([swiftPackage, watchFrameworkDependency]),
             watchFrameworkDependency: Set([swiftPackage]),
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: path,
             projects: [path: project],
             targets: [path: [
@@ -1023,7 +1023,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
             ]],
             dependencies: dependencies
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         let results = subject.lint(graphTraverser: graphTraverser)
@@ -1036,7 +1036,7 @@ class StaticProductsGraphLinterTests: XCTestCase {
 
     // MARK: - Helpers
 
-    private func warning(product node: String, type: String = "Target", linkedBy: [ValueGraphDependency]) -> LintingIssue {
+    private func warning(product node: String, type: String = "Target", linkedBy: [GraphDependency]) -> LintingIssue {
         let reason = "\(type) \'\(node)\' has been linked from \(linkedBy.map(\.description).listed()), it is a static product so may introduce unwanted side effects.".uppercasingFirst
         return LintingIssue(
             reason: reason,

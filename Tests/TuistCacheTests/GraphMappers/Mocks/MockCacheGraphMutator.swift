@@ -10,12 +10,12 @@ import XCTest
 final class MockCacheGraphMutator: CacheGraphMutating {
     var invokedMap = false
     var invokedMapCount = 0
-    var invokedMapParameters: (graph: ValueGraph, precompiledFrameworks: [ValueGraphTarget: AbsolutePath], sources: Set<String>)?
-    var invokedMapParametersList = [(graph: ValueGraph, precompiledFrameworks: [ValueGraphTarget: AbsolutePath], sources: Set<String>)]()
+    var invokedMapParameters: (graph: Graph, precompiledFrameworks: [GraphTarget: AbsolutePath], sources: Set<String>)?
+    var invokedMapParametersList = [(graph: Graph, precompiledFrameworks: [GraphTarget: AbsolutePath], sources: Set<String>)]()
     var stubbedMapError: Error?
-    var stubbedMapResult: ValueGraph!
+    var stubbedMapResult: Graph!
 
-    func map(graph: ValueGraph, precompiledFrameworks: [ValueGraphTarget: AbsolutePath], sources: Set<String>) throws -> ValueGraph {
+    func map(graph: Graph, precompiledFrameworks: [GraphTarget: AbsolutePath], sources: Set<String>) throws -> Graph {
         invokedMap = true
         invokedMapCount += 1
         invokedMapParameters = (graph, precompiledFrameworks, sources)

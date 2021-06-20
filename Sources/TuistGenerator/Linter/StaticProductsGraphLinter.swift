@@ -19,7 +19,7 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
             .map(lintIssue)
     }
 
-    private func warnings(in dependencies: [ValueGraphDependency], graphTraverser: GraphTraversing) -> Set<StaticDependencyWarning> {
+    private func warnings(in dependencies: [GraphDependency], graphTraverser: GraphTraversing) -> Set<StaticDependencyWarning> {
         var warnings = Set<StaticDependencyWarning>()
         let cache = Cache()
         dependencies.forEach { dependency in
@@ -58,7 +58,7 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
     /// - In the event a node is a node capable of linking static products, it removes all the nodes
     ///   from the unlinked bucket and places them in the linked bucket in format of _staticNode > [linkingNode]_.
     ///
-    private func buildStaticProductsMap(visiting dependency: ValueGraphDependency,
+    private func buildStaticProductsMap(visiting dependency: GraphDependency,
                                         graphTraverser: GraphTraversing,
                                         cache: Cache) -> StaticProducts
     {
@@ -79,7 +79,7 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         }
 
         // Linking node case
-        guard case let ValueGraphDependency.target(targetName, targetPath) = dependency,
+        guard case let GraphDependency.target(targetName, targetPath) = dependency,
             let dependencyTarget = graphTraverser.target(path: targetPath, name: targetName),
             dependencyTarget.target.canLinkStaticProducts()
         else {
@@ -98,21 +98,21 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         return results
     }
 
-    private func staticDependencyWarning(staticProduct: ValueGraphDependency,
-                                         linkedBy: Set<ValueGraphDependency>,
+    private func staticDependencyWarning(staticProduct: GraphDependency,
+                                         linkedBy: Set<GraphDependency>,
                                          graphTraverser: GraphTraversing) -> [StaticDependencyWarning]
     {
         // Common dependencies between test bundles and their host apps are automatically omitted
         // during generation - as such those shouldn't be flagged
         //
         // reference: https://github.com/tuist/tuist/pull/664
-        let apps: Set<ValueGraphDependency> = linkedBy.filter { (dependency) -> Bool in
-            guard case let ValueGraphDependency.target(targetName, targetPath) = dependency else { return false }
+        let apps: Set<GraphDependency> = linkedBy.filter { (dependency) -> Bool in
+            guard case let GraphDependency.target(targetName, targetPath) = dependency else { return false }
             guard let target = graphTraverser.target(path: targetPath, name: targetName) else { return false }
             return target.target.product == .app
         }
         let hostedTestBundles = linkedBy.filter { (dependency) -> Bool in
-            guard case let ValueGraphDependency.target(targetName, targetPath) = dependency else { return false }
+            guard case let GraphDependency.target(targetName, targetPath) = dependency else { return false }
             guard let target = graphTraverser.target(path: targetPath, name: targetName) else { return false }
 
             let isTestsBundle = target.target.product.testsBundle
@@ -134,7 +134,7 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         ]
     }
 
-    private func isStaticProduct(_ dependency: ValueGraphDependency, graphTraverser: GraphTraversing) -> Bool {
+    private func isStaticProduct(_ dependency: GraphDependency, graphTraverser: GraphTraversing) -> Bool {
         switch dependency {
         case let .xcframework(_, _, _, linking):
             return linking == .static
@@ -155,14 +155,14 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         }
     }
 
-    private func dependencies(for dependency: ValueGraphDependency, graphTraverser: GraphTraversing) -> [ValueGraphDependency] {
+    private func dependencies(for dependency: GraphDependency, graphTraverser: GraphTraversing) -> [GraphDependency] {
         Array(graphTraverser.dependencies[dependency, default: Set()])
             .filter { canVisit(dependency: $0, from: dependency, graphTraverser: graphTraverser) }
     }
 
-    private func canVisit(dependency: ValueGraphDependency, from: ValueGraphDependency, graphTraverser: GraphTraversing) -> Bool {
-        guard case let ValueGraphDependency.target(fromTargetName, fromTargetPath) = from else { return true }
-        guard case let ValueGraphDependency.target(toTargetName, toTargetPath) = dependency else { return true }
+    private func canVisit(dependency: GraphDependency, from: GraphDependency, graphTraverser: GraphTraversing) -> Bool {
+        guard case let GraphDependency.target(fromTargetName, fromTargetPath) = from else { return true }
+        guard case let GraphDependency.target(toTargetName, toTargetPath) = dependency else { return true }
 
         guard let fromTarget = graphTraverser.target(path: fromTargetPath, name: fromTargetName) else { return false }
         guard let toTarget = graphTraverser.target(path: toTargetPath, name: toTargetName) else { return false }
@@ -208,8 +208,8 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
 
 extension StaticProductsGraphLinter {
     private struct StaticDependencyWarning: Hashable, Comparable {
-        var staticProduct: ValueGraphDependency
-        var linkingDependencies: [ValueGraphDependency]
+        var staticProduct: GraphDependency
+        var linkingDependencies: [GraphDependency]
 
         var debugDescription: String {
             stringDescription
@@ -228,13 +228,13 @@ extension StaticProductsGraphLinter {
 
     private struct StaticProducts {
         // Unlinked static products
-        var unlinked: Set<ValueGraphDependency> = Set()
+        var unlinked: Set<GraphDependency> = Set()
 
         // Map of Static product to nodes that link it
         // e.g.
         //    - MyStaticFrameworkA > [MyDynamicFrameworkA, MyTestsTarget]
         //    - MyStaticFrameworkB > [MyDynamicFrameworkA, MyTestsTarget]
-        var linked: [ValueGraphDependency: Set<ValueGraphDependency>] = [:]
+        var linked: [GraphDependency: Set<GraphDependency>] = [:]
 
         func merged(with other: StaticProducts) -> StaticProducts {
             StaticProducts(
@@ -245,14 +245,14 @@ extension StaticProductsGraphLinter {
     }
 
     private class Cache {
-        private var cachedResults: [ValueGraphDependency: StaticProducts] = [:]
+        private var cachedResults: [GraphDependency: StaticProducts] = [:]
 
-        func results(for dependency: ValueGraphDependency) -> StaticProducts? {
+        func results(for dependency: GraphDependency) -> StaticProducts? {
             cachedResults[dependency]
         }
 
         func cache(results: StaticProducts,
-                   for dependency: ValueGraphDependency)
+                   for dependency: GraphDependency)
         {
             cachedResults[dependency] = results
         }

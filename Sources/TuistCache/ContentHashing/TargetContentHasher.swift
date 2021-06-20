@@ -5,8 +5,8 @@ import TuistGraph
 import TuistSupport
 
 public protocol TargetContentHashing {
-    func contentHash(for target: ValueGraphTarget) throws -> String
-    func contentHash(for target: ValueGraphTarget, additionalStrings: [String]) throws -> String
+    func contentHash(for target: GraphTarget) throws -> String
+    func contentHash(for target: GraphTarget, additionalStrings: [String]) throws -> String
 }
 
 /// `TargetContentHasher`
@@ -70,11 +70,11 @@ public final class TargetContentHasher: TargetContentHashing {
 
     // MARK: - TargetContentHashing
 
-    public func contentHash(for target: ValueGraphTarget) throws -> String {
+    public func contentHash(for target: GraphTarget) throws -> String {
         try contentHash(for: target, additionalStrings: [])
     }
 
-    public func contentHash(for target: ValueGraphTarget, additionalStrings: [String]) throws -> String {
+    public func contentHash(for target: GraphTarget, additionalStrings: [String]) throws -> String {
         try contentHash(for: target.target, additionalStrings: additionalStrings)
     }
 

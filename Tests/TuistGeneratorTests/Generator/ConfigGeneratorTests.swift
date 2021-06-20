@@ -113,8 +113,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let target = Target.test(
             infoPlist: .file(path: sourceRootPath.appending(component: "Info.plist"))
         )
-        let graph = ValueGraph.test(path: project.path)
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graph = Graph.test(path: project.path)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         try subject.generateTargetConfig(
@@ -235,8 +235,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         // Given
         let project = Project.test()
         let target = Target.test(deploymentTarget: .iOS("12.0", [.iphone, .ipad]))
-        let graph = ValueGraph.test(path: project.path)
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graph = Graph.test(path: project.path)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         try subject.generateTargetConfig(
@@ -268,8 +268,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         // Given
         let project = Project.test()
         let target = Target.test(deploymentTarget: .macOS("10.14.1"))
-        let graph = ValueGraph.test(path: project.path)
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graph = Graph.test(path: project.path)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         try subject.generateTargetConfig(
@@ -300,8 +300,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         // Given
         let project = Project.test()
         let target = Target.test(deploymentTarget: .iOS("13.1", [.iphone, .ipad, .mac]))
-        let graph = ValueGraph.test(path: project.path)
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graph = Graph.test(path: project.path)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         try subject.generateTargetConfig(
@@ -335,8 +335,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         // Given
         let project = Project.test()
         let target = Target.test(deploymentTarget: .watchOS("6.0"))
-        let graph = ValueGraph.test(path: project.path)
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graph = Graph.test(path: project.path)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         try subject.generateTargetConfig(
@@ -367,8 +367,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         // Given
         let project = Project.test()
         let target = Target.test(deploymentTarget: .tvOS("14.0"))
-        let graph = ValueGraph.test(path: project.path)
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graph = Graph.test(path: project.path)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         try subject.generateTargetConfig(
@@ -443,8 +443,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         ])
         let project = Project.test()
         let target = Target.test()
-        let graph = ValueGraph.test(path: project.path)
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graph = Graph.test(path: project.path)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         try subject.generateTargetConfig(
@@ -471,8 +471,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         ])
         let project = Project.test()
         let target = Target.test()
-        let graph = ValueGraph.test(path: project.path)
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graph = Graph.test(path: project.path)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         try subject.generateTargetConfig(
@@ -560,8 +560,8 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             settings: .default,
             targets: [target]
         )
-        let graph = ValueGraph.test(path: project.path)
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graph = Graph.test(path: project.path)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         let fileElements = ProjectFileElements()
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
@@ -600,14 +600,14 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let target = Target.test(name: "Test", platform: platform, product: uiTest ? .uiTests : .unitTests)
         let project = Project.test(path: dir, name: "Project", targets: [target])
 
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             name: project.name,
             path: project.path,
             projects: [project.path: project],
             targets: [project.path: [appTarget.name: appTarget, target.name: target]],
-            dependencies: [ValueGraphDependency.target(name: target.name, path: project.path): Set([.target(name: appTarget.name, path: project.path)])]
+            dependencies: [GraphDependency.target(name: target.name, path: project.path): Set([.target(name: appTarget.name, path: project.path)])]
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         _ = try subject.generateTargetConfig(
             target,

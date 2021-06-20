@@ -15,7 +15,7 @@ public protocol TargetBuilding {
     ///   - configuration: The configuration to use while building the scheme.
     ///   - buildOutputPath: An optional path to copy the build products to.
     func buildTarget(
-        _ target: ValueGraphTarget,
+        _ target: GraphTarget,
         workspacePath: AbsolutePath,
         schemeName: String,
         clean: Bool,
@@ -63,7 +63,7 @@ public final class TargetBuilder: TargetBuilding {
     }
 
     public func buildTarget(
-        _ target: ValueGraphTarget,
+        _ target: GraphTarget,
         workspacePath: AbsolutePath,
         schemeName: String,
         clean: Bool,

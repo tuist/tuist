@@ -6,9 +6,9 @@ import TuistGraph
 public final class MockTargetBuilder: TargetBuilding {
     public init() {}
 
-    public var buildTargetStub: ((ValueGraphTarget, AbsolutePath, String, Bool, String?, AbsolutePath?) throws -> Void)?
+    public var buildTargetStub: ((GraphTarget, AbsolutePath, String, Bool, String?, AbsolutePath?) throws -> Void)?
     public func buildTarget(
-        _ target: ValueGraphTarget,
+        _ target: GraphTarget,
         workspacePath: AbsolutePath,
         schemeName: String,
         clean: Bool,

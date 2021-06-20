@@ -558,7 +558,7 @@ final class LinkGeneratorTests: XCTestCase {
         let path = AbsolutePath("/path/")
         let staticDependency = Target.test(name: "StaticDependency", product: .staticLibrary)
         let target = Target.test(name: "Static", product: .staticLibrary)
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             projects: [path: .test(path: path)],
             targets: [
                 path: [
@@ -572,7 +572,7 @@ final class LinkGeneratorTests: XCTestCase {
                 ],
             ]
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
         let fileElements = createProjectFileElements(for: [staticDependency])
         let xcodeProjElements = createXcodeprojElements()
 
@@ -605,7 +605,7 @@ final class LinkGeneratorTests: XCTestCase {
         let path = AbsolutePath("/path/")
         let staticDependency = Target.test(name: "StaticDependency", product: .staticLibrary)
         let target = Target.test(name: "Dynamic", product: .framework)
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             projects: [path: .test(path: path)],
             targets: [
                 path: [
@@ -619,7 +619,7 @@ final class LinkGeneratorTests: XCTestCase {
                 ],
             ]
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
         let fileElements = createProjectFileElements(for: [staticDependency])
         let xcodeProjElements = createXcodeprojElements()
 
@@ -647,7 +647,7 @@ final class LinkGeneratorTests: XCTestCase {
         let path = AbsolutePath("/path/")
         let resourceBundle = Target.test(name: "ResourceBundle", product: .bundle)
         let target = Target.test(name: "Target", product: .app)
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             projects: [path: .test(path: path)],
             targets: [
                 path: [
@@ -663,7 +663,7 @@ final class LinkGeneratorTests: XCTestCase {
         )
         let fileElements = createProjectFileElements(for: [resourceBundle])
         let xcodeProjElements = createXcodeprojElements()
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         try subject.generateCopyProductsBuildPhase(

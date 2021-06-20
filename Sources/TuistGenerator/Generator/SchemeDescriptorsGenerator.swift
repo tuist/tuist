@@ -634,7 +634,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
     // MARK: - Helpers
 
-    private func resolveRelativeProjectPath(graphTarget: ValueGraphTarget,
+    private func resolveRelativeProjectPath(graphTarget: GraphTarget,
                                             generatedProject _: GeneratedProject,
                                             rootPath: AbsolutePath) -> RelativePath
     {
@@ -649,7 +649,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ///     - graph: Tuist graph.
     ///     - rootPath: Path to the project or workspace.
     ///     - generatedProjects: Project paths mapped to generated projects.
-    private func createBuildableReference(graphTarget: ValueGraphTarget,
+    private func createBuildableReference(graphTarget: GraphTarget,
                                           graphTraverser: GraphTraversing,
                                           rootPath: AbsolutePath,
                                           generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.BuildableReference?
@@ -680,7 +680,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ///   - generatedProjects: Generated Xcode projects.
     ///   - rootPath: Root path to workspace or project.
     /// - Returns: Array of buildable references.
-    private func testCoverageTargetReferences(graphTarget: ValueGraphTarget,
+    private func testCoverageTargetReferences(graphTarget: GraphTarget,
                                               graphTraverser: GraphTraversing,
                                               generatedProjects: [AbsolutePath: GeneratedProject],
                                               rootPath: AbsolutePath) throws -> XCScheme.BuildableReference?

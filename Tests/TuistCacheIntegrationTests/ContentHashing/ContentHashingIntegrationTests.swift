@@ -70,7 +70,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         let project2 = Project.test(path: try temporaryPath().appending(component: "f2"))
         let framework1 = makeFramework(project: project1, sources: [source1, source2])
         let framework2 = makeFramework(project: project2, sources: [source2, source1])
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             projects: [
                 project1.path: project1,
                 project2.path: project2,
@@ -98,7 +98,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         let project2 = Project.test(path: try temporaryPath().appending(component: "f2"))
         let framework1 = makeFramework(project: project1, sources: [source1, source2])
         let framework2 = makeFramework(project: project2, sources: [source3, source4])
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             projects: [
                 project1.path: project1,
                 project2.path: project2,
@@ -126,7 +126,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         let project2 = Project.test(path: try temporaryPath().appending(component: "f2"))
         let framework1 = makeFramework(project: project1, sources: [source1, source2])
         let framework2 = makeFramework(project: project2, sources: [source3, source4])
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             projects: [
                 project1.path: project1,
                 project2.path: project2,
@@ -156,7 +156,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         let project2 = Project.test(path: try temporaryPath().appending(component: "f2"))
         let framework1 = makeFramework(project: project1, sources: [source1, source2])
         let framework2 = makeFramework(project: project2, sources: [source3, source4])
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             projects: [
                 project1.path: project1,
                 project2.path: project2,
@@ -188,7 +188,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         let project2 = Project.test(path: try temporaryPath().appending(component: "f2"))
         let framework1 = makeFramework(project: project1, resources: [resourceFile1])
         let framework2 = makeFramework(project: project2, resources: [resourceFile2])
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             projects: [
                 project1.path: project1,
                 project2.path: project2,
@@ -216,7 +216,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         let project2 = Project.test(path: try temporaryPath().appending(component: "f2"))
         let framework1 = makeFramework(project: project1, resources: [resourceFolderReference1])
         let framework2 = makeFramework(project: project2, resources: [resourceFolderReference2])
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             projects: [
                 project1.path: project1,
                 project2.path: project2,
@@ -245,7 +245,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         let project2 = Project.test(path: try temporaryPath().appending(component: "f2"))
         let framework1 = makeFramework(project: project1, resources: resources)
         let framework2 = makeFramework(project: project2, resources: resources)
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             projects: [
                 project1.path: project1,
                 project2.path: project2,
@@ -275,7 +275,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         let project2 = Project.test(path: try temporaryPath().appending(component: "f2"))
         let framework1 = makeFramework(project: project1, coreDataModels: [coreDataModel1])
         let framework2 = makeFramework(project: project2, coreDataModels: [coreDataModel2])
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             projects: [
                 project1.path: project1,
                 project2.path: project2,
@@ -303,7 +303,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         let project2 = Project.test(path: try temporaryPath().appending(component: "f2"))
         let framework1 = makeFramework(project: project1, coreDataModels: [coreDataModel1])
         let framework2 = makeFramework(project: project2, coreDataModels: [coreDataModel1])
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             projects: [
                 project1.path: project1,
                 project2.path: project2,
@@ -335,7 +335,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         let project2 = Project.test(path: try temporaryPath().appending(component: "f2"))
         let framework1 = makeFramework(project: project1, platform: .iOS)
         let framework2 = makeFramework(project: project2, platform: .macOS)
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             projects: [
                 project1.path: project1,
                 project2.path: project2,
@@ -364,7 +364,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         let project2 = Project.test(path: try temporaryPath().appending(component: "f2"))
         let framework1 = makeFramework(project: project1, productName: "1")
         let framework2 = makeFramework(project: project2, productName: "2")
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             projects: [
                 project1.path: project1,
                 project2.path: project2,
@@ -422,8 +422,8 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         resources: [ResourceFileElement] = [],
         coreDataModels: [CoreDataModel] = [],
         targetActions: [TargetAction] = []
-    ) -> ValueGraphTarget {
-        ValueGraphTarget.test(
+    ) -> GraphTarget {
+        GraphTarget.test(
             path: project.path,
             target: .test(
                 platform: platform,
