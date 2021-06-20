@@ -13,7 +13,8 @@ module Fourier
           "swift", "build",
           "--configuration", "release",
           "--disable-sandbox",
-          "--package-path", path
+          "--package-path", path,
+          "--product", "tuist"
         ]
         expected_arm64_command = [*expected_command, "--triple", "arm64-apple-macosx"]
         expected_x86_command = [*expected_command, "--triple", "x86_64-apple-macosx"]
@@ -34,6 +35,7 @@ module Fourier
 
         Utilities::SwiftPackageManager.build_fat_release_binary(
           path: path,
+          product: binary_name,
           binary_name: binary_name,
           output_directory: output_directory
         )

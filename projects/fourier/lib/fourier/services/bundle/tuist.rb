@@ -19,14 +19,11 @@ module Fourier
           FileUtils.mkdir_p(output_directory) unless Dir.exist?(output_directory)
 
           in_build_directory do |build_directory|
+            build_project_library(name: "ProjectDescription", build_directory: build_directory)
+            build_project_library(name: "ProjectAutomation", build_directory: build_directory)
+
             Utilities::Output.section("Building Tuist...")
             build_tuist(build_directory: build_directory)
-
-            Utilities::Output.section("Building ProjectAutomation...")
-            build_project_automation(build_directory: build_directory)
-
-            Utilities::Output.section("Building ProjectDescription...")
-            build_project_description(build_directory: build_directory)
 
             Dir.mktmpdir do |vendor_directory|
               FileUtils.cp_r(
@@ -86,54 +83,32 @@ module Fourier
           def build_tuist(build_directory:)
             Utilities::SwiftPackageManager.build_fat_release_binary(
               path: Constants::ROOT_DIRECTORY,
+              product: "tuist",
               binary_name: "tuist",
               output_directory: File.join(build_directory, "release")
             )
           end
 
-          def build_project_description(build_directory:)
+          def build_project_library(name:, build_directory:)
+            Utilities::Output.section("Building #{name}...")
             Utilities::System.system(
               "swift", "build",
-              "--product", "tuist",
+              "--product", name,
               "--configuration", "release",
-              "--build-path", build_directory,
-              "--package-path", Constants::ROOT_DIRECTORY,
-              "--arch", "arm64",
-              "--arch", "x86_64"
-            )
-            Utilities::System.system(
-              "swift", "build",
-              "--product", "ProjectDescription",
-              "--configuration", "release",
-              "-Xswiftc", "-enable-library-evolution",
-              "-Xswiftc", "-emit-module-interface",
-              "-Xswiftc", "-emit-module-interface-path",
-              "-Xswiftc", File.expand_path("release/ProjectDescription.swiftinterface", build_directory),
-              "--build-path", build_directory,
-              "--package-path", Constants::ROOT_DIRECTORY,
-            )
-          end
-
-          def build_project_automation(build_directory:)
-            Utilities::System.system(
-              "swift", "build",
-              "--product", "ProjectAutomation",
-              "--configuration", "release",
-              "--build-path", build_directory,
-              "--package-path", Constants::ROOT_DIRECTORY,
-              "--arch", "arm64",
-              "--arch", "x86_64"
-            )
-            Utilities::System.system(
-              "swift", "build",
-              "--product", "ProjectAutomation",
-              "--configuration", "release",
-              "-Xswiftc", "-enable-library-evolution",
-              "-Xswiftc", "-emit-module-interface",
-              "-Xswiftc", "-emit-module-interface-path",
-              "-Xswiftc", File.expand_path("release/ProjectAutomation.swiftinterface", build_directory),
               "--build-path", build_directory,
               "--package-path", Constants::ROOT_DIRECTORY
+            )
+            Utilities::SwiftPackageManager.build_fat_release_binary(
+              path: Constants::ROOT_DIRECTORY,
+              product: name,
+              binary_name: "lib#{name}.dylib",
+              output_directory: File.join(build_directory, "release"),
+              additional_options: [
+                "-Xswiftc", "-enable-library-evolution",
+                "-Xswiftc", "-emit-module-interface",
+                "-Xswiftc", "-emit-module-interface-path",
+                "-Xswiftc", File.expand_path("release/#{name}.swiftinterface", build_directory),
+              ]
             )
           end
       end

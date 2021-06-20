@@ -53,14 +53,11 @@ module Fourier
           end
 
           def build_tuistenv(build_directory:)
-            Utilities::System.system(
-              "swift", "build",
-              "--product", "tuistenv",
-              "--configuration", "release",
-              "--build-path", build_directory,
-              "--package-path", Constants::ROOT_DIRECTORY,
-              "--arch", "arm64",
-              "--arch", "x86_64"
+            Utilities::SwiftPackageManager.build_fat_release_binary(
+              path: Constants::ROOT_DIRECTORY,
+              product: "tuistenv",
+              binary_name: "tuistenv",
+              output_directory: File.join(build_directory, "release")
             )
           end
       end
