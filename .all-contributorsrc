@@ -433,6 +433,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "wojciech-kulik",
+      "name": "Wojciech Kulik",
+      "avatar_url": "https://avatars.githubusercontent.com/u/3128467?v=4",
+      "profile": "https://wojciechkulik.pl",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
