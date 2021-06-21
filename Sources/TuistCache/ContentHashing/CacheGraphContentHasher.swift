@@ -62,8 +62,9 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
         _ target: GraphTarget,
         graphTraverser: GraphTraversing
     ) -> Bool {
-        let isFramework = target.target.product == .framework || target.target.product == .staticFramework
+        let product = target.target.product
+        let isCachableProduct = product == .framework || product == .staticFramework || product == .bundle
         let noXCTestDependency = !graphTraverser.dependsOnXCTest(path: target.path, name: target.target.name)
-        return isFramework && noXCTestDependency
+        return isCachableProduct && noXCTestDependency
     }
 }

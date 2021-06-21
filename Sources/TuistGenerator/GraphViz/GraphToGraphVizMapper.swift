@@ -84,7 +84,7 @@ private extension GraphDependency {
         switch self {
         case .target:
             return false
-        case .framework, .xcframework, .library, .packageProduct, .sdk, .cocoapods:
+        case .framework, .xcframework, .library, .bundle, .packageProduct, .sdk, .cocoapods:
             return true
         }
     }
@@ -117,6 +117,8 @@ private extension GraphDependency {
             architectures: _,
             swiftModuleMap: _
         ):
+            return path.basenameWithoutExt
+        case let .bundle(path):
             return path.basenameWithoutExt
         case let .packageProduct(path: _, product: product):
             return product

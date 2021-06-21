@@ -86,7 +86,7 @@ public final class CacheLocalStorage: CacheStoring {
     // MARK: - Fileprivate
 
     fileprivate func lookupFramework(directory: AbsolutePath) -> AbsolutePath? {
-        let extensions = ["framework", "xcframework"]
+        let extensions = ["framework", "xcframework", "bundle"]
         for ext in extensions {
             if let filePath = FileHandler.shared.glob(directory, glob: "*.\(ext)").first { return filePath }
         }

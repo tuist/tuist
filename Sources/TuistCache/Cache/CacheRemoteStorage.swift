@@ -151,6 +151,8 @@ public final class CacheRemoteStorage: CacheStoring {
             return xcframeworkPath
         } else if let frameworkPath = FileHandler.shared.glob(archive, glob: "*.framework").first {
             return frameworkPath
+        } else if let bundlePath = FileHandler.shared.glob(archive, glob: "*.bundle").first {
+            return bundlePath
         }
         return nil
     }

@@ -19,6 +19,7 @@ final class CacheControllerTests: TuistUnitTestCase {
     var generator: MockGenerator!
     var cacheGraphContentHasher: MockCacheGraphContentHasher!
     var artifactBuilder: MockCacheArtifactBuilder!
+    var bundleArtifactBuilder: MockCacheArtifactBuilder!
     var manifestLoader: MockManifestLoader!
     var cache: MockCacheStorage!
     var subject: CacheController!
@@ -29,6 +30,7 @@ final class CacheControllerTests: TuistUnitTestCase {
     override func setUp() {
         generator = MockGenerator()
         artifactBuilder = MockCacheArtifactBuilder()
+        bundleArtifactBuilder = MockCacheArtifactBuilder()
         cache = MockCacheStorage()
         manifestLoader = MockManifestLoader()
         cacheGraphContentHasher = MockCacheGraphContentHasher()
@@ -39,6 +41,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         subject = CacheController(
             cache: cache,
             artifactBuilder: artifactBuilder,
+            bundleArtifactBuilder: bundleArtifactBuilder,
             projectGeneratorProvider: projectGeneratorProvider,
             cacheGraphContentHasher: cacheGraphContentHasher,
             cacheGraphLinter: cacheGraphLinter

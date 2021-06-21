@@ -70,6 +70,8 @@ final class CacheController: CacheControlling {
     /// Utility to build the (xc)frameworks.
     private let artifactBuilder: CacheArtifactBuilding
 
+    private let bundleArtifactBuilder: CacheArtifactBuilding
+
     /// Cache graph content hasher.
     private let cacheGraphContentHasher: CacheGraphContentHashing
 
@@ -81,11 +83,13 @@ final class CacheController: CacheControlling {
 
     convenience init(cache: CacheStoring,
                      artifactBuilder: CacheArtifactBuilding,
+                     bundleArtifactBuilder: CacheArtifactBuilding,
                      contentHasher: ContentHashing)
     {
         self.init(
             cache: cache,
             artifactBuilder: artifactBuilder,
+            bundleArtifactBuilder: bundleArtifactBuilder,
             projectGeneratorProvider: CacheControllerProjectGeneratorProvider(contentHasher: contentHasher),
             cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
             cacheGraphLinter: CacheGraphLinter()
@@ -94,6 +98,7 @@ final class CacheController: CacheControlling {
 
     init(cache: CacheStoring,
          artifactBuilder: CacheArtifactBuilding,
+         bundleArtifactBuilder: CacheArtifactBuilding,
          projectGeneratorProvider: CacheControllerProjectGeneratorProviding,
          cacheGraphContentHasher: CacheGraphContentHashing,
          cacheGraphLinter: CacheGraphLinting)
@@ -101,6 +106,7 @@ final class CacheController: CacheControlling {
         self.cache = cache
         self.projectGeneratorProvider = projectGeneratorProvider
         self.artifactBuilder = artifactBuilder
+        self.bundleArtifactBuilder = bundleArtifactBuilder
         self.cacheGraphContentHasher = cacheGraphContentHasher
         self.cacheGraphLinter = cacheGraphLinter
     }
@@ -148,7 +154,11 @@ final class CacheController: CacheControlling {
             }
 
             // Build
-            try buildAndCacheFramework(path: projectPath, target: target, configuration: cacheProfile.configuration, hash: hash)
+            if target.target.product == .bundle {
+                try buildAndCacheBundle(path: projectPath, target: target, configuration: cacheProfile.configuration, hash: hash)
+            } else {
+                try buildAndCacheFramework(path: projectPath, target: target, configuration: cacheProfile.configuration, hash: hash)
+            }
         }
 
         logger.notice("All cacheable targets have been cached successfully as \(artifactBuilder.cacheOutputType.description)s", metadata: .success)
@@ -179,6 +189,35 @@ final class CacheController: CacheControlling {
             )
         } else {
             try artifactBuilder.build(
+                projectPath: path,
+                target: target.target,
+                configuration: configuration,
+                into: outputDirectory
+            )
+        }
+
+        _ = try cache.store(hash: hash, paths: FileHandler.shared.glob(outputDirectory, glob: "*")).toBlocking().last()
+    }
+
+    fileprivate func buildAndCacheBundle(path: AbsolutePath,
+                                         target: ValueGraphTarget,
+                                         configuration: String,
+                                         hash: String) throws
+    {
+        let outputDirectory = try FileHandler.shared.temporaryDirectory()
+        defer {
+            try? FileHandler.shared.delete(outputDirectory)
+        }
+
+        if path.extension == "xcworkspace" {
+            try bundleArtifactBuilder.build(
+                workspacePath: path,
+                target: target.target,
+                configuration: configuration,
+                into: outputDirectory
+            )
+        } else {
+            try bundleArtifactBuilder.build(
                 projectPath: path,
                 target: target.target,
                 configuration: configuration,

@@ -29,13 +29,17 @@ class CacheGraphMutator: CacheGraphMutating {
     /// Utility to parse a .framework from the filesystem and load it into memory.
     private let frameworkLoader: FrameworkLoading
 
+    private let bundleLoader: BundleLoading
+
     /// Initializes the graph mapper with its attributes.
     /// - Parameter xcframeworkLoader: Utility to parse an .xcframework from the filesystem and load it into memory.
     init(frameworkLoader: FrameworkLoading = FrameworkLoader(),
-         xcframeworkLoader: XCFrameworkLoading = XCFrameworkLoader())
+         xcframeworkLoader: XCFrameworkLoading = XCFrameworkLoader(),
+         bundleLoader: BundleLoading = BundleLoader())
     {
         self.frameworkLoader = frameworkLoader
         self.xcframeworkLoader = xcframeworkLoader
+        self.bundleLoader = bundleLoader
     }
 
     // MARK: - CacheGraphMapping
@@ -61,6 +65,15 @@ class CacheGraphMutator: CacheGraphMutating {
         }
         var sourceTargets: Set<GraphTarget> = Set(userSpecifiedSourceTargets)
 
+        userSpecifiedSourceTargets.forEach { target in
+            let dependency = ValueGraphDependency.target(name: target.target.name, path: target.path)
+
+            handleBundleTargets(
+                for: dependency,
+                graphTraverser: graphTraverser,
+                visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths)
+        }
+
         /// New graph dependencies
         var graphDependencies: [GraphDependency: Set<GraphDependency>] = [:]
         try (userSpecifiedSourceTargets + userSpecifiedSourceTestTargets)
@@ -76,6 +89,12 @@ class CacheGraphMutator: CacheGraphMutating {
                     loadedPrecompiledNodes: &loadedPrecompiledDependencies
                 )
             }
+
+        mapPrebuiltFrameworks(
+            graphDependencies: &graphDependencies,
+            graph: graph
+        )
+
         graph.dependencies = graphDependencies
 
         // We mark them to be pruned during the tree-shaking
@@ -158,6 +177,13 @@ class CacheGraphMutator: CacheGraphMutating {
                 )
             else {
                 sourceTargets.formUnion([targetDependency])
+
+                handleBundleTargets(
+                    for: dependency,
+                    graphTraverser: graphTraverser,
+                    visitedPrecompiledFrameworkPaths: &visitedPrecompiledFrameworkPaths
+                )
+
                 graphDependencies[dependency] = try mapDependencies(
                     graphTraverser.dependencies[dependency] ?? Set(),
                     graph: graph,
@@ -189,7 +215,7 @@ class CacheGraphMutator: CacheGraphMutating {
                 loadedPrecompiledFrameworks: &loadedPrecompiledFrameworks
             ).forEach { dependency in
                 switch dependency {
-                case .framework, .xcframework:
+                case .framework, .xcframework, .bundle:
                     var precompiledDependencies = graphDependencies[precompiledFramework, default: Set()]
                     precompiledDependencies.insert(dependency)
                     graphDependencies[precompiledFramework] = precompiledDependencies
@@ -213,10 +239,13 @@ class CacheGraphMutator: CacheGraphMutating {
         } else if let framework: GraphDependency = try? frameworkLoader.load(path: path) {
             loadedPrecompiledFrameworks[path] = framework
             return framework
-        } else {
-            let xcframework: GraphDependency = try xcframeworkLoader.load(path: path)
+        } else if let xcframework: GraphDependency = try? xcframeworkLoader.load(path: path) {
             loadedPrecompiledFrameworks[path] = xcframework
             return xcframework
+        } else {
+            let bundle = try bundleLoader.load(path: path)
+            loadedPrecompiledFrameworks[path] = bundle
+            return bundle
         }
     }
 
@@ -251,6 +280,48 @@ class CacheGraphMutator: CacheGraphMutating {
         } else {
             visitedPrecompiledFrameworkPaths[target] = VisitedPrecompiledFramework(path: nil)
             return nil
+        }
+    }
+
+    private func handleBundleTargets(
+        for dependency: ValueGraphDependency,
+        graphTraverser: ValueGraphTraverser,
+        visitedPrecompiledFrameworkPaths: inout [ValueGraphTarget: VisitedPrecompiledFramework?]
+    ) {
+        Array(graphTraverser.dependencies[dependency] ?? Set())
+            .compactMap { graphTraverser.target(from: $0) }
+            .filter { $0.target.product == .bundle }
+            .forEach { target in
+                visitedPrecompiledFrameworkPaths[target] = VisitedPrecompiledFramework(path: nil)
+            }
+    }
+
+    private func mapPrebuiltFrameworks(
+        graphDependencies: inout [ValueGraphDependency : Set<ValueGraphDependency>],
+        graph: ValueGraph
+    ) {
+        var graph = graph
+        graph.dependencies = graphDependencies
+        let graphTraverser = ValueGraphTraverser(graph: graph)
+
+        for (key, value) in graphDependencies {
+            guard
+                let target = graphTraverser.target(from: key),
+                target.target.product.runnable || target.target.product == .unitTests
+            else { continue }
+
+            var precompiledDependencies: Set<ValueGraphDependency> = []
+            for dep in value {
+                guard
+                    let target = graphTraverser.target(from: dep),
+                    target.target.product == .staticFramework
+                else { continue }
+
+                let preCompiledDependency = graphTraverser.prebuiltDependencies(for: dep)
+                precompiledDependencies.formUnion(preCompiledDependency)
+            }
+
+            graphDependencies[key] = graphDependencies[key, default: Set()].union(precompiledDependencies)
         }
     }
 }
