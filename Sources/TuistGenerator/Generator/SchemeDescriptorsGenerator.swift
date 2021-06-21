@@ -232,7 +232,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             postActions: postActions,
             parallelizeBuild: true,
             buildImplicitDependencies: true,
-            runPostActionsOnFailure: buildAction.runPostActionsOnFailure
+            runPostActionsOnFailure: buildAction.runPostActionsOnFailure ? true : nil
         )
     }
 
