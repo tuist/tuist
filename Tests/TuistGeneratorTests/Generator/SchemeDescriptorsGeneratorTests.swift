@@ -261,6 +261,43 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(postBuildableReference?.buildableIdentifier, "primary")
     }
 
+    func test_buildAction_runPostActionsOnFailure() throws {
+        // Given
+        let schemeA = Scheme(
+            name: "SchemeA",
+            buildAction: BuildAction(
+                targets: [],
+                runPostActionsOnFailure: true
+            )
+        )
+        let schemeB = Scheme(
+            name: "SchemeB",
+            buildAction: BuildAction(
+                targets: [],
+                runPostActionsOnFailure: false
+            )
+        )
+        let project = Project.test(schemes: [schemeA, schemeB])
+        let generatedProject = self.generatedProject(targets: project.targets)
+        let graph = Graph.test(projects: [project.path: project])
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let schemeDescriptors = try subject.generateProjectSchemes(
+            project: project,
+            generatedProject: generatedProject,
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        // `runPostActionsOnFailure` is omitted when not enabled (Xcode automatically removes it)
+        let buildActions = schemeDescriptors.compactMap(\.xcScheme.buildAction)
+        XCTAssertEqual(buildActions.map(\.runPostActionsOnFailure), [
+            true,
+            nil,
+        ])
+    }
+
     // MARK: - Test Action Tests
 
     func test_schemeTestAction_when_testsTarget() throws {
