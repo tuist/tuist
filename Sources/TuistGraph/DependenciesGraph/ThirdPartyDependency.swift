@@ -63,22 +63,76 @@ extension ThirdPartyDependency {
         /// The paths containing the target resources.
         public let resources: [AbsolutePath]
 
-        /// The target dependencies
+        /// The target dependencies.
         public let dependencies: [Dependency]
 
-        // TODO: check and add any other information needed to compile the sources (e.g. build flags)
+        /// The custom public headers path.
+        public let publicHeadersPath: String?
 
-        public init(name: String, sources: [AbsolutePath], resources: [AbsolutePath], dependencies: [Dependency]) {
+        /// The header search paths for C code.
+        public let cHeaderSearchPaths: [String]
+
+        /// The header search paths for C++ code.
+        public let cxxHeaderSearchPaths: [String]
+
+        /// The compilation conditions to be defined for C code.
+        public let cDefines: [String: String]
+
+        /// The compilation conditions to be defined for C++ code.
+        public let cxxDefines: [String: String]
+
+        /// The compilation conditions to be definedfor Swift code.
+        public let swiftDefines: [String: String]
+
+        /// The additional build flags for C code.
+        public let cFlags: [String]
+
+        /// The additional build flags for C++ code.
+        public let cxxFlags: [String]
+
+        /// The additional build flags for Swift code.
+        public let swiftFlags: [String]
+
+        public init(
+            name: String,
+            sources: [AbsolutePath],
+            resources: [AbsolutePath],
+            dependencies: [Dependency],
+            publicHeadersPath: String?,
+            cHeaderSearchPaths: [String],
+            cxxHeaderSearchPaths: [String],
+            cDefines: [String: String],
+            cxxDefines: [String: String],
+            swiftDefines: [String: String],
+            cFlags: [String],
+            cxxFlags: [String],
+            swiftFlags: [String]
+        ) {
             self.name = name
             self.sources = sources
             self.resources = resources
             self.dependencies = dependencies
+            self.publicHeadersPath = publicHeadersPath
+            self.cHeaderSearchPaths = cHeaderSearchPaths
+            self.cxxHeaderSearchPaths = cxxHeaderSearchPaths
+            self.cDefines = cDefines
+            self.cxxDefines = cxxDefines
+            self.swiftDefines = swiftDefines
+            self.cFlags = cFlags
+            self.cxxFlags = cxxFlags
+            self.swiftFlags = swiftFlags
         }
     }
 }
 
 extension ThirdPartyDependency.Target {
     public enum Dependency: Codable, Hashable {
+        /// A linked framework dependency.
+        case linkedFramework(name: String, platforms: Set<Platform>?)
+
+        /// A linked library dependency.
+        case linkedLibrary(name: String, platforms: Set<Platform>?)
+
         /// A target belonging to the dependency itself.
         case target(name: String, platforms: Set<Platform>?)
 
@@ -146,6 +200,8 @@ extension ThirdPartyDependency {
 
 extension ThirdPartyDependency.Target.Dependency {
     private enum Kind: String, Codable {
+        case linkedFramework
+        case linkedLibrary
         case target
         case thirdPartyTarget
         case xcframework
@@ -153,10 +209,9 @@ extension ThirdPartyDependency.Target.Dependency {
 
     private enum CodingKeys: String, CodingKey {
         case kind
-        case dependency
-        case target
+        case name
         case platforms
-        case product
+        case dependency
         case path
     }
 
@@ -165,12 +220,18 @@ extension ThirdPartyDependency.Target.Dependency {
         let kind = try container.decode(Kind.self, forKey: .kind)
         let platforms = try container.decode(Set<Platform>.self, forKey: .platforms)
         switch kind {
+        case .linkedFramework:
+            let name = try container.decode(String.self, forKey: .name)
+            self = .linkedFramework(name: name, platforms: platforms)
+        case .linkedLibrary:
+            let name = try container.decode(String.self, forKey: .name)
+            self = .linkedLibrary(name: name, platforms: platforms)
         case .target:
-            let name = try container.decode(String.self, forKey: .target)
+            let name = try container.decode(String.self, forKey: .name)
             self = .target(name: name, platforms: platforms)
         case .thirdPartyTarget:
             let dependency = try container.decode(String.self, forKey: .dependency)
-            let product = try container.decode(String.self, forKey: .product)
+            let product = try container.decode(String.self, forKey: .name)
             self = .thirdPartyTarget(dependency: dependency, product: product, platforms: platforms)
         case .xcframework:
             let path = try container.decode(AbsolutePath.self, forKey: .path)
@@ -181,14 +242,22 @@ extension ThirdPartyDependency.Target.Dependency {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         switch self {
+        case let .linkedFramework(name, platforms):
+            try container.encode(Kind.linkedFramework, forKey: .kind)
+            try container.encode(name, forKey: .name)
+            try container.encode(platforms, forKey: .platforms)
+        case let .linkedLibrary(name, platforms):
+            try container.encode(Kind.linkedLibrary, forKey: .kind)
+            try container.encode(name, forKey: .name)
+            try container.encode(platforms, forKey: .platforms)
         case let .target(name, platforms):
             try container.encode(Kind.target, forKey: .kind)
-            try container.encode(name, forKey: .target)
+            try container.encode(name, forKey: .name)
             try container.encode(platforms, forKey: .platforms)
-        case let .thirdPartyTarget(product, target, platforms):
+        case let .thirdPartyTarget(dependency, product, platforms):
             try container.encode(Kind.thirdPartyTarget, forKey: .kind)
-            try container.encode(product, forKey: .product)
-            try container.encode(target, forKey: .target)
+            try container.encode(dependency, forKey: .dependency)
+            try container.encode(product, forKey: .name)
             try container.encode(platforms, forKey: .platforms)
         case let .xcframework(path, platforms):
             try container.encode(Kind.xcframework, forKey: .kind)

@@ -11,6 +11,7 @@ public extension ThirdPartyDependency {
         return .xcframework(name: name, path: path, architectures: architectures)
     }
 
+    // swiftlint:disable:next function_body_length
     static func test(packageFolder: AbsolutePath) -> Self {
         return .sources(
             name: "test",
@@ -29,6 +30,32 @@ public extension ThirdPartyDependency {
                     dependencies: [
                         .target(name: "TuistKit", platforms: nil),
                         .thirdPartyTarget(dependency: "a-dependency", product: "ALibrary", platforms: [.iOS]),
+                    ],
+                    publicHeadersPath: "customPublicHeadersPath",
+                    cHeaderSearchPaths: [
+                        "cSearchPath",
+                    ],
+                    cxxHeaderSearchPaths: [
+                        "cxxSearchPath",
+                    ],
+                    cDefines: [
+                        "C_DEFINE": "C_VALUE",
+                    ],
+                    cxxDefines: [
+                        "CXX_DEFINE": "CXX_VALUE",
+                    ],
+                    swiftDefines: [
+                        "SWIFT_DEFINE": "1",
+                    ],
+                    cFlags: [
+                        "CUSTOM_C_FLAG",
+                    ],
+                    cxxFlags: [
+                        "CUSTOM_CXX_FLAG",
+                    ],
+                    swiftFlags: [
+                        "CUSTOM_SWIFT_FLAG1",
+                        "CUSTOM_SWIFT_FLAG2",
                     ]
                 ),
                 .init(
@@ -37,7 +64,16 @@ public extension ThirdPartyDependency {
                     resources: [],
                     dependencies: [
                         .thirdPartyTarget(dependency: "another-dependency", product: "AnotherLibrary", platforms: nil),
-                    ]
+                    ],
+                    publicHeadersPath: nil,
+                    cHeaderSearchPaths: [],
+                    cxxHeaderSearchPaths: [],
+                    cDefines: [:],
+                    cxxDefines: [:],
+                    swiftDefines: [:],
+                    cFlags: [],
+                    cxxFlags: [],
+                    swiftFlags: []
                 ),
             ],
             minDeploymentTargets: [
@@ -63,7 +99,16 @@ public extension ThirdPartyDependency {
                     name: "ALibrary",
                     sources: [packageFolder.appending(RelativePath("Sources/ALibrary"))],
                     resources: [],
-                    dependencies: []
+                    dependencies: [],
+                    publicHeadersPath: nil,
+                    cHeaderSearchPaths: [],
+                    cxxHeaderSearchPaths: [],
+                    cDefines: [:],
+                    cxxDefines: [:],
+                    swiftDefines: [:],
+                    cFlags: [],
+                    cxxFlags: [],
+                    swiftFlags: []
                 ),
             ],
             minDeploymentTargets: [
@@ -89,7 +134,16 @@ public extension ThirdPartyDependency {
                     name: "AnotherLibrary",
                     sources: [packageFolder.appending(RelativePath("Sources/AnotherLibrary"))],
                     resources: [],
-                    dependencies: []
+                    dependencies: [],
+                    publicHeadersPath: nil,
+                    cHeaderSearchPaths: [],
+                    cxxHeaderSearchPaths: [],
+                    cDefines: [:],
+                    cxxDefines: [:],
+                    swiftDefines: [:],
+                    cFlags: [],
+                    cxxFlags: [],
+                    swiftFlags: []
                 ),
             ],
             minDeploymentTargets: [
@@ -115,7 +169,18 @@ public extension ThirdPartyDependency {
                     name: "Alamofire",
                     sources: [packageFolder.appending(RelativePath("Source"))],
                     resources: [],
-                    dependencies: []
+                    dependencies: [
+                        .linkedFramework(name: "CFNetwork", platforms: [.iOS, .macOS, .tvOS, .watchOS]),
+                    ],
+                    publicHeadersPath: nil,
+                    cHeaderSearchPaths: [],
+                    cxxHeaderSearchPaths: [],
+                    cDefines: [:],
+                    cxxDefines: [:],
+                    swiftDefines: [:],
+                    cFlags: [],
+                    cxxFlags: [],
+                    swiftFlags: []
                 ),
             ],
             minDeploymentTargets: [
@@ -127,6 +192,7 @@ public extension ThirdPartyDependency {
         )
     }
 
+    // swiftlint:disable:next function_body_length
     static func googleAppMeasurement(artifactsFolder: AbsolutePath, packageFolder: AbsolutePath) -> Self {
         return .sources(
             name: "GoogleAppMeasurement",
@@ -154,7 +220,20 @@ public extension ThirdPartyDependency {
                         .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULNSData", platforms: nil),
                         .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULNetwork", platforms: nil),
                         .thirdPartyTarget(dependency: "nanopb", product: "nanopb", platforms: nil),
-                    ]
+                        .linkedLibrary(name: "sqlite3", platforms: nil),
+                        .linkedLibrary(name: "c++", platforms: nil),
+                        .linkedLibrary(name: "z", platforms: nil),
+                        .linkedFramework(name: "StoreKit", platforms: nil),
+                    ],
+                    publicHeadersPath: nil,
+                    cHeaderSearchPaths: [],
+                    cxxHeaderSearchPaths: [],
+                    cDefines: [:],
+                    cxxDefines: [:],
+                    swiftDefines: [:],
+                    cFlags: [],
+                    cxxFlags: [],
+                    swiftFlags: []
                 ),
                 .init(
                     name: "GoogleAppMeasurementWithoutAdIdSupportTarget",
@@ -170,7 +249,20 @@ public extension ThirdPartyDependency {
                         .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULNSData", platforms: nil),
                         .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULNetwork", platforms: nil),
                         .thirdPartyTarget(dependency: "nanopb", product: "nanopb", platforms: nil),
-                    ]
+                        .linkedLibrary(name: "sqlite3", platforms: nil),
+                        .linkedLibrary(name: "c++", platforms: nil),
+                        .linkedLibrary(name: "z", platforms: nil),
+                        .linkedFramework(name: "StoreKit", platforms: nil),
+                    ],
+                    publicHeadersPath: nil,
+                    cHeaderSearchPaths: [],
+                    cxxHeaderSearchPaths: [],
+                    cDefines: [:],
+                    cxxDefines: [:],
+                    swiftDefines: [:],
+                    cFlags: [],
+                    cxxFlags: [],
+                    swiftFlags: []
                 ),
             ],
             minDeploymentTargets: [
@@ -210,25 +302,61 @@ public extension ThirdPartyDependency {
                     name: "GULAppDelegateSwizzler",
                     sources: [packageFolder.appending(RelativePath("Sources/GULAppDelegateSwizzler"))],
                     resources: [],
-                    dependencies: []
+                    dependencies: [],
+                    publicHeadersPath: nil,
+                    cHeaderSearchPaths: [],
+                    cxxHeaderSearchPaths: [],
+                    cDefines: [:],
+                    cxxDefines: [:],
+                    swiftDefines: [:],
+                    cFlags: [],
+                    cxxFlags: [],
+                    swiftFlags: []
                 ),
                 .init(
                     name: "GULMethodSwizzler",
                     sources: [packageFolder.appending(RelativePath("Sources/GULMethodSwizzler"))],
                     resources: [],
-                    dependencies: []
+                    dependencies: [],
+                    publicHeadersPath: nil,
+                    cHeaderSearchPaths: [],
+                    cxxHeaderSearchPaths: [],
+                    cDefines: [:],
+                    cxxDefines: [:],
+                    swiftDefines: [:],
+                    cFlags: [],
+                    cxxFlags: [],
+                    swiftFlags: []
                 ),
                 .init(
                     name: "GULNSData",
                     sources: [packageFolder.appending(RelativePath("Sources/GULNSData"))],
                     resources: [],
-                    dependencies: []
+                    dependencies: [],
+                    publicHeadersPath: nil,
+                    cHeaderSearchPaths: [],
+                    cxxHeaderSearchPaths: [],
+                    cDefines: [:],
+                    cxxDefines: [:],
+                    swiftDefines: [:],
+                    cFlags: [],
+                    cxxFlags: [],
+                    swiftFlags: []
                 ),
                 .init(
                     name: "GULNetwork",
                     sources: [packageFolder.appending(RelativePath("Sources/GULNetwork"))],
                     resources: [],
-                    dependencies: []
+                    dependencies: [],
+                    publicHeadersPath: nil,
+                    cHeaderSearchPaths: [],
+                    cxxHeaderSearchPaths: [],
+                    cDefines: [:],
+                    cxxDefines: [:],
+                    swiftDefines: [:],
+                    cFlags: [],
+                    cxxFlags: [],
+                    swiftFlags: []
                 ),
             ],
             minDeploymentTargets: [
@@ -252,7 +380,16 @@ public extension ThirdPartyDependency {
                     name: "nanopb",
                     sources: [packageFolder.appending(RelativePath("Sources/nanopb"))],
                     resources: [],
-                    dependencies: []
+                    dependencies: [],
+                    publicHeadersPath: nil,
+                    cHeaderSearchPaths: [],
+                    cxxHeaderSearchPaths: [],
+                    cDefines: [:],
+                    cxxDefines: [:],
+                    swiftDefines: [:],
+                    cFlags: [],
+                    cxxFlags: [],
+                    swiftFlags: []
                 ),
             ],
             minDeploymentTargets: [
