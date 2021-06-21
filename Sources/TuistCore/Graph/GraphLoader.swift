@@ -248,7 +248,7 @@ public final class GraphLoader: GraphLoading {
                 mappedDependency = .xcFramework(path: path)
             }
 
-            return try self.loadDependency(
+            return try loadDependency(
                 path: path,
                 fromTarget: fromTarget,
                 fromPlatform: fromPlatform,
