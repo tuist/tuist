@@ -23,7 +23,7 @@ final class GraphContentHasherTests: TuistUnitTestCase {
 
     func test_contentHashes_emptyGraph() throws {
         // Given
-        let graph = ValueGraph.test()
+        let graph = Graph.test()
 
         // When
         let hashes = try subject.contentHashes(for: graph)
@@ -38,7 +38,7 @@ final class GraphContentHasherTests: TuistUnitTestCase {
         let project: Project = .test(
             path: path
         )
-        let frameworkTarget = ValueGraphTarget.test(
+        let frameworkTarget = GraphTarget.test(
             path: path,
             target: .test(
                 name: "FrameworkA",
@@ -48,7 +48,7 @@ final class GraphContentHasherTests: TuistUnitTestCase {
             ),
             project: .test(path: path)
         )
-        let secondFrameworkTarget = ValueGraphTarget.test(
+        let secondFrameworkTarget = GraphTarget.test(
             path: path,
             target: .test(
                 name: "FrameworkB",
@@ -58,7 +58,7 @@ final class GraphContentHasherTests: TuistUnitTestCase {
             ),
             project: .test(path: path)
         )
-        let appTarget = ValueGraphTarget.test(
+        let appTarget = GraphTarget.test(
             path: path,
             target: .test(
                 name: "App",
@@ -68,7 +68,7 @@ final class GraphContentHasherTests: TuistUnitTestCase {
             ),
             project: .test(path: path)
         )
-        let dynamicLibraryTarget = ValueGraphTarget.test(
+        let dynamicLibraryTarget = GraphTarget.test(
             path: path,
             target: .test(
                 name: "DynamicLibrary",
@@ -78,7 +78,7 @@ final class GraphContentHasherTests: TuistUnitTestCase {
             ),
             project: .test(path: path)
         )
-        let staticFrameworkTarget = ValueGraphTarget.test(
+        let staticFrameworkTarget = GraphTarget.test(
             path: path,
             target: .test(
                 name: "StaticFramework",
@@ -89,7 +89,7 @@ final class GraphContentHasherTests: TuistUnitTestCase {
             project: .test(path: path)
         )
 
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: path,
             projects: [project.path: project],
             targets: [
@@ -112,7 +112,7 @@ final class GraphContentHasherTests: TuistUnitTestCase {
                 $0.target.product == .framework
             }
         )
-        let hashedTargets: [ValueGraphTarget] = hashes.keys.sorted { left, right -> Bool in
+        let hashedTargets: [GraphTarget] = hashes.keys.sorted { left, right -> Bool in
             left.path.pathString < right.path.pathString
         }
         .sorted(by: { $0.target.name < $1.target.name })

@@ -18,7 +18,7 @@ public protocol TargetRunning {
     ///   - deviceName: The name of the simulator device to run the target on, if none provided uses a default device.
     ///   - arguments: Arguments to forward to the runnable target when running.
     func runTarget(
-        _ target: ValueGraphTarget,
+        _ target: GraphTarget,
         workspacePath: AbsolutePath,
         schemeName: String,
         configuration: String?,
@@ -72,7 +72,7 @@ public final class TargetRunner: TargetRunning {
     }
 
     public func runTarget(
-        _ target: ValueGraphTarget,
+        _ target: GraphTarget,
         workspacePath: AbsolutePath,
         schemeName: String,
         configuration: String?,
@@ -132,7 +132,7 @@ public final class TargetRunner: TargetRunning {
     }
 
     private func runApp(
-        target: ValueGraphTarget,
+        target: GraphTarget,
         schemeName: String,
         configuration: String,
         appPath: AbsolutePath,

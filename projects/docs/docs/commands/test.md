@@ -57,3 +57,4 @@ One of the benefits of using Tuist over other automation tools is that developer
 | `--device`          | `-d`  | `Test on a specific device.`                                        |                   | No       |
 | `--os`              | `-o`  | `Test with a specific version of the OS.`                           |                   | No       |
 | `--configuration`   | `-C`  | `The configuration to be used when building the scheme.`            |                   | No       |
+| `--skip-ui-tests`   | n/a  | `When passed, it skips testing UI Tests targets.`                   | False             | No       |

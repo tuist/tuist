@@ -22,7 +22,7 @@ protocol ProjectEditorMapping: AnyObject {
         tasks: [AbsolutePath],
         projectDescriptionPath: AbsolutePath,
         projectAutomationPath: AbsolutePath
-    ) throws -> ValueGraph
+    ) throws -> Graph
 }
 
 // swiftlint:disable:next type_body_length
@@ -44,7 +44,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         tasks: [AbsolutePath],
         projectDescriptionPath: AbsolutePath,
         projectAutomationPath: AbsolutePath
-    ) throws -> ValueGraph {
+    ) throws -> Graph {
         let swiftVersion = try System.shared.swiftVersion()
 
         let pluginsProject = mapPluginsProject(
@@ -92,9 +92,9 @@ final class ProjectEditorMapper: ProjectEditorMapping {
 
         let graphDependencies = projects
             .lazy
-            .flatMap { project -> [(ValueGraphDependency, Set<ValueGraphDependency>)] in
+            .flatMap { project -> [(GraphDependency, Set<GraphDependency>)] in
                 let graphDependencies = project.targets.map(\.dependencies).lazy.map { dependencies in
-                    dependencies.lazy.compactMap { dependency -> ValueGraphDependency? in
+                    dependencies.lazy.compactMap { dependency -> GraphDependency? in
                         switch dependency {
                         case let .target(name):
                             if let pluginsProject = pluginsProject, editablePluginManifests.contains(where: { $0.name == name }) {
@@ -109,11 +109,11 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                 }
 
                 return zip(project.targets, graphDependencies).map { target, dependencies in
-                    (ValueGraphDependency.target(name: target.name, path: project.path), Set(dependencies))
+                    (GraphDependency.target(name: target.name, path: project.path), Set(dependencies))
                 }
             }
 
-        return ValueGraph(
+        return Graph(
             name: name,
             path: sourceRootPath,
             workspace: workspace,
@@ -423,7 +423,9 @@ final class ProjectEditorMapper: ProjectEditorMapping {
     }
 
     private func targetBaseSettings(for includes: [AbsolutePath], swiftVersion: String) -> SettingsDictionary {
-        let includePaths = includes.map(\.parentDirectory.pathString)
+        let includePaths = includes
+            .map(\.parentDirectory.pathString)
+            .map { "\"\($0)\"" }
         return [
             "FRAMEWORK_SEARCH_PATHS": .array(includePaths),
             "LIBRARY_SEARCH_PATHS": .array(includePaths),

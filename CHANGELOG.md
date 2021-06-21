@@ -8,9 +8,11 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Add `tvTopShelfExtension` and `tvIntentsExtension` target product. [#2793](https://github.com/tuist/tuist/pull/2793) by [@rmnblm](https://github.com/rmnblm)
 - The `tuist dependencies` command generates a `graph.json` file for the `Carthage` dependencies. [#3043](https://github.com/tuist/tuist/pull/3043) by [@laxmorek](https://github.com/laxmorek)
+- Add --skip-ui-tests parameter to tuist test command [#2832](https://github.com/tuist/tuist/pull/2832) by [@mollyIV](https://github.com/mollyIV).
 
 ### Changed
 
+- Renamed `ValueGraph` to `Graph` [#3083](https://github.com/tuist/tuist/pull/3083) by [@fortmarek](https://github.com/fortmarek)
 - Fixed a typo on the `tuist generate` command documentation for argument --skip-test-targets. [#3069](https://github.com/tuist/tuist/pull/3069) by [@mrcloud](https://github.com/mrcloud)
 - **breaking** The `tuist dependencies` command requires the `Carthage` version to be at least `0.37.0`. [#3043](https://github.com/tuist/tuist/pull/3043) by [@laxmorek](https://github.com/laxmorek)
 
@@ -20,7 +22,9 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Fixed
 
+- Fixed `tuist bundle` when path has spaces [#3084](https://github.com/tuist/tuist/pull/3084) by [@fortmarek](https://github.com/fortmarek)
 - Fix manifest loading when using Swift 5.5 [#3062](https://github.com/tuist/tuist/pull/3062) by [@kwridan](https://github.com/kwridan)
+- Fix generation of project groups and build phases for localized Interface Builder files (`.xib` and `.storyboard`) [#3075](https://github.com/tuist/tuist/pull/3075) by [@svenmuennich](https://github.com/svenmuennich/)
 
 ## 1.44.0 - DubDub
 

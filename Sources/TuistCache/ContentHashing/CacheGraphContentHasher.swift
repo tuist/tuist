@@ -11,10 +11,10 @@ public protocol CacheGraphContentHashing {
     ///     - cacheProfile: Cache profile currently being used
     ///     - cacheOutputType: Output type of cache -> makes a different hash for a different output type
     func contentHashes(
-        for graph: ValueGraph,
+        for graph: Graph,
         cacheProfile: TuistGraph.Cache.Profile,
         cacheOutputType: CacheOutputType
-    ) throws -> [ValueGraphTarget: String]
+    ) throws -> [GraphTarget: String]
 }
 
 public final class CacheGraphContentHasher: CacheGraphContentHashing {
@@ -43,11 +43,11 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
     }
 
     public func contentHashes(
-        for graph: ValueGraph,
+        for graph: Graph,
         cacheProfile: TuistGraph.Cache.Profile,
         cacheOutputType: CacheOutputType
-    ) throws -> [ValueGraphTarget: String] {
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+    ) throws -> [GraphTarget: String] {
+        let graphTraverser = GraphTraverser(graph: graph)
         return try graphContentHasher.contentHashes(
             for: graph,
             filter: { filterHashTarget($0, graphTraverser: graphTraverser) },
@@ -59,7 +59,7 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
     }
 
     private func filterHashTarget(
-        _ target: ValueGraphTarget,
+        _ target: GraphTarget,
         graphTraverser: GraphTraversing
     ) -> Bool {
         let isFramework = target.target.product == .framework || target.target.product == .staticFramework

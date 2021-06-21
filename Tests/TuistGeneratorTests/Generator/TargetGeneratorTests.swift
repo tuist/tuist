@@ -62,8 +62,8 @@ final class TargetGeneratorTests: XCTestCase {
             xcodeProjPath: path.appending(component: "Test.xcodeproj"),
             targets: [target]
         )
-        let graph = ValueGraph.test()
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graph = Graph.test()
+        let graphTraverser = GraphTraverser(graph: graph)
         let groups = ProjectGroups.generate(
             project: project,
             pbxproj: pbxproj
@@ -113,7 +113,7 @@ final class TargetGeneratorTests: XCTestCase {
         let targetB = Target.test(name: "TargetB")
         let nativeTargetA = createNativeTarget(for: targetA)
         let nativeTargetB = createNativeTarget(for: targetB)
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             projects: [path: .test(path: path)],
             targets: [
                 path: [
@@ -127,7 +127,7 @@ final class TargetGeneratorTests: XCTestCase {
                 ],
             ]
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         try subject.generateTargetDependencies(
@@ -148,8 +148,8 @@ final class TargetGeneratorTests: XCTestCase {
 
     func test_generateTarget_actions() throws {
         // Given
-        let graph = ValueGraph.test()
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graph = Graph.test()
+        let graphTraverser = GraphTraverser(graph: graph)
         let target = Target.test(
             sources: [],
             resources: [],

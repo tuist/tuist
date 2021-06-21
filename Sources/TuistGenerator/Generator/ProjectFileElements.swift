@@ -27,6 +27,12 @@ class ProjectFileElements {
         options: []
     )
 
+    private static let localizedInterfaceBuilderGroupExtensions = [
+        "storyboard",
+        "strings",
+        "xib",
+    ]
+
     // MARK: - Attributes
 
     var elements: [AbsolutePath: PBXFileElement] = [:]
@@ -389,20 +395,31 @@ class ProjectFileElements {
         // e.g.
         // from: resources/en.lproj/
         // localizedFile: resources/en.lproj/App.strings
-
-        // Variant Group
-        let localizedName = localizedFile.basename // e.g. App.strings
+        let fileName = localizedFile.basename // e.g. App.strings
         let localizedContainer = localizedFile.parentDirectory // e.g. resources/en.lproj
         let variantGroupPath = localizedContainer
             .parentDirectory
-            .appending(component: localizedName) // e.g. resources/App.strings
+            .appending(component: fileName) // e.g. resources/App.strings
 
-        let variantGroup = addVariantGroup(
-            variantGroupPath: variantGroupPath,
-            localizedName: localizedName,
-            toGroup: toGroup,
-            pbxproj: pbxproj
-        )
+        let variantGroup: PBXVariantGroup
+        if let existingVariantGroup = self.variantGroup(containing: localizedFile) {
+            variantGroup = existingVariantGroup.group
+            // For variant groups formed by Interface Builder files (.xib or .storyboard) and corresponding .strings
+            // files, name and path of the group must have the extension of the Interface Builder file. Since the order
+            // in which such groups are formed is not deterministic, we must change the name and path here as necessary.
+            if ["xib", "storyboard"].contains(localizedFile.extension), !variantGroup.nameOrPath.hasSuffix(fileName) {
+                variantGroup.name = fileName
+                elements[existingVariantGroup.path] = nil
+                elements[variantGroupPath] = variantGroup
+            }
+        } else {
+            variantGroup = addVariantGroup(
+                variantGroupPath: variantGroupPath,
+                localizedName: fileName,
+                toGroup: toGroup,
+                pbxproj: pbxproj
+            )
+        }
 
         // Localized element
         addLocalizedFileElement(
@@ -418,10 +435,6 @@ class ProjectFileElements {
                                  toGroup: PBXGroup,
                                  pbxproj: PBXProj) -> PBXVariantGroup
     {
-        if let variantGroup = elements[variantGroupPath] as? PBXVariantGroup {
-            return variantGroup
-        }
-
         let variantGroup = PBXVariantGroup(children: [], sourceTree: .group, name: localizedName)
         pbxproj.add(object: variantGroup)
         toGroup.children.append(variantGroup)
@@ -617,6 +630,36 @@ class ProjectFileElements {
         } else {
             return RelativePath(firstElementComponents.joined(separator: "/"))
         }
+    }
+
+    func variantGroup(containing localizedFile: AbsolutePath) -> (group: PBXVariantGroup, path: AbsolutePath)? {
+        let variantGroupBasePath = localizedFile.parentDirectory.parentDirectory
+
+        // Variant groups used to localize Interface Builder files (.xib or .storyboard) can contain files of these
+        // types, respectively, and corresponding .strings files. However, the groups' names must always use the
+        // extension of the Interface Builder file, i.e. either .xib or .storyboard. Since the order in which such
+        // groups are formed is not deterministic, we must check for existing groups having the same name as the
+        // localized file and any of these extensions.
+        if
+            let fileExtension = localizedFile.extension,
+            Self.localizedInterfaceBuilderGroupExtensions.contains(fileExtension)
+        {
+            for groupExtension in Self.localizedInterfaceBuilderGroupExtensions {
+                let variantGroupPath = variantGroupBasePath.appending(
+                    component: "\(localizedFile.basenameWithoutExt).\(groupExtension)"
+                )
+                if let variantGroup = elements[variantGroupPath] as? PBXVariantGroup {
+                    return (variantGroup, variantGroupPath)
+                }
+            }
+        }
+
+        let variantGroupPath = variantGroupBasePath.appending(component: localizedFile.basename)
+        guard let variantGroup = elements[variantGroupPath] as? PBXVariantGroup else {
+            return nil
+        }
+
+        return (variantGroup, variantGroupPath)
     }
 
     private func versionGroupType(for filePath: RelativePath) -> String? {

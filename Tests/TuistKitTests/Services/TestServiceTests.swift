@@ -33,7 +33,7 @@ final class TestServiceTests: TuistUnitTestCase {
         contentHasher = .init()
         testsCacheTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         testServiceGeneratorFactory = .init()
-        testServiceGeneratorFactory.generatorStub = { _, _ in
+        testServiceGeneratorFactory.generatorStub = { _, _, _ in
             self.generator
         }
         let mockCacheDirectoriesProvider = try MockCacheDirectoriesProvider()
@@ -70,7 +70,7 @@ final class TestServiceTests: TuistUnitTestCase {
         // Given
         var automationPath: AbsolutePath?
 
-        testServiceGeneratorFactory.generatorStub = { gotAutomationPath, _ in
+        testServiceGeneratorFactory.generatorStub = { gotAutomationPath, _, _ in
             automationPath = gotAutomationPath
             return self.generator
         }
@@ -98,7 +98,7 @@ final class TestServiceTests: TuistUnitTestCase {
         generator.generateWithGraphStub = {
             generatedPath = $0
             projectOnly = $1
-            return ($0, ValueGraph.test())
+            return ($0, Graph.test())
         }
 
         // When
@@ -120,14 +120,14 @@ final class TestServiceTests: TuistUnitTestCase {
             ]
         }
         buildGraphInspector.testableTargetStub = { scheme, _ in
-            ValueGraphTarget.test(
+            GraphTarget.test(
                 target: Target.test(
                     name: scheme.name
                 )
             )
         }
         generator.generateWithGraphStub = { path, _ in
-            (path, ValueGraph.test())
+            (path, Graph.test())
         }
         var testedSchemes: [String] = []
         xcodebuildController.testStub = { _, scheme, _, _, _, _ in
@@ -159,7 +159,7 @@ final class TestServiceTests: TuistUnitTestCase {
             ]
         }
         generator.generateWithGraphStub = { path, _ in
-            (path, ValueGraph.test())
+            (path, Graph.test())
         }
         var testedSchemes: [String] = []
         xcodebuildController.testStub = { _, scheme, _, _, _, _ in
@@ -202,7 +202,7 @@ final class TestServiceTests: TuistUnitTestCase {
             ]
         }
         generator.generateWithGraphStub = { path, _ in
-            (path, ValueGraph.test())
+            (path, Graph.test())
         }
         var testedSchemes: [String] = []
         xcodebuildController.testStub = { _, scheme, _, _, _, _ in
@@ -237,7 +237,7 @@ final class TestServiceTests: TuistUnitTestCase {
             []
         }
         generator.generateWithGraphStub = { path, _ in
-            (path, ValueGraph.test())
+            (path, Graph.test())
         }
         var testedSchemes: [String] = []
         xcodebuildController.testStub = { _, scheme, _, _, _, _ in
@@ -265,7 +265,8 @@ private extension TestService {
         configuration: String? = nil,
         path: AbsolutePath,
         deviceName: String? = nil,
-        osVersion: String? = nil
+        osVersion: String? = nil,
+        skipUiTests: Bool = false
     ) throws {
         try run(
             schemeName: schemeName,
@@ -273,7 +274,8 @@ private extension TestService {
             configuration: configuration,
             path: path,
             deviceName: deviceName,
-            osVersion: osVersion
+            osVersion: osVersion,
+            skipUITests: skipUiTests
         )
     }
 }

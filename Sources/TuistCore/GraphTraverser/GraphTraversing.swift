@@ -25,19 +25,19 @@ public protocol GraphTraversing {
     var targets: [AbsolutePath: [String: Target]] { get }
 
     /// Dependencies.
-    var dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] { get }
+    var dependencies: [GraphDependency: Set<GraphDependency>] { get }
 
     /// Returns all the apps from the graph.
-    func apps() -> Set<ValueGraphTarget>
+    func apps() -> Set<GraphTarget>
 
     /// - Returns: All the schemes of the graph
     func schemes() -> [Scheme]
 
     /// Returns the targets from the project that lives in the directory from which the graph has been loaded.
-    func rootTargets() -> Set<ValueGraphTarget>
+    func rootTargets() -> Set<GraphTarget>
 
     /// Returns all the targets of the project.
-    func allTargets() -> Set<ValueGraphTarget>
+    func allTargets() -> Set<GraphTarget>
 
     /// Returns the paths to directories containing a Podfile
     func cocoapodsPaths() -> Set<AbsolutePath>
@@ -50,49 +50,49 @@ public protocol GraphTraversing {
 
     /// Returns all the targets of a given product.
     /// - Parameter product: Product.
-    func targets(product: Product) -> Set<ValueGraphTarget>
+    func targets(product: Product) -> Set<GraphTarget>
 
     /// It returns the target with the given name in the project that is defined in the given directory path.
     /// - Parameters:
     ///   - path: Path to the directory that contains the definition of the project with the target is defined.
     ///   - name: Name of the target.
-    func target(path: AbsolutePath, name: String) -> ValueGraphTarget?
+    func target(path: AbsolutePath, name: String) -> GraphTarget?
 
     /// It returns the targets of the project defined in the directory at the given path.
     /// - Parameter path: Path to the directory that contains the definition of the project.
-    func targets(at path: AbsolutePath) -> Set<ValueGraphTarget>
+    func targets(at path: AbsolutePath) -> Set<GraphTarget>
 
     /// Given a project directory and target name, it returns **all**l its direct target dependencies present in the same project.
     /// If you want only direct target dependencies present in the same project as the target, use `directLocalTargetDependencies` instead
     /// - Parameters:
     ///   - path: Path to the directory that contains the target's project.
     ///   - name: Target name.
-    func directTargetDependencies(path: AbsolutePath, name: String) -> Set<ValueGraphTarget>
+    func directTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget>
 
     /// Given a project directory and target name, it returns all its direct target dependencies present in the same project.
     /// To get **all** direct target dependencies use the method `directTargetDependencies` instead
     /// - Parameters:
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.
-    func directLocalTargetDependencies(path: AbsolutePath, name: String) -> Set<ValueGraphTarget>
+    func directLocalTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget>
 
     /// Given a project directory and a target name, it returns all the dependencies that are extensions.
     /// - Parameters:
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.
-    func appExtensionDependencies(path: AbsolutePath, name: String) -> Set<ValueGraphTarget>
+    func appExtensionDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget>
 
     /// Returns the transitive resource bundle dependencies for the given target.
     /// - Parameters:
     ///   - path: Path to the directory where the project that defines the target is located.
     ///   - name: Name of the target.
-    func resourceBundleDependencies(path: AbsolutePath, name: String) -> Set<ValueGraphTarget>
+    func resourceBundleDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget>
 
     /// Returns the list of test targets that depend on the one with the given name at the given path.
     /// - Parameters:
     ///   - path: Path to the directory that contains the project definition.
     ///   - name: Name of the target whose dependant test targets will be returned.
-    func testTargetsDependingOn(path: AbsolutePath, name: String) -> Set<ValueGraphTarget>
+    func testTargetsDependingOn(path: AbsolutePath, name: String) -> Set<GraphTarget>
 
     /// Returns all non-transitive target static dependencies for the given target.
     /// - Parameters:
@@ -104,7 +104,7 @@ public protocol GraphTraversing {
     /// - Parameters:
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.
-    func appClipDependencies(path: AbsolutePath, name: String) -> ValueGraphTarget?
+    func appClipDependencies(path: AbsolutePath, name: String) -> GraphTarget?
 
     /// Given a project directory and a target name, it returns the list of dependencies that need to be embedded into the target product.
     /// - Parameters:
@@ -154,7 +154,7 @@ public protocol GraphTraversing {
     /// - Parameters:
     ///     - path; Path to the directory where the project that defines the target
     ///     - name: Name of the target
-    func hostTargetFor(path: AbsolutePath, name: String) -> ValueGraphTarget?
+    func hostTargetFor(path: AbsolutePath, name: String) -> GraphTarget?
 
     /// For the project at the given path, it returns all the dependencies that should
     /// be referenced from the project. This method is intended to be used when generating
@@ -170,7 +170,7 @@ public protocol GraphTraversing {
 }
 
 public extension GraphTraversing {
-    func apps() -> Set<ValueGraphTarget> {
+    func apps() -> Set<GraphTarget> {
         targets(product: .app)
     }
 }

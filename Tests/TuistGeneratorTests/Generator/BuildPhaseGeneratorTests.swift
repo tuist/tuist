@@ -244,8 +244,8 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             headers: headers
         )
 
-        let graph = ValueGraph.test(path: tmpDir)
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graph = Graph.test(path: tmpDir)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         try subject.generateBuildPhases(
             path: tmpDir,
@@ -283,8 +283,8 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             sources: [SourceFile(path: "/test/file.swift", compilerFlags: nil)],
             headers: headers
         )
-        let graph = ValueGraph.test(path: tmpDir)
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graph = Graph.test(path: tmpDir)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         try subject.generateBuildPhases(
             path: tmpDir,
@@ -321,8 +321,8 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
         let nativeTarget = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
-        let graph = ValueGraph.test(path: path)
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graph = Graph.test(path: path)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         try subject.generateResourcesBuildPhase(
@@ -339,6 +339,55 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(buildPhase?.files?.map(\.file), [
             fileElements.elements["/path/resources/Main.storyboard"],
             fileElements.elements["/path/resources/App.strings"],
+        ])
+    }
+
+    func test_generateResourcesBuildPhase_whenLocalizedXibFiles() throws {
+        // Given
+        let path = try temporaryPath()
+        let pbxproj = PBXProj()
+        let fileElements = ProjectFileElements()
+        let nativeTarget = PBXNativeTarget(name: "Test")
+        let files = try createFiles([
+            "resources/fr.lproj/Controller.strings",
+            "resources/Base.lproj/Controller.xib",
+            "resources/Base.lproj/Storyboard.storyboard",
+            "resources/en.lproj/Controller.xib",
+            "resources/en.lproj/Storyboard.strings",
+            "resources/fr.lproj/Storyboard.strings",
+        ])
+        let groups = ProjectGroups.generate(
+            project: .test(path: "/path", sourceRootPath: "/path", xcodeProjPath: "/path/Project.xcodeproj"),
+            pbxproj: pbxproj
+        )
+        try files.forEach {
+            try fileElements.generate(
+                fileElement: GroupFileElement(
+                    path: $0,
+                    group: .group(name: "Project"),
+                    isReference: true
+                ),
+                groups: groups,
+                pbxproj: pbxproj,
+                sourceRootPath: path
+            )
+        }
+
+        // When
+        try subject.generateResourcesBuildPhase(
+            path: "/path",
+            target: .test(resources: files.map { .file(path: $0) }),
+            graphTraverser: GraphTraverser(graph: .test(path: path)),
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let buildPhase = nativeTarget.buildPhases.first
+        XCTAssertEqual(buildPhase?.files?.map(\.file?.nameOrPath), [
+            "Controller.xib",
+            "Storyboard.storyboard",
         ])
     }
 
@@ -393,8 +442,8 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
         let nativeTarget = PBXNativeTarget(name: "Test")
 
-        let graph = ValueGraph.test(path: temporaryPath)
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graph = Graph.test(path: temporaryPath)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         try subject.generateResourcesBuildPhase(
@@ -432,8 +481,8 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
         let nativeTarget = PBXNativeTarget(name: "Test")
 
-        let graph = ValueGraph.test(path: temporaryPath)
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graph = Graph.test(path: temporaryPath)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         try subject.generateResourcesBuildPhase(
@@ -475,19 +524,19 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             bundle2.name: bundle2,
             app.name: app,
         ]]
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: bundle1.name, path: project.path): Set(),
             .target(name: bundle2.name, path: project.path): Set(),
             .target(name: app.name, path: project.path): Set([.target(name: bundle1.name, path: project.path),
                                                               .target(name: bundle2.name, path: project.path)]),
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: path,
             projects: [project.path: project],
             targets: targets,
             dependencies: dependencies
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         try subject.generateResourcesBuildPhase(
@@ -524,17 +573,17 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             projectA.path: [bundle.name: bundle],
             projectB.path: [app.name: app],
         ]
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: bundle.name, path: projectA.path): Set(),
             .target(name: app.name, path: projectB.path): Set([.target(name: bundle.name, path: projectA.path)]),
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: path,
             projects: [projectA.path: projectA, projectB.path: projectB],
             targets: targets,
             dependencies: dependencies
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         try subject.generateResourcesBuildPhase(
@@ -618,7 +667,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
                 app.name: app,
             ],
         ]
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: appExtension.name, path: projectA.path): Set(),
             .target(name: stickerPackExtension.name, path: projectA.path): Set(),
             .target(name: app.name, path: projectA.path): Set([
@@ -626,13 +675,13 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
                 .target(name: stickerPackExtension.name, path: projectA.path),
             ]),
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: path,
             projects: [projectA.path: projectA],
             targets: targets,
             dependencies: dependencies
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         try subject.generateAppExtensionsBuildPhase(
@@ -670,16 +719,16 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let targets: [AbsolutePath: [String: Target]] = [
             project.path: [app.name: app],
         ]
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: app.name, path: project.path): Set(),
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
             targets: targets,
             dependencies: dependencies
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         try subject.generateAppExtensionsBuildPhase(
@@ -707,17 +756,17 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let targets: [AbsolutePath: [String: Target]] = [
             project.path: [app.name: app, watchApp.name: watchApp],
         ]
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: watchApp.name, path: project.path): Set(),
             .target(name: app.name, path: project.path): Set([.target(name: watchApp.name, path: project.path)]),
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
             targets: targets,
             dependencies: dependencies
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         try subject.generateEmbedWatchBuildPhase(
@@ -743,8 +792,8 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         // Given
         system.swiftVersionStub = { "5.2" }
         let fileElements = ProjectFileElements([:])
-        let graph = ValueGraph.test()
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graph = Graph.test()
+        let graphTraverser = GraphTraverser(graph: graph)
         let path = AbsolutePath("/test")
         let pbxproj = PBXProj()
         let pbxProject = createPbxProject(pbxproj: pbxproj)
@@ -821,17 +870,17 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let targets: [AbsolutePath: [String: Target]] = [
             project.path: [app.name: app, appClip.name: appClip],
         ]
-        let dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: appClip.name, path: project.path): Set(),
             .target(name: app.name, path: project.path): Set([.target(name: appClip.name, path: project.path)]),
         ]
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
             targets: targets,
             dependencies: dependencies
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
         // When
         try subject.generateEmbedAppClipsBuildPhase(
             path: project.path,
@@ -865,8 +914,8 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
         let target = Target.test(platform: .iOS, product: .staticFramework, coreDataModels: [coreDataModel])
         let fileElements = createFileElements(for: [coreDataModel])
-        let graph = ValueGraph.test(path: path)
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graph = Graph.test(path: path)
+        let graphTraverser = GraphTraverser(graph: graph)
         let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: target.name)
 
@@ -907,8 +956,8 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
         let target = Target.test(platform: .iOS, product: .bundle, coreDataModels: [coreDataModel])
         let fileElements = createFileElements(for: [coreDataModel])
-        let graph = ValueGraph.test(path: path)
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graph = Graph.test(path: path)
+        let graphTraverser = GraphTraverser(graph: graph)
         let pbxproj = PBXProj()
         let pbxTarget = PBXNativeTarget(name: target.name)
 

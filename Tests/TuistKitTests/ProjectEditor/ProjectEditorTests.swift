@@ -84,7 +84,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let directory = try temporaryPath()
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
         let projectAutomationPath = directory.appending(component: "ProjectAutomation.framework")
-        let graph = ValueGraph.test(name: "Edit")
+        let graph = Graph.test(name: "Edit")
         let helpersDirectory = directory.appending(component: "ProjectDescriptionHelpers")
         try FileHandler.shared.createFolder(helpersDirectory)
         let helpers = ["A.swift", "B.swift"].map { helpersDirectory.appending(component: $0) }
@@ -135,7 +135,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         // Given
         let directory = try temporaryPath()
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
-        let graph = ValueGraph.test(name: "Edit")
+        let graph = Graph.test(name: "Edit")
         let helpersDirectory = directory.appending(component: "ProjectDescriptionHelpers")
         try FileHandler.shared.createFolder(helpersDirectory)
 
@@ -159,7 +159,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         // Given
         let directory = try temporaryPath()
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
-        let graph = ValueGraph.test(name: "Edit")
+        let graph = Graph.test(name: "Edit")
         let pluginManifest = directory.appending(component: "Plugin.swift")
         let tuistPath = AbsolutePath(ProcessInfo.processInfo.arguments.first!)
 
@@ -189,7 +189,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         // Given
         let directory = try temporaryPath()
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
-        let graph = ValueGraph.test(name: "Edit")
+        let graph = Graph.test(name: "Edit")
         let pluginManifests = [
             directory.appending(components: "A", "Plugin.swift"),
             directory.appending(components: "B", "Plugin.swift"),
@@ -224,7 +224,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         // Given
         let directory = try temporaryPath()
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
-        let graph = ValueGraph.test(name: "Edit")
+        let graph = Graph.test(name: "Edit")
 
         // Project
         let manifests: [(Manifest, AbsolutePath)] = [(.project, directory.appending(component: "Project.swift"))]
@@ -269,7 +269,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let rootPath = try temporaryPath()
         let editingPath = rootPath.appending(component: "Editing")
         let projectDescriptionPath = editingPath.appending(component: "ProjectDescription.framework")
-        let graph = ValueGraph.test(name: "Edit")
+        let graph = Graph.test(name: "Edit")
 
         // Project
         let manifests: [(Manifest, AbsolutePath)] = [(.project, editingPath.appending(component: "Project.swift"))]
@@ -309,7 +309,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         // Given
         let directory = try temporaryPath()
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
-        let graph = ValueGraph.test(name: "Edit")
+        let graph = Graph.test(name: "Edit")
 
         // Project
         let manifests: [(Manifest, AbsolutePath)] = [(.project, directory.appending(component: "Project.swift"))]

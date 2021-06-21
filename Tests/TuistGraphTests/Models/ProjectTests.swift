@@ -31,7 +31,7 @@ final class ProjectTests: XCTestCase {
             framework, app, appTests, frameworkTests,
         ])
 
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             projects: [project.path: project],
             targets: [
                 project.path: [

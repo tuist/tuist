@@ -8,12 +8,12 @@ public final class MockCacheTreeShakingGraphMapper: GraphMapping {
 
     var invokedMapGraph = false
     var invokedMapGraphCount = 0
-    var invokedMapGraphParameters: (graph: ValueGraph, Void)?
-    var invokedMapGraphParametersList = [(graph: ValueGraph, Void)]()
+    var invokedMapGraphParameters: (graph: Graph, Void)?
+    var invokedMapGraphParametersList = [(graph: Graph, Void)]()
     var stubbedMapGraphError: Error?
-    var stubbedMapGraphResult: (ValueGraph, [SideEffectDescriptor])!
+    var stubbedMapGraphResult: (Graph, [SideEffectDescriptor])!
 
-    public func map(graph: ValueGraph) throws -> (ValueGraph, [SideEffectDescriptor]) {
+    public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
         invokedMapGraph = true
         invokedMapGraphCount += 1
         invokedMapGraphParameters = (graph, ())

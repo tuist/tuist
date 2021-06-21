@@ -12,12 +12,13 @@ final class AutomationWorkspaceMapperProvider: WorkspaceMapperProviding {
     private let workspaceMapperProvider: WorkspaceMapperProviding
 
     convenience init(
-        workspaceDirectory: AbsolutePath
+        workspaceDirectory: AbsolutePath,
+        skipUITests: Bool
     ) {
         self.init(
             workspaceDirectory: workspaceDirectory,
             workspaceMapperProvider: WorkspaceMapperProvider(
-                projectMapperProvider: AutomationProjectMapperProvider()
+                projectMapperProvider: AutomationProjectMapperProvider(skipUITests: skipUITests)
             )
         )
     }

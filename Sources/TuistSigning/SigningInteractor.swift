@@ -82,7 +82,7 @@ public final class SigningInteractor: SigningInteracting {
 
     // MARK: - Helpers
 
-    private func install(target: ValueGraphTarget,
+    private func install(target: GraphTarget,
                          keychainPath: AbsolutePath,
                          certificates: [Fingerprint: Certificate],
                          provisioningProfiles: [TargetName: [ConfigurationName: ProvisioningProfile]]) throws

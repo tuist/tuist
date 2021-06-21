@@ -2,15 +2,15 @@ import Foundation
 import TSCBasic
 import TuistGraph
 
-public protocol ValueGraphLoading {
-    func loadWorkspace(workspace: Workspace, projects: [Project]) throws -> ValueGraph
-    func loadProject(at path: AbsolutePath, projects: [Project]) throws -> (Project, ValueGraph)
+public protocol GraphLoading {
+    func loadWorkspace(workspace: Workspace, projects: [Project]) throws -> Graph
+    func loadProject(at path: AbsolutePath, projects: [Project]) throws -> (Project, Graph)
 }
 
-// MARK: - ValueGraphLoader
+// MARK: - GraphLoader
 
 // swiftlint:disable:next type_body_length
-public final class ValueGraphLoader: ValueGraphLoading {
+public final class GraphLoader: GraphLoading {
     private let frameworkMetadataProvider: FrameworkMetadataProviding
     private let libraryMetadataProvider: LibraryMetadataProviding
     private let xcframeworkMetadataProvider: XCFrameworkMetadataProviding
@@ -37,9 +37,9 @@ public final class ValueGraphLoader: ValueGraphLoading {
         self.systemFrameworkMetadataProvider = systemFrameworkMetadataProvider
     }
 
-    // MARK: - ValueGraphLoading
+    // MARK: - GraphLoading
 
-    public func loadWorkspace(workspace: Workspace, projects: [Project]) throws -> ValueGraph {
+    public func loadWorkspace(workspace: Workspace, projects: [Project]) throws -> Graph {
         let cache = Cache(projects: projects)
         let cycleDetector = GraphCircularDetector()
 
@@ -52,7 +52,7 @@ public final class ValueGraphLoader: ValueGraphLoading {
         }
 
         let updatedWorkspace = workspace.replacing(projects: cache.loadedProjects.keys.sorted())
-        let graph = ValueGraph(
+        let graph = Graph(
             name: updatedWorkspace.name,
             path: updatedWorkspace.path,
             workspace: updatedWorkspace,
@@ -64,7 +64,7 @@ public final class ValueGraphLoader: ValueGraphLoading {
         return graph
     }
 
-    public func loadProject(at path: AbsolutePath, projects: [Project]) throws -> (Project, ValueGraph) {
+    public func loadProject(at path: AbsolutePath, projects: [Project]) throws -> (Project, Graph) {
         let cache = Cache(projects: projects)
         guard let rootProject = cache.allProjects[path] else {
             throw GraphLoadingError.missingProject(path)
@@ -78,7 +78,7 @@ public final class ValueGraphLoader: ValueGraphLoading {
             name: rootProject.name,
             projects: cache.loadedProjects.keys.sorted()
         )
-        let graph = ValueGraph(
+        let graph = Graph(
             name: rootProject.name,
             path: path,
             workspace: workspace,
@@ -160,7 +160,7 @@ public final class ValueGraphLoader: ValueGraphLoading {
         dependency: TargetDependency,
         cache: Cache,
         cycleDetector: GraphCircularDetector
-    ) throws -> ValueGraphDependency {
+    ) throws -> GraphDependency {
         switch dependency {
         case let .target(toTarget):
             // A target within the same project.
@@ -221,13 +221,13 @@ public final class ValueGraphLoader: ValueGraphLoading {
         }
     }
 
-    private func loadFramework(path: AbsolutePath, cache: Cache) throws -> ValueGraphDependency {
+    private func loadFramework(path: AbsolutePath, cache: Cache) throws -> GraphDependency {
         if let loaded = cache.frameworks[path] {
             return loaded
         }
 
         let metadata = try frameworkMetadataProvider.loadMetadata(at: path)
-        let framework: ValueGraphDependency = .framework(
+        let framework: GraphDependency = .framework(
             path: metadata.path,
             binaryPath: metadata.binaryPath,
             dsymPath: metadata.dsymPath,
@@ -245,7 +245,7 @@ public final class ValueGraphLoader: ValueGraphLoading {
         publicHeaders: AbsolutePath,
         swiftModuleMap: AbsolutePath?,
         cache: Cache
-    ) throws -> ValueGraphDependency {
+    ) throws -> GraphDependency {
         if let loaded = cache.libraries[path] {
             return loaded
         }
@@ -255,7 +255,7 @@ public final class ValueGraphLoader: ValueGraphLoading {
             publicHeaders: publicHeaders,
             swiftModuleMap: swiftModuleMap
         )
-        let library: ValueGraphDependency = .library(
+        let library: GraphDependency = .library(
             path: metadata.path,
             publicHeaders: metadata.publicHeaders,
             linking: metadata.linking,
@@ -266,13 +266,13 @@ public final class ValueGraphLoader: ValueGraphLoading {
         return library
     }
 
-    private func loadXCFramework(path: AbsolutePath, cache: Cache) throws -> ValueGraphDependency {
+    private func loadXCFramework(path: AbsolutePath, cache: Cache) throws -> GraphDependency {
         if let loaded = cache.xcframeworks[path] {
             return loaded
         }
 
         let metadata = try xcframeworkMetadataProvider.loadMetadata(at: path)
-        let xcframework: ValueGraphDependency = .xcframework(
+        let xcframework: GraphDependency = .xcframework(
             path: metadata.path,
             infoPlist: metadata.infoPlist,
             primaryBinaryPath: metadata.primaryBinaryPath,
@@ -285,18 +285,18 @@ public final class ValueGraphLoader: ValueGraphLoading {
     private func loadSDK(name: String,
                          platform: Platform,
                          status: SDKStatus,
-                         source: SDKSource) throws -> ValueGraphDependency
+                         source: SDKSource) throws -> GraphDependency
     {
         let metadata = try systemFrameworkMetadataProvider.loadMetadata(sdkName: name, status: status, platform: platform, source: source)
         return .sdk(name: metadata.name, path: metadata.path, status: metadata.status, source: metadata.source)
     }
 
-    private func loadXCTestSDK(platform: Platform) throws -> ValueGraphDependency {
+    private func loadXCTestSDK(platform: Platform) throws -> GraphDependency {
         let metadata = try systemFrameworkMetadataProvider.loadXCTestMetadata(platform: platform)
         return .sdk(name: metadata.name, path: metadata.path, status: metadata.status, source: metadata.source)
     }
 
-    private func loadPackage(fromPath: AbsolutePath, productName: String) throws -> ValueGraphDependency {
+    private func loadPackage(fromPath: AbsolutePath, productName: String) throws -> GraphDependency {
         // TODO: `fromPath` isn't quite correct as it reflects the path where the dependency was declared
         // and doesn't uniquely identify it. It's been copied from the previous implementation to maintain
         // existing behaviour and should be fixed separately
@@ -312,10 +312,10 @@ public final class ValueGraphLoader: ValueGraphLoading {
 
         var loadedProjects: [AbsolutePath: Project] = [:]
         var loadedTargets: [AbsolutePath: [String: Target]] = [:]
-        var dependencies: [ValueGraphDependency: Set<ValueGraphDependency>] = [:]
-        var frameworks: [AbsolutePath: ValueGraphDependency] = [:]
-        var libraries: [AbsolutePath: ValueGraphDependency] = [:]
-        var xcframeworks: [AbsolutePath: ValueGraphDependency] = [:]
+        var dependencies: [GraphDependency: Set<GraphDependency>] = [:]
+        var frameworks: [AbsolutePath: GraphDependency] = [:]
+        var libraries: [AbsolutePath: GraphDependency] = [:]
+        var xcframeworks: [AbsolutePath: GraphDependency] = [:]
         var packages: [AbsolutePath: [String: Package]] = [:]
 
         init(projects: [Project]) {
@@ -338,15 +338,15 @@ public final class ValueGraphLoader: ValueGraphLoading {
             loadedTargets[path, default: [:]][target.name] = target
         }
 
-        func add(framework: ValueGraphDependency, at path: AbsolutePath) {
+        func add(framework: GraphDependency, at path: AbsolutePath) {
             frameworks[path] = framework
         }
 
-        func add(xcframework: ValueGraphDependency, at path: AbsolutePath) {
+        func add(xcframework: GraphDependency, at path: AbsolutePath) {
             xcframeworks[path] = xcframework
         }
 
-        func add(library: ValueGraphDependency, at path: AbsolutePath) {
+        func add(library: GraphDependency, at path: AbsolutePath) {
             libraries[path] = library
         }
 

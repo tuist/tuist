@@ -43,14 +43,14 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
     // SchemeB: UnitTestsA -> FrameworkA, UnitTestsB (UnitTestsB cached)
     func test_map_all_cached() throws {
         let project = Project.test()
-        let frameworkA = ValueGraphTarget.test(
+        let frameworkA = GraphTarget.test(
             path: project.path,
             target: Target.test(
                 name: "FrameworkA"
             ),
             project: project
         )
-        let unitTestsA = ValueGraphTarget.test(
+        let unitTestsA = GraphTarget.test(
             path: project.path,
             target: Target.test(
                 name: "UnitTestsA",
@@ -60,7 +60,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
             ),
             project: project
         )
-        let unitTestsB = ValueGraphTarget.test(
+        let unitTestsB = GraphTarget.test(
             path: project.path,
             target: Target.test(
                 name: "UnitTestsB"
@@ -125,7 +125,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
             ]
         )
 
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             workspace: workspace,
             projects: [project.path: project],
             targets: [
@@ -146,7 +146,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
         )
 
         graphContentHasher.contentHashesStub = { graph, _, _ in
-            ValueGraphTraverser(graph: graph).allTargets().reduce(into: [:]) { acc, target in
+            GraphTraverser(graph: graph).allTargets().reduce(into: [:]) { acc, target in
                 acc[target] = target.target.name
             }
         }
@@ -158,7 +158,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
             cacheDirectoriesProvider.testsCacheDirectory.appending(component: "UnitTestsA")
         )
 
-        let expectedGraph = ValueGraph.test(
+        let expectedGraph = Graph.test(
             workspace: Workspace.test(
                 schemes: [
                     Scheme.test(
@@ -251,14 +251,14 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
     // SchemeA: UnitTestsA -> FrameworkA (only UnitTestsA cached)
     func test_map_only_tests_cached() throws {
         let project = Project.test()
-        let frameworkA = ValueGraphTarget.test(
+        let frameworkA = GraphTarget.test(
             path: project.path,
             target: Target.test(
                 name: "FrameworkA"
             ),
             project: project
         )
-        let unitTestsA = ValueGraphTarget.test(
+        let unitTestsA = GraphTarget.test(
             path: project.path,
             target: Target.test(
                 name: "UnitTestsA",
@@ -297,7 +297,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
             ]
         )
 
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             workspace: workspace,
             projects: [project.path: project],
             targets: [
@@ -314,7 +314,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
         )
 
         graphContentHasher.contentHashesStub = { graph, _, _ in
-            ValueGraphTraverser(graph: graph).allTargets().reduce(into: [:]) { acc, target in
+            GraphTraverser(graph: graph).allTargets().reduce(into: [:]) { acc, target in
                 acc[target] = target.target.name
             }
         }
@@ -323,7 +323,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
             hashesCacheDirectory.appending(component: "UnitTestsA")
         )
 
-        let expectedGraph = ValueGraph.test(
+        let expectedGraph = Graph.test(
             workspace: Workspace.test(
                 schemes: [
                     Scheme.test(

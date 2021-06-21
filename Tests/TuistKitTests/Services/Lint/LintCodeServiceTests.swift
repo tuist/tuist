@@ -49,7 +49,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         let target01 = Target.test(name: "Target1")
         let target02 = Target.test(name: "Target2")
         let target03 = Target.test(name: "Target3")
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             projects: [project.path: project],
             targets: [
                 project.path: [
@@ -72,7 +72,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         let target01 = Target.test(name: "Target1", sources: [])
         let target02 = Target.test(name: "Target2", sources: [])
         let target03 = Target.test(name: "Target3", sources: [])
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             projects: [project.path: project],
             targets: [
                 project.path: [
@@ -123,7 +123,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
                 SourceFile(path: "/target03/file1.swift", compilerFlags: nil),
             ]
         )
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             workspace: workspace,
             projects: [project.path: project],
             targets: [
@@ -187,7 +187,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
                 SourceFile(path: "/target03/file1.swift", compilerFlags: nil),
             ]
         )
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             projects: [project.path: project],
             targets: [
                 project.path: [
@@ -250,7 +250,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
                 SourceFile(path: "/target03/file1.swift", compilerFlags: nil),
             ]
         )
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             projects: [project.path: project],
             targets: [
                 project.path: [
@@ -314,7 +314,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
                 SourceFile(path: "/target03/file1.swift", compilerFlags: nil),
             ]
         )
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             workspace: workspace,
             projects: [project.path: project],
             targets: [

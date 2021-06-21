@@ -65,7 +65,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
-        let graph = ValueGraph.test()
+        let graph = Graph.test()
         let scheme = Scheme.test()
         let project = Project.test()
         let target = Target.test()
@@ -82,7 +82,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         }
         buildGraphInspector.buildableTargetStub = { _scheme, _ in
             XCTAssertEqual(_scheme, scheme)
-            return ValueGraphTarget.test(path: project.path, target: target, project: project)
+            return GraphTarget.test(path: project.path, target: target, project: project)
         }
         buildGraphInspector.workspacePathStub = { _path in
             XCTAssertEqual(_path, path)
@@ -111,7 +111,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
-        let graph = ValueGraph.test()
+        let graph = Graph.test()
         let scheme = Scheme.test()
         let project = Project.test()
         let target = Target.test()
@@ -127,7 +127,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         }
         buildGraphInspector.buildableTargetStub = { _scheme, _ in
             XCTAssertEqual(_scheme, scheme)
-            return ValueGraphTarget.test(path: project.path, target: target, project: project)
+            return GraphTarget.test(path: project.path, target: target, project: project)
         }
         buildGraphInspector.workspacePathStub = { _path in
             XCTAssertEqual(_path, path)
@@ -156,7 +156,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
-        let graph = ValueGraph.test()
+        let graph = Graph.test()
         let project = Project.test()
         let schemeA = Scheme.test(name: "A")
         let schemeB = Scheme.test(name: "B")
@@ -173,9 +173,9 @@ final class BuildServiceTests: TuistUnitTestCase {
             [schemeA, schemeB]
         }
         buildGraphInspector.buildableTargetStub = { _scheme, _ in
-            if _scheme == schemeA { return ValueGraphTarget.test(path: project.path, target: targetA, project: project) }
-            else if _scheme == schemeB { return ValueGraphTarget.test(path: project.path, target: targetB, project: project) }
-            else { XCTFail("unexpected scheme"); return ValueGraphTarget.test(path: project.path, target: targetA, project: project) }
+            if _scheme == schemeA { return GraphTarget.test(path: project.path, target: targetA, project: project) }
+            else if _scheme == schemeB { return GraphTarget.test(path: project.path, target: targetB, project: project) }
+            else { XCTFail("unexpected scheme"); return GraphTarget.test(path: project.path, target: targetA, project: project) }
         }
         buildGraphInspector.workspacePathStub = { _path in
             XCTAssertEqual(_path, path)
@@ -210,7 +210,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
-        let graph = ValueGraph.test()
+        let graph = Graph.test()
         let project = Project.test()
         let schemeA = Scheme.test(name: "A")
         let schemeB = Scheme.test(name: "B")
@@ -227,9 +227,9 @@ final class BuildServiceTests: TuistUnitTestCase {
             [schemeA, schemeB]
         }
         buildGraphInspector.buildableTargetStub = { _scheme, _ in
-            if _scheme == schemeA { return ValueGraphTarget.test(path: project.path, target: targetA, project: project) }
-            else if _scheme == schemeB { return ValueGraphTarget.test(path: project.path, target: targetB, project: project) }
-            else { XCTFail("unexpected scheme"); return ValueGraphTarget.test(path: project.path, target: targetA, project: project) }
+            if _scheme == schemeA { return GraphTarget.test(path: project.path, target: targetA, project: project) }
+            else if _scheme == schemeB { return GraphTarget.test(path: project.path, target: targetB, project: project) }
+            else { XCTFail("unexpected scheme"); return GraphTarget.test(path: project.path, target: targetA, project: project) }
         }
         buildGraphInspector.workspacePathStub = { _path in
             XCTAssertEqual(_path, path)
@@ -261,7 +261,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
-        let graph = ValueGraph.test()
+        let graph = Graph.test()
         let schemeA = Scheme.test(name: "A")
         let schemeB = Scheme.test(name: "B")
         generator.loadStub = { _path in

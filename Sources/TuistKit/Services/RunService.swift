@@ -73,7 +73,7 @@ final class RunService {
             runPath = FileHandler.shared.currentPath
         }
 
-        let graph: ValueGraph
+        let graph: Graph
         if try (generate || buildGraphInspector.workspacePath(directory: runPath) == nil) {
             logger.notice("Generating project for running", metadata: .section)
             graph = try generator.generateWithGraph(path: runPath, projectOnly: false).1
@@ -85,7 +85,7 @@ final class RunService {
             throw RunServiceError.workspaceNotFound(path: runPath.pathString)
         }
 
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
         let runnableSchemes = buildGraphInspector.runnableSchemes(graphTraverser: graphTraverser)
 
         logger.debug("Found the following runnable schemes: \(runnableSchemes.map(\.name).joined(separator: ", "))")

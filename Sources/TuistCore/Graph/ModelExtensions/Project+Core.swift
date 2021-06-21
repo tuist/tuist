@@ -7,7 +7,7 @@ extension Project {
     ///
     /// - Parameter graph: Dependencies graph.
     /// - Returns: Sorted targets.
-    public func sortedTargetsForProjectScheme(graph: ValueGraph) -> [Target] {
+    public func sortedTargetsForProjectScheme(graph: Graph) -> [Target] {
         targets.sorted { (first, second) -> Bool in
             // First criteria: Test bundles at the end
             if first.product.testsBundle, !second.product.testsBundle {
@@ -17,7 +17,7 @@ extension Project {
                 return true
             }
 
-            let graphTraverser = ValueGraphTraverser(graph: graph)
+            let graphTraverser = GraphTraverser(graph: graph)
 
             // Second criteria: Most dependent targets first.
             let secondDependencies = graphTraverser.directTargetDependencies(path: self.path, name: second.name)
