@@ -21,6 +21,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Fixed
 
+- Fixed `tuist bundle` when path has spaces [#3084](https://github.com/tuist/tuist/pull/3084) by [@fortmarek](https://github.com/fortmarek)
 - Fix manifest loading when using Swift 5.5 [#3062](https://github.com/tuist/tuist/pull/3062) by [@kwridan](https://github.com/kwridan)
 - Fix generation of project groups and build phases for localized Interface Builder files (`.xib` and `.storyboard`) [#3075](https://github.com/tuist/tuist/pull/3075) by [@svenmuennich](https://github.com/svenmuennich/)
 
