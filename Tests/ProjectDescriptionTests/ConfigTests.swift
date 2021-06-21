@@ -15,7 +15,7 @@ final class ConfigTests: XCTestCase {
                 .disableShowEnvironmentVarsInScriptPhases,
                 .enableCodeCoverage,
                 .disablePackageVersionLocking,
-                .disableBundleAccessors
+                .disableBundleAccessors,
             ]
         )
 
