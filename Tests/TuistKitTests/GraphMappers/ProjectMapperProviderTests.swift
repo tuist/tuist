@@ -86,7 +86,7 @@ final class ProjectMapperProviderTests: TuistUnitTestCase {
         XCTAssertEqual(sequentialProjectMapper.mappers.filter { $0 is SynthesizedResourceInterfaceProjectMapper }.count, 0)
     }
 
-    func test_mappers_does_not_returns_resources_project_mapper_when_disabled_bundle_accessors() throws {
+    func test_mappers_does_not_return_resources_project_mapper_when_disabled_bundle_accessors() throws {
         // Given
         subject = ProjectMapperProvider(contentHasher: ContentHasher())
 
