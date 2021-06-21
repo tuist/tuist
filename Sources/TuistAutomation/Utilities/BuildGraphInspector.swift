@@ -20,12 +20,12 @@ public protocol BuildGraphInspecting {
     /// - Parameters:
     ///   - scheme: Scheme in which to look up the target.
     ///   - graphTraverser: GraphTraversing traverser.
-    func buildableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> ValueGraphTarget?
+    func buildableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> GraphTarget?
 
     ///  From the list of testable targets of the given scheme, it returns the first one.
     /// - Parameters:
     ///   - scheme: Scheme in which to look up the target.
-    func testableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> ValueGraphTarget?
+    func testableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> GraphTarget?
 
     /// Given a graphTraverser, it returns a list of buildable schemes.
     func buildableSchemes(graphTraverser: GraphTraversing) -> [Scheme]
@@ -43,7 +43,7 @@ public protocol BuildGraphInspecting {
     /// - Parameters:
     ///   - scheme: Scheme in which to look up the target.
     ///   - graphTraverser: GraphTraversing traverser.
-    func runnableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> ValueGraphTarget?
+    func runnableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> GraphTarget?
 
     /// Given a graphTraverser, it returns a list of runnable schemes.
     func runnableSchemes(graphTraverser: GraphTraversing) -> [Scheme]
@@ -85,7 +85,7 @@ public final class BuildGraphInspector: BuildGraphInspecting {
         return arguments
     }
 
-    public func buildableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> ValueGraphTarget? {
+    public func buildableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> GraphTarget? {
         guard
             scheme.buildAction?.targets.isEmpty == false,
             let buildTarget = scheme.buildAction?.targets.first
@@ -99,7 +99,7 @@ public final class BuildGraphInspector: BuildGraphInspecting {
         )
     }
 
-    public func testableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> ValueGraphTarget? {
+    public func testableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> GraphTarget? {
         guard let testTarget = scheme.testAction?.targets.first else { return nil }
         return graphTraverser.target(path: testTarget.target.projectPath, name: testTarget.target.name)
     }
@@ -135,7 +135,7 @@ public final class BuildGraphInspector: BuildGraphInspecting {
             .sorted(by: { $0.name < $1.name })
     }
 
-    public func runnableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> ValueGraphTarget? {
+    public func runnableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> GraphTarget? {
         guard let runTarget = scheme.runAction?.executable else { return nil }
         return graphTraverser.target(
             path: runTarget.projectPath,

@@ -46,6 +46,12 @@ struct TestCommand: ParsableCommand {
     )
     var configuration: String?
 
+    @Flag(
+        name: .long,
+        help: "When passed, it skips testing UI Tests targets."
+    )
+    var skipUITests: Bool = false
+
     func run() throws {
         let absolutePath: AbsolutePath
 
@@ -61,7 +67,8 @@ struct TestCommand: ParsableCommand {
             configuration: configuration,
             path: absolutePath,
             deviceName: device,
-            osVersion: os
+            osVersion: os,
+            skipUITests: skipUITests
         )
     }
 }

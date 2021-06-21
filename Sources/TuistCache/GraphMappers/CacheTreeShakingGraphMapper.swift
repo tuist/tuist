@@ -6,7 +6,7 @@ import TuistGraph
 public final class CacheTreeShakingGraphMapper: GraphMapping {
     public init() {}
 
-    public func map(graph: ValueGraph) throws -> (ValueGraph, [SideEffectDescriptor]) {
+    public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
         let sourceTargets: Set<TargetReference> = Set(graph.targets.flatMap { (projectPath, targets) -> [TargetReference] in
             guard graph.projects[projectPath] != nil else { return [] }
             return targets.compactMap { (_, target) -> TargetReference? in
@@ -64,7 +64,7 @@ public final class CacheTreeShakingGraphMapper: GraphMapping {
         return workspace
     }
 
-    fileprivate func treeShake(targets: [Target], path: AbsolutePath, graph: ValueGraph, sourceTargets: Set<TargetReference>) -> [Target] {
+    fileprivate func treeShake(targets: [Target], path: AbsolutePath, graph: Graph, sourceTargets: Set<TargetReference>) -> [Target] {
         targets.compactMap { (target) -> Target? in
             guard let target = graph.targets[path, default: [:]][target.name] else { return nil }
             let targetReference = TargetReference(projectPath: path, name: target.name)

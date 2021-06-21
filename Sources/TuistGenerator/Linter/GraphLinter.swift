@@ -54,8 +54,8 @@ public class GraphLinter: GraphLinting {
         var issues: [LintingIssue] = []
         let dependencyIssues = graphTraverser.dependencies.flatMap { (fromDependency, toDependencies) -> [LintingIssue] in
             toDependencies.flatMap { (toDependency) -> [LintingIssue] in
-                guard case let ValueGraphDependency.target(fromTargetName, fromTargetPath) = fromDependency else { return [] }
-                guard case let ValueGraphDependency.target(toTargetName, toTargetPath) = toDependency else { return [] }
+                guard case let GraphDependency.target(fromTargetName, fromTargetPath) = fromDependency else { return [] }
+                guard case let GraphDependency.target(toTargetName, toTargetPath) = toDependency else { return [] }
                 guard let fromTarget = graphTraverser.target(path: fromTargetPath, name: fromTargetName) else { return [] }
                 guard let toTarget = graphTraverser.target(path: toTargetPath, name: toTargetName) else { return [] }
                 return lintDependency(from: fromTarget, to: toTarget)
@@ -71,7 +71,7 @@ public class GraphLinter: GraphLinting {
         return issues
     }
 
-    private func lintDependency(from: ValueGraphTarget, to: ValueGraphTarget) -> [LintingIssue] {
+    private func lintDependency(from: GraphTarget, to: GraphTarget) -> [LintingIssue] {
         var issues: [LintingIssue] = []
 
         let fromTarget = LintableTarget(
@@ -201,7 +201,7 @@ public class GraphLinter: GraphLinting {
         return issues
     }
 
-    private func lint(watchApp: ValueGraphTarget, parentApp: ValueGraphTarget) -> [LintingIssue] {
+    private func lint(watchApp: GraphTarget, parentApp: GraphTarget) -> [LintingIssue] {
         guard watchApp.target.bundleId.hasPrefix(parentApp.target.bundleId) else {
             return [
                 LintingIssue(reason: """
@@ -212,7 +212,7 @@ public class GraphLinter: GraphLinting {
         return []
     }
 
-    private func lint(watchExtension: ValueGraphTarget, parentWatchApp: ValueGraphTarget) -> [LintingIssue] {
+    private func lint(watchExtension: GraphTarget, parentWatchApp: GraphTarget) -> [LintingIssue] {
         guard watchExtension.target.bundleId.hasPrefix(parentWatchApp.target.bundleId) else {
             return [
                 LintingIssue(reason: """
@@ -223,7 +223,7 @@ public class GraphLinter: GraphLinting {
         return []
     }
 
-    private func lint(appClip: ValueGraphTarget, parentApp: ValueGraphTarget) -> [LintingIssue] {
+    private func lint(appClip: GraphTarget, parentApp: GraphTarget) -> [LintingIssue] {
         var foundIssues = [LintingIssue]()
 
         if !appClip.target.bundleId.hasPrefix(parentApp.target.bundleId) {

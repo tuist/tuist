@@ -78,7 +78,7 @@ final class DocService {
 
     func run(project path: AbsolutePath, target targetName: String) throws {
         let graph = try generator.load(path: path)
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         let targets = graphTraverser.allTargets()
             .filter { !graphTraverser.dependsOnXCTest(path: $0.path, name: $0.target.name) }

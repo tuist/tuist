@@ -38,14 +38,14 @@ final class WorkspaceGeneratorIntegrationTests: TuistTestCase {
                 targets: [Target.test(name: "Project\(index)_Target")]
             )
         }
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             workspace: Workspace.test(
                 path: temporaryPath,
                 projects: projects.map(\.key)
             ),
             projects: projects
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When / Then
         try (0 ..< 50).forEach { _ in

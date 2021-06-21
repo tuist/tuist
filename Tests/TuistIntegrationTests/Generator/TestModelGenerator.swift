@@ -27,9 +27,9 @@ final class TestModelGenerator {
         self.config = config
     }
 
-    func generate() throws -> ValueGraph {
+    func generate() throws -> Graph {
         let models = try createModels()
-        let graphLoader = ValueGraphLoader(
+        let graphLoader = GraphLoader(
             frameworkMetadataProvider: MockFrameworkMetadataProvider(),
             libraryMetadataProvider: MockLibraryMetadataProvider(),
             xcframeworkMetadataProvider: MockXCFrameworkMetadataProvider(),

@@ -71,10 +71,10 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
             clock: clock,
             configLoader: configLoader
         )
-        let graph = ValueGraph.test()
+        let graph = Graph.test()
         generator.loadStub = { _ in graph }
 
-        var invokedGraph: ValueGraph?
+        var invokedGraph: Graph?
         cacheGraphContentHasher.contentHashesStub = { graph, _, _ in
             invokedGraph = graph
             return [:]
@@ -89,8 +89,8 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
 
     func test_run_outputs_correct_hashes() throws {
         // Given
-        let target1 = ValueGraphTarget.test(target: .test(name: "ShakiOne"))
-        let target2 = ValueGraphTarget.test(target: .test(name: "ShakiTwo"))
+        let target1 = GraphTarget.test(target: .test(name: "ShakiOne"))
+        let target2 = GraphTarget.test(target: .test(name: "ShakiTwo"))
         cacheGraphContentHasher.contentHashesStub = { _, _, _ in
             [target1: "hash1", target2: "hash2"]
         }

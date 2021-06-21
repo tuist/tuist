@@ -151,7 +151,7 @@ final class ProjectEditor: ProjectEditing {
             projectAutomationPath: try resourceLocator.projectAutomation()
         )
 
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
         let descriptor = try generator.generateWorkspace(graphTraverser: graphTraverser)
         try writer.write(workspace: descriptor)
         return descriptor.xcworkspacePath

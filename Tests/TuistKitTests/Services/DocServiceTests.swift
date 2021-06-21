@@ -126,12 +126,12 @@ final class TuistDocServiceTests: TuistUnitTestCase {
             path: path
         )
         let target = Target.test(name: targetName)
-        let graphTarget = ValueGraphTarget(
+        let graphTarget = GraphTarget(
             path: project.path,
             target: target,
             project: project
         )
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             projects: [project.path: project],
             targets: [
                 path: [

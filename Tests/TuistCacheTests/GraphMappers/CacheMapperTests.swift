@@ -51,20 +51,20 @@ final class CacheMapperTests: TuistUnitTestCase {
 
         // Given
         let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
-        let cGraphTarget = ValueGraphTarget.test(path: path, target: cFramework)
+        let cGraphTarget = GraphTarget.test(path: path, target: cFramework)
         let cXCFrameworkPath = path.appending(component: "C.xcframework")
         let cHash = "C"
 
         let bFramework = Target.test(name: "B", platform: .iOS, product: .framework)
-        let bGraphTarget = ValueGraphTarget.test(path: path, target: bFramework)
+        let bGraphTarget = GraphTarget.test(path: path, target: bFramework)
         let bHash = "B"
         let bXCFrameworkPath = path.appending(component: "B.xcframework")
 
         let app = Target.test(name: "App", platform: .iOS, product: .app)
-        let appGraphTarget = ValueGraphTarget.test(path: path, target: app)
+        let appGraphTarget = GraphTarget.test(path: path, target: app)
         let appHash = "App"
 
-        let inputGraph = ValueGraph.test(
+        let inputGraph = Graph.test(
             name: "input",
             projects: [path: project],
             dependencies: [
@@ -76,7 +76,7 @@ final class CacheMapperTests: TuistUnitTestCase {
                 ],
             ]
         )
-        let outputGraph = ValueGraph.test(
+        let outputGraph = Graph.test(
             name: "output",
             projects: inputGraph.projects,
             dependencies: inputGraph.dependencies
@@ -120,19 +120,19 @@ final class CacheMapperTests: TuistUnitTestCase {
 
         // Given
         let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
-        let cGraphTarget = ValueGraphTarget.test(path: path, target: cFramework)
+        let cGraphTarget = GraphTarget.test(path: path, target: cFramework)
         let cHash = "C"
 
         let bFramework = Target.test(name: "B", platform: .iOS, product: .framework)
-        let bGraphTarget = ValueGraphTarget.test(path: path, target: bFramework)
+        let bGraphTarget = GraphTarget.test(path: path, target: bFramework)
         let bHash = "B"
         let bXCFrameworkPath = path.appending(component: "B.xcframework")
 
         let app = Target.test(name: "App", platform: .iOS, product: .app)
-        let appGraphTarget = ValueGraphTarget.test(path: path, target: app)
+        let appGraphTarget = GraphTarget.test(path: path, target: app)
         let appHash = "App"
 
-        let inputGraph = ValueGraph.test(
+        let inputGraph = Graph.test(
             name: "input",
             projects: [path: project],
             dependencies: [
@@ -144,7 +144,7 @@ final class CacheMapperTests: TuistUnitTestCase {
                 ],
             ]
         )
-        let outputGraph = ValueGraph.test(
+        let outputGraph = Graph.test(
             name: "output",
             projects: inputGraph.projects,
             dependencies: inputGraph.dependencies
@@ -194,15 +194,15 @@ final class CacheMapperTests: TuistUnitTestCase {
         )
 
         let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
-        let cGraphTarget = ValueGraphTarget.test(path: path, target: cFramework)
+        let cGraphTarget = GraphTarget.test(path: path, target: cFramework)
 
         let bFramework = Target.test(name: "B", platform: .iOS, product: .framework)
-        let bGraphTarget = ValueGraphTarget.test(path: path, target: bFramework)
+        let bGraphTarget = GraphTarget.test(path: path, target: bFramework)
 
         let app = Target.test(name: "App", platform: .iOS, product: .app)
-        let appGraphTarget = ValueGraphTarget.test(path: path, target: app)
+        let appGraphTarget = GraphTarget.test(path: path, target: app)
 
-        let inputGraph = ValueGraph.test(
+        let inputGraph = Graph.test(
             name: "input",
             projects: [path: project],
             dependencies: [
@@ -214,7 +214,7 @@ final class CacheMapperTests: TuistUnitTestCase {
                 ],
             ]
         )
-        let outputGraph = ValueGraph.test(
+        let outputGraph = Graph.test(
             name: "output",
             projects: inputGraph.projects,
             dependencies: inputGraph.dependencies

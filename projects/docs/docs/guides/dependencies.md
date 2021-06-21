@@ -125,3 +125,13 @@ Tuist does not parse the CocoaPods dependency graph nor runs any validation. It'
 ```
 
 It defines a dependency with a pre-compiled xcframework.
+
+### Third party dependencies
+
+```swift
+.thirdParty(name: "Alamofire")
+```
+
+It defines a dependency from a third party dependency defined in the `Dependencies.swift` file.
+
+For more information, have a look at the [dedicated section](third-party-dependencies.md).

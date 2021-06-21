@@ -46,13 +46,13 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
             xcWorkspacePath: temporaryPath.appending(component: "Test.xcworkspace"),
             additionalFiles: additionalFiles
         )
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: temporaryPath,
             workspace: workspace
         )
 
         // When
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
         let result = try subject.generate(graphTraverser: graphTraverser)
 
         // Then
@@ -72,11 +72,11 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         try FileHandler.shared.createFolder(temporaryPath.appending(component: "\(name).xcworkspace"))
         let workspace = Workspace.test(name: name)
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             path: temporaryPath,
             workspace: workspace
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         XCTAssertNoThrow(
@@ -102,7 +102,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
             projects: [project.path]
         )
 
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             workspace: workspace,
             projects: [project.path: project],
             targets: [
@@ -111,7 +111,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
                 ],
             ]
         )
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // When
         let result = try subject.generate(graphTraverser: graphTraverser)

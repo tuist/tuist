@@ -315,10 +315,10 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         let subject = DescriptorGenerator()
         let writer = XcodeProjWriter()
         let linter = GraphLinter()
-        let graphLoader = ValueGraphLoader()
+        let graphLoader = GraphLoader()
 
         let graph = try graphLoader.loadWorkspace(workspace: models.workspace, projects: models.projects)
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
         try linter.lint(graphTraverser: graphTraverser).printAndThrowIfNeeded()
         let descriptor = try subject.generateWorkspace(graphTraverser: graphTraverser)
         try writer.write(workspace: descriptor)

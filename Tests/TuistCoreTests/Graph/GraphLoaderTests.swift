@@ -8,7 +8,7 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistSupportTesting
 
-final class ValueGraphLoaderTests: TuistUnitTestCase {
+final class GraphLoaderTests: TuistUnitTestCase {
     private var stubbedFrameworks = [AbsolutePath: PrecompiledMetadata]()
     private var stubbedLibraries = [AbsolutePath: PrecompiledMetadata]()
     private var stubbedXCFrameworks = [AbsolutePath: XCFrameworkMetadata]()
@@ -240,7 +240,7 @@ final class ValueGraphLoaderTests: TuistUnitTestCase {
         ])
 
         // Then
-        let frameworkDependency: ValueGraphDependency = .framework(
+        let frameworkDependency: GraphDependency = .framework(
             path: "/Frameworks/F.framework",
             binaryPath: "/Frameworks/F.framework/F",
             dsymPath: nil,
@@ -678,8 +678,8 @@ final class ValueGraphLoaderTests: TuistUnitTestCase {
 
     // MARK: - Helpers
 
-    private func makeSubject() -> ValueGraphLoader {
-        ValueGraphLoader(
+    private func makeSubject() -> GraphLoader {
+        GraphLoader(
             frameworkMetadataProvider: frameworkMetadataProvider,
             libraryMetadataProvider: libraryMetadataProvider,
             xcframeworkMetadataProvider: xcframeworkMetadataProvider,

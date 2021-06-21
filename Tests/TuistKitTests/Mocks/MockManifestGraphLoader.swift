@@ -5,8 +5,8 @@ import TuistGraphTesting
 @testable import TuistKit
 
 final class MockManifestGraphLoader: ManifestGraphLoading {
-    var stubLoadGraph: ValueGraph?
-    func loadGraph(at _: AbsolutePath) throws -> ValueGraph {
+    var stubLoadGraph: Graph?
+    func loadGraph(at _: AbsolutePath) throws -> Graph {
         stubLoadGraph ?? .test()
     }
 }

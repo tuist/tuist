@@ -38,8 +38,8 @@ final class CocoaPodsInteractorTests: TuistUnitTestCase {
         system.whichStub = { _ in
             throw NSError.test()
         }
-        let graph = ValueGraph.test(dependencies: [ValueGraphDependency.cocoapods(path: "/"): Set()])
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graph = Graph.test(dependencies: [GraphDependency.cocoapods(path: "/"): Set()])
+        let graphTraverser = GraphTraverser(graph: graph)
 
         // Then
         XCTAssertThrowsSpecific(
@@ -50,8 +50,8 @@ final class CocoaPodsInteractorTests: TuistUnitTestCase {
 
     func test_install_when_theCocoaPodsFromBundlerCanBeUsed() throws {
         // Given
-        let graph = ValueGraph.test(dependencies: [ValueGraphDependency.cocoapods(path: "/"): Set()])
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graph = Graph.test(dependencies: [GraphDependency.cocoapods(path: "/"): Set()])
+        let graphTraverser = GraphTraverser(graph: graph)
 
         system.succeedCommand(["bundle", "show", "cocoapods"])
         system.succeedCommand(["bundle", "exec", "pod", "install", "--project-directory=/"])
@@ -65,8 +65,8 @@ final class CocoaPodsInteractorTests: TuistUnitTestCase {
 
     func test_install_when_theCocoaPodsFromTheSystemCanBeUsed() throws {
         // Given
-        let graph = ValueGraph.test(dependencies: [ValueGraphDependency.cocoapods(path: "/"): Set()])
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graph = Graph.test(dependencies: [GraphDependency.cocoapods(path: "/"): Set()])
+        let graphTraverser = GraphTraverser(graph: graph)
 
         system.errorCommand(["bundle", "show", "cocoapods"])
         system.whichStub = {
@@ -84,8 +84,8 @@ final class CocoaPodsInteractorTests: TuistUnitTestCase {
 
     func test_install_when_theCocoaPodsSpecsRepoIsOutdated() throws {
         // Given
-        let graph = ValueGraph.test(dependencies: [ValueGraphDependency.cocoapods(path: "/"): Set()])
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graph = Graph.test(dependencies: [GraphDependency.cocoapods(path: "/"): Set()])
+        let graphTraverser = GraphTraverser(graph: graph)
 
         system.succeedCommand(["bundle", "show", "cocoapods"])
         system.errorCommand(["bundle", "exec", "pod", "install", "--project-directory=/"], error: "[!] CocoaPods could not find compatible versions for pod")

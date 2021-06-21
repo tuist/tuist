@@ -688,7 +688,9 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
     }
 
     fileprivate func expectedSettings(includePaths: [AbsolutePath]) -> Settings {
-        let paths = includePaths.map(\.pathString)
+        let paths = includePaths
+            .map(\.pathString)
+            .map { "\"\($0)\"" }
         return Settings(
             base: [
                 "FRAMEWORK_SEARCH_PATHS": .array(paths),

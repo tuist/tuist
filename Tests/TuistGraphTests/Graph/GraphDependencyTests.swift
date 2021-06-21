@@ -4,10 +4,10 @@ import XCTest
 @testable import TuistGraph
 @testable import TuistSupportTesting
 
-final class ValueGraphDependencyTests: TuistUnitTestCase {
+final class GraphDependencyTests: TuistUnitTestCase {
     func test_codable_target() {
         // Given
-        let subject = ValueGraphDependency.testTarget()
+        let subject = GraphDependency.testTarget()
 
         // Then
         XCTAssertCodable(subject)
@@ -15,7 +15,7 @@ final class ValueGraphDependencyTests: TuistUnitTestCase {
 
     func test_codable_framework() {
         // Given
-        let subject = ValueGraphDependency.testFramework()
+        let subject = GraphDependency.testFramework()
 
         // Then
         XCTAssertCodable(subject)

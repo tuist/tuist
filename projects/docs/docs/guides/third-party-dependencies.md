@@ -122,7 +122,7 @@ let project = Project(
             infoPlist: .default,
             sources: ["Targets/App/Sources/**"],
             dependencies: [
-                .xcFramework("Tuist/Dependencies/Carthage/Alamofire.xcframework"),
+                .thirdParty(name: "Alamofire"),
             ]
         ),
     ]

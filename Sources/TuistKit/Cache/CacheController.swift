@@ -120,7 +120,7 @@ final class CacheController: CacheControlling {
             cacheOutputType: artifactBuilder.cacheOutputType
         )
 
-        let filteredTargets: [ValueGraphTarget]
+        let filteredTargets: [GraphTarget]
         if targetsToFilter.isEmpty {
             filteredTargets = Array(hashesByCacheableTarget.keys)
         } else {
@@ -129,7 +129,7 @@ final class CacheController: CacheControlling {
 
         logger.notice("Building cacheable targets")
 
-        let graphTraveser = ValueGraphTraverser(graph: graph)
+        let graphTraveser = GraphTraverser(graph: graph)
         let sortedCacheableTargets = try topologicalSort(
             filteredTargets,
             successors: {
@@ -161,7 +161,7 @@ final class CacheController: CacheControlling {
     ///   - configuration: The configuration.
     ///   - hash: Hash of the target.
     fileprivate func buildAndCacheFramework(path: AbsolutePath,
-                                            target: ValueGraphTarget,
+                                            target: GraphTarget,
                                             configuration: String,
                                             hash: String) throws
     {

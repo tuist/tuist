@@ -35,7 +35,7 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
             )
             let modelGenerator = TestModelGenerator(rootPath: temporaryPath, config: config)
             let graph = try modelGenerator.generate()
-            let graphTraverser = ValueGraphTraverser(graph: graph)
+            let graphTraverser = GraphTraverser(graph: graph)
 
             let workspaceDescriptor = try subject.generateWorkspace(graphTraverser: graphTraverser)
 
