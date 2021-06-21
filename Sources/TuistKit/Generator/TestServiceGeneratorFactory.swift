@@ -28,8 +28,7 @@ final class TestServiceGeneratorFactory: TestServiceGeneratorFactorying {
                 workspaceDirectory: FileHandler.shared.resolveSymlinks(automationPath),
                 skipUITests: skipUITests
             ),
-            manifestLoaderFactory: ManifestLoaderFactory(),
-            dependenciesGraphLoader: DependenciesGraphLoader()
+            manifestLoaderFactory: ManifestLoaderFactory()
         )
     }
 }
