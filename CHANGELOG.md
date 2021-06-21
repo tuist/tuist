@@ -12,6 +12,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
+- Improved cold start time of `tuist generate` when having multiple projects [#3092](https://github.com/tuist/tuist/pull/3092) by [@adellibovi](https://github.com/adellibovi)
 - Renamed `ValueGraph` to `Graph` [#3083](https://github.com/tuist/tuist/pull/3083) by [@fortmarek](https://github.com/fortmarek)
 - Fixed a typo on the `tuist generate` command documentation for argument --skip-test-targets. [#3069](https://github.com/tuist/tuist/pull/3069) by [@mrcloud](https://github.com/mrcloud)
 - **breaking** The `tuist dependencies` command requires the `Carthage` version to be at least `0.37.0`. [#3043](https://github.com/tuist/tuist/pull/3043) by [@laxmorek](https://github.com/laxmorek)
