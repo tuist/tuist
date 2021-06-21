@@ -3,12 +3,12 @@ import TSCBasic
 
 @testable import TuistGraph
 
-public extension ValueGraphTarget {
+public extension GraphTarget {
     static func test(path: AbsolutePath = .root,
                      target: Target = .test(),
-                     project: Project = .test()) -> ValueGraphTarget
+                     project: Project = .test()) -> GraphTarget
     {
-        ValueGraphTarget(
+        GraphTarget(
             path: path,
             target: target,
             project: project

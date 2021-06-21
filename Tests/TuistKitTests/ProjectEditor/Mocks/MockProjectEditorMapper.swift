@@ -9,7 +9,7 @@ import TuistLoader
 @testable import TuistKit
 
 final class MockProjectEditorMapper: ProjectEditorMapping {
-    var mapStub: ValueGraph?
+    var mapStub: Graph?
     var mapArgs: [(
         name: String,
         tuistPath: AbsolutePath,
@@ -44,7 +44,7 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
         tasks: [AbsolutePath],
         projectDescriptionPath: AbsolutePath,
         projectAutomationPath: AbsolutePath
-    ) throws -> ValueGraph {
+    ) throws -> Graph {
         mapArgs.append((
             name: name,
             tuistPath: tuistPath,
@@ -64,6 +64,6 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
         ))
 
         if let mapStub = mapStub { return mapStub }
-        return ValueGraph.test()
+        return Graph.test()
     }
 }

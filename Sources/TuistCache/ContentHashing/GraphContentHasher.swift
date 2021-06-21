@@ -11,10 +11,10 @@ public protocol GraphContentHashing {
     ///     - filter: If `true`, `TargetNode` is hashed, otherwise it is skipped
     ///     - additionalStrings: Additional strings to be used when hashing graph
     func contentHashes(
-        for graph: ValueGraph,
-        filter: (ValueGraphTarget) -> Bool,
+        for graph: Graph,
+        filter: (GraphTarget) -> Bool,
         additionalStrings: [String]
-    ) throws -> [ValueGraphTarget: String]
+    ) throws -> [GraphTarget: String]
 }
 
 public extension GraphContentHashing {
@@ -24,10 +24,10 @@ public extension GraphContentHashing {
     ///     - filter: If `true`, `TargetNode` is hashed, otherwise it is skipped
     ///     - additionalStrings: Additional strings to be used when hashing graph
     func contentHashes(
-        for graph: ValueGraph,
-        filter: (ValueGraphTarget) -> Bool = { _ in true },
+        for graph: Graph,
+        filter: (GraphTarget) -> Bool = { _ in true },
         additionalStrings: [String] = []
-    ) throws -> [ValueGraphTarget: String] {
+    ) throws -> [GraphTarget: String] {
         try contentHashes(
             for: graph,
             filter: filter,
@@ -56,13 +56,13 @@ public final class GraphContentHasher: GraphContentHashing {
     // MARK: - GraphContentHashing
 
     public func contentHashes(
-        for graph: ValueGraph,
-        filter: (ValueGraphTarget) -> Bool,
+        for graph: Graph,
+        filter: (GraphTarget) -> Bool,
         additionalStrings: [String]
-    ) throws -> [ValueGraphTarget: String] {
-        let graphTraverser = ValueGraphTraverser(graph: graph)
-        var visitedNodes: [ValueGraphTarget: Bool] = [:]
-        let hashableTargets = graphTraverser.allTargets().compactMap { target -> ValueGraphTarget? in
+    ) throws -> [GraphTarget: String] {
+        let graphTraverser = GraphTraverser(graph: graph)
+        var visitedNodes: [GraphTarget: Bool] = [:]
+        let hashableTargets = graphTraverser.allTargets().compactMap { target -> GraphTarget? in
             if isHashable(
                 target,
                 graphTraverser: graphTraverser,
@@ -86,10 +86,10 @@ public final class GraphContentHasher: GraphContentHashing {
     // MARK: - Private
 
     private func isHashable(
-        _ target: ValueGraphTarget,
+        _ target: GraphTarget,
         graphTraverser: GraphTraversing,
-        visited: inout [ValueGraphTarget: Bool],
-        filter: (ValueGraphTarget) -> Bool
+        visited: inout [GraphTarget: Bool],
+        filter: (GraphTarget) -> Bool
     ) -> Bool {
         guard filter(target) else {
             visited[target] = false

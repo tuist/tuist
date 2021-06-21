@@ -24,9 +24,9 @@ enum XCFrameworkLoaderError: FatalError, Equatable {
 }
 
 public protocol XCFrameworkLoading {
-    /// Reads an existing xcframework and returns its in-memory representation, `ValueGraphDependency.xcframework`.
+    /// Reads an existing xcframework and returns its in-memory representation, `GraphDependency.xcframework`.
     /// - Parameter path: Path to the .xcframework.
-    func load(path: AbsolutePath) throws -> ValueGraphDependency
+    func load(path: AbsolutePath) throws -> GraphDependency
 }
 
 public final class XCFrameworkLoader: XCFrameworkLoading {
@@ -43,7 +43,7 @@ public final class XCFrameworkLoader: XCFrameworkLoading {
         self.xcframeworkMetadataProvider = xcframeworkMetadataProvider
     }
 
-    public func load(path: AbsolutePath) throws -> ValueGraphDependency {
+    public func load(path: AbsolutePath) throws -> GraphDependency {
         guard FileHandler.shared.exists(path) else {
             throw XCFrameworkLoaderError.xcframeworkNotFound(path)
         }

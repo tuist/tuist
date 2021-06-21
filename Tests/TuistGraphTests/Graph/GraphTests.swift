@@ -4,10 +4,10 @@ import XCTest
 @testable import TuistGraph
 @testable import TuistSupportTesting
 
-final class ValueGraphTests: TuistUnitTestCase {
+final class GraphTests: TuistUnitTestCase {
     func test_codable() {
         // Given
-        let subject = ValueGraph.test(name: "name", path: "/path/to")
+        let subject = Graph.test(name: "name", path: "/path/to")
 
         // Then
         XCTAssertCodable(subject)

@@ -20,12 +20,12 @@ final class CacheGraphLinterTests: TuistUnitTestCase {
         let target = Target.test(actions: [
             .init(name: "test", order: .post, script: .embedded("echo 'Hello World'")),
         ])
-        let graphTarget = ValueGraphTarget.test(
+        let graphTarget = GraphTarget.test(
             path: project.path,
             target: target,
             project: project
         )
-        let graph = ValueGraph.test(
+        let graph = Graph.test(
             projects: [project.path: project],
             targets: [
                 graphTarget.path: [graphTarget.target.name: graphTarget.target],

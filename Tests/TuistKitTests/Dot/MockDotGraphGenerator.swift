@@ -6,13 +6,13 @@ import TuistGraph
 import TuistKit
 
 final class MockGraphToGraphVizMapper: GraphToGraphVizMapping {
-    var stubMap: Graph?
+    var stubMap: GraphViz.Graph?
     func map(
-        graph _: ValueGraph,
+        graph _: TuistGraph.Graph,
         skipTestTargets _: Bool,
         skipExternalDependencies _: Bool,
         targetsToFilter _: [String]
-    ) -> Graph {
-        stubMap ?? Graph()
+    ) -> GraphViz.Graph {
+        stubMap ?? GraphViz.Graph()
     }
 }

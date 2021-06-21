@@ -137,29 +137,29 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         return graph
     }
 
-    private func makeGivenGraph() throws -> ValueGraph {
+    private func makeGivenGraph() throws -> TuistGraph.Graph {
         let project = Project.test(path: "/")
         let coreProject = Project.test(path: "/Core")
-        let framework = ValueGraphDependency.testFramework(path: AbsolutePath("/XcodeProj.framework"))
-        let library = ValueGraphDependency.testLibrary(path: AbsolutePath("/RxSwift.a"))
-        let sdk = ValueGraphDependency.testSDK(name: "CoreData.framework", status: .required, source: .developer)
+        let framework = GraphDependency.testFramework(path: AbsolutePath("/XcodeProj.framework"))
+        let library = GraphDependency.testLibrary(path: AbsolutePath("/RxSwift.a"))
+        let sdk = GraphDependency.testSDK(name: "CoreData.framework", status: .required, source: .developer)
 
-        let core = ValueGraphTarget.test(
+        let core = GraphTarget.test(
             path: coreProject.path,
             target: Target.test(name: "Core")
         )
-        let coreDependency = ValueGraphDependency.target(name: core.target.name, path: core.path)
-        let coreTests = ValueGraphTarget.test(
+        let coreDependency = GraphDependency.target(name: core.target.name, path: core.path)
+        let coreTests = GraphTarget.test(
             path: coreProject.path,
             target: Target.test(
                 name: "CoreTests",
                 product: .unitTests
             )
         )
-        let iOSApp = ValueGraphTarget.test(target: Target.test(name: "Tuist iOS"))
-        let watchApp = ValueGraphTarget.test(target: Target.test(name: "Tuist watchOS"))
+        let iOSApp = GraphTarget.test(target: Target.test(name: "Tuist iOS"))
+        let watchApp = GraphTarget.test(target: Target.test(name: "Tuist watchOS"))
 
-        let graph = ValueGraph.test(
+        let graph = TuistGraph.Graph.test(
             projects: [
                 project.path: project,
                 coreProject.path: coreProject,

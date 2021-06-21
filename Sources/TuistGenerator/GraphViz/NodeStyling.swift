@@ -33,7 +33,7 @@ struct NodeStyleAttributes {
     }
 }
 
-extension ValueGraphTarget {
+extension GraphTarget {
     var styleAttributes: NodeStyleAttributes {
         switch target.product {
         case .app, .watch2App, .commandLineTool, .appClip:
@@ -58,7 +58,7 @@ extension ValueGraphTarget {
     }
 }
 
-extension ValueGraphDependency {
+extension GraphDependency {
     func styleAttributes(
         graphTraverser: GraphTraversing
     ) -> NodeStyleAttributes? {

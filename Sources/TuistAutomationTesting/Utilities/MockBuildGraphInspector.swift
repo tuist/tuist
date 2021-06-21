@@ -13,12 +13,12 @@ public final class MockBuildGraphInspector: BuildGraphInspecting {
         workspacePathStub?(directory) ?? nil
     }
 
-    public var buildableTargetStub: ((Scheme, GraphTraversing) -> ValueGraphTarget?)?
-    public func buildableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> ValueGraphTarget? {
+    public var buildableTargetStub: ((Scheme, GraphTraversing) -> GraphTarget?)?
+    public func buildableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> GraphTarget? {
         if let buildableTargetStub = buildableTargetStub {
             return buildableTargetStub(scheme, graphTraverser)
         } else {
-            return ValueGraphTarget.test()
+            return GraphTarget.test()
         }
     }
 
@@ -45,12 +45,12 @@ public final class MockBuildGraphInspector: BuildGraphInspecting {
         }
     }
 
-    public var testableTargetStub: ((Scheme, GraphTraversing) -> ValueGraphTarget?)?
-    public func testableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> ValueGraphTarget? {
+    public var testableTargetStub: ((Scheme, GraphTraversing) -> GraphTarget?)?
+    public func testableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> GraphTarget? {
         if let testableTargetStub = testableTargetStub {
             return testableTargetStub(scheme, graphTraverser)
         } else {
-            return ValueGraphTarget.test()
+            return GraphTarget.test()
         }
     }
 
@@ -68,8 +68,8 @@ public final class MockBuildGraphInspector: BuildGraphInspecting {
         testSchemesStub?(graphTraverser) ?? []
     }
 
-    public var runnableTargetStub: ((Scheme, GraphTraversing) -> ValueGraphTarget?)?
-    public func runnableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> ValueGraphTarget? {
+    public var runnableTargetStub: ((Scheme, GraphTraversing) -> GraphTarget?)?
+    public func runnableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> GraphTarget? {
         runnableTargetStub?(scheme, graphTraverser)
     }
 

@@ -28,7 +28,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     case product(target: String, productName: String)
     case sdk(path: AbsolutePath, status: SDKStatus, source: SDKSource)
 
-    init(_ dependency: ValueGraphDependency) {
+    init(_ dependency: GraphDependency) {
         switch dependency {
         case let .framework(path, binaryPath, dsymPath, bcsymbolmapPaths, linking, architectures, isCarthage):
             self = .framework(

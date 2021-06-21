@@ -57,7 +57,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
 
     func test_throwsError_when_buildProductNotFound() throws {
         // Given
-        let target = ValueGraphTarget.test()
+        let target = GraphTarget.test()
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
         let outputPath = path.appending(component: ".build")
@@ -115,7 +115,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
         // Given
         let workspacePath = try temporaryPath().appending(component: "App.xcworkspace")
         let target = Target.test(platform: .macOS, product: .commandLineTool)
-        let graphTarget = ValueGraphTarget.test(path: workspacePath, target: target, project: .test())
+        let graphTarget = GraphTarget.test(path: workspacePath, target: target, project: .test())
         let outputPath = try temporaryPath().appending(component: ".build")
         let executablePath = outputPath.appending(component: target.productNameWithExtension)
         let arguments = ["Argument", "--option1", "AnotherArgument", "--option2=true", "-opt3"]
@@ -144,7 +144,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
         // Given
         let workspacePath = try temporaryPath().appending(component: "App.xcworkspace")
         let target = Target.test(platform: .iOS, product: .app)
-        let graphTarget = ValueGraphTarget.test(path: workspacePath, target: target, project: .test())
+        let graphTarget = GraphTarget.test(path: workspacePath, target: target, project: .test())
         let outputPath = try temporaryPath().appending(component: ".build")
         let appPath = outputPath.appending(component: target.productNameWithExtension)
         let arguments = ["Argument", "--option1", "AnotherArgument", "--option2=true", "-opt3"]

@@ -8,14 +8,14 @@ import TuistSupport
 public protocol CacheGraphLinting {
     /// Lint a given graph.
     /// - Parameter graph: Graph to be linted.
-    func lint(graph: ValueGraph)
+    func lint(graph: Graph)
 }
 
 public final class CacheGraphLinter: CacheGraphLinting {
     public init() {}
 
-    public func lint(graph: ValueGraph) {
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+    public func lint(graph: Graph) {
+        let graphTraverser = GraphTraverser(graph: graph)
         let targets = graphTraverser.allTargets()
         let targetsWithActions = targets.filter { $0.target.actions.count != 0 }
         if !targetsWithActions.isEmpty {

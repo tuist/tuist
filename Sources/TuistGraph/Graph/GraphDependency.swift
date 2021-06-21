@@ -2,7 +2,7 @@ import Foundation
 import TSCBasic
 
 // swiftlint:disable:next type_body_length
-public enum ValueGraphDependency: Hashable, CustomStringConvertible, Comparable, Codable {
+public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Codable {
     /// A dependency that represents a pre-compiled .xcframework.
     case xcframework(
         path: AbsolutePath,
@@ -132,7 +132,7 @@ public enum ValueGraphDependency: Hashable, CustomStringConvertible, Comparable,
 
     // MARK: - Comparable
 
-    public static func < (lhs: ValueGraphDependency, rhs: ValueGraphDependency) -> Bool {
+    public static func < (lhs: GraphDependency, rhs: GraphDependency) -> Bool {
         lhs.description < rhs.description
     }
 

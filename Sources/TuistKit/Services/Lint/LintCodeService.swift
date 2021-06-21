@@ -65,7 +65,7 @@ final class LintCodeService {
         let graph = try manifestGraphLoader.loadGraph(at: path)
 
         // Get sources
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
         let sources = try getSources(targetName: targetName, graphTraverser: graphTraverser)
 
         // Lint code

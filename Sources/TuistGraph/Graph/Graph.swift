@@ -2,7 +2,7 @@ import Foundation
 import TSCBasic
 
 /// A directed acyclic graph (DAG) that Tuist uses to represent the dependency tree.
-public struct ValueGraph: Equatable, Codable {
+public struct Graph: Equatable, Codable {
     /// The name of the graph
     public var name: String
 
@@ -25,7 +25,7 @@ public struct ValueGraph: Equatable, Codable {
     public var targets: [AbsolutePath: [String: Target]]
 
     /// A dictionary that contains the one-to-many dependencies that represent the graph.
-    public var dependencies: [ValueGraphDependency: Set<ValueGraphDependency>]
+    public var dependencies: [GraphDependency: Set<GraphDependency>]
 
     public init(name: String,
                 path: AbsolutePath,
@@ -33,7 +33,7 @@ public struct ValueGraph: Equatable, Codable {
                 projects: [AbsolutePath: Project],
                 packages: [AbsolutePath: [String: Package]],
                 targets: [AbsolutePath: [String: Target]],
-                dependencies: [ValueGraphDependency: Set<ValueGraphDependency>])
+                dependencies: [GraphDependency: Set<GraphDependency>])
     {
         self.name = name
         self.path = path

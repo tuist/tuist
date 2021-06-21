@@ -102,7 +102,7 @@ final class TestService {
             path: path,
             projectOnly: false
         ).1
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
         let version = osVersion?.version()
 
         let testableSchemes = buildGraphInspector.testableSchemes(graphTraverser: graphTraverser) +
