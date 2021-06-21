@@ -1,10 +1,28 @@
 import Foundation
 import TSCBasic
 import TuistGraph
+import TuistSupport
+
+// MARK: - GraphLoaderError
+
+public enum GraphLoaderError: FatalError {
+    case invalidThirdPartyDependency(name: String)
+
+    public var type: ErrorType { .abort }
+
+    public var description: String {
+        switch self {
+        case let .invalidThirdPartyDependency(name):
+            return "`\(name)` is not a valid configured ThirdPartyDependency"
+        }
+    }
+}
+
+// MARK: - GraphLoading
 
 public protocol GraphLoading {
-    func loadWorkspace(workspace: Workspace, projects: [Project]) throws -> Graph
-    func loadProject(at path: AbsolutePath, projects: [Project]) throws -> (Project, Graph)
+    func loadWorkspace(workspace: Workspace, projects: [Project], dependencies: DependenciesGraph) throws -> Graph
+    func loadProject(at path: AbsolutePath, projects: [Project], dependencies: DependenciesGraph) throws -> (Project, Graph)
 }
 
 // MARK: - GraphLoader
@@ -39,16 +57,12 @@ public final class GraphLoader: GraphLoading {
 
     // MARK: - GraphLoading
 
-    public func loadWorkspace(workspace: Workspace, projects: [Project]) throws -> Graph {
+    public func loadWorkspace(workspace: Workspace, projects: [Project], dependencies: DependenciesGraph) throws -> Graph {
         let cache = Cache(projects: projects)
         let cycleDetector = GraphCircularDetector()
 
-        try workspace.projects.forEach { project in
-            try loadProject(
-                path: project,
-                cache: cache,
-                cycleDetector: cycleDetector
-            )
+        try workspace.projects.forEach {
+            try loadProject(path: $0, cache: cache, cycleDetector: cycleDetector, dependencies: dependencies)
         }
 
         let updatedWorkspace = workspace.replacing(projects: cache.loadedProjects.keys.sorted())
@@ -64,13 +78,13 @@ public final class GraphLoader: GraphLoading {
         return graph
     }
 
-    public func loadProject(at path: AbsolutePath, projects: [Project]) throws -> (Project, Graph) {
+    public func loadProject(at path: AbsolutePath, projects: [Project], dependencies: DependenciesGraph) throws -> (Project, Graph) {
         let cache = Cache(projects: projects)
         guard let rootProject = cache.allProjects[path] else {
             throw GraphLoadingError.missingProject(path)
         }
         let cycleDetector = GraphCircularDetector()
-        try loadProject(path: path, cache: cache, cycleDetector: cycleDetector)
+        try loadProject(path: path, cache: cache, cycleDetector: cycleDetector, dependencies: dependencies)
 
         let workspace = Workspace(
             path: path,
@@ -95,7 +109,8 @@ public final class GraphLoader: GraphLoading {
     private func loadProject(
         path: AbsolutePath,
         cache: Cache,
-        cycleDetector: GraphCircularDetector
+        cycleDetector: GraphCircularDetector,
+        dependencies: DependenciesGraph
     ) throws {
         guard !cache.projectLoaded(path: path) else {
             return
@@ -110,7 +125,8 @@ public final class GraphLoader: GraphLoading {
                 path: path,
                 name: $0.name,
                 cache: cache,
-                cycleDetector: cycleDetector
+                cycleDetector: cycleDetector,
+                dependencies: dependencies
             )
         }
     }
@@ -119,7 +135,8 @@ public final class GraphLoader: GraphLoading {
         path: AbsolutePath,
         name: String,
         cache: Cache,
-        cycleDetector: GraphCircularDetector
+        cycleDetector: GraphCircularDetector,
+        dependencies: DependenciesGraph
     ) throws {
         guard !cache.targetLoaded(path: path, name: name) else {
             return
@@ -134,21 +151,22 @@ public final class GraphLoader: GraphLoading {
         }
 
         cache.add(target: target, path: path)
-        let dependencies = try target.dependencies.map {
+        let targetDependencies = try target.dependencies.map {
             try loadDependency(
                 path: path,
                 fromTarget: target.name,
                 fromPlatform: target.platform,
                 dependency: $0,
                 cache: cache,
-                cycleDetector: cycleDetector
+                cycleDetector: cycleDetector,
+                dependencies: dependencies
             )
         }
 
         try cycleDetector.complete()
 
-        if !dependencies.isEmpty {
-            cache.dependencies[.target(name: name, path: path)] = Set(dependencies)
+        if !targetDependencies.isEmpty {
+            cache.dependencies[.target(name: name, path: path)] = Set(targetDependencies)
         }
     }
 
@@ -159,7 +177,8 @@ public final class GraphLoader: GraphLoading {
         fromPlatform: Platform,
         dependency: TargetDependency,
         cache: Cache,
-        cycleDetector: GraphCircularDetector
+        cycleDetector: GraphCircularDetector,
+        dependencies: DependenciesGraph
     ) throws -> GraphDependency {
         switch dependency {
         case let .target(toTarget):
@@ -171,7 +190,8 @@ public final class GraphLoader: GraphLoading {
                 path: path,
                 name: toTarget,
                 cache: cache,
-                cycleDetector: cycleDetector
+                cycleDetector: cycleDetector,
+                dependencies: dependencies
             )
             return .target(name: toTarget, path: path)
 
@@ -180,12 +200,13 @@ public final class GraphLoader: GraphLoading {
             let circularFrom = GraphCircularDetectorNode(path: path, name: fromTarget)
             let circularTo = GraphCircularDetectorNode(path: projectPath, name: toTarget)
             cycleDetector.start(from: circularFrom, to: circularTo)
-            try loadProject(path: projectPath, cache: cache, cycleDetector: cycleDetector)
+            try loadProject(path: projectPath, cache: cache, cycleDetector: cycleDetector, dependencies: dependencies)
             try loadTarget(
                 path: projectPath,
                 name: toTarget,
                 cache: cache,
-                cycleDetector: cycleDetector
+                cycleDetector: cycleDetector,
+                dependencies: dependencies
             )
             return .target(name: toTarget, path: projectPath)
 
@@ -215,9 +236,27 @@ public final class GraphLoader: GraphLoading {
         case .xctest:
             return try loadXCTestSDK(platform: fromPlatform)
 
-        case .thirdParty:
-            // A dependency imported through Dependencies.swift.
-            fatalError("TargetDependency.thirdParty not implemented yet")
+        case let .thirdParty(name):
+            guard let dependency = dependencies.thirdPartyDependencies[name] else {
+                throw GraphLoaderError.invalidThirdPartyDependency(name: name)
+            }
+
+            let mappedDependency: TargetDependency
+            switch dependency {
+            case let .xcframework(path, _):
+                // TODO: handle architecture
+                mappedDependency = .xcFramework(path: path)
+            }
+
+            return try self.loadDependency(
+                path: path,
+                fromTarget: fromTarget,
+                fromPlatform: fromPlatform,
+                dependency: mappedDependency,
+                cache: cache,
+                cycleDetector: cycleDetector,
+                dependencies: dependencies
+            )
         }
     }
 

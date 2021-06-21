@@ -13,4 +13,7 @@ public struct DependenciesGraph: Equatable, Codable {
     ) {
         self.thirdPartyDependencies = thirdPartyDependencies
     }
+
+    /// An empty `DependenciesGraph`.
+    public static let none: DependenciesGraph = .init(thirdPartyDependencies: [:])
 }
