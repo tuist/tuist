@@ -200,7 +200,7 @@ public final class GraphLoader: GraphLoading {
                 cache: cache
             )
 
-        case let .xcFramework(frameworkPath):
+        case let .xcframework(frameworkPath):
             return try loadXCFramework(path: frameworkPath, cache: cache)
 
         case let .sdk(name, status):

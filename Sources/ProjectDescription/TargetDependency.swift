@@ -66,7 +66,7 @@ public enum TargetDependency: Codable, Equatable {
     /// - Parameters:
     ///   - path: Relative path to the xcframework
 
-    case xcFramework(path: Path)
+    case xcframework(path: Path)
 
     /// Dependency on XCTest.
     case xctest
@@ -101,7 +101,7 @@ public enum TargetDependency: Codable, Equatable {
             return "sdk"
         case .cocoapods:
             return "cocoapods"
-        case .xcFramework:
+        case .xcframework:
             return "xcframework"
         case .xctest:
             return "xctest"
@@ -155,7 +155,7 @@ extension TargetDependency {
             self = .framework(path: try container.decode(Path.self, forKey: .path))
 
         case "xcframework":
-            self = .xcFramework(path: try container.decode(Path.self, forKey: .path))
+            self = .xcframework(path: try container.decode(Path.self, forKey: .path))
 
         case "library":
             self = .library(
@@ -211,7 +211,7 @@ extension TargetDependency {
             try container.encode(status, forKey: .status)
         case let .cocoapods(path):
             try container.encode(path, forKey: .path)
-        case let .xcFramework(path):
+        case let .xcframework(path):
             try container.encode(path, forKey: .path)
         case .xctest:
             break
