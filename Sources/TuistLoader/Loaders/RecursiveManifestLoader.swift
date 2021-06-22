@@ -6,8 +6,8 @@ import TuistSupport
 
 /// A component that can load a manifest and all its (transitive) manifest dependencies
 public protocol RecursiveManifestLoading {
-    func loadProject(at path: AbsolutePath, dependencies: DependenciesGraph) throws -> LoadedProjects
-    func loadWorkspace(at path: AbsolutePath, dependencies: DependenciesGraph) throws -> LoadedWorkspace
+    func loadProject(at path: AbsolutePath, dependenciesGraph: DependenciesGraph) throws -> LoadedProjects
+    func loadWorkspace(at path: AbsolutePath, dependenciesGraph: DependenciesGraph) throws -> LoadedWorkspace
 }
 
 public struct LoadedProjects {
@@ -31,11 +31,11 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         self.fileHandler = fileHandler
     }
 
-    public func loadProject(at path: AbsolutePath, dependencies: DependenciesGraph) throws -> LoadedProjects {
-        try loadProjects(paths: [path], dependencies: dependencies)
+    public func loadProject(at path: AbsolutePath, dependenciesGraph: DependenciesGraph) throws -> LoadedProjects {
+        try loadProjects(paths: [path], dependenciesGraph: dependenciesGraph)
     }
 
-    public func loadWorkspace(at path: AbsolutePath, dependencies: DependenciesGraph) throws -> LoadedWorkspace {
+    public func loadWorkspace(at path: AbsolutePath, dependenciesGraph: DependenciesGraph) throws -> LoadedWorkspace {
         let workspace = try manifestLoader.loadWorkspace(at: path)
 
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
@@ -49,7 +49,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
             manifestLoader.manifests(at: $0).contains(.project)
         }
 
-        let projects = try loadProjects(paths: projectPaths, dependencies: dependencies)
+        let projects = try loadProjects(paths: projectPaths, dependenciesGraph: dependenciesGraph)
         return LoadedWorkspace(
             path: path,
             workspace: workspace,
@@ -59,7 +59,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
 
     // MARK: - Private
 
-    private func loadProjects(paths: [AbsolutePath], dependencies: DependenciesGraph) throws -> LoadedProjects {
+    private func loadProjects(paths: [AbsolutePath], dependenciesGraph: DependenciesGraph) throws -> LoadedProjects {
         var cache = [AbsolutePath: ProjectDescription.Project]()
 
         var paths = paths
@@ -70,7 +70,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
 
             let project = try manifestLoader.loadProject(at: path)
             cache[path] = project
-            paths.append(contentsOf: try dependencyPaths(for: project, path: path, dependencies: dependencies))
+            paths.append(contentsOf: try dependencyPaths(for: project, path: path, dependenciesGraph: dependenciesGraph))
         }
 
         return LoadedProjects(projects: cache)
@@ -79,7 +79,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
     private func dependencyPaths(
         for project: ProjectDescription.Project,
         path: AbsolutePath,
-        dependencies: DependenciesGraph
+        dependenciesGraph: DependenciesGraph
     ) throws -> [AbsolutePath] {
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         let paths: [AbsolutePath] = try project.targets.flatMap {
@@ -88,7 +88,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
                 case let .project(target: _, path: projectPath):
                     return try generatorPaths.resolve(path: projectPath)
                 case let .external(name):
-                    guard let dependency = dependencies.externalDependencies[name] else {
+                    guard let dependency = dependenciesGraph.externalDependencies[name] else {
                         return nil
                     }
 

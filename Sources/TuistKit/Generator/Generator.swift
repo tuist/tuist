@@ -114,10 +114,10 @@ class Generator: Generating {
         manifestLoader.register(plugins: plugins)
 
         // Load DependenciesGraph
-        let dependencies = try dependenciesGraphLoader.loadDependencies(at: path)
+        let dependenciesGraph = try dependenciesGraphLoader.loadDependencies(at: path)
 
         // Load all manifests
-        let manifests = try recursiveManifestLoader.loadProject(at: path, dependencies: dependencies)
+        let manifests = try recursiveManifestLoader.loadProject(at: path, dependenciesGraph: dependenciesGraph)
 
         // Lint Manifests
         try manifests.projects.flatMap {
@@ -138,7 +138,7 @@ class Generator: Generating {
         let (project, graph) = try graphLoader.loadProject(
             at: path,
             projects: updatedProjects,
-            dependencies: dependencies
+            dependenciesGraph: dependenciesGraph
         )
 
         // Apply graph mappers
@@ -243,10 +243,10 @@ class Generator: Generating {
         manifestLoader.register(plugins: plugins)
 
         // Load DependenciesGraph
-        let dependencies = try dependenciesGraphLoader.loadDependencies(at: path)
+        let dependenciesGraph = try dependenciesGraphLoader.loadDependencies(at: path)
 
         // Load all manifests
-        let manifests = try recursiveManifestLoader.loadProject(at: path, dependencies: dependencies)
+        let manifests = try recursiveManifestLoader.loadProject(at: path, dependenciesGraph: dependenciesGraph)
 
         // Lint Manifests
         try manifests.projects.flatMap {
@@ -276,7 +276,7 @@ class Generator: Generating {
         var (project, graph) = try graphLoader.loadProject(
             at: path,
             projects: updatedModels.projects,
-            dependencies: dependencies
+            dependenciesGraph: dependenciesGraph
         )
         graph.workspace = updatedModels.workspace
 
@@ -305,10 +305,10 @@ class Generator: Generating {
         manifestLoader.register(plugins: plugins)
 
         // Load DependenciesGraph
-        let dependencies = try dependenciesGraphLoader.loadDependencies(at: path)
+        let dependenciesGraph = try dependenciesGraphLoader.loadDependencies(at: path)
 
         // Load all manifests
-        let manifests = try recursiveManifestLoader.loadWorkspace(at: path, dependencies: dependencies)
+        let manifests = try recursiveManifestLoader.loadWorkspace(at: path, dependenciesGraph: dependenciesGraph)
 
         // Lint Manifests
         try manifests.projects.flatMap {
@@ -329,7 +329,7 @@ class Generator: Generating {
         let graph = try graphLoader.loadWorkspace(
             workspace: updatedModels.workspace,
             projects: updatedModels.projects,
-            dependencies: dependencies
+            dependenciesGraph: dependenciesGraph
         )
 
         // Apply graph mappers

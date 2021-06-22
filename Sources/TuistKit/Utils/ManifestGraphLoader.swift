@@ -84,18 +84,18 @@ final class ManifestGraphLoader: ManifestGraphLoading {
 
     private func loadProjectGraph(at path: AbsolutePath) throws -> (Project, Graph) {
         let plugins = try loadPlugins(at: path)
-        let dependencies = try dependenciesGraphLoader.loadDependencies(at: path)
-        let manifests = try recursiveManifestLoader.loadProject(at: path, dependencies: dependencies)
+        let dependenciesGraph = try dependenciesGraphLoader.loadDependencies(at: path)
+        let manifests = try recursiveManifestLoader.loadProject(at: path, dependenciesGraph: dependenciesGraph)
         let models = try convert(manifests: manifests, plugins: plugins)
-        return try graphLoader.loadProject(at: path, projects: models, dependencies: dependencies)
+        return try graphLoader.loadProject(at: path, projects: models, dependenciesGraph: dependenciesGraph)
     }
 
     private func loadWorkspaceGraph(at path: AbsolutePath) throws -> Graph {
         let plugins = try loadPlugins(at: path)
-        let dependencies = try dependenciesGraphLoader.loadDependencies(at: path)
-        let manifests = try recursiveManifestLoader.loadWorkspace(at: path, dependencies: dependencies)
+        let dependenciesGraph = try dependenciesGraphLoader.loadDependencies(at: path)
+        let manifests = try recursiveManifestLoader.loadWorkspace(at: path, dependenciesGraph: dependenciesGraph)
         let models = try convert(manifests: manifests, plugins: plugins)
-        return try graphLoader.loadWorkspace(workspace: models.workspace, projects: models.projects, dependencies: dependencies)
+        return try graphLoader.loadWorkspace(workspace: models.workspace, projects: models.projects, dependenciesGraph: dependenciesGraph)
     }
 
     private func convert(
