@@ -200,7 +200,7 @@ public final class GraphLoader: GraphLoading {
                 cache: cache
             )
 
-        case let .xcFramework(frameworkPath):
+        case let .xcframework(frameworkPath):
             return try loadXCFramework(path: frameworkPath, cache: cache)
 
         case let .sdk(name, status):
@@ -215,9 +215,9 @@ public final class GraphLoader: GraphLoading {
         case .xctest:
             return try loadXCTestSDK(platform: fromPlatform)
 
-        case .thirdParty:
+        case .external:
             // A dependency imported through Dependencies.swift.
-            fatalError("TargetDependency.thirdParty not implemented yet")
+            fatalError("TargetDependency.external not implemented yet")
         }
     }
 

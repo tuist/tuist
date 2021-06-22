@@ -259,7 +259,7 @@ If you are working with git branches, we recommend you to keep everything in the
 
 If µFeatures are part of the same repository, they are versioned with the app. If you have them in different repositories you can use Git Submodules, Carthage, or your own dependency resolver to fetch specific versions of your µFeatures to link from the app.
 
-##### How to add third-party dependencies?
+##### How to add external dependencies?
 
 This architecture doesn't limit you from using external dependencies. If you want to use an external dependency from a µFeature framework, we recommend you to use [Carthage](https://github.com/carthage) or the [Swift Package Manager](https://swift.org/package-manager/).
 
