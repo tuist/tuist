@@ -34,6 +34,9 @@ public struct Config: Codable, Equatable {
         /// Disables locking Swift packages. This can speed up generation but does increase risk if packages are not locked
         /// in their declarations.
         case disablePackageVersionLocking
+
+        /// Disables generating Bundle accessors.
+        case disableBundleAccessors
     }
 
     /// Generation options.
@@ -93,6 +96,7 @@ extension Config.GenerationOptions {
         case enableCodeCoverage
         case resolveDependenciesWithSystemScm
         case disablePackageVersionLocking
+        case disableBundleAccessors
     }
 
     public init(from decoder: Decoder) throws {
@@ -128,6 +132,10 @@ extension Config.GenerationOptions {
             try container.decode(Bool.self, forKey: .resolveDependenciesWithSystemScm)
         {
             self = .resolveDependenciesWithSystemScm
+        } else if container.allKeys.contains(.disableBundleAccessors),
+            try container.decode(Bool.self, forKey: .disableBundleAccessors)
+        {
+            self = .disableBundleAccessors
         } else {
             throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown enum case"))
         }
@@ -158,6 +166,8 @@ extension Config.GenerationOptions {
             try container.encode(true, forKey: .resolveDependenciesWithSystemScm)
         case .disablePackageVersionLocking:
             try container.encode(true, forKey: .disablePackageVersionLocking)
+        case .disableBundleAccessors:
+            try container.encode(true, forKey: .disableBundleAccessors)
         }
     }
 }

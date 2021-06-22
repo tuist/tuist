@@ -128,6 +128,11 @@ Then(/^a file (.+) exists$/) do |file|
   assert(File.file?(file_path), "#{file_path} does not exist")
 end
 
+Then(/^a file (.+) does not exist$/) do |file|
+  file_path = File.join(@dir, file)
+  assert(!File.file?(file_path), "#{file_path} does exist")
+end
+
 Then(/^a directory (.+) exists$/) do |directory|
   directory_path = File.join(@dir, directory)
   assert(Dir.exist?(directory_path), "#{directory_path} does not exist")

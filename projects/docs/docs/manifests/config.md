@@ -75,6 +75,7 @@ Generation options allow customizing the generation of Xcode projects.
 | `.templateMacros(IDETemplateMacros)`        | Apply IDE Template macros to your project.                                                                                             |
 | `.resolveDependenciesWithSystemScm`         | Resolve SPM dependencies using your system's SCM credentials, instead of Xcode accounts.                                               |
 | `.disablePackageVersionLocking`             | Disables locking Swift packages. This can speed up generation but does increase risk if packages are not locked in their declarations. |
+| `.disableBundleAccessors`             | Disables generating Bundle accessors. |
 
 ### TemplateString
 

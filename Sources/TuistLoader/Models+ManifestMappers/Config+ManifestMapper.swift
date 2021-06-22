@@ -73,6 +73,8 @@ extension TuistGraph.Config.GenerationOption {
             return .resolveDependenciesWithSystemScm
         case .disablePackageVersionLocking:
             return .disablePackageVersionLocking
+        case .disableBundleAccessors:
+            return .disableBundleAccessors
         }
     }
 }
