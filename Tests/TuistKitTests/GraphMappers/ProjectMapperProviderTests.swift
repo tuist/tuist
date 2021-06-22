@@ -86,6 +86,24 @@ final class ProjectMapperProviderTests: TuistUnitTestCase {
         XCTAssertEqual(sequentialProjectMapper.mappers.filter { $0 is SynthesizedResourceInterfaceProjectMapper }.count, 0)
     }
 
+    func test_mappers_does_not_return_resources_project_mapper_when_disabled_bundle_accessors() throws {
+        // Given
+        subject = ProjectMapperProvider(contentHasher: ContentHasher())
+
+        // When
+        let got = subject.mapper(
+            config: Config.test(
+                generationOptions: [
+                    .disableBundleAccessors,
+                ]
+            )
+        )
+
+        // Then
+        let sequentialProjectMapper = try XCTUnwrap(got as? SequentialProjectMapper)
+        XCTAssertEqual(sequentialProjectMapper.mappers.filter { $0 is ResourcesProjectMapper }.count, 0)
+    }
+
     func test_mappers_does_disable_show_environment_vars() throws {
         // Given
         subject = ProjectMapperProvider(contentHasher: ContentHasher())
