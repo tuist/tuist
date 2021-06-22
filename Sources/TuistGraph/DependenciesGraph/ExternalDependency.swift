@@ -1,8 +1,8 @@
 import Foundation
 import TSCBasic
 
-// A enum containing information about third party dependency.
-public enum ThirdPartyDependency: Hashable, Codable {
+// A enum containing information about an external dependency.
+public enum ExternalDependency: Hashable, Codable {
     /// A dependency that is imported as source code.
     case sources(name: String, products: [Product], targets: [Target], minDeploymentTargets: Set<DeploymentTarget>)
 
@@ -10,8 +10,8 @@ public enum ThirdPartyDependency: Hashable, Codable {
     case xcframework(name: String, path: AbsolutePath, architectures: Set<BinaryArchitecture>)
 }
 
-extension ThirdPartyDependency {
-    /// The name of the third party dependency.
+extension ExternalDependency {
+    /// The name of the external dependency.
     public var name: String {
         switch self {
         case let .sources(name, _, _, _), let .xcframework(name, _, _):
@@ -20,7 +20,7 @@ extension ThirdPartyDependency {
     }
 }
 
-extension ThirdPartyDependency {
+extension ExternalDependency {
     /// A product that can be imported from projects depending on this dependency.
     public struct Product: Codable, Hashable {
         /// The type of product.
@@ -52,7 +52,7 @@ extension ThirdPartyDependency {
     }
 }
 
-extension ThirdPartyDependency {
+extension ExternalDependency {
     public struct Target: Codable, Hashable {
         /// The name of the target.
         public let name: String
@@ -125,7 +125,7 @@ extension ThirdPartyDependency {
     }
 }
 
-extension ThirdPartyDependency.Target {
+extension ExternalDependency.Target {
     public enum Dependency: Codable, Hashable {
         /// A linked framework dependency.
         case linkedFramework(name: String, platforms: Set<Platform>?)
@@ -137,7 +137,7 @@ extension ThirdPartyDependency.Target {
         case target(name: String, platforms: Set<Platform>?)
 
         /// A target belonging to another dependency.
-        case thirdPartyTarget(dependency: String, product: String, platforms: Set<Platform>?)
+        case externalTarget(dependency: String, product: String, platforms: Set<Platform>?)
 
         /// A binary dependency.
         case xcframework(path: AbsolutePath, platforms: Set<Platform>?)
@@ -146,7 +146,7 @@ extension ThirdPartyDependency.Target {
 
 // MARK: - Codable
 
-extension ThirdPartyDependency {
+extension ExternalDependency {
     private enum Kind: String, Codable {
         case sources
         case xcframework
@@ -198,12 +198,12 @@ extension ThirdPartyDependency {
     }
 }
 
-extension ThirdPartyDependency.Target.Dependency {
+extension ExternalDependency.Target.Dependency {
     private enum Kind: String, Codable {
         case linkedFramework
         case linkedLibrary
         case target
-        case thirdPartyTarget
+        case externalTarget
         case xcframework
     }
 
@@ -229,10 +229,10 @@ extension ThirdPartyDependency.Target.Dependency {
         case .target:
             let name = try container.decode(String.self, forKey: .name)
             self = .target(name: name, platforms: platforms)
-        case .thirdPartyTarget:
+        case .externalTarget:
             let dependency = try container.decode(String.self, forKey: .dependency)
             let product = try container.decode(String.self, forKey: .name)
-            self = .thirdPartyTarget(dependency: dependency, product: product, platforms: platforms)
+            self = .externalTarget(dependency: dependency, product: product, platforms: platforms)
         case .xcframework:
             let path = try container.decode(AbsolutePath.self, forKey: .path)
             self = .xcframework(path: path, platforms: platforms)
@@ -254,8 +254,8 @@ extension ThirdPartyDependency.Target.Dependency {
             try container.encode(Kind.target, forKey: .kind)
             try container.encode(name, forKey: .name)
             try container.encode(platforms, forKey: .platforms)
-        case let .thirdPartyTarget(dependency, product, platforms):
-            try container.encode(Kind.thirdPartyTarget, forKey: .kind)
+        case let .externalTarget(dependency, product, platforms):
+            try container.encode(Kind.externalTarget, forKey: .kind)
             try container.encode(dependency, forKey: .dependency)
             try container.encode(product, forKey: .name)
             try container.encode(platforms, forKey: .platforms)

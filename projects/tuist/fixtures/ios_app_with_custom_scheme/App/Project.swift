@@ -1,11 +1,20 @@
 import ProjectDescription
 
 let debugAction = ExecutionAction(scriptText: "echo Debug", target: "App")
-let debugScheme = Scheme(name: "App-Debug",
-                         shared: true,
-                         buildAction: BuildAction(targets: ["App"], preActions: [debugAction]),
-                         testAction: TestAction(targets: ["AppTests"]),
-                         runAction: RunAction(executable: "App", options: .options(simulatedLocation: .johannesburg)))
+let debugScheme = Scheme(
+    name: "App-Debug",
+    shared: true,
+    buildAction: BuildAction(
+        targets: ["App"], 
+        preActions: [debugAction], 
+        runPostActionsOnFailure: true
+    ),
+    testAction: TestAction(targets: ["AppTests"]),
+    runAction: RunAction(
+        executable: "App", 
+        options: .options(simulatedLocation: .johannesburg)
+    )
+)
 
 let releaseAction = ExecutionAction(scriptText: "echo Release", target: "App")
 let releaseScheme = Scheme(name: "App-Release",

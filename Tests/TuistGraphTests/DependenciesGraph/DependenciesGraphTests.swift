@@ -17,12 +17,12 @@ final class DependenciesGraphTests: TuistUnitTestCase {
     func test_merging() throws {
         // Given
         let subject = DependenciesGraph.test(
-            thirdPartyDependencies: [
+            externalDependencies: [
                 "A": .xcframework(name: "A", path: .current, architectures: []),
             ]
         )
         let other = DependenciesGraph.test(
-            thirdPartyDependencies: [
+            externalDependencies: [
                 "B": .xcframework(name: "B", path: .current, architectures: []),
             ]
         )
@@ -31,7 +31,7 @@ final class DependenciesGraphTests: TuistUnitTestCase {
         XCTAssertEqual(
             try subject.merging(with: other),
             DependenciesGraph.test(
-                thirdPartyDependencies: [
+                externalDependencies: [
                     "A": .xcframework(name: "A", path: .current, architectures: []),
                     "B": .xcframework(name: "B", path: .current, architectures: []),
                 ]
@@ -42,12 +42,12 @@ final class DependenciesGraphTests: TuistUnitTestCase {
     func test_merging_duplicate() throws {
         // Given
         let subject = DependenciesGraph.test(
-            thirdPartyDependencies: [
+            externalDependencies: [
                 "A": .xcframework(name: "A", path: .current, architectures: []),
             ]
         )
         let other = DependenciesGraph.test(
-            thirdPartyDependencies: [
+            externalDependencies: [
                 "A": .xcframework(name: "A", path: .current, architectures: []),
             ]
         )

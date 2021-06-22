@@ -163,7 +163,7 @@ extension PackageInfo.Target {
         /// A dependency internal to the same package.
         case target(name: String, condition: PackageInfo.PackageConditionDescription?)
 
-        /// A product from a third party package.
+        /// A product from an external package.
         case product(name: String, package: String, condition: PackageInfo.PackageConditionDescription?)
 
         /// A dependency to be resolved by name.

@@ -26,7 +26,7 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
             .map { try jsonDecoder.decode(CarthageVersionFile.self, from: $0) }
             .flatMap { $0.allProducts }
 
-        let thirdPartyDependencies: [String: ThirdPartyDependency] = Dictionary(grouping: products, by: \.name)
+        let externalDependencies: [String: ExternalDependency] = Dictionary(grouping: products, by: \.name)
             .compactMapValues { products in
                 // All the products grouped by name have the same name and framework
                 guard let firstProduct = products.first else { return nil }
@@ -45,6 +45,6 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
                 return .xcframework(name: dependencyName, path: path, architectures: architectures)
             }
 
-        return DependenciesGraph(thirdPartyDependencies: thirdPartyDependencies)
+        return DependenciesGraph(externalDependencies: externalDependencies)
     }
 }

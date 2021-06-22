@@ -7,7 +7,7 @@ public extension DependenciesGraph {
     static var testJson: String {
         """
         {
-          "thirdPartyDependencies" : {
+          "externalDependencies" : {
             "RxSwift" : {
               "kind" : "xcframework",
               "name" : "RxSwift",
@@ -26,11 +26,7 @@ public extension DependenciesGraph {
         """
     }
 
-    static func test(
-        thirdPartyDependencies: [String: ThirdPartyDependency] = [:]
-    ) -> Self {
-        .init(
-            thirdPartyDependencies: thirdPartyDependencies
-        )
+    static func test(externalDependencies: [String: ExternalDependency] = [:]) -> Self {
+        return .init(externalDependencies: externalDependencies)
     }
 }

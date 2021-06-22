@@ -15,7 +15,7 @@ func releaseSettings() -> SettingsDictionary {
 }
 
 let packages: [Package] = [
-    .package(url: "https://github.com/tuist/XcodeProj.git", .upToNextMajor(from: "7.17.0")),
+    .package(url: "https://github.com/tuist/XcodeProj.git", .upToNextMajor(from: "8.0.0")),
     .package(url: "https://github.com/CombineCommunity/CombineExt.git", .upToNextMajor(from: "1.3.0")),
     .package(url: "https://github.com/apple/swift-tools-support-core.git", .upToNextMinor(from: "0.2.0")),
     .package(url: "https://github.com/ReactiveX/RxSwift.git", .upToNextMajor(from: "5.1.1")),

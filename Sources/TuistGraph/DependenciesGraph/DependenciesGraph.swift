@@ -6,7 +6,7 @@ import TuistSupport
 
 public enum DependenciesGraphError: FatalError, Equatable {
     /// Thrown when the same dependency is defined more than once.
-    case duplicatedDependency(String, ThirdPartyDependency, ThirdPartyDependency)
+    case duplicatedDependency(String, ExternalDependency, ExternalDependency)
 
     /// Error type.
     public var type: ErrorType {
@@ -31,24 +31,25 @@ public enum DependenciesGraphError: FatalError, Equatable {
 
 // MARK: - Dependencies Graph
 
-/// A directed acyclic graph (DAG) that Tuist uses to represent the third party dependency tree.
+/// A directed acyclic graph (DAG) that Tuist uses to represent the dependency tree.
 public struct DependenciesGraph: Equatable, Codable {
     /// A dictionary where the keys are the names of dependencies, and the values are the dependencies themselves.
-    public let thirdPartyDependencies: [String: ThirdPartyDependency]
+    public let externalDependencies: [String: ExternalDependency]
 
     /// Create an instance of `DependenciesGraph` model.
-    public init(
-        thirdPartyDependencies: [String: ThirdPartyDependency]
-    ) {
-        self.thirdPartyDependencies = thirdPartyDependencies
+    public init(externalDependencies: [String: ExternalDependency]) {
+        self.externalDependencies = externalDependencies
     }
+
+    /// An empty `DependenciesGraph`.
+    public static let none: DependenciesGraph = .init(externalDependencies: [:])
 }
 
 extension DependenciesGraph {
     public func merging(with other: Self) throws -> Self {
-        let mergedThirdPartyDependencies = try thirdPartyDependencies.merging(other.thirdPartyDependencies) { old, new in
+        let mergedExternalDependencies = try externalDependencies.merging(other.externalDependencies) { old, new in
             throw DependenciesGraphError.duplicatedDependency(old.name, old, new)
         }
-        return .init(thirdPartyDependencies: mergedThirdPartyDependencies)
+        return .init(externalDependencies: mergedExternalDependencies)
     }
 }

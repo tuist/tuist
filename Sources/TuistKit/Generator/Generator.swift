@@ -17,6 +17,7 @@ protocol Generating {
     func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph)
 }
 
+// swiftlint:disable:next type_body_length
 class Generator: Generating {
     private let recursiveManifestLoader: RecursiveManifestLoading
     private let converter: ManifestModelConverting
@@ -35,6 +36,7 @@ class Generator: Generating {
     private let manifestLoader: ManifestLoading
     private let pluginsService: PluginServicing
     private let configLoader: ConfigLoading
+    private let dependenciesGraphLoader: DependenciesGraphLoading
 
     convenience init(contentHasher: ContentHashing) {
         self.init(
@@ -49,7 +51,8 @@ class Generator: Generating {
         projectMapperProvider: ProjectMapperProviding,
         graphMapperProvider: GraphMapperProviding,
         workspaceMapperProvider: WorkspaceMapperProviding,
-        manifestLoaderFactory: ManifestLoaderFactory
+        manifestLoaderFactory: ManifestLoaderFactory,
+        dependenciesGraphLoader: DependenciesGraphLoading = DependenciesGraphLoader()
     ) {
         let manifestLoader = manifestLoaderFactory.createManifestLoader()
         recursiveManifestLoader = RecursiveManifestLoader(manifestLoader: manifestLoader)
@@ -67,6 +70,7 @@ class Generator: Generating {
             rootDirectoryLocator: RootDirectoryLocator(),
             fileHandler: FileHandler.shared
         )
+        self.dependenciesGraphLoader = dependenciesGraphLoader
     }
 
     func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath {
@@ -109,8 +113,11 @@ class Generator: Generating {
         let plugins = try pluginsService.loadPlugins(using: config)
         manifestLoader.register(plugins: plugins)
 
+        // Load DependenciesGraph
+        let dependenciesGraph = try dependenciesGraphLoader.loadDependencies(at: path)
+
         // Load all manifests
-        let manifests = try recursiveManifestLoader.loadProject(at: path)
+        let manifests = try recursiveManifestLoader.loadProject(at: path, dependenciesGraph: dependenciesGraph)
 
         // Lint Manifests
         try manifests.projects.flatMap {
@@ -118,7 +125,7 @@ class Generator: Generating {
         }.printAndThrowIfNeeded()
 
         // Convert to models
-        let models = try convert(manifests: manifests, plugins: plugins)
+        let models = try convert(manifests: manifests, plugins: plugins, dependenciesGraph: dependenciesGraph)
 
         // Apply any registered model mappers
         let projectMapper = projectMapperProvider.mapper(config: config)
@@ -234,8 +241,11 @@ class Generator: Generating {
         let plugins = try pluginsService.loadPlugins(using: config)
         manifestLoader.register(plugins: plugins)
 
+        // Load DependenciesGraph
+        let dependenciesGraph = try dependenciesGraphLoader.loadDependencies(at: path)
+
         // Load all manifests
-        let manifests = try recursiveManifestLoader.loadProject(at: path)
+        let manifests = try recursiveManifestLoader.loadProject(at: path, dependenciesGraph: dependenciesGraph)
 
         // Lint Manifests
         try manifests.projects.flatMap {
@@ -243,7 +253,7 @@ class Generator: Generating {
         }.printAndThrowIfNeeded()
 
         // Convert to models
-        let projects = try convert(manifests: manifests, plugins: plugins)
+        let projects = try convert(manifests: manifests, plugins: plugins, dependenciesGraph: dependenciesGraph)
 
         let workspaceName = manifests.projects[path]?.name ?? "Workspace"
         let workspace = Workspace(
@@ -292,8 +302,11 @@ class Generator: Generating {
         let plugins = try pluginsService.loadPlugins(using: config)
         manifestLoader.register(plugins: plugins)
 
+        // Load DependenciesGraph
+        let dependenciesGraph = try dependenciesGraphLoader.loadDependencies(at: path)
+
         // Load all manifests
-        let manifests = try recursiveManifestLoader.loadWorkspace(at: path)
+        let manifests = try recursiveManifestLoader.loadWorkspace(at: path, dependenciesGraph: dependenciesGraph)
 
         // Lint Manifests
         try manifests.projects.flatMap {
@@ -301,7 +314,7 @@ class Generator: Generating {
         }.printAndThrowIfNeeded()
 
         // Convert to models
-        let models = try convert(manifests: manifests, plugins: plugins)
+        let models = try convert(manifests: manifests, plugins: plugins, dependenciesGraph: dependenciesGraph)
 
         // Apply model mappers
         let workspaceMapper = workspaceMapperProvider.mapper(config: config)
@@ -327,23 +340,25 @@ class Generator: Generating {
     private func convert(
         manifests: LoadedProjects,
         plugins: Plugins,
+        dependenciesGraph: DependenciesGraph,
         context: ExecutionContext = .concurrent
     ) throws -> [TuistGraph.Project] {
         let tuples = manifests.projects.map { (path: $0.key, manifest: $0.value) }
         return try tuples.map(context: context) {
-            try converter.convert(manifest: $0.manifest, path: $0.path, plugins: plugins)
+            try converter.convert(manifest: $0.manifest, path: $0.path, plugins: plugins, dependenciesGraph: dependenciesGraph)
         }
     }
 
     private func convert(
         manifests: LoadedWorkspace,
         plugins: Plugins,
+        dependenciesGraph: DependenciesGraph,
         context: ExecutionContext = .concurrent
     ) throws -> (workspace: Workspace, projects: [TuistGraph.Project]) {
         let workspace = try converter.convert(manifest: manifests.workspace, path: manifests.path)
         let tuples = manifests.projects.map { (path: $0.key, manifest: $0.value) }
         let projects = try tuples.map(context: context) {
-            try converter.convert(manifest: $0.manifest, path: $0.path, plugins: plugins)
+            try converter.convert(manifest: $0.manifest, path: $0.path, plugins: plugins, dependenciesGraph: dependenciesGraph)
         }
         return (workspace, projects)
     }

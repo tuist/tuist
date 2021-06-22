@@ -3,13 +3,33 @@ import ProjectDescription
 import TSCBasic
 import TuistCore
 import TuistGraph
+import TuistSupport
+
+// MARK: - TargetDependency Mapper Error
+public enum TargetDependencyMapperError: FatalError {
+    case invalidExternalDependency(name: String)
+
+    public var type: ErrorType { .abort }
+
+    public var description: String {
+        switch self {
+        case let .invalidExternalDependency(name):
+            return "`\(name)` is not a valid configured external dependency"
+        }
+    }
+}
 
 extension TuistGraph.TargetDependency {
     /// Maps a ProjectDescription.TargetDependency instance into a TuistGraph.TargetDependency instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of the target dependency model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.TargetDependency, generatorPaths: GeneratorPaths) throws -> TuistGraph.TargetDependency {
+    ///   - dependenciesGraph: External dependencies graph.
+    static func from(
+        manifest: ProjectDescription.TargetDependency,
+        generatorPaths: GeneratorPaths,
+        dependenciesGraph: DependenciesGraph
+    ) throws -> TuistGraph.TargetDependency {
         switch manifest {
         case let .target(name):
             return .target(name: name)
@@ -32,12 +52,21 @@ extension TuistGraph.TargetDependency {
             )
         case let .cocoapods(path):
             return .cocoapods(path: try generatorPaths.resolve(path: path))
-        case let .xcFramework(path):
-            return .xcFramework(path: try generatorPaths.resolve(path: path))
+        case let .xcframework(path):
+            return .xcframework(path: try generatorPaths.resolve(path: path))
         case .xctest:
             return .xctest
-        case let .thirdParty(name):
-            return .thirdParty(name: name)
+        case let .external(name):
+            guard let dependency = dependenciesGraph.externalDependencies[name] else {
+                throw TargetDependencyMapperError.invalidExternalDependency(name: name)
+            }
+
+            switch dependency {
+            case let .xcframework(_, path, _):
+                return .xcframework(path: path)
+            case .sources:
+                fatalError("ExternalDependency.source not supported yet")
+            }
         }
     }
 }

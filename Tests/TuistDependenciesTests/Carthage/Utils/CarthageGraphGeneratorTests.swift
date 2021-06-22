@@ -41,7 +41,7 @@ final class CarthageGraphGeneratorTests: TuistUnitTestCase {
 
         // Then
         let expected = DependenciesGraph(
-            thirdPartyDependencies: [
+            externalDependencies: [
                 "RxSwift": .xcframework(
                     name: "RxSwift",
                     path: "/Tuist/Dependencies/Carthage/RxSwift.xcframework",

@@ -2,7 +2,7 @@ import Foundation
 import TSCBasic
 import TuistGraph
 
-public extension ThirdPartyDependency {
+public extension ExternalDependency {
     static func testXCFramework(
         name: String = "Test",
         path: AbsolutePath = AbsolutePath.root.appending(RelativePath("Test.xcframework")),
@@ -29,7 +29,7 @@ public extension ThirdPartyDependency {
                     resources: [packageFolder.appending(RelativePath("customPath/resources"))],
                     dependencies: [
                         .target(name: "TuistKit", platforms: nil),
-                        .thirdPartyTarget(dependency: "a-dependency", product: "ALibrary", platforms: [.iOS]),
+                        .externalTarget(dependency: "a-dependency", product: "ALibrary", platforms: [.iOS]),
                     ],
                     publicHeadersPath: "customPublicHeadersPath",
                     cHeaderSearchPaths: [
@@ -63,7 +63,7 @@ public extension ThirdPartyDependency {
                     sources: [packageFolder.appending(RelativePath("Sources/TuistKit"))],
                     resources: [],
                     dependencies: [
-                        .thirdPartyTarget(dependency: "another-dependency", product: "AnotherLibrary", platforms: nil),
+                        .externalTarget(dependency: "another-dependency", product: "AnotherLibrary", platforms: nil),
                     ],
                     publicHeadersPath: nil,
                     cHeaderSearchPaths: [],
@@ -215,11 +215,11 @@ public extension ThirdPartyDependency {
                     resources: [],
                     dependencies: [
                         .xcframework(path: artifactsFolder.appending(component: "GoogleAppMeasurement.xcframework"), platforms: nil),
-                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULAppDelegateSwizzler", platforms: nil),
-                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULMethodSwizzler", platforms: nil),
-                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULNSData", platforms: nil),
-                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULNetwork", platforms: nil),
-                        .thirdPartyTarget(dependency: "nanopb", product: "nanopb", platforms: nil),
+                        .externalTarget(dependency: "GoogleUtilities", product: "GULAppDelegateSwizzler", platforms: nil),
+                        .externalTarget(dependency: "GoogleUtilities", product: "GULMethodSwizzler", platforms: nil),
+                        .externalTarget(dependency: "GoogleUtilities", product: "GULNSData", platforms: nil),
+                        .externalTarget(dependency: "GoogleUtilities", product: "GULNetwork", platforms: nil),
+                        .externalTarget(dependency: "nanopb", product: "nanopb", platforms: nil),
                         .linkedLibrary(name: "sqlite3", platforms: nil),
                         .linkedLibrary(name: "c++", platforms: nil),
                         .linkedLibrary(name: "z", platforms: nil),
@@ -244,11 +244,11 @@ public extension ThirdPartyDependency {
                             path: artifactsFolder.appending(component: "GoogleAppMeasurementWithoutAdIdSupport.xcframework"),
                             platforms: nil
                         ),
-                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULAppDelegateSwizzler", platforms: nil),
-                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULMethodSwizzler", platforms: nil),
-                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULNSData", platforms: nil),
-                        .thirdPartyTarget(dependency: "GoogleUtilities", product: "GULNetwork", platforms: nil),
-                        .thirdPartyTarget(dependency: "nanopb", product: "nanopb", platforms: nil),
+                        .externalTarget(dependency: "GoogleUtilities", product: "GULAppDelegateSwizzler", platforms: nil),
+                        .externalTarget(dependency: "GoogleUtilities", product: "GULMethodSwizzler", platforms: nil),
+                        .externalTarget(dependency: "GoogleUtilities", product: "GULNSData", platforms: nil),
+                        .externalTarget(dependency: "GoogleUtilities", product: "GULNetwork", platforms: nil),
+                        .externalTarget(dependency: "nanopb", product: "nanopb", platforms: nil),
                         .linkedLibrary(name: "sqlite3", platforms: nil),
                         .linkedLibrary(name: "c++", platforms: nil),
                         .linkedLibrary(name: "z", platforms: nil),

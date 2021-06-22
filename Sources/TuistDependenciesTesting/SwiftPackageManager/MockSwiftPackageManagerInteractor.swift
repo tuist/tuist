@@ -16,7 +16,7 @@ public final class MockSwiftPackageManagerInteractor: SwiftPackageManagerInterac
         swiftToolsVersion: String?
     ) throws -> DependenciesGraph {
         invokedInstall = true
-        return try installStub?(dependenciesDirectory, dependencies, shouldUpdate, swiftToolsVersion) ?? .init(thirdPartyDependencies: [:])
+        return try installStub?(dependenciesDirectory, dependencies, shouldUpdate, swiftToolsVersion) ?? .none
     }
 
     var invokedClean = false

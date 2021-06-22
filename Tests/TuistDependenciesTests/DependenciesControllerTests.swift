@@ -63,7 +63,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             swiftPackageManager: nil,
             platforms: platforms
         )
-        let graph: DependenciesGraph = .test(thirdPartyDependencies: ["Name": .testXCFramework()])
+        let graph: DependenciesGraph = .test(externalDependencies: ["Name": .testXCFramework()])
 
         carthageInteractor.installStub = { arg0, arg1, arg2, arg3 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
@@ -171,8 +171,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             platforms: platforms
         )
         let swiftVersion = "5.4.0"
-        let carthageGraph: DependenciesGraph = .test(thirdPartyDependencies: ["Carthage": .testXCFramework()])
-        let spmGraph: DependenciesGraph = .test(thirdPartyDependencies: ["SPM": .testXCFramework()])
+        let carthageGraph: DependenciesGraph = .test(externalDependencies: ["Carthage": .testXCFramework()])
+        let spmGraph: DependenciesGraph = .test(externalDependencies: ["SPM": .testXCFramework()])
 
         carthageInteractor.installStub = { arg0, arg1, arg2, arg3 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
@@ -192,7 +192,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         dependenciesGraphController.saveStub = { arg0, arg1 in
             XCTAssertEqual(
                 arg0,
-                .init(thirdPartyDependencies: ["Carthage": .testXCFramework(), "SPM": .testXCFramework()])
+                .init(externalDependencies: ["Carthage": .testXCFramework(), "SPM": .testXCFramework()])
             )
             XCTAssertEqual(rootPath, arg1)
         }
@@ -226,10 +226,10 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             ]),
             platforms: [.iOS]
         )
-        let carthageDependency = ThirdPartyDependency.testXCFramework(name: "Duplicated", path: rootPath.appending(component: "Carthage"), architectures: [])
-        let carthageGraph: DependenciesGraph = .test(thirdPartyDependencies: ["Duplicated": carthageDependency])
-        let spmDependency = ThirdPartyDependency.testXCFramework(name: "Duplicated", path: rootPath.appending(component: "SPM"), architectures: [])
-        let spmGraph: DependenciesGraph = .test(thirdPartyDependencies: ["Duplicated": spmDependency])
+        let carthageDependency = ExternalDependency.testXCFramework(name: "Duplicated", path: rootPath.appending(component: "Carthage"), architectures: [])
+        let carthageGraph: DependenciesGraph = .test(externalDependencies: ["Duplicated": carthageDependency])
+        let spmDependency = ExternalDependency.testXCFramework(name: "Duplicated", path: rootPath.appending(component: "SPM"), architectures: [])
+        let spmGraph: DependenciesGraph = .test(externalDependencies: ["Duplicated": spmDependency])
 
         carthageInteractor.installStub = { _, _, _, _ in
             carthageGraph
@@ -323,7 +323,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             swiftPackageManager: nil,
             platforms: platforms
         )
-        let graph: DependenciesGraph = .test(thirdPartyDependencies: ["Name": .testXCFramework()])
+        let graph: DependenciesGraph = .test(externalDependencies: ["Name": .testXCFramework()])
 
         carthageInteractor.installStub = { arg0, arg1, arg2, arg3 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
@@ -431,7 +431,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             platforms: platforms
         )
         let swiftVersion = "5.4.0"
-        let graph: DependenciesGraph = .test(thirdPartyDependencies: ["Name": .testXCFramework()])
+        let graph: DependenciesGraph = .test(externalDependencies: ["Name": .testXCFramework()])
 
         carthageInteractor.installStub = { arg0, arg1, arg2, arg3 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)

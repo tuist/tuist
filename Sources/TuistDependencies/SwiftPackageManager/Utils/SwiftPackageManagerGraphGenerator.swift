@@ -72,8 +72,8 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             packageInfo.info.products.forEach { result[$0.name] = packageInfo.name }
         }
 
-        let thirdPartyDependencies: [String: ThirdPartyDependency] = Dictionary(uniqueKeysWithValues: try packageInfos.map { packageInfo in
-            let dependency = try Self.mapToThirdPartyDependency(
+        let externalDependencies: [String: ExternalDependency] = Dictionary(uniqueKeysWithValues: try packageInfos.map { packageInfo in
+            let dependency = try Self.mapToExternalDependency(
                 name: packageInfo.name,
                 folder: packageInfo.folder,
                 packageInfo: packageInfo.info,
@@ -83,18 +83,18 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             return (dependency.name, dependency)
         })
 
-        return DependenciesGraph(thirdPartyDependencies: thirdPartyDependencies)
+        return DependenciesGraph(externalDependencies: externalDependencies)
     }
 
     // swiftlint:disable:next function_body_length
-    private static func mapToThirdPartyDependency(
+    private static func mapToExternalDependency(
         name: String,
         folder: AbsolutePath,
         packageInfo: PackageInfo,
         artifactsFolder: AbsolutePath,
         productToPackage: [String: String]
-    ) throws -> ThirdPartyDependency {
-        let products: [ThirdPartyDependency.Product] = packageInfo.products.compactMap { product in
+    ) throws -> ExternalDependency {
+        let products: [ExternalDependency.Product] = packageInfo.products.compactMap { product in
             guard let libraryType = product.type.libraryType else { return nil }
 
             return .init(
@@ -104,7 +104,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             )
         }
 
-        let targets: [ThirdPartyDependency.Target] = try packageInfo.targets
+        let targets: [ExternalDependency.Target] = try packageInfo.targets
             .filter { target in
                 switch target.type {
                 case .regular:
@@ -125,7 +125,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
 
                 let resources = target.resources.map { path.appending(RelativePath($0.path)) }
 
-                var dependencies: [ThirdPartyDependency.Target.Dependency] = []
+                var dependencies: [ExternalDependency.Target.Dependency] = []
 
                 try target.dependencies.forEach { dependency in
                     switch dependency {
@@ -139,7 +139,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                             )
                         )
                     case let .product(name, package, condition):
-                        dependencies.append(.thirdPartyTarget(dependency: package, product: name, platforms: try condition?.platforms()))
+                        dependencies.append(.externalTarget(dependency: package, product: name, platforms: try condition?.platforms()))
                     case let .byName(name, condition):
                         let platforms = try condition?.platforms()
                         if packageInfo.targets.contains(where: { $0.name == name }) {
@@ -152,7 +152,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                                 )
                             )
                         } else if let package = productToPackage[name] {
-                            dependencies.append(.thirdPartyTarget(dependency: package, product: name, platforms: platforms))
+                            dependencies.append(.externalTarget(dependency: package, product: name, platforms: platforms))
                         } else {
                             throw SwiftPackageManagerGraphGeneratorError.unknownByNameDependency(name)
                         }
@@ -236,7 +236,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         packageInfo: PackageInfo,
         artifactsFolder: AbsolutePath,
         platforms: Set<TuistGraph.Platform>?
-    ) -> ThirdPartyDependency.Target.Dependency {
+    ) -> ExternalDependency.Target.Dependency {
         if let target = packageInfo.targets.first(where: { $0.name == name }),
             let targetURL = target.url,
             let xcframeworkRemoteURL = URL(string: targetURL)
@@ -269,7 +269,7 @@ extension DeploymentTarget {
 }
 
 extension PackageInfo.Product.ProductType {
-    fileprivate var libraryType: ThirdPartyDependency.Product.LibraryType? {
+    fileprivate var libraryType: ExternalDependency.Product.LibraryType? {
         switch self {
         case let .library(libraryType):
             switch libraryType {

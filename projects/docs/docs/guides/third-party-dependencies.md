@@ -1,5 +1,5 @@
 ---
-title: Third-party dependencies
+title: External dependencies
 slug: '/guides/third-party-dependencies'
 description: Learn how to define the contract between the dependency managers and Tuist.
 ---
@@ -122,7 +122,7 @@ let project = Project(
             infoPlist: .default,
             sources: ["Targets/App/Sources/**"],
             dependencies: [
-                .thirdParty(name: "Alamofire"),
+                .external(name: "Alamofire"),
             ]
         ),
     ]

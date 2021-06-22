@@ -81,7 +81,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
 
         // Then
         let expected = DependenciesGraph(
-            thirdPartyDependencies: [
+            externalDependencies: [
                 "Alamofire": .alamofire(packageFolder: alamofirePath),
                 "GoogleAppMeasurement": .googleAppMeasurement(artifactsFolder: googleAppMeasurementArtifactsPath, packageFolder: googleAppMeasurementPath),
                 "GoogleUtilities": .googleUtilities(packageFolder: googleUtilitiesPath),
