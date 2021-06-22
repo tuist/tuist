@@ -55,8 +55,6 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
             return try contentHasher.hash("cocoapods-\(podsHash)")
         case .xctest:
             return try contentHasher.hash("xctest")
-        case let .external(name):
-            return try contentHasher.hash("external-\(name)")
         }
     }
 }

@@ -11,7 +11,8 @@ public protocol ManifestModelConverting {
     func convert(
         manifest: ProjectDescription.Project,
         path: AbsolutePath,
-        plugins: Plugins
+        plugins: Plugins,
+        dependenciesGraph: DependenciesGraph
     ) throws -> TuistGraph.Project
 }
 
@@ -45,13 +46,15 @@ public final class ManifestModelConverter: ManifestModelConverting {
     public func convert(
         manifest: ProjectDescription.Project,
         path: AbsolutePath,
-        plugins: Plugins
+        plugins: Plugins,
+        dependenciesGraph: DependenciesGraph
     ) throws -> TuistGraph.Project {
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         return try TuistGraph.Project.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             plugins: plugins,
+            dependenciesGraph: dependenciesGraph,
             resourceSynthesizerPathLocator: resourceSynthesizerPathLocator
         )
     }

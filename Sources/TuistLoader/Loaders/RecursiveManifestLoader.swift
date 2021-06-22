@@ -93,7 +93,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
                     }
 
                     switch dependency {
-                    // TODO: generate project for source based dependencies and return its Path
+                    // TODO: invoke return try generatorPaths.resolve(path: projectPath) for source based dependencies
                     case .xcframework:
                         return nil
                     }

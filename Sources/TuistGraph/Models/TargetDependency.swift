@@ -16,7 +16,6 @@ public enum TargetDependency: Equatable, Hashable, Codable {
     case sdk(name: String, status: SDKStatus)
     case cocoapods(path: AbsolutePath)
     case xctest
-    case external(name: String)
 }
 
 // MARK: - Codable
@@ -32,7 +31,6 @@ extension TargetDependency {
         case sdk
         case cocoapods
         case xctest
-        case external
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -80,9 +78,6 @@ extension TargetDependency {
             self = .cocoapods(path: path)
         case .xctest:
             self = .xctest
-        case .external:
-            let name = try container.decode(String.self, forKey: .name)
-            self = .external(name: name)
         }
     }
 
@@ -119,9 +114,6 @@ extension TargetDependency {
             try container.encode(path, forKey: .path)
         case .xctest:
             try container.encode(Kind.xctest, forKey: .kind)
-        case let .external(name):
-            try container.encode(Kind.external, forKey: .kind)
-            try container.encode(name, forKey: .name)
         }
     }
 }

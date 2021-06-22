@@ -10,17 +10,21 @@ extension TuistGraph.Project {
     ///   - manifest: Manifest representation of  the file element.
     ///   - generatorPaths: Generator paths.
     ///   - plugins: Configured plugins.
+    ///   - dependenciesGraph: External dependencies graph.
     ///   - resourceSynthesizerPathLocator: Resource synthesizer locator.
     static func from(
         manifest: ProjectDescription.Project,
         generatorPaths: GeneratorPaths,
         plugins: Plugins,
+        dependenciesGraph: DependenciesGraph,
         resourceSynthesizerPathLocator: ResourceSynthesizerPathLocating
     ) throws -> TuistGraph.Project {
         let name = manifest.name
         let organizationName = manifest.organizationName
         let settings = try manifest.settings.map { try TuistGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
-        let targets = try manifest.targets.map { try TuistGraph.Target.from(manifest: $0, generatorPaths: generatorPaths) }
+        let targets = try manifest.targets.map {
+            try TuistGraph.Target.from(manifest: $0, generatorPaths: generatorPaths, dependenciesGraph: dependenciesGraph)
+        }
         let schemes = try manifest.schemes.map { try TuistGraph.Scheme.from(manifest: $0, generatorPaths: generatorPaths) }
         let additionalFiles = try manifest.additionalFiles.flatMap { try TuistGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths) }
         let packages = try manifest.packages.map { try TuistGraph.Package.from(manifest: $0, generatorPaths: generatorPaths) }

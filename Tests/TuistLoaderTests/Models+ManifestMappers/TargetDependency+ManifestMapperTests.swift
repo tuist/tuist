@@ -16,7 +16,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let generatorPaths = GeneratorPaths(manifestDirectory: AbsolutePath("/"))
 
         // When
-        let got = try TuistGraph.TargetDependency.from(manifest: dependency, generatorPaths: generatorPaths)
+        let got = try TuistGraph.TargetDependency.from(manifest: dependency, generatorPaths: generatorPaths, dependenciesGraph: .none)
 
         // Then
         guard case let .cocoapods(path) = got else {
@@ -32,7 +32,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let generatorPaths = GeneratorPaths(manifestDirectory: AbsolutePath("/"))
 
         // When
-        let got = try TuistGraph.TargetDependency.from(manifest: dependency, generatorPaths: generatorPaths)
+        let got = try TuistGraph.TargetDependency.from(manifest: dependency, generatorPaths: generatorPaths, dependenciesGraph: .none)
 
         // Then
         guard

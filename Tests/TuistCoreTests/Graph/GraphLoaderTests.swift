@@ -37,8 +37,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
             projects: [
                 projectA,
                 projectB,
-            ],
-            dependenciesGraph: .none
+            ]
         )
 
         // Then
@@ -63,8 +62,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
             projects: [
                 projectA,
                 projectB,
-            ],
-            dependenciesGraph: .none
+            ]
         )
 
         // Then
@@ -92,8 +90,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
             projects: [
                 projectA,
                 projectB,
-            ],
-            dependenciesGraph: .none
+            ]
         )
 
         // Then
@@ -127,8 +124,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
             projects: [
                 projectA,
                 projectB,
-            ],
-            dependenciesGraph: .none
+            ]
         )
 
         // Then
@@ -154,8 +150,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
             projects: [
                 projectA,
                 projectB,
-            ],
-            dependenciesGraph: .none
+            ]
         )
 
         // Then
@@ -208,8 +203,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
             projects: [
                 projectA,
                 projectB,
-            ],
-            dependenciesGraph: .none
+            ]
         )
 
         // Then
@@ -263,8 +257,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
             projects: [
                 projectA,
                 projectB,
-            ],
-            dependenciesGraph: .none
+            ]
         )
 
         // Then
@@ -328,8 +321,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
             projects: [
                 projectA,
                 projectB,
-            ],
-            dependenciesGraph: .none
+            ]
         )
 
         // Then
@@ -379,8 +371,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
             workspace: workspace,
             projects: [
                 projectA,
-            ],
-            dependenciesGraph: .none
+            ]
         )
 
         // Then
@@ -412,8 +403,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
             workspace: workspace,
             projects: [
                 projectA,
-            ],
-            dependenciesGraph: .none
+            ]
         )
 
         // Then
@@ -478,8 +468,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
                 projectA,
                 projectB,
                 projectC,
-            ],
-            dependenciesGraph: .none
+            ]
         )
 
         // Then
@@ -521,8 +510,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
                 at: "/A",
                 projects: [
                     project,
-                ],
-                dependenciesGraph: .none
+                ]
             ),
             GraphLoadingError.circularDependency([
                 .init(path: "/A", name: "A"),
@@ -550,8 +538,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
                     projectA,
                     projectB,
                     projectC,
-                ],
-                dependenciesGraph: .none
+                ]
             ),
             GraphLoadingError.circularDependency([
                 .init(path: "/A", name: "A"),
@@ -580,8 +567,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
                     projectA,
                     projectB,
                     projectC,
-                ],
-                dependenciesGraph: .none
+                ]
             ),
             GraphLoadingError.circularDependency([
                 .init(path: "/A", name: "A"),
@@ -611,8 +597,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
                     projectA,
                     projectB,
                     projectC,
-                ],
-                dependenciesGraph: .none
+                ]
             )
         )
     }
@@ -638,8 +623,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
                     projectA,
                     projectB,
                     projectC,
-                ],
-                dependenciesGraph: .none
+                ]
             )
         )
     }
@@ -666,8 +650,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
                     projectA,
                     projectB,
                     projectC,
-                ],
-                dependenciesGraph: .none
+                ]
             )
         ) { error in
             // need to manually inspect the error as depending on traversal order may result in different nodes getting listed
@@ -691,8 +674,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
                 workspace: workspace,
                 projects: [
                     projectA,
-                ],
-                dependenciesGraph: .none
+                ]
             ),
             GraphLoadingError.missingProject("/Missing")
         )
@@ -711,8 +693,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
                 workspace: workspace,
                 projects: [
                     projectA,
-                ],
-                dependenciesGraph: .none
+                ]
             ),
             GraphLoadingError.missingProject("/Missing")
         )
@@ -731,8 +712,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
                 workspace: workspace,
                 projects: [
                     projectA,
-                ],
-                dependenciesGraph: .none
+                ]
             ),
             GraphLoadingError.targetNotFound("Missing", "/A")
         )
@@ -753,8 +733,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
                 projects: [
                     projectA,
                     projectB,
-                ],
-                dependenciesGraph: .none
+                ]
             ),
             GraphLoadingError.targetNotFound("Missing", "/B")
         )

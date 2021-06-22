@@ -38,8 +38,7 @@ final class TestModelGenerator {
 
         return try graphLoader.loadWorkspace(
             workspace: models.workspace,
-            projects: models.projects,
-            dependenciesGraph: .none
+            projects: models.projects
         )
     }
 

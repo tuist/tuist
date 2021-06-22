@@ -3,13 +3,33 @@ import ProjectDescription
 import TSCBasic
 import TuistCore
 import TuistGraph
+import TuistSupport
+
+// MARK: - TargetDependency Mapper Error
+public enum TargetDependencyMapperError: FatalError {
+    case invalidExternalDependency(name: String)
+
+    public var type: ErrorType { .abort }
+
+    public var description: String {
+        switch self {
+        case let .invalidExternalDependency(name):
+            return "`\(name)` is not a valid configured external dependency"
+        }
+    }
+}
 
 extension TuistGraph.TargetDependency {
     /// Maps a ProjectDescription.TargetDependency instance into a TuistGraph.TargetDependency instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of the target dependency model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.TargetDependency, generatorPaths: GeneratorPaths) throws -> TuistGraph.TargetDependency {
+    ///   - dependenciesGraph: External dependencies graph.
+    static func from(
+        manifest: ProjectDescription.TargetDependency,
+        generatorPaths: GeneratorPaths,
+        dependenciesGraph: DependenciesGraph
+    ) throws -> TuistGraph.TargetDependency {
         switch manifest {
         case let .target(name):
             return .target(name: name)
@@ -37,7 +57,14 @@ extension TuistGraph.TargetDependency {
         case .xctest:
             return .xctest
         case let .external(name):
-            return .external(name: name)
+            guard let dependency = dependenciesGraph.externalDependencies[name] else {
+                throw TargetDependencyMapperError.invalidExternalDependency(name: name)
+            }
+
+            switch dependency {
+            case let .xcframework(path, _):
+                return .xcframework(path: path)
+            }
         }
     }
 }
