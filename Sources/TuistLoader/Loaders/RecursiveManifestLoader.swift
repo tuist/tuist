@@ -87,8 +87,8 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
                 switch $0 {
                 case let .project(target: _, path: projectPath):
                     return try generatorPaths.resolve(path: projectPath)
-                case let .thirdParty(name):
-                    guard let dependency = dependencies.thirdPartyDependencies[name] else {
+                case let .external(name):
+                    guard let dependency = dependencies.externalDependencies[name] else {
                         return nil
                     }
 

@@ -1,19 +1,16 @@
 import Foundation
 import TSCBasic
 
-/// A directed acyclic graph (DAG) that Tuist uses to represent the third party dependency tree.
+/// A directed acyclic graph (DAG) that Tuist uses to represent the dependency tree.
 public struct DependenciesGraph: Equatable, Codable {
-    /// A dictionary where the keys are the names of dependencies,
-    /// and the values are the dependencies themselves.
-    public var thirdPartyDependencies: [String: ThirdPartyDependency]
+    /// A dictionary where the keys are the names of dependencies, and the values are the dependencies themselves.
+    public var externalDependencies: [String: ExternalDependency]
 
     /// Create an instance of `DependenciesGraph` model.
-    public init(
-        thirdPartyDependencies: [String: ThirdPartyDependency]
-    ) {
-        self.thirdPartyDependencies = thirdPartyDependencies
+    public init(externalDependencies: [String: ExternalDependency]) {
+        self.externalDependencies = externalDependencies
     }
 
     /// An empty `DependenciesGraph`.
-    public static let none: DependenciesGraph = .init(thirdPartyDependencies: [:])
+    public static let none: DependenciesGraph = .init(externalDependencies: [:])
 }

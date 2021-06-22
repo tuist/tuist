@@ -10,13 +10,13 @@ public enum TargetDependency: Equatable, Hashable, Codable {
     case target(name: String)
     case project(target: String, path: AbsolutePath)
     case framework(path: AbsolutePath)
-    case xcFramework(path: AbsolutePath)
+    case xcframework(path: AbsolutePath)
     case library(path: AbsolutePath, publicHeaders: AbsolutePath, swiftModuleMap: AbsolutePath?)
     case package(product: String)
     case sdk(name: String, status: SDKStatus)
     case cocoapods(path: AbsolutePath)
     case xctest
-    case thirdParty(name: String)
+    case external(name: String)
 }
 
 // MARK: - Codable
@@ -26,13 +26,13 @@ extension TargetDependency {
         case target
         case project
         case framework
-        case xcFramework
+        case xcframework
         case library
         case package
         case sdk
         case cocoapods
         case xctest
-        case thirdParty
+        case external
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -60,9 +60,9 @@ extension TargetDependency {
         case .framework:
             let path = try container.decode(AbsolutePath.self, forKey: .path)
             self = .framework(path: path)
-        case .xcFramework:
+        case .xcframework:
             let path = try container.decode(AbsolutePath.self, forKey: .path)
-            self = .xcFramework(path: path)
+            self = .xcframework(path: path)
         case .library:
             let path = try container.decode(AbsolutePath.self, forKey: .path)
             let publicHeaders = try container.decode(AbsolutePath.self, forKey: .publicHeaders)
@@ -80,9 +80,9 @@ extension TargetDependency {
             self = .cocoapods(path: path)
         case .xctest:
             self = .xctest
-        case .thirdParty:
+        case .external:
             let name = try container.decode(String.self, forKey: .name)
-            self = .thirdParty(name: name)
+            self = .external(name: name)
         }
     }
 
@@ -99,8 +99,8 @@ extension TargetDependency {
         case let .framework(path):
             try container.encode(Kind.framework, forKey: .kind)
             try container.encode(path, forKey: .path)
-        case let .xcFramework(path):
-            try container.encode(Kind.xcFramework, forKey: .kind)
+        case let .xcframework(path):
+            try container.encode(Kind.xcframework, forKey: .kind)
             try container.encode(path, forKey: .path)
         case let .library(path, publicHeaders, swiftModuleMap):
             try container.encode(Kind.library, forKey: .kind)
@@ -119,8 +119,8 @@ extension TargetDependency {
             try container.encode(path, forKey: .path)
         case .xctest:
             try container.encode(Kind.xctest, forKey: .kind)
-        case let .thirdParty(name):
-            try container.encode(Kind.thirdParty, forKey: .kind)
+        case let .external(name):
+            try container.encode(Kind.external, forKey: .kind)
             try container.encode(name, forKey: .name)
         }
     }

@@ -6,14 +6,14 @@ import TuistSupport
 // MARK: - GraphLoaderError
 
 public enum GraphLoaderError: FatalError {
-    case invalidThirdPartyDependency(name: String)
+    case invalidExternalDependency(name: String)
 
     public var type: ErrorType { .abort }
 
     public var description: String {
         switch self {
-        case let .invalidThirdPartyDependency(name):
-            return "`\(name)` is not a valid configured ThirdPartyDependency"
+        case let .invalidExternalDependency(name):
+            return "`\(name)` is not a valid configured external dependency"
         }
     }
 }
@@ -221,7 +221,7 @@ public final class GraphLoader: GraphLoading {
                 cache: cache
             )
 
-        case let .xcFramework(frameworkPath):
+        case let .xcframework(frameworkPath):
             return try loadXCFramework(path: frameworkPath, cache: cache)
 
         case let .sdk(name, status):
@@ -236,16 +236,16 @@ public final class GraphLoader: GraphLoading {
         case .xctest:
             return try loadXCTestSDK(platform: fromPlatform)
 
-        case let .thirdParty(name):
-            guard let dependency = dependencies.thirdPartyDependencies[name] else {
-                throw GraphLoaderError.invalidThirdPartyDependency(name: name)
+        case let .external(name):
+            guard let dependency = dependencies.externalDependencies[name] else {
+                throw GraphLoaderError.invalidExternalDependency(name: name)
             }
 
             let mappedDependency: TargetDependency
             switch dependency {
             case let .xcframework(path, _):
                 // TODO: handle architecture
-                mappedDependency = .xcFramework(path: path)
+                mappedDependency = .xcframework(path: path)
             }
 
             return try loadDependency(

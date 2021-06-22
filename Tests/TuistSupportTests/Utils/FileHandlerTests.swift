@@ -48,8 +48,8 @@ final class FileHandlerTests: TuistUnitTestCase {
 
     func test_decode() throws {
         let testPlistPath = fixturePath(path: RelativePath("Test.plist"))
-        let xcFrameworkInfoPlist: TestPlist = try subject.readPlistFile(testPlistPath)
-        XCTAssertNotNil(xcFrameworkInfoPlist)
+        let xcframeworkInfoPlist: TestPlist = try subject.readPlistFile(testPlistPath)
+        XCTAssertNotNil(xcframeworkInfoPlist)
     }
 
     func test_replace_cleans_up_temp() throws {

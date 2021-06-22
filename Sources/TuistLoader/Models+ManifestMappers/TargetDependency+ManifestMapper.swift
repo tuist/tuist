@@ -32,12 +32,12 @@ extension TuistGraph.TargetDependency {
             )
         case let .cocoapods(path):
             return .cocoapods(path: try generatorPaths.resolve(path: path))
-        case let .xcFramework(path):
-            return .xcFramework(path: try generatorPaths.resolve(path: path))
+        case let .xcframework(path):
+            return .xcframework(path: try generatorPaths.resolve(path: path))
         case .xctest:
             return .xctest
-        case let .thirdParty(name):
-            return .thirdParty(name: name)
+        case let .external(name):
+            return .external(name: name)
         }
     }
 }

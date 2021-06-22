@@ -51,7 +51,9 @@ final class ProjectMapperProvider: ProjectMapperProviding {
         }
 
         // Support for resources in libraries
-        mappers.append(ResourcesProjectMapper())
+        if !config.generationOptions.contains(.disableBundleAccessors) {
+            mappers.append(ResourcesProjectMapper())
+        }
 
         // Info Plist
         mappers.append(GenerateInfoPlistProjectMapper())
