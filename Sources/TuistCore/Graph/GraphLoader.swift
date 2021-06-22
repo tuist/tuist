@@ -1,7 +1,6 @@
 import Foundation
 import TSCBasic
 import TuistGraph
-import TuistSupport
 
 // MARK: - GraphLoading
 
@@ -47,7 +46,11 @@ public final class GraphLoader: GraphLoading {
         let cycleDetector = GraphCircularDetector()
 
         try workspace.projects.forEach {
-            try loadProject(path: $0, cache: cache, cycleDetector: cycleDetector)
+            try loadProject(
+                path: $0,
+                cache: cache,
+                cycleDetector: cycleDetector
+            )
         }
 
         let updatedWorkspace = workspace.replacing(projects: cache.loadedProjects.keys.sorted())
@@ -133,7 +136,7 @@ public final class GraphLoader: GraphLoading {
         }
 
         cache.add(target: target, path: path)
-        let targetDependencies = try target.dependencies.map {
+        let dependencies = try target.dependencies.map {
             try loadDependency(
                 path: path,
                 fromTarget: target.name,
@@ -146,8 +149,8 @@ public final class GraphLoader: GraphLoading {
 
         try cycleDetector.complete()
 
-        if !targetDependencies.isEmpty {
-            cache.dependencies[.target(name: name, path: path)] = Set(targetDependencies)
+        if !dependencies.isEmpty {
+            cache.dependencies[.target(name: name, path: path)] = Set(dependencies)
         }
     }
 
