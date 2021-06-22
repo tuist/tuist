@@ -252,8 +252,8 @@ private extension TargetDependency {
             return "xcframework"
         case .xctest:
             return "xctest"
-        case .thirdParty:
-            return "thirdParty"
+        case .external:
+            return "external"
         }
     }
 
@@ -277,7 +277,7 @@ private extension TargetDependency {
             return path.basename
         case .xctest:
             return "xctest"
-        case let .thirdParty(name):
+        case let .external(name):
             return name
         }
     }

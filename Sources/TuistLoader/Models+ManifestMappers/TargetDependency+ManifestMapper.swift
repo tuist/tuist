@@ -36,8 +36,8 @@ extension TuistGraph.TargetDependency {
             return .xcFramework(path: try generatorPaths.resolve(path: path))
         case .xctest:
             return .xctest
-        case let .thirdParty(name):
-            return .thirdParty(name: name)
+        case let .external(name):
+            return .external(name: name)
         }
     }
 }
