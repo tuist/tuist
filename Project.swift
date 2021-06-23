@@ -27,45 +27,47 @@ let packages: [Package] = [
     .package(url: "https://github.com/stencilproject/Stencil.git", .upToNextMajor(from: "0.14.0")),
     .package(url: "https://github.com/fortmarek/StencilSwiftKit.git", .branch("stable")),
     .package(url: "https://github.com/FabrizioBrancati/Queuer.git", .upToNextMajor(from: "2.1.1")),
+    .package(url: "https://github.com/krzyzanowskim/CryptoSwift.git", .upToNextMajor(from: "1.3.8")),
+    .package(url: "https://github.com/tuist/GraphViz.git", .branch("tuist")),
+    .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMajor(from: "0.4.3")),
+    .package(url: "https://github.com/fortmarek/SwiftGen", .revision("ef8d6b186a03622cec8d228b18f0e2b3bb20b81c")),
 ]
-
-func projectDescription() -> [Target] {
-    [
-        Target(name: "ProjectDescription",
-               platform: .macOS,
-               product: .framework,
-               bundleId: "io.tuist.ProjectDescription",
-               deploymentTarget: Constants.deploymentTarget,
-               infoPlist: .default,
-               sources: ["Sources/ProjectDescription/**/*.swift"],
-               dependencies: [],
-               settings: Settings(configurations: [
-                   .debug(name: "Debug", settings: [:], xcconfig: nil),
-                   .release(name: "Release", settings: [:], xcconfig: nil),
-               ])),
-        Target(name: "ProjectDescriptionTests",
-               platform: .macOS,
-               product: .unitTests,
-               bundleId: "io.tuist.ProjectDescriptionTests",
-               deploymentTarget: Constants.deploymentTarget,
-               infoPlist: .default,
-               sources: ["Tests/ProjectDescriptionTests/**/*.swift"],
-               dependencies: [
-                .target(name: "ProjectDescription"),
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistSupport"),
-               ],
-               settings: Settings(configurations: [
-                   .debug(name: "Debug", settings: [:], xcconfig: nil),
-                   .release(name: "Release", settings: [:], xcconfig: nil),
-               ]))
-    ]
-}
 
 func targets() -> [Target] {
     return [
+//        Target.target(
+//            name: "tuistenv",
+//            product: .commandLineTool,
+//            dependencies: [
+//                .target(name: "TuistEnvKit"),
+//            ]
+//        ),
+//        Target.target(
+//            name: "tuist",
+//            product: .commandLineTool,
+//            dependencies: [
+//                .target(name: "TuistKit"),
+//                .target(name: "ProjectDescription"),
+//                .target(name: "ProjectAutomation"),
+//            ]
+//        ),
+        Target.target(
+            name: "TuistIntegrationTests",
+            product: .unitTests,
+            dependencies: [
+                .target(name: "TuistGenerator"),
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistSupport"),
+                .target(name: "TuistCoreTesting"),
+                .target(name: "TuistGraphTesting"),
+                .target(name: "TuistLoaderTesting"),
+            ]
+        ),
+    ]
+    + [
         Target.module(
-            name: "Support",
+            name: "TuistSupport",
+            hasIntegrationTests: true,
             dependencies: [
                 .package(product: "CombineExt"),
                 .package(product: "SwiftToolsSupport-auto"),
@@ -79,13 +81,106 @@ func targets() -> [Target] {
                 .package(product: "Zip"),
                 .package(product: "Checksum"),
                 .package(product: "StencilSwiftKit"),
+                .package(product: "SwiftGenKit"),
                 .package(product: "Stencil"),
                 .package(product: "XcodeProj"),
                 .package(product: "Queuer"),
+                .package(product: "CryptoSwift"),
+                .package(product: "GraphViz"),
+                .package(product: "ArgumentParser"),
             ]
         ),
         Target.module(
-            name: "Graph",
+            name: "TuistKit",
+            hasTesting: false,
+            hasIntegrationTests: true,
+            dependencies: [
+                .target(name: "TuistSupport"),
+                .target(name: "TuistGenerator"),
+                .target(name: "TuistCache"),
+                .target(name: "TuistAutomation"),
+                .target(name: "ProjectDescription"),
+                .target(name: "ProjectAutomation"),
+                .target(name: "TuistLoader"),
+                .target(name: "TuistInsights"),
+                .target(name: "TuistScaffold"),
+                .target(name: "TuistSigning"),
+                .target(name: "TuistDependencies"),
+                .target(name: "TuistLinting"),
+                .target(name: "TuistLab"),
+                .target(name: "TuistDoc"),
+                .target(name: "TuistMigration"),
+                .target(name: "TuistAsyncQueue"),
+                .target(name: "TuistAnalytics"),
+                .target(name: "TuistPlugin"),
+                .target(name: "TuistGraph"),
+                .target(name: "TuistTasks"),
+            ],
+            testDependencies: [
+                .target(name: "TuistAutomation"),
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistCoreTesting"),
+                .target(name: "ProjectDescription"),
+                .target(name: "ProjectAutomation"),
+                .target(name: "TuistLoaderTesting"),
+                .target(name: "TuistCacheTesting"),
+                .target(name: "TuistGeneratorTesting"),
+                .target(name: "TuistScaffoldTesting"),
+                .target(name: "TuistLabTesting"),
+                .target(name: "TuistAutomationTesting"),
+                .target(name: "TuistSigningTesting"),
+                .target(name: "TuistDependenciesTesting"),
+                .target(name: "TuistLintingTesting"),
+                .target(name: "TuistMigrationTesting"),
+                .target(name: "TuistDocTesting"),
+                .target(name: "TuistAsyncQueueTesting"),
+                .target(name: "TuistGraphTesting"),
+                .target(name: "TuistPlugin"),
+                .target(name: "TuistPluginTesting"),
+                .target(name: "TuistTasksTesting"),
+            ],
+            integrationTestsDependencies: [
+                .target(name: "TuistCoreTesting"),
+                .target(name: "TuistSupportTesting"),
+                .target(name: "ProjectDescription"),
+                .target(name: "ProjectAutomation"),
+                .target(name: "TuistLoaderTesting"),
+                .target(name: "TuistLabTesting"),
+                .target(name: "TuistGraphTesting"),
+            ]
+        ),
+        Target.module(
+            name: "TuistDoc",
+            dependencies: [
+                .target(name: "TuistCore"),
+                .target(name: "TuistGraph"),
+                .target(name: "TuistSupport"),
+            ],
+            testDependencies: [
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistCore"),
+                .target(name: "TuistCoreTesting"),
+                .target(name: "TuistGraphTesting"),
+                .target(name: "TuistSupport"),
+            ],
+            testingDependencies: [
+                .target(name: "TuistCore"),
+                .target(name: "TuistCoreTesting"),
+                .target(name: "TuistSupportTesting"),
+            ]
+        ),
+        Target.module(
+            name: "TuistEnvKit",
+            hasTesting: false,
+            dependencies: [
+                .target(name: "TuistSupport"),
+            ],
+            testDependencies: [
+                .target(name: "TuistSupportTesting"),
+            ]
+        ),
+        Target.module(
+            name: "TuistGraph",
             dependencies: [
                 .target(name: "TuistSupport"),
             ],
@@ -101,7 +196,8 @@ func targets() -> [Target] {
             ]
         ),
         Target.module(
-            name: "Core",
+            name: "TuistCore",
+            hasIntegrationTests: true,
             dependencies: [
                 .target(name: "TuistSupport"),
                 .target(name: "TuistGraph"),
@@ -117,10 +213,91 @@ func targets() -> [Target] {
                 .target(name: "TuistGraph"),
                 .target(name: "TuistSupportTesting"),
                 .target(name: "TuistGraphTesting"),
+            ],
+            integrationTestsDependencies: [
+                .target(name: "TuistSupportTesting"),
             ]
         ),
         Target.module(
-            name: "Scaffold",
+            name: "TuistGenerator",
+            hasIntegrationTests: true,
+            dependencies: [
+                .target(name: "TuistCore"),
+                .target(name: "TuistGraph"),
+                .target(name: "TuistSupport"),
+            ],
+            testDependencies: [
+                .target(name: "TuistCoreTesting"),
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistGraphTesting"),
+            ],
+            testingDependencies: [
+                .target(name: "TuistCoreTesting"),
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistGraphTesting"),
+            ],
+            integrationTestsDependencies: [
+                .target(name: "TuistCoreTesting"),
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistGraphTesting"),
+                .target(name: "TuistSigningTesting"),
+            ]
+        ),
+        Target.module(
+            name: "TuistLab",
+            dependencies: [
+                .target(name: "TuistCore"),
+                .target(name: "TuistGraph"),
+                .target(name: "TuistSupport"),
+            ],
+            testDependencies: [
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistCoreTesting"),
+                .target(name: "TuistGraphTesting"),
+            ],
+            testingDependencies: [
+                .target(name: "TuistCore"),
+                .target(name: "TuistGraphTesting"),
+            ]
+        ),
+        Target.module(
+            name: "TuistTasks",
+            hasTests: false,
+            hasIntegrationTests: true,
+            dependencies: [
+                .target(name: "TuistCore"),
+                .target(name: "TuistSupport"),
+            ],
+            testingDependencies: [
+                .target(name: "TuistGraphTesting"),
+            ],
+            integrationTestsDependencies: [
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistGraphTesting"),
+            ]
+        ),
+        Target.module(
+            name: "TuistCache",
+            hasIntegrationTests: true,
+            dependencies: [
+                .target(name: "TuistCore"),
+                .target(name: "TuistGraph"),
+                .target(name: "TuistSupport"),
+            ],
+            testDependencies: [
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistCoreTesting"),
+                .target(name: "TuistGraphTesting"),
+            ],
+            integrationTestsDependencies: [
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistCoreTesting"),
+                .target(name: "TuistGraphTesting"),
+            ]
+        ),
+        Target.module(
+            name: "TuistScaffold",
+            hasIntegrationTests: true,
             dependencies: [
                 .target(name: "TuistCore"),
                 .target(name: "TuistGraph"),
@@ -133,10 +310,15 @@ func targets() -> [Target] {
             ],
             testingDependencies: [
                 .target(name: "TuistGraphTesting"),
+            ],
+            integrationTestsDependencies: [
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistGraphTesting"),
             ]
         ),
         Target.module(
-            name: "Loader",
+            name: "TuistLoader",
+            hasIntegrationTests: true,
             dependencies: [
                 .target(name: "TuistCore"),
                 .target(name: "TuistGraph"),
@@ -153,10 +335,15 @@ func targets() -> [Target] {
                 .target(name: "ProjectDescription"),
                 .target(name: "TuistSupportTesting"),
                 .target(name: "TuistGraphTesting"),
+            ],
+            integrationTestsDependencies: [
+                .target(name: "TuistGraphTesting"),
+                .target(name: "TuistSupportTesting"),
+                .target(name: "ProjectDescription"),
             ]
         ),
         Target.module(
-            name: "AsyncQueue",
+            name: "TuistAsyncQueue",
             dependencies: [
                 .target(name: "TuistCore"),
                 .target(name: "TuistGraph"),
@@ -172,7 +359,7 @@ func targets() -> [Target] {
             ]
         ),
         Target.module(
-            name: "Plugin",
+            name: "TuistPlugin",
             dependencies: [
                 .target(name: "TuistGraph"),
                 .target(name: "TuistLoader"),
@@ -193,7 +380,151 @@ func targets() -> [Target] {
                 .target(name: "TuistGraph"),
             ]
         ),
-        projectDescription()
+        Target.module(
+            name: "ProjectDescription",
+            hasTesting: false,
+            testDependencies: [
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistSupport"),
+            ]
+        ),
+        Target.module(
+            name: "ProjectAutomation",
+            hasTests: false,
+            hasTesting: false
+        ),
+        Target.module(
+            name: "TuistInsights",
+            hasTesting: false,
+            hasIntegrationTests: true,
+            dependencies: [
+                .target(name: "TuistCore"),
+                .target(name: "TuistGraph"),
+                .target(name: "TuistSupport"),
+            ],
+            testDependencies: [
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistGraphTesting"),
+            ],
+            integrationTestsDependencies: [
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistGraphTesting"),
+            ]
+        ),
+        Target.module(
+            name: "TuistSigning",
+            hasIntegrationTests: true,
+            dependencies: [
+                .target(name: "TuistCore"),
+                .target(name: "TuistGraph"),
+                .target(name: "TuistSupport"),
+            ],
+            testDependencies: [
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistCoreTesting"),
+                .target(name: "TuistGraphTesting"),
+            ],
+            testingDependencies: [
+                .target(name: "TuistGraphTesting"),
+            ],
+            integrationTestsDependencies: [
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistCoreTesting"),
+                .target(name: "TuistGraphTesting"),
+            ]
+        ),
+        Target.module(
+            name: "TuistAnalytics",
+            hasTesting: false,
+            dependencies: [
+                .target(name: "TuistAsyncQueue"),
+                .target(name: "TuistCore"),
+            ],
+            testDependencies: [
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistGraphTesting"),
+                .target(name: "TuistCoreTesting"),
+            ]
+        ),
+        Target.module(
+            name: "TuistMigration",
+            hasIntegrationTests: true,
+            dependencies: [
+                .target(name: "TuistCore"),
+                .target(name: "TuistGraph"),
+                .target(name: "TuistSupport"),
+            ],
+            testDependencies: [
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistCoreTesting"),
+                .target(name: "TuistGraphTesting"),
+            ],
+            testingDependencies: [
+                .target(name: "TuistGraphTesting"),
+            ],
+            integrationTestsDependencies: [
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistCoreTesting"),
+                .target(name: "TuistGraphTesting"),
+            ]
+        ),
+        Target.module(
+            name: "TuistLinting",
+            dependencies: [
+                .target(name: "TuistCore"),
+                .target(name: "TuistGraph"),
+                .target(name: "TuistSupport"),
+            ],
+            testDependencies: [
+                .target(name: "TuistCoreTesting"),
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistGraphTesting"),
+            ],
+            testingDependencies: [
+                .target(name: "TuistGraphTesting"),
+            ]
+        ),
+        Target.module(
+            name: "TuistDependencies",
+            dependencies: [
+                .target(name: "TuistCore"),
+                .target(name: "TuistGraph"),
+                .target(name: "TuistSupport"),
+            ],
+            testDependencies: [
+                .target(name: "TuistCoreTesting"),
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistGraphTesting"),
+            ],
+            testingDependencies: [
+                .target(name: "TuistGraphTesting"),
+            ]
+        ),
+        Target.module(
+            name: "TuistAutomation",
+            hasIntegrationTests: true,
+            dependencies: [
+                .target(name: "TuistCore"),
+                .target(name: "TuistGraph"),
+                .target(name: "TuistSupport"),
+            ],
+            testDependencies: [
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistCoreTesting"),
+                .target(name: "TuistGraphTesting")
+            ],
+            testingDependencies: [
+                .target(name: "TuistCore"),
+                .target(name: "TuistCoreTesting"),
+                .target(name: "ProjectDescription"),
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistGraphTesting"),
+            ],
+            integrationTestsDependencies: [
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistGraphTesting"),
+            ]
+        )
     ]
     .flatMap { $0 }
 }
