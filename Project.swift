@@ -1,6 +1,6 @@
 import ProjectDescription
+import ProjectDescriptionHelpers
 
-let deploymentTarget: DeploymentTarget = .macOS(targetVersion: "10.15")
 let baseSettings: SettingsDictionary = ["EXCLUDED_ARCHS": "arm64"]
 
 func debugSettings() -> SettingsDictionary {
@@ -10,8 +10,7 @@ func debugSettings() -> SettingsDictionary {
 }
 
 func releaseSettings() -> SettingsDictionary {
-    var settings = baseSettings
-    return settings
+    return baseSettings
 }
 
 let packages: [Package] = [
@@ -33,7 +32,7 @@ func projectDescription() -> [Target] {
                platform: .macOS,
                product: .framework,
                bundleId: "io.tuist.ProjectDescription",
-               deploymentTarget: deploymentTarget,
+               deploymentTarget: Constants.deploymentTarget,
                infoPlist: .default,
                sources: ["Sources/ProjectDescription/**/*.swift"],
                dependencies: [],
@@ -45,12 +44,13 @@ func projectDescription() -> [Target] {
                platform: .macOS,
                product: .unitTests,
                bundleId: "io.tuist.ProjectDescriptionTests",
-               deploymentTarget: deploymentTarget,
+               deploymentTarget: Constants.deploymentTarget,
                infoPlist: .default,
                sources: ["Tests/ProjectDescriptionTests/**/*.swift"],
                dependencies: [
                 .target(name: "ProjectDescription"),
-                .target(name: "TuistSupportTesting")
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistSupport"),
                ],
                settings: Settings(configurations: [
                    .debug(name: "Debug", settings: [:], xcconfig: nil),
@@ -59,65 +59,64 @@ func projectDescription() -> [Target] {
     ]
 }
 
-func module(name: String, product: Product = .staticLibrary, dependencies: [TargetDependency]) -> [Target] {
-    var testDependencies = dependencies + [.target(name: "Tuist\(name)"), .target(name: "Tuist\(name)Testing"), .package(product: "RxBlocking")]
-    var testingDependencies = dependencies + [.target(name: "Tuist\(name)")]
-    return [
-        Target(name: "Tuist\(name)",
-               platform: .macOS,
-               product: product,
-               bundleId: "io.tuist.Tuist\(name)",
-               deploymentTarget: deploymentTarget,
-               infoPlist: .default,
-               sources: ["Sources/Tuist\(name)/**/*.swift"],
-               dependencies: dependencies,
-               settings: Settings(configurations: [
-                   .debug(name: "Debug", settings: [:], xcconfig: nil),
-                   .release(name: "Release", settings: [:], xcconfig: nil),
-               ])),
-        Target(name: "Tuist\(name)Tests",
-               platform: .macOS,
-               product: .unitTests,
-               bundleId: "io.tuist.Tuist\(name)Tests",
-               deploymentTarget: deploymentTarget,
-               infoPlist: .default,
-               sources: ["Tests/Tuist\(name)Tests/**/*.swift"],
-               dependencies: testDependencies,
-               settings: Settings(configurations: [
-                   .debug(name: "Debug", settings: [:], xcconfig: nil),
-                   .release(name: "Release", settings: [:], xcconfig: nil),
-               ])),
-        Target(name: "Tuist\(name)Testing",
-               platform: .macOS,
-               product: .staticLibrary,
-               bundleId: "io.tuist.Tuist\(name)Testing",
-               deploymentTarget: deploymentTarget,
-               infoPlist: .default,
-               sources: ["Sources/Tuist\(name)Testing/**/*.swift"],
-               dependencies: testingDependencies,
-               settings: Settings(configurations: [
-                   .debug(name: "Debug", settings: [:], xcconfig: nil),
-                   .release(name: "Release", settings: [:], xcconfig: nil),
-               ]))
-    ]
-}
-
 func targets() -> [Target] {
-    var targets: [Target] = []
-    targets.append(contentsOf: module(name: "Support", dependencies: [
-        .package(product: "CombineExt"),
-        .package(product: "SwiftToolsSupport-auto"),
-        .package(product: "RxSwift"),
-        .package(product: "RxRelay"),
-        .package(product: "Logging"),
-        .package(product: "KeychainAccess"),
-        .package(product: "Swifter"),
-        .package(product: "Signals"),
-        .package(product: "Zip"),
-        .package(product: "Checksum"),
-    ]))
-    targets.append(contentsOf: projectDescription())
-    return targets
+    return [
+        Target.module(
+            name: "Support",
+            dependencies: [
+                .package(product: "CombineExt"),
+                .package(product: "SwiftToolsSupport-auto"),
+                .package(product: "RxSwift"),
+                .package(product: "RxRelay"),
+                .package(product: "RxBlocking"),
+                .package(product: "Logging"),
+                .package(product: "KeychainAccess"),
+                .package(product: "Swifter"),
+                .package(product: "Signals"),
+                .package(product: "Zip"),
+                .package(product: "Checksum"),
+            ]
+        ),
+        Target.module(
+            name: "Graph",
+            dependencies: [
+                .target(name: "TuistSupport"),
+            ],
+            testDependencies: [
+                .target(name: "TuistCore"),
+                .target(name: "TuistCoreTesting"),
+                .target(name: "TuistSupport"),
+                .target(name: "TuistSupportTesting"),
+            ],
+            testingDependencies: [
+                .target(name: "TuistSupport"),
+                .target(name: "TuistSupportTesting"),
+            ]
+        ),
+        Target.module(
+            name: "Core",
+            dependencies: [
+                .target(name: "TuistSupport"),
+                .target(name: "TuistGraph"),
+                .package(product: "XcodeProj"),
+            ],
+            testDependencies: [
+                .target(name: "TuistSupport"),
+                .target(name: "TuistGraph"),
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistGraphTesting")
+            ],
+            testingDependencies: [
+                .target(name: "TuistSupport"),
+                .target(name: "TuistGraph"),
+                .target(name: "TuistCore"),
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistGraphTesting"),
+            ]
+        ),
+        projectDescription()
+    ]
+    .flatMap { $0 }
 }
 
 let project = Project(
