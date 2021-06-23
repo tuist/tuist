@@ -17,7 +17,6 @@ protocol Generating {
     func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph)
 }
 
-// swiftlint:disable:next type_body_length
 class Generator: Generating {
     private let recursiveManifestLoader: RecursiveManifestLoading
     private let converter: ManifestModelConverting

@@ -6,6 +6,7 @@ import TuistGraph
 import TuistSupport
 
 // MARK: - TargetDependency Mapper Error
+
 public enum TargetDependencyMapperError: FatalError {
     case invalidExternalDependency(name: String)
 
