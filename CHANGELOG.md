@@ -4,7 +4,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
-## 1.45.0
+## 1.45.0 - Jungle
 
 ### Added
 
