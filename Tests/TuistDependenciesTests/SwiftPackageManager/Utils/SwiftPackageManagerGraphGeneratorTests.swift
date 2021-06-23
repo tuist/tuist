@@ -24,7 +24,6 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
     func test_generate() throws {
         // Given
         let path = try temporaryPath()
-        let artifactsPath = path.appending(component: "artifacts")
         let checkoutsPath = path.appending(component: "checkouts")
 
         // Alamofire package and its dependencies
@@ -32,7 +31,6 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
 
         // GoogleAppMeasurement package and its dependencies
         let googleAppMeasurementPath = checkoutsPath.appending(component: "GoogleAppMeasurement")
-        let googleAppMeasurementArtifactsPath = artifactsPath.appending(component: "GoogleAppMeasurement")
         let googleUtilitiesPath = checkoutsPath.appending(component: "GoogleUtilities")
         let nanopbPath = checkoutsPath.appending(component: "nanopb")
 
@@ -80,18 +78,17 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
         let got = try subject.generate(at: path)
 
         // Then
-        let expected = DependenciesGraph(
-            externalDependencies: [
-                "Alamofire": .alamofire(packageFolder: alamofirePath),
-                "GoogleAppMeasurement": .googleAppMeasurement(artifactsFolder: googleAppMeasurementArtifactsPath, packageFolder: googleAppMeasurementPath),
-                "GoogleUtilities": .googleUtilities(packageFolder: googleUtilitiesPath),
-                "nanopb": .nanopb(packageFolder: nanopbPath),
-                "test": .test(packageFolder: testPath),
-                "a-dependency": .aDependency(packageFolder: aDependencyPath),
-                "another-dependency": .anotherDependency(packageFolder: anotherDependencyPath),
-            ]
-        )
+        let expected = try DependenciesGraph.none
+            .merging(with: DependenciesGraph.alamofire(packageFolder: alamofirePath))
+            .merging(with: DependenciesGraph.googleAppMeasurement(packageFolder: googleAppMeasurementPath))
+            .merging(with: DependenciesGraph.googleUtilities(packageFolder: googleUtilitiesPath))
+            .merging(with: DependenciesGraph.nanopb(packageFolder: nanopbPath))
+            .merging(with: DependenciesGraph.test(packageFolder: testPath))
+            .merging(with: DependenciesGraph.aDependency(packageFolder: aDependencyPath))
+            .merging(with: DependenciesGraph.anotherDependency(packageFolder: anotherDependencyPath))
 
         XCTAssertEqual(got, expected)
+
+        // TODO: check generated projects
     }
 }

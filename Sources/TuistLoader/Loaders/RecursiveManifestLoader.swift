@@ -65,8 +65,12 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         var paths = Set(paths)
         while !paths.isEmpty {
             paths.subtract(cache.keys)
-            let projects = try Array(paths).map(context: ExecutionContext.concurrent) {
-                try manifestLoader.loadProject(at: $0)
+            let projects = try Array(paths).map(context: ExecutionContext.concurrent) { path -> ProjectDescription.Project in
+                if path.extension == "json" {
+                    return try JSONDecoder().decode(ProjectDescription.Project.self, from: try fileHandler.readFile(path))
+                } else {
+                    return try manifestLoader.loadProject(at: path)
+                }
             }
             var newDependenciesPaths = Set<AbsolutePath>()
             try zip(paths, projects).forEach { path, project in
@@ -85,24 +89,24 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
     ) throws -> [AbsolutePath] {
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         let paths: [AbsolutePath] = try project.targets.flatMap {
-            try $0.dependencies.compactMap {
-                switch $0 {
+            try $0.dependencies.flatMap { dependency -> [AbsolutePath] in
+                switch dependency {
                 case let .project(target: _, path: projectPath):
-                    return try generatorPaths.resolve(path: projectPath)
+                    return [try generatorPaths.resolve(path: projectPath)]
                 case let .external(name):
-                    guard let dependency = dependenciesGraph.externalDependencies[name] else {
-                        return nil
+                    guard let dependencies = dependenciesGraph.externalDependencies[name] else {
+                        return []
                     }
-
-                    switch dependency {
-                    case .sources:
-                        // TODO: invoke return try generatorPaths.resolve(path: projectPath) for source based dependencies
-                        fatalError("ExternalDependency.source not supported yet")
-                    case .xcframework:
-                        return nil
+                    return try dependencies.compactMap {
+                        switch $0 {
+                        case let .project(target: _, path: projectPath):
+                            return try generatorPaths.resolve(path: .init(projectPath.pathString))
+                        default:
+                            return nil
+                        }
                     }
                 default:
-                    return nil
+                    return []
                 }
             }
         }

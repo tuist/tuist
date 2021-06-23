@@ -38,7 +38,7 @@ extension TuistGraph.Target {
         let productName = manifest.productName
         let deploymentTarget = manifest.deploymentTarget.map { TuistGraph.DeploymentTarget.from(manifest: $0) }
 
-        let dependencies = try manifest.dependencies.map {
+        let dependencies = try manifest.dependencies.flatMap {
             try TuistGraph.TargetDependency.from(manifest: $0, generatorPaths: generatorPaths, dependenciesGraph: dependenciesGraph)
         }
 

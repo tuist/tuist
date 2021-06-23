@@ -6,7 +6,7 @@ import TuistSupport
 
 public enum DependenciesGraphError: FatalError, Equatable {
     /// Thrown when the same dependency is defined more than once.
-    case duplicatedDependency(String, ExternalDependency, ExternalDependency)
+    case duplicatedDependency(String, [TargetDependency], [TargetDependency])
 
     /// Error type.
     public var type: ErrorType {
@@ -34,10 +34,10 @@ public enum DependenciesGraphError: FatalError, Equatable {
 /// A directed acyclic graph (DAG) that Tuist uses to represent the dependency tree.
 public struct DependenciesGraph: Equatable, Codable {
     /// A dictionary where the keys are the names of dependencies, and the values are the dependencies themselves.
-    public let externalDependencies: [String: ExternalDependency]
+    public let externalDependencies: [String: [TargetDependency]]
 
     /// Create an instance of `DependenciesGraph` model.
-    public init(externalDependencies: [String: ExternalDependency]) {
+    public init(externalDependencies: [String: [TargetDependency]]) {
         self.externalDependencies = externalDependencies
     }
 
@@ -47,8 +47,12 @@ public struct DependenciesGraph: Equatable, Codable {
 
 extension DependenciesGraph {
     public func merging(with other: Self) throws -> Self {
-        let mergedExternalDependencies = try externalDependencies.merging(other.externalDependencies) { old, new in
-            throw DependenciesGraphError.duplicatedDependency(old.name, old, new)
+        let mergedExternalDependencies = try other.externalDependencies.reduce(into: externalDependencies) { result, entry in
+            if let alreadyPresent = result[entry.key] {
+                throw DependenciesGraphError.duplicatedDependency(entry.key, alreadyPresent, entry.value)
+            }
+
+            result[entry.key] = entry.value
         }
         return .init(externalDependencies: mergedExternalDependencies)
     }

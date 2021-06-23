@@ -42,36 +42,12 @@ final class CarthageGraphGeneratorTests: TuistUnitTestCase {
         // Then
         let expected = DependenciesGraph(
             externalDependencies: [
-                "RxSwift": .xcframework(
-                    name: "RxSwift",
-                    path: "/Tuist/Dependencies/Carthage/RxSwift.xcframework",
-                    architectures: [.armv7k, .arm64, .i386, .x8664, .armv7, .arm6432]
-                ),
-                "RxCocoa": .xcframework(
-                    name: "RxCocoa",
-                    path: "/Tuist/Dependencies/Carthage/RxCocoa.xcframework",
-                    architectures: [.armv7, .armv7k, .arm6432, .x8664, .i386, .arm64]
-                ),
-                "RxRelay": .xcframework(
-                    name: "RxRelay",
-                    path: "/Tuist/Dependencies/Carthage/RxRelay.xcframework",
-                    architectures: [.armv7k, .i386, .x8664, .armv7, .arm6432, .arm64]
-                ),
-                "RxTest": .xcframework(
-                    name: "RxTest",
-                    path: "/Tuist/Dependencies/Carthage/RxTest.xcframework",
-                    architectures: [.i386, .x8664, .arm64, .armv7]
-                ),
-                "RxBlocking": .xcframework(
-                    name: "RxBlocking",
-                    path: "/Tuist/Dependencies/Carthage/RxBlocking.xcframework",
-                    architectures: [.arm64, .armv7k, .x8664, .arm6432, .i386, .armv7]
-                ),
-                "Alamofire": .xcframework(
-                    name: "Alamofire",
-                    path: "/Tuist/Dependencies/Carthage/Alamofire.xcframework",
-                    architectures: [.x8664, .armv7k, .i386, .arm64, .armv7, .arm6432]
-                ),
+                "RxSwift": [.xcframework(path: "/Tuist/Dependencies/Carthage/RxSwift.xcframework")],
+                "RxCocoa": [.xcframework(path: "/Tuist/Dependencies/Carthage/RxCocoa.xcframework")],
+                "RxRelay": [.xcframework(path: "/Tuist/Dependencies/Carthage/RxRelay.xcframework")],
+                "RxTest": [.xcframework(path: "/Tuist/Dependencies/Carthage/RxTest.xcframework")],
+                "RxBlocking": [.xcframework(path: "/Tuist/Dependencies/Carthage/RxBlocking.xcframework")],
+                "Alamofire": [.xcframework(path: "/Tuist/Dependencies/Carthage/Alamofire.xcframework")],
             ]
         )
 

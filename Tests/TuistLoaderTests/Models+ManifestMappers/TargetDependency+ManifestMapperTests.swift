@@ -19,7 +19,8 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let got = try TuistGraph.TargetDependency.from(manifest: dependency, generatorPaths: generatorPaths, dependenciesGraph: .none)
 
         // Then
-        guard case let .cocoapods(path) = got else {
+        XCTAssertEqual(got.count, 1)
+        guard case let .cocoapods(path) = got[0] else {
             XCTFail("Dependency should be cocoapods")
             return
         }
@@ -35,9 +36,8 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let got = try TuistGraph.TargetDependency.from(manifest: dependency, generatorPaths: generatorPaths, dependenciesGraph: .none)
 
         // Then
-        guard
-            case let .package(product) = got
-        else {
+        XCTAssertEqual(got.count, 1)
+        guard case let .package(product) = got[0] else {
             XCTFail("Dependency should be package")
             return
         }

@@ -1,4 +1,5 @@
 import Foundation
+import ProjectDescription
 import TSCBasic
 import TSCUtility
 import TuistCore
@@ -26,11 +27,10 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
             .map { try jsonDecoder.decode(CarthageVersionFile.self, from: $0) }
             .flatMap { $0.allProducts }
 
-        let externalDependencies: [String: ExternalDependency] = Dictionary(grouping: products, by: \.name)
+        let externalDependencies: [String: [TuistGraph.TargetDependency]] = Dictionary(grouping: products, by: \.name)
             .compactMapValues { products in
-                // All the products grouped by name have the same name and framework
+                // All the products grouped by name have the same framework
                 guard let firstProduct = products.first else { return nil }
-                let dependencyName = firstProduct.name
                 let frameworkName = firstProduct.container
 
                 let path = AbsolutePath("/")
@@ -41,8 +41,7 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
                         frameworkName,
                     ])
 
-                let architectures: Set<BinaryArchitecture> = Set(products.flatMap { $0.architectures })
-                return .xcframework(name: dependencyName, path: path, architectures: architectures)
+                return [.xcframework(path: .init(path.pathString))]
             }
 
         return DependenciesGraph(externalDependencies: externalDependencies)
