@@ -60,17 +60,19 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
     private func loadProjects(paths: [AbsolutePath]) throws -> LoadedProjects {
         var cache = [AbsolutePath: Project]()
 
-        var paths = paths
-        while let path = paths.popLast() {
-            guard cache[path] == nil else {
-                continue
+        var paths = Set(paths)
+        while !paths.isEmpty {
+            paths.subtract(cache.keys)
+            let projects = try Array(paths).map(context: ExecutionContext.concurrent) {
+                try manifestLoader.loadProject(at: $0)
             }
-
-            let project = try manifestLoader.loadProject(at: path)
-            cache[path] = project
-            paths.append(contentsOf: try dependencyPaths(for: project, path: path))
+            var newDependenciesPaths = Set<AbsolutePath>()
+            try zip(paths, projects).forEach { path, project in
+                cache[path] = project
+                newDependenciesPaths.formUnion(try dependencyPaths(for: project, path: path))
+            }
+            paths = newDependenciesPaths
         }
-
         return LoadedProjects(projects: cache)
     }
 
