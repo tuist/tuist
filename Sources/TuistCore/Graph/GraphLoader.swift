@@ -154,7 +154,6 @@ public final class GraphLoader: GraphLoading {
         }
     }
 
-    // swiftlint:disable:next function_body_length
     private func loadDependency(
         path: AbsolutePath,
         fromTarget: String,
