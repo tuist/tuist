@@ -115,7 +115,6 @@ func targets() -> [Target] {
             testingDependencies: [
                 .target(name: "TuistSupport"),
                 .target(name: "TuistGraph"),
-                .target(name: "TuistCore"),
                 .target(name: "TuistSupportTesting"),
                 .target(name: "TuistGraphTesting"),
             ]
@@ -170,6 +169,28 @@ func targets() -> [Target] {
             ],
             testingDependencies: [
                 .target(name: "TuistGraphTesting"),
+            ]
+        ),
+        Target.module(
+            name: "Plugin",
+            dependencies: [
+                .target(name: "TuistGraph"),
+                .target(name: "TuistLoader"),
+                .target(name: "TuistSupport"),
+                .target(name: "TuistScaffold"),
+            ],
+            testDependencies: [
+                .target(name: "ProjectDescription"),
+                .target(name: "TuistLoader"),
+                .target(name: "TuistLoaderTesting"),
+                .target(name: "TuistGraphTesting"),
+                .target(name: "TuistSupport"),
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistScaffoldTesting"),
+                .target(name: "TuistCoreTesting"),
+            ],
+            testingDependencies: [
+                .target(name: "TuistGraph"),
             ]
         ),
         projectDescription()
