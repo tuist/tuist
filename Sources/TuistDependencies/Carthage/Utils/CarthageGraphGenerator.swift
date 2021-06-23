@@ -1,5 +1,4 @@
 import Foundation
-import ProjectDescription
 import TSCBasic
 import TSCUtility
 import TuistCore
