@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.44.0
+
 ### Added
 
 - Add `tvTopShelfExtension` and `tvIntentsExtension` target product. [#2793](https://github.com/tuist/tuist/pull/2793) by [@rmnblm](https://github.com/rmnblm)
