@@ -74,7 +74,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         }
 
         return try packageInfos.reduce(DependenciesGraph.none) { result, packageInfo in
-            let projectPath = try Self.writeProject(
+            try Self.writeProject(
                 for: packageInfo.info,
                 name: packageInfo.name,
                 at: packageInfo.folder,
@@ -82,7 +82,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             )
             let packageDependenciesGraph = DependenciesGraph(
                 externalDependencies: packageInfo.info.products.reduce(into: [:]) { result, product in
-                    result[product.name] = product.targets.map { .project(target: $0, path: projectPath) }
+                    result[product.name] = product.targets.map { .project(target: $0, path: packageInfo.folder) }
                 }
             )
             return try result.merging(with: packageDependenciesGraph)
@@ -94,7 +94,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         name: String,
         at folder: AbsolutePath,
         productToPackage: [String: String]
-    ) throws -> AbsolutePath {
+    ) throws {
         let targets = try packageInfo.targets.compactMap { target in
             try Self.targetDefinition(for: target, packageName: name, packageInfo: packageInfo, at: folder, productToPackage: productToPackage)
         }
@@ -103,10 +103,8 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             targets: targets,
             resourceSynthesizers: []
         )
-        let projectPath = folder.appending(component: "Project.json")
         let projectData = String(data: try JSONEncoder().encode(project), encoding: .utf8)!
-        try FileHandler.shared.write(projectData, path: projectPath, atomically: true)
-        return projectPath
+        try FileHandler.shared.write(projectData, path: folder.appending(component: "Project.json"), atomically: true)
     }
 
     private static func targetDefinition(

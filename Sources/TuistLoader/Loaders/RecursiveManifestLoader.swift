@@ -66,8 +66,9 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         while !paths.isEmpty {
             paths.subtract(cache.keys)
             let projects = try Array(paths).map(context: ExecutionContext.concurrent) { path -> ProjectDescription.Project in
-                if path.extension == "json" {
-                    return try JSONDecoder().decode(ProjectDescription.Project.self, from: try fileHandler.readFile(path))
+                let serializedProject = path.appending(component: "Project.json")
+                if fileHandler.exists(serializedProject) {
+                    return try JSONDecoder().decode(ProjectDescription.Project.self, from: try fileHandler.readFile(serializedProject))
                 } else {
                     return try manifestLoader.loadProject(at: path)
                 }
