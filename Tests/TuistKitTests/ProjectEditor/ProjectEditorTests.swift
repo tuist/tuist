@@ -89,7 +89,12 @@ final class ProjectEditorTests: TuistUnitTestCase {
         try FileHandler.shared.createFolder(helpersDirectory)
         let helpers = ["A.swift", "B.swift"].map { helpersDirectory.appending(component: $0) }
         try helpers.forEach { try FileHandler.shared.touch($0) }
-        let manifests: [(Manifest, AbsolutePath)] = [(.project, directory.appending(component: "Project.swift"))]
+        let manifests = [
+            ManifestFilesLocator.ProjectManifest(
+                manifest: .project,
+                path: directory.appending(component: "Project.swift")
+            ),
+        ]
         let tuistPath = AbsolutePath(ProcessInfo.processInfo.arguments.first!)
         let setupPath = directory.appending(components: "Setup.swift")
         let configPath = directory.appending(components: "Tuist", "Config.swift")
@@ -101,7 +106,9 @@ final class ProjectEditorTests: TuistUnitTestCase {
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
         resourceLocator.projectAutomationStub = { projectAutomationPath }
-        manifestFilesLocator.locateProjectManifestsStub = manifests
+        manifestFilesLocator.locateProjectManifestsStub = { _, _ in
+            manifests
+        }
         manifestFilesLocator.locateConfigStub = configPath
         manifestFilesLocator.locateDependenciesStub = dependenciesPath
         manifestFilesLocator.locateSetupStub = setupPath
@@ -115,7 +122,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         }
 
         // When
-        try _ = subject.edit(at: directory, in: directory, plugins: .test())
+        try _ = subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test())
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
@@ -140,7 +147,9 @@ final class ProjectEditorTests: TuistUnitTestCase {
         try FileHandler.shared.createFolder(helpersDirectory)
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
-        manifestFilesLocator.locateProjectManifestsStub = []
+        manifestFilesLocator.locateProjectManifestsStub = { _, _ in
+            []
+        }
         manifestFilesLocator.locatePluginManifestsStub = []
         helpersDirectoryLocator.locateStub = helpersDirectory
         projectEditorMapper.mapStub = graph
@@ -151,7 +160,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         // Then
         XCTAssertThrowsSpecific(
             // When
-            try subject.edit(at: directory, in: directory, plugins: .test()), ProjectEditorError.noEditableFiles(directory)
+            try subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test()), ProjectEditorError.noEditableFiles(directory)
         )
     }
 
@@ -173,7 +182,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         }
 
         // When
-        try _ = subject.edit(at: directory, in: directory, plugins: .test())
+        try _ = subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test())
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
@@ -208,7 +217,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         }
 
         // When
-        try _ = subject.edit(at: directory, in: directory, plugins: .test())
+        try _ = subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test())
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
@@ -227,7 +236,12 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let graph = Graph.test(name: "Edit")
 
         // Project
-        let manifests: [(Manifest, AbsolutePath)] = [(.project, directory.appending(component: "Project.swift"))]
+        let manifests = [
+            ManifestFilesLocator.ProjectManifest(
+                manifest: .project,
+                path: directory.appending(component: "Project.swift")
+            ),
+        ]
 
         // Local plugin
         let pluginDirectory = directory.appending(component: "Plugin")
@@ -240,7 +254,9 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let tuistPath = AbsolutePath(ProcessInfo.processInfo.arguments.first!)
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
-        manifestFilesLocator.locateProjectManifestsStub = manifests
+        manifestFilesLocator.locateProjectManifestsStub = { _, _ in
+            manifests
+        }
         manifestFilesLocator.locatePluginManifestsStub = [pluginManifestPath]
         projectEditorMapper.mapStub = graph
         generator.generateWorkspaceStub = { _ in
@@ -251,7 +267,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let plugins = Plugins.test(projectDescriptionHelpers: [
             .init(name: "LocalPlugin", path: pluginManifestPath, location: .local),
         ])
-        try _ = subject.edit(at: directory, in: directory, plugins: plugins)
+        try _ = subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: plugins)
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
@@ -272,7 +288,12 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let graph = Graph.test(name: "Edit")
 
         // Project
-        let manifests: [(Manifest, AbsolutePath)] = [(.project, editingPath.appending(component: "Project.swift"))]
+        let manifests = [
+            ManifestFilesLocator.ProjectManifest(
+                manifest: .project,
+                path: editingPath.appending(component: "Project.swift")
+            ),
+        ]
 
         // Local plugin
         let pluginManifestPath = rootPath.appending(component: "Plugin.swift")
@@ -280,7 +301,9 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let tuistPath = AbsolutePath(ProcessInfo.processInfo.arguments.first!)
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
-        manifestFilesLocator.locateProjectManifestsStub = manifests
+        manifestFilesLocator.locateProjectManifestsStub = { _, _ in
+            manifests
+        }
         manifestFilesLocator.locatePluginManifestsStub = [pluginManifestPath]
         projectEditorMapper.mapStub = graph
         generator.generateWorkspaceStub = { _ in
@@ -292,7 +315,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
             .init(name: "LocalPlugin", path: pluginManifestPath, location: .local),
         ])
 
-        try _ = subject.edit(at: editingPath, in: editingPath, plugins: plugins)
+        try _ = subject.edit(at: editingPath, in: editingPath, onlyCurrentDirectory: false, plugins: plugins)
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
@@ -312,11 +335,18 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let graph = Graph.test(name: "Edit")
 
         // Project
-        let manifests: [(Manifest, AbsolutePath)] = [(.project, directory.appending(component: "Project.swift"))]
+        let manifests = [
+            ManifestFilesLocator.ProjectManifest(
+                manifest: .project,
+                path: directory.appending(component: "Project.swift")
+            ),
+        ]
         let tuistPath = AbsolutePath(ProcessInfo.processInfo.arguments.first!)
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
-        manifestFilesLocator.locateProjectManifestsStub = manifests
+        manifestFilesLocator.locateProjectManifestsStub = { _, _ in
+            manifests
+        }
         manifestFilesLocator.locatePluginManifestsStub = []
         projectEditorMapper.mapStub = graph
         generator.generateWorkspaceStub = { _ in
@@ -331,7 +361,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let plugins = Plugins.test(projectDescriptionHelpers: [
             .init(name: "RemotePlugin", path: AbsolutePath("/Some/Path/To/Plugin"), location: .remote),
         ])
-        try _ = subject.edit(at: directory, in: directory, plugins: plugins)
+        try _ = subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: plugins)
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
