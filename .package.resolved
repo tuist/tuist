@@ -65,6 +65,15 @@
         }
       },
       {
+        "package": "Queuer",
+        "repositoryURL": "https://github.com/FabrizioBrancati/Queuer.git",
+        "state": {
+          "branch": null,
+          "revision": "52515108d0ac4616d9e15ffcc7ad986e300d31ff",
+          "version": "2.1.1"
+        }
+      },
+      {
         "package": "RxSwift",
         "repositoryURL": "https://github.com/ReactiveX/RxSwift.git",
         "state": {
@@ -80,6 +89,24 @@
           "branch": null,
           "revision": "f79d4ecbf8bc4e1579fbd86c3e1d652fb6876c53",
           "version": "0.9.2"
+        }
+      },
+      {
+        "package": "Stencil",
+        "repositoryURL": "https://github.com/stencilproject/Stencil.git",
+        "state": {
+          "branch": null,
+          "revision": "973e190edf5d09274e4a6bc2e636c86899ed84c3",
+          "version": "0.14.1"
+        }
+      },
+      {
+        "package": "StencilSwiftKit",
+        "repositoryURL": "https://github.com/fortmarek/StencilSwiftKit.git",
+        "state": {
+          "branch": "stable",
+          "revision": "99ac008eb7026e40af7fc882d5788f5de6eda47e",
+          "version": null
         }
       },
       {

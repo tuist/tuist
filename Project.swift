@@ -24,6 +24,9 @@ let packages: [Package] = [
     .package(url: "https://github.com/tuist/BlueSignals.git", .upToNextMajor(from: "1.0.21")),
     .package(url: "https://github.com/marmelroy/Zip.git", .upToNextMinor(from: "2.1.1")),
     .package(url: "https://github.com/rnine/Checksum.git", .upToNextMajor(from: "1.0.2")),
+    .package(url: "https://github.com/stencilproject/Stencil.git", .upToNextMajor(from: "0.14.0")),
+    .package(url: "https://github.com/fortmarek/StencilSwiftKit.git", .branch("stable")),
+    .package(url: "https://github.com/FabrizioBrancati/Queuer.git", .upToNextMajor(from: "2.1.1")),
 ]
 
 func projectDescription() -> [Target] {
@@ -75,6 +78,10 @@ func targets() -> [Target] {
                 .package(product: "Signals"),
                 .package(product: "Zip"),
                 .package(product: "Checksum"),
+                .package(product: "StencilSwiftKit"),
+                .package(product: "Stencil"),
+                .package(product: "XcodeProj"),
+                .package(product: "Queuer"),
             ]
         ),
         Target.module(
@@ -98,7 +105,6 @@ func targets() -> [Target] {
             dependencies: [
                 .target(name: "TuistSupport"),
                 .target(name: "TuistGraph"),
-                .package(product: "XcodeProj"),
             ],
             testDependencies: [
                 .target(name: "TuistSupport"),
@@ -111,6 +117,58 @@ func targets() -> [Target] {
                 .target(name: "TuistGraph"),
                 .target(name: "TuistCore"),
                 .target(name: "TuistSupportTesting"),
+                .target(name: "TuistGraphTesting"),
+            ]
+        ),
+        Target.module(
+            name: "Scaffold",
+            dependencies: [
+                .target(name: "TuistCore"),
+                .target(name: "TuistGraph"),
+                .target(name: "TuistSupport"),
+            ],
+            testDependencies: [
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistCoreTesting"),
+                .target(name: "TuistGraphTesting"),
+            ],
+            testingDependencies: [
+                .target(name: "TuistGraphTesting"),
+            ]
+        ),
+        Target.module(
+            name: "Loader",
+            dependencies: [
+                .target(name: "TuistCore"),
+                .target(name: "TuistGraph"),
+                .target(name: "TuistSupport"),
+                .target(name: "ProjectDescription"),
+            ],
+            testDependencies: [
+                .target(name: "TuistGraphTesting"),
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistCoreTesting"),
+            ],
+            testingDependencies: [
+                .target(name: "TuistCore"),
+                .target(name: "ProjectDescription"),
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistGraphTesting"),
+            ]
+        ),
+        Target.module(
+            name: "AsyncQueue",
+            dependencies: [
+                .target(name: "TuistCore"),
+                .target(name: "TuistGraph"),
+                .target(name: "TuistSupport"),
+            ],
+            testDependencies: [
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistCoreTesting"),
+                .target(name: "TuistGraphTesting"),
+            ],
+            testingDependencies: [
                 .target(name: "TuistGraphTesting"),
             ]
         ),

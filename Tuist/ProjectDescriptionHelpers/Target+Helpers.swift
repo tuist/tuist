@@ -9,7 +9,7 @@ extension Target {
         name: String,
         hasTests: Bool = true,
         hasTesting: Bool = true,
-        product: Product = .dynamicLibrary,
+        product: Product = .framework,
         dependencies: [TargetDependency] = [],
         testDependencies: [TargetDependency] = [],
         testingDependencies: [TargetDependency] = []
