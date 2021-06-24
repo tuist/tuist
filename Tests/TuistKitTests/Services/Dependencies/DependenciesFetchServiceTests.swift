@@ -54,7 +54,8 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
             swiftPackageManager: .init(
                 [
                     .remote(url: "Dependency1/Dependency1", requirement: .upToNextMajor("1.2.3")),
-                ]
+                ],
+                .staticLibrary
             ),
             platforms: [.iOS, .macOS]
         )

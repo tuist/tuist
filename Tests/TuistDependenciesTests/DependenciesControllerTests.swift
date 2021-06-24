@@ -108,7 +108,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             [
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
-            ]
+            ],
+            .staticLibrary
         )
         let dependencies = Dependencies(
             carthage: nil,
@@ -165,7 +166,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             [
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
-            ]
+            ],
+            .staticLibrary
         )
         let dependencies = Dependencies(
             carthage: carthageDependencies,
@@ -224,12 +226,17 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         // Given
         let rootPath = try temporaryPath()
         let dependencies = Dependencies(
-            carthage: .init([
-                .github(path: "Moya", requirement: .exact("1.1.1")),
-            ]),
-            swiftPackageManager: .init([
-                .remote(url: "Moya", requirement: .exact("2.3.4")),
-            ]),
+            carthage: .init(
+                [
+                    .github(path: "Moya", requirement: .exact("1.1.1")),
+                ]
+            ),
+            swiftPackageManager: .init(
+                [
+                    .remote(url: "Moya", requirement: .exact("2.3.4")),
+                ],
+                .staticLibrary
+            ),
             platforms: [.iOS]
         )
         let carthageGraph = DependenciesGraph.testXCFramework(name: "Duplicated", path: rootPath.appending(component: "Carthage"))
@@ -272,7 +279,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         let dependencies = Dependencies(
             carthage: .init([]),
-            swiftPackageManager: .init([]),
+            swiftPackageManager: .init([], .staticLibrary),
             platforms: []
         )
 
@@ -289,7 +296,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         let dependencies = Dependencies(
             carthage: .init([]),
-            swiftPackageManager: .init([]),
+            swiftPackageManager: .init([], .staticLibrary),
             platforms: [.iOS]
         )
 
@@ -375,7 +382,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             [
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
-            ]
+            ],
+            .staticLibrary
         )
         let dependencies = Dependencies(
             carthage: nil,
@@ -432,7 +440,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             [
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
-            ]
+            ],
+            .staticLibrary
         )
         let dependencies = Dependencies(
             carthage: carthageDependencies,
@@ -486,7 +495,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         let dependencies = Dependencies(
             carthage: .init([]),
-            swiftPackageManager: .init([]),
+            swiftPackageManager: .init([], .staticLibrary),
             platforms: []
         )
 
@@ -503,7 +512,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         let dependencies = Dependencies(
             carthage: .init([]),
-            swiftPackageManager: .init([]),
+            swiftPackageManager: .init([], .staticLibrary),
             platforms: [.iOS]
         )
 

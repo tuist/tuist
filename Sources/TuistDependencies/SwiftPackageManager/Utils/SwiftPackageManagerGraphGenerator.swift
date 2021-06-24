@@ -51,8 +51,9 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
 public protocol SwiftPackageManagerGraphGenerating {
     /// Generates the `DependenciesGraph` for the `SwiftPackageManager` dependencies.
     /// - Parameter path: The path to the directory that contains the `checkouts` directory where `SwiftPackageManager` installed dependencies.
+    /// - Parameter automaticProductType: The `Product` type to be used for SPM targets with `automatic` library type.
     /// - Parameter platforms: The supported platforms.
-    func generate(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>) throws -> DependenciesGraph
+    func generate(at path: AbsolutePath, automaticProductType: TuistGraph.Product, platforms: Set<TuistGraph.Platform>) throws -> DependenciesGraph
 }
 
 public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGenerating {
@@ -62,7 +63,11 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         self.swiftPackageManagerController = swiftPackageManagerController
     }
 
-    public func generate(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>) throws -> DependenciesGraph {
+    public func generate(
+        at path: AbsolutePath,
+        automaticProductType: TuistGraph.Product,
+        platforms: Set<TuistGraph.Platform>
+    ) throws -> DependenciesGraph {
         let packageFolders = try FileHandler.shared.contentsOfDirectory(path.appending(component: "checkouts"))
         let packageInfos: [(name: String, folder: AbsolutePath, artifactsFolder: AbsolutePath, info: PackageInfo)]
         packageInfos = try packageFolders.map { packageFolder in
@@ -85,6 +90,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 for: packageInfo.info,
                 name: packageInfo.name,
                 at: packageInfo.folder,
+                automaticProductType: automaticProductType,
                 platforms: platforms,
                 productToPackage: productToPackage
             )
@@ -101,6 +107,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         for packageInfo: PackageInfo,
         name: String,
         at folder: AbsolutePath,
+        automaticProductType: TuistGraph.Product,
         platforms: Set<TuistGraph.Platform>,
         productToPackage: [String: String]
     ) throws {
@@ -110,6 +117,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 packageName: name,
                 packageInfo: packageInfo,
                 at: folder,
+                automaticProductType: automaticProductType,
                 platforms: platforms,
                 productToPackage: productToPackage
             )
@@ -128,6 +136,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         packageName: String,
         packageInfo: PackageInfo,
         at folder: AbsolutePath,
+        automaticProductType: TuistGraph.Product,
         platforms: Set<TuistGraph.Platform>,
         productToPackage: [String: String]
     ) throws -> ProjectDescription.Target? {
@@ -136,7 +145,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             return nil
         }
 
-        guard let product = target.mapProduct(packageInfo: packageInfo) else {
+        guard let product = target.mapProduct(packageInfo: packageInfo, automaticProductType: automaticProductType) else {
             logger.debug("Target \(target.name) ignored by product type")
             return nil
         }
@@ -184,7 +193,7 @@ extension PackageInfo.Target {
         return platform
     }
 
-    func mapProduct(packageInfo: PackageInfo) -> ProjectDescription.Product? {
+    func mapProduct(packageInfo: PackageInfo, automaticProductType: TuistGraph.Product) -> ProjectDescription.Product? {
         return packageInfo.products
             .filter { $0.targets.contains(name) }
             .compactMap {
@@ -192,8 +201,7 @@ extension PackageInfo.Target {
                 case let .library(type):
                     switch type {
                     case .automatic:
-                        #warning("Make this configurable from Dependencies.swift")
-                        return .staticLibrary
+                        return ProjectDescription.Product.from(product: automaticProductType)
                     case .dynamic:
                         return .dynamicLibrary
                     case .static:
@@ -348,6 +356,45 @@ extension PackageInfo.Platform {
             return .watchOS
         default:
             throw SwiftPackageManagerGraphGeneratorError.unknownPlatform(self.platformName)
+        }
+    }
+}
+
+extension ProjectDescription.Product {
+    fileprivate static func from(product: TuistGraph.Product) -> Self {
+        switch product {
+        case .app:
+            return .app
+        case .staticLibrary:
+            return .staticLibrary
+        case .dynamicLibrary:
+            return .dynamicLibrary
+        case .framework:
+            return .framework
+        case .staticFramework:
+            return .staticFramework
+        case .unitTests:
+            return .unitTests
+        case .uiTests:
+            return .uiTests
+        case .bundle:
+            return .bundle
+        case .commandLineTool:
+            return .commandLineTool
+        case .appExtension:
+            return .appExtension
+        case .watch2App:
+            return .watch2App
+        case .watch2Extension:
+            return .watch2Extension
+        case .tvTopShelfExtension:
+            return .tvTopShelfExtension
+        case .messagesExtension:
+            return .messagesExtension
+        case .stickerPackExtension:
+            return .stickerPackExtension
+        case .appClip:
+            return .appClip
         }
     }
 }

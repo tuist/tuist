@@ -12,7 +12,8 @@ extension TuistGraph.SwiftPackageManagerDependencies {
         generatorPaths: GeneratorPaths
     ) throws -> Self {
         let packages = try manifest.packages.map { try TuistGraph.Package.from(manifest: $0, generatorPaths: generatorPaths) }
+        let automaticProductType = TuistGraph.Product.from(manifest: manifest.automaticProductType)
 
-        return .init(packages)
+        return .init(packages, automaticProductType)
     }
 }
