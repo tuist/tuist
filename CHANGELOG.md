@@ -16,6 +16,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - The `tuist dependencies` command generates a `graph.json` file for the `Carthage` dependencies. [#3043](https://github.com/tuist/tuist/pull/3043) by [@laxmorek](https://github.com/laxmorek)
 - Add --skip-ui-tests parameter to tuist test command [#2832](https://github.com/tuist/tuist/pull/2832) by [@mollyIV](https://github.com/mollyIV).
 - Add `disableBundleAccessors` generation option which disables generating Bundle extensions [#3088](https://github.com/tuist/tuist/pull/3088) by [@wojciech-kulik](https://github.com/wojciech-kulik).
+- Support XCFrameworks with missing architectures [#3095](https://github.com/tuist/tuist/pull/3095) by [@iainsmith](https://github.com/iainsmith).
 
 ### Changed
 
