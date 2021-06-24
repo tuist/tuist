@@ -231,7 +231,7 @@ extension PackageInfo.Target {
             case let .target(name, _):
                 return .target(name: name)
             case let .product(name, package, _):
-                return .project(target: name, path: .init(RelativePath("../\(package)").pathString))
+                return .project(target: name, path: Path(RelativePath("../\(package)").pathString))
             case let .byName(name, _):
                 guard let package = productToPackage[name] else {
                     throw SwiftPackageManagerGraphGeneratorError.unknownByNameDependency(name)
@@ -240,7 +240,7 @@ extension PackageInfo.Target {
                 if package == packageName {
                     return .target(name: name)
                 } else {
-                    return .project(target: name, path: .init(RelativePath("../\(package)").pathString))
+                    return .project(target: name, path: Path(RelativePath("../\(package)").pathString))
                 }
             }
         }

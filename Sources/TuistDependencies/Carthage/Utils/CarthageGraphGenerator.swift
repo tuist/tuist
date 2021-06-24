@@ -40,7 +40,7 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
                         frameworkName,
                     ])
 
-                return [.xcframework(path: .init(path.pathString))]
+                return [.xcframework(path: path)]
             }
 
         return DependenciesGraph(externalDependencies: externalDependencies)

@@ -23,7 +23,7 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
                 .binary(path: "DependencyXYZ", requirement: .atLeast("2.3.1")),
             ],
             swiftPackageManager: [
-                .local(path: .init(localPackagePath.pathString)),
+                .local(path: Path(localPackagePath.pathString)),
                 .remote(url: "RemotePackage.com", requirement: .exact("1.2.3")),
             ],
             platforms: [.iOS, .macOS, .tvOS]

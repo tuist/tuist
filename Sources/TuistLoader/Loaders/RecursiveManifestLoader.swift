@@ -101,7 +101,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
                     return try dependencies.compactMap {
                         switch $0 {
                         case let .project(target: _, path: projectPath):
-                            return try generatorPaths.resolve(path: .init(projectPath.pathString))
+                            return try generatorPaths.resolve(path: Path(projectPath.pathString))
                         default:
                             return nil
                         }
