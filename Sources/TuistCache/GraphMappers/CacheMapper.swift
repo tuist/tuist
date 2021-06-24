@@ -92,12 +92,17 @@ public final class CacheMapper: GraphMapping {
 
     public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
         let graphTraverser = GraphTraverser(graph: graph)
-        let availableTargets = graphTraverser.allTargets().map(\.target.name)
-        let missingTargets = sources.filter { !availableTargets.contains($0) }
+        let availableTargets = Set(
+            graphTraverser.allTargets().map(\.target.name)
+        )
+        let missingTargets = sources.subtracting(availableTargets)
         guard
             missingTargets.isEmpty
         else {
-            throw CacheMapperError.missingTargets(missingTargets: Array(missingTargets), availableTargets: availableTargets)
+            throw CacheMapperError.missingTargets(
+                missingTargets: missingTargets.sorted(),
+                availableTargets: availableTargets.sorted()
+            )
         }
         let single = hashes(graph: graph).flatMap { self.map(graph: graph, hashes: $0, sources: self.sources) }
         return try (single.toBlocking().single(), [])
