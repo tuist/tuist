@@ -38,7 +38,7 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
         case let .unknownByNameDependency(name):
             return "The package associated to the \(name) dependency cannot be found."
         case let .unknownPlatform(platform):
-            return "The \(platform) is not supported."
+            return "The \(platform) platform is not supported."
         case let .unsupportedSetting(tool, setting):
             return "The \(tool) and \(setting) pair is not a supported setting."
         }
@@ -338,17 +338,16 @@ extension TuistGraph.Platform {
 extension PackageInfo.Platform {
     fileprivate func descriptionPlatform() throws -> ProjectDescription.Platform {
         switch self.platformName {
-        case "iOS":
+        case "ios":
             return .iOS
-        case "macOS":
+        case "macos":
             return .macOS
-        case "tvOS":
+        case "tvos":
             return .tvOS
-        case "watchOS":
+        case "watchos":
             return .watchOS
         default:
             throw SwiftPackageManagerGraphGeneratorError.unknownPlatform(self.platformName)
-
         }
     }
 }

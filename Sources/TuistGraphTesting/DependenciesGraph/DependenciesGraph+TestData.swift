@@ -35,59 +35,49 @@ public extension DependenciesGraph {
     // swiftlint:disable:next function_body_length
     static func test(packageFolder: AbsolutePath) -> Self {
         return .init(externalDependencies: [
-            "Tuist": [.project(target: "Tuist", path: packageFolder.projectPath)],
+            "Tuist": [.project(target: "Tuist", path: packageFolder)],
         ])
     }
 
     static func aDependency(packageFolder: AbsolutePath) -> Self {
         return .init(externalDependencies: [
-            "ALibrary": [.project(target: "ALibrary", path: packageFolder.projectPath)],
+            "ALibrary": [.project(target: "ALibrary", path: packageFolder)],
         ])
     }
 
     static func anotherDependency(packageFolder: AbsolutePath) -> Self {
         return .init(externalDependencies: [
-            "AnotherLibrary": [.project(target: "AnotherLibrary", path: packageFolder.projectPath)],
+            "AnotherLibrary": [.project(target: "AnotherLibrary", path: packageFolder)],
         ])
     }
 
     static func alamofire(packageFolder: AbsolutePath) -> Self {
         return .init(externalDependencies: [
-            "Alamofire": [.project(target: "Alamofire", path: packageFolder.projectPath)],
+            "Alamofire": [.project(target: "Alamofire", path: packageFolder)],
         ])
     }
 
     // swiftlint:disable:next function_body_length
     static func googleAppMeasurement(packageFolder: AbsolutePath) -> Self {
         return .init(externalDependencies: [
-            "GoogleAppMeasurement": [
-                .project(target: "GoogleAppMeasurementTarget", path: packageFolder.projectPath),
-            ],
-            "GoogleAppMeasurementWithoutAdIdSupport": [
-                .project(target: "GoogleAppMeasurementWithoutAdIdSupportTarget", path: packageFolder.projectPath),
-            ],
+            "GoogleAppMeasurement": [ .project(target: "GoogleAppMeasurementTarget", path: packageFolder)],
+            "GoogleAppMeasurementWithoutAdIdSupport": [.project(target: "GoogleAppMeasurementWithoutAdIdSupportTarget", path: packageFolder)],
         ])
     }
 
     // swiftlint:disable:next function_body_length
     static func googleUtilities(packageFolder: AbsolutePath) -> Self {
         return .init(externalDependencies: [
-            "GULAppDelegateSwizzler": [.project(target: "GULAppDelegateSwizzler", path: packageFolder.projectPath),],
-            "GULMethodSwizzler": [.project(target: "GULMethodSwizzler", path: packageFolder.projectPath),],
-            "GULNSData": [.project(target: "GULNSData", path: packageFolder.projectPath),],
-            "GULNetwork": [.project(target: "GULNetwork", path: packageFolder.projectPath),],
+            "GULAppDelegateSwizzler": [.project(target: "GULAppDelegateSwizzler", path: packageFolder)],
+            "GULMethodSwizzler": [.project(target: "GULMethodSwizzler", path: packageFolder)],
+            "GULNSData": [.project(target: "GULNSData", path: packageFolder)],
+            "GULNetwork": [.project(target: "GULNetwork", path: packageFolder)],
         ])
     }
 
     static func nanopb(packageFolder: AbsolutePath) -> Self {
         return .init(externalDependencies: [
-            "nanopb": [.project(target: "nanopb", path: packageFolder.projectPath),],
+            "nanopb": [.project(target: "nanopb", path: packageFolder)],
         ])
-    }
-}
-
-extension AbsolutePath {
-    var projectPath: AbsolutePath {
-        return self.appending(component: "Project.json")
     }
 }
