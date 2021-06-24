@@ -49,46 +49,4 @@ final class CarthageVersionFileTests: TuistUnitTestCase {
         let expected: [CarthageVersionFile.Product] = [iOSProduct, macOSProduct, watchOSProduct, tvOSProduct]
         XCTAssertEqual(got, expected)
     }
-
-    func test_product_architectures_arm64_x8664() {
-        // Given
-        let subject: CarthageVersionFile.Product = .test(
-            identifier: "macos-arm64_x86_64"
-        )
-
-        // When
-        let got = subject.architectures
-
-        // Then
-        let expected: [BinaryArchitecture] = [.arm64, .x8664]
-        XCTAssertEqual(got, expected)
-    }
-
-    func test_product_architectures_arm64_i386_x8664() {
-        // Given
-        let subject: CarthageVersionFile.Product = .test(
-            identifier: "ios-arm64_i386_x86_64-simulator"
-        )
-
-        // When
-        let got = subject.architectures
-
-        // Then
-        let expected: [BinaryArchitecture] = [.arm64, .i386, .x8664]
-        XCTAssertEqual(got, expected)
-    }
-
-    func test_product_architectures_arm6432_armv7k() {
-        // Given
-        let subject: CarthageVersionFile.Product = .test(
-            identifier: "watchos-arm64_32_armv7k"
-        )
-
-        // When
-        let got = subject.architectures
-
-        // Then
-        let expected: [BinaryArchitecture] = [.arm6432, .armv7k]
-        XCTAssertEqual(got, expected)
-    }
 }
