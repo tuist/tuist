@@ -31,26 +31,27 @@ let packages: [Package] = [
     .package(url: "https://github.com/tuist/GraphViz.git", .branch("tuist")),
     .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMajor(from: "0.4.3")),
     .package(url: "https://github.com/fortmarek/SwiftGen", .revision("ef8d6b186a03622cec8d228b18f0e2b3bb20b81c")),
+    .package(url: "https://github.com/kylef/PathKit.git", .upToNextMajor(from: "1.0.0")),
 ]
 
 func targets() -> [Target] {
     return [
-//        Target.target(
-//            name: "tuistenv",
-//            product: .commandLineTool,
-//            dependencies: [
-//                .target(name: "TuistEnvKit"),
-//            ]
-//        ),
-//        Target.target(
-//            name: "tuist",
-//            product: .commandLineTool,
-//            dependencies: [
-//                .target(name: "TuistKit"),
-//                .target(name: "ProjectDescription"),
-//                .target(name: "ProjectAutomation"),
-//            ]
-//        ),
+        Target.target(
+            name: "tuistenv",
+            product: .commandLineTool,
+            dependencies: [
+                .target(name: "TuistEnvKit"),
+            ]
+        ),
+        Target.target(
+            name: "tuist",
+            product: .commandLineTool,
+            dependencies: [
+                .target(name: "TuistKit"),
+                .target(name: "ProjectDescription"),
+                .target(name: "ProjectAutomation"),
+            ]
+        ),
         Target.target(
             name: "TuistIntegrationTests",
             product: .unitTests,
@@ -67,6 +68,7 @@ func targets() -> [Target] {
     + [
         Target.module(
             name: "TuistSupport",
+            product: .framework,
             hasIntegrationTests: true,
             dependencies: [
                 .package(product: "CombineExt"),
@@ -88,6 +90,7 @@ func targets() -> [Target] {
                 .package(product: "CryptoSwift"),
                 .package(product: "GraphViz"),
                 .package(product: "ArgumentParser"),
+                .package(product: "PathKit"),
             ]
         ),
         Target.module(

@@ -43,10 +43,10 @@ extension Target {
     ///     - integrationTestsDependencies: Dependencies for the integration tests.
     public static func module(
         name: String,
+        product: Product = .framework,
         hasTests: Bool = true,
         hasTesting: Bool = true,
         hasIntegrationTests: Bool = false,
-        product: Product = .framework,
         dependencies: [TargetDependency] = [],
         testDependencies: [TargetDependency] = [],
         testingDependencies: [TargetDependency] = [],
