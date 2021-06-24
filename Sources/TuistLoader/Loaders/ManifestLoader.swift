@@ -156,7 +156,12 @@ public class ManifestLoader: ManifestLoading {
     }
 
     public func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project {
-        try loadManifest(.project, at: path)
+        let serializedProject = path.appending(component: Manifest.plugin.serializedFileName!)
+        if FileHandler.shared.exists(serializedProject) {
+            return try JSONDecoder().decode(ProjectDescription.Project.self, from: try FileHandler.shared.readFile(serializedProject))
+        } else {
+            return try loadManifest(.project, at: path)
+        }
     }
 
     public func loadWorkspace(at path: AbsolutePath) throws -> ProjectDescription.Workspace {

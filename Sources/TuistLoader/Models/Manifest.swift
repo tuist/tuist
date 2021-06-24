@@ -49,4 +49,14 @@ public enum Manifest: CaseIterable {
             return "\(path.basenameWithoutExt).swift"
         }
     }
+
+    /// The name of the serialized manifest.
+    public var serializedFileName: String? {
+        switch self {
+        case .project:
+            return "Project.json"
+        default:
+            return nil
+        }
+    }
 }

@@ -4,6 +4,7 @@ import TSCBasic
 import TSCUtility
 import TuistCore
 import TuistGraph
+import TuistLoader
 import TuistSupport
 
 // MARK: - Swift Package Manager Graph Generator Errors
@@ -119,7 +120,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             resourceSynthesizers: []
         )
         let projectData = String(data: try JSONEncoder().encode(project), encoding: .utf8)!
-        try FileHandler.shared.write(projectData, path: folder.appending(component: "Project.json"), atomically: true)
+        try FileHandler.shared.write(projectData, path: folder.appending(component: Manifest.project.serializedFileName!), atomically: true)
     }
 
     private static func targetDefinition(
@@ -191,6 +192,7 @@ extension PackageInfo.Target {
                 case let .library(type):
                     switch type {
                     case .automatic:
+                        #warning("Make this configurable from Dependencies.swift")
                         return .staticLibrary
                     case .dynamic:
                         return .dynamicLibrary
