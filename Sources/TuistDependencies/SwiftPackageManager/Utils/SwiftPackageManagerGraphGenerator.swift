@@ -9,6 +9,9 @@ import TuistSupport
 // MARK: - Swift Package Manager Graph Generator Errors
 
 enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
+    /// Thrown when no supported platforms are found for a package.
+    case noSupportedPlatforms(name: String, configured: Set<ProjectDescription.Platform>, package: Set<ProjectDescription.Platform>)
+
     /// Thrown when `PackageInfo.Target.Dependency.byName` dependency cannot be resolved.
     case unknownByNameDependency(String)
 
@@ -21,7 +24,7 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .unknownByNameDependency, .unknownPlatform, .unsupportedSetting:
+        case .noSupportedPlatforms, .unknownByNameDependency, .unknownPlatform, .unsupportedSetting:
             return .abort
         }
     }
@@ -29,6 +32,8 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
     /// Error description.
     var description: String {
         switch self {
+        case let .noSupportedPlatforms(name, configured, package):
+            return "No supported platform found for the \(name) dependency. Configured: \(configured), package: \(package)."
         case let .unknownByNameDependency(name):
             return "The package associated to the \(name) dependency cannot be found."
         case let .unknownPlatform(platform):
@@ -45,7 +50,8 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
 public protocol SwiftPackageManagerGraphGenerating {
     /// Generates the `DependenciesGraph` for the `SwiftPackageManager` dependencies.
     /// - Parameter path: The path to the directory that contains the `checkouts` directory where `SwiftPackageManager` installed dependencies.
-    func generate(at path: AbsolutePath) throws -> DependenciesGraph
+    /// - Parameter platforms: The supported platforms.
+    func generate(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>) throws -> DependenciesGraph
 }
 
 public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGenerating {
@@ -55,7 +61,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         self.swiftPackageManagerController = swiftPackageManagerController
     }
 
-    public func generate(at path: AbsolutePath) throws -> DependenciesGraph {
+    public func generate(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>) throws -> DependenciesGraph {
         let packageFolders = try FileHandler.shared.contentsOfDirectory(path.appending(component: "checkouts"))
         let packageInfos: [(name: String, folder: AbsolutePath, artifactsFolder: AbsolutePath, info: PackageInfo)]
         packageInfos = try packageFolders.map { packageFolder in
@@ -78,6 +84,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 for: packageInfo.info,
                 name: packageInfo.name,
                 at: packageInfo.folder,
+                platforms: platforms,
                 productToPackage: productToPackage
             )
             let packageDependenciesGraph = DependenciesGraph(
@@ -93,10 +100,18 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         for packageInfo: PackageInfo,
         name: String,
         at folder: AbsolutePath,
+        platforms: Set<TuistGraph.Platform>,
         productToPackage: [String: String]
     ) throws {
         let targets = try packageInfo.targets.compactMap { target in
-            try Self.targetDefinition(for: target, packageName: name, packageInfo: packageInfo, at: folder, productToPackage: productToPackage)
+            try Self.targetDefinition(
+                for: target,
+                packageName: name,
+                packageInfo: packageInfo,
+                at: folder,
+                platforms: platforms,
+                productToPackage: productToPackage
+            )
         }
         let project = ProjectDescription.Project(
             name: name,
@@ -112,6 +127,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         packageName: String,
         packageInfo: PackageInfo,
         at folder: AbsolutePath,
+        platforms: Set<TuistGraph.Platform>,
         productToPackage: [String: String]
     ) throws -> ProjectDescription.Target? {
         guard target.type == .regular else {
@@ -128,7 +144,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
 
         return .init(
             name: target.name,
-            platform: target.mapPlatform(),
+            platform: try target.mapPlatform(configured: platforms, package: packageInfo.platforms, packageName: packageName),
             product: product,
             bundleId: "",
             infoPlist: .default,
@@ -141,9 +157,30 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
 }
 
 extension PackageInfo.Target {
-    func mapPlatform() -> ProjectDescription.Platform {
-        // TODO: Should this be configured in `Dependencies.swift`?
-        return .iOS
+    func mapPlatform(
+        configured: Set<TuistGraph.Platform>,
+        package: [PackageInfo.Platform],
+        packageName: String
+    ) throws -> ProjectDescription.Platform {
+        let configuredPlatforms = Set(configured.map(\.descriptionPlatform))
+        let packagePlatform = Set(try package.map { try $0.descriptionPlatform() })
+        let validPlatforms = configuredPlatforms.intersection(packagePlatform)
+
+        #warning("Handle multiple platforms when supported in ProjectDescription.Target")
+        if validPlatforms.contains(.iOS) {
+            return .iOS
+        }
+
+        guard let platform = validPlatforms.first else {
+            throw SwiftPackageManagerGraphGeneratorError.noSupportedPlatforms(
+                name: packageName,
+                configured: configuredPlatforms,
+                package: packagePlatform
+            )
+
+        }
+
+        return platform
     }
 
     func mapProduct(packageInfo: PackageInfo) -> ProjectDescription.Product? {
@@ -277,6 +314,39 @@ extension PackageInfo.Target.TargetBuildSettingDescription.Setting {
             return (name: String(split[0]), value: String(split[1]))
         } else {
             return (name: define, value: "1")
+        }
+    }
+}
+
+extension TuistGraph.Platform {
+    fileprivate var descriptionPlatform: ProjectDescription.Platform {
+        switch self {
+        case .iOS:
+            return .iOS
+        case .macOS:
+            return .macOS
+        case .tvOS:
+            return .tvOS
+        case .watchOS:
+            return .watchOS
+        }
+    }
+}
+
+extension PackageInfo.Platform {
+    fileprivate func descriptionPlatform() throws -> ProjectDescription.Platform {
+        switch self.platformName {
+        case "iOS":
+            return .iOS
+        case "macOS":
+            return .macOS
+        case "tvOS":
+            return .tvOS
+        case "watchOS":
+            return .watchOS
+        default:
+            throw SwiftPackageManagerGraphGeneratorError.unknownPlatform(self.platformName)
+
         }
     }
 }

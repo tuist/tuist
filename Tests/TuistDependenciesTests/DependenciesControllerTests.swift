@@ -117,11 +117,12 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         )
         let swiftVersion = "5.4.0"
 
-        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3 in
+        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3, arg4 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
             XCTAssertEqual(arg1, swiftPackageManagerDependencies)
-            XCTAssertFalse(arg2)
-            XCTAssertEqual(arg3, swiftVersion)
+            XCTAssertEqual(arg2, [.iOS])
+            XCTAssertFalse(arg3)
+            XCTAssertEqual(arg4, swiftVersion)
             return .test()
         }
         dependenciesGraphController.saveStub = { arg0, arg1 in
@@ -183,11 +184,12 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
             return carthageGraph
         }
-        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3 in
+        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3, arg4 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
             XCTAssertEqual(arg1, swiftPackageManagerDependencies)
-            XCTAssertFalse(arg2)
-            XCTAssertEqual(arg3, swiftVersion)
+            XCTAssertEqual(arg2, [.iOS])
+            XCTAssertFalse(arg3)
+            XCTAssertEqual(arg4, swiftVersion)
             return spmGraph
         }
         dependenciesGraphController.saveStub = { arg0, arg1 in
@@ -236,7 +238,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         carthageInteractor.installStub = { _, _, _, _ in
             carthageGraph
         }
-        swiftPackageManagerInteractor.installStub = { _, _, _, _ in
+        swiftPackageManagerInteractor.installStub = { _, _, _, _, _ in
             spmGraph
         }
 
@@ -382,11 +384,12 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         )
         let swiftVersion = "5.4.0"
 
-        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3 in
+        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3, arg4 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
             XCTAssertEqual(arg1, swiftPackageManagerDependencies)
-            XCTAssertTrue(arg2)
-            XCTAssertEqual(arg3, swiftVersion)
+            XCTAssertEqual(arg2, [.iOS])
+            XCTAssertTrue(arg3)
+            XCTAssertEqual(arg4, swiftVersion)
             return .test()
         }
         dependenciesGraphController.saveStub = { arg0, arg1 in
@@ -447,11 +450,12 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
             return graph
         }
-        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3 in
+        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3, arg4 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
             XCTAssertEqual(arg1, swiftPackageManagerDependencies)
-            XCTAssertTrue(arg2)
-            XCTAssertEqual(arg3, swiftVersion)
+            XCTAssertEqual(arg2, [.iOS])
+            XCTAssertTrue(arg3)
+            XCTAssertEqual(arg4, swiftVersion)
             return .test()
         }
         dependenciesGraphController.saveStub = { arg0, arg1 in

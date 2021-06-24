@@ -37,11 +37,13 @@ public protocol SwiftPackageManagerInteracting {
     /// - Parameters:
     ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
     ///   - dependencies: List of dependencies to install using `Swift Package Manager`.
+    ///   - platforms: Set of supported platforms.
     ///   - shouldUpdate: Indicates whether dependencies should be updated or fetched based on the `Tuist/Lockfiles/Package.resolved` lockfile.
     ///   - swiftToolsVersion: The version of Swift tools that will be used to resolve dependencies. If `nil` is passed then the environment’s version will be used.
     func install(
         dependenciesDirectory: AbsolutePath,
         dependencies: SwiftPackageManagerDependencies,
+        platforms: Set<Platform>,
         shouldUpdate: Bool,
         swiftToolsVersion: String?
     ) throws -> DependenciesGraph
@@ -73,6 +75,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
     public func install(
         dependenciesDirectory: AbsolutePath,
         dependencies: SwiftPackageManagerDependencies,
+        platforms: Set<Platform>,
         shouldUpdate: Bool,
         swiftToolsVersion: String?
     ) throws -> DependenciesGraph {
@@ -100,7 +103,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
             try saveDependencies(pathsProvider: pathsProvider)
 
             // generate dependencies graph
-            return try swiftPackageManagerGraphGenerator.generate(at: pathsProvider.temporaryBuildDirectory)
+            return try swiftPackageManagerGraphGenerator.generate(at: pathsProvider.temporaryBuildDirectory, platforms: platforms)
         }
 
         logger.info("Swift Package Manager dependencies installed successfully.", metadata: .subsection)

@@ -56,8 +56,9 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             XCTAssertNil(version) // swift-tools-version is not specified
         }
 
-        swiftPackageManagerGraphGenerator.generateStub = { path in
+        swiftPackageManagerGraphGenerator.generateStub = { path, platforms in
             XCTAssertEqual(path, try self.temporaryPath().appending(component: ".build"))
+            XCTAssertEqual(platforms, [.iOS])
             return .test()
         }
 
@@ -65,6 +66,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let dependenciesGraph = try subject.install(
             dependenciesDirectory: dependenciesDirectory,
             dependencies: dependencies,
+            platforms: [.iOS],
             shouldUpdate: false,
             swiftToolsVersion: nil
         )
@@ -126,8 +128,9 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             XCTAssertEqual(version, swiftToolsVersion) // version should be equal to the version that has been specified
         }
 
-        swiftPackageManagerGraphGenerator.generateStub = { path in
+        swiftPackageManagerGraphGenerator.generateStub = { path, platforms in
             XCTAssertEqual(path, try self.temporaryPath().appending(component: ".build"))
+            XCTAssertEqual(platforms, [.iOS])
             return .test()
         }
 
@@ -135,6 +138,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let dependenciesGraph = try subject.install(
             dependenciesDirectory: dependenciesDirectory,
             dependencies: dependencies,
+            platforms: [.iOS],
             shouldUpdate: false,
             swiftToolsVersion: swiftToolsVersion
         )
@@ -195,8 +199,9 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             XCTAssertNil(version) // swift-tools-version is not specified
         }
 
-        swiftPackageManagerGraphGenerator.generateStub = { path in
+        swiftPackageManagerGraphGenerator.generateStub = { path, platforms in
             XCTAssertEqual(path, try self.temporaryPath().appending(component: ".build"))
+            XCTAssertEqual(platforms, [.iOS])
             return .test()
         }
 
@@ -204,6 +209,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let dependenciesGraph = try subject.install(
             dependenciesDirectory: dependenciesDirectory,
             dependencies: dependencies,
+            platforms: [.iOS],
             shouldUpdate: true,
             swiftToolsVersion: nil
         )

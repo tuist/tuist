@@ -75,7 +75,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
         }
 
         // When
-        let got = try subject.generate(at: path)
+        let got = try subject.generate(at: path, platforms: [.iOS])
 
         // Then
         let expected = try DependenciesGraph.none

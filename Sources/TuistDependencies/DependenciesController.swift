@@ -137,6 +137,7 @@ public final class DependenciesController: DependenciesControlling {
             let swiftPackageManagerDependenciesGraph = try swiftPackageManagerInteractor.install(
                 dependenciesDirectory: dependenciesDirectory,
                 dependencies: swiftPackageManagerDependencies,
+                platforms: platforms,
                 shouldUpdate: shouldUpdate,
                 swiftToolsVersion: swiftVersion
             )
