@@ -54,6 +54,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         super.tearDown()
         generator = nil
         artifactBuilder = nil
+        bundleArtifactBuilder = nil
         cacheGraphContentHasher = nil
         manifestLoader = nil
         cache = nil

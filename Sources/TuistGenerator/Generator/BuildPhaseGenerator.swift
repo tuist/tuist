@@ -442,8 +442,8 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         if target.product.runnable {
             let linkableBundles = try graphTraverser
                 .linkableDependencies(path: path, name: target.name)
-                .compactMap { dep -> PBXFileReference? in
-                    switch dep {
+                .compactMap { dependency -> PBXFileReference? in
+                    switch dependency {
                     case .bundle(path: let path):
                         let element = fileElements.file(path: path)
                         return element

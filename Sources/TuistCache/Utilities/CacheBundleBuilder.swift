@@ -6,27 +6,19 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
-public enum CacheBundleBuilderError: FatalError {
-    case builtProductsDirectoryNotFound(targetName: String)
+enum CacheBundleBuilderError: FatalError {
     case bundleNotFound(name: String, derivedDataPath: AbsolutePath)
-    case deviceNotFound(platform: String)
 
-    public var description: String {
+    var description: String {
         switch self {
-        case let .builtProductsDirectoryNotFound(targetName):
-            return "Couldn't find the built products directory for target '\(targetName)'."
         case let .bundleNotFound(name, derivedDataPath):
             return "Couldn't find bundle '\(name)' in the derived data directory: \(derivedDataPath.pathString)"
-        case let .deviceNotFound(platform):
-            return "Couldn't find an available device for platform: '\(platform)'"
         }
     }
 
-    public var type: ErrorType {
+    var type: ErrorType {
         switch self {
-        case .builtProductsDirectoryNotFound: return .bug
         case .bundleNotFound: return .bug
-        case .deviceNotFound: return .bug
         }
     }
 }
@@ -109,7 +101,7 @@ public final class CacheBundleBuilder: CacheArtifactBuilding {
         )
     }
 
-    fileprivate func sdk(target: Target) -> String {
+    private func sdk(target: Target) -> String {
         if target.platform == .macOS {
             return target.platform.xcodeDeviceSDK
         } else {
@@ -117,11 +109,11 @@ public final class CacheBundleBuilder: CacheArtifactBuilding {
         }
     }
 
-    fileprivate func arguments(target: Target,
-                               sdk: String,
-                               configuration: String) throws -> [XcodeBuildArgument]
+    private func arguments(target: Target,
+                           sdk: String,
+                           configuration: String) throws -> [XcodeBuildArgument]
     {
-        try destination(target: target)
+        try simulatorController.destination(for: target.platform)
             .map { (destination: String) -> [XcodeBuildArgument] in
                 [
                     .sdk(sdk),
@@ -133,25 +125,10 @@ public final class CacheBundleBuilder: CacheArtifactBuilding {
             .single()
     }
 
-    fileprivate func destination(target: Target) -> Single<String> {
-        var platform: Platform!
-        switch target.platform {
-        case .iOS: platform = .iOS
-        case .watchOS: platform = .watchOS
-        case .tvOS: platform = .tvOS
-        case .macOS: return .just("platform=OS X,arch=x86_64")
-        }
-
-        return simulatorController.findAvailableDevice(platform: platform)
-            .flatMap { (deviceAndRuntime) -> Single<String> in
-                .just("id=\(deviceAndRuntime.device.udid)")
-            }
-    }
-
-    fileprivate func xcodebuild(projectTarget: XcodeBuildTarget,
-                                scheme: String,
-                                target: Target,
-                                arguments: [XcodeBuildArgument]) throws
+    private func xcodebuild(projectTarget: XcodeBuildTarget,
+                            scheme: String,
+                            target: Target,
+                            arguments: [XcodeBuildArgument]) throws
     {
         _ = try xcodeBuildController.build(
             projectTarget,
@@ -168,9 +145,9 @@ public final class CacheBundleBuilder: CacheArtifactBuilding {
         .last()
     }
 
-    fileprivate func exportBundle(from buildDirectory: AbsolutePath,
-                                  into outputDirectory: AbsolutePath,
-                                  target: Target) throws
+    private func exportBundle(from buildDirectory: AbsolutePath,
+                              into outputDirectory: AbsolutePath,
+                              target: Target) throws
     {
         logger.info("Exporting built \(target.name) bundle...")
 

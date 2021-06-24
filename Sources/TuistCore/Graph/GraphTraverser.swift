@@ -478,9 +478,7 @@ public class GraphTraverser: GraphTraversing {
     public func prebuiltDependencies(for rootDependency: ValueGraphDependency) -> Set<ValueGraphDependency> {
         filterDependencies(
             from: rootDependency,
-            test: { dep in
-                dep.isPrecompiled
-            }
+            test: \.isPrecompiled
         )
     }
 

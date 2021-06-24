@@ -204,27 +204,24 @@ final class CacheController: CacheControlling {
                                          configuration: String,
                                          hash: String) throws
     {
-        let outputDirectory = try FileHandler.shared.temporaryDirectory()
-        defer {
-            try? FileHandler.shared.delete(outputDirectory)
-        }
+        try FileHandler.shared.inTemporaryDirectory { outputDirectory in
+            if path.extension == "xcworkspace" {
+                try bundleArtifactBuilder.build(
+                    workspacePath: path,
+                    target: target.target,
+                    configuration: configuration,
+                    into: outputDirectory
+                )
+            } else {
+                try bundleArtifactBuilder.build(
+                    projectPath: path,
+                    target: target.target,
+                    configuration: configuration,
+                    into: outputDirectory
+                )
+            }
 
-        if path.extension == "xcworkspace" {
-            try bundleArtifactBuilder.build(
-                workspacePath: path,
-                target: target.target,
-                configuration: configuration,
-                into: outputDirectory
-            )
-        } else {
-            try bundleArtifactBuilder.build(
-                projectPath: path,
-                target: target.target,
-                configuration: configuration,
-                into: outputDirectory
-            )
+            _ = try cache.store(hash: hash, paths: FileHandler.shared.glob(outputDirectory, glob: "*")).toBlocking().last()
         }
-
-        _ = try cache.store(hash: hash, paths: FileHandler.shared.glob(outputDirectory, glob: "*")).toBlocking().last()
     }
 }

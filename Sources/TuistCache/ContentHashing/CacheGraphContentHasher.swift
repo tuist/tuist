@@ -21,6 +21,7 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
     private let graphContentHasher: GraphContentHashing
     private let cacheProfileContentHasher: CacheProfileContentHashing
     private let contentHasher: ContentHashing
+    private static let cachableProducts: Set<Product> = [.framework, .staticFramework, .bundle]
 
     public convenience init(
         contentHasher: ContentHashing = ContentHasher()
@@ -63,8 +64,12 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
         graphTraverser: GraphTraversing
     ) -> Bool {
         let product = target.target.product
-        let isCachableProduct = product == .framework || product == .staticFramework || product == .bundle
-        let noXCTestDependency = !graphTraverser.dependsOnXCTest(path: target.path, name: target.target.name)
+        let isCachableProduct = CacheGraphContentHasher.cachableProducts.contains(product)
+        let noXCTestDependency = !graphTraverser.dependsOnXCTest(
+            path: target.path,
+            name: target.target.name
+        )
+
         return isCachableProduct && noXCTestDependency
     }
 }
