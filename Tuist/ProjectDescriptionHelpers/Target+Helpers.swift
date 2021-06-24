@@ -35,7 +35,7 @@ extension Target {
             )
         )
     }
-    
+
     /// - Parameters:
     ///     - dependencies: Dependencies for the main target.
     ///     - testDependencies: Dependencies for tests.
@@ -57,7 +57,7 @@ extension Target {
                 name: name,
                 product: product,
                 dependencies: dependencies
-            )
+            ),
         ]
         if hasTests {
             targets.append(
@@ -67,11 +67,11 @@ extension Target {
                     dependencies: testDependencies + [
                         .target(name: name),
                     ]
-                    + (hasTesting ? [.target(name: "\(name)Testing")] : [])
+                        + (hasTesting ? [.target(name: "\(name)Testing")] : [])
                 )
             )
         }
-        
+
         if hasTesting {
             targets.append(
                 .target(
@@ -79,12 +79,12 @@ extension Target {
                     product: product,
                     dependencies: testingDependencies + [
                         .target(name: name),
-                        .sdk(name: "XCTest.framework", status: .optional)
+                        .sdk(name: "XCTest.framework", status: .optional),
                     ]
                 )
             )
         }
-        
+
         if hasIntegrationTests {
             targets.append(
                 .target(
@@ -93,11 +93,11 @@ extension Target {
                     dependencies: integrationTestsDependencies + [
                         .target(name: name),
                     ]
-                    + (hasTesting ? [.target(name: "\(name)Testing")] : [])
+                        + (hasTesting ? [.target(name: "\(name)Testing")] : [])
                 )
             )
         }
-        
+
         return targets
     }
 }
