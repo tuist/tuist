@@ -185,7 +185,7 @@ extension PackageInfo.Target {
 
     func mapProduct(packageInfo: PackageInfo) -> ProjectDescription.Product? {
         return packageInfo.products
-            .filter { $0.targets.contains(self.name) }
+            .filter { $0.targets.contains(name) }
             .compactMap {
                 switch $0.type {
                 case let .library(type):
@@ -218,7 +218,7 @@ extension PackageInfo.Target {
     func mapResources(path: AbsolutePath) -> ResourceFileElements? {
         let resourcesPaths = self.resources.map { path.appending(RelativePath($0.path)) }
         guard !resourcesPaths.isEmpty else { return nil }
-        return .init(resources: resourcesPaths.map { .glob(pattern: .init($0.pathString)) })
+        return .init(resources: resourcesPaths.map { .glob(pattern: Path($0.pathString)) })
     }
 
     func mapDependencies(
@@ -226,7 +226,7 @@ extension PackageInfo.Target {
         packageInfo: PackageInfo,
         productToPackage: [String: String]
     ) throws -> [ProjectDescription.TargetDependency] {
-        let targetDependencies: [ProjectDescription.TargetDependency] = try self.dependencies.map { dependency in
+        let targetDependencies: [ProjectDescription.TargetDependency] = try dependencies.map { dependency in
             switch dependency {
             case let .target(name, _):
                 return .target(name: name)
