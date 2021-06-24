@@ -1,4 +1,5 @@
 import Foundation
+import ProjectDescription
 import TSCBasic
 import TuistCore
 import TuistGenerator
@@ -11,7 +12,7 @@ import TuistSupport
 protocol Generating {
     @discardableResult
     func load(path: AbsolutePath) throws -> Graph
-    func loadProject(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]) // swiftlint:disable:this large_tuple
+    func loadProject(path: AbsolutePath) throws -> (TuistGraph.Project, Graph, [SideEffectDescriptor]) // swiftlint:disable:this large_tuple
     func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath
     func generateWithGraph(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, Graph)
     func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph)
@@ -104,7 +105,7 @@ class Generator: Generating {
     }
 
     // swiftlint:disable:next large_tuple
-    func loadProject(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]) {
+    func loadProject(path: AbsolutePath) throws -> (TuistGraph.Project, Graph, [SideEffectDescriptor]) {
         // Load config
         let config = try configLoader.loadConfig(path: path)
 
@@ -116,15 +117,15 @@ class Generator: Generating {
         let dependenciesGraph = try dependenciesGraphLoader.loadDependencies(at: path)
 
         // Load all manifests
-        let manifests = try recursiveManifestLoader.loadProject(at: path, dependenciesGraph: dependenciesGraph)
+        let projects = try recursiveManifestLoader.loadProjects(at: [path] + dependenciesGraph.projectPaths).projects
 
         // Lint Manifests
-        try manifests.projects.flatMap {
+        try projects.flatMap {
             manifestLinter.lint(project: $0.value)
         }.printAndThrowIfNeeded()
 
         // Convert to models
-        let models = try convert(manifests: manifests, plugins: plugins, dependenciesGraph: dependenciesGraph)
+        let models = try convert(projects: projects, plugins: plugins, dependenciesGraph: dependenciesGraph)
 
         // Apply any registered model mappers
         let projectMapper = projectMapperProvider.mapper(config: config)
@@ -232,7 +233,7 @@ class Generator: Generating {
     }
 
     // swiftlint:disable:next large_tuple
-    private func loadProjectWorkspace(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]) {
+    private func loadProjectWorkspace(path: AbsolutePath) throws -> (TuistGraph.Project, Graph, [SideEffectDescriptor]) {
         // Load config
         let config = try configLoader.loadConfig(path: path)
 
@@ -244,7 +245,7 @@ class Generator: Generating {
         let dependenciesGraph = try dependenciesGraphLoader.loadDependencies(at: path)
 
         // Load all manifests
-        let manifests = try recursiveManifestLoader.loadProject(at: path, dependenciesGraph: dependenciesGraph)
+        let manifests = try recursiveManifestLoader.loadProjects(at: [path] + dependenciesGraph.projectPaths)
 
         // Lint Manifests
         try manifests.projects.flatMap {
@@ -252,7 +253,7 @@ class Generator: Generating {
         }.printAndThrowIfNeeded()
 
         // Convert to models
-        let projects = try convert(manifests: manifests, plugins: plugins, dependenciesGraph: dependenciesGraph)
+        let projects = try convert(projects: manifests.projects, plugins: plugins, dependenciesGraph: dependenciesGraph)
 
         let workspaceName = manifests.projects[path]?.name ?? "Workspace"
         let workspace = Workspace(
@@ -305,15 +306,20 @@ class Generator: Generating {
         let dependenciesGraph = try dependenciesGraphLoader.loadDependencies(at: path)
 
         // Load all manifests
-        let manifests = try recursiveManifestLoader.loadWorkspace(at: path, dependenciesGraph: dependenciesGraph)
+        let manifests = try recursiveManifestLoader.loadWorkspace(at: path)
+        let dependenciesProjects = try recursiveManifestLoader.loadProjects(at: dependenciesGraph.projectPaths).projects
+        let projects = manifests.projects.merging(dependenciesProjects, uniquingKeysWith: { _, _ in fatalError() })
 
         // Lint Manifests
-        try manifests.projects.flatMap {
+        try projects.flatMap {
             manifestLinter.lint(project: $0.value)
         }.printAndThrowIfNeeded()
 
         // Convert to models
-        let models = try convert(manifests: manifests, plugins: plugins, dependenciesGraph: dependenciesGraph)
+        let models = (
+            workspace: try converter.convert(manifest: manifests.workspace, path: manifests.path),
+            projects: try convert(projects: projects, plugins: plugins, dependenciesGraph: dependenciesGraph)
+        )
 
         // Apply model mappers
         let workspaceMapper = workspaceMapperProvider.mapper(config: config)
@@ -337,28 +343,14 @@ class Generator: Generating {
     }
 
     private func convert(
-        manifests: LoadedProjects,
+        projects: [AbsolutePath: ProjectDescription.Project],
         plugins: Plugins,
         dependenciesGraph: DependenciesGraph,
         context: ExecutionContext = .concurrent
     ) throws -> [TuistGraph.Project] {
-        let tuples = manifests.projects.map { (path: $0.key, manifest: $0.value) }
+        let tuples = projects.map { (path: $0.key, manifest: $0.value) }
         return try tuples.map(context: context) {
             try converter.convert(manifest: $0.manifest, path: $0.path, plugins: plugins, dependenciesGraph: dependenciesGraph)
         }
-    }
-
-    private func convert(
-        manifests: LoadedWorkspace,
-        plugins: Plugins,
-        dependenciesGraph: DependenciesGraph,
-        context: ExecutionContext = .concurrent
-    ) throws -> (workspace: Workspace, projects: [TuistGraph.Project]) {
-        let workspace = try converter.convert(manifest: manifests.workspace, path: manifests.path)
-        let tuples = manifests.projects.map { (path: $0.key, manifest: $0.value) }
-        let projects = try tuples.map(context: context) {
-            try converter.convert(manifest: $0.manifest, path: $0.path, plugins: plugins, dependenciesGraph: dependenciesGraph)
-        }
-        return (workspace, projects)
     }
 }

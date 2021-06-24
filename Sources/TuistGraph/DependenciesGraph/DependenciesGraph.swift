@@ -56,4 +56,17 @@ extension DependenciesGraph {
         }
         return .init(externalDependencies: mergedExternalDependencies)
     }
+
+    public var projectPaths: [AbsolutePath] {
+        return self.externalDependencies.values.flatMap {
+            $0.compactMap {
+                switch $0 {
+                case let .project(_, path):
+                    return path
+                case .target, .framework, .xcframework, .library, .package, .sdk, .cocoapods, .xctest:
+                    return nil
+                }
+            }
+        }
+    }
 }

@@ -6,8 +6,8 @@ import TuistSupport
 
 /// A component that can load a manifest and all its (transitive) manifest dependencies
 public protocol RecursiveManifestLoading {
-    func loadProject(at path: AbsolutePath, dependenciesGraph: DependenciesGraph) throws -> LoadedProjects
-    func loadWorkspace(at path: AbsolutePath, dependenciesGraph: DependenciesGraph) throws -> LoadedWorkspace
+    func loadProjects(at path: [AbsolutePath]) throws -> LoadedProjects
+    func loadWorkspace(at path: AbsolutePath) throws -> LoadedWorkspace
 }
 
 public struct LoadedProjects {
@@ -31,11 +31,26 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         self.fileHandler = fileHandler
     }
 
-    public func loadProject(at path: AbsolutePath, dependenciesGraph: DependenciesGraph) throws -> LoadedProjects {
-        try loadProjects(paths: [path], dependenciesGraph: dependenciesGraph)
+    public func loadProjects(at paths: [AbsolutePath]) throws -> LoadedProjects {
+        var cache = [AbsolutePath: ProjectDescription.Project]()
+
+        var paths = Set(paths)
+        while !paths.isEmpty {
+            paths.subtract(cache.keys)
+            let projects = try Array(paths).map(context: ExecutionContext.concurrent) {
+                try manifestLoader.loadProject(at: $0)
+            }
+            var newDependenciesPaths = Set<AbsolutePath>()
+            try zip(paths, projects).forEach { path, project in
+                cache[path] = project
+                newDependenciesPaths.formUnion(try dependencyPaths(for: project, path: path))
+            }
+            paths = newDependenciesPaths
+        }
+        return LoadedProjects(projects: cache)
     }
 
-    public func loadWorkspace(at path: AbsolutePath, dependenciesGraph: DependenciesGraph) throws -> LoadedWorkspace {
+    public func loadWorkspace(at path: AbsolutePath) throws -> LoadedWorkspace {
         let workspace = try manifestLoader.loadWorkspace(at: path)
 
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
@@ -49,7 +64,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
             manifestLoader.manifests(at: $0).contains(.project)
         }
 
-        let projects = try loadProjects(paths: projectPaths, dependenciesGraph: dependenciesGraph)
+        let projects = try loadProjects(at: projectPaths)
         return LoadedWorkspace(
             path: path,
             workspace: workspace,
@@ -59,55 +74,15 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
 
     // MARK: - Private
 
-    private func loadProjects(paths: [AbsolutePath], dependenciesGraph: DependenciesGraph) throws -> LoadedProjects {
-        var cache = [AbsolutePath: ProjectDescription.Project]()
-
-        var paths = Set(paths)
-        while !paths.isEmpty {
-            paths.subtract(cache.keys)
-            let projects = try Array(paths).map(context: ExecutionContext.concurrent) { path -> ProjectDescription.Project in
-                let serializedProject = path.appending(component: "Project.json")
-                if fileHandler.exists(serializedProject) {
-                    return try JSONDecoder().decode(ProjectDescription.Project.self, from: try fileHandler.readFile(serializedProject))
-                } else {
-                    return try manifestLoader.loadProject(at: path)
-                }
-            }
-            var newDependenciesPaths = Set<AbsolutePath>()
-            try zip(paths, projects).forEach { path, project in
-                cache[path] = project
-                newDependenciesPaths.formUnion(try dependencyPaths(for: project, path: path, dependenciesGraph: dependenciesGraph))
-            }
-            paths = newDependenciesPaths
-        }
-        return LoadedProjects(projects: cache)
-    }
-
-    private func dependencyPaths(
-        for project: ProjectDescription.Project,
-        path: AbsolutePath,
-        dependenciesGraph: DependenciesGraph
-    ) throws -> [AbsolutePath] {
+    private func dependencyPaths(for project: ProjectDescription.Project, path: AbsolutePath) throws -> [AbsolutePath] {
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         let paths: [AbsolutePath] = try project.targets.flatMap {
-            try $0.dependencies.flatMap { dependency -> [AbsolutePath] in
-                switch dependency {
+            try $0.dependencies.compactMap {
+                switch $0 {
                 case let .project(target: _, path: projectPath):
-                    return [try generatorPaths.resolve(path: projectPath)]
-                case let .external(name):
-                    guard let dependencies = dependenciesGraph.externalDependencies[name] else {
-                        return []
-                    }
-                    return try dependencies.compactMap {
-                        switch $0 {
-                        case let .project(target: _, path: projectPath):
-                            return try generatorPaths.resolve(path: Path(projectPath.pathString))
-                        default:
-                            return nil
-                        }
-                    }
+                    return try generatorPaths.resolve(path: projectPath)
                 default:
-                    return []
+                    return nil
                 }
             }
         }
