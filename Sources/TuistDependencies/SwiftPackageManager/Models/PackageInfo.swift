@@ -13,8 +13,6 @@ public struct PackageInfo: Decodable, Equatable {
     /// The declared platforms in the manifest.
     public let platforms: [Platform]
 
-    // TODO: verify whether these properties are required to generate the Tuist graph
-
     // Ignored fields
 
     // /// The name of the package.

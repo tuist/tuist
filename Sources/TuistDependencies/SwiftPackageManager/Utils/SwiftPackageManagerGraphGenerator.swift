@@ -216,7 +216,7 @@ extension PackageInfo.Target {
 
     func mapSources(path: AbsolutePath) -> SourceFilesList? {
         let sourcesPaths: [AbsolutePath]
-        if let customSources = self.sources {
+        if let customSources = sources {
             sourcesPaths = customSources.map { path.appending(RelativePath($0)) }
         } else {
             sourcesPaths = [path]
@@ -226,7 +226,7 @@ extension PackageInfo.Target {
     }
 
     func mapResources(path: AbsolutePath) -> ResourceFileElements? {
-        let resourcesPaths = self.resources.map { path.appending(RelativePath($0.path)) }
+        let resourcesPaths = resources.map { path.appending(RelativePath($0.path)) }
         guard !resourcesPaths.isEmpty else { return nil }
         return .init(resources: resourcesPaths.map { .glob(pattern: Path($0.pathString)) })
     }
@@ -255,7 +255,7 @@ extension PackageInfo.Target {
             }
         }
 
-        let linkerDependencies: [ProjectDescription.TargetDependency] = self.settings.compactMap { setting in
+        let linkerDependencies: [ProjectDescription.TargetDependency] = settings.compactMap { setting in
             switch (setting.tool, setting.name) {
             case (.linker, .linkedFramework), (.linker, .linkedLibrary):
                 return .sdk(name: setting.value[0], status: .required)
@@ -268,41 +268,32 @@ extension PackageInfo.Target {
     }
 
     func mapSettings() throws -> ProjectDescription.Settings? {
-        var cHeaderSearchPaths: [String] = []
-        var cxxHeaderSearchPaths: [String] = []
-        var cDefines: [String: String] = [:]
-        var cxxDefines: [String: String] = [:]
-        var swiftDefines: [String: String] = [:]
+        var headerSearchPaths: [String] = []
+        var defines: [String: String] = [:]
+        var swiftDefines: [String] = []
         var cFlags: [String] = []
         var cxxFlags: [String] = []
         var swiftFlags: [String] = []
 
-        try self.settings.forEach { setting in
+        try settings.forEach { setting in
             switch (setting.tool, setting.name) {
-            case (.c, .headerSearchPath):
-                cHeaderSearchPaths.append(setting.value[0])
-            case (.c, .define):
+            case (.c, .headerSearchPath), (.cxx, .headerSearchPath):
+                headerSearchPaths.append(setting.value[0])
+            case (.c, .define), (.cxx, .define):
                 let (name, value) = setting.extractDefine
-                cDefines[name] = value
+                defines[name] = value
             case (.c, .unsafeFlags):
                 cFlags.append(contentsOf: setting.value)
-
-            case (.cxx, .define):
-                let (name, value) = setting.extractDefine
-                cxxDefines[name] = value
-            case (.cxx, .headerSearchPath):
-                cxxHeaderSearchPaths.append(setting.value[0])
             case (.cxx, .unsafeFlags):
                 cxxFlags.append(contentsOf: setting.value)
-
             case (.swift, .define):
-                let (name, value) = setting.extractDefine
-                swiftDefines[name] = value
+                swiftDefines.append(setting.value[0])
             case (.swift, .unsafeFlags):
                 swiftFlags.append(contentsOf: setting.value)
 
             case (.linker, .linkedFramework), (.linker, .linkedLibrary):
-                return // Handled as dependency
+                // Handled as dependency
+                return
 
             case (.c, .linkedFramework), (.c, .linkedLibrary), (.cxx, .linkedFramework), (.cxx, .linkedLibrary),
                  (.swift, .headerSearchPath), (.swift, .linkedFramework), (.swift, .linkedLibrary),
@@ -311,14 +302,33 @@ extension PackageInfo.Target {
             }
         }
 
-        // TODO: map to ProjectDescription.Settings
-        return nil
+        var settingsDictionary: ProjectDescription.SettingsDictionary = [:]
+        if !headerSearchPaths.isEmpty {
+            settingsDictionary["HEADER_SEARCH_PATHS"] = .array(headerSearchPaths)
+        }
+        if !defines.isEmpty {
+            settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array(defines.map { key, value in "\(key)=\(value)" })
+        }
+        if !swiftDefines.isEmpty {
+            settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .array(swiftDefines)
+        }
+        if !cFlags.isEmpty {
+            settingsDictionary["OTHER_CFLAGS"] = .array(cFlags)
+        }
+        if !cxxFlags.isEmpty {
+            settingsDictionary["OTHER_CPLUSPLUSFLAGS"] = .array(cxxFlags)
+        }
+        if !swiftFlags.isEmpty {
+            settingsDictionary["OTHER_SWIFT_FLAGS"] = .array(swiftFlags)
+        }
+
+        return .init(base: settingsDictionary)
     }
 }
 
 extension PackageInfo.Target.TargetBuildSettingDescription.Setting {
     fileprivate var extractDefine: (name: String, value: String) {
-        let define = self.value[0]
+        let define = value[0]
         if define.contains("=") {
             let split = define.split(separator: "=", maxSplits: 1)
             return (name: String(split[0]), value: String(split[1]))
@@ -345,7 +355,7 @@ extension TuistGraph.Platform {
 
 extension PackageInfo.Platform {
     fileprivate func descriptionPlatform() throws -> ProjectDescription.Platform {
-        switch self.platformName {
+        switch platformName {
         case "ios":
             return .iOS
         case "macos":
@@ -355,7 +365,7 @@ extension PackageInfo.Platform {
         case "watchos":
             return .watchOS
         default:
-            throw SwiftPackageManagerGraphGeneratorError.unknownPlatform(self.platformName)
+            throw SwiftPackageManagerGraphGeneratorError.unknownPlatform(platformName)
         }
     }
 }
