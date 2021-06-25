@@ -6,7 +6,25 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
-public class CacheMapper: GraphMapping {
+enum CacheMapperError: FatalError, Equatable {
+    case missingTargets(missingTargets: [String], availableTargets: [String])
+
+    var description: String {
+        switch self {
+        case let .missingTargets(missingTargets: missingTargets, availableTargets: availableTargets):
+            return "Targets \(missingTargets.joined(separator: ", ")) cannot be found. Available targets are \(availableTargets.joined(separator: ", "))"
+        }
+    }
+
+    var type: ErrorType {
+        switch self {
+        case .missingTargets:
+            return .abort
+        }
+    }
+}
+
+public final class CacheMapper: GraphMapping {
     // MARK: - Attributes
 
     /// Cache.
@@ -73,6 +91,19 @@ public class CacheMapper: GraphMapping {
     // MARK: - GraphMapping
 
     public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
+        let graphTraverser = GraphTraverser(graph: graph)
+        let availableTargets = Set(
+            graphTraverser.allTargets().map(\.target.name)
+        )
+        let missingTargets = sources.subtracting(availableTargets)
+        guard
+            missingTargets.isEmpty
+        else {
+            throw CacheMapperError.missingTargets(
+                missingTargets: missingTargets.sorted(),
+                availableTargets: availableTargets.sorted()
+            )
+        }
         let single = hashes(graph: graph).flatMap { self.map(graph: graph, hashes: $0, sources: self.sources) }
         return try (single.toBlocking().single(), [])
     }
