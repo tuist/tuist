@@ -24,7 +24,7 @@ let packages: [Package] = [
     .package(url: "https://github.com/tuist/BlueSignals.git", .upToNextMajor(from: "1.0.21")),
     .package(url: "https://github.com/marmelroy/Zip.git", .upToNextMinor(from: "2.1.1")),
     .package(url: "https://github.com/rnine/Checksum.git", .upToNextMajor(from: "1.0.2")),
-    .package(url: "https://github.com/stencilproject/Stencil.git", .upToNextMajor(from: "0.14.0")),
+    .package(url: "https://github.com/stencilproject/Stencil.git", .upToNextMajor(from: "0.14.1")),
     .package(url: "https://github.com/fortmarek/StencilSwiftKit.git", .branch("stable")),
     .package(url: "https://github.com/FabrizioBrancati/Queuer.git", .upToNextMajor(from: "2.1.1")),
     .package(url: "https://github.com/krzyzanowskim/CryptoSwift.git", .upToNextMajor(from: "1.3.8")),
