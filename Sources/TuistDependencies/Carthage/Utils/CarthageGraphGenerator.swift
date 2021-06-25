@@ -38,8 +38,7 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
                         frameworkName,
                     ])
 
-                let architectures: Set<BinaryArchitecture> = Set(product.flatMap { $0.architectures })
-                return .xcframework(path: path, architectures: architectures)
+                return .xcframework(path: path)
             }
 
         return DependenciesGraph(thirdPartyDependencies: thirdPartyDependencies)
