@@ -27,7 +27,7 @@ final class CarthageVersionFileTests: TuistUnitTestCase {
         // When / Then
         XCTAssertDecodableEqualToJson(json, expected)
     }
-    
+
     func test_codable_realmSwift() {
         // Given
         let json = CarthageVersionFile.testRealmCocoaJson

@@ -199,7 +199,7 @@ extension CarthageVersionFile {
             ]
         )
     }
-    
+
     static var testRealmCocoa: Self {
         .init(
             iOS: [
