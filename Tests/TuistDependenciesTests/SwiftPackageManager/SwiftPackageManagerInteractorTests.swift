@@ -45,7 +45,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             [
                 .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
             ],
-            .staticLibrary
+            productTypes: [:]
         )
 
         swiftPackageManagerController.resolveStub = { path in
@@ -60,7 +60,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms in
             XCTAssertEqual(path, dependenciesDirectory.appending(component: "SwiftPackageManager"))
             XCTAssertEqual(platforms, [.iOS])
-            XCTAssertEqual(automaticProductType, .staticLibrary)
+            XCTAssertEqual(automaticProductType, [:])
             return .test()
         }
 
@@ -119,7 +119,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             [
                 .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
             ],
-            .staticLibrary
+            productTypes: [:]
         )
 
         swiftPackageManagerController.resolveStub = { path in
@@ -134,7 +134,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms in
             XCTAssertEqual(path, dependenciesDirectory.appending(component: "SwiftPackageManager"))
             XCTAssertEqual(platforms, [.iOS])
-            XCTAssertEqual(automaticProductType, .staticLibrary)
+            XCTAssertEqual(automaticProductType, [:])
             return .test()
         }
 
@@ -192,7 +192,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             [
                 .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
             ],
-            .staticLibrary
+            productTypes: [:]
         )
 
         swiftPackageManagerController.updateStub = { path in
@@ -206,7 +206,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
 
         swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms in
             XCTAssertEqual(path, dependenciesDirectory.appending(component: "SwiftPackageManager"))
-            XCTAssertEqual(automaticProductType, .staticLibrary)
+            XCTAssertEqual(automaticProductType, [:])
             XCTAssertEqual(platforms, [.iOS])
             return .test()
         }

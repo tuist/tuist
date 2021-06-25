@@ -8,10 +8,10 @@ public final class MockSwiftPackageManagerGraphGenerator: SwiftPackageManagerGra
     public init() {}
 
     var invokedGenerate = false
-    var generateStub: ((AbsolutePath, Product, Set<TuistGraph.Platform>) throws -> DependenciesGraph)?
+    var generateStub: ((AbsolutePath, [String: Product], Set<TuistGraph.Platform>) throws -> DependenciesGraph)?
 
-    public func generate(at path: AbsolutePath, automaticProductType: Product, platforms: Set<TuistGraph.Platform>) throws -> DependenciesGraph {
+    public func generate(at path: AbsolutePath, productTypes: [String: Product], platforms: Set<TuistGraph.Platform>) throws -> DependenciesGraph {
         invokedGenerate = true
-        return try generateStub?(path, automaticProductType, platforms) ?? .test()
+        return try generateStub?(path, productTypes, platforms) ?? .test()
     }
 }

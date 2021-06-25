@@ -51,9 +51,9 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
 public protocol SwiftPackageManagerGraphGenerating {
     /// Generates the `DependenciesGraph` for the `SwiftPackageManager` dependencies.
     /// - Parameter path: The path to the directory that contains the `checkouts` directory where `SwiftPackageManager` installed dependencies.
-    /// - Parameter automaticProductType: The `Product` type to be used for SPM targets with `automatic` library type.
+    /// - Parameter productTypes: The custom `Product` types to be used for SPM targets.
     /// - Parameter platforms: The supported platforms.
-    func generate(at path: AbsolutePath, automaticProductType: TuistGraph.Product, platforms: Set<TuistGraph.Platform>) throws -> DependenciesGraph
+    func generate(at path: AbsolutePath, productTypes: [String: TuistGraph.Product], platforms: Set<TuistGraph.Platform>) throws -> DependenciesGraph
 }
 
 public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGenerating {
@@ -65,7 +65,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
 
     public func generate(
         at path: AbsolutePath,
-        automaticProductType: TuistGraph.Product,
+        productTypes: [String: TuistGraph.Product],
         platforms: Set<TuistGraph.Platform>
     ) throws -> DependenciesGraph {
         let packageFolders = try FileHandler.shared.contentsOfDirectory(path.appending(component: "checkouts"))
@@ -90,7 +90,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 for: packageInfo.info,
                 name: packageInfo.name,
                 at: packageInfo.folder,
-                automaticProductType: automaticProductType,
+                productTypes: productTypes,
                 platforms: platforms,
                 productToPackage: productToPackage
             )
@@ -107,7 +107,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         for packageInfo: PackageInfo,
         name: String,
         at folder: AbsolutePath,
-        automaticProductType: TuistGraph.Product,
+        productTypes: [String: TuistGraph.Product],
         platforms: Set<TuistGraph.Platform>,
         productToPackage: [String: String]
     ) throws {
@@ -117,7 +117,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 packageName: name,
                 packageInfo: packageInfo,
                 at: folder,
-                automaticProductType: automaticProductType,
+                productTypes: productTypes,
                 platforms: platforms,
                 productToPackage: productToPackage
             )
@@ -136,7 +136,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         packageName: String,
         packageInfo: PackageInfo,
         at folder: AbsolutePath,
-        automaticProductType: TuistGraph.Product,
+        productTypes: [String: TuistGraph.Product],
         platforms: Set<TuistGraph.Platform>,
         productToPackage: [String: String]
     ) throws -> ProjectDescription.Target? {
@@ -145,7 +145,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             return nil
         }
 
-        guard let product = target.mapProduct(packageInfo: packageInfo, automaticProductType: automaticProductType) else {
+        guard let product = target.mapProduct(packageInfo: packageInfo, productTypes: productTypes) else {
             logger.debug("Target \(target.name) ignored by product type")
             return nil
         }
@@ -192,19 +192,22 @@ extension PackageInfo.Target {
         return platform
     }
 
-    func mapProduct(packageInfo: PackageInfo, automaticProductType: TuistGraph.Product) -> ProjectDescription.Product? {
+    func mapProduct(packageInfo: PackageInfo, productTypes: [String: TuistGraph.Product]) -> ProjectDescription.Product? {
         return packageInfo.products
             .filter { $0.targets.contains(name) }
             .compactMap {
                 switch $0.type {
                 case let .library(type):
+                    if let productType = productTypes[name] {
+                        return ProjectDescription.Product.from(product: productType)
+
+                    }
+
                     switch type {
-                    case .automatic:
-                        return ProjectDescription.Product.from(product: automaticProductType)
+                    case .static, .automatic:
+                        return .staticLibrary
                     case .dynamic:
                         return .dynamicLibrary
-                    case .static:
-                        return .staticLibrary
                     }
                 case .executable, .plugin, .test:
                     return nil
