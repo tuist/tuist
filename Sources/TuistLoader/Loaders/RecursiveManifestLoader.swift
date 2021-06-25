@@ -6,7 +6,7 @@ import TuistSupport
 
 /// A component that can load a manifest and all its (transitive) manifest dependencies
 public protocol RecursiveManifestLoading {
-    func loadProjects(at path: [AbsolutePath]) throws -> LoadedProjects
+    func loadProject(at path: AbsolutePath) throws -> LoadedProjects
     func loadWorkspace(at path: AbsolutePath) throws -> LoadedWorkspace
 }
 
@@ -31,7 +31,35 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         self.fileHandler = fileHandler
     }
 
-    public func loadProjects(at paths: [AbsolutePath]) throws -> LoadedProjects {
+    public func loadProject(at path: AbsolutePath) throws -> LoadedProjects {
+        try loadProjects(paths: [path])
+    }
+
+    public func loadWorkspace(at path: AbsolutePath) throws -> LoadedWorkspace {
+        let workspace = try manifestLoader.loadWorkspace(at: path)
+
+        let generatorPaths = GeneratorPaths(manifestDirectory: path)
+        let projectPaths = try workspace.projects.map {
+            try generatorPaths.resolve(path: $0)
+        }.flatMap {
+            fileHandler.glob($0, glob: "")
+        }.filter {
+            fileHandler.isFolder($0)
+        }.filter {
+            manifestLoader.manifests(at: $0).contains(.project)
+        }
+
+        let projects = try loadProjects(paths: projectPaths)
+        return LoadedWorkspace(
+            path: path,
+            workspace: workspace,
+            projects: projects.projects
+        )
+    }
+
+    // MARK: - Private
+
+    private func loadProjects(paths: [AbsolutePath]) throws -> LoadedProjects {
         var cache = [AbsolutePath: ProjectDescription.Project]()
 
         var paths = Set(paths)
@@ -49,30 +77,6 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         }
         return LoadedProjects(projects: cache)
     }
-
-    public func loadWorkspace(at path: AbsolutePath) throws -> LoadedWorkspace {
-        let workspace = try manifestLoader.loadWorkspace(at: path)
-
-        let generatorPaths = GeneratorPaths(manifestDirectory: path)
-        let projectPaths = try workspace.projects.map {
-            try generatorPaths.resolve(path: $0)
-        }.flatMap {
-            fileHandler.glob($0, glob: "")
-        }.filter {
-            fileHandler.isFolder($0)
-        }.filter {
-            manifestLoader.manifests(at: $0).contains(.project)
-        }
-
-        let projects = try loadProjects(at: projectPaths)
-        return LoadedWorkspace(
-            path: path,
-            workspace: workspace,
-            projects: projects.projects
-        )
-    }
-
-    // MARK: - Private
 
     private func dependencyPaths(for project: ProjectDescription.Project, path: AbsolutePath) throws -> [AbsolutePath] {
         let generatorPaths = GeneratorPaths(manifestDirectory: path)

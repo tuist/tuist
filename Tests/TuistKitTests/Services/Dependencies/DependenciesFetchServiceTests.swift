@@ -55,7 +55,7 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
                 [
                     .remote(url: "Dependency1/Dependency1", requirement: .upToNextMajor("1.2.3")),
                 ],
-                .staticLibrary
+                productTypes: [:]
             ),
             platforms: [.iOS, .macOS]
         )

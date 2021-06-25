@@ -591,7 +591,7 @@ let package = Package(
                 "TuistCore",
                 "TuistLoader",
                 "TuistGraph",
-                "TuistSupport"
+                "TuistSupport",
             ]
         ),
         .target(

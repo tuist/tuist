@@ -43,6 +43,6 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
                 return [.xcframework(path: path)]
             }
 
-        return DependenciesGraph(externalDependencies: externalDependencies)
+        return DependenciesGraph(externalDependencies: externalDependencies, externalProjects: [:])
     }
 }

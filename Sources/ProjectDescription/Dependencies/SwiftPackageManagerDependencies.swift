@@ -5,15 +5,15 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
     /// List of packages that will be installed using Swift Package Manager.
     public let packages: [Package]
 
-    /// The `Product` type to be used for SPM targets with `automatic` library type.
-    public let automaticProductType: Product
+    /// The custom `Product` type to be used for SPM targets.
+    public let productTypes: [String: Product]
 
     /// Creates `SwiftPackageManagerDependencies` instance.
     /// - Parameter packages: List of packages that will be installed using Swift Package Manager.
-    /// - Parameter productType: The `Product` type to be used for SPM targets with `automatic` library type.
-    public init(_ packages: [Package], automaticProductType: Product = .staticLibrary) {
+    /// - Parameter productTypes: The custom `Product` types to be used for SPM targets.
+    public init(_ packages: [Package], productTypes: [String: Product] = [:]) {
         self.packages = packages
-        self.automaticProductType = automaticProductType
+        self.productTypes = productTypes
     }
 }
 
@@ -22,6 +22,6 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
 extension SwiftPackageManagerDependencies: ExpressibleByArrayLiteral {
     public init(arrayLiteral elements: Package...) {
         packages = elements
-        automaticProductType = .staticLibrary
+        productTypes = [:]
     }
 }

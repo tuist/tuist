@@ -10,7 +10,7 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
             [
                 .remote(url: "url/url/url", requirement: .branch("branch")),
             ],
-            .staticLibrary
+            productTypes: [:]
         )
 
         // When
@@ -42,7 +42,7 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
                 .remote(url: "url/url/url", requirement: .range(from: "1.2.3", to: "5.2.1")),
                 .local(path: "/path/path/path"),
             ],
-            .staticLibrary
+            productTypes: [:]
         )
 
         // When

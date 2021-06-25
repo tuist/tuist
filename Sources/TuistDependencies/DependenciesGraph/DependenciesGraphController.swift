@@ -65,6 +65,9 @@ public final class DependenciesGraphController: DependenciesGraphControlling {
 
     public func load(at path: AbsolutePath) throws -> DependenciesGraph {
         let graphPath = self.graphPath(at: path)
+        guard FileHandler.shared.exists(graphPath) else {
+            return .none
+        }
         let graphData = try FileHandler.shared.readFile(graphPath)
 
         let jsonDecoder = JSONDecoder()

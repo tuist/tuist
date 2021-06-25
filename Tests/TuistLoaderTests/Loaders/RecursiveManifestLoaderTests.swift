@@ -47,7 +47,7 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
         stub(manifest: projectA, at: "/Some/Path/A")
 
         // When
-        let manifests = try subject.loadProjects(at: ["/Some/Path/A"])
+        let manifests = try subject.loadProject(at: "/Some/Path/A")
 
         // Then
         XCTAssertEqual(manifests.projects, [
@@ -83,7 +83,7 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
         stub(manifest: projectC, at: "/Some/Path/C")
 
         // When
-        let manifests = try subject.loadProjects(at: ["/Some/Path/A"])
+        let manifests = try subject.loadProject(at: "/Some/Path/A")
 
         // Then
         XCTAssertEqual(manifests.projects, [
@@ -135,7 +135,7 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
         stub(manifest: projectE, at: "/Some/Path/E")
 
         // When
-        let manifests = try subject.loadProjects(at: ["/Some/Path/A"])
+        let manifests = try subject.loadProject(at: "/Some/Path/A")
 
         // Then
         XCTAssertEqual(manifests.projects, [
@@ -161,7 +161,7 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
 
         // When / Then
         XCTAssertThrowsSpecific(
-            try subject.loadProjects(at: ["/Some/Path/A"]),
+            try subject.loadProject(at: "/Some/Path/A"),
             ManifestLoaderError.manifestNotFound(.project, "/Some/Path/B")
         )
     }

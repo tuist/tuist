@@ -75,7 +75,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
         }
 
         // When
-        let got = try subject.generate(at: path, automaticProductType: .staticLibrary, platforms: [.iOS])
+        let got = try subject.generate(at: path, productTypes: [:], platforms: [.iOS])
 
         // Then
         let expected = try DependenciesGraph.none
@@ -87,7 +87,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
             .merging(with: DependenciesGraph.aDependency(packageFolder: aDependencyPath))
             .merging(with: DependenciesGraph.anotherDependency(packageFolder: anotherDependencyPath))
 
-        XCTAssertEqual(got, expected)
+        XCTAssertEqual(got.externalDependencies, expected.externalDependencies)
 
         // TODO: check generated projects
     }

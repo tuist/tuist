@@ -5,19 +5,19 @@ public struct SwiftPackageManagerDependencies: Equatable {
     /// List of packages that will be installed using Swift Package Manager.
     public let packages: [Package]
 
-    /// The `Product` type to be used for SPM targets with `automatic` library type.
-    public let automaticProductType: Product
+    /// The custom `Product` types to be used for SPM targets.
+    public let productTypes: [String: Product]
 
     /// Initializes a new `SwiftPackageManagerDependencies` instance.
     /// - Parameters:
     ///    - packages: List of packages that will be installed using Swift Package Manager.
-    ///    - productType: The `Product` type to be used for SPM targets with `automatic` library type.    
+    ///    - productTypes: The custom `Product` types to be used for SPM targets.
     public init(
         _ packages: [Package],
-        _ automaticProductType: Product
+        productTypes: [String: Product]
     ) {
         self.packages = packages
-        self.automaticProductType = automaticProductType
+        self.productTypes = productTypes
     }
 }
 

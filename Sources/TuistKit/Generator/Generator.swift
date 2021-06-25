@@ -2,6 +2,7 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
+import TuistDependencies
 import TuistGenerator
 import TuistGraph
 import TuistLoader
@@ -26,8 +27,8 @@ class Generator: Generating {
     private let environmentLinter: EnvironmentLinting = EnvironmentLinter()
     private let generator: DescriptorGenerating = DescriptorGenerator()
     private let writer: XcodeProjWriting = XcodeProjWriter()
-    private let cocoapodsInteractor: CocoaPodsInteracting = CocoaPodsInteractor()
-    private let swiftPackageManagerInteractor: SwiftPackageManagerInteracting = SwiftPackageManagerInteractor()
+    private let cocoapodsInteractor: TuistGenerator.CocoaPodsInteracting = TuistGenerator.CocoaPodsInteractor()
+    private let swiftPackageManagerInteractor: TuistGenerator.SwiftPackageManagerInteracting = TuistGenerator.SwiftPackageManagerInteractor()
     private let signingInteractor: SigningInteracting = SigningInteractor()
     private let sideEffectDescriptorExecutor: SideEffectDescriptorExecuting
     private let graphMapperProvider: GraphMapperProviding
@@ -36,7 +37,7 @@ class Generator: Generating {
     private let manifestLoader: ManifestLoading
     private let pluginsService: PluginServicing
     private let configLoader: ConfigLoading
-    private let dependenciesGraphLoader: DependenciesGraphLoading
+    private let dependenciesGraphController: DependenciesGraphControlling
 
     convenience init(contentHasher: ContentHashing) {
         self.init(
@@ -52,7 +53,7 @@ class Generator: Generating {
         graphMapperProvider: GraphMapperProviding,
         workspaceMapperProvider: WorkspaceMapperProviding,
         manifestLoaderFactory: ManifestLoaderFactory,
-        dependenciesGraphLoader: DependenciesGraphLoading = DependenciesGraphLoader()
+        dependenciesGraphController: DependenciesGraphControlling = DependenciesGraphController()
     ) {
         let manifestLoader = manifestLoaderFactory.createManifestLoader()
         recursiveManifestLoader = RecursiveManifestLoader(manifestLoader: manifestLoader)
@@ -70,7 +71,7 @@ class Generator: Generating {
             rootDirectoryLocator: RootDirectoryLocator(),
             fileHandler: FileHandler.shared
         )
-        self.dependenciesGraphLoader = dependenciesGraphLoader
+        self.dependenciesGraphController = dependenciesGraphController
     }
 
     func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath {
@@ -114,10 +115,10 @@ class Generator: Generating {
         manifestLoader.register(plugins: plugins)
 
         // Load DependenciesGraph
-        let dependenciesGraph = try dependenciesGraphLoader.loadDependencies(at: path)
+        let dependenciesGraph = try dependenciesGraphController.load(at: path)
 
         // Load all manifests
-        let projects = try recursiveManifestLoader.loadProjects(at: [path] + dependenciesGraph.projectPaths).projects
+        let projects = try recursiveManifestLoader.loadProject(at: path).projects
 
         // Lint Manifests
         try projects.flatMap {
@@ -125,7 +126,8 @@ class Generator: Generating {
         }.printAndThrowIfNeeded()
 
         // Convert to models
-        let models = try convert(projects: projects, plugins: plugins, dependenciesGraph: dependenciesGraph)
+        let models = try convert(projects: projects, plugins: plugins, externalDependencies: dependenciesGraph.externalDependencies) +
+            dependenciesGraph.externalProjects.values
 
         // Apply any registered model mappers
         let projectMapper = projectMapperProvider.mapper(config: config)
@@ -242,10 +244,10 @@ class Generator: Generating {
         manifestLoader.register(plugins: plugins)
 
         // Load DependenciesGraph
-        let dependenciesGraph = try dependenciesGraphLoader.loadDependencies(at: path)
+        let dependenciesGraph = try dependenciesGraphController.load(at: path)
 
         // Load all manifests
-        let manifests = try recursiveManifestLoader.loadProjects(at: [path] + dependenciesGraph.projectPaths)
+        let manifests = try recursiveManifestLoader.loadProject(at: path)
 
         // Lint Manifests
         try manifests.projects.flatMap {
@@ -253,7 +255,8 @@ class Generator: Generating {
         }.printAndThrowIfNeeded()
 
         // Convert to models
-        let projects = try convert(projects: manifests.projects, plugins: plugins, dependenciesGraph: dependenciesGraph)
+        let projects = try convert(projects: manifests.projects, plugins: plugins, externalDependencies: dependenciesGraph.externalDependencies) +
+            dependenciesGraph.externalProjects.values
 
         let workspaceName = manifests.projects[path]?.name ?? "Workspace"
         let workspace = Workspace(
@@ -303,22 +306,21 @@ class Generator: Generating {
         manifestLoader.register(plugins: plugins)
 
         // Load DependenciesGraph
-        let dependenciesGraph = try dependenciesGraphLoader.loadDependencies(at: path)
+        let dependenciesGraph = try dependenciesGraphController.load(at: path)
 
         // Load all manifests
         let manifests = try recursiveManifestLoader.loadWorkspace(at: path)
-        let dependenciesProjects = try recursiveManifestLoader.loadProjects(at: dependenciesGraph.projectPaths).projects
-        let projects = manifests.projects.merging(dependenciesProjects, uniquingKeysWith: { _, _ in fatalError() })
 
         // Lint Manifests
-        try projects.flatMap {
+        try manifests.projects.flatMap {
             manifestLinter.lint(project: $0.value)
         }.printAndThrowIfNeeded()
 
         // Convert to models
         let models = (
             workspace: try converter.convert(manifest: manifests.workspace, path: manifests.path),
-            projects: try convert(projects: projects, plugins: plugins, dependenciesGraph: dependenciesGraph)
+            projects: try convert(projects: manifests.projects, plugins: plugins, externalDependencies: dependenciesGraph.externalDependencies) +
+                dependenciesGraph.externalProjects.values
         )
 
         // Apply model mappers
@@ -345,12 +347,12 @@ class Generator: Generating {
     private func convert(
         projects: [AbsolutePath: ProjectDescription.Project],
         plugins: Plugins,
-        dependenciesGraph: DependenciesGraph,
+        externalDependencies: [String: [TuistGraph.TargetDependency]],
         context: ExecutionContext = .concurrent
     ) throws -> [TuistGraph.Project] {
         let tuples = projects.map { (path: $0.key, manifest: $0.value) }
         return try tuples.map(context: context) {
-            try converter.convert(manifest: $0.manifest, path: $0.path, plugins: plugins, dependenciesGraph: dependenciesGraph)
+            try converter.convert(manifest: $0.manifest, path: $0.path, plugins: plugins, externalDependencies: externalDependencies)
         }
     }
 }

@@ -104,8 +104,8 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
 
             // generate dependencies graph
             return try swiftPackageManagerGraphGenerator.generate(
-                at: pathsProvider.temporaryBuildDirectory,
-                automaticProductType: dependencies.automaticProductType,
+                at: pathsProvider.destinationBuildDirectory,
+                productTypes: dependencies.productTypes,
                 platforms: platforms
             )
         }
