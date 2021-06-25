@@ -29,14 +29,22 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         ])
 
         // When
-        let manifests = subject.locateProjectManifests(at: paths.first!)
+        let manifests = subject.locateProjectManifests(at: paths.first!, onlyCurrentDirectory: false)
 
         // Then
-        XCTAssertEqual(manifests.count, 2)
-        XCTAssertEqual(manifests.first?.0, Manifest.project)
-        XCTAssertEqual(manifests.first?.1, paths.first)
-        XCTAssertEqual(manifests.last?.0, Manifest.project)
-        XCTAssertEqual(manifests.last?.1, paths.dropLast().last)
+        XCTAssertEqual(
+            manifests,
+            [
+                ManifestFilesLocator.ProjectManifest(
+                    manifest: .project,
+                    path: paths[0]
+                ),
+                ManifestFilesLocator.ProjectManifest(
+                    manifest: .project,
+                    path: paths[1]
+                ),
+            ]
+        )
     }
 
     func test_locateProjectManifests_returns_all_manifest_with_workspace_given_child_path() throws {
@@ -48,13 +56,45 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         ])
 
         // When
-        let manifests = subject.locateProjectManifests(at: paths.first!)
+        let manifests = subject.locateProjectManifests(at: paths.first!, onlyCurrentDirectory: false)
 
         // Then
-        XCTAssertEqual(manifests.first?.0, Manifest.project)
-        XCTAssertEqual(manifests.first?.1, paths.first)
-        XCTAssertEqual(manifests.last?.0, Manifest.workspace)
-        XCTAssertEqual(manifests.last?.1, paths.dropLast().last)
+        XCTAssertEqual(
+            manifests,
+            [
+                ManifestFilesLocator.ProjectManifest(
+                    manifest: .project,
+                    path: paths[0]
+                ),
+                ManifestFilesLocator.ProjectManifest(
+                    manifest: .workspace,
+                    path: paths[1]
+                ),
+            ]
+        )
+    }
+
+    func test_locateProjectManifests_returns_only_manifest_in_locating_path_when_only_current_directory() throws {
+        // Given
+        let paths = try createFiles([
+            "Workspace.swift",
+            "Module/Project.swift",
+            "Tuist/Config.swift",
+        ])
+
+        // When
+        let manifests = subject.locateProjectManifests(at: paths.first!.parentDirectory, onlyCurrentDirectory: true)
+
+        // Then
+        XCTAssertEqual(
+            manifests,
+            [
+                ManifestFilesLocator.ProjectManifest(
+                    manifest: Manifest.workspace,
+                    path: paths[0]
+                ),
+            ]
+        )
     }
 
     func test_locateProjectManifests_falls_back_to_locatingPath_given_no_root_path() throws {
@@ -67,18 +107,27 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
 
         // When
         let manifests = subject
-            .locateProjectManifests(at: try temporaryPath())
-            .sorted(by: { $0.1 < $1.1 })
+            .locateProjectManifests(at: try temporaryPath(), onlyCurrentDirectory: false)
+            .sorted(by: { $0.path < $1.path })
 
         // Then
-        XCTAssertEqual(manifests[0].0, Manifest.project)
-        XCTAssertEqual(manifests[0].1, paths[0])
-
-        XCTAssertEqual(manifests[1].0, Manifest.workspace)
-        XCTAssertEqual(manifests[1].1, paths[1])
-
-        XCTAssertEqual(manifests[2].0, Manifest.project)
-        XCTAssertEqual(manifests[2].1, paths[2])
+        XCTAssertEqual(
+            manifests,
+            [
+                ManifestFilesLocator.ProjectManifest(
+                    manifest: .project,
+                    path: paths[0]
+                ),
+                ManifestFilesLocator.ProjectManifest(
+                    manifest: .workspace,
+                    path: paths[1]
+                ),
+                ManifestFilesLocator.ProjectManifest(
+                    manifest: .project,
+                    path: paths[2]
+                ),
+            ]
+        )
     }
 
     func test_locatePluginManifests_returns_all_plugins_when_given_root_path() throws {
@@ -92,7 +141,8 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
 
         // When
         let manifests = subject.locatePluginManifests(
-            at: paths[0] // Plugin.swift
+            at: paths[0], // Plugin.swift
+            onlyCurrentDirectory: false
         )
 
         // Then
@@ -100,6 +150,30 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         XCTAssertEqual(manifests[1], paths[3]) // B/C/Plugin.swift
         XCTAssertEqual(manifests[2], paths[2]) // B/Plugin.swift
         XCTAssertEqual(manifests[3], paths[0]) // Plugin.swift
+    }
+
+    func test_locatePluginManifests_returns_only_plugin_in_cwdir_when_only_current_directory() throws {
+        // Given
+        let paths = try createFiles([
+            "Plugin.swift",
+            "A/Plugin.swift",
+            "B/Plugin.swift",
+            "B/C/Plugin.swift",
+        ])
+
+        // When
+        let manifests = subject.locatePluginManifests(
+            at: paths[0].parentDirectory, // Plugin.swift's parent directory
+            onlyCurrentDirectory: true
+        )
+
+        // Then
+        XCTAssertEqual(
+            manifests,
+            [
+                paths[0], // Plugin.swift
+            ]
+        )
     }
 
     func test_locatePluginManifests_returns_plugin_when_given_child_path() throws {
@@ -111,7 +185,8 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
 
         // When
         let manifests = subject.locatePluginManifests(
-            at: paths[1] // A/Helpers/Helper.swift
+            at: paths[1], // A/Helpers/Helper.swift
+            onlyCurrentDirectory: false
         )
 
         // Then
@@ -126,7 +201,10 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         ])
 
         // When
-        let manifests = subject.locatePluginManifests(at: try temporaryPath())
+        let manifests = subject.locatePluginManifests(
+            at: try temporaryPath(),
+            onlyCurrentDirectory: false
+        )
 
         // Then
         XCTAssertEqual(manifests[0], paths[0])
