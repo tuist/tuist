@@ -251,9 +251,9 @@ extension ProjectDescription.Product {
 
                     switch type {
                     case .static, .automatic:
-                        return .staticLibrary
+                        return .staticFramework
                     case .dynamic:
-                        return .dynamicLibrary
+                        return .framework
                     }
                 case .executable, .plugin, .test:
                     return nil
