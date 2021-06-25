@@ -58,7 +58,7 @@ extension DependenciesGraph {
     }
 
     public var projectPaths: [AbsolutePath] {
-        return self.externalDependencies.values.flatMap {
+        return externalDependencies.values.flatMap {
             $0.compactMap {
                 switch $0 {
                 case let .project(_, path):

@@ -197,7 +197,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
                 arg0,
                 .init(externalDependencies: [
                     "Carthage": carthageGraph.externalDependencies.values.first!,
-                    "SPM": spmGraph.externalDependencies.values.first!
+                    "SPM": spmGraph.externalDependencies.values.first!,
                 ])
             )
             XCTAssertEqual(rootPath, arg1)

@@ -32,7 +32,6 @@ public extension DependenciesGraph {
         ])
     }
 
-    // swiftlint:disable:next function_body_length
     static func test(packageFolder: AbsolutePath) -> Self {
         return .init(externalDependencies: [
             "Tuist": [.project(target: "Tuist", path: packageFolder)],
@@ -57,15 +56,13 @@ public extension DependenciesGraph {
         ])
     }
 
-    // swiftlint:disable:next function_body_length
     static func googleAppMeasurement(packageFolder: AbsolutePath) -> Self {
         return .init(externalDependencies: [
-            "GoogleAppMeasurement": [ .project(target: "GoogleAppMeasurementTarget", path: packageFolder)],
+            "GoogleAppMeasurement": [.project(target: "GoogleAppMeasurementTarget", path: packageFolder)],
             "GoogleAppMeasurementWithoutAdIdSupport": [.project(target: "GoogleAppMeasurementWithoutAdIdSupportTarget", path: packageFolder)],
         ])
     }
 
-    // swiftlint:disable:next function_body_length
     static func googleUtilities(packageFolder: AbsolutePath) -> Self {
         return .init(externalDependencies: [
             "GULAppDelegateSwizzler": [.project(target: "GULAppDelegateSwizzler", path: packageFolder)],
