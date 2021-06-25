@@ -48,7 +48,8 @@ final class CarthageGraphGeneratorTests: TuistUnitTestCase {
                 "RxTest": [.xcframework(path: "/Tuist/Dependencies/Carthage/RxTest.xcframework")],
                 "RxBlocking": [.xcframework(path: "/Tuist/Dependencies/Carthage/RxBlocking.xcframework")],
                 "Alamofire": [.xcframework(path: "/Tuist/Dependencies/Carthage/Alamofire.xcframework")],
-            ]
+            ],
+            externalProjects: [:]
         )
 
         XCTAssertEqual(got, expected)

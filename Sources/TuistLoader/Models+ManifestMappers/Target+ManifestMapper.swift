@@ -24,11 +24,11 @@ extension TuistGraph.Target {
     /// - Parameters:
     ///   - manifest: Manifest representation of  the target.
     ///   - generatorPaths: Generator paths.
-    ///   - dependenciesGraph: External dependencies graph.
+    ///   - externalDependencies: External dependencies graph.
     static func from(
         manifest: ProjectDescription.Target,
         generatorPaths: GeneratorPaths,
-        dependenciesGraph: DependenciesGraph
+        externalDependencies: [String: [TuistGraph.TargetDependency]]
     ) throws -> TuistGraph.Target {
         let name = manifest.name
         let platform = try TuistGraph.Platform.from(manifest: manifest.platform)
@@ -39,7 +39,7 @@ extension TuistGraph.Target {
         let deploymentTarget = manifest.deploymentTarget.map { TuistGraph.DeploymentTarget.from(manifest: $0) }
 
         let dependencies = try manifest.dependencies.flatMap {
-            try TuistGraph.TargetDependency.from(manifest: $0, generatorPaths: generatorPaths, dependenciesGraph: dependenciesGraph)
+            try TuistGraph.TargetDependency.from(manifest: $0, generatorPaths: generatorPaths, externalDependencies: externalDependencies)
         }
 
         let infoPlist = try TuistGraph.InfoPlist.from(manifest: manifest.infoPlist, generatorPaths: generatorPaths)

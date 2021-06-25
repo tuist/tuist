@@ -49,10 +49,11 @@ public final class DependenciesGraphControllerTests: TuistUnitTestCase {
         let got = try subject.load(at: root)
 
         // Then
-        let expected = DependenciesGraph.test(
+        let expected = DependenciesGraph(
             externalDependencies: [
                 "RxSwift": [.xcframework(path: "/Tuist/Dependencies/Carthage/RxSwift.xcframework")],
-            ]
+            ],
+            externalProjects: [:]
         )
 
         XCTAssertEqual(got, expected)

@@ -119,7 +119,7 @@ public final class DependenciesController: DependenciesControlling {
             throw DependenciesControllerError.noPlatforms
         }
 
-        var dependenciesGraph = DependenciesGraph(externalDependencies: [:])
+        var dependenciesGraph = DependenciesGraph.none
 
         if let carthageDependencies = dependencies.carthage, !carthageDependencies.dependencies.isEmpty {
             let carthageDependenciesGraph = try carthageInteractor.install(

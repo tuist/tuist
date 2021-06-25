@@ -87,31 +87,31 @@ final class ManifestGraphLoader: ManifestGraphLoading {
     private func loadProjectGraph(at path: AbsolutePath) throws -> (TuistGraph.Project, Graph) {
         let plugins = try loadPlugins(at: path)
         let dependenciesGraph = try dependenciesGraphController.load(at: path)
-        let projects = try recursiveManifestLoader.loadProjects(at: [path] + dependenciesGraph.projectPaths).projects
-        let models = try convert(projects: projects, plugins: plugins, dependenciesGraph: dependenciesGraph)
+        let manifests = try recursiveManifestLoader.loadProject(at: path)
+        let models = try convert(projects: manifests.projects, plugins: plugins, externalDependencies: dependenciesGraph.externalDependencies) +
+            dependenciesGraph.externalProjects.values
         return try graphLoader.loadProject(at: path, projects: models)
     }
 
     private func loadWorkspaceGraph(at path: AbsolutePath) throws -> Graph {
         let plugins = try loadPlugins(at: path)
-        let loadedWorkspace = try recursiveManifestLoader.loadWorkspace(at: path)
         let dependenciesGraph = try dependenciesGraphController.load(at: path)
-        let dependenciesProjects = try recursiveManifestLoader.loadProjects(at: dependenciesGraph.projectPaths).projects
-        let projects = loadedWorkspace.projects.merging(dependenciesProjects, uniquingKeysWith: { _, _ in fatalError() })
-        let workspace = try converter.convert(manifest: loadedWorkspace.workspace, path: loadedWorkspace.path)
-        let models = try convert(projects: projects, plugins: plugins, dependenciesGraph: dependenciesGraph)
+        let manifests = try recursiveManifestLoader.loadWorkspace(at: path)
+        let workspace = try converter.convert(manifest: manifests.workspace, path: manifests.path)
+        let models = try convert(projects: manifests.projects, plugins: plugins, externalDependencies: dependenciesGraph.externalDependencies) +
+            dependenciesGraph.externalProjects.values
         return try graphLoader.loadWorkspace(workspace: workspace, projects: models)
     }
 
     private func convert(
         projects: [AbsolutePath: ProjectDescription.Project],
         plugins: Plugins,
-        dependenciesGraph: DependenciesGraph,
+        externalDependencies: [String: [TuistGraph.TargetDependency]],
         context: ExecutionContext = .concurrent
     ) throws -> [TuistGraph.Project] {
         let tuples = projects.map { (path: $0.key, manifest: $0.value) }
         return try tuples.map(context: context) {
-            try converter.convert(manifest: $0.manifest, path: $0.path, plugins: plugins, dependenciesGraph: dependenciesGraph)
+            try converter.convert(manifest: $0.manifest, path: $0.path, plugins: plugins, externalDependencies: externalDependencies)
         }
     }
 }

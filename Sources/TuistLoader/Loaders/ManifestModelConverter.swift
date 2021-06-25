@@ -12,7 +12,7 @@ public protocol ManifestModelConverting {
         manifest: ProjectDescription.Project,
         path: AbsolutePath,
         plugins: Plugins,
-        dependenciesGraph: DependenciesGraph
+        externalDependencies: [String: [TuistGraph.TargetDependency]]
     ) throws -> TuistGraph.Project
 }
 
@@ -47,14 +47,14 @@ public final class ManifestModelConverter: ManifestModelConverting {
         manifest: ProjectDescription.Project,
         path: AbsolutePath,
         plugins: Plugins,
-        dependenciesGraph: DependenciesGraph
+        externalDependencies: [String: [TuistGraph.TargetDependency]]
     ) throws -> TuistGraph.Project {
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         return try TuistGraph.Project.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             plugins: plugins,
-            dependenciesGraph: dependenciesGraph,
+            externalDependencies: externalDependencies,
             resourceSynthesizerPathLocator: resourceSynthesizerPathLocator
         )
     }

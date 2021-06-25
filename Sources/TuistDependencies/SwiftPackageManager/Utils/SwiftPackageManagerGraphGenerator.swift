@@ -56,9 +56,14 @@ public protocol SwiftPackageManagerGraphGenerating {
 }
 
 public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGenerating {
+    private let converter: ManifestModelConverting
     private let swiftPackageManagerController: SwiftPackageManagerControlling
 
-    public init(swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController()) {
+    public init(
+        converter: ManifestModelConverting = ManifestModelConverter(),
+        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController()
+    ) {
+        self.converter = converter
         self.swiftPackageManagerController = swiftPackageManagerController
     }
 
@@ -80,57 +85,68 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             packageInfo.info.products.forEach { result[$0.name] = packageInfo.name }
         }
 
-        return try packageInfos.reduce(DependenciesGraph.none) { result, packageInfo in
-            try Self.writeProject(
-                for: packageInfo.info,
+        let externalDependencies: [String: [TuistGraph.TargetDependency]] = packageInfos.reduce(into: [:]) { result, packageInfo in
+            packageInfo.info.products.forEach { product in
+                result[product.name] = product.targets.map { .project(target: $0, path: packageInfo.folder) }
+            }
+        }
+        let externalProjects: [AbsolutePath: TuistGraph.Project] = try packageInfos.reduce(into: [:]) { result, packageInfo in
+            let manifest = try ProjectDescription.Project.from(
+                packageInfo: packageInfo.info,
                 name: packageInfo.name,
-                at: packageInfo.folder,
+                folder: packageInfo.folder,
+                externalDependencies: externalDependencies,
                 platforms: platforms,
                 productToPackage: productToPackage
             )
-            let packageDependenciesGraph = DependenciesGraph(
-                externalDependencies: packageInfo.info.products.reduce(into: [:]) { result, product in
-                    result[product.name] = product.targets.map { .project(target: $0, path: packageInfo.folder) }
-                }
+            result[packageInfo.folder] = try converter.convert(
+                manifest: manifest,
+                path: packageInfo.folder,
+                plugins: .none,
+                externalDependencies: externalDependencies
             )
-            return try result.merging(with: packageDependenciesGraph)
         }
-    }
 
-    private static func writeProject(
-        for packageInfo: PackageInfo,
+        return DependenciesGraph(externalDependencies: externalDependencies, externalProjects: externalProjects)
+    }
+}
+
+extension ProjectDescription.Project {
+    fileprivate static func from(
+        packageInfo: PackageInfo,
         name: String,
-        at folder: AbsolutePath,
+        folder: AbsolutePath,
+        externalDependencies _: [String: [TuistGraph.TargetDependency]],
         platforms: Set<TuistGraph.Platform>,
         productToPackage: [String: String]
-    ) throws {
+    ) throws -> Self {
         let targets = try packageInfo.targets.compactMap { target in
-            try Self.targetDefinition(
-                for: target,
+            try Target.from(
+                target: target,
                 packageName: name,
                 packageInfo: packageInfo,
-                at: folder,
+                folder: folder,
                 platforms: platforms,
                 productToPackage: productToPackage
             )
         }
-        let project = ProjectDescription.Project(
+        return ProjectDescription.Project(
             name: name,
             targets: targets,
             resourceSynthesizers: []
         )
-        let projectData = String(data: try JSONEncoder().encode(project), encoding: .utf8)!
-        try FileHandler.shared.write(projectData, path: folder.appending(component: Manifest.project.serializedFileName!), atomically: true)
     }
+}
 
-    private static func targetDefinition(
-        for target: PackageInfo.Target,
+extension ProjectDescription.Target {
+    fileprivate static func from(
+        target: PackageInfo.Target,
         packageName: String,
         packageInfo: PackageInfo,
-        at folder: AbsolutePath,
+        folder: AbsolutePath,
         platforms: Set<TuistGraph.Platform>,
         productToPackage: [String: String]
-    ) throws -> ProjectDescription.Target? {
+    ) throws -> Self? {
         guard target.type == .regular else {
             logger.debug("Target \(target.name) of type \(target.type) ignored")
             return nil
