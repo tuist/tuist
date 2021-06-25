@@ -39,6 +39,14 @@ public final class MockFileHandler: FileHandler {
         return stubExists(path)
     }
 
+    public var stubIsFolder: ((AbsolutePath) -> Bool)?
+    override public func isFolder(_ path: AbsolutePath) -> Bool {
+        guard let stubIsFolder = stubIsFolder else {
+            return super.isFolder(path)
+        }
+        return stubIsFolder(path)
+    }
+
     override public func inTemporaryDirectory<Result>(removeOnCompletion _: Bool, _ closure: (AbsolutePath) throws -> Result) throws -> Result {
         try closure(temporaryDirectory())
     }
