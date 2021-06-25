@@ -58,9 +58,9 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         }
 
         swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms in
-            XCTAssertEqual(path, try self.temporaryPath().appending(component: ".build"))
-            XCTAssertEqual(automaticProductType, .staticLibrary)
+            XCTAssertEqual(path, dependenciesDirectory.appending(component: "SwiftPackageManager"))
             XCTAssertEqual(platforms, [.iOS])
+            XCTAssertEqual(automaticProductType, .staticLibrary)
             return .test()
         }
 
@@ -132,9 +132,9 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         }
 
         swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms in
-            XCTAssertEqual(path, try self.temporaryPath().appending(component: ".build"))
-            XCTAssertEqual(automaticProductType, .staticLibrary)
+            XCTAssertEqual(path, dependenciesDirectory.appending(component: "SwiftPackageManager"))
             XCTAssertEqual(platforms, [.iOS])
+            XCTAssertEqual(automaticProductType, .staticLibrary)
             return .test()
         }
 
@@ -205,7 +205,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         }
 
         swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms in
-            XCTAssertEqual(path, try self.temporaryPath().appending(component: ".build"))
+            XCTAssertEqual(path, dependenciesDirectory.appending(component: "SwiftPackageManager"))
             XCTAssertEqual(automaticProductType, .staticLibrary)
             XCTAssertEqual(platforms, [.iOS])
             return .test()
