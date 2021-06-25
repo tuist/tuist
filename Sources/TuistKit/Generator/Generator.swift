@@ -2,6 +2,7 @@ import Foundation
 import ProjectDescription
 import TSCBasic
 import TuistCore
+import TuistDependencies
 import TuistGenerator
 import TuistGraph
 import TuistLoader
@@ -26,8 +27,8 @@ class Generator: Generating {
     private let environmentLinter: EnvironmentLinting = EnvironmentLinter()
     private let generator: DescriptorGenerating = DescriptorGenerator()
     private let writer: XcodeProjWriting = XcodeProjWriter()
-    private let cocoapodsInteractor: CocoaPodsInteracting = CocoaPodsInteractor()
-    private let swiftPackageManagerInteractor: SwiftPackageManagerInteracting = SwiftPackageManagerInteractor()
+    private let cocoapodsInteractor: TuistGenerator.CocoaPodsInteracting = TuistGenerator.CocoaPodsInteractor()
+    private let swiftPackageManagerInteractor: TuistGenerator.SwiftPackageManagerInteracting = TuistGenerator.SwiftPackageManagerInteractor()
     private let signingInteractor: SigningInteracting = SigningInteractor()
     private let sideEffectDescriptorExecutor: SideEffectDescriptorExecuting
     private let graphMapperProvider: GraphMapperProviding
@@ -36,7 +37,7 @@ class Generator: Generating {
     private let manifestLoader: ManifestLoading
     private let pluginsService: PluginServicing
     private let configLoader: ConfigLoading
-    private let dependenciesGraphLoader: DependenciesGraphLoading
+    private let dependenciesGraphController: DependenciesGraphControlling
 
     convenience init(contentHasher: ContentHashing) {
         self.init(
@@ -52,7 +53,7 @@ class Generator: Generating {
         graphMapperProvider: GraphMapperProviding,
         workspaceMapperProvider: WorkspaceMapperProviding,
         manifestLoaderFactory: ManifestLoaderFactory,
-        dependenciesGraphLoader: DependenciesGraphLoading = DependenciesGraphLoader()
+        dependenciesGraphController: DependenciesGraphControlling = DependenciesGraphController()
     ) {
         let manifestLoader = manifestLoaderFactory.createManifestLoader()
         recursiveManifestLoader = RecursiveManifestLoader(manifestLoader: manifestLoader)
@@ -70,7 +71,7 @@ class Generator: Generating {
             rootDirectoryLocator: RootDirectoryLocator(),
             fileHandler: FileHandler.shared
         )
-        self.dependenciesGraphLoader = dependenciesGraphLoader
+        self.dependenciesGraphController = dependenciesGraphController
     }
 
     func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath {
@@ -114,7 +115,7 @@ class Generator: Generating {
         manifestLoader.register(plugins: plugins)
 
         // Load DependenciesGraph
-        let dependenciesGraph = try dependenciesGraphLoader.loadDependencies(at: path)
+        let dependenciesGraph = try dependenciesGraphController.load(at: path)
 
         // Load all manifests
         let projects = try recursiveManifestLoader.loadProjects(at: [path] + dependenciesGraph.projectPaths).projects
@@ -242,7 +243,7 @@ class Generator: Generating {
         manifestLoader.register(plugins: plugins)
 
         // Load DependenciesGraph
-        let dependenciesGraph = try dependenciesGraphLoader.loadDependencies(at: path)
+        let dependenciesGraph = try dependenciesGraphController.load(at: path)
 
         // Load all manifests
         let manifests = try recursiveManifestLoader.loadProjects(at: [path] + dependenciesGraph.projectPaths)
@@ -303,7 +304,7 @@ class Generator: Generating {
         manifestLoader.register(plugins: plugins)
 
         // Load DependenciesGraph
-        let dependenciesGraph = try dependenciesGraphLoader.loadDependencies(at: path)
+        let dependenciesGraph = try dependenciesGraphController.load(at: path)
 
         // Load all manifests
         let manifests = try recursiveManifestLoader.loadWorkspace(at: path)
