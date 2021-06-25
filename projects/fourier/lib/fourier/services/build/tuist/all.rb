@@ -5,7 +5,7 @@ module Fourier
       module Tuist
         class All < Base
           def call
-            Utilities::System.tuist("build")
+            Utilities::System.tuist("build", "--generate")
           end
         end
       end

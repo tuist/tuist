@@ -56,7 +56,7 @@ struct BuildCommand: ParsableCommand {
 
         try BuildService().run(
             schemeName: scheme,
-            generate: true,
+            generate: generate,
             clean: clean,
             configuration: configuration,
             buildOutputPath: buildOutputPath.map { AbsolutePath($0, relativeTo: FileHandler.shared.currentPath) },
