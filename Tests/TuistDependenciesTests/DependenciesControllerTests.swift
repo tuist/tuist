@@ -197,10 +197,13 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         dependenciesGraphController.saveStub = { arg0, arg1 in
             XCTAssertEqual(
                 arg0,
-                .init(externalDependencies: [
-                    "Carthage": carthageGraph.externalDependencies.values.first!,
-                    "SPM": spmGraph.externalDependencies.values.first!,
-                ])
+                .init(
+                    externalDependencies: [
+                        "Carthage": carthageGraph.externalDependencies.values.first!,
+                        "SPM": spmGraph.externalDependencies.values.first!,
+                    ],
+                    externalProjects: [:]
+                )
             )
             XCTAssertEqual(rootPath, arg1)
         }

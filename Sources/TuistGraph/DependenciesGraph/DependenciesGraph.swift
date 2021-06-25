@@ -8,10 +8,13 @@ public enum DependenciesGraphError: FatalError, Equatable {
     /// Thrown when the same dependency is defined more than once.
     case duplicatedDependency(String, [TargetDependency], [TargetDependency])
 
+    /// Thrown when the same proejct is defined more than once.
+    case duplicatedProject(AbsolutePath, Project, Project)
+
     /// Error type.
     public var type: ErrorType {
         switch self {
-        case .duplicatedDependency:
+        case .duplicatedDependency, .duplicatedProject:
             return .abort
         }
     }
@@ -22,6 +25,12 @@ public enum DependenciesGraphError: FatalError, Equatable {
         case let .duplicatedDependency(name, first, second):
             return """
             The \(name) dependency is defined twice across different dependency managers:
+            First: \(first)
+            Second: \(second)
+            """
+        case let .duplicatedProject(name, first, second):
+            return """
+            The \(name) project is defined twice across different dependency managers:
             First: \(first)
             Second: \(second)
             """
@@ -36,13 +45,17 @@ public struct DependenciesGraph: Equatable, Codable {
     /// A dictionary where the keys are the names of dependencies, and the values are the dependencies themselves.
     public let externalDependencies: [String: [TargetDependency]]
 
+    /// A dictionary where the keys are the folder of external projects, and the values are the projects themselves.
+    public let externalProjects: [AbsolutePath: Project]
+
     /// Create an instance of `DependenciesGraph` model.
-    public init(externalDependencies: [String: [TargetDependency]]) {
+    public init(externalDependencies: [String: [TargetDependency]], externalProjects: [AbsolutePath: Project]) {
         self.externalDependencies = externalDependencies
+        self.externalProjects = externalProjects
     }
 
     /// An empty `DependenciesGraph`.
-    public static let none: DependenciesGraph = .init(externalDependencies: [:])
+    public static let none: DependenciesGraph = .init(externalDependencies: [:], externalProjects: [:])
 }
 
 extension DependenciesGraph {
@@ -54,19 +67,13 @@ extension DependenciesGraph {
 
             result[entry.key] = entry.value
         }
-        return .init(externalDependencies: mergedExternalDependencies)
-    }
-
-    public var projectPaths: [AbsolutePath] {
-        return externalDependencies.values.flatMap {
-            $0.compactMap {
-                switch $0 {
-                case let .project(_, path):
-                    return path
-                case .target, .framework, .xcframework, .library, .package, .sdk, .cocoapods, .xctest:
-                    return nil
-                }
+        let mergedExternalProjects = try other.externalProjects.reduce(into: externalProjects) { result, entry in
+            if let alreadyPresent = result[entry.key] {
+                throw DependenciesGraphError.duplicatedProject(entry.key, alreadyPresent, entry.value)
             }
+
+            result[entry.key] = entry.value
         }
+        return .init(externalDependencies: mergedExternalDependencies, externalProjects: mergedExternalProjects)
     }
 }

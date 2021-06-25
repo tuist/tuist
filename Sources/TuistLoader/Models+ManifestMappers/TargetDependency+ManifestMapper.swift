@@ -25,11 +25,11 @@ extension TuistGraph.TargetDependency {
     /// - Parameters:
     ///   - manifest: Manifest representation of the target dependency model.
     ///   - generatorPaths: Generator paths.
-    ///   - dependenciesGraph: External dependencies graph.
+    ///   - externalDependencies: External dependencies graph.
     static func from(
         manifest: ProjectDescription.TargetDependency,
         generatorPaths: GeneratorPaths,
-        dependenciesGraph: DependenciesGraph
+        externalDependencies: [String: [TuistGraph.TargetDependency]]
     ) throws -> [TuistGraph.TargetDependency] {
         switch manifest {
         case let .target(name):
@@ -62,7 +62,7 @@ extension TuistGraph.TargetDependency {
         case .xctest:
             return [.xctest]
         case let .external(name):
-            guard let dependencies = dependenciesGraph.externalDependencies[name] else {
+            guard let dependencies = externalDependencies[name] else {
                 throw TargetDependencyMapperError.invalidExternalDependency(name: name)
             }
             return dependencies

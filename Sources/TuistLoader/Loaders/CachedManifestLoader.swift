@@ -150,7 +150,7 @@ public class CachedManifestLoader: ManifestLoading {
     }
 
     private func findManifestPath(for manifest: Manifest, at path: AbsolutePath) -> AbsolutePath? {
-        let manifestFileNames = [manifest.serializedFileName, manifest.fileName(path), manifest.deprecatedFileName]
+        let manifestFileNames = [manifest.fileName(path), manifest.deprecatedFileName]
         return manifestFileNames.compactMap { $0 }.map { path.appending(component: $0) }.first(where: { fileHandler.exists($0) })
     }
 
