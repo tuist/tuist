@@ -44,7 +44,7 @@ extension TuistGraph.TargetDependency {
                     path: try generatorPaths.resolve(path: libraryPath),
                     publicHeaders: try generatorPaths.resolve(path: publicHeaders),
                     swiftModuleMap: try swiftModuleMap.map { try generatorPaths.resolve(path: $0) }
-                )
+                ),
             ]
         case let .package(product):
             return [.package(product: product)]
@@ -53,7 +53,7 @@ extension TuistGraph.TargetDependency {
                 .sdk(
                     name: name,
                     status: .from(manifest: status)
-                )
+                ),
             ]
         case let .cocoapods(path):
             return [.cocoapods(path: try generatorPaths.resolve(path: path))]

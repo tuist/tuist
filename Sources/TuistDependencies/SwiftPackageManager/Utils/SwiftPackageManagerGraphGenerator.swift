@@ -187,7 +187,6 @@ extension PackageInfo.Target {
                 configured: configuredPlatforms,
                 package: packagePlatform
             )
-
         }
 
         return platform
@@ -216,7 +215,7 @@ extension PackageInfo.Target {
 
     func mapSources(path: AbsolutePath) -> SourceFilesList? {
         let sourcesPaths: [AbsolutePath]
-        if let customSources = self.sources {
+        if let customSources = sources {
             sourcesPaths = customSources.map { path.appending(RelativePath($0)) }
         } else {
             sourcesPaths = [path]
@@ -226,14 +225,14 @@ extension PackageInfo.Target {
     }
 
     func mapResources(path: AbsolutePath) -> ResourceFileElements? {
-        let resourcesPaths = self.resources.map { path.appending(RelativePath($0.path)) }
+        let resourcesPaths = resources.map { path.appending(RelativePath($0.path)) }
         guard !resourcesPaths.isEmpty else { return nil }
         return .init(resources: resourcesPaths.map { .glob(pattern: Path($0.pathString)) })
     }
 
     func mapDependencies(
         packageName: String,
-        packageInfo: PackageInfo,
+        packageInfo _: PackageInfo,
         productToPackage: [String: String]
     ) throws -> [ProjectDescription.TargetDependency] {
         let targetDependencies: [ProjectDescription.TargetDependency] = try dependencies.map { dependency in
@@ -255,7 +254,7 @@ extension PackageInfo.Target {
             }
         }
 
-        let linkerDependencies: [ProjectDescription.TargetDependency] = self.settings.compactMap { setting in
+        let linkerDependencies: [ProjectDescription.TargetDependency] = settings.compactMap { setting in
             switch (setting.tool, setting.name) {
             case (.linker, .linkedFramework), (.linker, .linkedLibrary):
                 return .sdk(name: setting.value[0], status: .required)
@@ -277,7 +276,7 @@ extension PackageInfo.Target {
         var cxxFlags: [String] = []
         var swiftFlags: [String] = []
 
-        try self.settings.forEach { setting in
+        try settings.forEach { setting in
             switch (setting.tool, setting.name) {
             case (.c, .headerSearchPath):
                 cHeaderSearchPaths.append(setting.value[0])
@@ -345,7 +344,7 @@ extension TuistGraph.Platform {
 
 extension PackageInfo.Platform {
     fileprivate func descriptionPlatform() throws -> ProjectDescription.Platform {
-        switch self.platformName {
+        switch platformName {
         case "ios":
             return .iOS
         case "macos":
@@ -355,7 +354,7 @@ extension PackageInfo.Platform {
         case "watchos":
             return .watchOS
         default:
-            throw SwiftPackageManagerGraphGeneratorError.unknownPlatform(self.platformName)
+            throw SwiftPackageManagerGraphGeneratorError.unknownPlatform(platformName)
         }
     }
 }
