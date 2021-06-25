@@ -103,7 +103,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
             try saveDependencies(pathsProvider: pathsProvider)
 
             // generate dependencies graph
-            return try swiftPackageManagerGraphGenerator.generate(at: pathsProvider.temporaryBuildDirectory, platforms: platforms)
+            return try swiftPackageManagerGraphGenerator.generate(at: pathsProvider.destinationBuildDirectory, platforms: platforms)
         }
 
         logger.info("Swift Package Manager dependencies installed successfully.", metadata: .subsection)
