@@ -5,7 +5,6 @@ import TSCBasic
 
 extension CarthageVersionFile {
     static func test(
-        commitish _: String = "",
         iOS: [Product] = [],
         macOS: [Product] = [],
         watchOS: [Product] = [],
