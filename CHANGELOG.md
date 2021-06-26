@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.45.1
+
 ### Fixed
 
 - Throw error when target given in `tuist focus` is not found. [#3104](https://github.com/tuist/tuist/pull/3104) by [@fortmarek](https://github.com/fortmarek)
