@@ -43,28 +43,22 @@ final class CarthageGraphGeneratorTests: TuistUnitTestCase {
         let expected = DependenciesGraph(
             thirdPartyDependencies: [
                 "RxSwift": .xcframework(
-                    path: "/Tuist/Dependencies/Carthage/RxSwift.xcframework",
-                    architectures: [.armv7k, .arm64, .i386, .x8664, .armv7, .arm6432]
+                    path: "/Tuist/Dependencies/Carthage/RxSwift.xcframework"
                 ),
                 "RxCocoa": .xcframework(
-                    path: "/Tuist/Dependencies/Carthage/RxCocoa.xcframework",
-                    architectures: [.armv7, .armv7k, .arm6432, .x8664, .i386, .arm64]
+                    path: "/Tuist/Dependencies/Carthage/RxCocoa.xcframework"
                 ),
                 "RxRelay": .xcframework(
-                    path: "/Tuist/Dependencies/Carthage/RxRelay.xcframework",
-                    architectures: [.armv7k, .i386, .x8664, .armv7, .arm6432, .arm64]
+                    path: "/Tuist/Dependencies/Carthage/RxRelay.xcframework"
                 ),
                 "RxTest": .xcframework(
-                    path: "/Tuist/Dependencies/Carthage/RxTest.xcframework",
-                    architectures: [.i386, .x8664, .arm64, .armv7]
+                    path: "/Tuist/Dependencies/Carthage/RxTest.xcframework"
                 ),
                 "RxBlocking": .xcframework(
-                    path: "/Tuist/Dependencies/Carthage/RxBlocking.xcframework",
-                    architectures: [.arm64, .armv7k, .x8664, .arm6432, .i386, .armv7]
+                    path: "/Tuist/Dependencies/Carthage/RxBlocking.xcframework"
                 ),
                 "Alamofire": .xcframework(
-                    path: "/Tuist/Dependencies/Carthage/Alamofire.xcframework",
-                    architectures: [.x8664, .armv7k, .i386, .arm64, .armv7, .arm6432]
+                    path: "/Tuist/Dependencies/Carthage/Alamofire.xcframework"
                 ),
             ]
         )

@@ -7,6 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Throw error when target given in `tuist focus` is not found. [#3104](https://github.com/tuist/tuist/pull/3104) by [@fortmarek](https://github.com/fortmarek)
+- Fixed an issue that the `tuist dependencies` command may fails for some `Carthage` dependencies. [#3108](https://github.com/tuist/tuist/pull/3108) by [@laxmorek](https://github.com/laxmorek)
 
 ## 1.45.0 - Jungle
 

@@ -4,9 +4,8 @@ import TuistGraph
 
 public extension ThirdPartyDependency {
     static func testXCFramework(
-        path: AbsolutePath = AbsolutePath.root.appending(RelativePath("Test.xcframework")),
-        architectures: Set<BinaryArchitecture> = []
+        path: AbsolutePath = AbsolutePath.root.appending(RelativePath("Test.xcframework"))
     ) -> Self {
-        return .xcframework(path: path, architectures: architectures)
+        return .xcframework(path: path)
     }
 }
