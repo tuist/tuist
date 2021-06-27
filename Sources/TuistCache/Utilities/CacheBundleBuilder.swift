@@ -43,28 +43,10 @@ public final class CacheBundleBuilder: CacheArtifactBuilding {
         self.developerEnvironment = developerEnvironment
     }
 
-    public func build(workspacePath: AbsolutePath, target: Target, configuration: String, into outputDirectory: AbsolutePath) throws {
-        try build(
-            .workspace(workspacePath),
-            target: target,
-            configuration: configuration,
-            into: outputDirectory
-        )
-    }
-    
-    public func build(projectPath: AbsolutePath, target: Target, configuration: String, into outputDirectory: AbsolutePath) throws {
-        try build(
-            .project(projectPath),
-            target: target,
-            configuration: configuration,
-            into: outputDirectory
-        )
-    }
-
-    fileprivate func build(_ projectTarget: XcodeBuildTarget,
-                           target: Target,
-                           configuration: String,
-                           into outputDirectory: AbsolutePath) throws
+    public func build(projectTarget: XcodeBuildTarget,
+                      target: Target,
+                      configuration: String,
+                      into outputDirectory: AbsolutePath) throws
     {
         guard target.product == .bundle else {
             throw CacheBinaryBuilderError.nonBundleTarget(target.name)

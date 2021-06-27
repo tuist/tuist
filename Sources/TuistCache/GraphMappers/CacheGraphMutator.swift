@@ -308,8 +308,8 @@ class CacheGraphMutator: CacheGraphMutating {
     }
 
     private func mapPrebuiltFrameworks(
-        graphDependencies: inout [ValueGraphDependency : Set<ValueGraphDependency>],
-        graph: ValueGraph
+        graphDependencies: inout [GraphDependency: Set<GraphDependency>],
+        graph: Graph
     ) {
         var graph = graph
         graph.dependencies = graphDependencies

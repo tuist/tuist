@@ -31,7 +31,7 @@ public protocol BundleLoading {
 
 public final class BundleLoader: BundleLoading {
     /// Initializes the loader with its attributes.
-    public init() { }
+    public init() {}
 
     public func load(path: AbsolutePath) throws -> ValueGraphDependency {
         guard FileHandler.shared.exists(path) else {
@@ -41,4 +41,3 @@ public final class BundleLoader: BundleLoading {
         return .bundle(path: path)
     }
 }
-

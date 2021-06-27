@@ -444,7 +444,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 .linkableDependencies(path: path, name: target.name)
                 .compactMap { dependency -> PBXFileReference? in
                     switch dependency {
-                    case .bundle(path: let path):
+                    case let .bundle(path: path):
                         let element = fileElements.file(path: path)
                         return element
                     default:

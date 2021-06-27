@@ -129,9 +129,9 @@ final class CacheControllerTests: TuistUnitTestCase {
         All cacheable targets have been cached successfully as xcframeworks
         """)
         XCTAssertEqual(cacheGraphLinter.invokedLintCount, 1)
-        XCTAssertEqual(artifactBuilder.invokedBuildWorkspacePathParametersList[0].target, aTarget)
-        XCTAssertEqual(artifactBuilder.invokedBuildWorkspacePathParametersList[1].target, bTarget)
-        XCTAssertEqual(artifactBuilder.invokedBuildWorkspacePathParametersList[2].target, cTarget)
+        XCTAssertEqual(artifactBuilder.invokedBuildProjectTargetParametersList[0].target, aTarget)
+        XCTAssertEqual(artifactBuilder.invokedBuildProjectTargetParametersList[1].target, bTarget)
+        XCTAssertEqual(artifactBuilder.invokedBuildProjectTargetParametersList[2].target, cTarget)
     }
 
     func test_filtered_cache_builds_and_caches_the_frameworks() throws {
@@ -200,7 +200,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         All cacheable targets have been cached successfully as xcframeworks
         """)
         XCTAssertEqual(cacheGraphLinter.invokedLintCount, 1)
-        XCTAssertEqual(artifactBuilder.invokedBuildWorkspacePathParametersList[0].target, aTarget)
-        XCTAssertEqual(artifactBuilder.invokedBuildWorkspacePathParametersList[1].target, bTarget)
+        XCTAssertEqual(artifactBuilder.invokedBuildProjectTargetParametersList[0].target, aTarget)
+        XCTAssertEqual(artifactBuilder.invokedBuildProjectTargetParametersList[1].target, bTarget)
     }
 }

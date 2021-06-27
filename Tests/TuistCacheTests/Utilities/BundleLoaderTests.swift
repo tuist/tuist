@@ -1,9 +1,7 @@
 import TSCBasic
-import TuistGraph
 import TuistSupport
 import XCTest
-@testable import TuistCore
-@testable import TuistCoreTesting
+@testable import TuistCache
 @testable import TuistSupportTesting
 
 final class BundleLoaderErrorTests: TuistUnitTestCase {
@@ -71,4 +69,3 @@ final class BundleLoaderTests: TuistUnitTestCase {
         )
     }
 }
-

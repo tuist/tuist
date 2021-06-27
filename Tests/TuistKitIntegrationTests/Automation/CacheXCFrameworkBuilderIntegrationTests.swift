@@ -34,7 +34,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         let target = Target.test(name: "iOS", platform: .iOS, product: .framework, productName: "iOS")
 
         // When
-        try subject.build(projectPath: projectPath, target: target, configuration: "Debug", into: temporaryPath)
+        try subject.build(projectTarget: XcodeBuildTarget(with: projectPath), target: target, configuration: "Debug", into: temporaryPath)
 
         // Then
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").count, 1)
@@ -54,7 +54,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         let target = Target.test(name: "macOS", platform: .macOS, product: .framework, productName: "macOS")
 
         // When
-        try subject.build(projectPath: projectPath, target: target, configuration: "Debug", into: temporaryPath)
+        try subject.build(projectTarget: XcodeBuildTarget(with: projectPath), target: target, configuration: "Debug", into: temporaryPath)
 
         // Then
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").count, 1)
@@ -75,7 +75,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         let target = Target.test(name: "tvOS", platform: .tvOS, product: .framework, productName: "tvOS")
 
         // When
-        try subject.build(projectPath: projectPath, target: target, configuration: "Debug", into: temporaryPath)
+        try subject.build(projectTarget: XcodeBuildTarget(with: projectPath), target: target, configuration: "Debug", into: temporaryPath)
 
         // Then
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").count, 1)
@@ -95,7 +95,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         let target = Target.test(name: "watchOS", platform: .watchOS, product: .framework, productName: "watchOS")
 
         // When
-        try subject.build(projectPath: projectPath, target: target, configuration: "Debug", into: temporaryPath)
+        try subject.build(projectTarget: XcodeBuildTarget(with: projectPath), target: target, configuration: "Debug", into: temporaryPath)
 
         // Then
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").count, 1)
