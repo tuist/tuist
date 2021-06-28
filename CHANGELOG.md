@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+
+- Native support for ARM architecture [#3010](https://github.com/tuist/tuist/pull/3010) by [@fortmarek](https://github.com/fortmarek) & [@pepibumur](https://github.com/pepibumur).
+
 ## 1.45.1
 
 ### Fixed
@@ -15,7 +19,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
-- Native support for ARM architecture [#3010](https://github.com/tuist/tuist/pull/3010) by [@fortmarek](https://github.com/fortmarek)
 - Add `tvTopShelfExtension` and `tvIntentsExtension` target product. [#2793](https://github.com/tuist/tuist/pull/2793) by [@rmnblm](https://github.com/rmnblm)
 - The `tuist dependencies` command generates a `graph.json` file for the `Carthage` dependencies. [#3043](https://github.com/tuist/tuist/pull/3043) by [@laxmorek](https://github.com/laxmorek)
 - Add --skip-ui-tests parameter to tuist test command [#2832](https://github.com/tuist/tuist/pull/2832) by [@mollyIV](https://github.com/mollyIV).
