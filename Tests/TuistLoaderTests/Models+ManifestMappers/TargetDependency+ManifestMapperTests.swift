@@ -54,7 +54,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
             manifest: dependency,
             generatorPaths: generatorPaths,
             externalDependencies: [
-                "library": [.xcframework(path: "/path.xcframework")]
+                "library": [.xcframework(path: "/path.xcframework")],
             ]
         )
 
@@ -77,7 +77,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
             manifest: dependency,
             generatorPaths: generatorPaths,
             externalDependencies: [
-                "library": [.project(target: "Target", path: "/Project")]
+                "library": [.project(target: "Target", path: "/Project")],
             ]
         )
 
@@ -103,8 +103,8 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
             externalDependencies: [
                 "library": [
                     .xcframework(path: "/path.xcframework"),
-                    .project(target: "Target", path: "/Project")
-                ]
+                    .project(target: "Target", path: "/Project"),
+                ],
             ]
         )
 
