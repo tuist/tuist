@@ -36,6 +36,44 @@ Then(/^([a-zA-Z]+) links the framework ([a-zA-Z]+) from the cache/) do |target_n
   end
 end
 
+Then(/^([a-zA-Z]+) copies the bundle ([a-zA-Z]+) from the cache/) do |target_name, bundle_name|
+  projects = Xcode.projects(@workspace_path)
+  target = projects.flat_map(&:targets).detect { |t| t.name == target_name }
+  flunk("Target #{target_name} doesn't exist in any of the projects' targets of the workspace") if target.nil?
+  build_file = target.resources_build_phase.files.filter do |f|
+    f.display_name.include?("#{bundle_name}.bundle")
+  end .first
+  unless build_file
+    flunk("Target #{target_name} doesn't copy the bundle #{bundle_name}")
+  end
+  bundle_path = File.expand_path(build_file.file_ref.full_path.to_s, @dir)
+  unless bundle_path.include?(@cache_dir)
+    flunk(
+      "The bundle '#{bundle_name}' copied from target '#{target_name}' \
+      has a path outside the cache: #{bundle_path}"
+    )
+  end
+end
+
+Then(/^([a-zA-Z]+) copies the bundle ([a-zA-Z]+) from the build directory/) do |target_name, bundle_name|
+  projects = Xcode.projects(@workspace_path)
+  target = projects.flat_map(&:targets).detect { |t| t.name == target_name }
+  flunk("Target #{target_name} doesn't exist in any of the projects' targets of the workspace") if target.nil?
+  build_file = target.resources_build_phase.files.filter do |f|
+    f.display_name.include?("#{bundle_name}.bundle")
+  end .first
+  unless build_file
+    flunk("Target #{target_name} doesn't copy the bundle #{bundle_name}")
+  end
+  bundle_path = File.expand_path(build_file.file_ref.full_path.to_s, @dir)
+  if bundle_path.include?(@cache_dir)
+    flunk(
+      "The bundle '#{bundle_name}' copied from target '#{target_name}' \
+      has a path inside the cache: #{bundle_path}"
+    )
+  end
+end
+
 Then(/^([a-zA-Z]+) links the xcframework ([a-zA-Z]+)$/) do |target_name, xcframework|
   projects = Xcode.projects(@workspace_path)
   target = projects.flat_map(&:targets).detect { |t| t.name == target_name }

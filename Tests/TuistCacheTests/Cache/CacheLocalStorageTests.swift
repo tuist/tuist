@@ -6,10 +6,10 @@ import XCTest
 
 final class CacheLocalStorageErrorTests: TuistUnitTestCase {
     func test_type() {
-        XCTAssertEqual(CacheLocalStorageError.xcframeworkNotFound(hash: "hash").type, .abort)
+        XCTAssertEqual(CacheLocalStorageError.compiledArtifactNotFound(hash: "hash").type, .abort)
     }
 
     func test_description() {
-        XCTAssertEqual(CacheLocalStorageError.xcframeworkNotFound(hash: "hash").description, "xcframework with hash 'hash' not found in the local cache")
+        XCTAssertEqual(CacheLocalStorageError.compiledArtifactNotFound(hash: "hash").description, "xcframework with hash 'hash' not found in the local cache")
     }
 }
