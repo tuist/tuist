@@ -63,7 +63,7 @@ extension TuistGraph.TargetDependency {
             }
 
             switch dependency {
-            case let .xcframework(_, path, _):
+            case let .xcframework(_, path):
                 return .xcframework(path: path)
             case .sources:
                 fatalError("ExternalDependency.source not supported yet")

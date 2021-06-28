@@ -53,8 +53,7 @@ public final class DependenciesGraphControllerTests: TuistUnitTestCase {
             externalDependencies: [
                 "RxSwift": .xcframework(
                     name: "RxSwift",
-                    path: "/Tuist/Dependencies/Carthage/RxSwift.xcframework",
-                    architectures: [.arm6432, .x8664, .armv7, .armv7k, .arm64, .i386]
+                    path: "/Tuist/Dependencies/Carthage/RxSwift.xcframework"
                 ),
             ]
         )

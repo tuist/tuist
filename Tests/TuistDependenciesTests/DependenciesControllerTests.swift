@@ -226,9 +226,9 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             ]),
             platforms: [.iOS]
         )
-        let carthageDependency = ExternalDependency.testXCFramework(name: "Duplicated", path: rootPath.appending(component: "Carthage"), architectures: [])
+        let carthageDependency = ExternalDependency.testXCFramework(name: "Duplicated", path: rootPath.appending(component: "Carthage"))
         let carthageGraph: DependenciesGraph = .test(externalDependencies: ["Duplicated": carthageDependency])
-        let spmDependency = ExternalDependency.testXCFramework(name: "Duplicated", path: rootPath.appending(component: "SPM"), architectures: [])
+        let spmDependency = ExternalDependency.testXCFramework(name: "Duplicated", path: rootPath.appending(component: "SPM"))
         let spmGraph: DependenciesGraph = .test(externalDependencies: ["Duplicated": spmDependency])
 
         carthageInteractor.installStub = { _, _, _, _ in

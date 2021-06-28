@@ -7,14 +7,14 @@ public enum ExternalDependency: Hashable, Codable {
     case sources(name: String, products: [Product], targets: [Target], minDeploymentTargets: Set<DeploymentTarget>)
 
     /// A dependency that represents a pre-compiled .xcframework.
-    case xcframework(name: String, path: AbsolutePath, architectures: Set<BinaryArchitecture>)
+    case xcframework(name: String, path: AbsolutePath)
 }
 
 extension ExternalDependency {
     /// The name of the external dependency.
     public var name: String {
         switch self {
-        case let .sources(name, _, _, _), let .xcframework(name, _, _):
+        case let .sources(name, _, _, _), let .xcframework(name, _):
             return name
         }
     }
@@ -159,7 +159,6 @@ extension ExternalDependency {
         case targets
         case minDeploymentTargets
         case path
-        case architectures
     }
 
     public init(from decoder: Decoder) throws {
@@ -175,8 +174,7 @@ extension ExternalDependency {
         case .xcframework:
             let name = try container.decode(String.self, forKey: .name)
             let path = try container.decode(AbsolutePath.self, forKey: .path)
-            let architectures = try container.decode(Set<BinaryArchitecture>.self, forKey: .architectures)
-            self = .xcframework(name: name, path: path, architectures: architectures)
+            self = .xcframework(name: name, path: path)
         }
     }
 
@@ -189,11 +187,10 @@ extension ExternalDependency {
             try container.encode(products, forKey: .products)
             try container.encode(targets, forKey: .targets)
             try container.encode(minDeploymentTargets, forKey: .minDeploymentTargets)
-        case let .xcframework(name, path, architectures):
+        case let .xcframework(name, path):
             try container.encode(Kind.xcframework, forKey: .kind)
             try container.encode(name, forKey: .name)
             try container.encode(path, forKey: .path)
-            try container.encode(architectures, forKey: .architectures)
         }
     }
 }

@@ -5,10 +5,9 @@ import TuistGraph
 public extension ExternalDependency {
     static func testXCFramework(
         name: String = "Test",
-        path: AbsolutePath = AbsolutePath.root.appending(RelativePath("Test.xcframework")),
-        architectures: Set<BinaryArchitecture> = []
+        path: AbsolutePath = AbsolutePath.root.appending(RelativePath("Test.xcframework"))
     ) -> Self {
-        return .xcframework(name: name, path: path, architectures: architectures)
+        return .xcframework(name: name, path: path)
     }
 
     // swiftlint:disable:next function_body_length

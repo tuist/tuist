@@ -18,12 +18,12 @@ final class DependenciesGraphTests: TuistUnitTestCase {
         // Given
         let subject = DependenciesGraph.test(
             externalDependencies: [
-                "A": .xcframework(name: "A", path: .current, architectures: []),
+                "A": .xcframework(name: "A", path: .current),
             ]
         )
         let other = DependenciesGraph.test(
             externalDependencies: [
-                "B": .xcframework(name: "B", path: .current, architectures: []),
+                "B": .xcframework(name: "B", path: .current),
             ]
         )
 
@@ -32,8 +32,8 @@ final class DependenciesGraphTests: TuistUnitTestCase {
             try subject.merging(with: other),
             DependenciesGraph.test(
                 externalDependencies: [
-                    "A": .xcframework(name: "A", path: .current, architectures: []),
-                    "B": .xcframework(name: "B", path: .current, architectures: []),
+                    "A": .xcframework(name: "A", path: .current),
+                    "B": .xcframework(name: "B", path: .current),
                 ]
             )
         )
@@ -43,12 +43,12 @@ final class DependenciesGraphTests: TuistUnitTestCase {
         // Given
         let subject = DependenciesGraph.test(
             externalDependencies: [
-                "A": .xcframework(name: "A", path: .current, architectures: []),
+                "A": .xcframework(name: "A", path: .current),
             ]
         )
         let other = DependenciesGraph.test(
             externalDependencies: [
-                "A": .xcframework(name: "A", path: .current, architectures: []),
+                "A": .xcframework(name: "A", path: .current),
             ]
         )
 
@@ -57,8 +57,8 @@ final class DependenciesGraphTests: TuistUnitTestCase {
             try subject.merging(with: other),
             DependenciesGraphError.duplicatedDependency(
                 "A",
-                .xcframework(name: "A", path: .current, architectures: []),
-                .xcframework(name: "A", path: .current, architectures: [])
+                .xcframework(name: "A", path: .current),
+                .xcframework(name: "A", path: .current)
             )
         )
     }

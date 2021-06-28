@@ -7,9 +7,7 @@ import XCTest
 final class ExternalDependencyTests: TuistUnitTestCase {
     func test_codable_xcframework() {
         // Given
-        let subject = ExternalDependency.testXCFramework(
-            architectures: [.arm64, .i386, .arm6432]
-        )
+        let subject = ExternalDependency.testXCFramework()
 
         // Then
         XCTAssertCodable(subject)
