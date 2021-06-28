@@ -89,11 +89,28 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider, XCF
 
     public func binaryPath(xcframeworkPath: AbsolutePath, libraries: [XCFrameworkInfoPlist.Library]) throws -> AbsolutePath {
         let archs: [BinaryArchitecture] = [.arm64, .x8664]
-        guard let library = libraries.first(where: { !$0.architectures.filter(archs.contains).isEmpty }) else {
-            throw XCFrameworkMetadataProviderError.supportedArchitectureReferencesNotFound(xcframeworkPath)
-        }
         let binaryName = xcframeworkPath.basenameWithoutExt
 
+        guard let library = libraries.first(where: {
+            let hasValidArchitectures = !$0.architectures.filter(archs.contains).isEmpty
+            guard hasValidArchitectures, let binaryPath = try? path(for: $0, binaryName: binaryName, xcframeworkPath: xcframeworkPath) else {
+                return false
+            }
+            guard FileHandler.shared.exists(binaryPath) else {
+                // The missing slice relative to the XCFramework folder. e.g ios-x86_64-simulator/Alamofire.framework/Alamofire
+                let relativeArchitectureBinaryPath = binaryPath.components.suffix(3).joined(separator: "/")
+                logger.warning("\(xcframeworkPath.basename) is missing architecture \(relativeArchitectureBinaryPath) defined in the Info.plist")
+                return false
+            }
+            return true
+        }) else {
+            throw XCFrameworkMetadataProviderError.supportedArchitectureReferencesNotFound(xcframeworkPath)
+        }
+
+        return try path(for: library, binaryName: binaryName, xcframeworkPath: xcframeworkPath)
+    }
+
+    private func path(for library: XCFrameworkInfoPlist.Library, binaryName: String, xcframeworkPath: AbsolutePath) throws -> AbsolutePath {
         let binaryPath: AbsolutePath
 
         switch library.path.extension {

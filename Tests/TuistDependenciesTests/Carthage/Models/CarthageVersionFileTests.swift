@@ -28,6 +28,15 @@ final class CarthageVersionFileTests: TuistUnitTestCase {
         XCTAssertDecodableEqualToJson(json, expected)
     }
 
+    func test_codable_realmSwift() {
+        // Given
+        let json = CarthageVersionFile.testRealmCocoaJson
+        let expected = CarthageVersionFile.testRealmCocoa
+
+        // When / Then
+        XCTAssertDecodableEqualToJson(json, expected)
+    }
+
     func test_allProducts() {
         // Given
         let iOSProduct = CarthageVersionFile.Product.test(name: "iOS")

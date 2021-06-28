@@ -28,9 +28,7 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
 
         let externalDependencies: [String: [TuistGraph.TargetDependency]] = Dictionary(grouping: products, by: \.name)
             .compactMapValues { products in
-                // All the products grouped by name have the same framework
-                guard let firstProduct = products.first else { return nil }
-                let frameworkName = firstProduct.container
+                guard let frameworkName = products.first?.container else { return nil }
 
                 let path = AbsolutePath("/")
                     .appending(components: [

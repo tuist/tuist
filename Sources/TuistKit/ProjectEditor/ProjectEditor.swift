@@ -37,6 +37,7 @@ protocol ProjectEditing: AnyObject {
     func edit(
         at editingPath: AbsolutePath,
         in destinationDirectory: AbsolutePath,
+        onlyCurrentDirectory: Bool,
         plugins: Plugins
     ) throws -> AbsolutePath
 }
@@ -95,10 +96,11 @@ final class ProjectEditor: ProjectEditing {
     func edit(
         at editingPath: AbsolutePath,
         in destinationDirectory: AbsolutePath,
+        onlyCurrentDirectory: Bool,
         plugins: Plugins
     ) throws -> AbsolutePath {
         let projectDescriptionPath = try resourceLocator.projectDescription()
-        let projectManifests = manifestFilesLocator.locateProjectManifests(at: editingPath)
+        let projectManifests = manifestFilesLocator.locateProjectManifests(at: editingPath, onlyCurrentDirectory: onlyCurrentDirectory)
         let configPath = manifestFilesLocator.locateConfig(at: editingPath)
         let cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories(config: nil)
         let projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(
@@ -116,7 +118,11 @@ final class ProjectEditor: ProjectEditing {
 
         let tasks = try tasksLocator.locateTasks(at: editingPath)
 
-        let editablePluginManifests = locateEditablePluginManifests(at: editingPath, plugins: plugins)
+        let editablePluginManifests = locateEditablePluginManifests(
+            at: editingPath,
+            plugins: plugins,
+            onlyCurrentDirectory: onlyCurrentDirectory
+        )
         let builtPluginHelperModules = try buildRemotePluginModules(
             in: editingPath,
             projectDescriptionPath: projectDescriptionPath,
@@ -141,7 +147,7 @@ final class ProjectEditor: ProjectEditing {
             setupPath: setupPath,
             configPath: configPath,
             dependenciesPath: dependenciesPath,
-            projectManifests: projectManifests.map(\.1),
+            projectManifests: projectManifests.map(\.path),
             editablePluginManifests: editablePluginManifests,
             pluginProjectDescriptionHelpersModule: builtPluginHelperModules,
             helpers: helpers,
@@ -158,13 +164,16 @@ final class ProjectEditor: ProjectEditing {
     }
 
     /// - Returns: A list of plugin manifests which should be loaded as part of the project.
-    private func locateEditablePluginManifests(at path: AbsolutePath, plugins: Plugins) -> [EditablePluginManifest] {
+    private func locateEditablePluginManifests(at path: AbsolutePath, plugins: Plugins, onlyCurrentDirectory: Bool) -> [EditablePluginManifest] {
         let loadedEditablePluginManifests = plugins.projectDescriptionHelpers
             .filter { $0.location == .local }
             .map { EditablePluginManifest(name: $0.name, path: $0.path.parentDirectory) }
 
-        let localEditablePluginManifests = manifestFilesLocator.locatePluginManifests(at: path)
-            .map { EditablePluginManifest(name: $0.parentDirectory.basename, path: $0.parentDirectory) }
+        let localEditablePluginManifests = manifestFilesLocator.locatePluginManifests(
+            at: path,
+            onlyCurrentDirectory: onlyCurrentDirectory
+        )
+        .map { EditablePluginManifest(name: $0.parentDirectory.basename, path: $0.parentDirectory) }
 
         return Array(Set(loadedEditablePluginManifests + localEditablePluginManifests))
     }
