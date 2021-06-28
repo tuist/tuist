@@ -37,6 +37,7 @@ module Fourier
               .expects(:build_fat_release_binary)
               .with(
                 path: sources_path,
+                product: "xcbeautify",
                 binary_name: "xcbeautify",
                 output_directory: temporary_output_directory
               )
