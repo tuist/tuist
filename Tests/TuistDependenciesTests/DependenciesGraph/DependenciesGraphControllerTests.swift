@@ -59,6 +59,35 @@ public final class DependenciesGraphControllerTests: TuistUnitTestCase {
         XCTAssertEqual(got, expected)
     }
 
+    func test_load_failed() throws {
+        // Given
+        let root = try temporaryPath()
+        let graphPath = root.appending(components: "Tuist", "Dependencies", "graph.json")
+        try fileHandler.touch(graphPath)
+
+        try fileHandler.write(
+            """
+            {
+              "externalDependencies": {},
+              "externalProjects": [
+                "ProjectPath",
+                {
+                  "invalid": "Project"
+                }
+              ]
+            }
+            """,
+            path: graphPath,
+            atomically: true
+        )
+
+        // When / Then
+        XCTAssertThrowsSpecific(
+            try subject.load(at: root),
+            DependenciesGraphControllerError.failedToDecodeDependenciesGraph
+        )
+    }
+
     func test_clean() throws {
         // Given
         let root = try temporaryPath()

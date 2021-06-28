@@ -4,12 +4,22 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.45.1
+
+### Fixed
+
+- Throw error when target given in `tuist focus` is not found. [#3104](https://github.com/tuist/tuist/pull/3104) by [@fortmarek](https://github.com/fortmarek)
+- Fixed an issue that the `tuist dependencies` command may fails for some `Carthage` dependencies. [#3108](https://github.com/tuist/tuist/pull/3108) by [@laxmorek](https://github.com/laxmorek)
+
+## 1.45.0 - Jungle
+
 ### Added
 
 - Add `tvTopShelfExtension` and `tvIntentsExtension` target product. [#2793](https://github.com/tuist/tuist/pull/2793) by [@rmnblm](https://github.com/rmnblm)
 - The `tuist dependencies` command generates a `graph.json` file for the `Carthage` dependencies. [#3043](https://github.com/tuist/tuist/pull/3043) by [@laxmorek](https://github.com/laxmorek)
 - Add --skip-ui-tests parameter to tuist test command [#2832](https://github.com/tuist/tuist/pull/2832) by [@mollyIV](https://github.com/mollyIV).
 - Add `disableBundleAccessors` generation option which disables generating Bundle extensions [#3088](https://github.com/tuist/tuist/pull/3088) by [@wojciech-kulik](https://github.com/wojciech-kulik).
+- Support XCFrameworks with missing architectures [#3095](https://github.com/tuist/tuist/pull/3095) by [@iainsmith](https://github.com/iainsmith).
 
 ### Changed
 
@@ -24,6 +34,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Fixed
 
+- `--only-current-directory` flag for `tuist edit` [#3097](https://github.com/tuist/tuist/pull/3097) by [@fortmarek](https://github.com/fortmarek)
 - Fixed `tuist bundle` when path has spaces [#3084](https://github.com/tuist/tuist/pull/3084) by [@fortmarek](https://github.com/fortmarek)
 - Fix manifest loading when using Swift 5.5 [#3062](https://github.com/tuist/tuist/pull/3062) by [@kwridan](https://github.com/kwridan)
 - Fix generation of project groups and build phases for localized Interface Builder files (`.xib` and `.storyboard`) [#3075](https://github.com/tuist/tuist/pull/3075) by [@svenmuennich](https://github.com/svenmuennich/)

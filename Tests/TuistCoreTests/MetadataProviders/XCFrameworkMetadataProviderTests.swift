@@ -4,7 +4,7 @@ import XCTest
 @testable import TuistGraph
 @testable import TuistSupportTesting
 
-final class XCFrameworkMetadataProviderTests: XCTestCase {
+final class XCFrameworkMetadataProviderTests: TuistTestCase {
     var subject: XCFrameworkMetadataProvider!
 
     override func setUp() {
@@ -139,5 +139,38 @@ final class XCFrameworkMetadataProviderTests: XCTestCase {
             primaryBinaryPath: expectedBinaryPath,
             linking: .static
         ))
+    }
+
+    func test_loadMetadata_frameworkMissingArchitecture() throws {
+        // Given
+        let frameworkPath = fixturePath(path: RelativePath("MyFrameworkMissingArch.xcframework"))
+
+        // When
+        let metadata = try subject.loadMetadata(at: frameworkPath)
+
+        // Then
+        let expectedInfoPlist = XCFrameworkInfoPlist(libraries: [
+            .init(
+                identifier: "ios-x86_64-simulator", // Not present on disk
+                path: RelativePath("MyFrameworkMissingArch.framework"),
+                architectures: [.x8664]
+            ),
+            .init(
+                identifier: "ios-arm64",
+                path: RelativePath("MyFrameworkMissingArch.framework"),
+                architectures: [.arm64]
+            ),
+        ])
+        let expectedBinaryPath = frameworkPath.appending(RelativePath("ios-arm64/MyFrameworkMissingArch.framework/MyFrameworkMissingArch"))
+        XCTAssertEqual(metadata, XCFrameworkMetadata(
+            path: frameworkPath,
+            infoPlist: expectedInfoPlist,
+            primaryBinaryPath: expectedBinaryPath,
+            linking: .dynamic
+        ))
+
+        XCTAssertPrinterOutputContains("""
+        MyFrameworkMissingArch.xcframework is missing architecture ios-x86_64-simulator/MyFrameworkMissingArch.framework/MyFrameworkMissingArch defined in the Info.plist
+        """)
     }
 }

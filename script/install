@@ -83,4 +83,4 @@ rm -rf /tmp/tuistenv
 rm /tmp/tuistenv.zip
 
 ohai "tuistenv installed. Try running 'tuist'"
-ohai "Check out the documentation at https://tuist.io/docs"
+ohai "Check out the documentation at https://docs.tuist.io/"
