@@ -14,6 +14,7 @@ public protocol ManifestModelConverting {
         plugins: Plugins,
         externalDependencies: [String: [TuistGraph.TargetDependency]]
     ) throws -> TuistGraph.Project
+    func convert(manifest: ProjectDescription.DependenciesGraph, path: AbsolutePath) throws -> TuistGraph.DependenciesGraph
 }
 
 public final class ManifestModelConverter: ManifestModelConverting {
@@ -71,5 +72,36 @@ public final class ManifestModelConverter: ManifestModelConverting {
             manifestLoader: manifestLoader
         )
         return workspace
+    }
+
+    public func convert(
+        manifest: ProjectDescription.DependenciesGraph,
+        path: AbsolutePath
+    ) throws -> TuistGraph.DependenciesGraph {
+        let externalDependencies = try manifest.externalDependencies.mapValues { targetDependencies in
+            try targetDependencies.flatMap { targetDependencyManifest in
+                return try TuistGraph.TargetDependency.from(
+                    manifest: targetDependencyManifest,
+                    generatorPaths: GeneratorPaths(manifestDirectory: path),
+                    externalDependencies: [:] // externalDependencies manifest can't contain other external dependencies
+                )
+            }
+        }
+
+        return .init(
+            externalDependencies: externalDependencies,
+            externalProjects: try Dictionary(uniqueKeysWithValues: manifest.externalProjects.map { project in
+                return (
+                    AbsolutePath(project.key.pathString),
+                    try convert(
+                        manifest: project.value,
+                        path: path,
+                        plugins: .none,
+                        externalDependencies: externalDependencies
+                    )
+                )
+
+            })
+        )
     }
 }

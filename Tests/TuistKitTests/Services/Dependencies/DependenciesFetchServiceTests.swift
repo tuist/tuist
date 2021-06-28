@@ -67,6 +67,11 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
             XCTAssertEqual(path, stubbedPath)
             XCTAssertEqual(dependencies, stubbedDependencies)
             XCTAssertEqual(swiftVersion, stubbedSwiftVersion)
+            return .none
+        }
+        dependenciesController.saveStub = { dependenciesGraph, path in
+            XCTAssertEqual(dependenciesGraph, .none)
+            XCTAssertEqual(path, stubbedPath)
         }
 
         // When
@@ -75,6 +80,7 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
         // Then
         XCTAssertTrue(dependenciesModelLoader.invokedLoadDependencies)
         XCTAssertTrue(dependenciesController.invokedFetch)
+        XCTAssertTrue(dependenciesController.invokedSave)
 
         XCTAssertFalse(dependenciesController.invokedUpdate)
     }

@@ -1,3 +1,4 @@
+import ProjectDescription
 import TuistDependencies
 import TuistGraph
 import XCTest
@@ -78,17 +79,29 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
         let got = try subject.generate(at: path, platforms: [.iOS])
 
         // Then
-        let expected = try DependenciesGraph.none
-            .merging(with: DependenciesGraph.alamofire(packageFolder: alamofirePath))
-            .merging(with: DependenciesGraph.googleAppMeasurement(packageFolder: googleAppMeasurementPath))
-            .merging(with: DependenciesGraph.googleUtilities(packageFolder: googleUtilitiesPath))
-            .merging(with: DependenciesGraph.nanopb(packageFolder: nanopbPath))
-            .merging(with: DependenciesGraph.test(packageFolder: testPath))
-            .merging(with: DependenciesGraph.aDependency(packageFolder: aDependencyPath))
-            .merging(with: DependenciesGraph.anotherDependency(packageFolder: anotherDependencyPath))
+        let expected = try ProjectDescription.DependenciesGraph.none
+            .merging(with: DependenciesGraph.alamofire(packageFolder: Path(alamofirePath.pathString)))
+            .merging(with: DependenciesGraph.googleAppMeasurement(packageFolder: Path(googleAppMeasurementPath.pathString)))
+            .merging(with: DependenciesGraph.googleUtilities(packageFolder: Path(googleUtilitiesPath.pathString)))
+            .merging(with: DependenciesGraph.nanopb(packageFolder: Path(nanopbPath.pathString)))
+            .merging(with: DependenciesGraph.test(packageFolder: Path(testPath.pathString)))
+            .merging(with: DependenciesGraph.aDependency(packageFolder: Path(aDependencyPath.pathString)))
+            .merging(with: DependenciesGraph.anotherDependency(packageFolder: Path(anotherDependencyPath.pathString)))
 
         XCTAssertEqual(got.externalDependencies, expected.externalDependencies)
 
         // TODO: check generated projects
+    }
+}
+
+extension ProjectDescription.DependenciesGraph {
+    public func merging(with other: Self) throws -> Self {
+        let mergedExternalDependencies = other.externalDependencies.reduce(into: externalDependencies) { result, entry in
+            result[entry.key] = entry.value
+        }
+        let mergedExternalProjects = other.externalProjects.reduce(into: externalProjects) { result, entry in
+            result[entry.key] = entry.value
+        }
+        return .init(externalDependencies: mergedExternalDependencies, externalProjects: mergedExternalProjects)
     }
 }
