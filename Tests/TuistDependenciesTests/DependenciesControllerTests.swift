@@ -14,6 +14,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
     private var carthageInteractor: MockCarthageInteractor!
     private var cocoaPodsInteractor: MockCocoaPodsInteractor!
     private var swiftPackageManagerInteractor: MockSwiftPackageManagerInteractor!
+    private var dependenciesGraphController: MockDependenciesGraphController!
 
     override func setUp() {
         super.setUp()
@@ -21,11 +22,13 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         carthageInteractor = MockCarthageInteractor()
         cocoaPodsInteractor = MockCocoaPodsInteractor()
         swiftPackageManagerInteractor = MockSwiftPackageManagerInteractor()
+        dependenciesGraphController = MockDependenciesGraphController()
 
         subject = DependenciesController(
             carthageInteractor: carthageInteractor,
             cocoaPodsInteractor: cocoaPodsInteractor,
-            swiftPackageManagerInteractor: swiftPackageManagerInteractor
+            swiftPackageManagerInteractor: swiftPackageManagerInteractor,
+            dependenciesGraphController: dependenciesGraphController
         )
     }
 
@@ -488,5 +491,49 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertFalse(cocoaPodsInteractor.invokedClean)
         XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
+    }
+
+    func test_save() throws {
+        // Given
+        let rootPath = try temporaryPath()
+
+        let dependenciesGraph = TuistGraph.DependenciesGraph(
+            externalDependencies: [
+                "library": [.xcframework(path: "/library.xcframework")],
+                "anotherLibrary": [.project(target: "Target", path: "/anotherLibrary")],
+            ],
+            externalProjects: [
+                "/anotherLibrary": .test(),
+            ]
+        )
+
+        dependenciesGraphController.saveStub = { arg0, arg1 in
+            XCTAssertEqual(arg0, dependenciesGraph)
+            XCTAssertEqual(arg1, rootPath)
+        }
+
+        // When
+        try subject.save(dependenciesGraph: dependenciesGraph, to: rootPath)
+
+        // Then
+        XCTAssertFalse(dependenciesGraphController.invokedClean)
+        XCTAssertTrue(dependenciesGraphController.invokedSave)
+    }
+
+    func test_save_no_dependencies() throws {
+        // Given
+        let rootPath = try temporaryPath()
+
+        dependenciesGraphController.saveStub = { arg0, arg1 in
+            XCTAssertEqual(arg0, .none)
+            XCTAssertEqual(arg1, rootPath)
+        }
+
+        // When
+        try subject.save(dependenciesGraph: .none, to: rootPath)
+
+        // Then
+        XCTAssertTrue(dependenciesGraphController.invokedClean)
+        XCTAssertFalse(dependenciesGraphController.invokedSave)
     }
 }
