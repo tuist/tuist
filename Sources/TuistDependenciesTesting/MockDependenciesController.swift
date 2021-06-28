@@ -10,7 +10,11 @@ public final class MockDependenciesController: DependenciesControlling {
     var invokedFetch = false
     var fetchStub: ((AbsolutePath, TuistGraph.Dependencies, String?) throws -> ProjectDescription.DependenciesGraph)?
 
-    public func fetch(at path: AbsolutePath, dependencies: TuistGraph.Dependencies, swiftVersion: String?) throws -> ProjectDescription.DependenciesGraph {
+    public func fetch(
+        at path: AbsolutePath,
+        dependencies: TuistGraph.Dependencies,
+        swiftVersion: String?
+    ) throws -> ProjectDescription.DependenciesGraph {
         invokedFetch = true
         return try fetchStub?(path, dependencies, swiftVersion) ?? .none
     }
@@ -18,7 +22,11 @@ public final class MockDependenciesController: DependenciesControlling {
     var invokedUpdate = false
     var updateStub: ((AbsolutePath, TuistGraph.Dependencies, String?) throws -> ProjectDescription.DependenciesGraph)?
 
-    public func update(at path: AbsolutePath, dependencies: TuistGraph.Dependencies, swiftVersion: String?) throws -> ProjectDescription.DependenciesGraph {
+    public func update(
+        at path: AbsolutePath,
+        dependencies: TuistGraph.Dependencies,
+        swiftVersion: String?
+    ) throws -> ProjectDescription.DependenciesGraph {
         invokedUpdate = true
         return try updateStub?(path, dependencies, swiftVersion) ?? .none
     }
@@ -30,5 +38,4 @@ public final class MockDependenciesController: DependenciesControlling {
         invokedSave = true
         try saveStub?(dependenciesGraph, path)
     }
-
 }

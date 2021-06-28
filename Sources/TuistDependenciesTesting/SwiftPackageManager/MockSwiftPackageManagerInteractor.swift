@@ -8,7 +8,15 @@ public final class MockSwiftPackageManagerInteractor: SwiftPackageManagerInterac
     public init() {}
 
     var invokedInstall = false
-    var installStub: ((AbsolutePath, TuistGraph.SwiftPackageManagerDependencies, Set<TuistGraph.Platform>, Bool, String?) throws -> ProjectDescription.DependenciesGraph)?
+    var installStub: (
+        (
+            AbsolutePath,
+            TuistGraph.SwiftPackageManagerDependencies,
+            Set<TuistGraph.Platform>,
+            Bool,
+            String?
+        ) throws -> ProjectDescription.DependenciesGraph
+    )?
 
     public func install(
         dependenciesDirectory: AbsolutePath,

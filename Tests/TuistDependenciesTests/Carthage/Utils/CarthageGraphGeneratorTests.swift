@@ -1,7 +1,7 @@
+import ProjectDescription
 import TSCBasic
 import TSCUtility
 import TuistCore
-import ProjectDescription
 import TuistSupport
 import XCTest
 

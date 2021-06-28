@@ -80,7 +80,7 @@ public final class ManifestModelConverter: ManifestModelConverting {
     ) throws -> TuistGraph.DependenciesGraph {
         let externalDependencies = try manifest.externalDependencies.mapValues { targetDependencies in
             try targetDependencies.flatMap { targetDependencyManifest in
-                return try TuistGraph.TargetDependency.from(
+                try TuistGraph.TargetDependency.from(
                     manifest: targetDependencyManifest,
                     generatorPaths: GeneratorPaths(manifestDirectory: path),
                     externalDependencies: [:] // externalDependencies manifest can't contain other external dependencies
@@ -91,7 +91,7 @@ public final class ManifestModelConverter: ManifestModelConverting {
         return .init(
             externalDependencies: externalDependencies,
             externalProjects: try Dictionary(uniqueKeysWithValues: manifest.externalProjects.map { project in
-                return (
+                (
                     AbsolutePath(project.key.pathString),
                     try convert(
                         manifest: project.value,
