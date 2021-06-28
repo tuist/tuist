@@ -54,9 +54,9 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
             ]
         }
 
-        fileHandler.stubIsFolder = { path in
+        fileHandler.stubIsFolder = { _ in
             // called to convert globs to AbsolutePath
-            return true
+            true
         }
 
         swiftPackageManagerController.loadPackageInfoStub = { path in
