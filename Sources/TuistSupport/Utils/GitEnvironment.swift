@@ -10,16 +10,16 @@ public protocol GitEnvironmenting {
     func githubCredentials() -> Deferred<Future<(username: String, password: String)?, Error>>
 }
 
-enum GitEnvironmentError: FatalError {
+public enum GitEnvironmentError: FatalError {
     case githubCredentialsFillError(String)
 
-    var type: ErrorType {
+    public var type: ErrorType {
         switch self {
         case .githubCredentialsFillError: return .bug
         }
     }
 
-    var description: String {
+    public var description: String {
         switch self {
         case let .githubCredentialsFillError(message):
             return "Trying to get your environment's credentials for https://github.com failed with the following error: \(message)"
