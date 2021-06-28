@@ -51,25 +51,15 @@ module Fourier
         output_directory = options[:output]
         output_directory ||= File.expand_path("build", Constants::ROOT_DIRECTORY)
 
-        build_directory = options[:build]
-
-        if build_directory.nil?
-          Dir.mktmpdir do |tmp_dir|
-            bundle_all(output_directory: output_directory, build_directory: tmp_dir)
-          end
-        else
-          bundle_all(output_directory: output_directory, build_directory: build_directory)
-        end
+        bundle_all(output_directory: output_directory)
       end
       no_commands {
-        def bundle_all(output_directory:, build_directory:)
+        def bundle_all(output_directory:)
           Services::Bundle::Tuist.call(
-            output_directory: output_directory,
-            build_directory: build_directory
+            output_directory: output_directory
           )
           Services::Bundle::Tuistenv.call(
-            output_directory: output_directory,
-            build_directory: build_directory
+            output_directory: output_directory
           )
         end
       }
