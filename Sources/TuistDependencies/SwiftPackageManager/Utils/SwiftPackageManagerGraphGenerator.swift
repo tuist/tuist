@@ -87,12 +87,20 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             }
         }
         let externalProjects: [Path: ProjectDescription.Project] = try packageInfos.reduce(into: [:]) { result, packageInfo in
+            let artifactsFolder = path.appending(component: "artifacts").appending(component: packageInfo.name)
+            let targetDependencyToFramework: [String: Path] = packageInfo.info.targets.reduce(into: [:]) { result, target in
+                guard target.type == .binary else { return }
+
+                result[target.name] = Path(artifactsFolder.appending(component: "\(target.name).xcframework").pathString)
+            }
+
             let manifest = try ProjectDescription.Project.from(
                 packageInfo: packageInfo.info,
                 name: packageInfo.name,
                 folder: packageInfo.folder,
                 platforms: platforms,
-                productToPackage: productToPackage
+                productToPackage: productToPackage,
+                targetDependencyToFramework: targetDependencyToFramework
             )
             result[Path(packageInfo.folder.pathString)] = manifest
         }
@@ -107,7 +115,8 @@ extension ProjectDescription.Project {
         name: String,
         folder: AbsolutePath,
         platforms: Set<TuistGraph.Platform>,
-        productToPackage: [String: String]
+        productToPackage: [String: String],
+        targetDependencyToFramework: [String: Path]
     ) throws -> Self {
         let targets = try packageInfo.targets.compactMap { target in
             try Target.from(
@@ -116,7 +125,8 @@ extension ProjectDescription.Project {
                 packageInfo: packageInfo,
                 folder: folder,
                 platforms: platforms,
-                productToPackage: productToPackage
+                productToPackage: productToPackage,
+                targetDependencyToFramework: targetDependencyToFramework
             )
         }
         return ProjectDescription.Project(
@@ -134,7 +144,8 @@ extension ProjectDescription.Target {
         packageInfo: PackageInfo,
         folder: AbsolutePath,
         platforms: Set<TuistGraph.Platform>,
-        productToPackage: [String: String]
+        productToPackage: [String: String],
+        targetDependencyToFramework: [String: Path]
     ) throws -> Self? {
         guard target.type == .regular else {
             logger.debug("Target \(target.name) of type \(target.type) ignored")
@@ -156,7 +167,12 @@ extension ProjectDescription.Target {
             infoPlist: .default,
             sources: target.mapSources(path: path),
             resources: target.mapResources(path: path),
-            dependencies: try target.mapDependencies(packageName: packageName, packageInfo: packageInfo, productToPackage: productToPackage),
+            dependencies: try target.mapDependencies(
+                packageName: packageName,
+                packageInfo: packageInfo,
+                productToPackage: productToPackage,
+                targetDependencyToFramework: targetDependencyToFramework
+            ),
             settings: try target.mapSettings()
         )
     }
@@ -230,7 +246,8 @@ extension PackageInfo.Target {
     func mapDependencies(
         packageName: String,
         packageInfo _: PackageInfo,
-        productToPackage: [String: String]
+        productToPackage: [String: String],
+        targetDependencyToFramework: [String: Path]
     ) throws -> [ProjectDescription.TargetDependency] {
         let targetDependencies: [ProjectDescription.TargetDependency] = try dependencies.map { dependency in
             switch dependency {
@@ -244,7 +261,11 @@ extension PackageInfo.Target {
                 }
 
                 if package == packageName {
-                    return .target(name: name)
+                    if let framework = targetDependencyToFramework[name] {
+                        return .xcframework(path: framework)
+                    } else {
+                        return .target(name: name)
+                    }
                 } else {
                     return .project(target: name, path: Path(RelativePath("../\(package)").pathString))
                 }
