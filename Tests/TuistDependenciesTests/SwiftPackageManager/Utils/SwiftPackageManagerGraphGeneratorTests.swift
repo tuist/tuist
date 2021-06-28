@@ -77,13 +77,26 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
         }
 
         // When
-        let got = try subject.generate(at: path, productTypes: [:], platforms: [.iOS])
+        let got = try subject.generate(
+            at: path,
+            productTypes: [
+                "GULMethodSwizzler": .framework,
+                "GULNetwork": .dynamicLibrary
+            ],
+            platforms: [.iOS]
+        )
 
         // Then
         let expected = try ProjectDescription.DependenciesGraph.none
             .merging(with: DependenciesGraph.alamofire(spmFolder: spmFolder))
             .merging(with: DependenciesGraph.googleAppMeasurement(spmFolder: spmFolder))
-            .merging(with: DependenciesGraph.googleUtilities(spmFolder: spmFolder))
+            .merging(with: DependenciesGraph.googleUtilities(
+                spmFolder: spmFolder,
+                customProductTypes: [
+                    "GULMethodSwizzler": .framework,
+                    "GULNetwork": .dynamicLibrary
+                ]
+            ))
             .merging(with: DependenciesGraph.nanopb(spmFolder: spmFolder))
             .merging(with: DependenciesGraph.test(spmFolder: spmFolder))
             .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder))
