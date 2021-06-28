@@ -26,6 +26,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
     func test_generate() throws {
         // Given
         let path = try temporaryPath()
+        let spmFolder = Path(path.pathString)
         let checkoutsPath = path.appending(component: "checkouts")
 
         // Alamofire package and its dependencies
@@ -82,21 +83,32 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
         }
 
         // When
-        let got = try subject.generate(at: path, productTypes: [:], platforms: [.iOS])
+        let got = try subject.generate(
+            at: path,
+            productTypes: [
+                "GULMethodSwizzler": .framework,
+                "GULNetwork": .dynamicLibrary
+            ],
+            platforms: [.iOS]
+        )
 
         // Then
         let expected = try ProjectDescription.DependenciesGraph.none
-            .merging(with: DependenciesGraph.alamofire(packageFolder: Path(alamofirePath.pathString)))
-            .merging(with: DependenciesGraph.googleAppMeasurement(packageFolder: Path(googleAppMeasurementPath.pathString)))
-            .merging(with: DependenciesGraph.googleUtilities(packageFolder: Path(googleUtilitiesPath.pathString)))
-            .merging(with: DependenciesGraph.nanopb(packageFolder: Path(nanopbPath.pathString)))
-            .merging(with: DependenciesGraph.test(packageFolder: Path(testPath.pathString)))
-            .merging(with: DependenciesGraph.aDependency(packageFolder: Path(aDependencyPath.pathString)))
-            .merging(with: DependenciesGraph.anotherDependency(packageFolder: Path(anotherDependencyPath.pathString)))
+            .merging(with: DependenciesGraph.alamofire(spmFolder: spmFolder))
+            .merging(with: DependenciesGraph.googleAppMeasurement(spmFolder: spmFolder))
+            .merging(with: DependenciesGraph.googleUtilities(
+                spmFolder: spmFolder,
+                customProductTypes: [
+                    "GULMethodSwizzler": .framework,
+                    "GULNetwork": .dynamicLibrary
+                ]
+            ))
+            .merging(with: DependenciesGraph.nanopb(spmFolder: spmFolder))
+            .merging(with: DependenciesGraph.test(spmFolder: spmFolder))
+            .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder))
+            .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder))
 
-        XCTAssertEqual(got.externalDependencies, expected.externalDependencies)
-
-        // TODO: check generated projects
+        XCTAssertEqual(got, expected)
     }
 }
 

@@ -39,53 +39,202 @@ public extension DependenciesGraph {
         )
     }
 
-    static func test(packageFolder: Path) -> Self {
+    static func test(spmFolder: Path) -> Self {
+        let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "test")
         return .init(
             externalDependencies: [
                 "Tuist": [.project(target: "Tuist", path: packageFolder)],
             ],
-            externalProjects: [:]
+            externalProjects: [
+                packageFolder: .init(
+                    name: "test",
+                    targets: [
+                        .init(
+                            name: "Tuist",
+                            platform: .iOS,
+                            product: .staticLibrary,
+                            bundleId: "",
+                            infoPlist: .default,
+                            sources: [
+                                "\(packageFolder.pathString)/customPath/customSources",
+                            ],
+                            resources: [
+                                "\(packageFolder.pathString)/customPath/resources",
+                            ],
+                            dependencies: [
+                                .target(name: "TuistKit"),
+                                .project(target: "ALibrary", path: "../a-dependency"),
+                            ]
+                        ),
+                    ],
+                    resourceSynthesizers: []
+                ),
+            ]
         )
     }
 
-    static func aDependency(packageFolder: Path) -> Self {
+    static func aDependency(spmFolder: Path) -> Self {
+        let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "a-dependency")
         return .init(
             externalDependencies: [
-                "ALibrary": [.project(target: "ALibrary", path: packageFolder)],
+                "ALibrary": [
+                    .project(target: "ALibrary", path: packageFolder),
+                ],
             ],
-            externalProjects: [:]
+            externalProjects: [
+                packageFolder: .init(
+                    name: "a-dependency",
+                    targets: [
+                        .init(
+                            name: "ALibrary",
+                            platform: .iOS,
+                            product: .staticLibrary,
+                            bundleId: "",
+                            infoPlist: .default,
+                            sources: [
+                                "\(packageFolder.pathString)/Sources/ALibrary",
+                            ]
+                        ),
+                    ],
+                    resourceSynthesizers: []
+                ),
+            ]
         )
     }
 
-    static func anotherDependency(packageFolder: Path) -> Self {
+    static func anotherDependency(spmFolder: Path) -> Self {
+        let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "another-dependency")
         return .init(
             externalDependencies: [
-                "AnotherLibrary": [.project(target: "AnotherLibrary", path: packageFolder)],
+                "AnotherLibrary": [
+                    .project(target: "AnotherLibrary", path: packageFolder),
+                ],
             ],
-            externalProjects: [:]
+            externalProjects: [
+                packageFolder: .init(
+                    name: "another-dependency",
+                    targets: [
+                        .init(
+                            name: "AnotherLibrary",
+                            platform: .iOS,
+                            product: .staticLibrary,
+                            bundleId: "",
+                            infoPlist: .default,
+                            sources: [
+                                "\(packageFolder.pathString)/Sources/AnotherLibrary",
+                            ]
+                        ),
+                    ],
+                    resourceSynthesizers: []
+                ),
+            ]
         )
     }
 
-    static func alamofire(packageFolder: Path) -> Self {
+    static func alamofire(spmFolder: Path) -> Self {
+        let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "Alamofire")
         return .init(
             externalDependencies: [
-                "Alamofire": [.project(target: "Alamofire", path: packageFolder)],
+                "Alamofire": [
+                    .project(target: "Alamofire", path: packageFolder),
+                ],
             ],
-            externalProjects: [:]
+            externalProjects: [
+                packageFolder: .init(
+                    name: "Alamofire",
+                    targets: [
+                        .init(
+                            name: "Alamofire",
+                            platform: .iOS,
+                            product: .staticLibrary,
+                            bundleId: "",
+                            infoPlist: .default,
+                            sources: [
+                                "\(packageFolder.pathString)/Source",
+                            ],
+                            dependencies: [
+                                .sdk(name: "CFNetwork", status: .required),
+                            ]
+                        ),
+                    ],
+                    resourceSynthesizers: []
+                ),
+            ]
         )
     }
 
-    static func googleAppMeasurement(packageFolder: Path) -> Self {
+    // swiftlint:disable:next function_body_length
+    static func googleAppMeasurement(spmFolder: Path) -> Self {
+        let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleAppMeasurement")
+        let artifactsFolder = Self.artifactsFolder(spmFolder: spmFolder, packageName: "GoogleAppMeasurement")
+
         return .init(
             externalDependencies: [
-                "GoogleAppMeasurement": [.project(target: "GoogleAppMeasurementTarget", path: packageFolder)],
-                "GoogleAppMeasurementWithoutAdIdSupport": [.project(target: "GoogleAppMeasurementWithoutAdIdSupportTarget", path: packageFolder)],
+                "GoogleAppMeasurement": [
+                    .project(target: "GoogleAppMeasurementTarget", path: packageFolder),
+                ],
+                "GoogleAppMeasurementWithoutAdIdSupport": [
+                    .project(target: "GoogleAppMeasurementWithoutAdIdSupportTarget", path: packageFolder),
+                ],
             ],
-            externalProjects: [:]
+            externalProjects: [
+                packageFolder: .init(
+                    name: "GoogleAppMeasurement",
+                    targets: [
+                        .init(
+                            name: "GoogleAppMeasurementTarget",
+                            platform: .iOS,
+                            product: .staticLibrary,
+                            bundleId: "",
+                            infoPlist: .default,
+                            sources: [
+                                "\(packageFolder.pathString)/GoogleAppMeasurementWrapper",
+                            ],
+                            dependencies: [
+                                .xcframework(path: "\(artifactsFolder.pathString)/GoogleAppMeasurement.xcframework"),
+                                .project(target: "GULAppDelegateSwizzler", path: "../GoogleUtilities"),
+                                .project(target: "GULMethodSwizzler", path: "../GoogleUtilities"),
+                                .project(target: "GULNSData", path: "../GoogleUtilities"),
+                                .project(target: "GULNetwork", path: "../GoogleUtilities"),
+                                .project(target: "nanopb", path: "../nanopb"),
+                                .sdk(name: "sqlite3", status: .required),
+                                .sdk(name: "c++", status: .required),
+                                .sdk(name: "z", status: .required),
+                                .sdk(name: "StoreKit", status: .required),
+                            ]
+                        ),
+                        .init(
+                            name: "GoogleAppMeasurementWithoutAdIdSupportTarget",
+                            platform: .iOS,
+                            product: .staticLibrary,
+                            bundleId: "",
+                            infoPlist: .default,
+                            sources: [
+                                "\(packageFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupportWrapper",
+                            ],
+                            dependencies: [
+                                .xcframework(path: "\(artifactsFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupport.xcframework"),
+                                .project(target: "GULAppDelegateSwizzler", path: "../GoogleUtilities"),
+                                .project(target: "GULMethodSwizzler", path: "../GoogleUtilities"),
+                                .project(target: "GULNSData", path: "../GoogleUtilities"),
+                                .project(target: "GULNetwork", path: "../GoogleUtilities"),
+                                .project(target: "nanopb", path: "../nanopb"),
+                                .sdk(name: "sqlite3", status: .required),
+                                .sdk(name: "c++", status: .required),
+                                .sdk(name: "z", status: .required),
+                                .sdk(name: "StoreKit", status: .required),
+                            ]
+                        ),
+                    ],
+                    resourceSynthesizers: []
+                ),
+            ]
         )
     }
 
-    static func googleUtilities(packageFolder: Path) -> Self {
+    // swiftlint:disable:next function_body_length
+    static func googleUtilities(spmFolder: Path, customProductTypes: [String: Product] = [:]) -> Self {
+        let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
         return .init(
             externalDependencies: [
                 "GULAppDelegateSwizzler": [.project(target: "GULAppDelegateSwizzler", path: packageFolder)],
@@ -93,16 +242,91 @@ public extension DependenciesGraph {
                 "GULNSData": [.project(target: "GULNSData", path: packageFolder)],
                 "GULNetwork": [.project(target: "GULNetwork", path: packageFolder)],
             ],
-            externalProjects: [:]
+            externalProjects: [
+                packageFolder: .init(
+                    name: "GoogleUtilities",
+                    targets: [
+                        .init(
+                            name: "GULAppDelegateSwizzler",
+                            platform: .iOS,
+                            product: customProductTypes["GULAppDelegateSwizzler"] ?? .staticLibrary,
+                            bundleId: "",
+                            infoPlist: .default,
+                            sources: [
+                                "\(packageFolder.pathString)/Sources/GULAppDelegateSwizzler",
+                            ]
+                        ),
+                        .init(
+                            name: "GULMethodSwizzler",
+                            platform: .iOS,
+                            product: customProductTypes["GULMethodSwizzler"] ?? .staticLibrary,
+                            bundleId: "",
+                            infoPlist: .default,
+                            sources: [
+                                "\(packageFolder.pathString)/Sources/GULMethodSwizzler",
+                            ]
+                        ),
+                        .init(
+                            name: "GULNSData",
+                            platform: .iOS,
+                            product: customProductTypes["GULNSData"] ?? .staticLibrary,
+                            bundleId: "",
+                            infoPlist: .default,
+                            sources: [
+                                "\(packageFolder.pathString)/Sources/GULNSData",
+                            ]
+                        ),
+                        .init(
+                            name: "GULNetwork",
+                            platform: .iOS,
+                            product: customProductTypes["GULNetwork"] ?? .staticLibrary,
+                            bundleId: "",
+                            infoPlist: .default,
+                            sources: [
+                                "\(packageFolder.pathString)/Sources/GULNetwork",
+                            ]
+                        ),
+                    ],
+                    resourceSynthesizers: []
+                ),
+            ]
         )
     }
 
-    static func nanopb(packageFolder: Path) -> Self {
+    static func nanopb(spmFolder: Path) -> Self {
+        let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "nanopb")
         return .init(
             externalDependencies: [
                 "nanopb": [.project(target: "nanopb", path: packageFolder)],
             ],
-            externalProjects: [:]
+            externalProjects: [
+                packageFolder: .init(
+                    name: "nanopb",
+                    targets: [
+                        .init(
+                            name: "nanopb",
+                            platform: .iOS,
+                            product: .staticLibrary,
+                            bundleId: "",
+                            infoPlist: .default,
+                            sources: [
+                                "\(packageFolder.pathString)/Sources/nanopb",
+                            ]
+                        ),
+                    ],
+                    resourceSynthesizers: []
+                ),
+            ]
         )
+    }
+}
+
+public extension DependenciesGraph {
+    fileprivate static func artifactsFolder(spmFolder: Path, packageName: String) -> Path {
+        return Path("\(spmFolder.pathString)/artifacts/\(packageName)")
+    }
+
+    fileprivate static func packageFolder(spmFolder: Path, packageName: String) -> Path {
+        return Path("\(spmFolder.pathString)/checkouts/\(packageName)")
     }
 }
