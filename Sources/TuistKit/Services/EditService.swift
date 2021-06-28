@@ -45,10 +45,11 @@ final class EditService {
         self.pluginService = pluginService
     }
 
-    func run(path: String?,
-             permanent: Bool,
-             onlyCurrentDirectory _: Bool) throws
-    {
+    func run(
+        path: String?,
+        permanent: Bool,
+        onlyCurrentDirectory: Bool
+    ) throws {
         let path = self.path(path)
 
         if !permanent {
@@ -66,13 +67,23 @@ final class EditService {
                 }
 
                 let plugins = loadPlugins(at: path)
-                let workspacePath = try projectEditor.edit(at: path, in: generationDirectory, plugins: plugins)
+                let workspacePath = try projectEditor.edit(
+                    at: path,
+                    in: generationDirectory,
+                    onlyCurrentDirectory: onlyCurrentDirectory,
+                    plugins: plugins
+                )
                 logger.pretty("Opening Xcode to edit the project. Press \(.keystroke("CTRL + C")) once you are done editing")
                 try opener.open(path: workspacePath, application: selectedXcode.path, wait: true)
             }
         } else {
             let plugins = loadPlugins(at: path)
-            let workspacePath = try projectEditor.edit(at: path, in: path, plugins: plugins)
+            let workspacePath = try projectEditor.edit(
+                at: path,
+                in: path,
+                onlyCurrentDirectory: onlyCurrentDirectory,
+                plugins: plugins
+            )
             logger.notice("Xcode project generated at \(workspacePath.pathString)", metadata: .success)
         }
     }

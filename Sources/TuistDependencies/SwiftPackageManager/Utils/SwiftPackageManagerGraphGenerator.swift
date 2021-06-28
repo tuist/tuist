@@ -4,7 +4,6 @@ import TSCBasic
 import TSCUtility
 import TuistCore
 import TuistGraph
-import TuistLoader
 import TuistSupport
 
 // MARK: - Swift Package Manager Graph Generator Errors
@@ -53,26 +52,23 @@ public protocol SwiftPackageManagerGraphGenerating {
     /// - Parameter path: The path to the directory that contains the `checkouts` directory where `SwiftPackageManager` installed dependencies.
     /// - Parameter productTypes: The custom `Product` types to be used for SPM targets.
     /// - Parameter platforms: The supported platforms.
-    func generate(at path: AbsolutePath, productTypes: [String: TuistGraph.Product], platforms: Set<TuistGraph.Platform>) throws -> DependenciesGraph
+    func generate(at path: AbsolutePath, productTypes: [String: TuistGraph.Product], platforms: Set<TuistGraph.Platform>) throws -> ProjectDescription.DependenciesGraph
 }
 
 public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGenerating {
-    private let converter: ManifestModelConverting
     private let swiftPackageManagerController: SwiftPackageManagerControlling
 
     public init(
-        converter: ManifestModelConverting = ManifestModelConverter(),
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController()
     ) {
-        self.converter = converter
         self.swiftPackageManagerController = swiftPackageManagerController
     }
 
     public func generate(
-        at path: AbsolutePath,
-        productTypes: [String: TuistGraph.Product],
-        platforms: Set<TuistGraph.Platform>
-    ) throws -> DependenciesGraph {
+      at path: AbsolutePath,
+      productTypes: [String: TuistGraph.Product],
+      platforms: Set<TuistGraph.Platform>
+    ) throws -> ProjectDescription.DependenciesGraph {
         let packageFolders = try FileHandler.shared.contentsOfDirectory(path.appending(component: "checkouts"))
         let packageInfos: [(name: String, folder: AbsolutePath, artifactsFolder: AbsolutePath, info: PackageInfo)]
         packageInfos = try packageFolders.map { packageFolder in
@@ -90,12 +86,12 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             packageInfo.info.products.forEach { result[$0.name] = packageInfo.name }
         }
 
-        let externalDependencies: [String: [TuistGraph.TargetDependency]] = packageInfos.reduce(into: [:]) { result, packageInfo in
+        let externalDependencies: [String: [ProjectDescription.TargetDependency]] = packageInfos.reduce(into: [:]) { result, packageInfo in
             packageInfo.info.products.forEach { product in
-                result[product.name] = product.targets.map { .project(target: $0, path: packageInfo.folder) }
+                result[product.name] = product.targets.map { .project(target: $0, path: Path(packageInfo.folder.pathString)) }
             }
         }
-        let externalProjects: [AbsolutePath: TuistGraph.Project] = try packageInfos.reduce(into: [:]) { result, packageInfo in
+        let externalProjects: [Path: ProjectDescription.Project] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             let manifest = try ProjectDescription.Project.from(
                 packageInfo: packageInfo.info,
                 name: packageInfo.name,
@@ -104,12 +100,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 platforms: platforms,
                 productToPackage: productToPackage
             )
-            result[packageInfo.folder] = try converter.convert(
-                manifest: manifest,
-                path: packageInfo.folder,
-                plugins: .none,
-                externalDependencies: externalDependencies
-            )
+            result[Path(packageInfo.folder.pathString)] = manifest
         }
 
         return DependenciesGraph(externalDependencies: externalDependencies, externalProjects: externalProjects)

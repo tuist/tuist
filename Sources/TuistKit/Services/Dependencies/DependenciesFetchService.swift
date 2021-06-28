@@ -9,15 +9,18 @@ final class DependenciesFetchService {
     private let dependenciesController: DependenciesControlling
     private let dependenciesModelLoader: DependenciesModelLoading
     private let configLoading: ConfigLoading
+    private let converter: ManifestModelConverting
 
     init(
         dependenciesController: DependenciesControlling = DependenciesController(),
         dependenciesModelLoader: DependenciesModelLoading = DependenciesModelLoader(),
-        configLoading: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader())
+        configLoading: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
+        converter: ManifestModelConverting = ManifestModelConverter()
     ) {
         self.dependenciesController = dependenciesController
         self.dependenciesModelLoader = dependenciesModelLoader
         self.configLoading = configLoading
+        self.converter = converter
     }
 
     func run(path: String?) throws {
@@ -29,10 +32,17 @@ final class DependenciesFetchService {
         let config = try configLoading.loadConfig(path: path)
         let swiftVersion = config.swiftVersion
 
-        try dependenciesController.fetch(
+        let dependenciesManifest = try dependenciesController.fetch(
             at: path,
             dependencies: dependencies,
             swiftVersion: swiftVersion
+        )
+
+        let dependenciesGraph = try converter.convert(manifest: dependenciesManifest, path: path)
+
+        try dependenciesController.save(
+            dependenciesGraph: dependenciesGraph,
+            to: path
         )
 
         logger.info("Dependencies resolved and fetched successfully.", metadata: .success)

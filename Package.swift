@@ -589,7 +589,6 @@ let package = Package(
             dependencies: [
                 "ProjectDescription",
                 "TuistCore",
-                "TuistLoader",
                 "TuistGraph",
                 "TuistSupport",
             ]

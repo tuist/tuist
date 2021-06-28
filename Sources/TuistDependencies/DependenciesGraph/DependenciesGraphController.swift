@@ -6,18 +6,23 @@ import TuistSupport
 // MARK: - Dependencies Graph Controller Errors
 
 enum DependenciesGraphControllerError: FatalError, Equatable {
-    case failedToEncodeDependeniesGraph
+    case failedToDecodeDependenciesGraph
+    case failedToEncodeDependenciesGraph
 
     var type: ErrorType {
         switch self {
-        case .failedToEncodeDependeniesGraph:
+        case .failedToDecodeDependenciesGraph:
+            return .abort
+        case .failedToEncodeDependenciesGraph:
             return .bug
         }
     }
 
     var description: String {
         switch self {
-        case .failedToEncodeDependeniesGraph:
+        case .failedToDecodeDependenciesGraph:
+            return "Couldn't decode the DependenciesGraph from the serialized JSON file. Running `tuist dependencies fetch` should solve the problem."
+        case .failedToEncodeDependenciesGraph:
             return "Couldn't encode the DependenciesGraph as a JSON file."
         }
     }
@@ -54,7 +59,7 @@ public final class DependenciesGraphController: DependenciesGraphControlling {
         let encodedGraph = try jsonEncoder.encode(dependenciesGraph)
 
         guard let encodedGraphContent = String(data: encodedGraph, encoding: .utf8) else {
-            throw DependenciesGraphControllerError.failedToEncodeDependeniesGraph
+            throw DependenciesGraphControllerError.failedToEncodeDependenciesGraph
         }
 
         let graphPath = self.graphPath(at: path)
@@ -70,10 +75,12 @@ public final class DependenciesGraphController: DependenciesGraphControlling {
         }
         let graphData = try FileHandler.shared.readFile(graphPath)
 
-        let jsonDecoder = JSONDecoder()
-        let decodedGraph = try jsonDecoder.decode(DependenciesGraph.self, from: graphData)
-
-        return decodedGraph
+        do {
+            return try JSONDecoder().decode(DependenciesGraph.self, from: graphData)
+        } catch {
+            logger.debug("Failed to load dependencies graph, running `tuist dependencies fetch` should solve the problem.\nError: \(error)")
+            throw DependenciesGraphControllerError.failedToDecodeDependenciesGraph
+        }
     }
 
     public func clean(at path: AbsolutePath) throws {
