@@ -2,7 +2,6 @@ import ProjectDescription
 import TSCBasic
 import TSCUtility
 import TuistGraph
-import TuistGraph
 
 @testable import TuistDependencies
 

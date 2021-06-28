@@ -52,7 +52,11 @@ public protocol SwiftPackageManagerGraphGenerating {
     /// - Parameter path: The path to the directory that contains the `checkouts` directory where `SwiftPackageManager` installed dependencies.
     /// - Parameter productTypes: The custom `Product` types to be used for SPM targets.
     /// - Parameter platforms: The supported platforms.
-    func generate(at path: AbsolutePath, productTypes: [String: TuistGraph.Product], platforms: Set<TuistGraph.Platform>) throws -> ProjectDescription.DependenciesGraph
+    func generate(
+        at path: AbsolutePath,
+        productTypes: [String: TuistGraph.Product],
+        platforms: Set<TuistGraph.Platform>
+    ) throws -> ProjectDescription.DependenciesGraph
 }
 
 public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGenerating {
@@ -65,9 +69,9 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
     }
 
     public func generate(
-      at path: AbsolutePath,
-      productTypes: [String: TuistGraph.Product],
-      platforms: Set<TuistGraph.Platform>
+        at path: AbsolutePath,
+        productTypes: [String: TuistGraph.Product],
+        platforms: Set<TuistGraph.Platform>
     ) throws -> ProjectDescription.DependenciesGraph {
         let packageFolders = try FileHandler.shared.contentsOfDirectory(path.appending(component: "checkouts"))
         let packageInfos: [(name: String, folder: AbsolutePath, artifactsFolder: AbsolutePath, info: PackageInfo)]
@@ -122,7 +126,7 @@ extension ProjectDescription.Project {
                 packageName: name,
                 packageInfo: packageInfo,
                 folder: folder,
-              productTypes: productTypes,
+                productTypes: productTypes,
                 platforms: platforms,
                 productToPackage: productToPackage
             )
@@ -205,7 +209,6 @@ extension PackageInfo.Target {
                 case let .library(type):
                     if let productType = productTypes[name] {
                         return ProjectDescription.Product.from(product: productType)
-
                     }
 
                     switch type {
