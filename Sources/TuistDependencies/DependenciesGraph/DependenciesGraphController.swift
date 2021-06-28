@@ -78,6 +78,7 @@ public final class DependenciesGraphController: DependenciesGraphControlling {
         do {
             return try JSONDecoder().decode(DependenciesGraph.self, from: graphData)
         } catch {
+            logger.debug("Failed to load dependencies graph, running `tuist dependencies fetch` should solve the problem.\nError: \(error)")
             throw DependenciesGraphControllerError.failedToDecodeDependenciesGraph
         }
     }
