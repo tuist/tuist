@@ -110,11 +110,11 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got.count, 2)
-        guard case let .xcframework(path) = got[0] else {
+        guard case let .xcframework(frameworkPath) = got[0] else {
             XCTFail("First dependency should be xcframework")
             return
         }
-        XCTAssertEqual(path, "/path.xcframework")
+        XCTAssertEqual(frameworkPath, "/path.xcframework")
 
         guard case let .project(target, path) = got[1] else {
             XCTFail("Dependency should be project")

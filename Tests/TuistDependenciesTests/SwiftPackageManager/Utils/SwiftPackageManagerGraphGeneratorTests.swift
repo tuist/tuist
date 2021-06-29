@@ -81,20 +81,20 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
             at: path,
             productTypes: [
                 "GULMethodSwizzler": .framework,
-                "GULNetwork": .dynamicLibrary
+                "GULNetwork": .dynamicLibrary,
             ],
             platforms: [.iOS]
         )
 
         // Then
-        let expected = try ProjectDescription.DependenciesGraph.none
+        let expected = try TuistDependencies.DependenciesGraph.none
             .merging(with: DependenciesGraph.alamofire(spmFolder: spmFolder))
             .merging(with: DependenciesGraph.googleAppMeasurement(spmFolder: spmFolder))
             .merging(with: DependenciesGraph.googleUtilities(
                 spmFolder: spmFolder,
                 customProductTypes: [
                     "GULMethodSwizzler": .framework,
-                    "GULNetwork": .dynamicLibrary
+                    "GULNetwork": .dynamicLibrary,
                 ]
             ))
             .merging(with: DependenciesGraph.nanopb(spmFolder: spmFolder))
@@ -106,7 +106,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
     }
 }
 
-extension ProjectDescription.DependenciesGraph {
+extension TuistDependencies.DependenciesGraph {
     public func merging(with other: Self) throws -> Self {
         let mergedExternalDependencies = other.externalDependencies.reduce(into: externalDependencies) { result, entry in
             result[entry.key] = entry.value

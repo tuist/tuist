@@ -15,7 +15,7 @@ public final class MockSwiftPackageManagerInteractor: SwiftPackageManagerInterac
             Set<TuistGraph.Platform>,
             Bool,
             String?
-        ) throws -> ProjectDescription.DependenciesGraph
+        ) throws -> TuistDependencies.DependenciesGraph
     )?
 
     public func install(
@@ -24,7 +24,7 @@ public final class MockSwiftPackageManagerInteractor: SwiftPackageManagerInterac
         platforms: Set<TuistGraph.Platform>,
         shouldUpdate: Bool,
         swiftToolsVersion: String?
-    ) throws -> ProjectDescription.DependenciesGraph {
+    ) throws -> TuistDependencies.DependenciesGraph {
         invokedInstall = true
         return try installStub?(dependenciesDirectory, dependencies, platforms, shouldUpdate, swiftToolsVersion) ?? .none
     }

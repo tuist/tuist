@@ -8,25 +8,25 @@ public final class MockDependenciesController: DependenciesControlling {
     public init() {}
 
     var invokedFetch = false
-    var fetchStub: ((AbsolutePath, TuistGraph.Dependencies, String?) throws -> ProjectDescription.DependenciesGraph)?
+    var fetchStub: ((AbsolutePath, TuistGraph.Dependencies, String?) throws -> TuistDependencies.DependenciesGraph)?
 
     public func fetch(
         at path: AbsolutePath,
         dependencies: TuistGraph.Dependencies,
         swiftVersion: String?
-    ) throws -> ProjectDescription.DependenciesGraph {
+    ) throws -> TuistDependencies.DependenciesGraph {
         invokedFetch = true
         return try fetchStub?(path, dependencies, swiftVersion) ?? .none
     }
 
     var invokedUpdate = false
-    var updateStub: ((AbsolutePath, TuistGraph.Dependencies, String?) throws -> ProjectDescription.DependenciesGraph)?
+    var updateStub: ((AbsolutePath, TuistGraph.Dependencies, String?) throws -> TuistDependencies.DependenciesGraph)?
 
     public func update(
         at path: AbsolutePath,
         dependencies: TuistGraph.Dependencies,
         swiftVersion: String?
-    ) throws -> ProjectDescription.DependenciesGraph {
+    ) throws -> TuistDependencies.DependenciesGraph {
         invokedUpdate = true
         return try updateStub?(path, dependencies, swiftVersion) ?? .none
     }

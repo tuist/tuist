@@ -61,7 +61,7 @@ public protocol DependenciesControlling {
         at path: AbsolutePath,
         dependencies: TuistGraph.Dependencies,
         swiftVersion: String?
-    ) throws -> ProjectDescription.DependenciesGraph
+    ) throws -> TuistDependencies.DependenciesGraph
 
     /// Updates dependencies.
     /// - Parameters:
@@ -72,7 +72,7 @@ public protocol DependenciesControlling {
         at path: AbsolutePath,
         dependencies: TuistGraph.Dependencies,
         swiftVersion: String?
-    ) throws -> ProjectDescription.DependenciesGraph
+    ) throws -> TuistDependencies.DependenciesGraph
 
     /// Save dependencies graph.
     /// - Parameters:
@@ -108,7 +108,7 @@ public final class DependenciesController: DependenciesControlling {
         at path: AbsolutePath,
         dependencies: TuistGraph.Dependencies,
         swiftVersion: String?
-    ) throws -> ProjectDescription.DependenciesGraph {
+    ) throws -> TuistDependencies.DependenciesGraph {
         return try install(
             at: path,
             dependencies: dependencies,
@@ -121,7 +121,7 @@ public final class DependenciesController: DependenciesControlling {
         at path: AbsolutePath,
         dependencies: TuistGraph.Dependencies,
         swiftVersion: String?
-    ) throws -> ProjectDescription.DependenciesGraph {
+    ) throws -> TuistDependencies.DependenciesGraph {
         return try install(
             at: path,
             dependencies: dependencies,
@@ -148,7 +148,7 @@ public final class DependenciesController: DependenciesControlling {
         dependencies: TuistGraph.Dependencies,
         shouldUpdate: Bool,
         swiftVersion: String?
-    ) throws -> ProjectDescription.DependenciesGraph {
+    ) throws -> TuistDependencies.DependenciesGraph {
         let dependenciesDirectory = path
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
@@ -158,7 +158,7 @@ public final class DependenciesController: DependenciesControlling {
             throw DependenciesControllerError.noPlatforms
         }
 
-        var dependenciesGraph = ProjectDescription.DependenciesGraph.none
+        var dependenciesGraph = TuistDependencies.DependenciesGraph.none
 
         if let carthageDependencies = dependencies.carthage, !carthageDependencies.dependencies.isEmpty {
             let carthageDependenciesGraph = try carthageInteractor.install(
@@ -189,7 +189,7 @@ public final class DependenciesController: DependenciesControlling {
     }
 }
 
-extension ProjectDescription.DependenciesGraph {
+extension TuistDependencies.DependenciesGraph {
     public func merging(with other: Self) throws -> Self {
         let mergedExternalDependencies = try other.externalDependencies.reduce(into: externalDependencies) { result, entry in
             if let alreadyPresent = result[entry.key] {

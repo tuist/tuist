@@ -36,11 +36,11 @@ public protocol DependenciesGraphControlling {
     /// - Parameters:
     ///   - dependenciesGraph: A model that will be saved.
     ///   - path: Directory where project's dependencies graph will be saved.
-    func save(_ dependenciesGraph: DependenciesGraph, to path: AbsolutePath) throws
+    func save(_ dependenciesGraph: TuistGraph.DependenciesGraph, to path: AbsolutePath) throws
 
     /// Loads the `DependenciesGraph` from `graph.json` file.
     /// - Parameter path: Directory where project's dependencies graph will be loaded.
-    func load(at path: AbsolutePath) throws -> DependenciesGraph
+    func load(at path: AbsolutePath) throws -> TuistGraph.DependenciesGraph
 
     /// Removes cached `graph.json`.
     /// - Parameter path: Directory where project's dependencies graph was saved.
@@ -52,7 +52,7 @@ public protocol DependenciesGraphControlling {
 public final class DependenciesGraphController: DependenciesGraphControlling {
     public init() {}
 
-    public func save(_ dependenciesGraph: DependenciesGraph, to path: AbsolutePath) throws {
+    public func save(_ dependenciesGraph: TuistGraph.DependenciesGraph, to path: AbsolutePath) throws {
         let jsonEncoder = JSONEncoder()
         jsonEncoder.outputFormatting = .prettyPrinted
 
@@ -68,7 +68,7 @@ public final class DependenciesGraphController: DependenciesGraphControlling {
         try FileHandler.shared.write(encodedGraphContent, path: graphPath, atomically: true)
     }
 
-    public func load(at path: AbsolutePath) throws -> DependenciesGraph {
+    public func load(at path: AbsolutePath) throws -> TuistGraph.DependenciesGraph {
         let graphPath = self.graphPath(at: path)
         guard FileHandler.shared.exists(graphPath) else {
             return .none
@@ -76,7 +76,7 @@ public final class DependenciesGraphController: DependenciesGraphControlling {
         let graphData = try FileHandler.shared.readFile(graphPath)
 
         do {
-            return try JSONDecoder().decode(DependenciesGraph.self, from: graphData)
+            return try JSONDecoder().decode(TuistGraph.DependenciesGraph.self, from: graphData)
         } catch {
             logger.debug("Failed to load dependencies graph, running `tuist dependencies fetch` should solve the problem.\nError: \(error)")
             throw DependenciesGraphControllerError.failedToDecodeDependenciesGraph
