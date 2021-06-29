@@ -57,7 +57,7 @@ public protocol CarthageInteracting {
         dependencies: TuistGraph.CarthageDependencies,
         platforms: Set<TuistGraph.Platform>,
         shouldUpdate: Bool
-    ) throws -> ProjectDescription.DependenciesGraph
+    ) throws -> DependenciesGraph
 
     /// Removes all cached `Carthage` dependencies.
     /// - Parameter dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
@@ -83,7 +83,7 @@ public final class CarthageInteractor: CarthageInteracting {
         dependencies: TuistGraph.CarthageDependencies,
         platforms: Set<TuistGraph.Platform>,
         shouldUpdate: Bool
-    ) throws -> ProjectDescription.DependenciesGraph {
+    ) throws -> DependenciesGraph {
         logger.info("Installing Carthage dependencies.", metadata: .subsection)
 
         // check availability of `carthage`
@@ -92,7 +92,7 @@ public final class CarthageInteractor: CarthageInteracting {
         }
 
         // install dependencies and generate dependencies graph
-        let dependenciesGraph: ProjectDescription.DependenciesGraph = try FileHandler.shared
+        let dependenciesGraph: DependenciesGraph = try FileHandler.shared
             .inTemporaryDirectory { temporaryDirectoryPath in
                 // prepare paths
                 let pathsProvider = CarthagePathsProvider(

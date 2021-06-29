@@ -1,8 +1,9 @@
 import Foundation
 import ProjectDescription
 import TSCBasic
+import TuistDependencies
 
-public extension DependenciesGraph {
+public extension TuistDependencies.DependenciesGraph {
     /// A snapshot of `graph.json` file.
     static var testJson: String {
         """
@@ -30,7 +31,7 @@ public extension DependenciesGraph {
     static func testXCFramework(
         name: String = "Test",
         path: Path = Path(AbsolutePath.root.appending(RelativePath("Test.xcframework")).pathString)
-    ) -> DependenciesGraph {
+    ) -> Self {
         return .init(
             externalDependencies: [
                 name: [.xcframework(path: path)],
