@@ -165,7 +165,7 @@ extension ProjectDescription.Target {
             return nil
         }
 
-        guard let product: ProjectDescription.Product = .from(name: target.name, packageInfo: packageInfo, productTypes: productTypes) else {
+        guard let product = ProjectDescription.Product.from(name: target.name, packageInfo: packageInfo, productTypes: productTypes) else {
             logger.debug("Target \(target.name) ignored by product type")
             return nil
         }
