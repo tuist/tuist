@@ -226,7 +226,7 @@ extension ProjectDescription.DeploymentTarget {
         configured: Set<TuistGraph.Platform>,
         package: [PackageInfo.Platform],
         packageName: String
-    ) throws -> Self? {
+    ) throws -> Self {
         let platform = try ProjectDescription.Platform.from(configured: configured, package: package, packageName: packageName)
         switch platform {
         case .iOS:
