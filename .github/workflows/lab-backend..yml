@@ -9,6 +9,10 @@ on:
       - projects/lab-backend-api/**
       - .github/workflows/lab.yml
 
+concurrency: 
+  group: ${{ github.head_ref }}
+  cancel-in-progress: true
+
 env:
   RAILS_ENV: test
   RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}

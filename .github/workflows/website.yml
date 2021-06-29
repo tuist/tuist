@@ -7,6 +7,11 @@ on:
   pull_request:
     paths:
       - projects/website/**
+
+concurrency: 
+  group: ${{ github.head_ref }}
+  cancel-in-progress: true
+
 env:
   RUBY_VERSION: '3.0.1'
 
