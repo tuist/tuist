@@ -393,7 +393,8 @@ extension Optional where Wrapped == ProjectDescription.Settings {
             settingsDictionary["HEADER_SEARCH_PATHS"] = .array(headerSearchPaths)
         }
         if !defines.isEmpty {
-            settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array(defines.map { key, value in "\(key)=\(value)" })
+            let sortedDefines = defines.sorted { $0.key < $1.key }
+            settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array(sortedDefines.map { key, value in "\(key)=\(value)" })
         }
         if !swiftDefines.isEmpty {
             settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .array(swiftDefines)

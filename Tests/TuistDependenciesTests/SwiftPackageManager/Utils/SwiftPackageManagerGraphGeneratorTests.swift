@@ -87,7 +87,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
             at: path,
             productTypes: [
                 "GULMethodSwizzler": .framework,
-                "GULNetwork": .dynamicLibrary
+                "GULNetwork": .dynamicLibrary,
             ],
             platforms: [.iOS]
         )
