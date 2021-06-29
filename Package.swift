@@ -711,6 +711,7 @@ let package = Package(
                 "XcodeProj",
                 swiftToolsSupportDependency,
                 "TuistCore",
+                "TuistDependencies",
                 "TuistGraph",
                 "TuistSupport",
                 "ProjectDescription",

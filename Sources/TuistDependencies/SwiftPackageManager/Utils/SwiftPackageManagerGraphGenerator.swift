@@ -51,7 +51,7 @@ public protocol SwiftPackageManagerGraphGenerating {
     /// Generates the `DependenciesGraph` for the `SwiftPackageManager` dependencies.
     /// - Parameter path: The path to the directory that contains the `checkouts` directory where `SwiftPackageManager` installed dependencies.
     /// - Parameter platforms: The supported platforms.
-    func generate(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>) throws -> ProjectDescription.DependenciesGraph
+    func generate(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>) throws -> DependenciesGraph
 }
 
 public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGenerating {
@@ -63,7 +63,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         self.swiftPackageManagerController = swiftPackageManagerController
     }
 
-    public func generate(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>) throws -> ProjectDescription.DependenciesGraph {
+    public func generate(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>) throws -> DependenciesGraph {
         let packageFolders = try FileHandler.shared.contentsOfDirectory(path.appending(component: "checkouts"))
         let packageInfos: [(name: String, folder: AbsolutePath, artifactsFolder: AbsolutePath, info: PackageInfo)]
         packageInfos = try packageFolders.map { packageFolder in
