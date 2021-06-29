@@ -56,7 +56,7 @@ public protocol SwiftPackageManagerGraphGenerating {
         at path: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
         platforms: Set<TuistGraph.Platform>
-    ) throws -> TuistDependencies.DependenciesGraph
+    ) throws -> TuistCore.DependenciesGraph
 }
 
 public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGenerating {
@@ -72,7 +72,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         at path: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
         platforms: Set<TuistGraph.Platform>
-    ) throws -> TuistDependencies.DependenciesGraph {
+    ) throws -> TuistCore.DependenciesGraph {
         let packageFolders = try FileHandler.shared.contentsOfDirectory(path.appending(component: "checkouts"))
         let packageInfos: [(name: String, folder: AbsolutePath, artifactsFolder: AbsolutePath, info: PackageInfo)]
         packageInfos = try packageFolders.map { packageFolder in
