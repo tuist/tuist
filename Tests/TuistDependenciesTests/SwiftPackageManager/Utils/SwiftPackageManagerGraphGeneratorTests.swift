@@ -1,4 +1,5 @@
 import ProjectDescription
+import TuistCore
 import TuistDependencies
 import TuistGraph
 import XCTest
@@ -80,7 +81,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
         let got = try subject.generate(at: path, platforms: [.iOS])
 
         // Then
-        let expected = try TuistDependencies.DependenciesGraph.none
+        let expected = try TuistCore.DependenciesGraph.none
             .merging(with: DependenciesGraph.alamofire(spmFolder: spmFolder))
             .merging(with: DependenciesGraph.googleAppMeasurement(spmFolder: spmFolder))
             .merging(with: DependenciesGraph.googleUtilities(spmFolder: spmFolder))
@@ -93,7 +94,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
     }
 }
 
-extension TuistDependencies.DependenciesGraph {
+extension TuistCore.DependenciesGraph {
     public func merging(with other: Self) throws -> Self {
         let mergedExternalDependencies = other.externalDependencies.reduce(into: externalDependencies) { result, entry in
             result[entry.key] = entry.value

@@ -15,7 +15,7 @@ public protocol ManifestModelConverting {
         plugins: Plugins,
         externalDependencies: [String: [TuistGraph.TargetDependency]]
     ) throws -> TuistGraph.Project
-    func convert(manifest: TuistDependencies.DependenciesGraph, path: AbsolutePath) throws -> TuistGraph.DependenciesGraph
+    func convert(manifest: TuistCore.DependenciesGraph, path: AbsolutePath) throws -> TuistGraph.DependenciesGraph
 }
 
 public final class ManifestModelConverter: ManifestModelConverting {
@@ -76,7 +76,7 @@ public final class ManifestModelConverter: ManifestModelConverting {
     }
 
     public func convert(
-        manifest: TuistDependencies.DependenciesGraph,
+        manifest: TuistCore.DependenciesGraph,
         path: AbsolutePath
     ) throws -> TuistGraph.DependenciesGraph {
         let externalDependencies = try manifest.externalDependencies.mapValues { targetDependencies in

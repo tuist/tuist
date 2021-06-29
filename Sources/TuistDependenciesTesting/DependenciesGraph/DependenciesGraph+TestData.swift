@@ -1,9 +1,10 @@
 import Foundation
 import ProjectDescription
 import TSCBasic
+import TuistCore
 import TuistDependencies
 
-public extension TuistDependencies.DependenciesGraph {
+public extension TuistCore.DependenciesGraph {
     /// A snapshot of `graph.json` file.
     static var testJson: String {
         """
