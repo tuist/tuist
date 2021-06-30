@@ -18,13 +18,16 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
     /// Thrown when `PackageInfo.Platform` name cannot be mapped to a `DeploymentTarget`.
     case unknownPlatform(String)
 
+    /// Thrown when `PackageInfo.Target.Dependency.product` dependency cannot be resolved.
+    case unknownProductDependency(String, String)
+
     /// Thrown when unsupported `PackageInfo.Target.TargetBuildSettingDescription` `Tool`/`SettingName` pair is found.
     case unsupportedSetting(PackageInfo.Target.TargetBuildSettingDescription.Tool, PackageInfo.Target.TargetBuildSettingDescription.SettingName)
 
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .noSupportedPlatforms, .unknownByNameDependency, .unknownPlatform, .unsupportedSetting:
+        case .noSupportedPlatforms, .unknownByNameDependency, .unknownPlatform, .unknownProductDependency, .unsupportedSetting:
             return .abort
         }
     }
@@ -38,6 +41,8 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
             return "The package associated to the \(name) dependency cannot be found."
         case let .unknownPlatform(platform):
             return "The \(platform) platform is not supported."
+        case let .unknownProductDependency(name, package):
+            return "The product \(name) of the package \(package) cannot be found."
         case let .unsupportedSetting(tool, setting):
             return "The \(tool) and \(setting) pair is not a supported setting."
         }
@@ -73,6 +78,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         productTypes: [String: TuistGraph.Product],
         platforms: Set<TuistGraph.Platform>
     ) throws -> TuistCore.DependenciesGraph {
+        let artifactsFolder = path.appending(component: "artifacts")
         let packageFolders = try FileHandler.shared.contentsOfDirectory(path.appending(component: "checkouts"))
         let packageInfos: [(name: String, folder: AbsolutePath, artifactsFolder: AbsolutePath, info: PackageInfo)]
         packageInfos = try packageFolders.map { packageFolder in
@@ -81,7 +87,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             return (
                 name: name,
                 folder: packageFolder,
-                artifactsFolder: path.appending(component: "artifacts").appending(component: name),
+                artifactsFolder: artifactsFolder.appending(component: name),
                 info: packageInfo
             )
         }
@@ -95,8 +101,9 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 result[product.name] = product.targets.map { .project(target: $0, path: Path(packageInfo.folder.pathString)) }
             }
         }
+        let packageInfoDictionary = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.info) })
         let externalProjects: [Path: ProjectDescription.Project] = try packageInfos.reduce(into: [:]) { result, packageInfo in
-            let artifactsFolder = path.appending(component: "artifacts").appending(component: packageInfo.name)
+            let artifactsFolder = artifactsFolder.appending(component: packageInfo.name)
             let targetDependencyToFramework: [String: Path] = packageInfo.info.targets.reduce(into: [:]) { result, target in
                 guard target.type == .binary else { return }
 
@@ -105,6 +112,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
 
             let manifest = try ProjectDescription.Project.from(
                 packageInfo: packageInfo.info,
+                packageInfos: packageInfoDictionary,
                 name: packageInfo.name,
                 folder: packageInfo.folder,
                 productTypes: productTypes,
@@ -122,6 +130,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
 extension ProjectDescription.Project {
     fileprivate static func from(
         packageInfo: PackageInfo,
+        packageInfos: [String: PackageInfo],
         name: String,
         folder: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
@@ -134,6 +143,7 @@ extension ProjectDescription.Project {
                 target: target,
                 packageName: name,
                 packageInfo: packageInfo,
+                packageInfos: packageInfos,
                 folder: folder,
                 productTypes: productTypes,
                 platforms: platforms,
@@ -154,6 +164,7 @@ extension ProjectDescription.Target {
         target: PackageInfo.Target,
         packageName: String,
         packageInfo: PackageInfo,
+        packageInfos: [String: PackageInfo],
         folder: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
         platforms: Set<TuistGraph.Platform>,
@@ -165,40 +176,51 @@ extension ProjectDescription.Target {
             return nil
         }
 
-        guard let product = target.mapProduct(packageInfo: packageInfo, productTypes: productTypes) else {
+        guard let product = ProjectDescription.Product.from(name: target.name, packageInfo: packageInfo, productTypes: productTypes) else {
             logger.debug("Target \(target.name) ignored by product type")
             return nil
         }
 
         let path = folder.appending(RelativePath(target.path ?? "Sources/\(target.name)"))
 
+        let platform = try ProjectDescription.Platform.from(configured: platforms, package: packageInfo.platforms, packageName: packageName)
+        let deploymentTarget = try ProjectDescription.DeploymentTarget.from(configured: platforms, package: packageInfo.platforms, packageName: packageName)
+        let sources = SourceFilesList.from(sources: target.sources, path: path, excluding: target.exclude)
+        let resources = ResourceFileElements.from(resources: target.resources, path: path)
+        let dependencies = try ProjectDescription.TargetDependency.from(
+          packageInfo: packageInfo,
+          packageInfos: packageInfos,
+          dependencies: target.dependencies,
+          settings: target.settings,
+          packageName: packageName,
+          productToPackage: productToPackage,
+          targetDependencyToFramework: targetDependencyToFramework
+        )
+        let settings = try Settings.from(settings: target.settings)
+
         return .init(
             name: target.name,
-            platform: try target.mapPlatform(configured: platforms, package: packageInfo.platforms, packageName: packageName),
+            platform: platform,
             product: product,
-            bundleId: "",
+            bundleId: target.name,
+            deploymentTarget: deploymentTarget,
             infoPlist: .default,
-            sources: target.mapSources(path: path),
-            resources: target.mapResources(path: path),
-            dependencies: try target.mapDependencies(
-                packageName: packageName,
-                packageInfo: packageInfo,
-                productToPackage: productToPackage,
-                targetDependencyToFramework: targetDependencyToFramework
-            ),
-            settings: try target.mapSettings()
+            sources: sources,
+            resources: resources,
+            dependencies: dependencies,
+            settings: settings
         )
     }
 }
 
-extension PackageInfo.Target {
-    func mapPlatform(
+extension ProjectDescription.Platform {
+    fileprivate static func from(
         configured: Set<TuistGraph.Platform>,
         package: [PackageInfo.Platform],
         packageName: String
-    ) throws -> ProjectDescription.Platform {
+    ) throws -> Self {
         let configuredPlatforms = Set(configured.map(\.descriptionPlatform))
-        let packagePlatform = Set(try package.map { try $0.descriptionPlatform() })
+        let packagePlatform = Set(package.isEmpty ? ProjectDescription.Platform.allCases : try package.map { try $0.descriptionPlatform() })
         let validPlatforms = configuredPlatforms.intersection(packagePlatform)
 
         #warning("Handle multiple platforms when supported in ProjectDescription.Target")
@@ -216,31 +238,63 @@ extension PackageInfo.Target {
 
         return platform
     }
+}
 
-    func mapProduct(packageInfo: PackageInfo, productTypes: [String: TuistGraph.Product]) -> ProjectDescription.Product? {
+extension ProjectDescription.DeploymentTarget {
+    fileprivate static func from(
+        configured: Set<TuistGraph.Platform>,
+        package: [PackageInfo.Platform],
+        packageName: String
+    ) throws -> Self? {
+        guard !package.isEmpty else {
+            return nil
+        }
+
+        let platform = try ProjectDescription.Platform.from(configured: configured, package: package, packageName: packageName)
+        switch platform {
+        case .iOS:
+            let packagePlatform = package.first { $0.platformName == "ios" }!
+            return .iOS(targetVersion: packagePlatform.version, devices: [.iphone, .ipad, .mac])
+        case .macOS:
+            let packagePlatform = package.first { $0.platformName == "macos" }!
+            return .macOS(targetVersion: packagePlatform.version)
+        case .watchOS:
+            let packagePlatform = package.first { $0.platformName == "watchos" }!
+            return .watchOS(targetVersion: packagePlatform.version)
+        case .tvOS:
+            let packagePlatform = package.first { $0.platformName == "tvos" }!
+            return .tvOS(targetVersion: packagePlatform.version)
+        }
+    }
+}
+
+extension ProjectDescription.Product {
+    fileprivate static func from(name: String, packageInfo: PackageInfo, productTypes: [String: TuistGraph.Product]) -> Self? {
+        if let productType = productTypes[name] {
+            return ProjectDescription.Product.from(product: productType)
+        }
+
         return packageInfo.products
             .filter { $0.targets.contains(name) }
             .compactMap {
                 switch $0.type {
                 case let .library(type):
-                    if let productType = productTypes[name] {
-                        return ProjectDescription.Product.from(product: productType)
-                    }
-
                     switch type {
                     case .static, .automatic:
-                        return .staticLibrary
+                        return .staticFramework
                     case .dynamic:
-                        return .dynamicLibrary
+                        return .framework
                     }
                 case .executable, .plugin, .test:
                     return nil
                 }
             }
-            .first
+            .first ?? .staticFramework
     }
+}
 
-    func mapSources(path: AbsolutePath) -> SourceFilesList? {
+extension SourceFilesList {
+    fileprivate static func from(sources: [String]?, path: AbsolutePath, excluding: [String]) -> Self? {
         let sourcesPaths: [AbsolutePath]
         if let customSources = sources {
             sourcesPaths = customSources.map { path.appending(RelativePath($0)) }
@@ -248,48 +302,72 @@ extension PackageInfo.Target {
             sourcesPaths = [path]
         }
         guard !sourcesPaths.isEmpty else { return nil }
-        return .init(globs: sourcesPaths.map(\.pathString))
+        return .init(
+            globs: sourcesPaths.map { absolutePath -> ProjectDescription.SourceFileGlob in
+                let glob = absolutePath.extension != nil ? absolutePath : absolutePath.appending(component: "**")
+                return .init(
+                    Path(glob.pathString),
+                    excluding: excluding.map { Path($0) }
+                )
+            }
+        )
     }
+}
 
-    func mapResources(path: AbsolutePath) -> ResourceFileElements? {
+extension ResourceFileElements {
+    fileprivate static func from(resources: [PackageInfo.Target.Resource], path: AbsolutePath) -> Self? {
         let resourcesPaths = resources.map { path.appending(RelativePath($0.path)) }
         guard !resourcesPaths.isEmpty else { return nil }
-        return .init(resources: resourcesPaths.map { .glob(pattern: Path($0.pathString)) })
+        return .init(resources: resourcesPaths.map { absolutePath in
+            let absolutePathGlob = absolutePath.extension != nil ? absolutePath : absolutePath.appending(component: "**")
+            return .glob(pattern: Path(absolutePathGlob.pathString))
+        })
     }
+}
 
-    func mapDependencies(
-        packageName: String,
-        packageInfo _: PackageInfo,
+extension ProjectDescription.TargetDependency {
+    fileprivate static func from(
+        packageInfo: PackageInfo,
+        packageInfos: [String: PackageInfo],
+        dependencies: [PackageInfo.Target.Dependency],
+        settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
+        packageName _: String,
         productToPackage: [String: String],
         targetDependencyToFramework: [String: Path]
-    ) throws -> [ProjectDescription.TargetDependency] {
-        let targetDependencies: [ProjectDescription.TargetDependency] = try dependencies.map { dependency in
+    ) throws -> [Self] {
+        let targetDependencies = try dependencies.flatMap { dependency -> [ProjectDescription.TargetDependency] in
             switch dependency {
             case let .target(name, _):
-                return .target(name: name)
+                return [.target(name: name)]
             case let .product(name, package, _):
-                return .project(target: name, path: Path(RelativePath("../\(package)").pathString))
-            case let .byName(name, _):
-                guard let package = productToPackage[name] else {
-                    throw SwiftPackageManagerGraphGeneratorError.unknownByNameDependency(name)
+                guard let targets = packageInfos[package]?.products.first(where: { $0.name == name })?.targets else {
+                    throw SwiftPackageManagerGraphGeneratorError.unknownProductDependency(name, package)
                 }
-
-                if package == packageName {
+                return targets.map { .project(target: $0, path: Path(RelativePath("../\(package)").pathString)) }
+            case let .byName(name, _):
+                if packageInfo.targets.contains(where: { $0.name == name }) {
                     if let framework = targetDependencyToFramework[name] {
-                        return .xcframework(path: framework)
+                        return [.xcframework(path: framework)]
                     } else {
-                        return .target(name: name)
+                        return [.target(name: name)]
                     }
+                } else if let package = productToPackage[name] {
+                    guard let targets = packageInfos[package]?.products.first(where: { $0.name == name })?.targets else {
+                        throw SwiftPackageManagerGraphGeneratorError.unknownProductDependency(name, package)
+                    }
+                    return targets.map { .project(target: $0, path: Path(RelativePath("../\(package)").pathString)) }
                 } else {
-                    return .project(target: name, path: Path(RelativePath("../\(package)").pathString))
+                    throw SwiftPackageManagerGraphGeneratorError.unknownByNameDependency(name)
                 }
             }
         }
 
         let linkerDependencies: [ProjectDescription.TargetDependency] = settings.compactMap { setting in
             switch (setting.tool, setting.name) {
-            case (.linker, .linkedFramework), (.linker, .linkedLibrary):
-                return .sdk(name: setting.value[0], status: .required)
+            case (.linker, .linkedFramework):
+                return .sdk(name: "\(setting.value[0]).framework", status: .required)
+            case (.linker, .linkedLibrary):
+                return .sdk(name: "\(setting.value[0]).tbd", status: .required)
             case (.c, _), (.cxx, _), (.swift, _), (.linker, .headerSearchPath), (.linker, .define), (.linker, .unsafeFlags):
                 return nil
             }
@@ -297,43 +375,39 @@ extension PackageInfo.Target {
 
         return targetDependencies + linkerDependencies
     }
+}
 
-    func mapSettings() throws -> ProjectDescription.Settings? {
-        var cHeaderSearchPaths: [String] = []
-        var cxxHeaderSearchPaths: [String] = []
-        var cDefines: [String: String] = [:]
-        var cxxDefines: [String: String] = [:]
-        var swiftDefines: [String: String] = [:]
+extension ProjectDescription.Settings {
+    // swiftlint:disable:next function_body_length
+    fileprivate static func from(
+        settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting]
+    ) throws -> Self? {
+        var headerSearchPaths: [String] = []
+        var defines: [String: String] = [:]
+        var swiftDefines: [String] = []
         var cFlags: [String] = []
         var cxxFlags: [String] = []
         var swiftFlags: [String] = []
 
         try settings.forEach { setting in
             switch (setting.tool, setting.name) {
-            case (.c, .headerSearchPath):
-                cHeaderSearchPaths.append(setting.value[0])
-            case (.c, .define):
+            case (.c, .headerSearchPath), (.cxx, .headerSearchPath):
+                headerSearchPaths.append(setting.value[0])
+            case (.c, .define), (.cxx, .define):
                 let (name, value) = setting.extractDefine
-                cDefines[name] = value
+                defines[name] = value
             case (.c, .unsafeFlags):
                 cFlags.append(contentsOf: setting.value)
-
-            case (.cxx, .define):
-                let (name, value) = setting.extractDefine
-                cxxDefines[name] = value
-            case (.cxx, .headerSearchPath):
-                cxxHeaderSearchPaths.append(setting.value[0])
             case (.cxx, .unsafeFlags):
                 cxxFlags.append(contentsOf: setting.value)
-
             case (.swift, .define):
-                let (name, value) = setting.extractDefine
-                swiftDefines[name] = value
+                swiftDefines.append(setting.value[0])
             case (.swift, .unsafeFlags):
                 swiftFlags.append(contentsOf: setting.value)
 
             case (.linker, .linkedFramework), (.linker, .linkedLibrary):
-                return // Handled as dependency
+                // Handled as dependency
+                return
 
             case (.c, .linkedFramework), (.c, .linkedLibrary), (.cxx, .linkedFramework), (.cxx, .linkedLibrary),
                  (.swift, .headerSearchPath), (.swift, .linkedFramework), (.swift, .linkedLibrary),
@@ -342,14 +416,34 @@ extension PackageInfo.Target {
             }
         }
 
-        // TODO: map to ProjectDescription.Settings
-        return nil
+        var settingsDictionary: ProjectDescription.SettingsDictionary = [:]
+        if !headerSearchPaths.isEmpty {
+            settingsDictionary["HEADER_SEARCH_PATHS"] = .array(headerSearchPaths)
+        }
+        if !defines.isEmpty {
+            let sortedDefines = defines.sorted { $0.key < $1.key }
+            settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array(sortedDefines.map { key, value in "\(key)=\(value)" })
+        }
+        if !swiftDefines.isEmpty {
+            settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .array(swiftDefines)
+        }
+        if !cFlags.isEmpty {
+            settingsDictionary["OTHER_CFLAGS"] = .array(cFlags)
+        }
+        if !cxxFlags.isEmpty {
+            settingsDictionary["OTHER_CPLUSPLUSFLAGS"] = .array(cxxFlags)
+        }
+        if !swiftFlags.isEmpty {
+            settingsDictionary["OTHER_SWIFT_FLAGS"] = .array(swiftFlags)
+        }
+
+        return .init(base: settingsDictionary)
     }
 }
 
 extension PackageInfo.Target.TargetBuildSettingDescription.Setting {
     fileprivate var extractDefine: (name: String, value: String) {
-        let define = self.value[0]
+        let define = value[0]
         if define.contains("=") {
             let split = define.split(separator: "=", maxSplits: 1)
             return (name: String(split[0]), value: String(split[1]))

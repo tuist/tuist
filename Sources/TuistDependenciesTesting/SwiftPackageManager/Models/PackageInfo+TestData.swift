@@ -304,11 +304,26 @@ extension PackageInfo {
     static var aDependency: PackageInfo {
         return .init(
             products: [
-                .init(name: "ALibrary", type: .library(.automatic), targets: ["ALibrary"]),
+                .init(name: "ALibrary", type: .library(.automatic), targets: ["ALibrary", "ALibraryUtils"]),
             ],
             targets: [
                 .init(
                     name: "ALibrary",
+                    path: nil,
+                    url: nil,
+                    sources: nil,
+                    resources: [],
+                    exclude: [],
+                    dependencies: [
+                        .byName(name: "ALibraryUtils", condition: nil),
+                    ],
+                    publicHeadersPath: nil,
+                    type: .regular,
+                    settings: [],
+                    checksum: nil
+                ),
+                .init(
+                    name: "ALibraryUtils",
                     path: nil,
                     url: nil,
                     sources: nil,
@@ -321,11 +336,7 @@ extension PackageInfo {
                     checksum: nil
                 ),
             ],
-            platforms: [
-                .init(platformName: "ios", version: "13.0", options: []),
-                .init(platformName: "macos", version: "10.15", options: []),
-                .init(platformName: "watchos", version: "6.0", options: []),
-            ]
+            platforms: []
         )
     }
 

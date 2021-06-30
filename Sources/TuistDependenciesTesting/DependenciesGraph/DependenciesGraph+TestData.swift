@@ -54,19 +54,31 @@ public extension TuistCore.DependenciesGraph {
                         .init(
                             name: "Tuist",
                             platform: .iOS,
-                            product: .staticLibrary,
-                            bundleId: "",
+                            product: .staticFramework,
+                            bundleId: "Tuist",
+                            deploymentTarget: .iOS(targetVersion: "13.0", devices: [.iphone, .ipad, .mac]),
                             infoPlist: .default,
                             sources: [
-                                "\(packageFolder.pathString)/customPath/customSources",
+                                "\(packageFolder.pathString)/customPath/customSources/**",
                             ],
                             resources: [
-                                "\(packageFolder.pathString)/customPath/resources",
+                                "\(packageFolder.pathString)/customPath/resources/**",
                             ],
                             dependencies: [
                                 .target(name: "TuistKit"),
                                 .project(target: "ALibrary", path: "../a-dependency"),
-                            ]
+                                .project(target: "ALibraryUtils", path: "../a-dependency"),
+                            ],
+                            settings: Settings(
+                                base: [
+                                    "HEADER_SEARCH_PATHS": .array(["cSearchPath", "cxxSearchPath"]),
+                                    "OTHER_CFLAGS": .array(["CUSTOM_C_FLAG"]),
+                                    "OTHER_CPLUSPLUSFLAGS": .array(["CUSTOM_CXX_FLAG"]),
+                                    "OTHER_SWIFT_FLAGS": .array(["CUSTOM_SWIFT_FLAG1", "CUSTOM_SWIFT_FLAG2"]),
+                                    "GCC_PREPROCESSOR_DEFINITIONS": .array(["CXX_DEFINE=CXX_VALUE", "C_DEFINE=C_VALUE"]),
+                                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_DEFINE"]),
+                                ]
+                            )
                         ),
                     ],
                     resourceSynthesizers: []
@@ -81,6 +93,7 @@ public extension TuistCore.DependenciesGraph {
             externalDependencies: [
                 "ALibrary": [
                     .project(target: "ALibrary", path: packageFolder),
+                    .project(target: "ALibraryUtils", path: packageFolder),
                 ],
             ],
             externalProjects: [
@@ -90,12 +103,27 @@ public extension TuistCore.DependenciesGraph {
                         .init(
                             name: "ALibrary",
                             platform: .iOS,
-                            product: .staticLibrary,
-                            bundleId: "",
+                            product: .staticFramework,
+                            bundleId: "ALibrary",
                             infoPlist: .default,
                             sources: [
-                                "\(packageFolder.pathString)/Sources/ALibrary",
-                            ]
+                                "\(packageFolder.pathString)/Sources/ALibrary/**",
+                            ],
+                            dependencies: [
+                                .target(name: "ALibraryUtils"),
+                            ],
+                            settings: Settings()
+                        ),
+                        .init(
+                            name: "ALibraryUtils",
+                            platform: .iOS,
+                            product: .staticFramework,
+                            bundleId: "ALibraryUtils",
+                            infoPlist: .default,
+                            sources: [
+                                "\(packageFolder.pathString)/Sources/ALibraryUtils/**",
+                            ],
+                            settings: Settings()
                         ),
                     ],
                     resourceSynthesizers: []
@@ -119,12 +147,14 @@ public extension TuistCore.DependenciesGraph {
                         .init(
                             name: "AnotherLibrary",
                             platform: .iOS,
-                            product: .staticLibrary,
-                            bundleId: "",
+                            product: .staticFramework,
+                            bundleId: "AnotherLibrary",
+                            deploymentTarget: .iOS(targetVersion: "13.0", devices: [.iphone, .ipad, .mac]),
                             infoPlist: .default,
                             sources: [
-                                "\(packageFolder.pathString)/Sources/AnotherLibrary",
-                            ]
+                                "\(packageFolder.pathString)/Sources/AnotherLibrary/**",
+                            ],
+                            settings: Settings()
                         ),
                     ],
                     resourceSynthesizers: []
@@ -148,15 +178,17 @@ public extension TuistCore.DependenciesGraph {
                         .init(
                             name: "Alamofire",
                             platform: .iOS,
-                            product: .staticLibrary,
-                            bundleId: "",
+                            product: .staticFramework,
+                            bundleId: "Alamofire",
+                            deploymentTarget: .iOS(targetVersion: "10.0", devices: [.iphone, .ipad, .mac]),
                             infoPlist: .default,
                             sources: [
-                                "\(packageFolder.pathString)/Source",
+                                "\(packageFolder.pathString)/Source/**",
                             ],
                             dependencies: [
-                                .sdk(name: "CFNetwork", status: .required),
-                            ]
+                                .sdk(name: "CFNetwork.framework", status: .required),
+                            ],
+                            settings: Settings()
                         ),
                     ],
                     resourceSynthesizers: []
@@ -186,11 +218,12 @@ public extension TuistCore.DependenciesGraph {
                         .init(
                             name: "GoogleAppMeasurementTarget",
                             platform: .iOS,
-                            product: .staticLibrary,
-                            bundleId: "",
+                            product: .staticFramework,
+                            bundleId: "GoogleAppMeasurementTarget",
+                            deploymentTarget: .iOS(targetVersion: "10.0", devices: [.iphone, .ipad, .mac]),
                             infoPlist: .default,
                             sources: [
-                                "\(packageFolder.pathString)/GoogleAppMeasurementWrapper",
+                                "\(packageFolder.pathString)/GoogleAppMeasurementWrapper/**",
                             ],
                             dependencies: [
                                 .xcframework(path: "\(artifactsFolder.pathString)/GoogleAppMeasurement.xcframework"),
@@ -199,20 +232,22 @@ public extension TuistCore.DependenciesGraph {
                                 .project(target: "GULNSData", path: "../GoogleUtilities"),
                                 .project(target: "GULNetwork", path: "../GoogleUtilities"),
                                 .project(target: "nanopb", path: "../nanopb"),
-                                .sdk(name: "sqlite3", status: .required),
-                                .sdk(name: "c++", status: .required),
-                                .sdk(name: "z", status: .required),
-                                .sdk(name: "StoreKit", status: .required),
-                            ]
+                                .sdk(name: "sqlite3.tbd", status: .required),
+                                .sdk(name: "c++.tbd", status: .required),
+                                .sdk(name: "z.tbd", status: .required),
+                                .sdk(name: "StoreKit.framework", status: .required),
+                            ],
+                            settings: Settings()
                         ),
                         .init(
                             name: "GoogleAppMeasurementWithoutAdIdSupportTarget",
                             platform: .iOS,
-                            product: .staticLibrary,
-                            bundleId: "",
+                            product: .staticFramework,
+                            bundleId: "GoogleAppMeasurementWithoutAdIdSupportTarget",
+                            deploymentTarget: .iOS(targetVersion: "10.0", devices: [.iphone, .ipad, .mac]),
                             infoPlist: .default,
                             sources: [
-                                "\(packageFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupportWrapper",
+                                "\(packageFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupportWrapper/**",
                             ],
                             dependencies: [
                                 .xcframework(path: "\(artifactsFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupport.xcframework"),
@@ -221,11 +256,12 @@ public extension TuistCore.DependenciesGraph {
                                 .project(target: "GULNSData", path: "../GoogleUtilities"),
                                 .project(target: "GULNetwork", path: "../GoogleUtilities"),
                                 .project(target: "nanopb", path: "../nanopb"),
-                                .sdk(name: "sqlite3", status: .required),
-                                .sdk(name: "c++", status: .required),
-                                .sdk(name: "z", status: .required),
-                                .sdk(name: "StoreKit", status: .required),
-                            ]
+                                .sdk(name: "sqlite3.tbd", status: .required),
+                                .sdk(name: "c++.tbd", status: .required),
+                                .sdk(name: "z.tbd", status: .required),
+                                .sdk(name: "StoreKit.framework", status: .required),
+                            ],
+                            settings: Settings()
                         ),
                     ],
                     resourceSynthesizers: []
@@ -251,42 +287,50 @@ public extension TuistCore.DependenciesGraph {
                         .init(
                             name: "GULAppDelegateSwizzler",
                             platform: .iOS,
-                            product: customProductTypes["GULAppDelegateSwizzler"] ?? .staticLibrary,
-                            bundleId: "",
+                            product: customProductTypes["GULAppDelegateSwizzler"] ?? .staticFramework,
+                            bundleId: "GULAppDelegateSwizzler",
+                            deploymentTarget: .iOS(targetVersion: "10.0", devices: [.iphone, .ipad, .mac]),
                             infoPlist: .default,
                             sources: [
-                                "\(packageFolder.pathString)/Sources/GULAppDelegateSwizzler",
-                            ]
+                                "\(packageFolder.pathString)/Sources/GULAppDelegateSwizzler/**",
+                            ],
+                            settings: Settings()
                         ),
                         .init(
                             name: "GULMethodSwizzler",
                             platform: .iOS,
-                            product: customProductTypes["GULMethodSwizzler"] ?? .staticLibrary,
-                            bundleId: "",
+                            product: customProductTypes["GULMethodSwizzler"] ?? .staticFramework,
+                            bundleId: "GULMethodSwizzler",
+                            deploymentTarget: .iOS(targetVersion: "10.0", devices: [.iphone, .ipad, .mac]),
                             infoPlist: .default,
                             sources: [
-                                "\(packageFolder.pathString)/Sources/GULMethodSwizzler",
-                            ]
+                                "\(packageFolder.pathString)/Sources/GULMethodSwizzler/**",
+                            ],
+                            settings: Settings()
                         ),
                         .init(
                             name: "GULNSData",
                             platform: .iOS,
-                            product: customProductTypes["GULNSData"] ?? .staticLibrary,
-                            bundleId: "",
+                            product: customProductTypes["GULNSData"] ?? .staticFramework,
+                            bundleId: "GULNSData",
+                            deploymentTarget: .iOS(targetVersion: "10.0", devices: [.iphone, .ipad, .mac]),
                             infoPlist: .default,
                             sources: [
-                                "\(packageFolder.pathString)/Sources/GULNSData",
-                            ]
+                                "\(packageFolder.pathString)/Sources/GULNSData/**",
+                            ],
+                            settings: Settings()
                         ),
                         .init(
                             name: "GULNetwork",
                             platform: .iOS,
-                            product: customProductTypes["GULNetwork"] ?? .staticLibrary,
-                            bundleId: "",
+                            product: customProductTypes["GULNetwork"] ?? .staticFramework,
+                            bundleId: "GULNetwork",
+                            deploymentTarget: .iOS(targetVersion: "10.0", devices: [.iphone, .ipad, .mac]),
                             infoPlist: .default,
                             sources: [
-                                "\(packageFolder.pathString)/Sources/GULNetwork",
-                            ]
+                                "\(packageFolder.pathString)/Sources/GULNetwork/**",
+                            ],
+                            settings: Settings()
                         ),
                     ],
                     resourceSynthesizers: []
@@ -308,12 +352,14 @@ public extension TuistCore.DependenciesGraph {
                         .init(
                             name: "nanopb",
                             platform: .iOS,
-                            product: .staticLibrary,
-                            bundleId: "",
+                            product: .staticFramework,
+                            bundleId: "nanopb",
+                            deploymentTarget: .iOS(targetVersion: "10.0", devices: [.iphone, .ipad, .mac]),
                             infoPlist: .default,
                             sources: [
-                                "\(packageFolder.pathString)/Sources/nanopb",
-                            ]
+                                "\(packageFolder.pathString)/Sources/nanopb/**",
+                            ],
+                            settings: Settings()
                         ),
                     ],
                     resourceSynthesizers: []

@@ -4,6 +4,7 @@ import TuistDependencies
 import TuistGraph
 import XCTest
 @testable import TuistDependenciesTesting
+@testable import TuistLoaderTesting
 @testable import TuistSupportTesting
 
 class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
@@ -53,6 +54,11 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
                 aDependencyPath,
                 anotherDependencyPath,
             ]
+        }
+
+        fileHandler.stubIsFolder = { _ in
+            // called to convert globs to AbsolutePath
+            true
         }
 
         swiftPackageManagerController.loadPackageInfoStub = { path in
