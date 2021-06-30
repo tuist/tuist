@@ -1,5 +1,6 @@
 import ProjectDescription
 import TSCBasic
+import TuistCore
 import TuistGraph
 import TuistSupport
 
@@ -47,7 +48,7 @@ public protocol SwiftPackageManagerInteracting {
         platforms: Set<TuistGraph.Platform>,
         shouldUpdate: Bool,
         swiftToolsVersion: String?
-    ) throws -> DependenciesGraph
+    ) throws -> TuistCore.DependenciesGraph
 
     /// Removes all cached `Swift Package Manager` dependencies.
     /// - Parameter dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
@@ -79,11 +80,11 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         platforms: Set<TuistGraph.Platform>,
         shouldUpdate: Bool,
         swiftToolsVersion: String?
-    ) throws -> DependenciesGraph {
+    ) throws -> TuistCore.DependenciesGraph {
         logger.warning("Support for Swift Package Manager dependencies is currently being worked on and is not ready to be used yet.")
         logger.info("Installing Swift Package Manager dependencies.", metadata: .subsection)
 
-        let dependenciesGraph: DependenciesGraph = try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in
+        let dependenciesGraph: TuistCore.DependenciesGraph = try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in
             // prepare paths
             let pathsProvider = SwiftPackageManagerPathsProvider(
                 dependenciesDirectory: dependenciesDirectory,

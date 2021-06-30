@@ -1,5 +1,6 @@
 import ProjectDescription
 import TSCBasic
+import TuistCore
 import TuistGraph
 
 @testable import TuistDependencies
@@ -15,7 +16,7 @@ public final class MockSwiftPackageManagerInteractor: SwiftPackageManagerInterac
             Set<TuistGraph.Platform>,
             Bool,
             String?
-        ) throws -> TuistDependencies.DependenciesGraph
+        ) throws -> TuistCore.DependenciesGraph
     )?
 
     public func install(
@@ -24,7 +25,7 @@ public final class MockSwiftPackageManagerInteractor: SwiftPackageManagerInterac
         platforms: Set<TuistGraph.Platform>,
         shouldUpdate: Bool,
         swiftToolsVersion: String?
-    ) throws -> TuistDependencies.DependenciesGraph {
+    ) throws -> TuistCore.DependenciesGraph {
         invokedInstall = true
         return try installStub?(dependenciesDirectory, dependencies, platforms, shouldUpdate, swiftToolsVersion) ?? .none
     }

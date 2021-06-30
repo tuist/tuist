@@ -13,6 +13,10 @@ on:
       - projects/fixturegen/**
       - projects/tuistbench/**
 
+concurrency: 
+  group: ${{ github.head_ref }}
+  cancel-in-progress: true
+
 env:
   RUBY_VERSION: '3.0.1'
 
