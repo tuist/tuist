@@ -50,8 +50,13 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
 public protocol SwiftPackageManagerGraphGenerating {
     /// Generates the `DependenciesGraph` for the `SwiftPackageManager` dependencies.
     /// - Parameter path: The path to the directory that contains the `checkouts` directory where `SwiftPackageManager` installed dependencies.
+    /// - Parameter productTypes: The custom `Product` types to be used for SPM targets.
     /// - Parameter platforms: The supported platforms.
-    func generate(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>) throws -> TuistCore.DependenciesGraph
+    func generate(
+        at path: AbsolutePath,
+        productTypes: [String: TuistGraph.Product],
+        platforms: Set<TuistGraph.Platform>
+    ) throws -> TuistCore.DependenciesGraph
 }
 
 public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGenerating {
@@ -63,7 +68,11 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         self.swiftPackageManagerController = swiftPackageManagerController
     }
 
-    public func generate(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>) throws -> TuistCore.DependenciesGraph {
+    public func generate(
+        at path: AbsolutePath,
+        productTypes: [String: TuistGraph.Product],
+        platforms: Set<TuistGraph.Platform>
+    ) throws -> TuistCore.DependenciesGraph {
         let packageFolders = try FileHandler.shared.contentsOfDirectory(path.appending(component: "checkouts"))
         let packageInfos: [(name: String, folder: AbsolutePath, artifactsFolder: AbsolutePath, info: PackageInfo)]
         packageInfos = try packageFolders.map { packageFolder in
@@ -98,6 +107,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 packageInfo: packageInfo.info,
                 name: packageInfo.name,
                 folder: packageInfo.folder,
+                productTypes: productTypes,
                 platforms: platforms,
                 productToPackage: productToPackage,
                 targetDependencyToFramework: targetDependencyToFramework
@@ -114,6 +124,7 @@ extension ProjectDescription.Project {
         packageInfo: PackageInfo,
         name: String,
         folder: AbsolutePath,
+        productTypes: [String: TuistGraph.Product],
         platforms: Set<TuistGraph.Platform>,
         productToPackage: [String: String],
         targetDependencyToFramework: [String: Path]
@@ -124,6 +135,7 @@ extension ProjectDescription.Project {
                 packageName: name,
                 packageInfo: packageInfo,
                 folder: folder,
+                productTypes: productTypes,
                 platforms: platforms,
                 productToPackage: productToPackage,
                 targetDependencyToFramework: targetDependencyToFramework
@@ -143,6 +155,7 @@ extension ProjectDescription.Target {
         packageName: String,
         packageInfo: PackageInfo,
         folder: AbsolutePath,
+        productTypes: [String: TuistGraph.Product],
         platforms: Set<TuistGraph.Platform>,
         productToPackage: [String: String],
         targetDependencyToFramework: [String: Path]
@@ -152,7 +165,7 @@ extension ProjectDescription.Target {
             return nil
         }
 
-        guard let product = target.mapProduct(packageInfo: packageInfo) else {
+        guard let product = target.mapProduct(packageInfo: packageInfo, productTypes: productTypes) else {
             logger.debug("Target \(target.name) ignored by product type")
             return nil
         }
@@ -204,20 +217,21 @@ extension PackageInfo.Target {
         return platform
     }
 
-    func mapProduct(packageInfo: PackageInfo) -> ProjectDescription.Product? {
+    func mapProduct(packageInfo: PackageInfo, productTypes: [String: TuistGraph.Product]) -> ProjectDescription.Product? {
         return packageInfo.products
             .filter { $0.targets.contains(name) }
             .compactMap {
                 switch $0.type {
                 case let .library(type):
+                    if let productType = productTypes[name] {
+                        return ProjectDescription.Product.from(product: productType)
+                    }
+
                     switch type {
-                    case .automatic:
-                        #warning("Make this configurable from Dependencies.swift")
+                    case .static, .automatic:
                         return .staticLibrary
                     case .dynamic:
                         return .dynamicLibrary
-                    case .static:
-                        return .staticLibrary
                     }
                 case .executable, .plugin, .test:
                     return nil
@@ -373,6 +387,45 @@ extension PackageInfo.Platform {
             return .watchOS
         default:
             throw SwiftPackageManagerGraphGeneratorError.unknownPlatform(platformName)
+        }
+    }
+}
+
+extension ProjectDescription.Product {
+    fileprivate static func from(product: TuistGraph.Product) -> Self {
+        switch product {
+        case .app:
+            return .app
+        case .staticLibrary:
+            return .staticLibrary
+        case .dynamicLibrary:
+            return .dynamicLibrary
+        case .framework:
+            return .framework
+        case .staticFramework:
+            return .staticFramework
+        case .unitTests:
+            return .unitTests
+        case .uiTests:
+            return .uiTests
+        case .bundle:
+            return .bundle
+        case .commandLineTool:
+            return .commandLineTool
+        case .appExtension:
+            return .appExtension
+        case .watch2App:
+            return .watch2App
+        case .watch2Extension:
+            return .watch2Extension
+        case .tvTopShelfExtension:
+            return .tvTopShelfExtension
+        case .messagesExtension:
+            return .messagesExtension
+        case .stickerPackExtension:
+            return .stickerPackExtension
+        case .appClip:
+            return .appClip
         }
     }
 }

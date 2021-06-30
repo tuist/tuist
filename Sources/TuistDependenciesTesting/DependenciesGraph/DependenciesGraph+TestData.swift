@@ -235,7 +235,7 @@ public extension TuistCore.DependenciesGraph {
     }
 
     // swiftlint:disable:next function_body_length
-    static func googleUtilities(spmFolder: Path) -> Self {
+    static func googleUtilities(spmFolder: Path, customProductTypes: [String: Product] = [:]) -> Self {
         let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
         return .init(
             externalDependencies: [
@@ -251,7 +251,7 @@ public extension TuistCore.DependenciesGraph {
                         .init(
                             name: "GULAppDelegateSwizzler",
                             platform: .iOS,
-                            product: .staticLibrary,
+                            product: customProductTypes["GULAppDelegateSwizzler"] ?? .staticLibrary,
                             bundleId: "",
                             infoPlist: .default,
                             sources: [
@@ -261,7 +261,7 @@ public extension TuistCore.DependenciesGraph {
                         .init(
                             name: "GULMethodSwizzler",
                             platform: .iOS,
-                            product: .staticLibrary,
+                            product: customProductTypes["GULMethodSwizzler"] ?? .staticLibrary,
                             bundleId: "",
                             infoPlist: .default,
                             sources: [
@@ -271,7 +271,7 @@ public extension TuistCore.DependenciesGraph {
                         .init(
                             name: "GULNSData",
                             platform: .iOS,
-                            product: .staticLibrary,
+                            product: customProductTypes["GULNSData"] ?? .staticLibrary,
                             bundleId: "",
                             infoPlist: .default,
                             sources: [
@@ -281,7 +281,7 @@ public extension TuistCore.DependenciesGraph {
                         .init(
                             name: "GULNetwork",
                             platform: .iOS,
-                            product: .staticLibrary,
+                            product: customProductTypes["GULNetwork"] ?? .staticLibrary,
                             bundleId: "",
                             infoPlist: .default,
                             sources: [

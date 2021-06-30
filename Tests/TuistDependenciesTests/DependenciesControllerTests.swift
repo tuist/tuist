@@ -104,7 +104,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             [
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
-            ]
+            ],
+            productTypes: [:]
         )
         let dependencies = Dependencies(
             carthage: nil,
@@ -156,7 +157,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             [
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
-            ]
+            ],
+            productTypes: [:]
         )
         let dependencies = Dependencies(
             carthage: carthageDependencies,
@@ -212,13 +214,18 @@ final class DependenciesControllerTests: TuistUnitTestCase {
     func test_fetch_carthage_swiftPackageManger_throws_when_duplicatedDependency() throws {
         // Given
         let rootPath = try temporaryPath()
-        let dependencies = Dependencies(
-            carthage: .init([
-                .github(path: "Moya", requirement: .exact("1.1.1")),
-            ]),
-            swiftPackageManager: .init([
-                .remote(url: "Moya", requirement: .exact("2.3.4")),
-            ]),
+        let dependencies = TuistGraph.Dependencies(
+            carthage: .init(
+                [
+                    .github(path: "Moya", requirement: .exact("1.1.1")),
+                ]
+            ),
+            swiftPackageManager: .init(
+                [
+                    .remote(url: "Moya", requirement: .exact("2.3.4")),
+                ],
+                productTypes: [:]
+            ),
             platforms: [.iOS]
         )
         let carthageGraph = TuistCore.DependenciesGraph.testXCFramework(
@@ -262,9 +269,9 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         // Given
         let rootPath = try temporaryPath()
 
-        let dependencies = Dependencies(
+        let dependencies = TuistGraph.Dependencies(
             carthage: .init([]),
-            swiftPackageManager: .init([]),
+            swiftPackageManager: .init([], productTypes: [:]),
             platforms: []
         )
 
@@ -279,9 +286,9 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         // Given
         let rootPath = try temporaryPath()
 
-        let dependencies = Dependencies(
+        let dependencies = TuistGraph.Dependencies(
             carthage: .init([]),
-            swiftPackageManager: .init([]),
+            swiftPackageManager: .init([], productTypes: [:]),
             platforms: [.iOS]
         )
 
@@ -359,7 +366,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             [
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
-            ]
+            ],
+            productTypes: [:]
         )
         let dependencies = Dependencies(
             carthage: nil,
@@ -410,7 +418,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             [
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
-            ]
+            ],
+            productTypes: [:]
         )
         let dependencies = Dependencies(
             carthage: carthageDependencies,
@@ -456,9 +465,9 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         // Given
         let rootPath = try temporaryPath()
 
-        let dependencies = Dependencies(
+        let dependencies = TuistGraph.Dependencies(
             carthage: .init([]),
-            swiftPackageManager: .init([]),
+            swiftPackageManager: .init([], productTypes: [:]),
             platforms: []
         )
 
@@ -473,9 +482,9 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         // Given
         let rootPath = try temporaryPath()
 
-        let dependencies = Dependencies(
+        let dependencies = TuistGraph.Dependencies(
             carthage: .init([]),
-            swiftPackageManager: .init([]),
+            swiftPackageManager: .init([], productTypes: [:]),
             platforms: [.iOS]
         )
 

@@ -44,7 +44,8 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let dependencies = SwiftPackageManagerDependencies(
             [
                 .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
-            ]
+            ],
+            productTypes: [:]
         )
 
         swiftPackageManagerController.resolveStub = { path in
@@ -56,9 +57,10 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             XCTAssertNil(version) // swift-tools-version is not specified
         }
 
-        swiftPackageManagerGraphGenerator.generateStub = { path, platforms in
+        swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms in
             XCTAssertEqual(path, dependenciesDirectory.appending(component: "SwiftPackageManager"))
             XCTAssertEqual(platforms, [.iOS])
+            XCTAssertEqual(automaticProductType, [:])
             return .test()
         }
 
@@ -116,7 +118,8 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let dependencies = SwiftPackageManagerDependencies(
             [
                 .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
-            ]
+            ],
+            productTypes: [:]
         )
 
         swiftPackageManagerController.resolveStub = { path in
@@ -128,9 +131,10 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             XCTAssertEqual(version, swiftToolsVersion) // version should be equal to the version that has been specified
         }
 
-        swiftPackageManagerGraphGenerator.generateStub = { path, platforms in
+        swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms in
             XCTAssertEqual(path, dependenciesDirectory.appending(component: "SwiftPackageManager"))
             XCTAssertEqual(platforms, [.iOS])
+            XCTAssertEqual(automaticProductType, [:])
             return .test()
         }
 
@@ -187,7 +191,8 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let dependencies = SwiftPackageManagerDependencies(
             [
                 .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
-            ]
+            ],
+            productTypes: [:]
         )
 
         swiftPackageManagerController.updateStub = { path in
@@ -199,8 +204,9 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             XCTAssertNil(version) // swift-tools-version is not specified
         }
 
-        swiftPackageManagerGraphGenerator.generateStub = { path, platforms in
+        swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms in
             XCTAssertEqual(path, dependenciesDirectory.appending(component: "SwiftPackageManager"))
+            XCTAssertEqual(automaticProductType, [:])
             XCTAssertEqual(platforms, [.iOS])
             return .test()
         }

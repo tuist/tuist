@@ -1,4 +1,3 @@
-import ProjectDescription
 import TSCBasic
 import TSCUtility
 import TuistCore
@@ -10,10 +9,14 @@ public final class MockSwiftPackageManagerGraphGenerator: SwiftPackageManagerGra
     public init() {}
 
     var invokedGenerate = false
-    var generateStub: ((AbsolutePath, Set<TuistGraph.Platform>) throws -> TuistCore.DependenciesGraph)?
+    var generateStub: ((AbsolutePath, [String: TuistGraph.Product], Set<TuistGraph.Platform>) throws -> TuistCore.DependenciesGraph)?
 
-    public func generate(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>) throws -> TuistCore.DependenciesGraph {
+    public func generate(
+        at path: AbsolutePath,
+        productTypes: [String: TuistGraph.Product],
+        platforms: Set<TuistGraph.Platform>
+    ) throws -> TuistCore.DependenciesGraph {
         invokedGenerate = true
-        return try generateStub?(path, platforms) ?? .test()
+        return try generateStub?(path, productTypes, platforms) ?? .test()
     }
 }
