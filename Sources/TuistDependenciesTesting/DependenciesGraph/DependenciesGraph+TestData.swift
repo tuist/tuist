@@ -92,7 +92,12 @@ public extension TuistCore.DependenciesGraph {
                             dependencies: [
                                 .project(target: "AnotherLibrary", path: "../another-dependency"),
                             ],
-                            settings: Settings()
+                            settings: Settings(
+                                base: [
+                                    "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
+                                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
+                                ]
+                            )
                         ),
                     ],
                     resourceSynthesizers: []
