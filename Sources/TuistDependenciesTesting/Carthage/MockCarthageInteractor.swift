@@ -1,4 +1,6 @@
+import ProjectDescription
 import TSCBasic
+import TuistCore
 import TuistGraph
 import TuistGraphTesting
 
@@ -8,14 +10,14 @@ public final class MockCarthageInteractor: CarthageInteracting {
     public init() {}
 
     var invokedInstall = false
-    var installStub: ((AbsolutePath, CarthageDependencies, Set<Platform>, Bool) throws -> DependenciesGraph)?
+    var installStub: ((AbsolutePath, TuistGraph.CarthageDependencies, Set<TuistGraph.Platform>, Bool) throws -> TuistCore.DependenciesGraph)?
 
     public func install(
         dependenciesDirectory: AbsolutePath,
-        dependencies: CarthageDependencies,
-        platforms: Set<Platform>,
+        dependencies: TuistGraph.CarthageDependencies,
+        platforms: Set<TuistGraph.Platform>,
         shouldUpdate: Bool
-    ) throws -> DependenciesGraph {
+    ) throws -> TuistCore.DependenciesGraph {
         invokedInstall = true
         return try installStub?(dependenciesDirectory, dependencies, platforms, shouldUpdate) ?? .test()
     }

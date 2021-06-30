@@ -1,3 +1,5 @@
+import ProjectDescription
+import TuistCore
 import TuistDependencies
 import TuistGraph
 import XCTest
@@ -24,7 +26,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
     func test_generate() throws {
         // Given
         let path = try temporaryPath()
-        let artifactsPath = path.appending(component: "artifacts")
+        let spmFolder = Path(path.pathString)
         let checkoutsPath = path.appending(component: "checkouts")
 
         // Alamofire package and its dependencies
@@ -32,7 +34,6 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
 
         // GoogleAppMeasurement package and its dependencies
         let googleAppMeasurementPath = checkoutsPath.appending(component: "GoogleAppMeasurement")
-        let googleAppMeasurementArtifactsPath = artifactsPath.appending(component: "GoogleAppMeasurement")
         let googleUtilitiesPath = checkoutsPath.appending(component: "GoogleUtilities")
         let nanopbPath = checkoutsPath.appending(component: "nanopb")
 
@@ -77,21 +78,30 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
         }
 
         // When
-        let got = try subject.generate(at: path)
+        let got = try subject.generate(at: path, platforms: [.iOS])
 
         // Then
-        let expected = DependenciesGraph(
-            externalDependencies: [
-                "Alamofire": .alamofire(packageFolder: alamofirePath),
-                "GoogleAppMeasurement": .googleAppMeasurement(artifactsFolder: googleAppMeasurementArtifactsPath, packageFolder: googleAppMeasurementPath),
-                "GoogleUtilities": .googleUtilities(packageFolder: googleUtilitiesPath),
-                "nanopb": .nanopb(packageFolder: nanopbPath),
-                "test": .test(packageFolder: testPath),
-                "a-dependency": .aDependency(packageFolder: aDependencyPath),
-                "another-dependency": .anotherDependency(packageFolder: anotherDependencyPath),
-            ]
-        )
+        let expected = try TuistCore.DependenciesGraph.none
+            .merging(with: DependenciesGraph.alamofire(spmFolder: spmFolder))
+            .merging(with: DependenciesGraph.googleAppMeasurement(spmFolder: spmFolder))
+            .merging(with: DependenciesGraph.googleUtilities(spmFolder: spmFolder))
+            .merging(with: DependenciesGraph.nanopb(spmFolder: spmFolder))
+            .merging(with: DependenciesGraph.test(spmFolder: spmFolder))
+            .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder))
+            .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder))
 
         XCTAssertEqual(got, expected)
+    }
+}
+
+extension TuistCore.DependenciesGraph {
+    public func merging(with other: Self) throws -> Self {
+        let mergedExternalDependencies = other.externalDependencies.reduce(into: externalDependencies) { result, entry in
+            result[entry.key] = entry.value
+        }
+        let mergedExternalProjects = other.externalProjects.reduce(into: externalProjects) { result, entry in
+            result[entry.key] = entry.value
+        }
+        return .init(externalDependencies: mergedExternalDependencies, externalProjects: mergedExternalProjects)
     }
 }

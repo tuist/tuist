@@ -1,4 +1,6 @@
+import ProjectDescription
 import TSCBasic
+import TuistCore
 import TuistGraph
 import TuistSupport
 
@@ -37,14 +39,16 @@ public protocol SwiftPackageManagerInteracting {
     /// - Parameters:
     ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
     ///   - dependencies: List of dependencies to install using `Swift Package Manager`.
+    ///   - platforms: Set of supported platforms.
     ///   - shouldUpdate: Indicates whether dependencies should be updated or fetched based on the `Tuist/Lockfiles/Package.resolved` lockfile.
     ///   - swiftToolsVersion: The version of Swift tools that will be used to resolve dependencies. If `nil` is passed then the environment’s version will be used.
     func install(
         dependenciesDirectory: AbsolutePath,
-        dependencies: SwiftPackageManagerDependencies,
+        dependencies: TuistGraph.SwiftPackageManagerDependencies,
+        platforms: Set<TuistGraph.Platform>,
         shouldUpdate: Bool,
         swiftToolsVersion: String?
-    ) throws -> DependenciesGraph
+    ) throws -> TuistCore.DependenciesGraph
 
     /// Removes all cached `Swift Package Manager` dependencies.
     /// - Parameter dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
@@ -72,14 +76,15 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
 
     public func install(
         dependenciesDirectory: AbsolutePath,
-        dependencies: SwiftPackageManagerDependencies,
+        dependencies: TuistGraph.SwiftPackageManagerDependencies,
+        platforms: Set<TuistGraph.Platform>,
         shouldUpdate: Bool,
         swiftToolsVersion: String?
-    ) throws -> DependenciesGraph {
+    ) throws -> TuistCore.DependenciesGraph {
         logger.warning("Support for Swift Package Manager dependencies is currently being worked on and is not ready to be used yet.")
         logger.info("Installing Swift Package Manager dependencies.", metadata: .subsection)
 
-        let dependenciesGraph: DependenciesGraph = try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in
+        let dependenciesGraph: TuistCore.DependenciesGraph = try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in
             // prepare paths
             let pathsProvider = SwiftPackageManagerPathsProvider(
                 dependenciesDirectory: dependenciesDirectory,
@@ -100,7 +105,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
             try saveDependencies(pathsProvider: pathsProvider)
 
             // generate dependencies graph
-            return try swiftPackageManagerGraphGenerator.generate(at: pathsProvider.temporaryBuildDirectory)
+            return try swiftPackageManagerGraphGenerator.generate(at: pathsProvider.destinationBuildDirectory, platforms: platforms)
         }
 
         logger.info("Swift Package Manager dependencies installed successfully.", metadata: .subsection)
@@ -124,7 +129,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
     /// Loads lockfile and dependencies into working directory if they had been saved before.
     private func loadDependencies(
         pathsProvider: SwiftPackageManagerPathsProvider,
-        dependencies: SwiftPackageManagerDependencies,
+        dependencies: TuistGraph.SwiftPackageManagerDependencies,
         swiftToolsVersion: String?
     ) throws {
         // copy `.build` directory from previous run if exist

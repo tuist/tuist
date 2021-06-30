@@ -156,7 +156,7 @@ public class ManifestLoader: ManifestLoading {
     }
 
     public func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project {
-        try loadManifest(.project, at: path)
+        return try loadManifest(.project, at: path)
     }
 
     public func loadWorkspace(at path: AbsolutePath) throws -> ProjectDescription.Workspace {

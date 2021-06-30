@@ -1,6 +1,6 @@
 import Foundation
 
-public struct Path: ExpressibleByStringInterpolation, Codable, Equatable {
+public struct Path: ExpressibleByStringInterpolation, Codable, Hashable {
     public enum PathType: String, Codable {
         case relativeToCurrentFile
         case relativeToManifest

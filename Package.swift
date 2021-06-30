@@ -91,6 +91,7 @@ let package = Package(
                 rxSwiftDependency,
                 rxBlockingDependency,
                 swiftToolsSupportDependency,
+                "ProjectDescription",
                 "TuistSupport",
                 "TuistGraph",
                 "XcodeProj",
@@ -586,9 +587,12 @@ let package = Package(
         ),
         .target(
             name: "TuistDependencies",
-            dependencies: ["TuistCore",
-                           "TuistGraph",
-                           "TuistSupport"]
+            dependencies: [
+                "ProjectDescription",
+                "TuistCore",
+                "TuistGraph",
+                "TuistSupport",
+            ]
         ),
         .target(
             name: "TuistDependenciesTesting",

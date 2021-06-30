@@ -1,7 +1,7 @@
+import ProjectDescription
 import TSCBasic
 import TSCUtility
 import TuistCore
-import TuistGraph
 import TuistSupport
 import XCTest
 
@@ -42,31 +42,14 @@ final class CarthageGraphGeneratorTests: TuistUnitTestCase {
         // Then
         let expected = DependenciesGraph(
             externalDependencies: [
-                "RxSwift": .xcframework(
-                    name: "RxSwift",
-                    path: "/Tuist/Dependencies/Carthage/RxSwift.xcframework"
-                ),
-                "RxCocoa": .xcframework(
-                    name: "RxCocoa",
-                    path: "/Tuist/Dependencies/Carthage/RxCocoa.xcframework"
-                ),
-                "RxRelay": .xcframework(
-                    name: "RxRelay",
-                    path: "/Tuist/Dependencies/Carthage/RxRelay.xcframework"
-                ),
-                "RxTest": .xcframework(
-                    name: "RxTest",
-                    path: "/Tuist/Dependencies/Carthage/RxTest.xcframework"
-                ),
-                "RxBlocking": .xcframework(
-                    name: "RxBlocking",
-                    path: "/Tuist/Dependencies/Carthage/RxBlocking.xcframework"
-                ),
-                "Alamofire": .xcframework(
-                    name: "Alamofire",
-                    path: "/Tuist/Dependencies/Carthage/Alamofire.xcframework"
-                ),
-            ]
+                "RxSwift": [.xcframework(path: "/Tuist/Dependencies/Carthage/RxSwift.xcframework")],
+                "RxCocoa": [.xcframework(path: "/Tuist/Dependencies/Carthage/RxCocoa.xcframework")],
+                "RxRelay": [.xcframework(path: "/Tuist/Dependencies/Carthage/RxRelay.xcframework")],
+                "RxTest": [.xcframework(path: "/Tuist/Dependencies/Carthage/RxTest.xcframework")],
+                "RxBlocking": [.xcframework(path: "/Tuist/Dependencies/Carthage/RxBlocking.xcframework")],
+                "Alamofire": [.xcframework(path: "/Tuist/Dependencies/Carthage/Alamofire.xcframework")],
+            ],
+            externalProjects: [:]
         )
 
         XCTAssertEqual(got, expected)

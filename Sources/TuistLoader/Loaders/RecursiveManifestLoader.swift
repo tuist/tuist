@@ -6,8 +6,8 @@ import TuistSupport
 
 /// A component that can load a manifest and all its (transitive) manifest dependencies
 public protocol RecursiveManifestLoading {
-    func loadProject(at path: AbsolutePath, dependenciesGraph: DependenciesGraph) throws -> LoadedProjects
-    func loadWorkspace(at path: AbsolutePath, dependenciesGraph: DependenciesGraph) throws -> LoadedWorkspace
+    func loadProject(at path: AbsolutePath) throws -> LoadedProjects
+    func loadWorkspace(at path: AbsolutePath) throws -> LoadedWorkspace
 }
 
 public struct LoadedProjects {
@@ -31,11 +31,11 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         self.fileHandler = fileHandler
     }
 
-    public func loadProject(at path: AbsolutePath, dependenciesGraph: DependenciesGraph) throws -> LoadedProjects {
-        try loadProjects(paths: [path], dependenciesGraph: dependenciesGraph)
+    public func loadProject(at path: AbsolutePath) throws -> LoadedProjects {
+        try loadProjects(paths: [path])
     }
 
-    public func loadWorkspace(at path: AbsolutePath, dependenciesGraph: DependenciesGraph) throws -> LoadedWorkspace {
+    public func loadWorkspace(at path: AbsolutePath) throws -> LoadedWorkspace {
         let workspace = try manifestLoader.loadWorkspace(at: path)
 
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
@@ -49,7 +49,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
             manifestLoader.manifests(at: $0).contains(.project)
         }
 
-        let projects = try loadProjects(paths: projectPaths, dependenciesGraph: dependenciesGraph)
+        let projects = try loadProjects(paths: projectPaths)
         return LoadedWorkspace(
             path: path,
             workspace: workspace,
@@ -59,7 +59,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
 
     // MARK: - Private
 
-    private func loadProjects(paths: [AbsolutePath], dependenciesGraph: DependenciesGraph) throws -> LoadedProjects {
+    private func loadProjects(paths: [AbsolutePath]) throws -> LoadedProjects {
         var cache = [AbsolutePath: ProjectDescription.Project]()
 
         var paths = Set(paths)
@@ -71,36 +71,20 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
             var newDependenciesPaths = Set<AbsolutePath>()
             try zip(paths, projects).forEach { path, project in
                 cache[path] = project
-                newDependenciesPaths.formUnion(try dependencyPaths(for: project, path: path, dependenciesGraph: dependenciesGraph))
+                newDependenciesPaths.formUnion(try dependencyPaths(for: project, path: path))
             }
             paths = newDependenciesPaths
         }
         return LoadedProjects(projects: cache)
     }
 
-    private func dependencyPaths(
-        for project: ProjectDescription.Project,
-        path: AbsolutePath,
-        dependenciesGraph: DependenciesGraph
-    ) throws -> [AbsolutePath] {
+    private func dependencyPaths(for project: ProjectDescription.Project, path: AbsolutePath) throws -> [AbsolutePath] {
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         let paths: [AbsolutePath] = try project.targets.flatMap {
             try $0.dependencies.compactMap {
                 switch $0 {
                 case let .project(target: _, path: projectPath):
                     return try generatorPaths.resolve(path: projectPath)
-                case let .external(name):
-                    guard let dependency = dependenciesGraph.externalDependencies[name] else {
-                        return nil
-                    }
-
-                    switch dependency {
-                    case .sources:
-                        // TODO: invoke return try generatorPaths.resolve(path: projectPath) for source based dependencies
-                        fatalError("ExternalDependency.source not supported yet")
-                    case .xcframework:
-                        return nil
-                    }
                 default:
                     return nil
                 }
