@@ -274,7 +274,7 @@ public class FileHandler: FileHandling {
     }
 
     public func subpaths(_ path: AbsolutePath) -> [AbsolutePath]? {
-        return fileManager.subpaths(atPath: path.pathString)?.map { AbsolutePath.init($0) }
+        return fileManager.subpaths(atPath: path.pathString)?.map { AbsolutePath($0) }
     }
 
     // MARK: - MD5

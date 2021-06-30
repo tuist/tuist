@@ -41,6 +41,7 @@ public extension TuistCore.DependenciesGraph {
         )
     }
 
+    // swiftlint:disable:next function_body_length
     static func test(packageFolder: Path) -> Self {
         return .init(
             externalDependencies: [

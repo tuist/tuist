@@ -414,7 +414,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
             []
         }
 
-        func subpaths(_ path: AbsolutePath) -> [AbsolutePath]? {
+        func subpaths(_: AbsolutePath) -> [AbsolutePath]? {
             nil
         }
 

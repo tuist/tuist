@@ -79,6 +79,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         self.swiftPackageManagerController = swiftPackageManagerController
     }
 
+    // swiftlint:disable:next function_body_length
     public func generate(
         at path: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
