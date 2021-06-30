@@ -8,6 +8,10 @@ on:
     paths:
       - projects/tuistbench/**
 
+concurrency: 
+  group: ${{ github.head_ref }}
+  cancel-in-progress: true
+
 env:
   TUIST_STATS_OPT_OUT: true
   RUBY_VERSION: '3.0.1'
