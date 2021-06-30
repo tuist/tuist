@@ -63,6 +63,7 @@ public extension TuistCore.DependenciesGraph {
                             resources: [
                                 "\(packageFolder.pathString)/customPath/resources/**",
                             ],
+                            headers: .init(public: ["/an/header.h"]),
                             dependencies: [
                                 .target(name: "TuistKit"),
                                 .project(target: "ALibrary", path: "../a-dependency"),

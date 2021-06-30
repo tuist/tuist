@@ -414,6 +414,10 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
             []
         }
 
+        func subpaths(_ path: AbsolutePath) -> [AbsolutePath]? {
+            nil
+        }
+
         func ls(_: AbsolutePath) throws -> [AbsolutePath] {
             []
         }

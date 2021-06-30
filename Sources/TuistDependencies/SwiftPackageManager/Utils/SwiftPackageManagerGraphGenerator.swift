@@ -210,6 +210,7 @@ extension ProjectDescription.Target {
         )
         let sources = SourceFilesList.from(sources: target.sources, path: path, excluding: target.exclude)
         let resources = ResourceFileElements.from(resources: target.resources, path: path)
+        let headers = ProjectDescription.Headers.from(path: path, publicHeadersPath: target.publicHeadersPath)
         let dependencies = try ProjectDescription.TargetDependency.from(
             packageInfo: packageInfo,
             packageInfos: packageInfos,
@@ -229,6 +230,7 @@ extension ProjectDescription.Target {
             infoPlist: .default,
             sources: sources,
             resources: resources,
+            headers: headers,
             dependencies: dependencies,
             settings: settings
         )
@@ -344,6 +346,15 @@ extension ResourceFileElements {
             let absolutePathGlob = absolutePath.extension != nil ? absolutePath : absolutePath.appending(component: "**")
             return .glob(pattern: Path(absolutePathGlob.pathString))
         })
+    }
+}
+
+extension ProjectDescription.Headers {
+    fileprivate static func from(path: AbsolutePath, publicHeadersPath: String?) -> Self? {
+        let headersPath = publicHeadersPath.map { path.appending(component: $0) } ?? path
+        let possibleHeaders = FileHandler.shared.subpaths(headersPath) ?? []
+        let headers = possibleHeaders.filter { $0.extension == "h" }
+        return headers.isEmpty ? nil : .init(public: .init(globs: headers.map { Path($0.pathString) }))
     }
 }
 
