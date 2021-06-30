@@ -1,4 +1,5 @@
 import ProjectDescription
+import TSCBasic
 import TuistCore
 import TuistDependencies
 import TuistGraph
@@ -39,21 +40,69 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
         let nanopbPath = checkoutsPath.appending(component: "nanopb")
 
         // Test package and its dependencies
-        let testPath = checkoutsPath.appending(component: "test")
+        let testPath = AbsolutePath("/tmp/localPackage")
         let aDependencyPath = checkoutsPath.appending(component: "a-dependency")
         let anotherDependencyPath = checkoutsPath.appending(component: "another-dependency")
 
-        fileHandler.stubContentsOfDirectory = { path in
-            XCTAssertEqual(path, checkoutsPath)
-            return [
-                alamofirePath,
-                googleAppMeasurementPath,
-                googleUtilitiesPath,
-                nanopbPath,
-                testPath,
-                aDependencyPath,
-                anotherDependencyPath,
-            ]
+        fileHandler.stubReadFile = {
+            XCTAssertEqual($0, path.appending(component: "workspace-state.json"))
+            return """
+            {
+              "object": {
+                "dependencies": [
+                  {
+                    "packageRef": {
+                      "kind": "remote",
+                      "name": "Alamofire",
+                      "path": "https://github.com/Alamofire/Alamofire"
+                    }
+                  },
+                  {
+                    "packageRef": {
+                      "kind": "remote",
+                      "name": "GoogleAppMeasurement",
+                      "path": "https://github.com/google/GoogleAppMeasurement"
+                    }
+                  },
+                  {
+                    "packageRef": {
+                      "kind": "remote",
+                      "name": "GoogleUtilities",
+                      "path": "https://github.com/google/GoogleUtilities"
+                    }
+                  },
+                  {
+                    "packageRef": {
+                      "kind": "remote",
+                      "name": "nanopb",
+                      "path": "https://github.com/nanopb/nanopb"
+                    }
+                  },
+                  {
+                    "packageRef": {
+                      "kind": "local",
+                      "name": "test",
+                      "path": "\(testPath.pathString)"
+                    }
+                  },
+                  {
+                    "packageRef": {
+                      "kind": "remote",
+                      "name": "a-dependency",
+                      "path": "https://github.com/dependencies/a-dependency"
+                    }
+                  },
+                  {
+                    "packageRef": {
+                      "kind": "remote",
+                      "name": "another-dependency",
+                      "path": "https://github.com/dependencies/another-dependency"
+                    }
+                  }
+                ]
+              }
+            }
+            """.data(using: .utf8)!
         }
 
         fileHandler.stubIsFolder = { _ in
@@ -105,7 +154,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
                 ]
             ))
             .merging(with: DependenciesGraph.nanopb(spmFolder: spmFolder))
-            .merging(with: DependenciesGraph.test(spmFolder: spmFolder))
+            .merging(with: DependenciesGraph.test(packageFolder: Path(testPath.pathString)))
             .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder))
             .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder))
 

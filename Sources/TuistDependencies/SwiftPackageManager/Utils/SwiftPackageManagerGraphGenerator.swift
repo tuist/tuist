@@ -21,13 +21,17 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
     /// Thrown when `PackageInfo.Target.Dependency.product` dependency cannot be resolved.
     case unknownProductDependency(String, String)
 
+    /// Thrown when `WorkspaceState.Dependency.Kind` is not one of the expected values.
+    case unsupportedDependencyKind(String)
+
     /// Thrown when unsupported `PackageInfo.Target.TargetBuildSettingDescription` `Tool`/`SettingName` pair is found.
     case unsupportedSetting(PackageInfo.Target.TargetBuildSettingDescription.Tool, PackageInfo.Target.TargetBuildSettingDescription.SettingName)
 
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .noSupportedPlatforms, .unknownByNameDependency, .unknownPlatform, .unknownProductDependency, .unsupportedSetting:
+        case .noSupportedPlatforms, .unknownByNameDependency, .unknownPlatform, .unknownProductDependency, .unsupportedDependencyKind,
+             .unsupportedSetting:
             return .abort
         }
     }
@@ -43,6 +47,8 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
             return "The \(platform) platform is not supported."
         case let .unknownProductDependency(name, package):
             return "The product \(name) of the package \(package) cannot be found."
+        case let .unsupportedDependencyKind(name):
+            return "The dependency kind \(name) is not supported."
         case let .unsupportedSetting(tool, setting):
             return "The \(tool) and \(setting) pair is not a supported setting."
         }
@@ -79,10 +85,23 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         platforms: Set<TuistGraph.Platform>
     ) throws -> TuistCore.DependenciesGraph {
         let artifactsFolder = path.appending(component: "artifacts")
-        let packageFolders = try FileHandler.shared.contentsOfDirectory(path.appending(component: "checkouts"))
+        let checkoutsFolder = path.appending(component: "checkouts")
+        let workspacePath = path.appending(component: "workspace-state.json")
+
+        let workspaceState = try JSONDecoder().decode(WorkspaceState.self, from: try FileHandler.shared.readFile(workspacePath))
         let packageInfos: [(name: String, folder: AbsolutePath, artifactsFolder: AbsolutePath, info: PackageInfo)]
-        packageInfos = try packageFolders.map { packageFolder in
-            let name = packageFolder.basename
+        packageInfos = try workspaceState.object.dependencies.map { dependency in
+            let name = dependency.packageRef.name
+            let packageFolder: AbsolutePath
+            switch dependency.packageRef.kind {
+            case "remote":
+                packageFolder = checkoutsFolder.appending(component: name)
+            case "local":
+                packageFolder = AbsolutePath(dependency.packageRef.path)
+            default:
+                throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
+            }
+
             let packageInfo = try swiftPackageManagerController.loadPackageInfo(at: packageFolder)
             return (
                 name: name,
