@@ -406,8 +406,8 @@ extension ProjectDescription.Settings {
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting]
     ) throws -> Self? {
         var headerSearchPaths: [String] = []
-        var defines: [String: String] = [:]
-        var swiftDefines: [String] = []
+        var defines: [String: String] = ["SWIFT_PACKAGE": "1"]
+        var swiftDefines: [String] = ["SWIFT_PACKAGE"]
         var cFlags: [String] = []
         var cxxFlags: [String] = []
         var swiftFlags: [String] = []
