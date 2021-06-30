@@ -110,7 +110,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
             true
         }
 
-        fileHandler.stubSubpath = { path in
+        fileHandler.stubSubpaths = { path in
             guard path == testPath.appending(component: "customPath").appending(component: "customPublicHeadersPath") else {
                 return nil
             }
