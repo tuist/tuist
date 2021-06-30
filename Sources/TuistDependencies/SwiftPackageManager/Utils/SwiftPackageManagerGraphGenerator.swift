@@ -202,25 +202,32 @@ extension ProjectDescription.Target {
 
         let path = folder.appending(RelativePath(target.path ?? "Sources/\(target.name)"))
 
+        let platform = try ProjectDescription.Platform.from(configured: platforms, package: packageInfo.platforms, packageName: packageName)
+        let deploymentTarget = try ProjectDescription.DeploymentTarget.from(configured: platforms, package: packageInfo.platforms, packageName: packageName)
+        let sources = SourceFilesList.from(sources: target.sources, path: path, excluding: target.exclude)
+        let resources = ResourceFileElements.from(resources: target.resources, path: path)
+        let dependencies = try ProjectDescription.TargetDependency.from(
+          packageInfo: packageInfo,
+          packageInfos: packageInfos,
+          dependencies: target.dependencies,
+          settings: target.settings,
+          packageName: packageName,
+          productToPackage: productToPackage,
+          targetDependencyToFramework: targetDependencyToFramework
+        )
+        let settings = try Settings.from(settings: target.settings)
+
         return .init(
             name: target.name,
-            platform: try .from(configured: platforms, package: packageInfo.platforms, packageName: packageName),
+            platform: platform,
             product: product,
             bundleId: target.name,
-            deploymentTarget: try .from(configured: platforms, package: packageInfo.platforms, packageName: packageName),
+            deploymentTarget: deploymentTarget,
             infoPlist: .default,
-            sources: .from(sources: target.sources, path: path, excluding: target.exclude),
-            resources: .from(resources: target.resources, path: path),
-            dependencies: try .from(
-                packageInfo: packageInfo,
-                packageInfos: packageInfos,
-                dependencies: target.dependencies,
-                settings: target.settings,
-                packageName: packageName,
-                productToPackage: productToPackage,
-                targetDependencyToFramework: targetDependencyToFramework
-            ),
-            settings: try .from(settings: target.settings)
+            sources: sources,
+            resources: resources,
+            dependencies: dependencies,
+            settings: settings
         )
     }
 }
@@ -305,8 +312,8 @@ extension ProjectDescription.Product {
     }
 }
 
-extension Optional where Wrapped == SourceFilesList {
-    fileprivate static func from(sources: [String]?, path: AbsolutePath, excluding: [String]) -> Self {
+extension SourceFilesList {
+    fileprivate static func from(sources: [String]?, path: AbsolutePath, excluding: [String]) -> Self? {
         let sourcesPaths: [AbsolutePath]
         if let customSources = sources {
             sourcesPaths = customSources.map { path.appending(RelativePath($0)) }
@@ -337,7 +344,7 @@ extension ResourceFileElements {
     }
 }
 
-extension Array where Element == ProjectDescription.TargetDependency {
+extension ProjectDescription.TargetDependency {
     fileprivate static func from(
         packageInfo: PackageInfo,
         packageInfos: [String: PackageInfo],
@@ -346,7 +353,7 @@ extension Array where Element == ProjectDescription.TargetDependency {
         packageName _: String,
         productToPackage: [String: String],
         targetDependencyToFramework: [String: Path]
-    ) throws -> Self {
+    ) throws -> [Self] {
         let targetDependencies = try dependencies.flatMap { dependency -> [ProjectDescription.TargetDependency] in
             switch dependency {
             case let .target(name, _):
@@ -389,11 +396,11 @@ extension Array where Element == ProjectDescription.TargetDependency {
     }
 }
 
-extension Optional where Wrapped == ProjectDescription.Settings {
+extension ProjectDescription.Settings {
     // swiftlint:disable:next function_body_length
     fileprivate static func from(
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting]
-    ) throws -> Self {
+    ) throws -> Self? {
         var headerSearchPaths: [String] = []
         var defines: [String: String] = [:]
         var swiftDefines: [String] = []
