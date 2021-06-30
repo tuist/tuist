@@ -55,6 +55,7 @@ module Fourier
             puts("Building...")
             Utilities::SwiftPackageManager.build_fat_release_binary(
               path: sources_path,
+              product: "swift-doc",
               binary_name: "swift-doc",
               output_directory: into
             )
