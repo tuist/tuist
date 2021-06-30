@@ -4,10 +4,6 @@ slug: '/guides/third-party-dependencies'
 description: Learn how to define the contract between the dependency managers and Tuist.
 ---
 
-:::warning Work in progress
-This feature is currently being worked on and is not ready to be used yet.
-:::
-
 # Dependencies.swift
 
 Learn how to define the contract between the dependency managers (Cocoapods, Carthage and SPM) and Tuist.
@@ -15,7 +11,7 @@ Learn how to define the contract between the dependency managers (Cocoapods, Car
 ## Integration status
 
 - ✅ Carthage
-- 🚧 Swift Package Manager
+- ✅ Swift Package Manager
 - 🔴 Cocoapods
 
 ## How to get started
@@ -46,9 +42,11 @@ import ProjectDescription
 
 let dependencies = Dependencies(
     carthage: [
-        .github(path: "Alamofire/Alamofire", requirement: .exact("5.0.4"))
+        .github(path: "Alamofire/Alamofire", requirement: .exact("5.0.4")),
     ],
-    swiftPackageManager: nil, // work in progress, pass `nil`
+    swiftPackageManager: [
+        .remote(url: "https://github.com/Alamofire/Alamofire", requirement: .upToNextMajor(from: "5.0.0")),
+    ],
     platforms: [.iOS]
 )
 ```
@@ -86,6 +84,9 @@ Tuist
 If you don't want to check in build artifacts you can update your `.gitignore`:
 
 ```bash
+# Add this line if you want to avoid checking in everything coming from the dependencies resolution.
+Tuist/Dependencies
+
 # Add this line if you want to avoid checking in a build artifacts from Carthage dependencies.
 Tuist/Dependencies/Carthage
 
