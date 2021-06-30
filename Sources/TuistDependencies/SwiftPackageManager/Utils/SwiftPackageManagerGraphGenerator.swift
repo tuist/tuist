@@ -203,17 +203,21 @@ extension ProjectDescription.Target {
         let path = folder.appending(RelativePath(target.path ?? "Sources/\(target.name)"))
 
         let platform = try ProjectDescription.Platform.from(configured: platforms, package: packageInfo.platforms, packageName: packageName)
-        let deploymentTarget = try ProjectDescription.DeploymentTarget.from(configured: platforms, package: packageInfo.platforms, packageName: packageName)
+        let deploymentTarget = try ProjectDescription.DeploymentTarget.from(
+            configured: platforms,
+            package: packageInfo.platforms,
+            packageName: packageName
+        )
         let sources = SourceFilesList.from(sources: target.sources, path: path, excluding: target.exclude)
         let resources = ResourceFileElements.from(resources: target.resources, path: path)
         let dependencies = try ProjectDescription.TargetDependency.from(
-          packageInfo: packageInfo,
-          packageInfos: packageInfos,
-          dependencies: target.dependencies,
-          settings: target.settings,
-          packageName: packageName,
-          productToPackage: productToPackage,
-          targetDependencyToFramework: targetDependencyToFramework
+            packageInfo: packageInfo,
+            packageInfos: packageInfos,
+            dependencies: target.dependencies,
+            settings: target.settings,
+            packageName: packageName,
+            productToPackage: productToPackage,
+            targetDependencyToFramework: targetDependencyToFramework
         )
         let settings = try Settings.from(settings: target.settings)
 
