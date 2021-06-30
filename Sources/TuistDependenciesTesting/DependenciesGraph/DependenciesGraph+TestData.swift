@@ -67,6 +67,7 @@ public extension TuistCore.DependenciesGraph {
                             dependencies: [
                                 .target(name: "TuistKit"),
                                 .project(target: "ALibrary", path: "../a-dependency"),
+                                .project(target: "ALibraryUtils", path: "../a-dependency"),
                             ],
                             settings: Settings(
                                 base: [
@@ -92,6 +93,7 @@ public extension TuistCore.DependenciesGraph {
             externalDependencies: [
                 "ALibrary": [
                     .project(target: "ALibrary", path: packageFolder),
+                    .project(target: "ALibraryUtils", path: packageFolder),
                 ],
             ],
             externalProjects: [
@@ -103,10 +105,23 @@ public extension TuistCore.DependenciesGraph {
                             platform: .iOS,
                             product: .staticFramework,
                             bundleId: "ALibrary",
-                            deploymentTarget: .iOS(targetVersion: "13.0", devices: [.iphone, .ipad, .mac]),
                             infoPlist: .default,
                             sources: [
                                 "\(packageFolder.pathString)/Sources/ALibrary/**",
+                            ],
+                            dependencies: [
+                                .target(name: "ALibraryUtils"),
+                            ],
+                            settings: Settings()
+                        ),
+                        .init(
+                            name: "ALibraryUtils",
+                            platform: .iOS,
+                            product: .staticFramework,
+                            bundleId: "ALibraryUtils",
+                            infoPlist: .default,
+                            sources: [
+                                "\(packageFolder.pathString)/Sources/ALibraryUtils/**",
                             ],
                             settings: Settings()
                         ),
