@@ -39,6 +39,7 @@ module Fourier
               .expects(:build_fat_release_binary)
               .with(
                 path: sources_path,
+                product: "swift-doc",
                 binary_name: "swift-doc",
                 output_directory: temporary_output_directory
               )

@@ -42,6 +42,7 @@ module Fourier
             puts("Building...")
             Utilities::SwiftPackageManager.build_fat_release_binary(
               path: sources_path,
+              product: "xcbeautify",
               binary_name: "xcbeautify",
               output_directory: into
             )
