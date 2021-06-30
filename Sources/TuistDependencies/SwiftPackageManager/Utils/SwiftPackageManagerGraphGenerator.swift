@@ -196,7 +196,6 @@ extension ProjectDescription.Target {
             packageInfos: packageInfos,
             dependencies: target.dependencies,
             settings: target.settings,
-            packageName: packageName,
             productToPackage: productToPackage,
             targetDependencyToFramework: targetDependencyToFramework
         )
@@ -335,7 +334,6 @@ extension ProjectDescription.TargetDependency {
         packageInfos: [String: PackageInfo],
         dependencies: [PackageInfo.Target.Dependency],
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
-        packageName _: String,
         productToPackage: [String: String],
         targetDependencyToFramework: [String: Path]
     ) throws -> [Self] {

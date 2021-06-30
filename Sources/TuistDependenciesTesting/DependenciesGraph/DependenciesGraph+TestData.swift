@@ -80,6 +80,21 @@ public extension TuistCore.DependenciesGraph {
                                 ]
                             )
                         ),
+                        .init(
+                            name: "TuistKit",
+                            platform: .iOS,
+                            product: .staticFramework,
+                            bundleId: "TuistKit",
+                            deploymentTarget: .iOS(targetVersion: "13.0", devices: [.iphone, .ipad, .mac]),
+                            infoPlist: .default,
+                            sources: [
+                                "\(packageFolder.pathString)/Sources/TuistKit/**",
+                            ],
+                            dependencies: [
+                                .project(target: "AnotherLibrary", path: "../another-dependency"),
+                            ],
+                            settings: Settings()
+                        ),
                     ],
                     resourceSynthesizers: []
                 ),
