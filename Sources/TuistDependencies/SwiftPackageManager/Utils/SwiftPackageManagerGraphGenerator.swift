@@ -30,9 +30,10 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .noSupportedPlatforms, .unknownByNameDependency, .unknownPlatform, .unknownProductDependency, .unsupportedDependencyKind,
-             .unsupportedSetting:
+        case .noSupportedPlatforms, .unknownByNameDependency, .unknownPlatform, .unknownProductDependency:
             return .abort
+        case .unsupportedDependencyKind, .unsupportedSetting:
+            return .bug
         }
     }
 
