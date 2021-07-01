@@ -76,7 +76,7 @@
     "react-use-visibility": "^0.3.0",
     "remark-slug": "^6.0.0",
     "semantic-ui-react": "^2.0.3",
-    "slug": "^5.0.1",
+    "slug": "^5.1.0",
     "tailwindcss": "^2.1.4",
     "theme-ui": "^0.9.1",
     "url-join": "^4.0.1"
