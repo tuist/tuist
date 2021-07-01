@@ -16,8 +16,8 @@ final class PackageTests: TuistUnitTestCase {
     func test_codable_remote() {
         // Given
         let subject = Package.remote(
-          url: "/url/to/package",
-          requirement: .branch("branch")
+            url: "/url/to/package",
+            requirement: .branch("branch")
         )
 
         // Then
@@ -35,8 +35,8 @@ final class PackageTests: TuistUnitTestCase {
     func test_is_remote_remote() {
         // Given
         let subject = Package.remote(
-          url: "/url/to/package",
-          requirement: .branch("branch")
+            url: "/url/to/package",
+            requirement: .branch("branch")
         )
 
         // Then
