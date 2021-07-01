@@ -110,6 +110,17 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
             true
         }
 
+        fileHandler.stubFilesAndDirectoriesContained = { path in
+            guard path == testPath.appending(component: "customPath").appending(component: "customPublicHeadersPath") else {
+                return nil
+            }
+
+            return [
+                AbsolutePath("/not/an/header.swift"),
+                AbsolutePath("/an/header.h"),
+            ]
+        }
+
         swiftPackageManagerController.loadPackageInfoStub = { path in
             switch path {
             case alamofirePath:

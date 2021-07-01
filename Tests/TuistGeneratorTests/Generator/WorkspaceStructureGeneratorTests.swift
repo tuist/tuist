@@ -414,6 +414,10 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
             []
         }
 
+        func filesAndDirectoriesContained(in _: AbsolutePath) -> [AbsolutePath]? {
+            nil
+        }
+
         func ls(_: AbsolutePath) throws -> [AbsolutePath] {
             []
         }
