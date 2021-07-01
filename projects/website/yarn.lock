@@ -2685,12 +2685,12 @@
     "@theme-ui/css" "0.9.1"
     "@theme-ui/mdx" "0.9.1"
 
-"@theme-ui/typography@^0.9.1":
-  version "0.9.1"
-  resolved "https://registry.yarnpkg.com/@theme-ui/typography/-/typography-0.9.1.tgz#b88f3c0b4484a0da2e07b51d1b45d9d1984bb701"
-  integrity sha512-QUbKRMWQ2PxmUZ8nJxkyXHKOiavWGdXQAzuQAzSVo31JHXPluqrVvIZJ5f4W8Dxhot6FDB+42naUnGoqvK0BRw==
+"@theme-ui/typography@^0.10.0":
+  version "0.10.0"
+  resolved "https://registry.yarnpkg.com/@theme-ui/typography/-/typography-0.10.0.tgz#1a143ca980ca5619ef5b2823f7ae96cd200f5976"
+  integrity sha512-OISI85zfYTzXMQAKHIoEnAMzZffQPh+kBvhuKlSBGcZ32ohbXDuhZxtHcSMuIdO2GNTIqayWxKX0u0zzO+VsdA==
   dependencies:
-    "@theme-ui/css" "0.9.1"
+    "@theme-ui/css" "0.10.0"
     "@types/compass-vertical-rhythm" "^1.4.1"
     "@types/modularscale" "^2.0.0"
     "@types/typography" "^0.16.3"
