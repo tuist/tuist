@@ -81,7 +81,6 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         shouldUpdate: Bool,
         swiftToolsVersion: String?
     ) throws -> TuistCore.DependenciesGraph {
-        logger.warning("Support for Swift Package Manager dependencies is currently being worked on and is not ready to be used yet.")
         logger.info("Installing Swift Package Manager dependencies.", metadata: .subsection)
 
         let dependenciesGraph: TuistCore.DependenciesGraph = try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in

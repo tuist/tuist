@@ -4,10 +4,6 @@ slug: '/manifests/dependencies'
 description: This page documents how the Dependencies.swift manifest file can be used define the contract between the dependency managers and Tuist.
 ---
 
-:::warning Work in progress
-This feature is currently being worked on and is not ready to be used yet.
-:::
-
 Learn how to get started with `Dependencies.swift` [here](/guides/third-party-dependencies/).
 
 ```swift
@@ -15,9 +11,11 @@ import ProjectDescription
 
 let dependencies = Dependencies(
     carthage: [
-        .github(path: "Alamofire/Alamofire", requirement: .exact("5.0.4"))
+        .github(path: "Alamofire/Alamofire", requirement: .exact("5.0.4")),
     ],
-    swiftPackageManager: nil, // work in progress, pass `nil`
+    swiftPackageManager: [
+        .remote(url: "https://github.com/Alamofire/Alamofire", requirement: .upToNextMajor(from: "5.0.0")),
+    ],
     platforms: [.iOS]
 )
 ```
@@ -57,3 +55,4 @@ Contains the description of a dependency that can be installed using Swift Packa
 | Property   | Description                                                          | Type                                      | Required | Default |
 | ---------- | -------------------------------------------------------------------- | ----------------------------------------- | -------- | ------- |
 | `packages` | List of packages that will be installed using Swift Package Manager. | [`[Package]`](/manifests/project#package) | Yes      |         |
+| `productTypes` | Mapping from SPM targets to custom Tuist product types. If not specified, the SPM defined product is used, or `staticFramwork` if the SPM product is automatic. | [`[String: Product]`](/manifests/project#product) | Yes      |         |

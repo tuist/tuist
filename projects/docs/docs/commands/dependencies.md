@@ -10,10 +10,6 @@ External dependencies are represented by another graph. Dependency managers like
 
 Check out [this page](/guides/third-party-dependencies/) for the API reference of `Dependencies.swift`.
 
-:::warning Work in progress
-This feature is currently being worked on and is not ready to be used yet.
-:::
-
 ### Commands
 
 #### Fetching
