@@ -65,6 +65,7 @@ public enum Constants {
         public static let labToken = "TUIST_LAB_TOKEN"
         public static let cacheManifests = "TUIST_CACHE_MANIFESTS"
         public static let statsOptOut = "TUIST_STATS_OPT_OUT"
+        public static let githubAPIToken = "TUIST_GITHUB_API_TOKEN"
     }
 
     public enum GoogleCloud {

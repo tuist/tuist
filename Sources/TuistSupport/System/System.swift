@@ -684,6 +684,24 @@ public final class System: Systeming {
 }
 
 extension Systeming {
+    public func publisher(_ arguments: [String], pipedToArguments: [String]) -> AnyPublisher<SystemEvent<Data>, Error> {
+        AnyPublisher.create { (subscriber) -> Cancellable in
+            let disposable = self.observable(arguments, pipedToArguments: pipedToArguments).subscribe { event in
+                switch event {
+                case .completed:
+                    subscriber.send(completion: .finished)
+                case let .error(error):
+                    subscriber.send(completion: .failure(error))
+                case let .next(event):
+                    subscriber.send(event)
+                }
+            }
+            return AnyCancellable {
+                disposable.dispose()
+            }
+        }
+    }
+
     public func publisher(_ arguments: [String]) -> AnyPublisher<SystemEvent<Data>, Error> {
         AnyPublisher.create { (subscriber) -> Cancellable in
             let disposable = self.observable(arguments).subscribe { event in
