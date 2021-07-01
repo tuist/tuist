@@ -23,8 +23,7 @@ public final class GenerateModuleMapProjectMapper: ProjectMapping {
     // MARK: - ProjectMapping
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
-        var results = (targets: [Target](), sideEffects: [SideEffectDescriptor]())
-        results = try project.targets.reduce(into: results) { results, target in
+        let results = try project.targets.reduce(into: (targets: [Target](), sideEffects: [SideEffectDescriptor]())) { results, target in
             let (updatedTarget, sideEffects) = try map(target: target, project: project)
             results.targets.append(updatedTarget)
             results.sideEffects.append(contentsOf: sideEffects)
@@ -43,7 +42,8 @@ public final class GenerateModuleMapProjectMapper: ProjectMapping {
             return (target, [])
         }
 
-        guard (target.headers?.public.count ?? 0) == 1 else {
+        let publicHeadersCount = target.headers?.public.count ?? 0
+        guard publicHeadersCount == 1 else {
             // No header or multiple headers, nothing to do
             return (target, [])
         }
@@ -62,7 +62,7 @@ public final class GenerateModuleMapProjectMapper: ProjectMapping {
             export *
             module * { export * }
         }
-        """.data(using: .utf8)!
+        """.data(using: .utf8)
 
         let moduleMapPath = project.path
             .appending(component: derivedDirectoryName)
