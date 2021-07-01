@@ -21,7 +21,7 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
     /// Thrown when `PackageInfo.Target.Dependency.product` dependency cannot be resolved.
     case unknownProductDependency(String, String)
 
-    /// Thrown when `WorkspaceState.Dependency.Kind` is not one of the expected values.
+    /// Thrown when `SwiftPackageManagerWorkspaceState.Dependency.Kind` is not one of the expected values.
     case unsupportedDependencyKind(String)
 
     /// Thrown when unsupported `PackageInfo.Target.TargetBuildSettingDescription` `Tool`/`SettingName` pair is found.
@@ -79,6 +79,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         self.swiftPackageManagerController = swiftPackageManagerController
     }
 
+    // swiftlint:disable:next function_body_length
     public func generate(
         at path: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
@@ -88,7 +89,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         let checkoutsFolder = path.appending(component: "checkouts")
         let workspacePath = path.appending(component: "workspace-state.json")
 
-        let workspaceState = try JSONDecoder().decode(WorkspaceState.self, from: try FileHandler.shared.readFile(workspacePath))
+        let workspaceState = try JSONDecoder().decode(SwiftPackageManagerWorkspaceState.self, from: try FileHandler.shared.readFile(workspacePath))
         let packageInfos: [(name: String, folder: AbsolutePath, artifactsFolder: AbsolutePath, info: PackageInfo)]
         packageInfos = try workspaceState.object.dependencies.map { dependency in
             let name = dependency.packageRef.name
