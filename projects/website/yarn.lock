@@ -2462,12 +2462,12 @@
     "@theme-ui/css" "0.9.1"
     deepmerge "^4.2.2"
 
-"@theme-ui/color@^0.9.1":
-  version "0.9.1"
-  resolved "https://registry.yarnpkg.com/@theme-ui/color/-/color-0.9.1.tgz#853531103bdb7f3725d9de4083a230d7ca14916f"
-  integrity sha512-+YdEPB+9GVdt28Q01P37Rk5lox/hsz7e6LXUv6rOjCL2uVo0FIBV85PS86SFscosOUtQ1wwesbwbaGSfq1zWIQ==
+"@theme-ui/color@^0.10.0":
+  version "0.10.0"
+  resolved "https://registry.yarnpkg.com/@theme-ui/color/-/color-0.10.0.tgz#bf5e6860d0ccfa81c1d55781562fa40eacedd66c"
+  integrity sha512-mOg4wW2iwF2jkS3Dw4LkteonauOIoGjGaPKzsvniX+A2y5wDtib/IvpqfVAgiS4TnAJdcV1GQYivgzv18cleZA==
   dependencies:
-    "@theme-ui/css" "0.9.1"
+    "@theme-ui/css" "0.10.0"
     polished "^4.0.5"
 
 "@theme-ui/components@0.9.1":
@@ -2493,6 +2493,14 @@
     "@theme-ui/parse-props" "0.9.1"
     deepmerge "^4.2.2"
 
+"@theme-ui/css@0.10.0":
+  version "0.10.0"
+  resolved "https://registry.yarnpkg.com/@theme-ui/css/-/css-0.10.0.tgz#871f63334fb138491406c32f8347d53b19846a9b"
+  integrity sha512-Up3HqXoy2ERn/9gVxApCSl2n9vwtHBwPrYlMyEjX0YPs/rxmo+Aqe3kAxO+SG9idMw08mtdaDfMIFaPsBE5ovA==
+  dependencies:
+    "@emotion/react" "^11.1.1"
+    csstype "^3.0.5"
+
 "@theme-ui/css@0.9.1":
   version "0.9.1"
   resolved "https://registry.yarnpkg.com/@theme-ui/css/-/css-0.9.1.tgz#f5f9b02b7de243acde5089011e7e7312afb5ae55"
@@ -2501,10 +2509,10 @@
     "@emotion/react" "^11.1.1"
     csstype "^3.0.5"
 
-"@theme-ui/match-media@^0.9.1":
-  version "0.9.1"
-  resolved "https://registry.yarnpkg.com/@theme-ui/match-media/-/match-media-0.9.1.tgz#4b468dfa66b4fcb6962fc4de4d400b5083c73db5"
-  integrity sha512-X4gYE+yEsslQlppVDqSfQUR1eezJHma7dQ2UDDld5Qwz7shIKIIC3Ev41JMsZzADl8ww8PvuudoPY2DLLJfbmQ==
+"@theme-ui/match-media@^0.10.1":
+  version "0.10.1"
+  resolved "https://registry.yarnpkg.com/@theme-ui/match-media/-/match-media-0.10.1.tgz#2121f5a68abfdac6d93dfebcafe7210bc0efbb9b"
+  integrity sha512-yN2+h5FQ6KyeCYvV9ZWMzK8jWy8xVghdglpoXC7/GQtKEfjYG4aMdfpcvrD5K4hDrhlDQ2adF5wOJn+QhqznYw==
 
 "@theme-ui/mdx@0.9.1":
   version "0.9.1"
@@ -8162,12 +8170,12 @@ gatsby-plugin-react-svg@^3.0.1:
   dependencies:
     svg-react-loader "^0.4.4"
 
-gatsby-plugin-robots-txt@^1.6.2:
-  version "1.6.2"
-  resolved "https://registry.yarnpkg.com/gatsby-plugin-robots-txt/-/gatsby-plugin-robots-txt-1.6.2.tgz#b120b0a452f77e5ba2724e99425b90504dbc44b7"
-  integrity sha512-TqLCnxldq7goBMrvtzTDWQAcjPUr/CpOUJe7K0NyLfDmP/xb+Ius03SvAdJRm33fyJr+YNjknSspPK7q9OvQYA==
+gatsby-plugin-robots-txt@^1.6.8:
+  version "1.6.8"
+  resolved "https://registry.yarnpkg.com/gatsby-plugin-robots-txt/-/gatsby-plugin-robots-txt-1.6.8.tgz#28968ca767ac4e45bf71b18eb1d363abb55aa6cd"
+  integrity sha512-Lw/r+gBbjvCiVnqJaO24aBUFO0VMZMHgKupy/LLzxxVE8OuEbTpwUv2aYZvtOZIXnKJfdbf/Znu43t7qAp5sdw==
   dependencies:
-    "@babel/runtime" "^7.11.2"
+    "@babel/runtime" "^7.14.0"
     generate-robotstxt "^8.0.3"
 
 gatsby-plugin-sharp@^3.6.0:
@@ -13652,10 +13660,10 @@ prepend-http@^2.0.0:
   resolved "https://registry.yarnpkg.com/prepend-http/-/prepend-http-2.0.0.tgz#e92434bfa5ea8c19f41cdfd401d741a3c819d897"
   integrity sha1-6SQ0v6XqjBn0HN/UAddBo8gZ2Jc=
 
-prettier@^2.0.5, prettier@^2.3.0:
-  version "2.3.0"
-  resolved "https://registry.yarnpkg.com/prettier/-/prettier-2.3.0.tgz#b6a5bf1284026ae640f17f7ff5658a7567fc0d18"
-  integrity sha512-kXtO4s0Lz/DW/IJ9QdWhAf7/NmPWQXkFr/r/WkR3vyI+0v8amTDxiaQSLzs8NBlytfLWX/7uQUMIW677yLKl4w==
+prettier@^2.0.5, prettier@^2.3.2:
+  version "2.3.2"
+  resolved "https://registry.yarnpkg.com/prettier/-/prettier-2.3.2.tgz#ef280a05ec253712e486233db5c6f23441e7342d"
+  integrity sha512-lnJzDfJ66zkMy58OL5/NY5zp70S7Nz6KqcKkXYzn2tMVrNxvbqaBpg7H3qHaLxCJ5lNMsGuM8+ohS7cZrthdLQ==
 
 pretty-bytes@^5.3.0, pretty-bytes@^5.4.1:
   version "5.6.0"
