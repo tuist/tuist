@@ -202,6 +202,25 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         return copy
     }
 
+    /// Returns a new copy of the target with the given additional settings
+    /// - Parameter settingsDictionary: settings to be added.
+    public func with(additionalSettings: SettingsDictionary) -> Target {
+        var copy = self
+        if let oldSettings = copy.settings {
+            copy.settings = Settings(
+                base: oldSettings.base.merging(additionalSettings, uniquingKeysWith: { $1 }),
+                configurations: oldSettings.configurations,
+                defaultSettings: oldSettings.defaultSettings
+            )
+        } else {
+            copy.settings = Settings(
+                base: additionalSettings,
+                configurations: [:]
+            )
+        }
+        return copy
+    }
+
     // MARK: - Comparable
 
     public static func < (lhs: Target, rhs: Target) -> Bool {
