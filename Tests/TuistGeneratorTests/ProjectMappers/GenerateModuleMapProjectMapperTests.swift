@@ -56,15 +56,15 @@ public final class GenerateModuleMapProjectMapperTests: TuistUnitTestCase {
             sideEffects,
             [
                 .file(FileDescriptor(
-                        path: AbsolutePath("/"),
-                        contents: """
-                        framework module A {
-                            umbrella header "header.h"
-                            export *
-                            module * { export * }
-                        }
-                        """.data(using: .utf8)
-                ))
+                    path: AbsolutePath("/"),
+                    contents: """
+                    framework module A {
+                        umbrella header "header.h"
+                        export *
+                        module * { export * }
+                    }
+                    """.data(using: .utf8)
+                )),
             ]
         )
     }
