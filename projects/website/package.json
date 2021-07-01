@@ -16,7 +16,7 @@
     "@mdx-js/react": "^1.6.22",
     "@mdx-js/tag": "^0.20.3",
     "@theme-ui/color": "^0.10.0",
-    "@theme-ui/match-media": "^0.9.1",
+    "@theme-ui/match-media": "^0.10.1",
     "@theme-ui/presets": "^0.9.1",
     "@theme-ui/prism": "^0.9.1",
     "@theme-ui/sidenav": "^0.9.1",
