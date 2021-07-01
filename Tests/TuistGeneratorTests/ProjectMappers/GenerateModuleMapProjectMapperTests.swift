@@ -21,8 +21,8 @@ public final class GenerateModuleMapProjectMapperTests: TuistUnitTestCase {
     }
 
     override public func tearDown() {
-        super.tearDown()
         subject = nil
+        super.tearDown()
     }
 
     func test_map() throws {
