@@ -18,7 +18,7 @@
     "@theme-ui/color": "^0.10.0",
     "@theme-ui/match-media": "^0.9.1",
     "@theme-ui/presets": "^0.9.1",
-    "@theme-ui/prism": "^0.9.1",
+    "@theme-ui/prism": "^0.10.0",
     "@theme-ui/sidenav": "^0.9.1",
     "@theme-ui/typography": "^0.9.1",
     "autoprefixer": "^10.2.6",
