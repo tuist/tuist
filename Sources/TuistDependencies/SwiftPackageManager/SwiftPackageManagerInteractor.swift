@@ -204,17 +204,6 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
     }
 }
 
-extension TuistGraph.Package {
-    var isRemote: Bool {
-        switch self {
-        case .remote:
-            return true
-        case .local:
-            return false
-        }
-    }
-}
-
 // MARK: - Models
 
 private struct SwiftPackageManagerPathsProvider {

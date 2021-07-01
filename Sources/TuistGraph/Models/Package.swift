@@ -48,3 +48,15 @@ extension Package {
         }
     }
 }
+
+
+extension TuistGraph.Package {
+    public var isRemote: Bool {
+        switch self {
+        case .remote:
+            return true
+        case .local:
+            return false
+        }
+    }
+}
