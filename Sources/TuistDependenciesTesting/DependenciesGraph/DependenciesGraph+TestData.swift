@@ -72,6 +72,7 @@ public extension TuistCore.DependenciesGraph {
                             ],
                             settings: Settings(
                                 base: [
+                                    "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
                                     "HEADER_SEARCH_PATHS": .array(["cSearchPath", "cxxSearchPath"]),
                                     "OTHER_CFLAGS": .array(["CUSTOM_C_FLAG"]),
                                     "OTHER_CPLUSPLUSFLAGS": .array(["CUSTOM_CXX_FLAG"]),
@@ -96,6 +97,7 @@ public extension TuistCore.DependenciesGraph {
                             ],
                             settings: Settings(
                                 base: [
+                                    "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
                                     "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
                                     "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
                                 ]
@@ -135,6 +137,7 @@ public extension TuistCore.DependenciesGraph {
                             ],
                             settings: Settings(
                                 base: [
+                                    "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
                                     "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
                                     "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
                                 ]
@@ -151,6 +154,7 @@ public extension TuistCore.DependenciesGraph {
                             ],
                             settings: Settings(
                                 base: [
+                                    "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
                                     "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
                                     "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
                                 ]
@@ -187,6 +191,7 @@ public extension TuistCore.DependenciesGraph {
                             ],
                             settings: Settings(
                                 base: [
+                                    "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
                                     "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
                                     "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
                                 ]
@@ -226,6 +231,7 @@ public extension TuistCore.DependenciesGraph {
                             ],
                             settings: Settings(
                                 base: [
+                                    "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
                                     "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
                                     "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
                                 ]
@@ -280,6 +286,7 @@ public extension TuistCore.DependenciesGraph {
                             ],
                             settings: Settings(
                                 base: [
+                                    "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
                                     "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
                                     "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
                                 ]
@@ -309,6 +316,7 @@ public extension TuistCore.DependenciesGraph {
                             ],
                             settings: Settings(
                                 base: [
+                                    "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
                                     "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
                                     "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
                                 ]
@@ -347,6 +355,7 @@ public extension TuistCore.DependenciesGraph {
                             ],
                             settings: Settings(
                                 base: [
+                                    "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
                                     "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
                                     "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
                                 ]
@@ -364,6 +373,7 @@ public extension TuistCore.DependenciesGraph {
                             ],
                             settings: Settings(
                                 base: [
+                                    "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
                                     "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
                                     "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
                                 ]
@@ -381,6 +391,7 @@ public extension TuistCore.DependenciesGraph {
                             ],
                             settings: Settings(
                                 base: [
+                                    "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
                                     "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
                                     "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
                                 ]
@@ -398,6 +409,7 @@ public extension TuistCore.DependenciesGraph {
                             ],
                             settings: Settings(
                                 base: [
+                                    "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
                                     "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
                                     "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
                                 ]
@@ -432,6 +444,7 @@ public extension TuistCore.DependenciesGraph {
                             ],
                             settings: Settings(
                                 base: [
+                                    "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
                                     "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
                                     "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
                                 ]
