@@ -9,7 +9,6 @@ excluded:
   - projects/tuistbench/.build
   - bin
   - design
-  - next
   - generated_fixtures
   - website
   - script

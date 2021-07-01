@@ -7,11 +7,6 @@ module Fourier
         Services::Serve::Web.call
       end
 
-      desc "next", "Serve the next website"
-      def next
-        Services::Serve::Next.call
-      end
-
       desc "docs", "Serve the documentation website"
       def docs
         Services::Serve::Docs.call
