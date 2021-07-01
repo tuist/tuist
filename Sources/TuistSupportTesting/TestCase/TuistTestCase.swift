@@ -39,6 +39,14 @@ public final class MockFileHandler: FileHandler {
         return stubExists(path)
     }
 
+    public var stubReadFile: ((AbsolutePath) throws -> Data)?
+    override public func readFile(_ path: AbsolutePath) throws -> Data {
+        guard let stubReadFile = stubReadFile else {
+            return try super.readFile(path)
+        }
+        return try stubReadFile(path)
+    }
+
     public var stubIsFolder: ((AbsolutePath) -> Bool)?
     override public func isFolder(_ path: AbsolutePath) -> Bool {
         guard let stubIsFolder = stubIsFolder else {

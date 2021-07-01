@@ -101,7 +101,10 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
             }
 
             // post installation
-            try saveDependencies(pathsProvider: pathsProvider)
+            try saveDependencies(
+                pathsProvider: pathsProvider,
+                hasRemoteDependencies: dependencies.packages.contains(where: \.isRemote)
+            )
 
             // generate dependencies graph
             return try swiftPackageManagerGraphGenerator.generate(
@@ -165,20 +168,22 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
     }
 
     /// Saves lockfile resolved dependencies in `Tuist/Dependencies` directory.
-    private func saveDependencies(pathsProvider: SwiftPackageManagerPathsProvider) throws {
+    private func saveDependencies(pathsProvider: SwiftPackageManagerPathsProvider, hasRemoteDependencies: Bool) throws {
         // validation
-        guard fileHandler.exists(pathsProvider.temporaryPackageResolvedPath) else {
+        guard !hasRemoteDependencies || fileHandler.exists(pathsProvider.temporaryPackageResolvedPath) else {
             throw SwiftPackageManagerInteractorError.packageResolvedNotFound
         }
         guard fileHandler.exists(pathsProvider.temporaryBuildDirectory) else {
             throw SwiftPackageManagerInteractorError.buildDirectoryNotFound
         }
 
-        // save `Package.resolved`
-        try copy(
-            from: pathsProvider.temporaryPackageResolvedPath,
-            to: pathsProvider.destinationPackageResolvedPath
-        )
+        if fileHandler.exists(pathsProvider.temporaryPackageResolvedPath) {
+            // save `Package.resolved`
+            try copy(
+                from: pathsProvider.temporaryPackageResolvedPath,
+                to: pathsProvider.destinationPackageResolvedPath
+            )
+        }
 
         // save `.build` directory
         try copy(

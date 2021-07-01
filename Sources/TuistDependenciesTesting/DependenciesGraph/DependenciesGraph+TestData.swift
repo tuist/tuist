@@ -41,8 +41,8 @@ public extension TuistCore.DependenciesGraph {
         )
     }
 
-    static func test(spmFolder: Path) -> Self {
-        let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "test")
+    // swiftlint:disable:next function_body_length
+    static func test(packageFolder: Path) -> Self {
         return .init(
             externalDependencies: [
                 "Tuist": [.project(target: "Tuist", path: packageFolder)],
