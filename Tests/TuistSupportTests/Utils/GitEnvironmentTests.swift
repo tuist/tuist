@@ -16,15 +16,51 @@ final class GitEnvironmentErrorTests: TuistUnitTestCase {
 
 final class GitEnvironmentTests: TuistUnitTestCase {
     var subject: GitEnvironment!
+    var envVariables: [String: String] = [:]
 
     override func setUp() {
-        subject = GitEnvironment()
         super.setUp()
+        subject = GitEnvironment(environment: { self.envVariables })
     }
 
     override func tearDown() {
         subject = nil
         super.tearDown()
+    }
+
+    func test_githubAuthentication_returns_the_environment_variable_when_the_token_is_present() throws {
+        // Given
+        let expectation = XCTestExpectation(description: "Git authentication")
+        envVariables[Constants.EnvironmentVariables.githubAPIToken] = "TOKEN"
+
+        // When
+        _ = subject.githubAuthentication()
+            .sink { _ in
+            } receiveValue: { value in
+                XCTAssertEqual(value, .token("TOKEN"))
+                expectation.fulfill()
+            }
+        wait(for: [expectation], timeout: 10.0)
+    }
+
+    func test_githubAuthentication_returns_the_system_credentials_when_the_token_is_not_present() throws {
+        // Given
+        let expectation = XCTestExpectation(description: "Git authentication")
+        let output = """
+        username=tuist
+        password=rocks
+        """
+        system.succeedCommand(["echo", "url=https://github.com"], output: output)
+        system.succeedCommand(["git", "credentials", "fill"], output: output)
+
+        // When
+        _ = subject.githubAuthentication()
+            .sink { _ in
+            } receiveValue: { value in
+                XCTAssertEqual(value, .credentials(.init(username: "tuist", password: "rocks")))
+                expectation.fulfill()
+            }
+        wait(for: [expectation], timeout: 10.0)
     }
 
     func test_githubCredentials_when_the_command_fails() throws {
