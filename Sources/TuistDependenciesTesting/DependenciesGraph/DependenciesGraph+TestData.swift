@@ -75,8 +75,8 @@ public extension TuistCore.DependenciesGraph {
                                     "OTHER_CFLAGS": .array(["CUSTOM_C_FLAG"]),
                                     "OTHER_CPLUSPLUSFLAGS": .array(["CUSTOM_CXX_FLAG"]),
                                     "OTHER_SWIFT_FLAGS": .array(["CUSTOM_SWIFT_FLAG1", "CUSTOM_SWIFT_FLAG2"]),
-                                    "GCC_PREPROCESSOR_DEFINITIONS": .array(["CXX_DEFINE=CXX_VALUE", "C_DEFINE=C_VALUE"]),
-                                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_DEFINE"]),
+                                    "GCC_PREPROCESSOR_DEFINITIONS": .array(["CXX_DEFINE=CXX_VALUE", "C_DEFINE=C_VALUE", "SWIFT_PACKAGE=1"]),
+                                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE", "SWIFT_DEFINE"]),
                                 ]
                             )
                         ),
@@ -93,7 +93,12 @@ public extension TuistCore.DependenciesGraph {
                             dependencies: [
                                 .project(target: "AnotherLibrary", path: "../another-dependency"),
                             ],
-                            settings: Settings()
+                            settings: Settings(
+                                base: [
+                                    "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
+                                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
+                                ]
+                            )
                         ),
                     ],
                     resourceSynthesizers: []
@@ -127,7 +132,12 @@ public extension TuistCore.DependenciesGraph {
                             dependencies: [
                                 .target(name: "ALibraryUtils"),
                             ],
-                            settings: Settings()
+                            settings: Settings(
+                                base: [
+                                    "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
+                                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
+                                ]
+                            )
                         ),
                         .init(
                             name: "ALibraryUtils",
@@ -138,7 +148,12 @@ public extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/Sources/ALibraryUtils/**",
                             ],
-                            settings: Settings()
+                            settings: Settings(
+                                base: [
+                                    "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
+                                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
+                                ]
+                            )
                         ),
                     ],
                     resourceSynthesizers: []
@@ -169,7 +184,12 @@ public extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/Sources/AnotherLibrary/**",
                             ],
-                            settings: Settings()
+                            settings: Settings(
+                                base: [
+                                    "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
+                                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
+                                ]
+                            )
                         ),
                     ],
                     resourceSynthesizers: []
@@ -203,7 +223,12 @@ public extension TuistCore.DependenciesGraph {
                             dependencies: [
                                 .sdk(name: "CFNetwork.framework", status: .required),
                             ],
-                            settings: Settings()
+                            settings: Settings(
+                                base: [
+                                    "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
+                                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
+                                ]
+                            )
                         ),
                     ],
                     resourceSynthesizers: []
@@ -252,7 +277,12 @@ public extension TuistCore.DependenciesGraph {
                                 .sdk(name: "z.tbd", status: .required),
                                 .sdk(name: "StoreKit.framework", status: .required),
                             ],
-                            settings: Settings()
+                            settings: Settings(
+                                base: [
+                                    "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
+                                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
+                                ]
+                            )
                         ),
                         .init(
                             name: "GoogleAppMeasurementWithoutAdIdSupportTarget",
@@ -276,7 +306,12 @@ public extension TuistCore.DependenciesGraph {
                                 .sdk(name: "z.tbd", status: .required),
                                 .sdk(name: "StoreKit.framework", status: .required),
                             ],
-                            settings: Settings()
+                            settings: Settings(
+                                base: [
+                                    "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
+                                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
+                                ]
+                            )
                         ),
                     ],
                     resourceSynthesizers: []
@@ -309,7 +344,12 @@ public extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/Sources/GULAppDelegateSwizzler/**",
                             ],
-                            settings: Settings()
+                            settings: Settings(
+                                base: [
+                                    "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
+                                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
+                                ]
+                            )
                         ),
                         .init(
                             name: "GULMethodSwizzler",
@@ -321,7 +361,12 @@ public extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/Sources/GULMethodSwizzler/**",
                             ],
-                            settings: Settings()
+                            settings: Settings(
+                                base: [
+                                    "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
+                                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
+                                ]
+                            )
                         ),
                         .init(
                             name: "GULNSData",
@@ -333,7 +378,12 @@ public extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/Sources/GULNSData/**",
                             ],
-                            settings: Settings()
+                            settings: Settings(
+                                base: [
+                                    "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
+                                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
+                                ]
+                            )
                         ),
                         .init(
                             name: "GULNetwork",
@@ -345,7 +395,12 @@ public extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/Sources/GULNetwork/**",
                             ],
-                            settings: Settings()
+                            settings: Settings(
+                                base: [
+                                    "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
+                                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
+                                ]
+                            )
                         ),
                     ],
                     resourceSynthesizers: []
@@ -374,7 +429,12 @@ public extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/Sources/nanopb/**",
                             ],
-                            settings: Settings()
+                            settings: Settings(
+                                base: [
+                                    "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
+                                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
+                                ]
+                            )
                         ),
                     ],
                     resourceSynthesizers: []
