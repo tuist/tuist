@@ -62,7 +62,14 @@ public final class GraphContentHasher: GraphContentHashing {
     ) throws -> [GraphTarget: String] {
         let graphTraverser = GraphTraverser(graph: graph)
         var visitedNodes: [GraphTarget: Bool] = [:]
-        let hashableTargets = graphTraverser.allTargets().compactMap { target -> GraphTarget? in
+
+        let sortedCacheableTargets = try topologicalSort(
+            Array(graphTraverser.allTargets()),
+            successors: {
+                Array(graphTraverser.directTargetDependencies(path: $0.path, name: $0.target.name))
+            }
+        )
+        let hashableTargets = sortedCacheableTargets.compactMap { target -> GraphTarget? in
             if isHashable(
                 target,
                 graphTraverser: graphTraverser,
