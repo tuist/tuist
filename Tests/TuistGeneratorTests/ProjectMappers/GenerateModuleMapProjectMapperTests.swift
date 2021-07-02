@@ -35,10 +35,8 @@ public final class GenerateModuleMapProjectMapperTests: TuistUnitTestCase {
         let (mappedProject, sideEffects) = try subject.map(project: project)
 
         // Then
-        let expectedPath = project.path
-            .appending(component: Constants.DerivedDirectory.name)
-            .appending(component: Constants.DerivedDirectory.moduleMaps)
-            .appending(component: "A.modulemap")
+        let expectedPath = RelativePath("Derived/ModuleMaps/A.modulemap")
+
         XCTAssertEqual(
             mappedProject,
             Project.test(
@@ -56,7 +54,7 @@ public final class GenerateModuleMapProjectMapperTests: TuistUnitTestCase {
             sideEffects,
             [
                 .file(FileDescriptor(
-                    path: AbsolutePath("/"),
+                    path: AbsolutePath("/Project/Derived/ModuleMaps/A.modulemap"),
                     contents: """
                     framework module A {
                         umbrella header "header.h"

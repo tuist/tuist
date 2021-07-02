@@ -68,9 +68,10 @@ public final class GenerateModuleMapProjectMapper: ProjectMapping {
             .appending(component: derivedDirectoryName)
             .appending(component: moduleMapsDirectoryName)
             .appending(component: "\(target.name).modulemap")
+
         let sideEffect = SideEffectDescriptor.file(FileDescriptor(path: moduleMapPath, contents: data))
 
-        let newTarget = target.with(additionalSettings: [moduleMapSetting: .string(moduleMapPath.pathString)])
+        let newTarget = target.with(additionalSettings: [moduleMapSetting: .string(moduleMapPath.relative(to: project.path).pathString)])
 
         return (newTarget, [sideEffect])
     }
