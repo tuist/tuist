@@ -45,7 +45,11 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
                     .local(path: Path(localSwiftPackagePath.pathString)),
                     .remote(url: "RemoteUrl.com", requirement: .exact("1.2.3")),
                 ],
-                platforms: [.iOS, .macOS]
+                platforms: [.iOS, .macOS],
+                deploymentTargets: [
+                    .iOS(targetVersion: "13.0", devices: [.iphone]),
+                    .macOS(targetVersion: "10.0"),
+                ]
             )
         }
 
@@ -67,7 +71,11 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
                 ],
                 productTypes: [:]
             ),
-            platforms: [.iOS, .macOS]
+            platforms: [.iOS, .macOS],
+            deploymentTargets: [
+                .iOS("13.0", [.iphone]),
+                .macOS("10.0"),
+            ]
         )
         XCTAssertEqual(got, expected)
     }

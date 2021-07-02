@@ -57,7 +57,11 @@ final class DependenciesUpdateServiceTests: TuistUnitTestCase {
                 ],
                 productTypes: [:]
             ),
-            platforms: [.iOS, .macOS]
+            platforms: [.iOS, .macOS],
+            deploymentTargets: [
+                .iOS("13.0", [.iphone]),
+                .macOS("10.0"),
+            ]
         )
         dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
 

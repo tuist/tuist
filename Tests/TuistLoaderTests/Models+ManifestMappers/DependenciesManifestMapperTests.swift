@@ -26,7 +26,12 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
                 .local(path: Path(localPackagePath.pathString)),
                 .remote(url: "RemotePackage.com", requirement: .exact("1.2.3")),
             ],
-            platforms: [.iOS, .macOS, .tvOS]
+            platforms: [.iOS, .macOS, .tvOS],
+            deploymentTargets: [
+                .iOS(targetVersion: "13.0", devices: [.iphone]),
+                .macOS(targetVersion: "10.0"),
+                .tvOS(targetVersion: "13.0"),
+            ]
         )
 
         // When
@@ -48,7 +53,12 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
                 ],
                 productTypes: [:]
             ),
-            platforms: [.iOS, .macOS, .tvOS]
+            platforms: [.iOS, .macOS, .tvOS],
+            deploymentTargets: [
+                .iOS("13.0", [.iphone]),
+                .macOS("10.0"),
+                .tvOS("13.0"),
+            ]
         )
         XCTAssertEqual(got, expected)
     }

@@ -11,6 +11,9 @@ import XCTest
 class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
     private var swiftPackageManagerController: MockSwiftPackageManagerController!
     private var subject: SwiftPackageManagerGraphGenerator!
+    private var path: AbsolutePath { try! temporaryPath() }
+    private var spmFolder: Path { Path(path.pathString) }
+    private var checkoutsPath: AbsolutePath { path.appending(component: "checkouts") }
 
     override func setUp() {
         super.setUp()
@@ -25,81 +28,153 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
         super.tearDown()
     }
 
-    func test_generate() throws {
-        // Given
-        let path = try temporaryPath()
-        let spmFolder = Path(path.pathString)
-        let checkoutsPath = path.appending(component: "checkouts")
+    func test_generate_alamofire() throws {
+        try self.checkGenerated(
+            workspaceDependenciesJSON: """
+            [
+              {
+                "packageRef": {
+                  "kind": "remote",
+                  "name": "Alamofire",
+                  "path": "https://github.com/Alamofire/Alamofire"
+                }
+              }
+            ]
+            """,
+            loadPackageInfoStub: { packagePath in
+                XCTAssertEqual(packagePath, self.path.appending(component: "checkouts").appending(component: "Alamofire"))
+                return PackageInfo.alamofire
+            },
+            dependenciesGraph: .alamofire(spmFolder: spmFolder)
+        )
+    }
 
-        // Alamofire package and its dependencies
-        let alamofirePath = checkoutsPath.appending(component: "Alamofire")
+    func test_generate_google_measurement() throws {
+        try self.checkGenerated(
+            workspaceDependenciesJSON: """
+            [
+              {
+                "packageRef": {
+                  "kind": "remote",
+                  "name": "GoogleAppMeasurement",
+                  "path": "https://github.com/google/GoogleAppMeasurement"
+                }
+              },
+              {
+                "packageRef": {
+                  "kind": "remote",
+                  "name": "GoogleUtilities",
+                  "path": "https://github.com/google/GoogleUtilities"
+                }
+              },
+              {
+                "packageRef": {
+                  "kind": "remote",
+                  "name": "nanopb",
+                  "path": "https://github.com/nanopb/nanopb"
+                }
+              }
+            ]
+            """,
+            loadPackageInfoStub: { packagePath in
+                switch packagePath {
+                case self.checkoutsPath.appending(component: "GoogleAppMeasurement"):
+                    return PackageInfo.googleAppMeasurement
+                case self.checkoutsPath.appending(component: "GoogleUtilities"):
+                    return PackageInfo.googleUtilities
+                case self.checkoutsPath.appending(component: "nanopb"):
+                    return PackageInfo.nanopb
+                default:
+                    XCTFail("Unexpected path: \(self.path)")
+                    return .test
+                }
+            },
+            dependenciesGraph: try .googleAppMeasurement(spmFolder: spmFolder)
+                .merging(with: .googleUtilities(
+                        spmFolder: spmFolder,
+                        customProductTypes: [
+                            "GULMethodSwizzler": .framework,
+                            "GULNetwork": .dynamicLibrary,
+                        ]
+                    ))
+                .merging(with: .nanopb(spmFolder: spmFolder))
+        )
+    }
 
-        // GoogleAppMeasurement package and its dependencies
-        let googleAppMeasurementPath = checkoutsPath.appending(component: "GoogleAppMeasurement")
-        let googleUtilitiesPath = checkoutsPath.appending(component: "GoogleUtilities")
-        let nanopbPath = checkoutsPath.appending(component: "nanopb")
-
-        // Test package and its dependencies
+    func test_generate_test() throws {
         let testPath = AbsolutePath("/tmp/localPackage")
-        let aDependencyPath = checkoutsPath.appending(component: "a-dependency")
-        let anotherDependencyPath = checkoutsPath.appending(component: "another-dependency")
+        try self.checkGenerated(
+            workspaceDependenciesJSON: """
+            [
+              {
+                "packageRef": {
+                  "kind": "local",
+                  "name": "test",
+                  "path": "\(testPath.pathString)"
+                }
+              },
+              {
+                "packageRef": {
+                  "kind": "remote",
+                  "name": "a-dependency",
+                  "path": "https://github.com/dependencies/a-dependency"
+                }
+              },
+              {
+                "packageRef": {
+                  "kind": "remote",
+                  "name": "another-dependency",
+                  "path": "https://github.com/dependencies/another-dependency"
+                }
+              }
+            ]
+            """,
+            stubFilesAndDirectoriesContained: { path in
+                guard path == testPath.appending(component: "customPath").appending(component: "customPublicHeadersPath") else {
+                    return nil
+                }
 
+                return [
+                    AbsolutePath("/not/an/header.swift"),
+                    AbsolutePath("/an/header.h"),
+                ]
+            },
+            loadPackageInfoStub: { packagePath in
+                switch packagePath {
+                case testPath:
+                    return PackageInfo.test
+                case self.checkoutsPath.appending(component: "a-dependency"):
+                    return PackageInfo.aDependency
+                case self.checkoutsPath.appending(component: "another-dependency"):
+                    return PackageInfo.anotherDependency
+                default:
+                    XCTFail("Unexpected path: \(self.path)")
+                    return .test
+                }
+            },
+            deploymentTargets: [
+                .iOS("13.0", [.iphone, .ipad, .mac])
+            ],
+            dependenciesGraph: .test(packageFolder: Path(testPath.pathString))
+                .merging(with: .aDependency(spmFolder: spmFolder))
+                .merging(with: .anotherDependency(spmFolder: spmFolder))
+        )
+    }
+
+    private func checkGenerated(
+        workspaceDependenciesJSON: String,
+        stubFilesAndDirectoriesContained: @escaping (AbsolutePath) -> [AbsolutePath]? = { _ in nil },
+        loadPackageInfoStub: @escaping (AbsolutePath) -> PackageInfo,
+        deploymentTargets: Set<TuistGraph.DeploymentTarget> = [],
+        dependenciesGraph: TuistCore.DependenciesGraph
+    ) throws {
+        // Given
         fileHandler.stubReadFile = {
-            XCTAssertEqual($0, path.appending(component: "workspace-state.json"))
+            XCTAssertEqual($0, self.path.appending(component: "workspace-state.json"))
             return """
             {
               "object": {
-                "dependencies": [
-                  {
-                    "packageRef": {
-                      "kind": "remote",
-                      "name": "Alamofire",
-                      "path": "https://github.com/Alamofire/Alamofire"
-                    }
-                  },
-                  {
-                    "packageRef": {
-                      "kind": "remote",
-                      "name": "GoogleAppMeasurement",
-                      "path": "https://github.com/google/GoogleAppMeasurement"
-                    }
-                  },
-                  {
-                    "packageRef": {
-                      "kind": "remote",
-                      "name": "GoogleUtilities",
-                      "path": "https://github.com/google/GoogleUtilities"
-                    }
-                  },
-                  {
-                    "packageRef": {
-                      "kind": "remote",
-                      "name": "nanopb",
-                      "path": "https://github.com/nanopb/nanopb"
-                    }
-                  },
-                  {
-                    "packageRef": {
-                      "kind": "local",
-                      "name": "test",
-                      "path": "\(testPath.pathString)"
-                    }
-                  },
-                  {
-                    "packageRef": {
-                      "kind": "remote",
-                      "name": "a-dependency",
-                      "path": "https://github.com/dependencies/a-dependency"
-                    }
-                  },
-                  {
-                    "packageRef": {
-                      "kind": "remote",
-                      "name": "another-dependency",
-                      "path": "https://github.com/dependencies/another-dependency"
-                    }
-                  }
-                ]
+                "dependencies": \(workspaceDependenciesJSON)
               }
             }
             """.data(using: .utf8)!
@@ -110,38 +185,9 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
             true
         }
 
-        fileHandler.stubFilesAndDirectoriesContained = { path in
-            guard path == testPath.appending(component: "customPath").appending(component: "customPublicHeadersPath") else {
-                return nil
-            }
+        fileHandler.stubFilesAndDirectoriesContained = stubFilesAndDirectoriesContained
 
-            return [
-                AbsolutePath("/not/an/header.swift"),
-                AbsolutePath("/an/header.h"),
-            ]
-        }
-
-        swiftPackageManagerController.loadPackageInfoStub = { path in
-            switch path {
-            case alamofirePath:
-                return PackageInfo.alamofire
-            case googleAppMeasurementPath:
-                return PackageInfo.googleAppMeasurement
-            case googleUtilitiesPath:
-                return PackageInfo.googleUtilities
-            case nanopbPath:
-                return PackageInfo.nanopb
-            case testPath:
-                return PackageInfo.test
-            case aDependencyPath:
-                return PackageInfo.aDependency
-            case anotherDependencyPath:
-                return PackageInfo.anotherDependency
-            default:
-                XCTFail("Unexpected path: \(path)")
-                return .test
-            }
-        }
+        swiftPackageManagerController.loadPackageInfoStub = loadPackageInfoStub
 
         // When
         let got = try subject.generate(
@@ -150,26 +196,12 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
                 "GULMethodSwizzler": .framework,
                 "GULNetwork": .dynamicLibrary,
             ],
-            platforms: [.iOS]
+            platforms: [.iOS],
+            deploymentTargets: deploymentTargets
         )
 
         // Then
-        let expected = try TuistCore.DependenciesGraph.none
-            .merging(with: DependenciesGraph.alamofire(spmFolder: spmFolder))
-            .merging(with: DependenciesGraph.googleAppMeasurement(spmFolder: spmFolder))
-            .merging(with: DependenciesGraph.googleUtilities(
-                spmFolder: spmFolder,
-                customProductTypes: [
-                    "GULMethodSwizzler": .framework,
-                    "GULNetwork": .dynamicLibrary,
-                ]
-            ))
-            .merging(with: DependenciesGraph.nanopb(spmFolder: spmFolder))
-            .merging(with: DependenciesGraph.test(packageFolder: Path(testPath.pathString)))
-            .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder))
-            .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder))
-
-        XCTAssertEqual(got, expected)
+        XCTAssertEqual(got, dependenciesGraph)
     }
 }
 

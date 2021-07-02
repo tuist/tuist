@@ -64,10 +64,12 @@ public protocol SwiftPackageManagerGraphGenerating {
     /// - Parameter path: The path to the directory that contains the `checkouts` directory where `SwiftPackageManager` installed dependencies.
     /// - Parameter productTypes: The custom `Product` types to be used for SPM targets.
     /// - Parameter platforms: The supported platforms.
+    /// - Parameter deploymentTargets: The configured deployment targets.
     func generate(
         at path: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
-        platforms: Set<TuistGraph.Platform>
+        platforms: Set<TuistGraph.Platform>,
+        deploymentTargets: Set<TuistGraph.DeploymentTarget>
     ) throws -> TuistCore.DependenciesGraph
 }
 
@@ -84,7 +86,8 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
     public func generate(
         at path: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
-        platforms: Set<TuistGraph.Platform>
+        platforms: Set<TuistGraph.Platform>,
+        deploymentTargets: Set<TuistGraph.DeploymentTarget>
     ) throws -> TuistCore.DependenciesGraph {
         let artifactsFolder = path.appending(component: "artifacts")
         let checkoutsFolder = path.appending(component: "checkouts")
@@ -138,6 +141,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 folder: packageInfo.folder,
                 productTypes: productTypes,
                 platforms: platforms,
+                deploymentTargets: deploymentTargets,
                 productToPackage: productToPackage,
                 targetDependencyToFramework: targetDependencyToFramework
             )
@@ -156,6 +160,7 @@ extension ProjectDescription.Project {
         folder: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
         platforms: Set<TuistGraph.Platform>,
+        deploymentTargets: Set<TuistGraph.DeploymentTarget>,
         productToPackage: [String: String],
         targetDependencyToFramework: [String: Path]
     ) throws -> Self {
@@ -168,6 +173,7 @@ extension ProjectDescription.Project {
                 folder: folder,
                 productTypes: productTypes,
                 platforms: platforms,
+                deploymentTargets: deploymentTargets,
                 productToPackage: productToPackage,
                 targetDependencyToFramework: targetDependencyToFramework
             )
@@ -189,6 +195,7 @@ extension ProjectDescription.Target {
         folder: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
         platforms: Set<TuistGraph.Platform>,
+        deploymentTargets: Set<TuistGraph.DeploymentTarget>,
         productToPackage: [String: String],
         targetDependencyToFramework: [String: Path]
     ) throws -> Self? {
@@ -206,7 +213,8 @@ extension ProjectDescription.Target {
 
         let platform = try ProjectDescription.Platform.from(configured: platforms, package: packageInfo.platforms, packageName: packageName)
         let deploymentTarget = try ProjectDescription.DeploymentTarget.from(
-            configured: platforms,
+            configuredPlatforms: platforms,
+            configuredDeploymentTargets: deploymentTargets,
             package: packageInfo.platforms,
             packageName: packageName
         )
@@ -268,29 +276,40 @@ extension ProjectDescription.Platform {
 
 extension ProjectDescription.DeploymentTarget {
     fileprivate static func from(
-        configured: Set<TuistGraph.Platform>,
+        configuredPlatforms: Set<TuistGraph.Platform>,
+        configuredDeploymentTargets: Set<TuistGraph.DeploymentTarget>,
         package: [PackageInfo.Platform],
         packageName: String
     ) throws -> Self? {
-        guard !package.isEmpty else {
-            return nil
-        }
-
-        let platform = try ProjectDescription.Platform.from(configured: configured, package: package, packageName: packageName)
+        let platform = try ProjectDescription.Platform.from(configured: configuredPlatforms, package: package, packageName: packageName)
         switch platform {
         case .iOS:
-            let packagePlatform = package.first { $0.platformName == "ios" }!
-            return .iOS(targetVersion: packagePlatform.version, devices: [.iphone, .ipad, .mac])
+            if let packagePlatform = package.first(where: { $0.platformName == "ios" }) {
+                return .iOS(targetVersion: packagePlatform.version, devices: [.iphone, .ipad, .mac])
+            } else if let configuredDeploymentTarget = configuredDeploymentTargets.first(where: { $0.platform == "iOS" }) {
+                return .from(deploymentTarget: configuredDeploymentTarget)
+            }
         case .macOS:
-            let packagePlatform = package.first { $0.platformName == "macos" }!
-            return .macOS(targetVersion: packagePlatform.version)
+            if let packagePlatform = package.first(where: { $0.platformName == "macos" }) {
+                return .macOS(targetVersion: packagePlatform.version)
+            } else if let configuredDeploymentTarget = configuredDeploymentTargets.first(where: { $0.platform == "macOS" }) {
+                return .from(deploymentTarget: configuredDeploymentTarget)
+            }
         case .watchOS:
-            let packagePlatform = package.first { $0.platformName == "watchos" }!
-            return .watchOS(targetVersion: packagePlatform.version)
+            if let packagePlatform = package.first(where: { $0.platformName == "watchos" }) {
+                return .watchOS(targetVersion: packagePlatform.version)
+            } else if let configuredDeploymentTarget = configuredDeploymentTargets.first(where: { $0.platform == "watchOS" }) {
+                return .from(deploymentTarget: configuredDeploymentTarget)
+            }
         case .tvOS:
-            let packagePlatform = package.first { $0.platformName == "tvos" }!
-            return .tvOS(targetVersion: packagePlatform.version)
+            if let packagePlatform = package.first(where: { $0.platformName == "tvos" }) {
+                return .tvOS(targetVersion: packagePlatform.version)
+            } else if let configuredDeploymentTarget = configuredDeploymentTargets.first(where: { $0.platform == "tvOS" }) {
+                return .from(deploymentTarget: configuredDeploymentTarget)
+            }
         }
+
+        return nil
     }
 }
 
@@ -559,5 +578,26 @@ extension ProjectDescription.Product {
         case .appClip:
             return .appClip
         }
+    }
+}
+
+extension ProjectDescription.DeploymentTarget {
+    fileprivate static func from(deploymentTarget: TuistGraph.DeploymentTarget) -> Self {
+        switch deploymentTarget {
+        case let .iOS(version, devices):
+            return .iOS(targetVersion: version, devices: .from(devices: devices))
+        case let .macOS(version):
+            return .macOS(targetVersion: version)
+        case let .tvOS(version):
+            return .tvOS(targetVersion: version)
+        case let .watchOS(version):
+            return .watchOS(targetVersion: version)
+        }
+    }
+}
+
+extension ProjectDescription.DeploymentDevice {
+    fileprivate static func from(devices: TuistGraph.DeploymentDevice) -> Self {
+        return .init(rawValue: devices.rawValue)
     }
 }
