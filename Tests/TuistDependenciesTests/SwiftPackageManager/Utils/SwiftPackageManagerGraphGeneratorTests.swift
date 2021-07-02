@@ -29,7 +29,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
     }
 
     func test_generate_alamofire() throws {
-        try self.checkGenerated(
+        try checkGenerated(
             workspaceDependenciesJSON: """
             [
               {
@@ -50,7 +50,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
     }
 
     func test_generate_google_measurement() throws {
-        try self.checkGenerated(
+        try checkGenerated(
             workspaceDependenciesJSON: """
             [
               {
@@ -91,19 +91,19 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
             },
             dependenciesGraph: try .googleAppMeasurement(spmFolder: spmFolder)
                 .merging(with: .googleUtilities(
-                        spmFolder: spmFolder,
-                        customProductTypes: [
-                            "GULMethodSwizzler": .framework,
-                            "GULNetwork": .dynamicLibrary,
-                        ]
-                    ))
+                    spmFolder: spmFolder,
+                    customProductTypes: [
+                        "GULMethodSwizzler": .framework,
+                        "GULNetwork": .dynamicLibrary,
+                    ]
+                ))
                 .merging(with: .nanopb(spmFolder: spmFolder))
         )
     }
 
     func test_generate_test() throws {
         let testPath = AbsolutePath("/tmp/localPackage")
-        try self.checkGenerated(
+        try checkGenerated(
             workspaceDependenciesJSON: """
             [
               {
@@ -153,7 +153,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
                 }
             },
             deploymentTargets: [
-                .iOS("13.0", [.iphone, .ipad, .mac])
+                .iOS("13.0", [.iphone, .ipad, .mac]),
             ],
             dependenciesGraph: .test(packageFolder: Path(testPath.pathString))
                 .merging(with: .aDependency(spmFolder: spmFolder))
