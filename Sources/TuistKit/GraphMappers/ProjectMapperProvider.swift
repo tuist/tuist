@@ -58,6 +58,9 @@ final class ProjectMapperProvider: ProjectMapperProviding {
         // Info Plist
         mappers.append(GenerateInfoPlistProjectMapper())
 
+        // Module Map
+        mappers.append(GenerateModuleMapProjectMapper())
+
         // Project name and organization
         mappers.append(ProjectNameAndOrganizationMapper(config: config))
 

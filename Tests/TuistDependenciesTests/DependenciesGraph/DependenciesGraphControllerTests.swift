@@ -14,14 +14,12 @@ public final class DependenciesGraphControllerTests: TuistUnitTestCase {
 
     override public func setUp() {
         super.setUp()
-
         subject = DependenciesGraphController()
     }
 
     override public func tearDown() {
-        super.tearDown()
-
         subject = nil
+        super.tearDown()
     }
 
     func test_save() throws {
