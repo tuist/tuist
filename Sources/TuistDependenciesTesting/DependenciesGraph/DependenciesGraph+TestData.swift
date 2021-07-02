@@ -70,17 +70,14 @@ public extension TuistCore.DependenciesGraph {
                                 .project(target: "ALibrary", path: "../a-dependency"),
                                 .project(target: "ALibraryUtils", path: "../a-dependency"),
                             ],
-                            settings: Settings(
-                                base: [
-                                    "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
-                                    "HEADER_SEARCH_PATHS": .array(["cSearchPath", "cxxSearchPath"]),
-                                    "OTHER_CFLAGS": .array(["CUSTOM_C_FLAG"]),
-                                    "OTHER_CPLUSPLUSFLAGS": .array(["CUSTOM_CXX_FLAG"]),
-                                    "OTHER_SWIFT_FLAGS": .array(["CUSTOM_SWIFT_FLAG1", "CUSTOM_SWIFT_FLAG2"]),
-                                    "GCC_PREPROCESSOR_DEFINITIONS": .array(["CXX_DEFINE=CXX_VALUE", "C_DEFINE=C_VALUE", "SWIFT_PACKAGE=1"]),
-                                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE", "SWIFT_DEFINE"]),
-                                ]
-                            )
+                            settings: Self.spmSettings(with: [
+                                "HEADER_SEARCH_PATHS": .array(["cSearchPath", "cxxSearchPath"]),
+                                "OTHER_CFLAGS": .array(["CUSTOM_C_FLAG"]),
+                                "OTHER_CPLUSPLUSFLAGS": .array(["CUSTOM_CXX_FLAG"]),
+                                "OTHER_SWIFT_FLAGS": .array(["CUSTOM_SWIFT_FLAG1", "CUSTOM_SWIFT_FLAG2"]),
+                                "GCC_PREPROCESSOR_DEFINITIONS": .array(["CXX_DEFINE=CXX_VALUE", "C_DEFINE=C_VALUE"]),
+                                "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_DEFINE"]),
+                            ])
                         ),
                         .init(
                             name: "TuistKit",
@@ -95,13 +92,7 @@ public extension TuistCore.DependenciesGraph {
                             dependencies: [
                                 .project(target: "AnotherLibrary", path: "../another-dependency"),
                             ],
-                            settings: Settings(
-                                base: [
-                                    "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
-                                    "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
-                                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
-                                ]
-                            )
+                            settings: Self.spmSettings()
                         ),
                     ],
                     resourceSynthesizers: []
@@ -135,13 +126,7 @@ public extension TuistCore.DependenciesGraph {
                             dependencies: [
                                 .target(name: "ALibraryUtils"),
                             ],
-                            settings: Settings(
-                                base: [
-                                    "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
-                                    "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
-                                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
-                                ]
-                            )
+                            settings: Self.spmSettings()
                         ),
                         .init(
                             name: "ALibraryUtils",
@@ -152,13 +137,7 @@ public extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/Sources/ALibraryUtils/**",
                             ],
-                            settings: Settings(
-                                base: [
-                                    "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
-                                    "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
-                                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
-                                ]
-                            )
+                            settings: Self.spmSettings()
                         ),
                     ],
                     resourceSynthesizers: []
@@ -189,13 +168,7 @@ public extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/Sources/AnotherLibrary/**",
                             ],
-                            settings: Settings(
-                                base: [
-                                    "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
-                                    "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
-                                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
-                                ]
-                            )
+                            settings: Self.spmSettings()
                         ),
                     ],
                     resourceSynthesizers: []
@@ -229,13 +202,7 @@ public extension TuistCore.DependenciesGraph {
                             dependencies: [
                                 .sdk(name: "CFNetwork.framework", status: .required),
                             ],
-                            settings: Settings(
-                                base: [
-                                    "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
-                                    "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
-                                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
-                                ]
-                            )
+                            settings: Self.spmSettings()
                         ),
                     ],
                     resourceSynthesizers: []
@@ -284,13 +251,7 @@ public extension TuistCore.DependenciesGraph {
                                 .sdk(name: "z.tbd", status: .required),
                                 .sdk(name: "StoreKit.framework", status: .required),
                             ],
-                            settings: Settings(
-                                base: [
-                                    "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
-                                    "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
-                                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
-                                ]
-                            )
+                            settings: Self.spmSettings()
                         ),
                         .init(
                             name: "GoogleAppMeasurementWithoutAdIdSupportTarget",
@@ -314,13 +275,7 @@ public extension TuistCore.DependenciesGraph {
                                 .sdk(name: "z.tbd", status: .required),
                                 .sdk(name: "StoreKit.framework", status: .required),
                             ],
-                            settings: Settings(
-                                base: [
-                                    "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
-                                    "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
-                                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
-                                ]
-                            )
+                            settings: Self.spmSettings()
                         ),
                     ],
                     resourceSynthesizers: []
@@ -353,13 +308,7 @@ public extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/Sources/GULAppDelegateSwizzler/**",
                             ],
-                            settings: Settings(
-                                base: [
-                                    "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
-                                    "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
-                                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
-                                ]
-                            )
+                            settings: Self.spmSettings()
                         ),
                         .init(
                             name: "GULMethodSwizzler",
@@ -389,13 +338,7 @@ public extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/Sources/GULNSData/**",
                             ],
-                            settings: Settings(
-                                base: [
-                                    "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
-                                    "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
-                                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
-                                ]
-                            )
+                            settings: Self.spmSettings()
                         ),
                         .init(
                             name: "GULNetwork",
@@ -407,13 +350,7 @@ public extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/Sources/GULNetwork/**",
                             ],
-                            settings: Settings(
-                                base: [
-                                    "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
-                                    "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
-                                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
-                                ]
-                            )
+                            settings: Self.spmSettings()
                         ),
                     ],
                     resourceSynthesizers: []
@@ -442,13 +379,7 @@ public extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/Sources/nanopb/**",
                             ],
-                            settings: Settings(
-                                base: [
-                                    "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
-                                    "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
-                                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
-                                ]
-                            )
+                            settings: Self.spmSettings()
                         ),
                     ],
                     resourceSynthesizers: []
@@ -458,12 +389,28 @@ public extension TuistCore.DependenciesGraph {
     }
 }
 
-public extension DependenciesGraph {
+extension DependenciesGraph {
     fileprivate static func artifactsFolder(spmFolder: Path, packageName: String) -> Path {
         return Path("\(spmFolder.pathString)/artifacts/\(packageName)")
     }
 
     fileprivate static func packageFolder(spmFolder: Path, packageName: String) -> Path {
         return Path("\(spmFolder.pathString)/checkouts/\(packageName)")
+    }
+
+    fileprivate static func spmSettings(with customSettings: SettingsDictionary = [:]) -> Settings {
+        var settingsDictionary = customSettings
+        settingsDictionary["FRAMEWORK_SEARCH_PATHS"] = "$(PLATFORM_DIR)/Developer/Library/Frameworks"
+        if case let .array(cDefinitions) = settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] {
+            settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array((cDefinitions + ["SWIFT_PACKAGE=1"]).sorted())
+        } else {
+            settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array(["SWIFT_PACKAGE=1"])
+        }
+        if case let .array(swiftDefinitions) = settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] {
+            settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .array(["SWIFT_PACKAGE"] + swiftDefinitions)
+        } else {
+            settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .array(["SWIFT_PACKAGE"])
+        }
+        return Settings(base: settingsDictionary)
     }
 }
