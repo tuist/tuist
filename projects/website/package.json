@@ -20,7 +20,7 @@
     "@theme-ui/presets": "^0.10.0",
     "@theme-ui/prism": "^0.10.0",
     "@theme-ui/sidenav": "^0.9.1",
-    "@theme-ui/typography": "^0.9.1",
+    "@theme-ui/typography": "^0.10.0",
     "autoprefixer": "^10.2.6",
     "copy-text-to-clipboard": "^3.0.1",
     "focus-visible": "^5.2.0",
@@ -77,8 +77,8 @@
     "remark-slug": "^6.0.0",
     "semantic-ui-react": "^2.0.3",
     "slug": "^5.1.0",
-    "tailwindcss": "^2.1.4",
-    "theme-ui": "^0.9.1",
+    "tailwindcss": "^2.2.4",
+    "theme-ui": "^0.10.0",
     "url-join": "^4.0.1"
   },
   "keywords": [
