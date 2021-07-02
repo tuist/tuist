@@ -45,7 +45,8 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             [
                 .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
             ],
-            productTypes: [:]
+            productTypes: [:],
+            deploymentTargets: [.iOS("13.0", [.iphone])]
         )
 
         swiftPackageManagerController.resolveStub = { path in
@@ -70,7 +71,6 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             dependenciesDirectory: dependenciesDirectory,
             dependencies: dependencies,
             platforms: [.iOS],
-            deploymentTargets: [.iOS("13.0", [.iphone])],
             shouldUpdate: false,
             swiftToolsVersion: nil
         )
@@ -121,7 +121,8 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             [
                 .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
             ],
-            productTypes: [:]
+            productTypes: [:],
+            deploymentTargets: [.iOS("13.0", [.iphone])]
         )
 
         swiftPackageManagerController.resolveStub = { path in
@@ -146,7 +147,6 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             dependenciesDirectory: dependenciesDirectory,
             dependencies: dependencies,
             platforms: [.iOS],
-            deploymentTargets: [.iOS("13.0", [.iphone])],
             shouldUpdate: false,
             swiftToolsVersion: swiftToolsVersion
         )
@@ -196,7 +196,8 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             [
                 .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
             ],
-            productTypes: [:]
+            productTypes: [:],
+            deploymentTargets: [.iOS("13.0", [.iphone])]
         )
 
         swiftPackageManagerController.updateStub = { path in
@@ -221,7 +222,6 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             dependenciesDirectory: dependenciesDirectory,
             dependencies: dependencies,
             platforms: [.iOS],
-            deploymentTargets: [.iOS("13.0", [.iphone])],
             shouldUpdate: true,
             swiftToolsVersion: nil
         )

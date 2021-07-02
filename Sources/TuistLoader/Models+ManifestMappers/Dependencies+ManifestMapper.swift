@@ -24,13 +24,11 @@ extension TuistGraph.Dependencies {
             return try TuistGraph.SwiftPackageManagerDependencies.from(manifest: swiftPackageManager, generatorPaths: generatorPaths)
         }()
         let platforms = try manifest.platforms.map { try TuistGraph.Platform.from(manifest: $0) }
-        let deploymentTargets = manifest.deploymentTargets.map { TuistGraph.DeploymentTarget.from(manifest: $0) }
 
         return Self(
             carthage: carthage,
             swiftPackageManager: swiftPackageManager,
-            platforms: Set(platforms),
-            deploymentTargets: Set(deploymentTargets)
+            platforms: Set(platforms)
         )
     }
 }

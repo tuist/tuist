@@ -62,8 +62,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         let dependencies = Dependencies(
             carthage: carthageDependencies,
             swiftPackageManager: nil,
-            platforms: platforms,
-            deploymentTargets: []
+            platforms: platforms
         )
 
         let expectedGraphManifest = TuistCore.DependenciesGraph.testXCFramework(name: "Name")
@@ -106,23 +105,22 @@ final class DependenciesControllerTests: TuistUnitTestCase {
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
             ],
-            productTypes: [:]
+            productTypes: [:],
+            deploymentTargets: []
         )
         let dependencies = Dependencies(
             carthage: nil,
             swiftPackageManager: swiftPackageManagerDependencies,
-            platforms: platforms,
-            deploymentTargets: []
+            platforms: platforms
         )
         let swiftVersion = "5.4.0"
 
-        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3, arg4, arg5 in
+        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3, arg4 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
             XCTAssertEqual(arg1, swiftPackageManagerDependencies)
             XCTAssertEqual(arg2, [.iOS])
-            XCTAssertEqual(arg3, [])
-            XCTAssertFalse(arg4)
-            XCTAssertEqual(arg5, swiftVersion)
+            XCTAssertFalse(arg3)
+            XCTAssertEqual(arg4, swiftVersion)
             return .test()
         }
 
@@ -161,13 +159,13 @@ final class DependenciesControllerTests: TuistUnitTestCase {
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
             ],
-            productTypes: [:]
+            productTypes: [:],
+            deploymentTargets: []
         )
         let dependencies = Dependencies(
             carthage: carthageDependencies,
             swiftPackageManager: swiftPackageManagerDependencies,
-            platforms: platforms,
-            deploymentTargets: []
+            platforms: platforms
         )
         let swiftVersion = "5.4.0"
         let carthageGraph = TuistCore.DependenciesGraph.testXCFramework(name: "Carthage")
@@ -181,13 +179,12 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
             return carthageGraph
         }
-        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3, arg4, arg5 in
+        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3, arg4 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
             XCTAssertEqual(arg1, swiftPackageManagerDependencies)
             XCTAssertEqual(arg2, [.iOS])
-            XCTAssertEqual(arg3, [])
-            XCTAssertFalse(arg4)
-            XCTAssertEqual(arg5, swiftVersion)
+            XCTAssertFalse(arg3)
+            XCTAssertEqual(arg4, swiftVersion)
             return spmGraph
         }
 
@@ -229,10 +226,10 @@ final class DependenciesControllerTests: TuistUnitTestCase {
                 [
                     .remote(url: "Moya", requirement: .exact("2.3.4")),
                 ],
-                productTypes: [:]
+                productTypes: [:],
+                deploymentTargets: []
             ),
-            platforms: [.iOS],
-            deploymentTargets: []
+            platforms: [.iOS]
         )
         let carthageGraph = TuistCore.DependenciesGraph.testXCFramework(
             name: "Duplicated",
@@ -246,7 +243,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         carthageInteractor.installStub = { _, _, _, _ in
             carthageGraph
         }
-        swiftPackageManagerInteractor.installStub = { _, _, _, _, _, _ in
+        swiftPackageManagerInteractor.installStub = { _, _, _, _, _ in
             spmGraph
         }
 
@@ -277,9 +274,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         let dependencies = TuistGraph.Dependencies(
             carthage: .init([]),
-            swiftPackageManager: .init([], productTypes: [:]),
-            platforms: [],
-            deploymentTargets: []
+            swiftPackageManager: .init([], productTypes: [:], deploymentTargets: []),
+            platforms: []
         )
 
         // When / Then
@@ -295,9 +291,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         let dependencies = TuistGraph.Dependencies(
             carthage: .init([]),
-            swiftPackageManager: .init([], productTypes: [:]),
-            platforms: [.iOS],
-            deploymentTargets: []
+            swiftPackageManager: .init([], productTypes: [:], deploymentTargets: []),
+            platforms: [.iOS]
         )
 
         // When
@@ -334,8 +329,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         let dependencies = Dependencies(
             carthage: carthageDependencies,
             swiftPackageManager: nil,
-            platforms: platforms,
-            deploymentTargets: []
+            platforms: platforms
         )
         let expectedGraph = TuistCore.DependenciesGraph.testXCFramework(name: "Name")
 
@@ -376,23 +370,22 @@ final class DependenciesControllerTests: TuistUnitTestCase {
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
             ],
-            productTypes: [:]
+            productTypes: [:],
+            deploymentTargets: [.iOS("13.0", [.iphone])]
         )
         let dependencies = Dependencies(
             carthage: nil,
             swiftPackageManager: swiftPackageManagerDependencies,
-            platforms: platforms,
-            deploymentTargets: [.iOS("13.0", [.iphone])]
+            platforms: platforms
         )
         let swiftVersion = "5.4.0"
 
-        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3, arg4, arg5 in
+        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3, arg4 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
             XCTAssertEqual(arg1, swiftPackageManagerDependencies)
             XCTAssertEqual(arg2, [.iOS])
-            XCTAssertEqual(arg3, [.iOS("13.0", [.iphone])])
-            XCTAssertTrue(arg4)
-            XCTAssertEqual(arg5, swiftVersion)
+            XCTAssertTrue(arg3)
+            XCTAssertEqual(arg4, swiftVersion)
             return .test()
         }
 
@@ -430,13 +423,13 @@ final class DependenciesControllerTests: TuistUnitTestCase {
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
             ],
-            productTypes: [:]
+            productTypes: [:],
+            deploymentTargets: [.iOS("13.0", [.iphone])]
         )
         let dependencies = Dependencies(
             carthage: carthageDependencies,
             swiftPackageManager: swiftPackageManagerDependencies,
-            platforms: platforms,
-            deploymentTargets: [.iOS("13.0", [.iphone])]
+            platforms: platforms
         )
         let swiftVersion = "5.4.0"
         let expectedGraph = TuistCore.DependenciesGraph.testXCFramework(name: "Name")
@@ -449,13 +442,12 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
             return expectedGraph
         }
-        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3, arg4, arg5 in
+        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3, arg4 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
             XCTAssertEqual(arg1, swiftPackageManagerDependencies)
             XCTAssertEqual(arg2, [.iOS])
-            XCTAssertEqual(arg3, [.iOS("13.0", [.iphone])])
-            XCTAssertTrue(arg4)
-            XCTAssertEqual(arg5, swiftVersion)
+            XCTAssertTrue(arg3)
+            XCTAssertEqual(arg4, swiftVersion)
             return .test()
         }
 
@@ -480,9 +472,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         let dependencies = TuistGraph.Dependencies(
             carthage: .init([]),
-            swiftPackageManager: .init([], productTypes: [:]),
-            platforms: [],
-            deploymentTargets: []
+            swiftPackageManager: .init([], productTypes: [:], deploymentTargets: []),
+            platforms: []
         )
 
         // When / Then
@@ -498,9 +489,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         let dependencies = TuistGraph.Dependencies(
             carthage: .init([]),
-            swiftPackageManager: .init([], productTypes: [:]),
-            platforms: [.iOS],
-            deploymentTargets: []
+            swiftPackageManager: .init([], productTypes: [:], deploymentTargets: []),
+            platforms: [.iOS]
         )
 
         // When

@@ -177,7 +177,6 @@ public final class DependenciesController: DependenciesControlling {
                 dependenciesDirectory: dependenciesDirectory,
                 dependencies: swiftPackageManagerDependencies,
                 platforms: platforms,
-                deploymentTargets: dependencies.deploymentTargets,
                 shouldUpdate: shouldUpdate,
                 swiftToolsVersion: swiftVersion
             )
