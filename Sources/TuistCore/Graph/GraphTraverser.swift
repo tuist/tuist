@@ -531,7 +531,11 @@ public class GraphTraverser: GraphTraversing {
     }
 
     func targetProductReference(target: GraphTarget) -> GraphDependencyReference {
-        .product(target: target.target.name, productName: target.target.productNameWithExtension, platformFilter: target.target.deploymentTarget?.platformFilter)
+        .product(
+            target: target.target.name,
+            productName: target.target.productNameWithExtension,
+            platformFilter: target.target.deploymentTarget?.platformFilter
+        )
     }
 
     func isDependencyPrecompiledLibrary(dependency: GraphDependency) -> Bool {
@@ -661,7 +665,11 @@ public class GraphTraverser: GraphTraversing {
             )
         case let .target(name, path):
             guard let target = self.target(path: path, name: name) else { return nil }
-            return .product(target: target.target.name, productName: target.target.productNameWithExtension, platformFilter: target.target.deploymentTarget?.platformFilter)
+            return .product(
+                target: target.target.name,
+                productName: target.target.productNameWithExtension,
+                platformFilter: target.target.deploymentTarget?.platformFilter
+            )
         case let .xcframework(path, infoPlist, primaryBinaryPath, _):
             return .xcframework(
                 path: path,
