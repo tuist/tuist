@@ -203,7 +203,7 @@ public class GraphTraverser: GraphTraversing {
             }
             .compactMap { graph.targets[$0.path]?[$0.name] }
             .filter { $0.product.isStatic }
-            .map { .product(target: $0.name, productName: $0.productNameWithExtension) } ?? [])
+            .map { .product(target: $0.name, productName: $0.productNameWithExtension, platformFilter: $0.deploymentTarget?.platformFilter) } ?? [])
     }
 
     public func embeddableFrameworks(path: AbsolutePath, name: String) -> Set<GraphDependencyReference> {
@@ -539,7 +539,7 @@ public class GraphTraverser: GraphTraversing {
     }
 
     func targetProductReference(target: GraphTarget) -> GraphDependencyReference {
-        .product(target: target.target.name, productName: target.target.productNameWithExtension)
+        .product(target: target.target.name, productName: target.target.productNameWithExtension, platformFilter: target.target.deploymentTarget?.platformFilter)
     }
 
     func isDependencyPrecompiledLibrary(dependency: GraphDependency) -> Bool {
@@ -675,7 +675,7 @@ public class GraphTraverser: GraphTraversing {
             )
         case let .target(name, path):
             guard let target = self.target(path: path, name: name) else { return nil }
-            return .product(target: target.target.name, productName: target.target.productNameWithExtension)
+            return .product(target: target.target.name, productName: target.target.productNameWithExtension, platformFilter: target.target.deploymentTarget?.platformFilter)
         case let .xcframework(path, infoPlist, primaryBinaryPath, _):
             return .xcframework(
                 path: path,
