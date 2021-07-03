@@ -25,7 +25,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         architectures: [BinaryArchitecture],
         product: Product
     )
-    case product(target: String, productName: String)
+    case product(target: String, productName: String, platformFilter: String? = nil)
     case sdk(path: AbsolutePath, status: SDKStatus, source: SDKSource)
 
     init(_ dependency: GraphDependency) {
@@ -68,9 +68,10 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
             hasher.combine(path)
         case let .xcframework(path, _, _, _):
             hasher.combine(path)
-        case let .product(target, productName):
+        case let .product(target, productName, platformFilter):
             hasher.combine(target)
             hasher.combine(productName)
+            hasher.combine(platformFilter)
         case let .sdk(path, status, source):
             hasher.combine(path)
             hasher.combine(status)
@@ -101,7 +102,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
             return lhsPath < rhsPath
         case let (.library(lhsPath, _, _, _), .library(rhsPath, _, _, _)):
             return lhsPath < rhsPath
-        case let (.product(lhsTarget, lhsProductName), .product(rhsTarget, rhsProductName)):
+        case let (.product(lhsTarget, lhsProductName, _), .product(rhsTarget, rhsProductName, _)):
             if lhsTarget == rhsTarget {
                 return lhsProductName < rhsProductName
             }

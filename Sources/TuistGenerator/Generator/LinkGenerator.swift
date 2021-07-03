@@ -234,7 +234,7 @@ final class LinkGenerator: LinkGenerating {
             case .sdk:
                 // Do nothing
                 break
-            case let .product(target, _):
+            case let .product(target, _, platformFilter):
                 guard let fileRef = fileElements.product(target: target) else {
                     throw LinkGeneratorError.missingProduct(name: target)
                 }
@@ -242,6 +242,7 @@ final class LinkGenerator: LinkGenerating {
                     file: fileRef,
                     settings: ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]
                 )
+                buildFile.platformFilter = platformFilter
                 pbxproj.add(object: buildFile)
                 embedPhase.files?.append(buildFile)
             }
@@ -382,11 +383,12 @@ final class LinkGenerator: LinkGenerating {
                     try addBuildFile(path)
                 case let .xcframework(path, _, _, _):
                     try addBuildFile(path)
-                case let .product(target, _):
+                case let .product(target, _, platformFilter):
                     guard let fileRef = fileElements.product(target: target) else {
                         throw LinkGeneratorError.missingProduct(name: target)
                     }
                     let buildFile = PBXBuildFile(file: fileRef)
+                    buildFile.platformFilter = platformFilter
                     pbxproj.add(object: buildFile)
                     buildPhase.files?.append(buildFile)
                 case let .sdk(sdkPath, sdkStatus, _):
@@ -441,12 +443,13 @@ final class LinkGenerator: LinkGenerating {
     {
         var files: [PBXBuildFile] = []
 
-        for case let .product(target, _) in dependencies.sorted() {
+        for case let .product(target, _, platformFilter) in dependencies.sorted() {
             guard let fileRef = fileElements.product(target: target) else {
                 throw LinkGeneratorError.missingProduct(name: target)
             }
 
             let buildFile = PBXBuildFile(file: fileRef)
+            buildFile.platformFilter = platformFilter
             pbxproj.add(object: buildFile)
             files.append(buildFile)
         }

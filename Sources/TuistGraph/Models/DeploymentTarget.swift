@@ -16,6 +16,23 @@ public enum DeploymentTarget: Equatable, Codable {
         case .tvOS: return "tvOS"
         }
     }
+    
+    public var platformFilter: String? {
+        switch self {
+        case let .iOS(_, devices):
+            if devices == .mac {
+                return "maccatalyst"
+            }
+            
+            if !devices.contains(.mac) {
+                return "ios"
+            }
+            
+            return nil
+        default:
+            return nil
+        }
+    }
 
     public var version: String {
         switch self {
