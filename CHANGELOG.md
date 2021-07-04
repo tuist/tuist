@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.46.0
+
 ### Added
 
 - Native support for ARM architecture [#3010](https://github.com/tuist/tuist/pull/3010) by [@fortmarek](https://github.com/fortmarek) & [@pepibumur](https://github.com/pepibumur).
