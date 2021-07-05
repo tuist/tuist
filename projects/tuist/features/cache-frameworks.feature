@@ -53,7 +53,7 @@ Feature: Focuses projects with pre-compiled cached xcframeworks
   Scenario: The project is an application with static frameworks that each has resources and a target is modified after being cached (ios_app_with_static_frameworks_with_resources)
     Given that tuist is available 
     And I have a working directory
-    Then I copy the fixture ios_app_with_static_frameworks_with_resources into the working directory
+    And I copy the fixture ios_app_with_static_frameworks_with_resources into the working directory
     And tuist warms the cache
     And I add an empty line at the end of the file Modules/A/Sources/A.swift
     When tuist focuses the target App
