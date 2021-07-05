@@ -42,7 +42,7 @@ public extension TuistCore.DependenciesGraph {
     }
 
     // swiftlint:disable:next function_body_length
-    static func test(packageFolder: Path) -> Self {
+    static func test(spmFolder: Path, packageFolder: Path) -> Self {
         return .init(
             externalDependencies: [
                 "Tuist": [.project(target: "Tuist", path: packageFolder)],
@@ -67,8 +67,8 @@ public extension TuistCore.DependenciesGraph {
                             headers: .init(public: ["/an/header.h"]),
                             dependencies: [
                                 .target(name: "TuistKit"),
-                                .project(target: "ALibrary", path: "../a-dependency"),
-                                .project(target: "ALibraryUtils", path: "../a-dependency"),
+                                .project(target: "ALibrary", path: Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency")),
+                                .project(target: "ALibraryUtils", path: Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency")),
                             ],
                             settings: Self.spmSettings(with: [
                                 "HEADER_SEARCH_PATHS": .array(["cSearchPath", "cxxSearchPath"]),
@@ -90,7 +90,7 @@ public extension TuistCore.DependenciesGraph {
                                 "\(packageFolder.pathString)/Sources/TuistKit/**",
                             ],
                             dependencies: [
-                                .project(target: "AnotherLibrary", path: "../another-dependency"),
+                                .project(target: "AnotherLibrary", path: Self.packageFolder(spmFolder: spmFolder, packageName: "another-dependency")),
                             ],
                             settings: Self.spmSettings()
                         ),
@@ -243,11 +243,11 @@ public extension TuistCore.DependenciesGraph {
                             ],
                             dependencies: [
                                 .xcframework(path: "\(artifactsFolder.pathString)/GoogleAppMeasurement.xcframework"),
-                                .project(target: "GULAppDelegateSwizzler", path: "../GoogleUtilities"),
-                                .project(target: "GULMethodSwizzler", path: "../GoogleUtilities"),
-                                .project(target: "GULNSData", path: "../GoogleUtilities"),
-                                .project(target: "GULNetwork", path: "../GoogleUtilities"),
-                                .project(target: "nanopb", path: "../nanopb"),
+                                .project(target: "GULAppDelegateSwizzler", path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")),
+                                .project(target: "GULMethodSwizzler", path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")),
+                                .project(target: "GULNSData", path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")),
+                                .project(target: "GULNetwork", path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")),
+                                .project(target: "nanopb", path: Self.packageFolder(spmFolder: spmFolder, packageName: "nanopb")),
                                 .sdk(name: "sqlite3.tbd", status: .required),
                                 .sdk(name: "c++.tbd", status: .required),
                                 .sdk(name: "z.tbd", status: .required),
@@ -267,11 +267,11 @@ public extension TuistCore.DependenciesGraph {
                             ],
                             dependencies: [
                                 .xcframework(path: "\(artifactsFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupport.xcframework"),
-                                .project(target: "GULAppDelegateSwizzler", path: "../GoogleUtilities"),
-                                .project(target: "GULMethodSwizzler", path: "../GoogleUtilities"),
-                                .project(target: "GULNSData", path: "../GoogleUtilities"),
-                                .project(target: "GULNetwork", path: "../GoogleUtilities"),
-                                .project(target: "nanopb", path: "../nanopb"),
+                                .project(target: "GULAppDelegateSwizzler", path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")),
+                                .project(target: "GULMethodSwizzler", path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")),
+                                .project(target: "GULNSData", path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")),
+                                .project(target: "GULNetwork", path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")),
+                                .project(target: "nanopb", path: Self.packageFolder(spmFolder: spmFolder, packageName: "nanopb")),
                                 .sdk(name: "sqlite3.tbd", status: .required),
                                 .sdk(name: "c++.tbd", status: .required),
                                 .sdk(name: "z.tbd", status: .required),
