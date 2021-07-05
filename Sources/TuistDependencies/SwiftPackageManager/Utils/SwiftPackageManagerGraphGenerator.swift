@@ -372,7 +372,7 @@ extension ResourceFileElements {
 
 extension ProjectDescription.Headers {
     fileprivate static func from(path: AbsolutePath, publicHeadersPath: String?) -> Self? {
-        let headersPath = publicHeadersPath.map { path.appending(component: $0) } ?? path
+        let headersPath = publicHeadersPath.map { path.appending(RelativePath($0)) } ?? path
         let possibleHeaders = FileHandler.shared.filesAndDirectoriesContained(in: headersPath) ?? []
         let headers = possibleHeaders.filter { $0.extension == "h" }
         return headers.isEmpty ? nil : .init(public: .init(globs: headers.map { Path($0.pathString) }))

@@ -137,7 +137,13 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
             ]
             """,
             stubFilesAndDirectoriesContained: { path in
-                guard path == testPath.appending(component: "customPath").appending(component: "customPublicHeadersPath") else {
+                guard path == testPath
+                        .appending(component: "customPath")
+                        .appending(component: "custom")
+                        .appending(component: "Public")
+                        .appending(component: "Headers")
+                        .appending(component: "Path")
+                else {
                     return nil
                 }
 
