@@ -67,7 +67,7 @@ class CacheGraphMutator: CacheGraphMutating {
         var sourceTargets: Set<GraphTarget> = Set(userSpecifiedSourceTargets)
 
         userSpecifiedSourceTargets.forEach { target in
-            let dependency = ValueGraphDependency.target(name: target.target.name, path: target.path)
+            let dependency = GraphDependency.target(name: target.target.name, path: target.path)
 
             visitBundleTargets(
                 for: dependency,
@@ -313,7 +313,7 @@ class CacheGraphMutator: CacheGraphMutating {
     ) {
         var graph = graph
         graph.dependencies = graphDependencies
-        let graphTraverser = ValueGraphTraverser(graph: graph)
+        let graphTraverser = GraphTraverser(graph: graph)
 
         for (key, value) in graphDependencies {
             guard

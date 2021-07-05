@@ -26,14 +26,14 @@ enum BundleLoaderError: FatalError, Equatable {
 public protocol BundleLoading {
     /// Reads an existing bundle and returns its in-memory representation, `ValueGraphDependency.bundle`.
     /// - Parameter path: Path to the .bundle.
-    func load(path: AbsolutePath) throws -> ValueGraphDependency
+    func load(path: AbsolutePath) throws -> GraphDependency
 }
 
 public final class BundleLoader: BundleLoading {
     /// Initializes the loader with its attributes.
     public init() {}
 
-    public func load(path: AbsolutePath) throws -> ValueGraphDependency {
+    public func load(path: AbsolutePath) throws -> GraphDependency {
         guard FileHandler.shared.exists(path) else {
             throw BundleLoaderError.bundleNotFound(path)
         }
