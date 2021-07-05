@@ -100,7 +100,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             let packageFolder: AbsolutePath
             switch dependency.packageRef.kind {
             case "remote":
-                packageFolder = checkoutsFolder.appending(component: name)
+                packageFolder = checkoutsFolder.appending(component: dependency.subpath)
             case "local":
                 packageFolder = AbsolutePath(dependency.packageRef.path)
             default:

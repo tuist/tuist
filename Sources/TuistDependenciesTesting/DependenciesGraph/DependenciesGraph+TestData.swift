@@ -102,7 +102,7 @@ public extension TuistCore.DependenciesGraph {
     }
 
     static func aDependency(spmFolder: Path) -> Self {
-        let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "a-dependency")
+        let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency")
         return .init(
             externalDependencies: [
                 "ALibrary": [

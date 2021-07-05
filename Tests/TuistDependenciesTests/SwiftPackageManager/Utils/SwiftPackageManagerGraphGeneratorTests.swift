@@ -37,7 +37,8 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
                   "kind": "remote",
                   "name": "Alamofire",
                   "path": "https://github.com/Alamofire/Alamofire"
-                }
+                },
+                "subpath": "Alamofire"
               }
             ]
             """,
@@ -58,21 +59,24 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
                   "kind": "remote",
                   "name": "GoogleAppMeasurement",
                   "path": "https://github.com/google/GoogleAppMeasurement"
-                }
+                },
+                "subpath": "GoogleAppMeasurement"
               },
               {
                 "packageRef": {
                   "kind": "remote",
                   "name": "GoogleUtilities",
                   "path": "https://github.com/google/GoogleUtilities"
-                }
+                },
+                "subpath": "GoogleUtilities"
               },
               {
                 "packageRef": {
                   "kind": "remote",
                   "name": "nanopb",
                   "path": "https://github.com/nanopb/nanopb"
-                }
+                },
+                "subpath": "nanopb"
               }
             ]
             """,
@@ -111,21 +115,24 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
                   "kind": "local",
                   "name": "test",
                   "path": "\(testPath.pathString)"
-                }
+                },
+                "subpath": "test"
               },
               {
                 "packageRef": {
                   "kind": "remote",
                   "name": "a-dependency",
                   "path": "https://github.com/dependencies/a-dependency"
-                }
+                },
+                "subpath": "ADependency"
               },
               {
                 "packageRef": {
                   "kind": "remote",
                   "name": "another-dependency",
                   "path": "https://github.com/dependencies/another-dependency"
-                }
+                },
+                "subpath": "another-dependency"
               }
             ]
             """,
@@ -143,7 +150,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
                 switch packagePath {
                 case testPath:
                     return PackageInfo.test
-                case self.checkoutsPath.appending(component: "a-dependency"):
+                case self.checkoutsPath.appending(component: "ADependency"):
                     return PackageInfo.aDependency
                 case self.checkoutsPath.appending(component: "another-dependency"):
                     return PackageInfo.anotherDependency

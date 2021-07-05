@@ -12,6 +12,7 @@ struct SwiftPackageManagerWorkspaceState: Decodable, Equatable {
 
     struct Dependency: Decodable, Equatable {
         let packageRef: PackageRef
+        let subpath: String
     }
 
     struct PackageRef: Decodable, Equatable {
