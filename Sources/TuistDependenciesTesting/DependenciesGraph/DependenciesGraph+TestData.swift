@@ -243,7 +243,10 @@ public extension TuistCore.DependenciesGraph {
                             ],
                             dependencies: [
                                 .xcframework(path: "\(artifactsFolder.pathString)/GoogleAppMeasurement.xcframework"),
-                                .project(target: "GULAppDelegateSwizzler", path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")),
+                                .project(
+                                    target: "GULAppDelegateSwizzler",
+                                    path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                                ),
                                 .project(target: "GULMethodSwizzler", path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")),
                                 .project(target: "GULNSData", path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")),
                                 .project(target: "GULNetwork", path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")),
@@ -267,7 +270,10 @@ public extension TuistCore.DependenciesGraph {
                             ],
                             dependencies: [
                                 .xcframework(path: "\(artifactsFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupport.xcframework"),
-                                .project(target: "GULAppDelegateSwizzler", path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")),
+                                .project(
+                                    target: "GULAppDelegateSwizzler",
+                                    path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                                ),
                                 .project(target: "GULMethodSwizzler", path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")),
                                 .project(target: "GULNSData", path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")),
                                 .project(target: "GULNetwork", path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")),
