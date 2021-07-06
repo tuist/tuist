@@ -198,10 +198,30 @@ extension PackageInfo {
               "type" : "regular"
             },
             {
+              "dependencies" : [],
+              "exclude" : [
+
+              ],
+              "name" : "TestUtilities",
+              "resources" : [
+
+              ],
+              "settings" : [
+
+              ],
+              "type" : "regular"
+            },
+            {
               "dependencies" : [
                 {
                   "byName" : [
                     "TuistKit",
+                    null
+                  ]
+                },
+                {
+                  "byName" : [
+                    "TestUtilities",
                     null
                   ]
                 }
@@ -278,6 +298,19 @@ extension PackageInfo {
                     checksum: nil
                 ),
                 .init(
+                    name: "TestUtilities",
+                    path: nil,
+                    url: nil,
+                    sources: nil,
+                    resources: [],
+                    exclude: [],
+                    dependencies: [],
+                    publicHeadersPath: nil,
+                    type: .regular,
+                    settings: [],
+                    checksum: nil
+                ),
+                .init(
                     name: "TuistKitTests",
                     path: nil,
                     url: nil,
@@ -286,6 +319,7 @@ extension PackageInfo {
                     exclude: [],
                     dependencies: [
                         .byName(name: "TuistKit", condition: nil),
+                        .byName(name: "TestUtilities", condition: nil),
                     ],
                     publicHeadersPath: nil,
                     type: .test,
