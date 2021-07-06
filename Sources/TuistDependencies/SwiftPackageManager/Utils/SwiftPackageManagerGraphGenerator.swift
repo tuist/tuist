@@ -263,7 +263,7 @@ extension ProjectDescription.Target {
             name: target.name,
             platform: platform,
             product: product,
-            bundleId: target.name,
+            bundleId: target.name.replacingOccurrences(of: "_", with: "-"),
             deploymentTarget: deploymentTarget,
             infoPlist: .default,
             sources: sources,
