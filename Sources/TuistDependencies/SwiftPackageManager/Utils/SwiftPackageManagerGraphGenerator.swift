@@ -409,6 +409,7 @@ extension ProjectDescription.Headers {
 }
 
 extension ProjectDescription.TargetDependency {
+    // swiftlint:disable:next function_body_length
     fileprivate static func from(
         packageInfo: PackageInfo,
         platform: ProjectDescription.Platform,
