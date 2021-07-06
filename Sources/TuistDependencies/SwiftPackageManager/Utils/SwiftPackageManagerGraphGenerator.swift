@@ -420,7 +420,11 @@ extension ProjectDescription.TargetDependency {
         let targetDependencies = try dependencies.flatMap { dependency -> [ProjectDescription.TargetDependency] in
             switch dependency {
             case let .target(name, _):
-                return [.target(name: name)]
+                if let framework = targetDependencyToFramework[name] {
+                    return [.xcframework(path: framework)]
+                } else {
+                    return [.target(name: name)]
+                }
             case let .product(name, package, _):
                 guard
                     let targets = packageInfos[package]?.products.first(where: { $0.name == name })?.targets,
