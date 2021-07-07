@@ -101,7 +101,7 @@ extension PackageInfo {
                 }
               ],
               "exclude" : [
-
+                "excluded/sources"
               ],
               "name" : "Tuist",
               "path" : "customPath",
@@ -287,7 +287,9 @@ extension PackageInfo {
                     resources: [
                         .init(rule: .copy, path: "resources"),
                     ],
-                    exclude: [],
+                    exclude: [
+                        "excluded/sources",
+                    ],
                     dependencies: [
                         .target(name: "TuistKit", condition: nil),
                         .product(name: "ALibrary", package: "a-dependency", condition: .init(platformNames: ["ios"], config: nil)),
