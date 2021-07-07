@@ -29,6 +29,6 @@ struct CarthageVersionFile: Decodable, Equatable {
 extension CarthageVersionFile {
     struct Product: Decodable, Equatable {
         let name: String
-        let container: String
+        let container: String?
     }
 }

@@ -225,6 +225,24 @@ extension CarthageVersionFile {
             tvOS: nil
         )
     }
+    
+    static var testAhoyRTC: Self {
+        .init(
+            iOS: [
+                .init(
+                    name: "AhoyKit",
+                    container: nil
+                ),
+                .init(
+                    name: "WebRTC",
+                    container: nil
+                )
+            ],
+            macOS: [],
+            watchOS: [],
+            tvOS: []
+        )
+    }
 }
 
 extension CarthageVersionFile {
@@ -577,12 +595,41 @@ extension CarthageVersionFile {
         }
         """
     }
+    
+    static var testAhoyRTCJson: String {
+        """
+        {
+          "Mac" : [
+
+          ],
+          "watchOS" : [
+
+          ],
+          "tvOS" : [
+
+          ],
+          "commitish" : "2.1",
+          "iOS" : [
+            {
+              "name" : "AhoyKit",
+              "hash" : "c963ec94999f3fe64f75880ba394338d5c694a5cec8f756bc35481f3b8c8b4d2",
+              "linking" : "dynamic"
+            },
+            {
+              "name" : "WebRTC",
+              "hash" : "3a9ced64f6f8ccca46dc0038bdbf3efd8cf98f73cbc29ee1b00d98757b7fab33",
+              "linking" : "dynamic"
+            }
+          ]
+        }
+        """
+    }
 }
 
 extension CarthageVersionFile.Product {
     static func test(
         name: String = "",
-        container: String = ""
+        container: String? = ""
     ) -> Self {
         .init(
             name: name,
