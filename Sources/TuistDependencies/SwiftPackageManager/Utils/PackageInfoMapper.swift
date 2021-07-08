@@ -47,11 +47,11 @@ public final class PackageInfoMapper: PackageInfoMapping {
         productToPackage: [String: String],
         targetDependencyToFramework: [String: Path]
     ) throws -> ProjectDescription.Project {
-        var relevantTargets: [String] = []
+        var productTargets: [String] = []
         var targetsToProcess = packageInfo.products.flatMap { $0.targets }.uniqued()
         while !targetsToProcess.isEmpty {
             let targetToProcess = targetsToProcess.removeFirst()
-            relevantTargets.append(targetToProcess)
+            productTargets.append(targetToProcess)
             let target = packageInfo.targets.first { $0.name == targetToProcess }!
             for dependency in target.dependencies {
                 switch dependency {
@@ -66,7 +66,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         }
 
         let targets = try packageInfo.targets.compactMap { target -> ProjectDescription.Target? in
-            guard relevantTargets.contains(where: { $0 == target.name }) else { return nil }
+            guard productTargets.contains(where: { $0 == target.name }) else { return nil }
 
             return try Target.from(
                 target: target,
