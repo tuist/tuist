@@ -25,6 +25,10 @@ extension TuistGraph.Dependencies {
         }()
         let platforms = try manifest.platforms.map { try TuistGraph.Platform.from(manifest: $0) }
 
-        return Self(carthage: carthage, swiftPackageManager: swiftPackageManager, platforms: Set(platforms))
+        return Self(
+            carthage: carthage,
+            swiftPackageManager: swiftPackageManager,
+            platforms: Set(platforms)
+        )
     }
 }

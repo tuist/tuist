@@ -110,7 +110,8 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
             return try swiftPackageManagerGraphGenerator.generate(
                 at: pathsProvider.destinationBuildDirectory,
                 productTypes: dependencies.productTypes,
-                platforms: platforms
+                platforms: platforms,
+                deploymentTargets: dependencies.deploymentTargets
             )
         }
 

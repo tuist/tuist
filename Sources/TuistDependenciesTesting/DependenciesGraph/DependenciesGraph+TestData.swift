@@ -119,6 +119,7 @@ public extension TuistCore.DependenciesGraph {
                             platform: .iOS,
                             product: .staticFramework,
                             bundleId: "ALibrary",
+                            deploymentTarget: .iOS(targetVersion: "13.0", devices: [.iphone, .ipad, .mac]),
                             infoPlist: .default,
                             sources: [
                                 "\(packageFolder.pathString)/Sources/ALibrary/**",
@@ -133,6 +134,7 @@ public extension TuistCore.DependenciesGraph {
                             platform: .iOS,
                             product: .staticFramework,
                             bundleId: "ALibraryUtils",
+                            deploymentTarget: .iOS(targetVersion: "13.0", devices: [.iphone, .ipad, .mac]),
                             infoPlist: .default,
                             sources: [
                                 "\(packageFolder.pathString)/Sources/ALibraryUtils/**",

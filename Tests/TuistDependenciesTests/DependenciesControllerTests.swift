@@ -105,7 +105,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
             ],
-            productTypes: [:]
+            productTypes: [:],
+            deploymentTargets: []
         )
         let dependencies = Dependencies(
             carthage: nil,
@@ -158,7 +159,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
             ],
-            productTypes: [:]
+            productTypes: [:],
+            deploymentTargets: []
         )
         let dependencies = Dependencies(
             carthage: carthageDependencies,
@@ -224,7 +226,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
                 [
                     .remote(url: "Moya", requirement: .exact("2.3.4")),
                 ],
-                productTypes: [:]
+                productTypes: [:],
+                deploymentTargets: []
             ),
             platforms: [.iOS]
         )
@@ -271,7 +274,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         let dependencies = TuistGraph.Dependencies(
             carthage: .init([]),
-            swiftPackageManager: .init([], productTypes: [:]),
+            swiftPackageManager: .init([], productTypes: [:], deploymentTargets: []),
             platforms: []
         )
 
@@ -288,7 +291,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         let dependencies = TuistGraph.Dependencies(
             carthage: .init([]),
-            swiftPackageManager: .init([], productTypes: [:]),
+            swiftPackageManager: .init([], productTypes: [:], deploymentTargets: []),
             platforms: [.iOS]
         )
 
@@ -367,7 +370,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
             ],
-            productTypes: [:]
+            productTypes: [:],
+            deploymentTargets: [.iOS("13.0", [.iphone])]
         )
         let dependencies = Dependencies(
             carthage: nil,
@@ -419,7 +423,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
             ],
-            productTypes: [:]
+            productTypes: [:],
+            deploymentTargets: [.iOS("13.0", [.iphone])]
         )
         let dependencies = Dependencies(
             carthage: carthageDependencies,
@@ -467,7 +472,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         let dependencies = TuistGraph.Dependencies(
             carthage: .init([]),
-            swiftPackageManager: .init([], productTypes: [:]),
+            swiftPackageManager: .init([], productTypes: [:], deploymentTargets: []),
             platforms: []
         )
 
@@ -484,7 +489,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         let dependencies = TuistGraph.Dependencies(
             carthage: .init([]),
-            swiftPackageManager: .init([], productTypes: [:]),
+            swiftPackageManager: .init([], productTypes: [:], deploymentTargets: []),
             platforms: [.iOS]
         )
 
