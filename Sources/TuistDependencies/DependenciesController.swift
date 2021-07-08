@@ -150,10 +150,10 @@ public final class DependenciesController: DependenciesControlling {
         swiftVersion: String?
     ) throws -> TuistCore.DependenciesGraph {
         logger.warning(
-          """
-          The integration of external dependencies is in alpha. \
-          Be aware some APIs might change as we iterate the functionality with the feedback we get from users.
-          """
+            """
+            The integration of external dependencies is in alpha. \
+            Be aware some APIs might change as we iterate the functionality with the feedback we get from users.
+            """
         )
 
         let dependenciesDirectory = path
