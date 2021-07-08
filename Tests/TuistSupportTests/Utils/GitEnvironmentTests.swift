@@ -16,7 +16,7 @@ final class GitEnvironmentErrorTests: TuistUnitTestCase {
 
 final class GitEnvironmentTests: TuistUnitTestCase {
     var subject: GitEnvironment!
-    var envVariables: [String: String] = [:]
+    var envVariables: [String: String]! = [:]
 
     override func setUp() {
         super.setUp()
@@ -25,6 +25,7 @@ final class GitEnvironmentTests: TuistUnitTestCase {
 
     override func tearDown() {
         subject = nil
+        envVariables = nil
         super.tearDown()
     }
 

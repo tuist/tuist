@@ -4,11 +4,18 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.46.0 - Momento
+
 ### Added
 
 - Support for `Swift Package Manager` in `Dependencies.swift` [#3072](https://github.com/tuist/tuist/pull/3072) by [@danyf90](https://github.com/danyf90).
 - Native support for ARM architecture [#3010](https://github.com/tuist/tuist/pull/3010) by [@fortmarek](https://github.com/fortmarek) & [@pepibumur](https://github.com/pepibumur).
-- Utility for obtaining the system's Git credentials for authenticating with https://github.com [#3110](https://github.com/tuist/tuist/pull/3110) by [@pepibumur](https://github.com/pepibumur)
+- Utility for obtaining the system's Git credentials for authenticating with [#3110](https://github.com/tuist/tuist/pull/3110) by [@pepibumur](https://github.com/pepibumur).
+- `GitHubClient` to interact with GitHub's API [#3144](https://github.com/tuist/tuist/pull/3144) by [@pepibumur](https://github.com/pepibumur).
+
+### Changed
+
+- **Breaking** Minimum supported Xcode version bumped to 12.2.
 
 ## 1.45.1
 

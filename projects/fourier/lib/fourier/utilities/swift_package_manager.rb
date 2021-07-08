@@ -52,11 +52,10 @@ module Fourier
         unless File.exist?(output_directory)
           Dir.mkdir(output_directory)
         end
-
         Utilities::System.system(
           "lipo", "-create", "-output", File.expand_path(binary_name, output_directory),
-          File.join(path, ".build/#{ARM64_TARGET}/release/#{binary_name}"),
-          File.join(path, ".build/#{X86_64_TARGET}/release/#{binary_name}")
+          File.join(swift_build_directory, "#{ARM64_TARGET}/release/#{binary_name}"),
+          File.join(swift_build_directory, "#{X86_64_TARGET}/release/#{binary_name}")
         )
       end
     end

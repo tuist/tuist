@@ -1,3 +1,5 @@
+import Combine
+import CombineExt
 import Foundation
 import RxSwift
 
@@ -49,6 +51,7 @@ public enum HTTPRequestDispatcherError: LocalizedError, FatalError {
 
 public protocol HTTPRequestDispatching {
     func dispatch<T, E: Error>(resource: HTTPResource<T, E>) -> Single<(object: T, response: HTTPURLResponse)>
+    func deferred<T, E: Error>(resource: HTTPResource<T, E>) -> Deferred<Future<(object: T, response: HTTPURLResponse), Error>>
 }
 
 public final class HTTPRequestDispatcher: HTTPRequestDispatching {
@@ -88,6 +91,19 @@ public final class HTTPRequestDispatcher: HTTPRequestDispatching {
 
             return Disposables.create {
                 task.cancel()
+            }
+        }
+    }
+
+    public func deferred<T, E>(resource: HTTPResource<T, E>) -> Deferred<Future<(object: T, response: HTTPURLResponse), Error>> where E: Error {
+        return Deferred {
+            Future<(object: T, response: HTTPURLResponse), Error> { promise in
+                _ = self.dispatch(resource: resource)
+                    .subscribe(onSuccess: { value in
+                        promise(.success(value))
+                    }, onError: { error in
+                        promise(.failure(error))
+                    })
             }
         }
     }
