@@ -101,7 +101,7 @@ extension PackageInfo {
                 }
               ],
               "exclude" : [
-
+                "excluded/sources"
               ],
               "name" : "Tuist",
               "path" : "customPath",
@@ -171,6 +171,30 @@ extension PackageInfo {
                   "name": "define",
                   "value": [
                     "SWIFT_DEFINE"
+                  ]
+                },
+                {
+                  "condition" : {
+                    "platformNames" : [
+                      "watchos"
+                    ]
+                  },
+                  "name" : "linkedFramework",
+                  "tool" : "linker",
+                  "value" : [
+                    "WatchKit"
+                  ]
+                },
+                {
+                  "condition" : {
+                    "platformNames" : [
+                      "tvos"
+                    ]
+                  },
+                  "tool": "swift",
+                  "name": "define",
+                  "value": [
+                    "SWIFT_TVOS_DEFINE"
                   ]
                 }
               ],
@@ -263,7 +287,9 @@ extension PackageInfo {
                     resources: [
                         .init(rule: .copy, path: "resources"),
                     ],
-                    exclude: [],
+                    exclude: [
+                        "excluded/sources",
+                    ],
                     dependencies: [
                         .target(name: "TuistKit", condition: nil),
                         .product(name: "ALibrary", package: "a-dependency", condition: .init(platformNames: ["ios"], config: nil)),
@@ -279,6 +305,8 @@ extension PackageInfo {
                         .init(tool: .c, name: .define, condition: nil, value: ["C_DEFINE=C_VALUE"]),
                         .init(tool: .cxx, name: .define, condition: nil, value: ["CXX_DEFINE=CXX_VALUE"]),
                         .init(tool: .swift, name: .define, condition: nil, value: ["SWIFT_DEFINE"]),
+                        .init(tool: .linker, name: .linkedFramework, condition: .init(platformNames: ["watchos"], config: nil), value: ["WatchKit"]),
+                        .init(tool: .swift, name: .define, condition: .init(platformNames: ["tvos"], config: nil), value: ["SWIFT_TVOS_DEFINE"]),
                     ],
                     checksum: nil
                 ),

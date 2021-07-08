@@ -250,6 +250,7 @@ extension ProjectDescription.Target {
         let headers = ProjectDescription.Headers.from(path: path, publicHeadersPath: target.publicHeadersPath)
         let dependencies = try ProjectDescription.TargetDependency.from(
             packageInfo: packageInfo,
+            platform: platform,
             packageInfos: packageInfos,
             dependencies: target.dependencies,
             settings: target.settings,
@@ -257,13 +258,13 @@ extension ProjectDescription.Target {
             productToPackage: productToPackage,
             targetDependencyToFramework: targetDependencyToFramework
         )
-        let settings = try Settings.from(settings: target.settings)
+        let settings = try Settings.from(settings: target.settings, platform: platform)
 
         return .init(
             name: target.name,
             platform: platform,
             product: product,
-            bundleId: target.name,
+            bundleId: target.name.replacingOccurrences(of: "_", with: "-"),
             deploymentTarget: deploymentTarget,
             infoPlist: .default,
             sources: sources,
@@ -380,7 +381,11 @@ extension SourceFilesList {
                 let glob = absolutePath.extension != nil ? absolutePath : absolutePath.appending(component: "**")
                 return .init(
                     Path(glob.pathString),
-                    excluding: excluding.map { Path($0) }
+                    excluding: excluding.map {
+                        let excludePath = path.appending(RelativePath($0))
+                        let excludeGlob = excludePath.extension != nil ? excludePath : excludePath.appending(component: "**")
+                        return Path(excludeGlob.pathString)
+                    }
                 )
             }
         )
@@ -408,8 +413,10 @@ extension ProjectDescription.Headers {
 }
 
 extension ProjectDescription.TargetDependency {
+    // swiftlint:disable:next function_body_length
     fileprivate static func from(
         packageInfo: PackageInfo,
+        platform: ProjectDescription.Platform,
         packageInfos: [String: PackageInfo],
         dependencies: [PackageInfo.Target.Dependency],
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
@@ -420,7 +427,11 @@ extension ProjectDescription.TargetDependency {
         let targetDependencies = try dependencies.flatMap { dependency -> [ProjectDescription.TargetDependency] in
             switch dependency {
             case let .target(name, _):
-                return [.target(name: name)]
+                if let framework = targetDependencyToFramework[name] {
+                    return [.xcframework(path: framework)]
+                } else {
+                    return [.target(name: name)]
+                }
             case let .product(name, package, _):
                 guard
                     let targets = packageInfos[package]?.products.first(where: { $0.name == name })?.targets,
@@ -451,6 +462,12 @@ extension ProjectDescription.TargetDependency {
         }
 
         let linkerDependencies: [ProjectDescription.TargetDependency] = settings.compactMap { setting in
+            if let condition = setting.condition {
+                guard condition.platformNames.contains(platform.rawValue) else {
+                    return nil
+                }
+            }
+
             switch (setting.tool, setting.name) {
             case (.linker, .linkedFramework):
                 return .sdk(name: "\(setting.value[0]).framework", status: .required)
@@ -468,7 +485,8 @@ extension ProjectDescription.TargetDependency {
 extension ProjectDescription.Settings {
     // swiftlint:disable:next function_body_length
     fileprivate static func from(
-        settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting]
+        settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
+        platform: ProjectDescription.Platform
     ) throws -> Self? {
         var headerSearchPaths: [String] = []
         var defines: [String: String] = ["SWIFT_PACKAGE": "1"]
@@ -478,6 +496,12 @@ extension ProjectDescription.Settings {
         var swiftFlags: [String] = []
 
         try settings.forEach { setting in
+            if let condition = setting.condition {
+                guard condition.platformNames.contains(platform.rawValue) else {
+                    return
+                }
+            }
+
             switch (setting.tool, setting.name) {
             case (.c, .headerSearchPath), (.cxx, .headerSearchPath):
                 headerSearchPaths.append(setting.value[0])
