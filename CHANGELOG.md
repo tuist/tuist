@@ -9,7 +9,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Native support for ARM architecture [#3010](https://github.com/tuist/tuist/pull/3010) by [@fortmarek](https://github.com/fortmarek) & [@pepibumur](https://github.com/pepibumur).
-- Utility for obtaining the system's Git credentials for authenticating with https://github.com [#3110](https://github.com/tuist/tuist/pull/3110) by [@pepibumur](https://github.com/pepibumur)
+- Utility for obtaining the system's Git credentials for authenticating with [#3110](https://github.com/tuist/tuist/pull/3110) by [@pepibumur](https://github.com/pepibumur).
+- `GitHubClient` to interact with GitHub's API [#3144](https://github.com/tuist/tuist/pull/3144) by [@pepibumur](https://github.com/pepibumur).
 
 ### Changed
 
