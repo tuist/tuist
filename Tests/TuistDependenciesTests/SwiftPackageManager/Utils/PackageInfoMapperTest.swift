@@ -50,6 +50,29 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
+    func testMap_whenNameContainsUnderscors_mapsToDashInBundleID() throws {
+        let project = try subject.map(
+            packageInfo: .init(
+                products: [
+                    .init(name: "Product1", type: .library(.automatic), targets: ["Target_1"]),
+                ],
+                targets: [
+                    .test(name: "Target_1")
+                ],
+                platforms: []
+            )
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test("Target_1", customBundleID: "Target-1")
+                ]
+            )
+        )
+    }
+
     func testMap_whenTargetNotInProduct_ignoresIt() throws {
         let project = try subject.map(
             packageInfo: .init(
@@ -421,6 +444,7 @@ extension ProjectDescription.Target {
     fileprivate static func test(
         _ name: String,
         platform: ProjectDescription.Platform = .iOS,
+        customBundleID: String? = nil,
         deploymentTarget: ProjectDescription.DeploymentTarget? = nil,
         customSources: SourceFilesList? = nil,
         resources: ResourceFileElements? = nil,
@@ -430,7 +454,7 @@ extension ProjectDescription.Target {
             name: name,
             platform: platform,
             product: .staticFramework,
-            bundleId: name,
+            bundleId: customBundleID ?? name,
             deploymentTarget: deploymentTarget,
             infoPlist: .default,
             sources: customSources ?? "/Package/Path/Sources/\(name)/**",
