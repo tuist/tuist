@@ -96,8 +96,8 @@
         "repositoryURL": "https://github.com/apple/swift-tools-support-core.git",
         "state": {
           "branch": null,
-          "revision": "ab6339b6a33b69886b3cf2254d3326eddfe58eb0",
-          "version": "0.2.2"
+          "revision": "2954e55faee5bfee928e844bb09e97fcfa8d24af",
+          "version": "0.2.0"
         }
       },
       {
@@ -114,8 +114,8 @@
         "repositoryURL": "https://github.com/tuist/XcodeProj.git",
         "state": {
           "branch": null,
-          "revision": "c8afc799be95bbc6c329ba12d15342ffa7c4577d",
-          "version": "7.19.0"
+          "revision": "0b18c3e7a10c241323397a80cb445051f4494971",
+          "version": "8.0.0"
         }
       },
       {
