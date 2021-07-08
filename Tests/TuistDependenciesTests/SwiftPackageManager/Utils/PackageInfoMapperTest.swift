@@ -1,6 +1,7 @@
 import ProjectDescription
 import TuistCore
 import TuistGraph
+import TuistSupport
 import XCTest
 
 @testable import TuistDependencies
@@ -14,6 +15,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         super.setUp()
 
         subject = PackageInfoMapper()
+
+        // FileHandler
+        fileHandler = MockFileHandler(temporaryDirectory: { try self.temporaryPath() })
+        FileHandler.shared = fileHandler
     }
 
     override func tearDown() {
@@ -185,7 +190,51 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
+    func testMap_whenHasHeaders() throws {
+        fileHandler.stubFilesAndDirectoriesContained = { path in
+            XCTAssertEqual(path, "/Package/Path/Sources/Target1")
+            return [
+                "/Package/Path/Sources/Package/Source.swift",
+                "/Package/Path/Sources/Package/Source.c",
+                "/Package/Path/Sources/Package/Source.h",
+            ]
+        }
+        let project = try subject.map(
+            packageInfo: .init(
+                products: [
+                    .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                ],
+                targets: [
+                    .test(
+                        name: "Target1"
+                    ),
+                ],
+                platforms: []
+            )
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test(
+                        "Target1",
+                        headers: .init(public: "/Package/Path/Sources/Package/Source.h")
+                    )
+                ]
+            )
+        )
+    }
+
     func testMap_whenCustomPath() throws {
+        fileHandler.stubFilesAndDirectoriesContained = { path in
+            XCTAssertEqual(path, "/Package/Path/Custom/Path")
+            return [
+                "/Package/Path/Custom/Path/Source.swift",
+                "/Package/Path/Custom/Path/Source.c",
+                "/Package/Path/Custom/Path/Source.h",
+            ]
+        }
         let project = try subject.map(
             packageInfo: .init(
                 products: [
@@ -210,7 +259,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         customSources: "/Package/Path/Custom/Path/Sources/Folder/**",
-                        resources: "/Package/Path/Custom/Path/Resource/Folder/**"
+                        resources: "/Package/Path/Custom/Path/Resource/Folder/**",
+                        headers: .init(public: "/Package/Path/Custom/Path/Source.h")
                     )
                 ]
             )
@@ -275,7 +325,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     targets: [
                         .test(name: "Target1"),
                     ],
-                    platforms: [.init(platformName: "ios", version: "13.0", options: [])]
+                    platforms: [.init(platformName: "tvos", version: "13.0", options: [])]
                 ),
                 platforms: [.iOS]
             ),
@@ -373,7 +423,8 @@ extension ProjectDescription.Target {
         platform: ProjectDescription.Platform = .iOS,
         deploymentTarget: ProjectDescription.DeploymentTarget? = nil,
         customSources: SourceFilesList? = nil,
-        resources: ResourceFileElements? = nil
+        resources: ResourceFileElements? = nil,
+        headers: ProjectDescription.Headers? = nil
     ) -> Self {
         return .init(
             name: name,
@@ -384,6 +435,7 @@ extension ProjectDescription.Target {
             infoPlist: .default,
             sources: customSources ?? "/Package/Path/Sources/\(name)/**",
             resources: resources,
+            headers: headers,
             settings: DependenciesGraph.spmSettings()
         )
     }
