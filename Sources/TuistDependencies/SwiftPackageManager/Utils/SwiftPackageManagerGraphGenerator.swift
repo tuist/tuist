@@ -381,7 +381,11 @@ extension SourceFilesList {
                 let glob = absolutePath.extension != nil ? absolutePath : absolutePath.appending(component: "**")
                 return .init(
                     Path(glob.pathString),
-                    excluding: excluding.map { Path(path.appending(RelativePath($0)).pathString) }
+                    excluding: excluding.map {
+                        let excludePath = path.appending(RelativePath($0))
+                        let excludeGlob = excludePath.extension != nil ? excludePath : excludePath.appending(component: "**")
+                        return Path(excludeGlob.pathString)
+                    }
                 )
             }
         )

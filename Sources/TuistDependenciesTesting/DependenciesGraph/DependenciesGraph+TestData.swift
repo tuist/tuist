@@ -61,7 +61,7 @@ public extension TuistCore.DependenciesGraph {
                             sources: [
                                 .init(
                                     "\(packageFolder.pathString)/customPath/customSources/**",
-                                    excluding: "\(packageFolder.pathString)/customPath/excluded/sources"
+                                    excluding: "\(packageFolder.pathString)/customPath/excluded/sources/**"
                                 ),
                             ],
                             resources: [
