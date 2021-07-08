@@ -68,6 +68,33 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             )
         )
     }
+
+    func testMap_whenProductIsNotLibrary_ignoresProduct() throws {
+        let project = try subject.map(
+            packageInfo: .init(
+                products: [
+                    .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    .init(name: "Product2", type: .plugin, targets: ["Target2"]),
+                    .init(name: "Product3", type: .test, targets: ["Target3"]),
+                ],
+                targets: [
+                    .test(name: "Target1"),
+                    .test(name: "Target2"),
+                    .test(name: "Target3"),
+                ],
+                platforms: []
+            )
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test(name: "Target1")
+                ]
+            )
+        )
+    }
 }
 
 extension PackageInfoMapping {
@@ -88,7 +115,10 @@ extension PackageInfoMapping {
 }
 
 extension PackageInfo.Target {
-    fileprivate static func test(name: String, type: PackageInfo.Target.TargetType = .regular) -> Self {
+    fileprivate static func test(
+        name: String,
+        type: PackageInfo.Target.TargetType = .regular
+    ) -> Self {
         return .init(
             name: name,
             path: nil,

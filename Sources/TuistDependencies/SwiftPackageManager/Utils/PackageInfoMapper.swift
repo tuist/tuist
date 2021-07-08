@@ -242,7 +242,7 @@ extension ProjectDescription.Product {
                     return nil
                 }
             }
-            .first ?? .staticFramework
+            .first
     }
 }
 
