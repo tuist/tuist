@@ -158,6 +158,9 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="https://wojciechkulik.pl"><img src="https://avatars.githubusercontent.com/u/3128467?v=4" width="100px;" alt=""/><br /><sub><b>Wojciech Kulik</b></sub></a></td>
     <td align="center"><a href="https://github.com/iainsmith"><img src="https://avatars.githubusercontent.com/u/993745?v=4" width="100px;" alt=""/><br /><sub><b>Iain Smith</b></sub></a></td>
   </tr>
+  <tr>
+    <td align="center"><a href="https://github.com/havebeenfitz"><img src="https://avatars.githubusercontent.com/u/31866271?v=4" width="100px;" alt=""/><br /><sub><b>Max Kraev</b></sub></a></td>
+  </tr>
 </table>
 
 <!-- markdownlint-restore -->
