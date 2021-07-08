@@ -446,7 +446,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         name: "Target1",
                         settings: [
-                            .init(tool: .c, name: .define, condition: nil, value: ["key1",]),
+                            .init(tool: .c, name: .define, condition: nil, value: ["key1"]),
                             .init(tool: .c, name: .define, condition: nil, value: ["key2=value"]),
                         ]
                     )
@@ -475,7 +475,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         name: "Target1",
                         settings: [
-                            .init(tool: .cxx, name: .define, condition: nil, value: ["key1",]),
+                            .init(tool: .cxx, name: .define, condition: nil, value: ["key1"]),
                             .init(tool: .cxx, name: .define, condition: nil, value: ["key2=value"]),
                         ]
                     )
@@ -504,7 +504,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         name: "Target1",
                         settings: [
-                            .init(tool: .swift, name: .define, condition: nil, value: ["key",]),
+                            .init(tool: .swift, name: .define, condition: nil, value: ["key"]),
                         ]
                     )
                 ],
@@ -532,7 +532,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         name: "Target1",
                         settings: [
-                            .init(tool: .c, name: .unsafeFlags, condition: nil, value: ["key1",]),
+                            .init(tool: .c, name: .unsafeFlags, condition: nil, value: ["key1"]),
                             .init(tool: .c, name: .unsafeFlags, condition: nil, value: ["key2", "key3"]),
                         ]
                     )
@@ -561,7 +561,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         name: "Target1",
                         settings: [
-                            .init(tool: .cxx, name: .unsafeFlags, condition: nil, value: ["key1",]),
+                            .init(tool: .cxx, name: .unsafeFlags, condition: nil, value: ["key1"]),
                             .init(tool: .cxx, name: .unsafeFlags, condition: nil, value: ["key2", "key3"]),
                         ]
                     )
@@ -609,7 +609,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-
     func testMap_whenConditionalSetting_ignoresByPlatform() throws {
         let project = try subject.map(
             packageInfo: .init(
@@ -634,6 +633,62 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 name: "Package",
                 targets: [
                     .test("Target1", customSettings: ["HEADER_SEARCH_PATHS": ["otherValue"]])
+                ]
+            )
+        )
+    }
+
+    func testMap_whenSettingsContainsLinkedFramework_mapsToSDKDependency() throws {
+        let project = try subject.map(
+            packageInfo: .init(
+                products: [
+                    .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                ],
+                targets: [
+                    .test(
+                        name: "Target1",
+                        settings: [
+                            .init(tool: .linker, name: .linkedFramework, condition: nil, value: ["Framework"]),
+                        ]
+                    )
+                ],
+                platforms: []
+            )
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test("Target1", dependencies: [.sdk(name: "Framework.framework", status: .required)])
+                ]
+            )
+        )
+    }
+
+    func testMap_whenSettingsContainsLinkedLibrary_mapsToSDKDependency() throws {
+        let project = try subject.map(
+            packageInfo: .init(
+                products: [
+                    .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                ],
+                targets: [
+                    .test(
+                        name: "Target1",
+                        settings: [
+                            .init(tool: .linker, name: .linkedLibrary, condition: nil, value: ["Library"]),
+                        ]
+                    )
+                ],
+                platforms: []
+            )
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test("Target1", dependencies: [.sdk(name: "Library.tbd", status: .required)])
                 ]
             )
         )
@@ -704,6 +759,7 @@ extension ProjectDescription.Target {
         customSources: SourceFilesList? = nil,
         resources: ResourceFileElements? = nil,
         headers: ProjectDescription.Headers? = nil,
+        dependencies: [ProjectDescription.TargetDependency] = [],
         customSettings: ProjectDescription.SettingsDictionary = [:]
     ) -> Self {
         return .init(
@@ -716,6 +772,7 @@ extension ProjectDescription.Target {
             sources: customSources ?? "/Package/Path/Sources/\(name)/**",
             resources: resources,
             headers: headers,
+            dependencies: dependencies,
             settings: DependenciesGraph.spmSettings(with: customSettings)
         )
     }
