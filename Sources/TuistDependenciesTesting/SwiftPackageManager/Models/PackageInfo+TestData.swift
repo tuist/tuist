@@ -105,7 +105,7 @@ extension PackageInfo {
               ],
               "name" : "Tuist",
               "path" : "customPath",
-              "publicHeadersPath" : "customPublicHeadersPath",
+              "publicHeadersPath" : "custom/Public/Headers/Path",
               "sources": [
                 "customSources"
               ],
@@ -248,7 +248,7 @@ extension PackageInfo {
                         .target(name: "TuistKit", condition: nil),
                         .product(name: "ALibrary", package: "a-dependency", condition: .init(platformNames: ["ios"], config: nil)),
                     ],
-                    publicHeadersPath: "customPublicHeadersPath",
+                    publicHeadersPath: "custom/Public/Headers/Path",
                     type: .regular,
                     settings: [
                         .init(tool: .c, name: .headerSearchPath, condition: nil, value: ["cSearchPath"]),

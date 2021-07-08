@@ -37,7 +37,8 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
                   "kind": "remote",
                   "name": "Alamofire",
                   "path": "https://github.com/Alamofire/Alamofire"
-                }
+                },
+                "subpath": "Alamofire"
               }
             ]
             """,
@@ -45,7 +46,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
                 XCTAssertEqual(packagePath, self.path.appending(component: "checkouts").appending(component: "Alamofire"))
                 return PackageInfo.alamofire
             },
-            dependenciesGraph: .alamofire(spmFolder: spmFolder)
+            dependenciesGraph: DependenciesGraph.alamofire(spmFolder: spmFolder)
         )
     }
 
@@ -58,21 +59,24 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
                   "kind": "remote",
                   "name": "GoogleAppMeasurement",
                   "path": "https://github.com/google/GoogleAppMeasurement"
-                }
+                },
+                "subpath": "GoogleAppMeasurement"
               },
               {
                 "packageRef": {
                   "kind": "remote",
                   "name": "GoogleUtilities",
                   "path": "https://github.com/google/GoogleUtilities"
-                }
+                },
+                "subpath": "GoogleUtilities"
               },
               {
                 "packageRef": {
                   "kind": "remote",
                   "name": "nanopb",
                   "path": "https://github.com/nanopb/nanopb"
-                }
+                },
+                "subpath": "nanopb"
               }
             ]
             """,
@@ -89,15 +93,15 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
                     return .test
                 }
             },
-            dependenciesGraph: try .googleAppMeasurement(spmFolder: spmFolder)
-                .merging(with: .googleUtilities(
+            dependenciesGraph: try DependenciesGraph.googleAppMeasurement(spmFolder: spmFolder)
+                .merging(with: DependenciesGraph.googleUtilities(
                     spmFolder: spmFolder,
                     customProductTypes: [
                         "GULMethodSwizzler": .framework,
                         "GULNetwork": .dynamicLibrary,
                     ]
                 ))
-                .merging(with: .nanopb(spmFolder: spmFolder))
+                .merging(with: DependenciesGraph.nanopb(spmFolder: spmFolder))
         )
     }
 
@@ -111,26 +115,35 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
                   "kind": "local",
                   "name": "test",
                   "path": "\(testPath.pathString)"
-                }
+                },
+                "subpath": "test"
               },
               {
                 "packageRef": {
                   "kind": "remote",
                   "name": "a-dependency",
                   "path": "https://github.com/dependencies/a-dependency"
-                }
+                },
+                "subpath": "ADependency"
               },
               {
                 "packageRef": {
                   "kind": "remote",
                   "name": "another-dependency",
                   "path": "https://github.com/dependencies/another-dependency"
-                }
+                },
+                "subpath": "another-dependency"
               }
             ]
             """,
             stubFilesAndDirectoriesContained: { path in
-                guard path == testPath.appending(component: "customPath").appending(component: "customPublicHeadersPath") else {
+                guard path == testPath
+                    .appending(component: "customPath")
+                    .appending(component: "custom")
+                    .appending(component: "Public")
+                    .appending(component: "Headers")
+                    .appending(component: "Path")
+                else {
                     return nil
                 }
 
@@ -143,7 +156,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
                 switch packagePath {
                 case testPath:
                     return PackageInfo.test
-                case self.checkoutsPath.appending(component: "a-dependency"):
+                case self.checkoutsPath.appending(component: "ADependency"):
                     return PackageInfo.aDependency
                 case self.checkoutsPath.appending(component: "another-dependency"):
                     return PackageInfo.anotherDependency
@@ -155,9 +168,9 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
             deploymentTargets: [
                 .iOS("13.0", [.iphone, .ipad, .mac]),
             ],
-            dependenciesGraph: .test(packageFolder: Path(testPath.pathString))
-                .merging(with: .aDependency(spmFolder: spmFolder))
-                .merging(with: .anotherDependency(spmFolder: spmFolder))
+            dependenciesGraph: DependenciesGraph.test(spmFolder: spmFolder, packageFolder: Path(testPath.pathString))
+                .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder))
+                .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder))
         )
     }
 
