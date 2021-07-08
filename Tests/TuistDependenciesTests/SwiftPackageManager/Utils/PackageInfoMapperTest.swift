@@ -384,6 +384,57 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
+    func testMap_whenSettingsContainsCHeaderSearchPath_mapsToHeaderSearchPathsSetting() throws {
+        let project = try subject.map(
+            packageInfo: .init(
+                products: [
+                    .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                ],
+                targets: [
+                    .test(
+                        name: "Target1",
+                        settings: [.init(tool: .c, name: .headerSearchPath, condition: nil, value: ["value"])]
+                    )
+                ],
+                platforms: []
+            )
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test("Target1", customSettings: ["HEADER_SEARCH_PATHS": ["value"]])
+                ]
+            )
+        )
+    }
+
+    func testMap_whenSettingsContainsCXXHeaderSearchPath_mapsToHeaderSearchPathsSetting() throws {
+        let project = try subject.map(
+            packageInfo: .init(
+                products: [
+                    .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                ],
+                targets: [
+                    .test(
+                        name: "Target1",
+                        settings: [.init(tool: .cxx, name: .headerSearchPath, condition: nil, value: ["value"])]
+                    )
+                ],
+                platforms: []
+            )
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test("Target1", customSettings: ["HEADER_SEARCH_PATHS": ["value"]])
+                ]
+            )
+        )
+    }
 }
 
 extension PackageInfoMapping {
@@ -412,7 +463,8 @@ extension PackageInfo.Target {
         type: PackageInfo.Target.TargetType = .regular,
         path: String? = nil,
         sources: [String]? = nil,
-        resources: [PackageInfo.Target.Resource] = []
+        resources: [PackageInfo.Target.Resource] = [],
+        settings: [TargetBuildSettingDescription.Setting] = []
     ) -> Self {
         return .init(
             name: name,
@@ -424,7 +476,7 @@ extension PackageInfo.Target {
             dependencies: [],
             publicHeadersPath: nil,
             type: type,
-            settings: [],
+            settings: settings,
             checksum: nil
         )
     }
@@ -448,7 +500,8 @@ extension ProjectDescription.Target {
         deploymentTarget: ProjectDescription.DeploymentTarget? = nil,
         customSources: SourceFilesList? = nil,
         resources: ResourceFileElements? = nil,
-        headers: ProjectDescription.Headers? = nil
+        headers: ProjectDescription.Headers? = nil,
+        customSettings: ProjectDescription.SettingsDictionary = [:]
     ) -> Self {
         return .init(
             name: name,
@@ -460,7 +513,7 @@ extension ProjectDescription.Target {
             sources: customSources ?? "/Package/Path/Sources/\(name)/**",
             resources: resources,
             headers: headers,
-            settings: DependenciesGraph.spmSettings()
+            settings: DependenciesGraph.spmSettings(with: customSettings)
         )
     }
 }
