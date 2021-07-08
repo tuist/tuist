@@ -168,8 +168,28 @@ extension ProjectDescription.Project {
         productToPackage: [String: String],
         targetDependencyToFramework: [String: Path]
     ) throws -> Self {
-        let targets = try packageInfo.targets.compactMap { target in
-            try Target.from(
+        var relevantTargets: [String] = []
+        var targetsToProcess = packageInfo.products.flatMap { $0.targets }.uniqued()
+        while !targetsToProcess.isEmpty {
+            let targetToProcess = targetsToProcess.removeFirst()
+            relevantTargets.append(targetToProcess)
+            let target = packageInfo.targets.first { $0.name == targetToProcess }!
+            for dependency in target.dependencies {
+                switch dependency {
+                case let .target(name, _):
+                    targetsToProcess.append(name)
+                case let .byName(name, _) where packageInfo.targets.contains(where: { $0.name == name }):
+                    targetsToProcess.append(name)
+                case .byName, .product:
+                    continue
+                }
+            }
+        }
+
+        let targets = try packageInfo.targets.compactMap { target -> ProjectDescription.Target? in
+            guard relevantTargets.contains(where: { $0 == target.name }) else { return nil }
+
+            return try Target.from(
                 target: target,
                 packageName: name,
                 packageInfo: packageInfo,
@@ -183,6 +203,7 @@ extension ProjectDescription.Project {
                 targetDependencyToFramework: targetDependencyToFramework
             )
         }
+
         return ProjectDescription.Project(
             name: name,
             targets: targets,
