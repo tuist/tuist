@@ -28,17 +28,30 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
 
         let thirdPartyDependencies: [String: ThirdPartyDependency] = Dictionary(grouping: products, by: \.name)
             .compactMapValues { product in
-                guard let frameworkName = product.first?.container else { return nil }
+                if let xcFrameworkName = product.first?.container {
+                    let path = AbsolutePath("/")
+                        .appending(components: [
+                            Constants.tuistDirectoryName,
+                            Constants.DependenciesDirectory.name,
+                            Constants.DependenciesDirectory.carthageDirectoryName,
+                            xcFrameworkName,
+                        ])
 
-                let path = AbsolutePath("/")
-                    .appending(components: [
-                        Constants.tuistDirectoryName,
-                        Constants.DependenciesDirectory.name,
-                        Constants.DependenciesDirectory.carthageDirectoryName,
-                        frameworkName,
-                    ])
-
-                return .xcframework(path: path)
+                    return .xcframework(path: path)
+                } else if let frameworkName = product.first?.name {
+                    let path = AbsolutePath("/")
+                        .appending(components: [
+                            Constants.tuistDirectoryName,
+                            Constants.DependenciesDirectory.name,
+                            Constants.DependenciesDirectory.carthageDirectoryName,
+                            Constants.DependenciesDirectory.iOSDirectoryName,
+                            "\(frameworkName).framework",
+                        ])
+                    
+                    return .framework(path: path)
+                }
+                
+                return nil
             }
 
         return DependenciesGraph(thirdPartyDependencies: thirdPartyDependencies)

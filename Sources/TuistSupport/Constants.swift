@@ -37,6 +37,7 @@ public enum Constants {
         public static let cartfileResolvedName = "Cartfile.resolved"
         public static let packageResolvedName = "Package.resolved"
         public static let carthageDirectoryName = "Carthage"
+        public static let iOSDirectoryName = "iOS"
         public static let swiftPackageManagerDirectoryName = "SwiftPackageManager"
     }
 
