@@ -42,6 +42,7 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
                     return .xcframework(path: path)
                 }
 
+                logger.info("\(product.name) was not added to the DependenciesGraph", metadata: .subsection)
                 return nil
             }
 

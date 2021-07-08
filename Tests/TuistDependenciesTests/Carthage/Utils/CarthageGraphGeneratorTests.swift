@@ -36,11 +36,6 @@ final class CarthageGraphGeneratorTests: TuistUnitTestCase {
         try fileHandler.touch(alamofireVersionFilePath)
         try fileHandler.write(CarthageVersionFile.testAlamofireJson, path: alamofireVersionFilePath, atomically: true)
 
-        // TODO: Add support for framework dependencies
-        let ahoyRTCVersionFilePath = path.appending(component: ".AhoyRTC-bitcode.version")
-        try fileHandler.touch(ahoyRTCVersionFilePath)
-        try fileHandler.write(CarthageVersionFile.testAhoyRTCJson, path: ahoyRTCVersionFilePath, atomically: true)
-
         // When
         let got = try subject.generate(at: path)
 
