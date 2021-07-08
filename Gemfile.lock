@@ -111,7 +111,7 @@ GEM
     diff-lcs (1.4.4)
     digest-crc (0.6.3)
       rake (>= 12.0.0, < 14.0.0)
-    down (5.2.1)
+    down (5.2.2)
       addressable (~> 2.5)
     ejson (1.2.1)
     erubi (1.10.0)
