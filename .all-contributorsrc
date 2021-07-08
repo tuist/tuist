@@ -451,6 +451,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "havebeenfitz",
+      "name": "Max Kraev",
+      "avatar_url": "https://avatars.githubusercontent.com/u/31866271?v=4",
+      "profile": "https://github.com/havebeenfitz",
+      "contributions": [
+        "bug"
+      ]
     }
   ],
   "contributorsPerLine": 7,

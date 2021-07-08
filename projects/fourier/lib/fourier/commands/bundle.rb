@@ -40,21 +40,29 @@ module Fourier
         required: false,
         aliases: :p,
       )
+      option(
+        :build,
+        desc: "The directory to be used for building",
+        type: :string,
+        required: false,
+        aliases: :b,
+      )
       def all
         output_directory = options[:output]
         output_directory ||= File.expand_path("build", Constants::ROOT_DIRECTORY)
 
-        Dir.mktmpdir do |tmp_dir|
+        bundle_all(output_directory: output_directory)
+      end
+      no_commands {
+        def bundle_all(output_directory:)
           Services::Bundle::Tuist.call(
-            output_directory: output_directory,
-            build_directory: tmp_dir
+            output_directory: output_directory
           )
           Services::Bundle::Tuistenv.call(
-            output_directory: output_directory,
-            build_directory: tmp_dir
+            output_directory: output_directory
           )
         end
-      end
+      }
     end
   end
 end

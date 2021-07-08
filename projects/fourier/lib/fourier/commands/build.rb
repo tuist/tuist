@@ -20,11 +20,6 @@ module Fourier
         Services::Build::Web.call
       end
 
-      desc "next", "Build the next website"
-      def next
-        Services::Build::Next.call
-      end
-
       desc "docs", "Build the documentation website"
       def docs
         Services::Build::Docs.call

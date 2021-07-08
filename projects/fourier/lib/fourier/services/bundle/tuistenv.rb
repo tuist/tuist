@@ -18,19 +18,18 @@ module Fourier
           output_directory = File.expand_path("build", Constants::ROOT_DIRECTORY) if output_directory.nil?
           FileUtils.mkdir_p(output_directory) unless Dir.exist?(output_directory)
 
-          in_build_directory do |build_directory|
-            Utilities::Output.section("Building Tuistenv...")
-            build_tuistenv(build_directory: build_directory)
-
-            Dir.mktmpdir do |vendor_directory|
-              FileUtils.cp(
-                File.expand_path("release/tuistenv", build_directory),
-                File.expand_path("tuistenv", vendor_directory)
+          Dir.mktmpdir do |build_directory|
+            Dir.mktmpdir do |swift_build_directory|
+              Utilities::Output.section("Building Tuistenv...")
+              build_tuistenv(
+                output_directory: build_directory,
+                swift_build_directory: swift_build_directory
               )
 
-              Dir.chdir(vendor_directory) do
+              Dir.chdir(build_directory) do
                 output_zip_path = File.expand_path("tuistenv.zip", output_directory)
                 Utilities::Output.section("Generating #{output_zip_path}...")
+
                 Utilities::System.system(
                   "zip", "-q", "-r", "--symlinks",
                   output_zip_path,
@@ -42,23 +41,13 @@ module Fourier
         end
 
         private
-          def in_build_directory
-            unless build_directory.nil?
-              yield(build_directory)
-            else
-              Dir.mktmpdir do |tmp_dir|
-                yield(tmp_dir)
-              end
-            end
-          end
-
-          def build_tuistenv(build_directory:)
-            Utilities::System.system(
-              "swift", "build",
-              "--product", "tuistenv",
-              "--configuration", "release",
-              "--build-path", build_directory,
-              "--package-path", Constants::ROOT_DIRECTORY
+          def build_tuistenv(output_directory:, swift_build_directory:)
+            Utilities::SwiftPackageManager.build_fat_release_binary(
+              path: Constants::ROOT_DIRECTORY,
+              product: "tuistenv",
+              binary_name: "tuistenv",
+              output_directory: output_directory,
+              swift_build_directory: swift_build_directory
             )
           end
       end
