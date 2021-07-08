@@ -35,8 +35,9 @@ final class CarthageGraphGeneratorTests: TuistUnitTestCase {
         let alamofireVersionFilePath = path.appending(component: ".Alamofire.version")
         try fileHandler.touch(alamofireVersionFilePath)
         try fileHandler.write(CarthageVersionFile.testAlamofireJson, path: alamofireVersionFilePath, atomically: true)
-        
-        let ahoyRTCVersionFilePath = path.appending(component: ".CarthageAhoyRTC-bitcode.version")
+
+        // TODO: Add support for framework dependencies
+        let ahoyRTCVersionFilePath = path.appending(component: ".AhoyRTC-bitcode.version")
         try fileHandler.touch(ahoyRTCVersionFilePath)
         try fileHandler.write(CarthageVersionFile.testAhoyRTCJson, path: ahoyRTCVersionFilePath, atomically: true)
 
@@ -63,12 +64,6 @@ final class CarthageGraphGeneratorTests: TuistUnitTestCase {
                 ),
                 "Alamofire": .xcframework(
                     path: "/Tuist/Dependencies/Carthage/Alamofire.xcframework"
-                ),
-                "AhoyKit": .framework(
-                    path: "/Tuist/Dependencies/Carthage/iOS/AhoyKit.framework"
-                ),
-                "WebRTC": .framework(
-                    path: "/Tuist/Dependencies/Carthage/iOS/WebRTC.framework"
                 ),
             ]
         )

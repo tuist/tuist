@@ -5,7 +5,7 @@ import TSCBasic
 public enum ThirdPartyDependency: Hashable, Equatable, Codable {
     /// A dependency that represents a pre-compiled .xcframework.
     case xcframework(path: AbsolutePath)
-    /// A dependency that represents a pre-compiled .framework (imported as binary from Carthage)
+    /// A dependency that represents a pre-compiled .framework.
     case framework(path: AbsolutePath)
 }
 

@@ -36,12 +36,12 @@ final class CarthageVersionFileTests: TuistUnitTestCase {
         // When / Then
         XCTAssertDecodableEqualToJson(json, expected)
     }
-    
+
     func test_codable_ahoyRTC() {
         // Given
         let json = CarthageVersionFile.testAhoyRTCJson
         let expected = CarthageVersionFile.testAhoyRTC
-        
+
         // When / Then
         XCTAssertDecodableEqualToJson(json, expected)
     }

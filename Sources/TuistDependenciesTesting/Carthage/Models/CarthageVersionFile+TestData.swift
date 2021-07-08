@@ -225,7 +225,7 @@ extension CarthageVersionFile {
             tvOS: nil
         )
     }
-    
+
     static var testAhoyRTC: Self {
         .init(
             iOS: [
@@ -236,7 +236,7 @@ extension CarthageVersionFile {
                 .init(
                     name: "WebRTC",
                     container: nil
-                )
+                ),
             ],
             macOS: [],
             watchOS: [],
@@ -595,7 +595,7 @@ extension CarthageVersionFile {
         }
         """
     }
-    
+
     static var testAhoyRTCJson: String {
         """
         {
