@@ -45,6 +45,30 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
+    func testMap_whenTargetNotInProduct_ignoresIt() throws {
+        let project = try subject.map(
+            packageInfo: .init(
+                products: [
+                    .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                ],
+                targets: [
+                    .test(name: "Target1"),
+                    .test(name: "Target2"),
+                ],
+                platforms: []
+            )
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test("Target1")
+                ]
+            )
+        )
+    }
+
     func testMap_whenTargetIsNotRegular_ignoresTarget() throws {
         let project = try subject.map(
             packageInfo: .init(
