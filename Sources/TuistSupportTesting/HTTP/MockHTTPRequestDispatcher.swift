@@ -9,7 +9,12 @@ public class MockHTTPRequestDispatcher: HTTPRequestDispatching {
     public func dispatch<T, E>(resource: HTTPResource<T, E>) -> Single<(object: T, response: HTTPURLResponse)> where E: Error {
         return Single.create { observer in
             if T.self != Void.self {
-                fatalError("MockHTTPRequestDispatcher only supports resources with Void as its generic value. Use HTTPResource.noop from TuistSupportTesting.")
+                fatalError(
+                    """
+                    MockHTTPRequestDispatcher only supports resources with Void as its generic value. \
+                    Use HTTPResource.noop from TuistSupportTesting.
+                    """
+                )
             }
             self.requests.append(resource.request())
             let response = HTTPURLResponse()
@@ -23,7 +28,12 @@ public class MockHTTPRequestDispatcher: HTTPRequestDispatching {
         return Deferred {
             Future<(object: T, response: HTTPURLResponse), Error> { promise in
                 if T.self != Void.self {
-                    fatalError("MockHTTPRequestDispatcher only supports resources with Void as its generic value. Use HTTPResource.noop from TuistSupportTesting.")
+                    fatalError(
+                        """
+                        MockHTTPRequestDispatcher only supports resources with Void as its generic value. \
+                        Use HTTPResource.noop from TuistSupportTesting.
+                        """
+                    )
                 }
                 self.requests.append(resource.request())
                 let response = HTTPURLResponse()

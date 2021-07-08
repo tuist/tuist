@@ -47,7 +47,10 @@ public final class GitHubClient: GitHubClienting {
 
     // MARK: - Private
 
-    private func authenticatedResource<T, E: Error>(resource: HTTPResource<T, E>, authentication: GitHubAuthentication?) throws -> HTTPResource<T, E> {
+    private func authenticatedResource<T, E: Error>(
+        resource: HTTPResource<T, E>,
+        authentication: GitHubAuthentication?
+    ) throws -> HTTPResource<T, E> {
         return try resource.mappingRequest { (request: URLRequest) -> URLRequest in
             var request = request
             var headers: [String: String]! = request.allHTTPHeaderFields
