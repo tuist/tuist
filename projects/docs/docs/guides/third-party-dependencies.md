@@ -4,6 +4,11 @@ slug: '/guides/third-party-dependencies'
 description: Learn how to define the contract between the dependency managers and Tuist.
 ---
 
+:::warning Alpha
+The integration of external dependencies is in alpha.
+Be aware some APIs might change as we iterate the functionality with the feedback we get from users.
+:::
+
 # Dependencies.swift
 
 Learn how to define the contract between the dependency managers (Cocoapods, Carthage and SPM) and Tuist.
