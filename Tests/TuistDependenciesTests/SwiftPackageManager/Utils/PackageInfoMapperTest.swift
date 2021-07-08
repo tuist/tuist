@@ -435,6 +435,92 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             )
         )
     }
+
+    func testMap_whenSettingsContainsCDefine_mapsToGccPreprocessorDefinitions() throws {
+        let project = try subject.map(
+            packageInfo: .init(
+                products: [
+                    .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                ],
+                targets: [
+                    .test(
+                        name: "Target1",
+                        settings: [
+                            .init(tool: .c, name: .define, condition: nil, value: ["key1",]),
+                            .init(tool: .c, name: .define, condition: nil, value: ["key2=value"]),
+                        ]
+                    )
+                ],
+                platforms: []
+            )
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test("Target1", customSettings: ["GCC_PREPROCESSOR_DEFINITIONS": ["key1=1", "key2=value"]])
+                ]
+            )
+        )
+    }
+
+    func testMap_whenSettingsContainsSwiftDefine_mapsToSwiftActiveCompilationConditions() throws {
+        let project = try subject.map(
+            packageInfo: .init(
+                products: [
+                    .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                ],
+                targets: [
+                    .test(
+                        name: "Target1",
+                        settings: [
+                            .init(tool: .swift, name: .define, condition: nil, value: ["key",]),
+                        ]
+                    )
+                ],
+                platforms: []
+            )
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test("Target1", customSettings: ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": ["key"]])
+                ]
+            )
+        )
+    }
+
+    func testMap_whenSettingsContainsSwiftDefine_mapsToGccPreprocessorDefinitions() throws {
+        let project = try subject.map(
+            packageInfo: .init(
+                products: [
+                    .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                ],
+                targets: [
+                    .test(
+                        name: "Target1",
+                        settings: [
+                            .init(tool: .c, name: .define, condition: nil, value: ["key1",]),
+                            .init(tool: .c, name: .define, condition: nil, value: ["key2=value"]),
+                        ]
+                    )
+                ],
+                platforms: []
+            )
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test("Target1", customSettings: ["GCC_PREPROCESSOR_DEFINITIONS": ["key1=1", "key2=value"]])
+                ]
+            )
+        )
+    }
 }
 
 extension PackageInfoMapping {
