@@ -235,10 +235,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test(
-                        "Target1",
-                        platform: .iOS
-                    )
+                    .test("Target1", platform: .iOS)
                 ]
             )
         )
@@ -262,10 +259,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test(
-                        "Target1",
-                        platform: .tvOS
-                    )
+                    .test("Target1", platform: .tvOS)
                 ]
             )
         )
@@ -281,7 +275,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     targets: [
                         .test(name: "Target1"),
                     ],
-                    platforms: [.init(platformName: "tvos", version: "13.0", options: [])]
+                    platforms: [.init(platformName: "ios", version: "13.0", options: [])]
                 ),
                 platforms: [.iOS]
             ),
@@ -292,6 +286,31 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             )
         )
     }
+
+    func testMap_whenPackageDefinesPlatform_configuresDeploymentTarget() throws {
+        let project = try subject.map(
+            packageInfo: .init(
+                products: [
+                    .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                ],
+                targets: [
+                    .test(name: "Target1"),
+                ],
+                platforms: [.init(platformName: "ios", version: "13.0", options: [])]
+            ),
+            platforms: [.iOS]
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test("Target1", platform: .iOS, deploymentTarget: .iOS(targetVersion: "13.0", devices: [.iphone, .ipad, .mac]))
+                ]
+            )
+        )
+    }
+
 }
 
 extension PackageInfoMapping {
@@ -352,6 +371,7 @@ extension ProjectDescription.Target {
     fileprivate static func test(
         _ name: String,
         platform: ProjectDescription.Platform = .iOS,
+        deploymentTarget: ProjectDescription.DeploymentTarget? = nil,
         customSources: SourceFilesList? = nil,
         resources: ResourceFileElements? = nil
     ) -> Self {
@@ -360,6 +380,7 @@ extension ProjectDescription.Target {
             platform: platform,
             product: .staticFramework,
             bundleId: name,
+            deploymentTarget: deploymentTarget,
             infoPlist: .default,
             sources: customSources ?? "/Package/Path/Sources/\(name)/**",
             resources: resources,
