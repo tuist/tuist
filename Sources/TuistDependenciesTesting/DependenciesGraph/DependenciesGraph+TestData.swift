@@ -331,13 +331,7 @@ public extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/Sources/GULMethodSwizzler/**",
                             ],
-                            settings: Settings(
-                                base: [
-                                    "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
-                                    "GCC_PREPROCESSOR_DEFINITIONS": .array(["SWIFT_PACKAGE=1"]),
-                                    "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_PACKAGE"]),
-                                ]
-                            )
+                            settings: Self.spmSettings()
                         ),
                         .init(
                             name: "GULNSData",
@@ -409,7 +403,7 @@ extension DependenciesGraph {
         return Path("\(spmFolder.pathString)/checkouts/\(packageName)")
     }
 
-    fileprivate static func spmSettings(with customSettings: SettingsDictionary = [:]) -> Settings {
+    static func spmSettings(with customSettings: SettingsDictionary = [:]) -> Settings {
         var settingsDictionary = customSettings
         settingsDictionary["FRAMEWORK_SEARCH_PATHS"] = "$(PLATFORM_DIR)/Developer/Library/Frameworks"
         if case let .array(cDefinitions) = settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] {
