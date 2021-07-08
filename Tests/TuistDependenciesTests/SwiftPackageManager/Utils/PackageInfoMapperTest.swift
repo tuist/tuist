@@ -465,6 +465,35 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
+    func testMap_whenSettingsContainsCXXDefine_mapsToGccPreprocessorDefinitions() throws {
+        let project = try subject.map(
+            packageInfo: .init(
+                products: [
+                    .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                ],
+                targets: [
+                    .test(
+                        name: "Target1",
+                        settings: [
+                            .init(tool: .cxx, name: .define, condition: nil, value: ["key1",]),
+                            .init(tool: .cxx, name: .define, condition: nil, value: ["key2=value"]),
+                        ]
+                    )
+                ],
+                platforms: []
+            )
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test("Target1", customSettings: ["GCC_PREPROCESSOR_DEFINITIONS": ["key1=1", "key2=value"]])
+                ]
+            )
+        )
+    }
+
     func testMap_whenSettingsContainsSwiftDefine_mapsToSwiftActiveCompilationConditions() throws {
         let project = try subject.map(
             packageInfo: .init(
@@ -493,7 +522,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenSettingsContainsSwiftDefine_mapsToGccPreprocessorDefinitions() throws {
+    func testMap_whenSettingsContainsCUnsafeFlags_mapsToOtherCFlags() throws {
         let project = try subject.map(
             packageInfo: .init(
                 products: [
@@ -503,8 +532,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         name: "Target1",
                         settings: [
-                            .init(tool: .c, name: .define, condition: nil, value: ["key1",]),
-                            .init(tool: .c, name: .define, condition: nil, value: ["key2=value"]),
+                            .init(tool: .c, name: .unsafeFlags, condition: nil, value: ["key1",]),
+                            .init(tool: .c, name: .unsafeFlags, condition: nil, value: ["key2", "key3"]),
                         ]
                     )
                 ],
@@ -516,11 +545,70 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", customSettings: ["GCC_PREPROCESSOR_DEFINITIONS": ["key1=1", "key2=value"]])
+                    .test("Target1", customSettings: ["OTHER_CFLAGS": ["key1", "key2", "key3"]])
                 ]
             )
         )
     }
+
+    func testMap_whenSettingsContainsCXXUnsafeFlags_mapsToOtherCPlusPlusFlags() throws {
+        let project = try subject.map(
+            packageInfo: .init(
+                products: [
+                    .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                ],
+                targets: [
+                    .test(
+                        name: "Target1",
+                        settings: [
+                            .init(tool: .cxx, name: .unsafeFlags, condition: nil, value: ["key1",]),
+                            .init(tool: .cxx, name: .unsafeFlags, condition: nil, value: ["key2", "key3"]),
+                        ]
+                    )
+                ],
+                platforms: []
+            )
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test("Target1", customSettings: ["OTHER_CPLUSPLUSFLAGS": ["key1", "key2", "key3"]])
+                ]
+            )
+        )
+    }
+
+    func testMap_whenSettingsContainsSwiftUnsafeFlags_mapsToOtherSwiftFlags() throws {
+        let project = try subject.map(
+            packageInfo: .init(
+                products: [
+                    .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                ],
+                targets: [
+                    .test(
+                        name: "Target1",
+                        settings: [
+                            .init(tool: .swift, name: .unsafeFlags, condition: nil, value: ["key1",]),
+                            .init(tool: .swift, name: .unsafeFlags, condition: nil, value: ["key2", "key3"]),
+                        ]
+                    )
+                ],
+                platforms: []
+            )
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test("Target1", customSettings: ["OTHER_SWIFT_FLAGS": ["key1", "key2", "key3"]])
+                ]
+            )
+        )
+    }
+
 }
 
 extension PackageInfoMapping {
