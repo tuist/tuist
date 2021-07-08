@@ -1,5 +1,6 @@
 import ProjectDescription
 import TuistCore
+import TuistGraph
 import XCTest
 
 @testable import TuistDependencies
@@ -38,7 +39,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test(name: "Target1")
+                    .test("Target1")
                 ]
             )
         )
@@ -63,7 +64,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test(name: "Target1")
+                    .test("Target1")
                 ]
             )
         )
@@ -90,7 +91,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test(name: "Target1")
+                    .test("Target1")
                 ]
             )
         )
@@ -114,7 +115,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 name: "Package",
                 targets: [
                     .test(
-                        name: "Target1",
+                        "Target1",
                         customSources: [
                             "/Package/Path/Sources/Target1/Subfolder/**",
                             "/Package/Path/Sources/Target1/Another/Subfolder/file.swift",
@@ -149,8 +150,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 name: "Package",
                 targets: [
                     .test(
-                        name: "Target1",
-                        customResources: [
+                        "Target1",
+                        resources: [
                             "/Package/Path/Sources/Target1/Resource/Folder/**",
                             "/Package/Path/Sources/Target1/Another/Resource/Folder/**",
                         ]
@@ -183,25 +184,104 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 name: "Package",
                 targets: [
                     .test(
-                        name: "Target1",
+                        "Target1",
                         customSources: "/Package/Path/Custom/Path/Sources/Folder/**",
-                        customResources: "/Package/Path/Custom/Path/Resource/Folder/**"
+                        resources: "/Package/Path/Custom/Path/Resource/Folder/**"
                     )
                 ]
+            )
+        )
+    }
+
+    func testMap_whenIOSAvailable_takesIOS() throws {
+        let project = try subject.map(
+            packageInfo: .init(
+                products: [
+                    .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                ],
+                targets: [
+                    .test(name: "Target1"),
+                ],
+                platforms: []
+            ),
+            platforms: [.iOS, .tvOS]
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test(
+                        "Target1",
+                        platform: .iOS
+                    )
+                ]
+            )
+        )
+    }
+
+    func testMap_whenIOSNotAvailable_takesOthers() throws {
+        let project = try subject.map(
+            packageInfo: .init(
+                products: [
+                    .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                ],
+                targets: [
+                    .test(name: "Target1"),
+                ],
+                platforms: []
+            ),
+            platforms: [.tvOS]
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test(
+                        "Target1",
+                        platform: .tvOS
+                    )
+                ]
+            )
+        )
+    }
+
+    func testMap_whenNoneAvailable_throws() throws {
+        XCTAssertThrowsSpecific(
+            try subject.map(
+                packageInfo: .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                    ],
+                    platforms: [.init(platformName: "tvos", version: "13.0", options: [])]
+                ),
+                platforms: [.iOS]
+            ),
+            SwiftPackageManagerGraphGeneratorError.noSupportedPlatforms(
+                name: "Package",
+                configured: [.iOS],
+                package: [.tvOS]
             )
         )
     }
 }
 
 extension PackageInfoMapping {
-    fileprivate func map(packageInfo: PackageInfo) throws -> ProjectDescription.Project {
+    fileprivate func map(
+        packageInfo: PackageInfo,
+        platforms: Set<TuistGraph.Platform> = [.iOS]
+    ) throws -> ProjectDescription.Project {
         return try self.map(
             packageInfo: packageInfo,
             packageInfos: [:],
             name: "Package",
             path: "/Package/Path",
             productTypes: [:],
-            platforms: [.iOS],
+            platforms: platforms,
             deploymentTargets: [],
             packageToProject: [:],
             productToPackage: [:],
@@ -246,18 +326,19 @@ extension ProjectDescription.Project {
 
 extension ProjectDescription.Target {
     fileprivate static func test(
-        name: String,
+        _ name: String,
+        platform: ProjectDescription.Platform = .iOS,
         customSources: SourceFilesList? = nil,
-        customResources: ResourceFileElements? = nil
+        resources: ResourceFileElements? = nil
     ) -> Self {
         return .init(
             name: name,
-            platform: .iOS,
+            platform: platform,
             product: .staticFramework,
             bundleId: name,
             infoPlist: .default,
             sources: customSources ?? "/Package/Path/Sources/\(name)/**",
-            resources: customResources,
+            resources: resources,
             settings: DependenciesGraph.spmSettings()
         )
     }

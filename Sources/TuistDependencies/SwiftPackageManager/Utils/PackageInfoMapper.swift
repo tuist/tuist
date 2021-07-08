@@ -162,8 +162,8 @@ extension ProjectDescription.Platform {
         packageName: String
     ) throws -> Self {
         let configuredPlatforms = Set(configured.map(\.descriptionPlatform))
-        let packagePlatform = Set(package.isEmpty ? ProjectDescription.Platform.allCases : try package.map { try $0.descriptionPlatform() })
-        let validPlatforms = configuredPlatforms.intersection(packagePlatform)
+        let packagePlatforms = Set(package.isEmpty ? ProjectDescription.Platform.allCases : try package.map { try $0.descriptionPlatform() })
+        let validPlatforms = configuredPlatforms.intersection(packagePlatforms)
 
         #warning("Handle multiple platforms when supported in ProjectDescription.Target")
         if validPlatforms.contains(.iOS) {
@@ -174,7 +174,7 @@ extension ProjectDescription.Platform {
             throw SwiftPackageManagerGraphGeneratorError.noSupportedPlatforms(
                 name: packageName,
                 configured: configuredPlatforms,
-                package: packagePlatform
+                package: packagePlatforms
             )
         }
 
