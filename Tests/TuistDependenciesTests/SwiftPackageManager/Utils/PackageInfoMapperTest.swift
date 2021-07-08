@@ -43,6 +43,31 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             )
         )
     }
+
+    func testMap_whenTargetIsNotRegular_ignoresTarget() throws {
+        let project = try subject.map(
+            packageInfo: .init(
+                products: [
+                    .init(name: "Product1", type: .library(.automatic), targets: ["Target1", "Target2", "Target3"]),
+                ],
+                targets: [
+                    .test(name: "Target1"),
+                    .test(name: "Target2", type: .test),
+                    .test(name: "Target3", type: .binary),
+                ],
+                platforms: []
+            )
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test(name: "Target1")
+                ]
+            )
+        )
+    }
 }
 
 extension PackageInfoMapping {
@@ -63,7 +88,7 @@ extension PackageInfoMapping {
 }
 
 extension PackageInfo.Target {
-    fileprivate static func test(name: String) -> Self {
+    fileprivate static func test(name: String, type: PackageInfo.Target.TargetType = .regular) -> Self {
         return .init(
             name: name,
             path: nil,
@@ -73,7 +98,7 @@ extension PackageInfo.Target {
             exclude: [],
             dependencies: [],
             publicHeadersPath: nil,
-            type: .regular,
+            type: type,
             settings: [],
             checksum: nil
         )
