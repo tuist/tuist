@@ -195,7 +195,7 @@ GEM
       builder
       minitest (>= 5.0)
       ruby-progressbar
-    mocha (1.12.0)
+    mocha (1.13.0)
     molinillo (0.6.6)
     multi_json (1.15.0)
     multi_test (0.1.2)
