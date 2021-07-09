@@ -14,7 +14,7 @@ on:
       - projects/tuist/features/**
       - Project.swift
 
-concurrency: 
+concurrency:
   group: ${{ github.head_ref }}
   cancel-in-progress: true
 
@@ -28,7 +28,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        xcode: ['12', '12.4']
+        xcode: ['12.2', '12.4']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -57,7 +57,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        xcode: ['12', '12.4']
+        xcode: ['12.2', '12.4']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
