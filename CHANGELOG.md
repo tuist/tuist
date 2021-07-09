@@ -6,7 +6,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Fixed
 
-- Fix failed `tuist dependencies fetch/update`  command when `Carthage` dependency is imported as binary [#3108](https://github.com/tuist/tuist/pull/3164) by [@havebenfitz](https://github.com/havebeenfitz)
+- Fix failed `tuist dependencies fetch/update` command when `Carthage` dependency is imported as binary [#3164](https://github.com/tuist/tuist/pull/3164) by [@havebenfitz](https://github.com/havebeenfitz)
 
 ## 1.46.0 - Emeuno
 
