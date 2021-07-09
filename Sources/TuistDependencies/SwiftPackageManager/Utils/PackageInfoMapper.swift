@@ -3,6 +3,53 @@ import TSCBasic
 import TuistGraph
 import TuistSupport
 
+// MARK: - PackageInfo Mapper Errors
+
+enum PackageInfoMapperError: FatalError, Equatable {
+    /// Thrown when no supported platforms are found for a package.
+    case noSupportedPlatforms(name: String, configured: Set<ProjectDescription.Platform>, package: Set<ProjectDescription.Platform>)
+
+    /// Thrown when `PackageInfo.Target.Dependency.byName` dependency cannot be resolved.
+    case unknownByNameDependency(String)
+
+    /// Thrown when `PackageInfo.Platform` name cannot be mapped to a `DeploymentTarget`.
+    case unknownPlatform(String)
+
+    /// Thrown when `PackageInfo.Target.Dependency.product` dependency cannot be resolved.
+    case unknownProductDependency(String, String)
+
+    /// Thrown when unsupported `PackageInfo.Target.TargetBuildSettingDescription` `Tool`/`SettingName` pair is found.
+    case unsupportedSetting(PackageInfo.Target.TargetBuildSettingDescription.Tool, PackageInfo.Target.TargetBuildSettingDescription.SettingName)
+
+    /// Error type.
+    var type: ErrorType {
+        switch self {
+        case .noSupportedPlatforms, .unknownByNameDependency, .unknownPlatform, .unknownProductDependency:
+            return .abort
+        case .unsupportedSetting:
+            return .bug
+        }
+    }
+
+    /// Error description.
+    var description: String {
+        switch self {
+        case let .noSupportedPlatforms(name, configured, package):
+            return "No supported platform found for the \(name) dependency. Configured: \(configured), package: \(package)."
+        case let .unknownByNameDependency(name):
+            return "The package associated to the \(name) dependency cannot be found."
+        case let .unknownPlatform(platform):
+            return "The \(platform) platform is not supported."
+        case let .unknownProductDependency(name, package):
+            return "The product \(name) of the package \(package) cannot be found."
+        case let .unsupportedSetting(tool, setting):
+            return "The \(tool) and \(setting) pair is not a supported setting."
+        }
+    }
+}
+
+// MARK: - PackageInfo Mapper
+
 /// Protocol that allows to map a `PackageInfo` to a `ProjectDescription.Project`.
 public protocol PackageInfoMapping {
     /// Maps a `PackageInfo` to a `ProjectDescription.Project`.
@@ -47,29 +94,36 @@ public final class PackageInfoMapper: PackageInfoMapping {
         productToPackage: [String: String],
         targetDependencyToFramework: [String: Path]
     ) throws -> ProjectDescription.Project {
-        var productTargets: [String] = []
-        var targetsToProcess = packageInfo.products.flatMap { $0.targets }.uniqued()
-        while !targetsToProcess.isEmpty {
-            let targetToProcess = targetsToProcess.removeFirst()
-            productTargets.append(targetToProcess)
-            let target = packageInfo.targets.first { $0.name == targetToProcess }!
-            for dependency in target.dependencies {
-                switch dependency {
-                case let .target(name, _):
-                    targetsToProcess.append(name)
-                case let .byName(name, _) where packageInfo.targets.contains(where: { $0.name == name }):
-                    targetsToProcess.append(name)
-                case .byName, .product:
+        var targetToProducts: [String: Set<PackageInfo.Product>] = [:]
+        for product in packageInfo.products {
+            var targetsToProcess = Set(product.targets)
+            while !targetsToProcess.isEmpty {
+                let target = targetsToProcess.removeFirst()
+                let alreadyProcessed = targetToProducts[target]?.contains(product) ?? false
+                guard !alreadyProcessed else {
                     continue
+                }
+                targetToProducts[target, default: []].insert(product)
+                let dependencies = packageInfo.targets.first(where: { $0.name == target })!.dependencies
+                for dependency in dependencies {
+                    switch dependency {
+                    case let .target(name, _):
+                        targetsToProcess.insert(name)
+                    case let .byName(name, _) where packageInfo.targets.contains(where: { $0.name == name }):
+                        targetsToProcess.insert(name)
+                    case .byName, .product:
+                        continue
+                    }
                 }
             }
         }
 
         let targets = try packageInfo.targets.compactMap { target -> ProjectDescription.Target? in
-            guard productTargets.contains(where: { $0 == target.name }) else { return nil }
+            guard let products = targetToProducts[target.name] else { return nil }
 
             return try Target.from(
                 target: target,
+                products: products,
                 packageName: name,
                 packageInfo: packageInfo,
                 packageInfos: packageInfos,
@@ -94,6 +148,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
 extension ProjectDescription.Target {
     fileprivate static func from(
         target: PackageInfo.Target,
+        products: Set<PackageInfo.Product>,
         packageName: String,
         packageInfo: PackageInfo,
         packageInfos: [String: PackageInfo],
@@ -110,7 +165,7 @@ extension ProjectDescription.Target {
             return nil
         }
 
-        guard let product = ProjectDescription.Product.from(name: target.name, packageInfo: packageInfo, productTypes: productTypes) else {
+        guard let product = ProjectDescription.Product.from(name: target.name, products: products, productTypes: productTypes) else {
             logger.debug("Target \(target.name) ignored by product type")
             return nil
         }
@@ -171,7 +226,7 @@ extension ProjectDescription.Platform {
         }
 
         guard let platform = validPlatforms.first else {
-            throw SwiftPackageManagerGraphGeneratorError.noSupportedPlatforms(
+            throw PackageInfoMapperError.noSupportedPlatforms(
                 name: packageName,
                 configured: configuredPlatforms,
                 package: packagePlatforms
@@ -222,27 +277,47 @@ extension ProjectDescription.DeploymentTarget {
 }
 
 extension ProjectDescription.Product {
-    fileprivate static func from(name: String, packageInfo: PackageInfo, productTypes: [String: TuistGraph.Product]) -> Self? {
+    fileprivate static func from(
+        name: String,
+        products: Set<PackageInfo.Product>,
+        productTypes: [String: TuistGraph.Product]
+    ) -> Self? {
         if let productType = productTypes[name] {
             return ProjectDescription.Product.from(product: productType)
         }
 
-        return packageInfo.products
-            .filter { $0.targets.contains(name) }
-            .compactMap {
-                switch $0.type {
-                case let .library(type):
-                    switch type {
-                    case .static, .automatic:
-                        return .staticFramework
-                    case .dynamic:
+        var hasLibraryProducts = false
+        let product: ProjectDescription.Product? = products.map(\.type).reduce(nil) { result, productType in
+            switch productType {
+            case let .library(type):
+                hasLibraryProducts = true
+                switch type {
+                case .automatic:
+                    return result
+                case .static:
+                    return .staticFramework
+                case .dynamic:
+                    if result == .staticFramework {
+                        // If any of the products is static, the target must be static
+                        return result
+                    } else {
                         return .framework
                     }
-                case .executable, .plugin, .test:
-                    return nil
                 }
+            case .executable, .plugin, .test:
+                return result
             }
-            .first
+        }
+
+        if product != nil {
+            return product
+        } else if hasLibraryProducts {
+            // only automatic products, default to static framework
+            return .staticFramework
+        } else {
+            // only executable, plugin, or test products, ignore it
+            return nil
+        }
     }
 }
 
@@ -316,7 +391,7 @@ extension ProjectDescription.TargetDependency {
                     let targets = packageInfos[package]?.products.first(where: { $0.name == name })?.targets,
                     let projectPath = packageToProject[package]
                 else {
-                    throw SwiftPackageManagerGraphGeneratorError.unknownProductDependency(name, package)
+                    throw PackageInfoMapperError.unknownProductDependency(name, package)
                 }
                 return targets.map { .project(target: $0, path: projectPath) }
             case let .byName(name, _):
@@ -331,11 +406,11 @@ extension ProjectDescription.TargetDependency {
                         let targets = packageInfos[package]?.products.first(where: { $0.name == name })?.targets,
                         let projectPath = packageToProject[package]
                     else {
-                        throw SwiftPackageManagerGraphGeneratorError.unknownProductDependency(name, package)
+                        throw PackageInfoMapperError.unknownProductDependency(name, package)
                     }
                     return targets.map { .project(target: $0, path: projectPath) }
                 } else {
-                    throw SwiftPackageManagerGraphGeneratorError.unknownByNameDependency(name)
+                    throw PackageInfoMapperError.unknownByNameDependency(name)
                 }
             }
         }
@@ -403,7 +478,7 @@ extension ProjectDescription.Settings {
             case (.c, .linkedFramework), (.c, .linkedLibrary), (.cxx, .linkedFramework), (.cxx, .linkedLibrary),
                  (.swift, .headerSearchPath), (.swift, .linkedFramework), (.swift, .linkedLibrary),
                  (.linker, .headerSearchPath), (.linker, .define), (.linker, .unsafeFlags):
-                throw SwiftPackageManagerGraphGeneratorError.unsupportedSetting(setting.tool, setting.name)
+                throw PackageInfoMapperError.unsupportedSetting(setting.tool, setting.name)
             }
         }
 
@@ -475,7 +550,7 @@ extension PackageInfo.Platform {
         case "watchos":
             return .watchOS
         default:
-            throw SwiftPackageManagerGraphGeneratorError.unknownPlatform(platformName)
+            throw PackageInfoMapperError.unknownPlatform(platformName)
         }
     }
 }

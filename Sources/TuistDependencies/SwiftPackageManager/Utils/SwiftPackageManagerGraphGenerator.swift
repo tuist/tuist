@@ -9,30 +9,13 @@ import TuistSupport
 // MARK: - Swift Package Manager Graph Generator Errors
 
 enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
-    /// Thrown when no supported platforms are found for a package.
-    case noSupportedPlatforms(name: String, configured: Set<ProjectDescription.Platform>, package: Set<ProjectDescription.Platform>)
-
-    /// Thrown when `PackageInfo.Target.Dependency.byName` dependency cannot be resolved.
-    case unknownByNameDependency(String)
-
-    /// Thrown when `PackageInfo.Platform` name cannot be mapped to a `DeploymentTarget`.
-    case unknownPlatform(String)
-
-    /// Thrown when `PackageInfo.Target.Dependency.product` dependency cannot be resolved.
-    case unknownProductDependency(String, String)
-
     /// Thrown when `SwiftPackageManagerWorkspaceState.Dependency.Kind` is not one of the expected values.
     case unsupportedDependencyKind(String)
-
-    /// Thrown when unsupported `PackageInfo.Target.TargetBuildSettingDescription` `Tool`/`SettingName` pair is found.
-    case unsupportedSetting(PackageInfo.Target.TargetBuildSettingDescription.Tool, PackageInfo.Target.TargetBuildSettingDescription.SettingName)
 
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .noSupportedPlatforms, .unknownByNameDependency, .unknownPlatform, .unknownProductDependency:
-            return .abort
-        case .unsupportedDependencyKind, .unsupportedSetting:
+        case .unsupportedDependencyKind:
             return .bug
         }
     }
@@ -40,18 +23,8 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
     /// Error description.
     var description: String {
         switch self {
-        case let .noSupportedPlatforms(name, configured, package):
-            return "No supported platform found for the \(name) dependency. Configured: \(configured), package: \(package)."
-        case let .unknownByNameDependency(name):
-            return "The package associated to the \(name) dependency cannot be found."
-        case let .unknownPlatform(platform):
-            return "The \(platform) platform is not supported."
-        case let .unknownProductDependency(name, package):
-            return "The product \(name) of the package \(package) cannot be found."
         case let .unsupportedDependencyKind(name):
             return "The dependency kind \(name) is not supported."
-        case let .unsupportedSetting(tool, setting):
-            return "The \(tool) and \(setting) pair is not a supported setting."
         }
     }
 }

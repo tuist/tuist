@@ -352,7 +352,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
                 platforms: [.iOS]
             ),
-            SwiftPackageManagerGraphGeneratorError.noSupportedPlatforms(
+            PackageInfoMapperError.noSupportedPlatforms(
                 name: "Package",
                 configured: [.iOS],
                 package: [.tvOS]
@@ -693,24 +693,241 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             )
         )
     }
+
+    func testMap_whenTargetDependency_mapsToTargetDependency() throws {
+        let project = try subject.map(
+            packageInfo: .init(
+                products: [
+                    .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                ],
+                targets: [
+                    .test(
+                        name: "Target1",
+                        dependencies: [.target(name: "Dependency1", condition: nil)]
+                    ),
+                    .test(name: "Dependency1"),
+                ],
+                platforms: []
+            )
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test("Target1", dependencies: [.target(name: "Dependency1")]),
+                    .test("Dependency1"),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenBinaryTargetDependency_mapsToXcFramework() throws {
+        let project = try subject.map(
+            packageInfo: .init(
+                products: [
+                    .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                ],
+                targets: [
+                    .test(
+                        name: "Target1",
+                        dependencies: [.target(name: "Dependency1", condition: nil)]
+                    ),
+                    .test(name: "Dependency1", type: .binary),
+                ],
+                platforms: []
+            ),
+            targetDependencyToFramework: [
+                "Dependency1": "/Path/To/Dependency1.framework",
+            ]
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test("Target1", dependencies: [.xcframework(path: "/Path/To/Dependency1.framework")]),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenTargetByNameDependency_mapsToTargetDependency() throws {
+        let project = try subject.map(
+            packageInfo: .init(
+                products: [
+                    .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                ],
+                targets: [
+                    .test(
+                        name: "Target1",
+                        dependencies: [.byName(name: "Dependency1", condition: nil)]
+                    ),
+                    .test(name: "Dependency1"),
+                ],
+                platforms: []
+            )
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test("Target1", dependencies: [.target(name: "Dependency1")]),
+                    .test("Dependency1"),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenBinaryTargetByNameDependency_mapsToXcFramework() throws {
+        let project = try subject.map(
+            packageInfo: .init(
+                products: [
+                    .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                ],
+                targets: [
+                    .test(
+                        name: "Target1",
+                        dependencies: [.byName(name: "Dependency1", condition: nil)]
+                    ),
+                    .test(name: "Dependency1", type: .binary),
+                ],
+                platforms: []
+            ),
+            targetDependencyToFramework: [
+                "Dependency1": "/Path/To/Dependency1.framework",
+            ]
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test("Target1", dependencies: [.xcframework(path: "/Path/To/Dependency1.framework")]),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenExternalProductDependency_mapsToProjectDependencies() throws {
+        let package1 = PackageInfo(
+            products: [
+                .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+            ],
+            targets: [
+                .test(
+                    name: "Target1",
+                    dependencies: [.product(name: "Product2", package: "Package2", condition: nil)]
+                ),
+                .test(name: "Dependency1"),
+            ],
+            platforms: []
+        )
+        let package2 = PackageInfo(
+            products: [
+                .init(name: "Product2", type: .library(.automatic), targets: ["Target2", "Target3"]),
+                .init(name: "Product3", type: .library(.automatic), targets: ["Target4"]),
+            ],
+            targets: [
+                .test(name: "Target1"),
+                .test(name: "Target2"),
+                .test(name: "Target3"),
+                .test(name: "Target4"),
+            ],
+            platforms: []
+        )
+        let project = try subject.map(
+            packageInfo: package1,
+            packageInfos: ["Package1": package1, "Package2": package2]
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test(
+                        "Target1",
+                        dependencies: [
+                            .project(target: "Target2", path: "/Package2/Path"),
+                            .project(target: "Target3", path: "/Package2/Path"),
+                        ]),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenExternalByNameProductDependency_mapsToProjectDependencies() throws {
+        let package1 = PackageInfo(
+            products: [
+                .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+            ],
+            targets: [
+                .test(
+                    name: "Target1",
+                    dependencies: [.byName(name: "Product2", condition: nil)]
+                ),
+                .test(name: "Dependency1"),
+            ],
+            platforms: []
+        )
+        let package2 = PackageInfo(
+            products: [
+                .init(name: "Product2", type: .library(.automatic), targets: ["Target2", "Target3"]),
+                .init(name: "Product3", type: .library(.automatic), targets: ["Target4"]),
+            ],
+            targets: [
+                .test(name: "Target1"),
+                .test(name: "Target2"),
+                .test(name: "Target3"),
+                .test(name: "Target4"),
+            ],
+            platforms: []
+        )
+        let project = try subject.map(
+            packageInfo: package1,
+            packageInfos: ["Package1": package1, "Product2": package2]
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test(
+                        "Target1",
+                        dependencies: [
+                            .project(target: "Target2", path: "/Product2/Path"),
+                            .project(target: "Target3", path: "/Product2/Path"),
+                        ]),
+                ]
+            )
+        )
+    }
 }
 
 extension PackageInfoMapping {
     fileprivate func map(
         packageInfo: PackageInfo,
-        platforms: Set<TuistGraph.Platform> = [.iOS]
+        name: String = "Package",
+        packageInfos: [String: PackageInfo] = [:],
+        platforms: Set<TuistGraph.Platform> = [.iOS],
+        targetDependencyToFramework: [String: Path] = [:]
     ) throws -> ProjectDescription.Project {
         return try self.map(
             packageInfo: packageInfo,
-            packageInfos: [:],
-            name: "Package",
-            path: "/Package/Path",
+            packageInfos: packageInfos,
+            name: name,
+            path: .init("/\(name)/Path"),
             productTypes: [:],
             platforms: platforms,
             deploymentTargets: [],
-            packageToProject: [:],
-            productToPackage: [:],
-            targetDependencyToFramework: [:]
+            packageToProject: Dictionary(uniqueKeysWithValues: packageInfos.keys.map { ($0, "/\($0)/Path") }),
+            productToPackage: packageInfos.reduce(into: [:]) { result, packageInfo in
+                for product in packageInfo.value.products {
+                    result[product.name] = packageInfo.key
+                }
+            },
+            targetDependencyToFramework: targetDependencyToFramework
         )
     }
 }
@@ -722,6 +939,7 @@ extension PackageInfo.Target {
         path: String? = nil,
         sources: [String]? = nil,
         resources: [PackageInfo.Target.Resource] = [],
+        dependencies: [PackageInfo.Target.Dependency] = [],
         settings: [TargetBuildSettingDescription.Setting] = []
     ) -> Self {
         return .init(
@@ -731,7 +949,7 @@ extension PackageInfo.Target {
             sources: sources,
             resources: resources,
             exclude: [],
-            dependencies: [],
+            dependencies: dependencies,
             publicHeadersPath: nil,
             type: type,
             settings: settings,
