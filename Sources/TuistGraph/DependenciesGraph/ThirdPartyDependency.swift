@@ -5,6 +5,8 @@ import TSCBasic
 public enum ThirdPartyDependency: Hashable, Equatable, Codable {
     /// A dependency that represents a pre-compiled .xcframework.
     case xcframework(path: AbsolutePath)
+    /// A dependency that represents a pre-compiled .framework.
+    case framework(path: AbsolutePath)
 }
 
 // MARK: - Codable
@@ -12,6 +14,7 @@ public enum ThirdPartyDependency: Hashable, Equatable, Codable {
 extension ThirdPartyDependency {
     private enum Kind: String, Codable {
         case xcframework
+        case framework
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -26,6 +29,9 @@ extension ThirdPartyDependency {
         case .xcframework:
             let path = try container.decode(AbsolutePath.self, forKey: .path)
             self = .xcframework(path: path)
+        case .framework:
+            let path = try container.decode(AbsolutePath.self, forKey: .path)
+            self = .framework(path: path)
         }
     }
 
@@ -34,6 +40,9 @@ extension ThirdPartyDependency {
         switch self {
         case let .xcframework(path):
             try container.encode(Kind.xcframework, forKey: .kind)
+            try container.encode(path, forKey: .path)
+        case let .framework(path):
+            try container.encode(Kind.framework, forKey: .kind)
             try container.encode(path, forKey: .path)
         }
     }
