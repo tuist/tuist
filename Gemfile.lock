@@ -158,7 +158,7 @@ GEM
     google-cloud-env (1.5.0)
       faraday (>= 0.17.3, < 2.0)
     google-cloud-errors (1.1.0)
-    google-cloud-storage (1.34.0)
+    google-cloud-storage (1.34.1)
       addressable (~> 2.5)
       digest-crc (~> 0.4)
       google-apis-iamcredentials_v1 (~> 0.1)
@@ -189,6 +189,7 @@ GEM
       mime-types-data (~> 3.2015)
     mime-types-data (3.2021.0704)
     mini_mime (1.1.0)
+    mini_portile2 (2.5.3)
     minitest (5.14.4)
     minitest-reporters (1.4.3)
       ansi
@@ -204,14 +205,15 @@ GEM
     nap (1.1.0)
     naturally (2.2.1)
     netrc (0.11.0)
-    nokogiri (1.11.7-x86_64-darwin)
+    nokogiri (1.11.7)
+      mini_portile2 (~> 2.5.0)
       racc (~> 1.4)
     octokit (4.21.0)
       faraday (>= 0.9)
       sawyer (~> 0.8.0, >= 0.5.3)
     os (1.1.1)
     parallel (1.20.1)
-    parser (3.0.1.1)
+    parser (3.0.2.0)
       ast (~> 2.4.1)
     protobuf-cucumber (3.10.8)
       activesupport (>= 3.2)
@@ -235,7 +237,7 @@ GEM
       rake (>= 0.8.7)
       thor (>= 0.19.0, < 2.0)
     rainbow (3.0.0)
-    rake (13.0.5)
+    rake (13.0.6)
     regexp_parser (2.1.1)
     representable (3.1.1)
       declarative (< 0.1.0)
@@ -314,7 +316,7 @@ GEM
     zeitwerk (2.4.2)
 
 PLATFORMS
-  x86_64-darwin-20
+  ruby
 
 DEPENDENCIES
   byebug (~> 11.1)
@@ -350,4 +352,4 @@ RUBY VERSION
    ruby 3.0.1p64
 
 BUNDLED WITH
-   2.2.19
+   2.2.21

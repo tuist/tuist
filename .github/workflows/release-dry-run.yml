@@ -1,4 +1,4 @@
-name: Fixture Generator
+name: Release dry-run
 
 on:
   push:
@@ -6,25 +6,24 @@ on:
       - main
   pull_request:
     paths:
-      - projects/fixturegen/**
+      - Gemfile*
       - Package.swift
       - Package.resolved
       - Sources/**
-
-concurrency:
-  group: ${{ github.head_ref }}
-  cancel-in-progress: true
+      - Project.swift
+      - projects/fourier/**
 
 env:
   RUBY_VERSION: '3.0.1'
+  TUIST_STATS_OPT_OUT: true
 
 jobs:
-  test:
-    name: Test the fixture generator with Xcode ${{ matrix.xcode }}
+  bundle-all:
+    name: Bundle tuist and tuistenv with Xcode ${{ matrix.xcode }}
     runs-on: macos-latest
     strategy:
       matrix:
-        xcode: ['12.2', '12.4']
+        xcode: ['12.2']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -42,7 +41,6 @@ jobs:
         run: |
           bundle config path vendor/bundle
           bundle install --jobs 4 --retry 3
-      - name: Generate Fixture
-        run: ./fourier fixture --projects 1 --targets 1 --sources 1 --path Fixture
-      - name: Generate Fixture Project
-        run: ./fourier tuist generate --path Fixture
+      - name: Build
+        run: |
+          ./fourier bundle all
