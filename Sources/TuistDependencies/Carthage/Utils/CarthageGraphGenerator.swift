@@ -28,14 +28,19 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
 
         let externalDependencies: [String: [TargetDependency]] = Dictionary(grouping: products, by: \.name)
             .compactMapValues { products in
-                guard let frameworkName = products.first?.container else { return nil }
+                guard let product = products.first else { return nil }
+
+                guard let xcframeworkName = product.container else {
+                  logger.info("\(product.name) was not added to the DependenciesGraph", metadata: .subsection)
+                  return nil
+                }
 
                 let path = AbsolutePath("/")
                     .appending(components: [
                         Constants.tuistDirectoryName,
                         Constants.DependenciesDirectory.name,
                         Constants.DependenciesDirectory.carthageDirectoryName,
-                        frameworkName,
+                      xcframeworkName,
                     ])
 
                 return [.xcframework(path: Path(path.pathString))]
