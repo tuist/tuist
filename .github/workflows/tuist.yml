@@ -14,7 +14,7 @@ on:
       - projects/tuist/features/**
       - projects/tuist/fixtures/**
 
-concurrency: 
+concurrency:
   group: ${{ github.head_ref }}
   cancel-in-progress: true
 
@@ -109,7 +109,7 @@ jobs:
             'test',
             'up',
             'graph',
-            'tasks'
+            'tasks',
           ]
     steps:
       - uses: actions/checkout@v1

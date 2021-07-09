@@ -7,31 +7,43 @@ module Fourier
       ARM64_TARGET = "arm64-apple-macosx"
       X86_64_TARGET = "x86_64-apple-macosx"
 
-      def self.build_fat_release_library(path:, product:, binary_name:, output_directory:, swift_build_directory:)
-        FileUtils.mkdir_p(File.expand_path("#{product}.swiftinterface", output_directory))
-        FileUtils.mkdir_p(File.expand_path("#{product}.swiftmodule", output_directory))
-
-        self.build_fat_release_binary(
-          path: path,
-          product: product,
-          binary_name: binary_name,
-          output_directory: output_directory,
-          swift_build_directory: swift_build_directory
-        ) do |arch|
-          additional_options = [
-            "-Xswiftc", "-enable-library-evolution",
-            "-Xswiftc", "-emit-module",
-            "-Xswiftc", "-emit-module-path",
-            "-Xswiftc", File.expand_path("#{product}.swiftmodule/#{arch}.swiftmodule", output_directory),
-            "-Xswiftc", "-emit-module-interface",
-            "-Xswiftc", "-emit-module-interface-path",
-            "-Xswiftc", File.expand_path("#{product}.swiftinterface/#{arch}.swiftinterface", output_directory)
-          ]
-          additional_options
+      def self.build_fat_release_library(path:, product:, output_directory:, swift_build_directory:)
+        Dir.chdir(path) do
+          Utilities::System.system(
+            "xcodebuild",
+            "-scheme", product,
+            "-configuration", "Release",
+            "-sdk", "macosx",
+            "BUILD_LIBRARY_FOR_DISTRIBUTION=YES",
+            "ARCHS=arm64 x86_64",
+            "EXCLUDED_ARCHS=",
+            "BUILD_DIR=#{swift_build_directory}",
+            "clean", "build"
+          )
+          FileUtils.cp_r(
+            File.join(swift_build_directory, "Release/PackageFrameworks/#{product}.framework"),
+            File.join(output_directory, "#{product}.framework")
+          )
+          FileUtils.mkdir_p(File.join(output_directory, "#{product}.framework/Modules"))
+          FileUtils.cp_r(
+            File.join(swift_build_directory, "Release/#{product}.swiftmodule"),
+            File.join(output_directory, "#{product}.framework/Modules/#{product}.swiftmodule")
+          )
+          FileUtils.cp_r(
+            File.join(swift_build_directory, "Release/#{product}.framework.dSYM"),
+            File.join(output_directory, "#{product}.framework.dSYM")
+          )
         end
       end
 
-      def self.build_fat_release_binary(path:, product:, binary_name:, output_directory:, swift_build_directory:)
+      def self.build_fat_release_binary(
+        path:,
+        product:,
+        binary_name:,
+        output_directory:,
+        swift_build_directory:,
+        additional_options: []
+      )
         command = [
           "swift", "build",
           "--configuration", "release",
@@ -42,11 +54,9 @@ module Fourier
         ]
 
         arm_64 = [*command, "--triple", ARM64_TARGET]
-        arm_64 += yield("arm64") if block_given?
         Utilities::System.system(*arm_64)
 
         x86 = [*command, "--triple", X86_64_TARGET]
-        x86 += yield("x86_64") if block_given?
         Utilities::System.system(*x86)
 
         unless File.exist?(output_directory)
