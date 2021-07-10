@@ -254,7 +254,7 @@ final class TestServiceTests: TuistUnitTestCase {
         XCTAssertEmpty(testedSchemes)
         XCTAssertPrinterOutputContains("There are no tests to run, finishing early")
     }
-    
+
     func test_run_uses_resource_bundle_path() throws {
         // Given
         let expectedResourceBundlePath = AbsolutePath("/test")
@@ -285,7 +285,7 @@ final class TestServiceTests: TuistUnitTestCase {
             expectedResourceBundlePath
         )
     }
-    
+
     func test_run_uses_resource_bundle_path_with_given_scheme() throws {
         // Given
         let expectedResourceBundlePath = AbsolutePath("/test")

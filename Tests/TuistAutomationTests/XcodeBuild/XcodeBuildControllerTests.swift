@@ -174,7 +174,7 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             XCTFail("The command was not expected to fail")
         }
     }
-    
+
     func test_test_with_result_bundle_path() throws {
         // Given
         let path = try temporaryPath()

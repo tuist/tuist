@@ -96,7 +96,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         if let derivedDataPath = derivedDataPath {
             command.append(contentsOf: ["-derivedDataPath", derivedDataPath.pathString])
         }
-        
+
         // Result bundle path
         if let resultBundlePath = resultBundlePath {
             command.append(contentsOf: ["-resultBundlePath", resultBundlePath.pathString])

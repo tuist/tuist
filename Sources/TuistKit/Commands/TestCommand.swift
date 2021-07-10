@@ -51,7 +51,7 @@ struct TestCommand: ParsableCommand {
         help: "When passed, it skips testing UI Tests targets."
     )
     var skipUITests: Bool = false
-    
+
     @Option(
         name: .long,
         help: "Path where test result bundle will be saved"
