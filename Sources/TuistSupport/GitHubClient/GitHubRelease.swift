@@ -6,7 +6,7 @@ public struct GitHubRelease: Decodable {
     public let name: String
 
     /// Release tag name.
-    public let tagName: Version?
+    public let tagName: Version
 
     /// Whether the release is a draft.
     public let draft: Bool
