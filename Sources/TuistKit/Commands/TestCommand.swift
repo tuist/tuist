@@ -51,6 +51,12 @@ struct TestCommand: ParsableCommand {
         help: "When passed, it skips testing UI Tests targets."
     )
     var skipUITests: Bool = false
+    
+    @Option(
+        name: .shortAndLong,
+        help: "Path where test result bundle will be saved"
+    )
+    var resultBundlePath: String?
 
     func run() throws {
         let absolutePath: AbsolutePath
@@ -68,7 +74,13 @@ struct TestCommand: ParsableCommand {
             path: absolutePath,
             deviceName: device,
             osVersion: os,
-            skipUITests: skipUITests
+            skipUITests: skipUITests,
+            resultBundlePath: resultBundlePath.map {
+                AbsolutePath(
+                    $0,
+                    relativeTo: FileHandler.shared.currentPath
+                )
+            }
         )
     }
 }

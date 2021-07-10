@@ -130,7 +130,7 @@ final class TestServiceTests: TuistUnitTestCase {
             (path, Graph.test())
         }
         var testedSchemes: [String] = []
-        xcodebuildController.testStub = { _, scheme, _, _, _, _ in
+        xcodebuildController.testStub = { _, scheme, _, _, _, _, _ in
             testedSchemes.append(scheme)
             return .just(.standardOutput(.init(raw: "success")))
         }
@@ -162,7 +162,7 @@ final class TestServiceTests: TuistUnitTestCase {
             (path, Graph.test())
         }
         var testedSchemes: [String] = []
-        xcodebuildController.testStub = { _, scheme, _, _, _, _ in
+        xcodebuildController.testStub = { _, scheme, _, _, _, _, _ in
             testedSchemes.append(scheme)
             return .just(.standardOutput(.init(raw: "success")))
         }
@@ -205,7 +205,7 @@ final class TestServiceTests: TuistUnitTestCase {
             (path, Graph.test())
         }
         var testedSchemes: [String] = []
-        xcodebuildController.testStub = { _, scheme, _, _, _, _ in
+        xcodebuildController.testStub = { _, scheme, _, _, _, _, _ in
             testedSchemes.append(scheme)
             return .error(NSError.test())
         }
@@ -240,7 +240,7 @@ final class TestServiceTests: TuistUnitTestCase {
             (path, Graph.test())
         }
         var testedSchemes: [String] = []
-        xcodebuildController.testStub = { _, scheme, _, _, _, _ in
+        xcodebuildController.testStub = { _, scheme, _, _, _, _, _ in
             testedSchemes.append(scheme)
             return .just(.standardOutput(.init(raw: "success")))
         }
@@ -266,7 +266,8 @@ private extension TestService {
         path: AbsolutePath,
         deviceName: String? = nil,
         osVersion: String? = nil,
-        skipUiTests: Bool = false
+        skipUiTests: Bool = false,
+        resultBundlePath: AbsolutePath? = nil
     ) throws {
         try run(
             schemeName: schemeName,
@@ -275,7 +276,8 @@ private extension TestService {
             path: path,
             deviceName: deviceName,
             osVersion: osVersion,
-            skipUITests: skipUiTests
+            skipUITests: skipUiTests,
+            resultBundlePath: resultBundlePath
         )
     }
 }

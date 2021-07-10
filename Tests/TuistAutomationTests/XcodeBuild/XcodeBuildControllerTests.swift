@@ -77,6 +77,7 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             clean: true,
             destination: .device("device-id"),
             derivedDataPath: nil,
+            resultBundlePath: nil,
             arguments: []
         )
         .toBlocking()
@@ -118,6 +119,7 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             clean: true,
             destination: .mac,
             derivedDataPath: nil,
+            resultBundlePath: nil,
             arguments: []
         )
         .toBlocking()
@@ -159,6 +161,7 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             clean: true,
             destination: .mac,
             derivedDataPath: derivedDataPath,
+            resultBundlePath: nil,
             arguments: []
         )
         .toBlocking()

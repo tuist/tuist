@@ -34,6 +34,7 @@ public protocol XcodeBuildControlling {
         clean: Bool,
         destination: XcodeBuildDestination,
         derivedDataPath: AbsolutePath?,
+        resultBundlePath: AbsolutePath?,
         arguments: [XcodeBuildArgument]
     ) -> Observable<SystemEvent<XcodeBuildOutput>>
 
