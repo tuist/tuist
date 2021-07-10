@@ -53,7 +53,7 @@ struct TestCommand: ParsableCommand {
     var skipUITests: Bool = false
     
     @Option(
-        name: .shortAndLong,
+        name: .long,
         help: "Path where test result bundle will be saved"
     )
     var resultBundlePath: String?

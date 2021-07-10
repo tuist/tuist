@@ -254,6 +254,70 @@ final class TestServiceTests: TuistUnitTestCase {
         XCTAssertEmpty(testedSchemes)
         XCTAssertPrinterOutputContains("There are no tests to run, finishing early")
     }
+    
+    func test_run_uses_resource_bundle_path() throws {
+        // Given
+        let expectedResourceBundlePath = AbsolutePath("/test")
+        var resourceBundlePath: AbsolutePath?
+
+        xcodebuildController.testStub = { _, _, _, _, _, gotResourceBundlePath, _ in
+            resourceBundlePath = gotResourceBundlePath
+            return .empty()
+        }
+        generator.generateWithGraphStub = { path, _ in
+            (path, Graph.test())
+        }
+        buildGraphInspector.projectSchemesStub = { _ in
+            [
+                Scheme.test(name: "ProjectScheme"),
+            ]
+        }
+
+        // When
+        try subject.testRun(
+            path: try temporaryPath(),
+            resultBundlePath: expectedResourceBundlePath
+        )
+
+        // Then
+        XCTAssertEqual(
+            resourceBundlePath,
+            expectedResourceBundlePath
+        )
+    }
+    
+    func test_run_uses_resource_bundle_path_with_given_scheme() throws {
+        // Given
+        let expectedResourceBundlePath = AbsolutePath("/test")
+        var resourceBundlePath: AbsolutePath?
+
+        xcodebuildController.testStub = { _, _, _, _, _, gotResourceBundlePath, _ in
+            resourceBundlePath = gotResourceBundlePath
+            return .empty()
+        }
+        generator.generateWithGraphStub = { path, _ in
+            (path, Graph.test())
+        }
+        buildGraphInspector.projectSchemesStub = { _ in
+            [
+                Scheme.test(name: "ProjectScheme"),
+                Scheme.test(name: "ProjectScheme2"),
+            ]
+        }
+
+        // When
+        try subject.testRun(
+            schemeName: "ProjectScheme2",
+            path: try temporaryPath(),
+            resultBundlePath: expectedResourceBundlePath
+        )
+
+        // Then
+        XCTAssertEqual(
+            resourceBundlePath,
+            expectedResourceBundlePath
+        )
+    }
 }
 
 // MARK: - Helpers
