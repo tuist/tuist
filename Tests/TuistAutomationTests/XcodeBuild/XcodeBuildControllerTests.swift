@@ -174,4 +174,46 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             XCTFail("The command was not expected to fail")
         }
     }
+    
+    func test_test_with_result_bundle_path() throws {
+        // Given
+        let path = try temporaryPath()
+        let xcworkspacePath = path.appending(component: "Project.xcworkspace")
+        let target = XcodeBuildTarget.workspace(xcworkspacePath)
+        let scheme = "Scheme"
+        let resultBundlePath = try temporaryPath()
+
+        var command = [
+            "/usr/bin/xcrun",
+            "xcodebuild",
+            "clean",
+            "test",
+            "-scheme",
+            scheme,
+        ]
+        command.append(contentsOf: target.xcodebuildArguments)
+        command.append(contentsOf: ["-resultBundlePath", resultBundlePath.pathString])
+
+        system.succeedCommand(command, output: "output")
+
+        // When
+        let events = subject.test(
+            target,
+            scheme: scheme,
+            clean: true,
+            destination: .mac,
+            derivedDataPath: nil,
+            resultBundlePath: resultBundlePath,
+            arguments: []
+        )
+        .toBlocking()
+        .materialize()
+
+        switch events {
+        case let .completed(output):
+            XCTAssertEqual(output, [.standardOutput(XcodeBuildOutput(raw: "output\n"))])
+        case .failed:
+            XCTFail("The command was not expected to fail")
+        }
+    }
 }
