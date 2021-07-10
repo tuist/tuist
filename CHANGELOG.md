@@ -6,7 +6,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
-- Add `--result-bundle-path` parameter to test command [#3177](https://github.com/tuist/tuist/pull/3164) by [@olejnjak](https://github.com/olejnjak)
+- Add `--result-bundle-path` parameter to test command [#3177](https://github.com/tuist/tuist/pull/3177) by [@olejnjak](https://github.com/olejnjak)
 
 ### Fixed
 
