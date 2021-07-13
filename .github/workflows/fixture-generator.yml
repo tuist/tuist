@@ -12,7 +12,7 @@ on:
       - Sources/**
 
 concurrency:
-  group: ${{ github.head_ref }}
+  group: fixture-generator-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:
