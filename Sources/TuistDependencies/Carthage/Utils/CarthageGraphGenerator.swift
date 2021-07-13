@@ -29,12 +29,12 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
         let thirdPartyDependencies: [String: ThirdPartyDependency] = Dictionary(grouping: products, by: \.name)
             .compactMapValues { products in
                 guard let product = products.first else { return nil }
-                
+
                 guard let xcFrameworkName = product.container else {
                     logger.warning("\(product.name) was not added to the DependenciesGraph.")
                     return nil
                 }
-                
+
                 let path = AbsolutePath("/")
                     .appending(components: [
                         Constants.tuistDirectoryName,
