@@ -8,8 +8,8 @@ on:
     paths:
       - projects/website/**
 
-concurrency: 
-  group: ${{ github.head_ref }}
+concurrency:
+  group: website-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:
