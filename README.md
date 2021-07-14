@@ -160,6 +160,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
   </tr>
   <tr>
     <td align="center"><a href="https://github.com/havebeenfitz"><img src="https://avatars.githubusercontent.com/u/31866271?v=4" width="100px;" alt=""/><br /><sub><b>Max Kraev</b></sub></a></td>
+    <td align="center"><a href="https://github.com/mstfy"><img src="https://avatars.githubusercontent.com/u/5105861?v=4" width="100px;" alt=""/><br /><sub><b>Mustafa Yusuf</b></sub></a></td>
   </tr>
 </table>
 
