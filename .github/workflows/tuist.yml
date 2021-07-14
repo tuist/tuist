@@ -15,7 +15,7 @@ on:
       - projects/tuist/fixtures/**
 
 concurrency:
-  group: ${{ github.head_ref }}
+  group: tuist-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:
