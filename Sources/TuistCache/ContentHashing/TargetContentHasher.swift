@@ -74,24 +74,20 @@ public final class TargetContentHasher: TargetContentHashing {
         try contentHash(for: target, additionalStrings: [])
     }
 
-    public func contentHash(for target: GraphTarget, additionalStrings: [String]) throws -> String {
-        try contentHash(for: target.target, additionalStrings: additionalStrings)
-    }
-
-    private func contentHash(for target: Target, additionalStrings: [String]) throws -> String {
-        let sourcesHash = try sourceFilesContentHasher.hash(sources: target.sources)
-        let resourcesHash = try resourcesContentHasher.hash(resources: target.resources)
-        let copyFilesHash = try copyFilesContentHasher.hash(copyFiles: target.copyFiles)
-        let coreDataModelHash = try coreDataModelsContentHasher.hash(coreDataModels: target.coreDataModels)
-        let targetActionsHash = try targetActionsContentHasher.hash(targetActions: target.actions)
-        let dependenciesHash = try dependenciesContentHasher.hash(dependencies: target.dependencies)
-        let environmentHash = try contentHasher.hash(target.environment)
+    public func contentHash(for graphTarget: GraphTarget, additionalStrings: [String]) throws -> String {
+        let sourcesHash = try sourceFilesContentHasher.hash(sources: graphTarget.target.sources)
+        let resourcesHash = try resourcesContentHasher.hash(resources: graphTarget.target.resources)
+        let copyFilesHash = try copyFilesContentHasher.hash(copyFiles: graphTarget.target.copyFiles)
+        let coreDataModelHash = try coreDataModelsContentHasher.hash(coreDataModels: graphTarget.target.coreDataModels)
+        let targetActionsHash = try targetActionsContentHasher.hash(targetActions: graphTarget.target.actions)
+        let dependenciesHash = try dependenciesContentHasher.hash(graphTarget: graphTarget)
+        let environmentHash = try contentHasher.hash(graphTarget.target.environment)
         var stringsToHash = [
-            target.name,
-            target.platform.rawValue,
-            target.product.rawValue,
-            target.bundleId,
-            target.productName,
+            graphTarget.target.name,
+            graphTarget.target.platform.rawValue,
+            graphTarget.target.product.rawValue,
+            graphTarget.target.bundleId,
+            graphTarget.target.productName,
             dependenciesHash,
             sourcesHash,
             resourcesHash,
@@ -100,23 +96,23 @@ public final class TargetContentHasher: TargetContentHashing {
             targetActionsHash,
             environmentHash,
         ]
-        if let headers = target.headers {
+        if let headers = graphTarget.target.headers {
             let headersHash = try headersContentHasher.hash(headers: headers)
             stringsToHash.append(headersHash)
         }
-        if let deploymentTarget = target.deploymentTarget {
+        if let deploymentTarget = graphTarget.target.deploymentTarget {
             let deploymentTargetHash = try deploymentTargetContentHasher.hash(deploymentTarget: deploymentTarget)
             stringsToHash.append(deploymentTargetHash)
         }
-        if let infoPlist = target.infoPlist {
+        if let infoPlist = graphTarget.target.infoPlist {
             let infoPlistHash = try infoPlistContentHasher.hash(plist: infoPlist)
             stringsToHash.append(infoPlistHash)
         }
-        if let entitlements = target.entitlements {
+        if let entitlements = graphTarget.target.entitlements {
             let entitlementsHash = try contentHasher.hash(path: entitlements)
             stringsToHash.append(entitlementsHash)
         }
-        if let settings = target.settings {
+        if let settings = graphTarget.target.settings {
             let settingsHash = try settingsContentHasher.hash(settings: settings)
             stringsToHash.append(settingsHash)
         }
