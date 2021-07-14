@@ -34,7 +34,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         ])
 
         // When / Then
-        XCTAssertNoThrow(try subject.resolve(at: path))
+        XCTAssertNoThrow(try subject.resolve(at: path, printOutput: false))
     }
 
     func test_update() throws {
@@ -49,7 +49,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         ])
 
         // When / Then
-        XCTAssertNoThrow(try subject.update(at: path))
+        XCTAssertNoThrow(try subject.update(at: path, printOutput: false))
     }
 
     func test_setToolsVersion_specificVersion() throws {

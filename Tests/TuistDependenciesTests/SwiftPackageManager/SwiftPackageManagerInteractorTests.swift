@@ -44,8 +44,9 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             ]
         )
 
-        swiftPackageManagerController.resolveStub = { path in
+        swiftPackageManagerController.resolveStub = { path, printOutput in
             XCTAssertEqual(path, try self.temporaryPath())
+            XCTAssertTrue(printOutput)
             try self.simulateSPMOutput(at: path)
         }
         swiftPackageManagerController.setToolsVersionStub = { path, version in
@@ -108,8 +109,9 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             ]
         )
 
-        swiftPackageManagerController.resolveStub = { path in
+        swiftPackageManagerController.resolveStub = { path, printOutput in
             XCTAssertEqual(path, try self.temporaryPath())
+            XCTAssertTrue(printOutput)
             try self.simulateSPMOutput(at: path)
         }
         swiftPackageManagerController.setToolsVersionStub = { path, version in
@@ -171,8 +173,9 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             ]
         )
 
-        swiftPackageManagerController.updateStub = { path in
+        swiftPackageManagerController.updateStub = { path, printOutput in
             XCTAssertEqual(path, try self.temporaryPath())
+            XCTAssertTrue(printOutput)
             try self.simulateSPMOutput(at: path)
         }
         swiftPackageManagerController.setToolsVersionStub = { path, version in
