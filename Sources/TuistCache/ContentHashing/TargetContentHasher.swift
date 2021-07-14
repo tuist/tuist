@@ -5,8 +5,8 @@ import TuistGraph
 import TuistSupport
 
 public protocol TargetContentHashing {
-    func contentHash(for target: GraphTarget) throws -> String
-    func contentHash(for target: GraphTarget, additionalStrings: [String]) throws -> String
+    func contentHash(for target: GraphTarget, hashedTargets: inout [GraphTarget: String]) throws -> String
+    func contentHash(for target: GraphTarget, hashedTargets: inout [GraphTarget: String], additionalStrings: [String]) throws -> String
 }
 
 /// `TargetContentHasher`
@@ -70,17 +70,17 @@ public final class TargetContentHasher: TargetContentHashing {
 
     // MARK: - TargetContentHashing
 
-    public func contentHash(for target: GraphTarget) throws -> String {
-        try contentHash(for: target, additionalStrings: [])
+    public func contentHash(for target: GraphTarget, hashedTargets: inout [GraphTarget: String]) throws -> String {
+        try contentHash(for: target, hashedTargets: &hashedTargets, additionalStrings: [])
     }
 
-    public func contentHash(for graphTarget: GraphTarget, additionalStrings: [String]) throws -> String {
+    public func contentHash(for graphTarget: GraphTarget, hashedTargets: inout [GraphTarget: String], additionalStrings: [String]) throws -> String {
         let sourcesHash = try sourceFilesContentHasher.hash(sources: graphTarget.target.sources)
         let resourcesHash = try resourcesContentHasher.hash(resources: graphTarget.target.resources)
         let copyFilesHash = try copyFilesContentHasher.hash(copyFiles: graphTarget.target.copyFiles)
         let coreDataModelHash = try coreDataModelsContentHasher.hash(coreDataModels: graphTarget.target.coreDataModels)
         let targetActionsHash = try targetActionsContentHasher.hash(targetActions: graphTarget.target.actions)
-        let dependenciesHash = try dependenciesContentHasher.hash(graphTarget: graphTarget)
+        let dependenciesHash = try dependenciesContentHasher.hash(graphTarget: graphTarget, hashedTargets: &hashedTargets)
         let environmentHash = try contentHasher.hash(graphTarget.target.environment)
         var stringsToHash = [
             graphTarget.target.name,
