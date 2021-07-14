@@ -18,6 +18,7 @@ struct TestCommand: ParsableCommand {
     var scheme: String?
 
     @Flag(
+        name: .shortAndLong,
         help: "When passed, it cleans the project before testing it."
     )
     var clean: Bool = false
@@ -53,7 +54,7 @@ struct TestCommand: ParsableCommand {
     var skipUITests: Bool = false
 
     @Option(
-        name: .long,
+        name: [.long, .customShort("T")],
         help: "Path where test result bundle will be saved"
     )
     var resultBundlePath: String?
