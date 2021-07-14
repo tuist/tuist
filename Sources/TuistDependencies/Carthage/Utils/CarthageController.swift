@@ -114,7 +114,7 @@ public final class CarthageController: CarthageControlling {
         }
 
         let command = buildCarthageCommand(path: path, platforms: platforms, subcommand: "bootstrap")
-        
+
         printOutput ?
             try System.shared.runAndPrint(command) :
             try System.shared.run(command)
@@ -126,7 +126,7 @@ public final class CarthageController: CarthageControlling {
         }
 
         let command = buildCarthageCommand(path: path, platforms: platforms, subcommand: "update")
-        
+
         printOutput ?
             try System.shared.runAndPrint(command) :
             try System.shared.run(command)
