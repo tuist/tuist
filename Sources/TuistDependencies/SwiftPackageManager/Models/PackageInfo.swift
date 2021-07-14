@@ -71,7 +71,7 @@ extension PackageInfo {
 // MARK: - Product
 
 extension PackageInfo {
-    struct Product: Decodable, Equatable {
+    struct Product: Decodable, Hashable {
         /// The name of the product.
         let name: String
 
@@ -87,7 +87,7 @@ extension PackageInfo {
 }
 
 extension PackageInfo.Product {
-    enum ProductType: Equatable {
+    enum ProductType: Hashable {
         /// The type of library.
         enum LibraryType: String, Codable {
             /// Static library.
