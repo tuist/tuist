@@ -51,9 +51,10 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             ]
         )
 
-        carthageController.bootstrapStub = { arg0, arg1 in
+        carthageController.bootstrapStub = { arg0, arg1, arg2 in
             XCTAssertEqual(arg0, try self.temporaryPath())
             XCTAssertEqual(arg1, platforms)
+            XCTAssertTrue(arg2)
 
             try self.simulateCarthageOutput(at: arg0)
         }
@@ -149,9 +150,10 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             ]
         )
 
-        carthageController.updateStub = { arg0, arg1 in
+        carthageController.updateStub = { arg0, arg1, arg2 in
             XCTAssertEqual(arg0, try self.temporaryPath())
             XCTAssertEqual(arg1, platforms)
+            XCTAssertTrue(arg2)
 
             try self.simulateCarthageOutput(at: arg0)
         }
