@@ -7,6 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Add `--result-bundle-path` parameter to test command [#3177](https://github.com/tuist/tuist/pull/3177) by [@olejnjak](https://github.com/olejnjak)
+- The `tuist dependencies` command prints dependency managers' output to console. [#3185](https://github.com/tuist/tuist/pull/3185) by [@laxmorek](https://github.com/laxmorek)
 
 ## 1.46.1
 
