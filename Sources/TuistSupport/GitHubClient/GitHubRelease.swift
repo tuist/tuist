@@ -28,7 +28,7 @@ public struct GitHubRelease: Decodable {
     /// Returns a resource to get the latest release of the given repository.
     /// - Parameter repositoryFullName: Repository full name (e.g. tuist/tuist)
     /// - Returns: Resource to get the latest release.
-    public func latest(repositoryFullName: String) -> HTTPResource<GitHubRelease, GitHubError> {
+    public static func latest(repositoryFullName: String) -> HTTPResource<GitHubRelease, GitHubError> {
         return HTTPResource.jsonResource {
             var components = URLComponents(string: Constants.githubAPIURL)!
             components.path = "/repos/\(repositoryFullName)/releases/latest"
