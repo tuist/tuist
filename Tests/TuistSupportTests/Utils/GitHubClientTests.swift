@@ -89,7 +89,6 @@ final class GitHubClientTests: TuistUnitTestCase {
         XCTAssertNil(headers["Authorization"])
         XCTAssertEqual(headers["Accept"], "application/vnd.github.v3+json")
     }
-
     func test_something() throws {
         let expectation = XCTestExpectation(description: "GitHubClient deferred when token")
         let client = GitHubClient()
