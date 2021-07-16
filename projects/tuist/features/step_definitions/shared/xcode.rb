@@ -5,7 +5,7 @@ require "xcodeproj"
 
 Then(/I should be able to (.+) for (iOS|macOS|tvOS|watchOS) the scheme (.+)/) do |action, platform, scheme|
   args = [
-    "-scheme", scheme
+    "-scheme", scheme,
   ]
   if @workspace_path.nil?
     args.concat(["-project", @xcodeproj_path]) unless @xcodeproj_path.nil?
@@ -36,7 +36,7 @@ Then(/the scheme (.+) has a build setting (.+) with value (.+) for the configura
     "-scheme", scheme,
     "-workspace", @workspace_path,
     "-configuration", config,
-    "-showBuildSettings"
+    "-showBuildSettings",
   ]
 
   out, err, status = Open3.capture3("xcodebuild", *args)

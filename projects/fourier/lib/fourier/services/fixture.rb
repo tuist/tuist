@@ -16,7 +16,7 @@ module Fourier
           "--path", path,
           "--projects", projects.to_s,
           "--targets", targets.to_s,
-          "--sources", sources.to_s
+          "--sources", sources.to_s,
         ]
         Utilities::System.fixturegen(*arguments)
       end
