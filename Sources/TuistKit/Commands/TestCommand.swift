@@ -55,7 +55,7 @@ struct TestCommand: ParsableCommand {
 
     @Option(
         name: [.long, .customShort("T")],
-        help: "Path where test result bundle will be saved"
+        help: "Path where test result bundle will be saved."
     )
     var resultBundlePath: String?
 
