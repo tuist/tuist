@@ -137,15 +137,6 @@
         }
       },
       {
-        "package": "StencilSwiftKit",
-        "repositoryURL": "https://github.com/fortmarek/StencilSwiftKit.git",
-        "state": {
-          "branch": "stable",
-          "revision": "99ac008eb7026e40af7fc882d5788f5de6eda47e",
-          "version": null
-        }
-      },
-      {
         "package": "swift-argument-parser",
         "repositoryURL": "https://github.com/apple/swift-argument-parser.git",
         "state": {
@@ -170,15 +161,6 @@
           "branch": null,
           "revision": "3b6b97d612b56e25d80d0807f5bc38ea08b7bdf3",
           "version": "0.2.3"
-        }
-      },
-      {
-        "package": "Swifter",
-        "repositoryURL": "https://github.com/httpswift/swifter.git",
-        "state": {
-          "branch": null,
-          "revision": "9483a5d459b45c3ffd059f7b55f9638e268632fd",
-          "version": "1.5.0"
         }
       },
       {
