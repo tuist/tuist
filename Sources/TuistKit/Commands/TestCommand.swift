@@ -18,6 +18,7 @@ struct TestCommand: ParsableCommand {
     var scheme: String?
 
     @Flag(
+        name: .shortAndLong,
         help: "When passed, it cleans the project before testing it."
     )
     var clean: Bool = false
@@ -52,6 +53,12 @@ struct TestCommand: ParsableCommand {
     )
     var skipUITests: Bool = false
 
+    @Option(
+        name: [.long, .customShort("T")],
+        help: "Path where test result bundle will be saved."
+    )
+    var resultBundlePath: String?
+
     func run() throws {
         let absolutePath: AbsolutePath
 
@@ -68,7 +75,13 @@ struct TestCommand: ParsableCommand {
             path: absolutePath,
             deviceName: device,
             osVersion: os,
-            skipUITests: skipUITests
+            skipUITests: skipUITests,
+            resultBundlePath: resultBundlePath.map {
+                AbsolutePath(
+                    $0,
+                    relativeTo: FileHandler.shared.currentPath
+                )
+            }
         )
     }
 }

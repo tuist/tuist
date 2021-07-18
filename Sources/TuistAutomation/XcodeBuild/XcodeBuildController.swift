@@ -64,6 +64,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         clean: Bool = false,
         destination: XcodeBuildDestination,
         derivedDataPath: AbsolutePath?,
+        resultBundlePath: AbsolutePath?,
         arguments: [XcodeBuildArgument]
     ) -> Observable<SystemEvent<XcodeBuildOutput>> {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
@@ -94,6 +95,11 @@ public final class XcodeBuildController: XcodeBuildControlling {
         // Derived data path
         if let derivedDataPath = derivedDataPath {
             command.append(contentsOf: ["-derivedDataPath", derivedDataPath.pathString])
+        }
+
+        // Result bundle path
+        if let resultBundlePath = resultBundlePath {
+            command.append(contentsOf: ["-resultBundlePath", resultBundlePath.pathString])
         }
 
         return run(command: command, isVerbose: environment.isVerbose)
