@@ -50,6 +50,14 @@ To start working on the project, we can follow the steps below:
 Xcode needs to be installed in your system. If not, you can install it from the macOS App Store. After the installation, open it once to accept some licenses and install some additional components.
 :::
 
+### Edit tuist with tuist
+
+You can also edit tuist with tuist by running `swift run tuist generate` to generate the tuist project with the current changes.
+If you want to use tuist version you have installed in the system, you might want to simply run `tuist generate`.
+
+You can also leverage all the other tuist features that you know and love with the additional benefit of being able to validate your current changes
+on a complex project.
+
 ### Run Tuist from Xcode
 
 You can run Tuist from Xcode like you'd do from your terminal.
