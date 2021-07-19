@@ -16,7 +16,7 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
     private var filePath2: AbsolutePath! = AbsolutePath("/file2")
     private var filePath3: AbsolutePath! = AbsolutePath("/file3")
     private var graphTarget: GraphTarget!
-    private var hashedTargets: [GraphTarget: String]!
+    private var hashedTargets: [GraphHashedTarget: String]!
 
     override func setUp() {
         super.setUp()
@@ -36,32 +36,55 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_hash_whenDependencyIsTarget_callsContentHasherAsExpected() throws {
+    func test_hash_whenDependencyIsTarget_returnsTheRightHash() throws {
         // Given
         let dependency = TargetDependency.target(name: "foo")
 
         // When
         let graphTarget = GraphTarget.test(target: Target.test(dependencies: [dependency]))
+        hashedTargets[GraphHashedTarget(projectPath: graphTarget.path, targetName: "foo")] = "target-foo-hash"
         let hash = try subject.hash(graphTarget: graphTarget, hashedTargets: &hashedTargets)
 
         // Then
         XCTAssertEqual(hash, "target-foo-hash")
-        XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
+    }
+    
+    func test_hash_whenDependencyIsTarget_throwsWhenTheDependencyHasntBeenHashed() throws {
+        // Given
+        let dependency = TargetDependency.target(name: "foo")
+
+        // When/Then
+        let graphTarget = GraphTarget.test(target: Target.test(dependencies: [dependency]))
+        let expectedError = DependenciesContentHasherError.missingTargetHash(sourceTargetName: graphTarget.target.name,
+                                                                             dependencyProjectPath: graphTarget.path,
+                                                                             dependencyTargetName: "foo")
+        XCTAssertThrowsSpecific(try subject.hash(graphTarget: graphTarget, hashedTargets: &hashedTargets), expectedError)
     }
 
-    func test_hash_whenDependencyIsProject_callsContentHasherAsExpected() throws {
+    func test_hash_whenDependencyIsProject_returnsTheRightHash() throws {
         // Given
         let dependency = TargetDependency.project(target: "foo", path: filePath1)
-        mockContentHasher.stubHashForPath[filePath1] = "file-hashed"
 
         // When
         let graphTarget = GraphTarget.test(target: Target.test(dependencies: [dependency]))
+        hashedTargets[GraphHashedTarget(projectPath: filePath1, targetName: "foo")] = "project-file-hashed-foo-hash"
         let hash = try subject.hash(graphTarget: graphTarget, hashedTargets: &hashedTargets)
 
         // Then
         XCTAssertEqual(hash, "project-file-hashed-foo-hash")
-        XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
-        XCTAssertEqual(mockContentHasher.hashPathCallCount, 1)
+    }
+    
+    func test_hash_whenDependencyIsProject_throwsAnErrorIfTheDependencyHashDoesntExist() throws {
+        // Given
+        let dependency = TargetDependency.project(target: "foo", path: filePath1)
+
+        // When/Then
+        let graphTarget = GraphTarget.test(target: Target.test(dependencies: [dependency]))
+        let expectedError = DependenciesContentHasherError.missingProjectTargetHash(sourceProjectPath: graphTarget.path,
+                                                                                    sourceTargetName: graphTarget.target.name,
+                                                                                    dependencyProjectPath: filePath1,
+                                                                                    dependencyTargetName: "foo")
+        XCTAssertThrowsSpecific(try subject.hash(graphTarget: graphTarget, hashedTargets: &hashedTargets), expectedError)
     }
 
     func test_hash_whenDependencyIsFramework_callsContentHasherAsExpected() throws {

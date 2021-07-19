@@ -62,7 +62,7 @@ public final class GraphContentHasher: GraphContentHashing {
     ) throws -> [GraphTarget: String] {
         let graphTraverser = GraphTraverser(graph: graph)
         var visitedIsHasheableNodes: [GraphTarget: Bool] = [:]
-        var hashedTargets: [GraphTarget: String] = [:]
+        var hashedTargets: [GraphHashedTarget: String] = [:]
 
         let sortedCacheableTargets = try topologicalSort(
             Array(graphTraverser.allTargets()),
@@ -88,7 +88,7 @@ public final class GraphContentHasher: GraphContentHashing {
                 hashedTargets: &hashedTargets,
                 additionalStrings: additionalStrings
             )
-            hashedTargets[target] = hash
+            hashedTargets[GraphHashedTarget(projectPath: target.path, targetName: target.target.name)] = hash
             return hash
         }
         return Dictionary(uniqueKeysWithValues: zip(hashableTargets, hashes))

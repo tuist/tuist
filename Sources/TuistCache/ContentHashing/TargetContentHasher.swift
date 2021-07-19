@@ -5,8 +5,8 @@ import TuistGraph
 import TuistSupport
 
 public protocol TargetContentHashing {
-    func contentHash(for target: GraphTarget, hashedTargets: inout [GraphTarget: String]) throws -> String
-    func contentHash(for target: GraphTarget, hashedTargets: inout [GraphTarget: String], additionalStrings: [String]) throws -> String
+    func contentHash(for target: GraphTarget, hashedTargets: inout [GraphHashedTarget: String]) throws -> String
+    func contentHash(for target: GraphTarget, hashedTargets: inout [GraphHashedTarget: String], additionalStrings: [String]) throws -> String
 }
 
 /// `TargetContentHasher`
@@ -70,11 +70,11 @@ public final class TargetContentHasher: TargetContentHashing {
 
     // MARK: - TargetContentHashing
 
-    public func contentHash(for target: GraphTarget, hashedTargets: inout [GraphTarget: String]) throws -> String {
+    public func contentHash(for target: GraphTarget, hashedTargets: inout [GraphHashedTarget: String]) throws -> String {
         try contentHash(for: target, hashedTargets: &hashedTargets, additionalStrings: [])
     }
 
-    public func contentHash(for graphTarget: GraphTarget, hashedTargets: inout [GraphTarget: String], additionalStrings: [String]) throws -> String {
+    public func contentHash(for graphTarget: GraphTarget, hashedTargets: inout [GraphHashedTarget: String], additionalStrings: [String]) throws -> String {
         let sourcesHash = try sourceFilesContentHasher.hash(sources: graphTarget.target.sources)
         let resourcesHash = try resourcesContentHasher.hash(resources: graphTarget.target.resources)
         let copyFilesHash = try copyFilesContentHasher.hash(copyFiles: graphTarget.target.copyFiles)
