@@ -135,7 +135,7 @@ final class CacheController: CacheControlling {
             successors: {
                 Array(graphTraveser.directTargetDependencies(path: $0.path, name: $0.target.name))
             }
-        )
+        ).reversed()
 
         for (index, target) in sortedCacheableTargets.reversed().enumerated() {
             logger.notice("Building cacheable targets: \(target.target.name), \(index + 1) out of \(sortedCacheableTargets.count)")

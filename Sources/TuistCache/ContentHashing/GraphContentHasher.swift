@@ -69,7 +69,8 @@ public final class GraphContentHasher: GraphContentHashing {
             successors: {
                 Array(graphTraverser.directTargetDependencies(path: $0.path, name: $0.target.name))
             }
-        )
+        ).reversed()
+
         let hashableTargets = sortedCacheableTargets.compactMap { target -> GraphTarget? in
             if isHashable(
                 target,
