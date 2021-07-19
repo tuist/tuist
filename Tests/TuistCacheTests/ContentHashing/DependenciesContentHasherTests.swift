@@ -12,46 +12,83 @@ import XCTest
 final class DependenciesContentHasherTests: TuistUnitTestCase {
     private var subject: DependenciesContentHasher!
     private var mockContentHasher: MockContentHasher!
-    private let filePath1 = AbsolutePath("/file1")
-    private let filePath2 = AbsolutePath("/file2")
-    private let filePath3 = AbsolutePath("/file3")
+    private var filePath1: AbsolutePath! = AbsolutePath("/file1")
+    private var filePath2: AbsolutePath! = AbsolutePath("/file2")
+    private var filePath3: AbsolutePath! = AbsolutePath("/file3")
+    private var graphTarget: GraphTarget!
+    private var hashedTargets: [GraphHashedTarget: String]!
 
     override func setUp() {
         super.setUp()
         mockContentHasher = MockContentHasher()
+        hashedTargets = [:]
         subject = DependenciesContentHasher(contentHasher: mockContentHasher)
     }
 
     override func tearDown() {
         subject = nil
         mockContentHasher = nil
+        hashedTargets = nil
+        graphTarget = nil
+        filePath1 = nil
+        filePath2 = nil
+        filePath3 = nil
         super.tearDown()
     }
 
-    func test_hash_whenDependencyIsTarget_callsContentHasherAsExpected() throws {
+    func test_hash_whenDependencyIsTarget_returnsTheRightHash() throws {
         // Given
         let dependency = TargetDependency.target(name: "foo")
 
         // When
-        let hash = try subject.hash(dependencies: [dependency])
+        let graphTarget = GraphTarget.test(target: Target.test(dependencies: [dependency]))
+        hashedTargets[GraphHashedTarget(projectPath: graphTarget.path, targetName: "foo")] = "target-foo-hash"
+        let hash = try subject.hash(graphTarget: graphTarget, hashedTargets: &hashedTargets)
 
         // Then
         XCTAssertEqual(hash, "target-foo-hash")
-        XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
     }
 
-    func test_hash_whenDependencyIsProject_callsContentHasherAsExpected() throws {
+    func test_hash_whenDependencyIsTarget_throwsWhenTheDependencyHasntBeenHashed() throws {
+        // Given
+        let dependency = TargetDependency.target(name: "foo")
+
+        // When/Then
+        let graphTarget = GraphTarget.test(target: Target.test(dependencies: [dependency]))
+        let expectedError = DependenciesContentHasherError.missingTargetHash(
+            sourceTargetName: graphTarget.target.name,
+            dependencyProjectPath: graphTarget.path,
+            dependencyTargetName: "foo"
+        )
+        XCTAssertThrowsSpecific(try subject.hash(graphTarget: graphTarget, hashedTargets: &hashedTargets), expectedError)
+    }
+
+    func test_hash_whenDependencyIsProject_returnsTheRightHash() throws {
         // Given
         let dependency = TargetDependency.project(target: "foo", path: filePath1)
-        mockContentHasher.stubHashForPath[filePath1] = "file-hashed"
 
         // When
-        let hash = try subject.hash(dependencies: [dependency])
+        let graphTarget = GraphTarget.test(target: Target.test(dependencies: [dependency]))
+        hashedTargets[GraphHashedTarget(projectPath: filePath1, targetName: "foo")] = "project-file-hashed-foo-hash"
+        let hash = try subject.hash(graphTarget: graphTarget, hashedTargets: &hashedTargets)
 
         // Then
         XCTAssertEqual(hash, "project-file-hashed-foo-hash")
-        XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
-        XCTAssertEqual(mockContentHasher.hashPathCallCount, 1)
+    }
+
+    func test_hash_whenDependencyIsProject_throwsAnErrorIfTheDependencyHashDoesntExist() throws {
+        // Given
+        let dependency = TargetDependency.project(target: "foo", path: filePath1)
+
+        // When/Then
+        let graphTarget = GraphTarget.test(target: Target.test(dependencies: [dependency]))
+        let expectedError = DependenciesContentHasherError.missingProjectTargetHash(
+            sourceProjectPath: graphTarget.path,
+            sourceTargetName: graphTarget.target.name,
+            dependencyProjectPath: filePath1,
+            dependencyTargetName: "foo"
+        )
+        XCTAssertThrowsSpecific(try subject.hash(graphTarget: graphTarget, hashedTargets: &hashedTargets), expectedError)
     }
 
     func test_hash_whenDependencyIsFramework_callsContentHasherAsExpected() throws {
@@ -60,7 +97,8 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         mockContentHasher.stubHashForPath[filePath1] = "file-hashed"
 
         // When
-        let hash = try subject.hash(dependencies: [dependency])
+        let graphTarget = GraphTarget.test(target: Target.test(dependencies: [dependency]))
+        let hash = try subject.hash(graphTarget: graphTarget, hashedTargets: &hashedTargets)
 
         // Then
         XCTAssertEqual(hash, "file-hashed")
@@ -73,7 +111,8 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         mockContentHasher.stubHashForPath[filePath1] = "file-hashed"
 
         // When
-        let hash = try subject.hash(dependencies: [dependency])
+        let graphTarget = GraphTarget.test(target: Target.test(dependencies: [dependency]))
+        let hash = try subject.hash(graphTarget: graphTarget, hashedTargets: &hashedTargets)
 
         // Then
         XCTAssertEqual(hash, "file-hashed")
@@ -92,7 +131,8 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         mockContentHasher.stubHashForPath[filePath3] = "file3-hashed"
 
         // When
-        let hash = try subject.hash(dependencies: [dependency])
+        let graphTarget = GraphTarget.test(target: Target.test(dependencies: [dependency]))
+        let hash = try subject.hash(graphTarget: graphTarget, hashedTargets: &hashedTargets)
 
         // Then
         XCTAssertEqual(hash, "library-file1-hashed-file2-hashed-file3-hashed-hash")
@@ -111,7 +151,8 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         mockContentHasher.stubHashForPath[filePath2] = "file2-hashed"
 
         // When
-        let hash = try subject.hash(dependencies: [dependency])
+        let graphTarget = GraphTarget.test(target: Target.test(dependencies: [dependency]))
+        let hash = try subject.hash(graphTarget: graphTarget, hashedTargets: &hashedTargets)
 
         // Then
         XCTAssertEqual(hash, "library-file1-hashed-file2-hashed-hash")
@@ -124,7 +165,8 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         let dependency = TargetDependency.package(product: "foo")
 
         // When
-        let hash = try subject.hash(dependencies: [dependency])
+        let graphTarget = GraphTarget.test(target: Target.test(dependencies: [dependency]))
+        let hash = try subject.hash(graphTarget: graphTarget, hashedTargets: &hashedTargets)
 
         // Then
         XCTAssertEqual(hash, "package-foo-hash")
@@ -136,7 +178,8 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         let dependency = TargetDependency.sdk(name: "foo", status: .optional)
 
         // When
-        let hash = try subject.hash(dependencies: [dependency])
+        let graphTarget = GraphTarget.test(target: Target.test(dependencies: [dependency]))
+        let hash = try subject.hash(graphTarget: graphTarget, hashedTargets: &hashedTargets)
 
         // Then
         XCTAssertEqual(hash, "sdk-foo-optional-hash")
@@ -148,7 +191,8 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         let dependency = TargetDependency.sdk(name: "foo", status: .required)
 
         // When
-        let hash = try subject.hash(dependencies: [dependency])
+        let graphTarget = GraphTarget.test(target: Target.test(dependencies: [dependency]))
+        let hash = try subject.hash(graphTarget: graphTarget, hashedTargets: &hashedTargets)
 
         // Then
         XCTAssertEqual(hash, "sdk-foo-required-hash")
@@ -161,7 +205,8 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         mockContentHasher.stubHashForPath[filePath1] = "file1-hashed"
 
         // When
-        let hash = try subject.hash(dependencies: [dependency])
+        let graphTarget = GraphTarget.test(target: Target.test(dependencies: [dependency]))
+        let hash = try subject.hash(graphTarget: graphTarget, hashedTargets: &hashedTargets)
 
         // Then
         XCTAssertEqual(hash, "cocoapods-file1-hashed-hash")
@@ -173,7 +218,8 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
         let dependency = TargetDependency.xctest
 
         // When
-        let hash = try subject.hash(dependencies: [dependency])
+        let graphTarget = GraphTarget.test(target: Target.test(dependencies: [dependency]))
+        let hash = try subject.hash(graphTarget: graphTarget, hashedTargets: &hashedTargets)
 
         // Then
         XCTAssertEqual(hash, "xctest-hash")
