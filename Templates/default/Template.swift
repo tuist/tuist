@@ -24,7 +24,7 @@ let template = Template(
         ),
         .file(
             path: projectPath + "/Project.swift",
-            templatePath: templatePath("AppProject.stencil")
+            templatePath: "AppProject.stencil"
         ),
         .file(
             path: appPath + "/Sources/AppDelegate.swift",

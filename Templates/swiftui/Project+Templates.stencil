@@ -48,8 +48,8 @@ extension Project {
             product: .app,
             bundleId: "io.tuist.\(name)",
             infoPlist: .extendingDefault(with: infoPlist),
-            sources: ["Targets/\(name)/Sources/**"],
-            resources: ["Targets/\(name)/Resources/**"],
+            sources: ["\(name)/Sources/**"],
+            resources: ["\(name)/Resources/**"],
             dependencies: dependencies
         )
         
@@ -59,7 +59,7 @@ extension Project {
             product: .unitTests,
             bundleId: "io.tuist.\(name)Tests",
             infoPlist: .default,
-            sources: ["Targets/\(name)/Tests/**"],
+            sources: ["\(name)/Tests/**"],
             dependencies: [
                 .target(name: "\(name)")
             ]
