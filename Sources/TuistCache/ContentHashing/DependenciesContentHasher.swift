@@ -10,16 +10,16 @@ public protocol DependenciesContentHashing {
 
 enum DependenciesContentHasherError: FatalError, Equatable {
     case missingTargetHash(
-            sourceTargetName: String,
-            dependencyProjectPath: AbsolutePath,
-            dependencyTargetName: String
-         )
+        sourceTargetName: String,
+        dependencyProjectPath: AbsolutePath,
+        dependencyTargetName: String
+    )
     case missingProjectTargetHash(
-            sourceProjectPath: AbsolutePath,
-            sourceTargetName: String,
-            dependencyProjectPath: AbsolutePath,
-            dependencyTargetName: String
-        )
+        sourceProjectPath: AbsolutePath,
+        sourceTargetName: String,
+        dependencyProjectPath: AbsolutePath,
+        dependencyTargetName: String
+    )
 
     var description: String {
         switch self {
@@ -29,7 +29,7 @@ enum DependenciesContentHasherError: FatalError, Equatable {
             return "The target '\(sourceTargetName)' from project at path \(sourceProjectPath.pathString) depends on the target '\(dependencyTargetName)' from the project at path \(dependencyProjectPath.pathString) whose hash hasn't been previously calculated."
         }
     }
-    
+
     var type: ErrorType {
         switch self {
         case .missingTargetHash: return .bug
@@ -62,17 +62,21 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
         switch dependency {
         case let .target(targetName):
             guard let dependencyHash = hashedTargets[GraphHashedTarget(projectPath: graphTarget.path, targetName: targetName)] else {
-                throw DependenciesContentHasherError.missingTargetHash(sourceTargetName: graphTarget.target.name,
-                                                                       dependencyProjectPath: graphTarget.path,
-                                                                       dependencyTargetName: targetName)
+                throw DependenciesContentHasherError.missingTargetHash(
+                    sourceTargetName: graphTarget.target.name,
+                    dependencyProjectPath: graphTarget.path,
+                    dependencyTargetName: targetName
+                )
             }
             return dependencyHash
         case let .project(targetName, projectPath):
             guard let dependencyHash = hashedTargets[GraphHashedTarget(projectPath: projectPath, targetName: targetName)] else {
-                throw DependenciesContentHasherError.missingProjectTargetHash(sourceProjectPath: graphTarget.path,
-                                                                              sourceTargetName: graphTarget.target.name,
-                                                                              dependencyProjectPath: projectPath,
-                                                                              dependencyTargetName: targetName)
+                throw DependenciesContentHasherError.missingProjectTargetHash(
+                    sourceProjectPath: graphTarget.path,
+                    sourceTargetName: graphTarget.target.name,
+                    dependencyProjectPath: projectPath,
+                    dependencyTargetName: targetName
+                )
             }
             return dependencyHash
         case let .framework(path):
