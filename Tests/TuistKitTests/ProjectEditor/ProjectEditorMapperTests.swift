@@ -15,6 +15,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
         system.swiftVersionStub = { "5.2" }
+        developerEnvironment.stubbedArchitecture = .arm64
         subject = ProjectEditorMapper()
     }
 
@@ -78,7 +79,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
 
         XCTAssertEqual(manifestsTarget.platform, .macOS)
         XCTAssertEqual(manifestsTarget.product, .staticFramework)
-        XCTAssertEqual(manifestsTarget.settings, expectedSettings(includePaths: [sourceRootPath]))
+        XCTAssertEqual(manifestsTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
         XCTAssertEqual(manifestsTarget.sources.map(\.path), projectManifestPaths)
         XCTAssertEqual(manifestsTarget.filesGroup, projectsGroup)
         XCTAssertEqual(manifestsTarget.dependencies, [.target(name: "ProjectDescriptionHelpers")])
@@ -90,7 +91,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(helpersTarget.name, "ProjectDescriptionHelpers")
         XCTAssertEqual(helpersTarget.platform, .macOS)
         XCTAssertEqual(helpersTarget.product, .staticFramework)
-        XCTAssertEqual(helpersTarget.settings, expectedSettings(includePaths: [sourceRootPath]))
+        XCTAssertEqual(helpersTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
         XCTAssertEqual(helpersTarget.sources.map(\.path), helperPaths)
         XCTAssertEqual(helpersTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(helpersTarget.dependencies)
@@ -102,7 +103,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(templatesTarget.name, "Templates")
         XCTAssertEqual(templatesTarget.platform, .macOS)
         XCTAssertEqual(templatesTarget.product, .staticFramework)
-        XCTAssertEqual(templatesTarget.settings, expectedSettings(includePaths: [sourceRootPath]))
+        XCTAssertEqual(templatesTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
         XCTAssertEqual(templatesTarget.sources.map(\.path), templates)
         XCTAssertEqual(templatesTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(templatesTarget.dependencies)
@@ -114,7 +115,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(setupTarget.name, "Setup")
         XCTAssertEqual(setupTarget.platform, .macOS)
         XCTAssertEqual(setupTarget.product, .staticFramework)
-        XCTAssertEqual(setupTarget.settings, expectedSettings(includePaths: [sourceRootPath]))
+        XCTAssertEqual(setupTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
         XCTAssertEqual(setupTarget.sources.map(\.path), [setupPath])
         XCTAssertEqual(setupTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(setupTarget.dependencies)
@@ -126,7 +127,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(configTarget.name, "Config")
         XCTAssertEqual(configTarget.platform, .macOS)
         XCTAssertEqual(configTarget.product, .staticFramework)
-        XCTAssertEqual(configTarget.settings, expectedSettings(includePaths: [sourceRootPath]))
+        XCTAssertEqual(configTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
         XCTAssertEqual(configTarget.sources.map(\.path), [configPath])
         XCTAssertEqual(configTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(configTarget.dependencies)
@@ -138,7 +139,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(dependenciesTarget.name, "Dependencies")
         XCTAssertEqual(dependenciesTarget.platform, .macOS)
         XCTAssertEqual(dependenciesTarget.product, .staticFramework)
-        XCTAssertEqual(dependenciesTarget.settings, expectedSettings(includePaths: [sourceRootPath]))
+        XCTAssertEqual(dependenciesTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
         XCTAssertEqual(dependenciesTarget.sources.map(\.path), [dependenciesPath])
         XCTAssertEqual(dependenciesTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(dependenciesTarget.dependencies)
@@ -150,7 +151,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(taskOneTarget.name, "TaskOne")
         XCTAssertEqual(taskOneTarget.platform, .macOS)
         XCTAssertEqual(taskOneTarget.product, .staticFramework)
-        XCTAssertEqual(taskOneTarget.settings, expectedSettings(includePaths: [sourceRootPath]))
+        XCTAssertEqual(taskOneTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
         XCTAssertEqual(taskOneTarget.sources.map(\.path), [tasksPaths[0]])
         XCTAssertEqual(taskOneTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(taskOneTarget.dependencies)
@@ -162,7 +163,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(taskTwoTarget.name, "TaskTwo")
         XCTAssertEqual(taskTwoTarget.platform, .macOS)
         XCTAssertEqual(taskTwoTarget.product, .staticFramework)
-        XCTAssertEqual(taskTwoTarget.settings, expectedSettings(includePaths: [sourceRootPath]))
+        XCTAssertEqual(taskTwoTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
         XCTAssertEqual(taskTwoTarget.sources.map(\.path), [tasksPaths[1]])
         XCTAssertEqual(taskTwoTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(taskTwoTarget.dependencies)
@@ -172,7 +173,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(project.name, projectName)
         XCTAssertEqual(project.settings, Settings(
             base: ["ONLY_ACTIVE_ARCH": "NO",
-                   "EXCLUDED_ARCHS": "arm64"],
+                   "EXCLUDED_ARCHS": "x86_64"],
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         ))
@@ -237,7 +238,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
 
         XCTAssertEqual(manifestsTarget.platform, .macOS)
         XCTAssertEqual(manifestsTarget.product, .staticFramework)
-        XCTAssertEqual(manifestsTarget.settings, expectedSettings(includePaths: [sourceRootPath]))
+        XCTAssertEqual(manifestsTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
         XCTAssertEqual(manifestsTarget.sources.map(\.path), projectManifestPaths)
         XCTAssertEqual(manifestsTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(manifestsTarget.dependencies)
@@ -247,7 +248,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(project.name, projectName)
         XCTAssertEqual(project.settings, Settings(
             base: ["ONLY_ACTIVE_ARCH": "NO",
-                   "EXCLUDED_ARCHS": "arm64"],
+                   "EXCLUDED_ARCHS": "x86_64"],
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         ))
@@ -320,7 +321,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(manifestOneTarget.name, "ModuleManifests")
         XCTAssertEqual(manifestOneTarget.platform, .macOS)
         XCTAssertEqual(manifestOneTarget.product, .staticFramework)
-        XCTAssertEqual(manifestOneTarget.settings, expectedSettings(includePaths: [sourceRootPath]))
+        XCTAssertEqual(manifestOneTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
         XCTAssertEqual(manifestOneTarget.sources.map(\.path), [try XCTUnwrap(projectManifestPaths.last)])
         XCTAssertEqual(manifestOneTarget.filesGroup, .group(name: projectName))
         XCTAssertEmpty(manifestOneTarget.dependencies)
@@ -330,7 +331,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
 
         XCTAssertEqual(manifestTwoTarget.platform, .macOS)
         XCTAssertEqual(manifestTwoTarget.product, .staticFramework)
-        XCTAssertEqual(manifestTwoTarget.settings, expectedSettings(includePaths: [sourceRootPath]))
+        XCTAssertEqual(manifestTwoTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
         XCTAssertEqual(manifestTwoTarget.sources.map(\.path), [try XCTUnwrap(projectManifestPaths.first)])
         XCTAssertEqual(manifestTwoTarget.filesGroup, .group(name: projectName))
         XCTAssertEmpty(manifestTwoTarget.dependencies)
@@ -341,7 +342,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(setupTarget.name, "Setup")
         XCTAssertEqual(setupTarget.platform, .macOS)
         XCTAssertEqual(setupTarget.product, .staticFramework)
-        XCTAssertEqual(setupTarget.settings, expectedSettings(includePaths: [sourceRootPath]))
+        XCTAssertEqual(setupTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
         XCTAssertEqual(setupTarget.sources.map(\.path), [setupPath])
         XCTAssertEqual(setupTarget.filesGroup, .group(name: projectName))
         XCTAssertEmpty(setupTarget.dependencies)
@@ -352,7 +353,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(configTarget.name, "Config")
         XCTAssertEqual(configTarget.platform, .macOS)
         XCTAssertEqual(configTarget.product, .staticFramework)
-        XCTAssertEqual(configTarget.settings, expectedSettings(includePaths: [sourceRootPath]))
+        XCTAssertEqual(configTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
         XCTAssertEqual(configTarget.sources.map(\.path), [configPath])
         XCTAssertEqual(configTarget.filesGroup, .group(name: projectName))
         XCTAssertEmpty(configTarget.dependencies)
@@ -362,7 +363,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(project.name, projectName)
         XCTAssertEqual(project.settings, Settings(
             base: ["ONLY_ACTIVE_ARCH": "NO",
-                   "EXCLUDED_ARCHS": "arm64"],
+                   "EXCLUDED_ARCHS": "x86_64"],
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         ))
@@ -429,7 +430,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
 
         XCTAssertEqual(pluginTarget.platform, .macOS)
         XCTAssertEqual(pluginTarget.product, .staticFramework)
-        XCTAssertEqual(pluginTarget.settings, expectedSettings(includePaths: [sourceRootPath]))
+        XCTAssertEqual(pluginTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
         XCTAssertEqual(pluginTarget.sources.map(\.path), pluginManifestPaths)
         XCTAssertEqual(pluginTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(pluginTarget.dependencies)
@@ -439,7 +440,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(project.name, projectName)
         XCTAssertEqual(project.settings, Settings(
             base: ["ONLY_ACTIVE_ARCH": "NO",
-                   "EXCLUDED_ARCHS": "arm64"],
+                   "EXCLUDED_ARCHS": "x86_64"],
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         ))
@@ -507,7 +508,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
 
         XCTAssertEqual(firstPluginTarget.platform, .macOS)
         XCTAssertEqual(firstPluginTarget.product, .staticFramework)
-        XCTAssertEqual(firstPluginTarget.settings, expectedSettings(includePaths: [sourceRootPath]))
+        XCTAssertEqual(firstPluginTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
         XCTAssertEqual(firstPluginTarget.sources.map(\.path), [pluginManifestPaths[0]])
         XCTAssertEqual(firstPluginTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(firstPluginTarget.dependencies)
@@ -517,7 +518,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
 
         XCTAssertEqual(secondPluginTarget.platform, .macOS)
         XCTAssertEqual(secondPluginTarget.product, .staticFramework)
-        XCTAssertEqual(secondPluginTarget.settings, expectedSettings(includePaths: [sourceRootPath]))
+        XCTAssertEqual(secondPluginTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
         XCTAssertEqual(secondPluginTarget.sources.map(\.path), [pluginManifestPaths[1]])
         XCTAssertEqual(secondPluginTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(secondPluginTarget.dependencies)
@@ -527,7 +528,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(project.name, projectName)
         XCTAssertEqual(project.settings, Settings(
             base: ["ONLY_ACTIVE_ARCH": "NO",
-                   "EXCLUDED_ARCHS": "arm64"],
+                   "EXCLUDED_ARCHS": "x86_64"],
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         ))
@@ -657,7 +658,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
 
         XCTAssertEqual(manifestsTarget.platform, .macOS)
         XCTAssertEqual(manifestsTarget.product, .staticFramework)
-        XCTAssertEqual(manifestsTarget.settings, expectedSettings(includePaths: [sourceRootPath, pluginHelpersPath.parentDirectory]))
+        XCTAssertEqual(manifestsTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory, pluginHelpersPath.parentDirectory, pluginHelpersPath.parentDirectory.parentDirectory]))
         XCTAssertEqual(manifestsTarget.sources.map(\.path), projectManifestPaths)
         XCTAssertEqual(manifestsTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(manifestsTarget.dependencies)
@@ -667,7 +668,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(project.name, projectName)
         XCTAssertEqual(project.settings, Settings(
             base: ["ONLY_ACTIVE_ARCH": "NO",
-                   "EXCLUDED_ARCHS": "arm64"],
+                   "EXCLUDED_ARCHS": "x86_64"],
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         ))
