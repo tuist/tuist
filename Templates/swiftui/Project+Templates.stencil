@@ -39,7 +39,8 @@ extension Project {
                 "UIApplicationSupportsMultipleScenes": .boolean(true),
             ],
             "UILaunchScreen": [:],
-            "UIApplicationSupportsIndirectInputEvents": .boolean(true),
+            "UIApplicationSupportsIndirectInputEvents": .boolean(true),{% if platform == "macOS" %}
+            "NSMainStoryboardFile": "",{% endif %}
         ]
         
         let mainTarget = Target(

@@ -46,7 +46,7 @@ let template = Template(
         ),
         .file(
             path: appPath + "/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json",
-            templatePath: "AppIconContents.json"
+            templatePath: "AppIconContents.stencil"
         ),
         .file(
             path: appPath + "/Resources/Assets.xcassets/Contents.json",

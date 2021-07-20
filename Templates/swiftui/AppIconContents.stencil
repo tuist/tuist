@@ -152,4 +152,4 @@
     "author": "xcode",
     "version": 1
   }
-}
+}{% endif %}
