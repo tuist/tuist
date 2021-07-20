@@ -5,6 +5,7 @@ import XCTest
 
 open class TuistUnitTestCase: TuistTestCase {
     public var system: MockSystem!
+    public var developerEnvironment: MockDeveloperEnvironment!
     public var xcodeController: MockXcodeController!
 
     override open func setUp() {
@@ -16,6 +17,10 @@ open class TuistUnitTestCase: TuistTestCase {
         // Xcode controller
         xcodeController = MockXcodeController()
         XcodeController.shared = xcodeController
+        
+        // Developer environment
+        developerEnvironment = MockDeveloperEnvironment()
+        DeveloperEnvironment.shared = developerEnvironment
     }
 
     override open func tearDown() {
@@ -30,6 +35,10 @@ open class TuistUnitTestCase: TuistTestCase {
         // Environment
         environment = nil
         Environment.shared = Environment()
+        
+        // Developer environment
+        developerEnvironment = nil
+        DeveloperEnvironment.shared = DeveloperEnvironment()
 
         super.tearDown()
     }
