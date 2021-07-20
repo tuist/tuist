@@ -4,7 +4,6 @@ import TuistGraph
 import TuistSupport
 import XCTest
 
-@testable import TuistCore
 @testable import TuistSupportTesting
 
 final class BinaryArchitectureTests: TuistTestCase {
