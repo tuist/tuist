@@ -110,8 +110,8 @@ class InitService {
             )
         } else {
             guard
-                let templateDirectory = directories.first(where: { $0.basename == "default" })
-            else { throw InitServiceError.templateNotFound("default") }
+                let templateDirectory = directories.first(where: { $0.basename == "swiftui" })
+            else { throw InitServiceError.templateNotFound("swiftui") }
             let template = try templateLoader.loadTemplate(at: templateDirectory)
             try templateGenerator.generate(
                 template: template,

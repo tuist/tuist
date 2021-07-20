@@ -12,7 +12,7 @@ func templatePath(_ path: String) -> Path {
 }
 
 let template = Template(
-    description: "Default template",
+    description: "UIKit template",
     attributes: [
         nameAttribute,
         platformAttribute,
