@@ -3,9 +3,7 @@ import ProjectDescription
 let nameAttribute: Template.Attribute = .required("name")
 let platformAttribute: Template.Attribute = .optional("platform", default: "iOS")
 let projectPath = "."
-let appPath = "Targets/\(nameAttribute)"
-let kitFrameworkPath = "Targets/\(nameAttribute)Kit"
-let uiFrameworkPath = "Targets/\(nameAttribute)UI"
+let appPath = "\(nameAttribute)"
 
 func templatePath(_ path: String) -> Path {
     "../\(path)"
@@ -20,47 +18,43 @@ let template = Template(
     files: [
         .file(
             path: "Tuist/ProjectDescriptionHelpers/Project+Templates.swift",
-            templatePath: templatePath("Project+Templates.stencil")
+            templatePath: "Project+Templates.stencil"
         ),
         .file(
             path: projectPath + "/Project.swift",
             templatePath: "AppProject.stencil"
         ),
         .file(
-            path: appPath + "/Sources/AppDelegate.swift",
-            templatePath: "AppDelegate.stencil"
+            path: appPath + "/Sources/\(nameAttribute).swift",
+            templatePath: "App.stencil"
         ),
         .file(
-            path: appPath + "/Resources/LaunchScreen.storyboard",
-            templatePath: templatePath("LaunchScreen+\(platformAttribute).stencil")
+            path: appPath + "/Sources/ContentView.swift",
+            templatePath: "ContentView.stencil"
         ),
         .file(
             path: appPath + "/Tests/AppTests.swift",
             templatePath: templatePath("AppTests.stencil")
         ),
         .file(
-            path: kitFrameworkPath + "/Sources/\(nameAttribute)Kit.swift",
-            templatePath: templatePath("/KitSource.stencil")
+            path: appPath + "/Resources/Preview Content/Preview Assets.xcassets/Contents.json",
+            templatePath: "Contents.json"
         ),
         .file(
-            path: kitFrameworkPath + "/Tests/\(nameAttribute)KitTests.swift",
-            templatePath: templatePath("/KitTests.stencil")
+            path: appPath + "/Resources/Assets.xcassets/AccentColor.colorset/Contents.json",
+            templatePath: "AccentColorContents.json"
         ),
         .file(
-            path: uiFrameworkPath + "/Sources/\(nameAttribute)UI.swift",
-            templatePath: templatePath("/UISource.stencil")
+            path: appPath + "/Resources/Assets.xcassets/AppIcon.appiconset/Contents.json",
+            templatePath: "AppIconContents.json"
         ),
         .file(
-            path: uiFrameworkPath + "/Tests/\(nameAttribute)UITests.swift",
-            templatePath: templatePath("/UITests.stencil")
+            path: appPath + "/Resources/Assets.xcassets/Contents.json",
+            templatePath: "Contents.json"
         ),
         .file(
             path: ".gitignore",
             templatePath: templatePath("Gitignore.stencil")
-        ),
-        .file(
-            path: "Tuist/Config.swift",
-            templatePath: templatePath("Config.stencil")
         ),
     ]
 )
