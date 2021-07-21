@@ -51,7 +51,8 @@ module GitHub
       return Octokit::Client.new(bearer_token: Rails.cache.fetch(cache_key)) if Rails.cache.exist?(cache_key)
 
       installation_id = installation_for_repository(repository_full_name)[:id]
-      response = authenticated_client.create_app_installation_access_token(installation_id, repositories: [repository_full_name.split("/").last])
+      response = authenticated_client.create_app_installation_access_token(installation_id,
+        repositories: [repository_full_name.split("/").last])
       token = response[:token]
       expires_at = response[:expires_at]
       Rails.cache.write(cache_key, token, expires_in: expires_at)
@@ -65,7 +66,8 @@ module GitHub
           app_name: Rails.application.credentials.devise.dig!(:omniauth, :github, :app_name),
           bot_login: Rails.application.credentials.devise.dig!(:omniauth, :github, :bot_login),
           webhook_secret: Rails.application.credentials.devise.dig!(:omniauth, :github, :webhook_secret),
-          private_key: Base64.decode64(Rails.application.credentials.devise.dig!(:omniauth, :github, :private_key_base_64)),
+          private_key: Base64.decode64(Rails.application.credentials.devise.dig!(:omniauth, :github,
+            :private_key_base_64)),
           oauth_id: Rails.application.credentials.devise.dig!(:omniauth, :github, :client_id),
           oauth_secret: Rails.application.credentials.devise.dig!(:omniauth, :github, :client_secret)
         )
@@ -73,24 +75,23 @@ module GitHub
     end
 
     private
-
-    def installation_for_repository(repository_full_name)
-      authenticated_client.find_repository_installation(repository_full_name)
-    rescue Octokit::NotFound
-      raise NonExistingInstallationOnRepositoryError
-    end
-
-    def token
-      Rails.cache.fetch([self, private_key, app_id], expires_in: 10.minutes) do
-        private_key = OpenSSL::PKey::RSA.new(self.private_key)
-        payload = {
-          # issued at time, 60 seconds in the past to allow for clock drift
-          iat: Time.now.to_i - 60,
-          exp: Time.now.to_i + (10 * 60),
-          iss: app_id,
-        }
-        JWT.encode(payload, private_key, "RS256")
+      def installation_for_repository(repository_full_name)
+        authenticated_client.find_repository_installation(repository_full_name)
+      rescue Octokit::NotFound
+        raise NonExistingInstallationOnRepositoryError
       end
-    end
+
+      def token
+        Rails.cache.fetch([self, private_key, app_id], expires_in: 10.minutes) do
+          private_key = OpenSSL::PKey::RSA.new(self.private_key)
+          payload = {
+            # issued at time, 60 seconds in the past to allow for clock drift
+            iat: Time.now.to_i - 60,
+            exp: Time.now.to_i + (10 * 60),
+            iss: app_id,
+          }
+          JWT.encode(payload, private_key, "RS256")
+        end
+      end
   end
 end

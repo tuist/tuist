@@ -41,56 +41,55 @@ class ApiTokenDeviseStrategy < Devise::Strategies::Base
   end
 
   private
+    def skip_trackable
+      env["devise.skip_trackable"] = true
+    end
 
-  def skip_trackable
-    env["devise.skip_trackable"] = true
-  end
+    def fail!
+      # TODO: Change the format to be:
+      # {
+      #   "status": "error",
+      #   "errors": [
+      #     {
+      #       "code": "unauthorized",
+      #       "message": "The session is not present or is not valid."
+      #     }
+      #   ]
+      # }
+      super("invalid token")
+    end
 
-  def fail!
-    # TODO: Change the format to be:
-    # {
-    #   "status": "error",
-    #   "errors": [
-    #     {
-    #       "code": "unauthorized",
-    #       "message": "The session is not present or is not valid."
-    #     }
-    #   ]
-    # }
-    super("invalid token")
-  end
+    def model_is_authenticatable?
+      model.class.include?(TokenAuthenticatable)
+    end
 
-  def model_is_authenticatable?
-    model.class.include?(TokenAuthenticatable)
-  end
+    def token_format_valid?
+      decoded_token.valid?
+    rescue ArgumentError
+      false
+    end
 
-  def token_format_valid?
-    decoded_token.valid?
-  rescue ArgumentError
-    false
-  end
+    def scope_match?
+      model.name == decoded_token.model_name
+    end
 
-  def scope_match?
-    model.name == decoded_token.model_name
-  end
+    def model_object
+      @model_object ||= model.find(decoded_token.id)
+    end
 
-  def model_object
-    @model_object ||= model.find(decoded_token.id)
-  end
+    def token_match?
+      Devise.secure_compare(model_object&.authentication_token, decoded_token.token)
+    end
 
-  def token_match?
-    Devise.secure_compare(model_object&.authentication_token, decoded_token.token)
-  end
+    def model
+      mapping.to
+    end
 
-  def model
-    mapping.to
-  end
+    def decoded_token
+      @decoded_token ||= Token.decode(encoded_token)
+    end
 
-  def decoded_token
-    @decoded_token ||= Token.decode(encoded_token)
-  end
-
-  def encoded_token
-    request.headers["Authorization"].to_s.remove("Bearer ")
-  end
+    def encoded_token
+      request.headers["Authorization"].to_s.remove("Bearer ")
+    end
 end

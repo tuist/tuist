@@ -34,22 +34,21 @@ class WebsiteController < ApplicationController
   end
 
   private
-
-  def changelogs
-    changelog_dir = Rails.root.join("app/content/changelog")
-    Dir.glob(File.join(changelog_dir, "*")).map do |file_path|
-      parsed_file = FrontMatterParser::Parser.parse_file(file_path)
-      date_string = File.basename(file_path).split("-").first
-      OpenStruct.new(
-        date: Date.strptime(date_string, "%Y%m%d"),
-        title: parsed_file.front_matter["title"],
-        type: parsed_file.front_matter["type"],
-        html: markdown_parser.render(parsed_file.content)
-      )
+    def changelogs
+      changelog_dir = Rails.root.join("app/content/changelog")
+      Dir.glob(File.join(changelog_dir, "*")).map do |file_path|
+        parsed_file = FrontMatterParser::Parser.parse_file(file_path)
+        date_string = File.basename(file_path).split("-").first
+        OpenStruct.new(
+          date: Date.strptime(date_string, "%Y%m%d"),
+          title: parsed_file.front_matter["title"],
+          type: parsed_file.front_matter["type"],
+          html: markdown_parser.render(parsed_file.content)
+        )
+      end
     end
-  end
 
-  def markdown_parser
-    @markdown_parser ||= Redcarpet::Markdown.new(Redcarpet::Render::HTML, autolink: true, tables: true)
-  end
+    def markdown_parser
+      @markdown_parser ||= Redcarpet::Markdown.new(Redcarpet::Render::HTML, autolink: true, tables: true)
+    end
 end

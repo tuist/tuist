@@ -63,27 +63,6 @@ jobs:
         working-directory: projects/lab-api
         run: |
           bundle exec rails test
-  style-check:
-    name: Style-check Ruby
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          bundler-cache: true
-          ruby-version: ${{ env.RUBY_VERSION }}
-      - name: Install dependencies
-        working-directory: projects/lab-api
-        run: |
-          sudo apt-get -yqq install libpq-dev
-          gem install bundler
-          bundle config path vendor/bundle
-          bundle install --jobs=4 --retry=3
-      - name: Run Rubocop
-        working-directory: projects/lab-api
-        run: |
-          bundle exec rubocop
   assets_precompile:
     name: Assets precompile
     runs-on: ubuntu-latest

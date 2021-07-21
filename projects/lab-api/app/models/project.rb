@@ -8,7 +8,8 @@ class Project < ApplicationRecord
 
   # Validations
   validates :name, presence: true, length: { maximum: 30, minimum: 5 }
-  validates :repository_full_name, format: { with: %r{\A[\w.@\:-~]+/[\w.@\:-~]+\z}, message: "invalid organization/repo format" }
+  validates :repository_full_name,
+    format: { with: %r{\A[\w.@\:-~]+/[\w.@\:-~]+\z}, message: "invalid organization/repo format" }
 
   # Associations
   belongs_to :account

@@ -49,8 +49,6 @@ group :development do
   # gem "rack-mini-profiler", "~> 2.0"
   gem "spring"
   gem "web-console", ">= 4.1.0"
-  gem "rubocop-shopify", require: false
-  gem "rubocop-rails", "~> 2.10", require: false
   gem "graphql-schema_comparator", "~> 1.0"
 end
 

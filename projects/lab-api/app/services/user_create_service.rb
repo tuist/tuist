@@ -30,21 +30,20 @@ class UserCreateService < ApplicationService
   end
 
   private
+    def create_new_user_from_oauth(auth:, email:, nickname:)
+      ActiveRecord::Base.transaction do
+        # User
+        password = Devise.friendly_token[0, 20]
+        user = User.new({ email: email, password: password })
+        AuthorizationAddService.call(user: user, data: auth)
+        user.save!
 
-  def create_new_user_from_oauth(auth:, email:, nickname:)
-    ActiveRecord::Base.transaction do
-      # User
-      password = Devise.friendly_token[0, 20]
-      user = User.new({ email: email, password: password })
-      AuthorizationAddService.call(user: user, data: auth)
-      user.save!
+        AccountCreateService.call(
+          owner: user,
+          name: nickname
+        )
 
-      AccountCreateService.call(
-        owner: user,
-        name: nickname
-      )
-
-      user
+        user
+      end
     end
-  end
 end
