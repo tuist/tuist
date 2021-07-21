@@ -130,6 +130,7 @@ func targets() -> [Target] {
                 .target(name: "TuistGeneratorTesting"),
                 .target(name: "TuistScaffoldTesting"),
                 .target(name: "TuistLabTesting"),
+                .target(name: "TuistLoaderTesting"),
                 .target(name: "TuistAutomationTesting"),
                 .target(name: "TuistSigningTesting"),
                 .target(name: "TuistDependenciesTesting"),
