@@ -202,6 +202,7 @@ func targets() -> [Target] {
             name: "TuistCore",
             hasIntegrationTests: true,
             dependencies: [
+                .target(name: "ProjectDescription"),
                 .target(name: "TuistSupport"),
                 .target(name: "TuistGraph"),
             ],
@@ -508,6 +509,7 @@ func targets() -> [Target] {
         Target.module(
             name: "TuistDependencies",
             dependencies: [
+                .target(name: "ProjectDescription"),
                 .target(name: "TuistCore"),
                 .target(name: "TuistGraph"),
                 .target(name: "TuistSupport"),
