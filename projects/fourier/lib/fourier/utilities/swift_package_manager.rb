@@ -7,6 +7,13 @@ module Fourier
       ARM64_TARGET = "arm64-apple-macosx"
       X86_64_TARGET = "x86_64-apple-macosx"
 
+      def self.build_product(product)
+        Utilities::System.system(
+          "swift", "build",
+          "--product", product
+        )
+      end
+
       def self.build_fat_release_library(path:, product:, output_directory:, swift_build_directory:)
         Dir.chdir(path) do
           Utilities::System.system(
