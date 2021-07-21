@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 shell_join() {
   local arg
   printf "%s" "$1"
@@ -10,59 +12,12 @@ shell_join() {
   done
 }
 
-execute() {
-  if ! "$@"; then
-    abort "$(printf "Failed during: %s" "$(shell_join "$@")")"
-  fi
-}
-
-have_sudo_access() {
-  local -a args
-  if [[ -n "${SUDO_ASKPASS-}" ]]; then
-    args=("-A")
-  elif [[ -n "${NONINTERACTIVE-}" ]]; then
-    args=("-n")
-  fi
-
-  if [[ -z "${HAVE_SUDO_ACCESS-}" ]]; then
-    if [[ -n "${args[*]-}" ]]; then
-      SUDO="/usr/bin/sudo ${args[*]}"
-    else
-      SUDO="/usr/bin/sudo"
-    fi
-    if [[ -n "${NONINTERACTIVE-}" ]]; then
-      ${SUDO} -l mkdir &>/dev/null
-    else
-      ${SUDO} -v && ${SUDO} -l mkdir &>/dev/null
-    fi
-    HAVE_SUDO_ACCESS="$?"
-  fi
-
-  if [[ -z "${HOMEBREW_ON_LINUX-}" ]] && [[ "$HAVE_SUDO_ACCESS" -ne 0 ]]; then
-    abort "Need sudo access on macOS (e.g. the user $USER to be an Administrator)!"
-  fi
-
-  return "$HAVE_SUDO_ACCESS"
-}
-
 ohai() {
   printf "${tty_blue}==>${tty_bold} %s${tty_reset}\n" "$(shell_join "$@")"
 }
 
 warn() {
   printf "${tty_red}Warning${tty_reset}: %s\n" "$(chomp "$1")"
-}
-
-execute_sudo() {
-  local -a args=("$@")
-  if have_sudo_access; then
-    if [[ -n "${SUDO_ASKPASS-}" ]]; then
-      args=("-A" "${args[@]}")
-    fi
-    execute "/usr/bin/sudo" "${args[@]}"
-  else
-    execute "${args[@]}"
-  fi
 }
 
 ohai "Downloading tuistenv..."
@@ -72,12 +27,15 @@ unzip -o /tmp/tuistenv.zip -d /tmp/tuistenv > /dev/null
 ohai "Installing tuistenv..."
 
 if [[ ! -d "/usr/local/bin" ]]; then
-  execute_sudo mkdir /usr/local/bin/
+  mkdir -p /usr/local/bin/
 fi
-execute_sudo mkdir -p /usr/local/bin
-execute_sudo rm -rf /usr/local/bin/tuist
-execute_sudo mv /tmp/tuistenv/tuistenv /usr/local/bin/tuist
-execute_sudo chmod +x /usr/local/bin/tuist
+
+if [[ -f "/usr/local/bin/tuist" ]]; then
+  rm /usr/local/bin/tuist
+fi
+
+mv /tmp/tuistenv/tuistenv /usr/local/bin/tuist
+chmod +x /usr/local/bin/tuist
 
 rm -rf /tmp/tuistenv
 rm /tmp/tuistenv.zip
