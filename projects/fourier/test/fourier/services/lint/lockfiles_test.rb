@@ -7,6 +7,7 @@ module Fourier
     module Lint
       class LockfilesTest < TestCase
         include TestHelpers::TemporaryDirectory
+        include TestHelpers::SupressOutput
 
         def test_raises_when_versions_mismatch
           # Given
@@ -22,12 +23,36 @@ module Fourier
           File.write(File.join(@tmp_dir, "Package.resolved"), spm_lockfile.to_json)
 
           # When/then
-          error = assert_raises(Utilities::Errors::AbortError) do
-            Services::Lint::Lockfiles.call(root_directory: @tmp_dir)
+          assert_raises(Utilities::Errors::AbortSilentError) do
+            supressing_output do
+              Services::Lint::Lockfiles.call(root_directory: @tmp_dir)
+            end
           end
-          expected_message = "There's a mismatch between the revision of the following pakages in"\
-              " in the Package.resolved and .package.resolved files: Test"
-          assert_equal(expected_message, error.message)
+        end
+
+        def test_raises_when_the_number_of_packages_doesnt_match
+          # Given
+          tuist_lockfile = { "object": { "pins": [{
+            "package": "Test",
+            "state": { "revision": "8623e73b193386909566a9ca20203e33a09af142" },
+          }] } }
+          spm_lockfile = { "object": { "pins": [{
+            "package": "Test",
+            "state": { "revision": "8623e73b193386909566a9ca20203e33a09af142" },
+          },
+          {
+            "package": "Other",
+            "state": { "revision": "bb23e73b193386909566a9ca20203e33a09af1cc" },
+          },] } }
+          File.write(File.join(@tmp_dir, ".package.resolved"), tuist_lockfile.to_json)
+          File.write(File.join(@tmp_dir, "Package.resolved"), spm_lockfile.to_json)
+
+          # When/then
+          assert_raises(Utilities::Errors::AbortSilentError) do
+            supressing_output do
+              Services::Lint::Lockfiles.call(root_directory: @tmp_dir)
+            end
+          end
         end
 
         def test_doesnt_raise_when_versions_match
@@ -44,7 +69,9 @@ module Fourier
           File.write(File.join(@tmp_dir, "Package.resolved"), spm_lockfile.to_json)
 
           # When/then
-          Services::Lint::Lockfiles.call(root_directory: @tmp_dir)
+          supressing_output do
+            Services::Lint::Lockfiles.call(root_directory: @tmp_dir)
+          end
         end
       end
     end

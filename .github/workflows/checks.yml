@@ -8,6 +8,8 @@ on:
       - main
   pull_request:
     paths:
+      - .package.resolved
+      - Package.resolved
       - Sources/**
       - Tests/**
       - projects/fixturegen/**
