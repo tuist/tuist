@@ -130,7 +130,6 @@ func targets() -> [Target] {
                 .target(name: "TuistGeneratorTesting"),
                 .target(name: "TuistScaffoldTesting"),
                 .target(name: "TuistLabTesting"),
-                .target(name: "TuistLoaderTesting"),
                 .target(name: "TuistAutomationTesting"),
                 .target(name: "TuistSigningTesting"),
                 .target(name: "TuistDependenciesTesting"),
@@ -517,8 +516,9 @@ func targets() -> [Target] {
             ],
             testDependencies: [
                 .target(name: "TuistCoreTesting"),
-                .target(name: "TuistSupportTesting"),
                 .target(name: "TuistGraphTesting"),
+                .target(name: "TuistLoaderTesting"),
+                .target(name: "TuistSupportTesting"),
             ],
             testingDependencies: [
                 .target(name: "TuistGraphTesting"),
