@@ -14,7 +14,7 @@ on:
       - projects/tuistbench/**
 
 concurrency:
-  group: ${{ github.head_ref }}
+  group: checks-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:

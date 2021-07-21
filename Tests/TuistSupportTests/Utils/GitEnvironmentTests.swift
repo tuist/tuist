@@ -51,8 +51,8 @@ final class GitEnvironmentTests: TuistUnitTestCase {
         username=tuist
         password=rocks
         """
-        system.succeedCommand(["echo", "url=https://github.com"], output: output)
-        system.succeedCommand(["git", "credentials", "fill"], output: output)
+        system.succeedCommand(["/usr/bin/env", "echo", "url=https://github.com"], output: output)
+        system.succeedCommand(["/usr/bin/env", "git", "credential", "fill"], output: output)
 
         // When
         _ = subject.githubAuthentication()
@@ -66,8 +66,8 @@ final class GitEnvironmentTests: TuistUnitTestCase {
 
     func test_githubCredentials_when_the_command_fails() throws {
         // Given
-        system.errorCommand(["echo", "url=https://github.com"])
-        system.errorCommand(["git", "credentials", "fill"])
+        system.errorCommand(["/usr/bin/env", "echo", "url=https://github.com"])
+        system.errorCommand(["/usr/bin/env", "git", "credential", "fill"])
         let expectation = XCTestExpectation(description: "Git credentials fill command")
 
         // When
@@ -90,8 +90,8 @@ final class GitEnvironmentTests: TuistUnitTestCase {
         username=tuist
         password=rocks
         """
-        system.succeedCommand(["echo", "url=https://github.com"], output: output)
-        system.succeedCommand(["git", "credentials", "fill"], output: output)
+        system.succeedCommand(["/usr/bin/env", "echo", "url=https://github.com"], output: output)
+        system.succeedCommand(["/usr/bin/env", "git", "credential", "fill"], output: output)
         let expectation = XCTestExpectation(description: "Git credentials fill command")
 
         // When
@@ -116,8 +116,8 @@ final class GitEnvironmentTests: TuistUnitTestCase {
         let output = """
         password=rocks
         """
-        system.succeedCommand(["echo", "url=https://github.com"], output: output)
-        system.succeedCommand(["git", "credentials", "fill"], output: output)
+        system.succeedCommand(["/usr/bin/env", "echo", "url=https://github.com"], output: output)
+        system.succeedCommand(["/usr/bin/env", "git", "credential", "fill"], output: output)
         let expectation = XCTestExpectation(description: "Git credentials fill command")
 
         // When

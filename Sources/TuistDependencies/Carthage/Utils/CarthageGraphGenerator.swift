@@ -30,9 +30,9 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
             .compactMapValues { products in
                 guard let product = products.first else { return nil }
 
-                guard let xcframeworkName = product.container else {
-                  logger.info("\(product.name) was not added to the DependenciesGraph", metadata: .subsection)
-                  return nil
+                guard let xcFrameworkName = product.container else {
+                    logger.warning("\(product.name) was not added to the DependenciesGraph", metadata: .subsection)
+                    return nil
                 }
 
                 let path = AbsolutePath("/")
@@ -40,7 +40,7 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
                         Constants.tuistDirectoryName,
                         Constants.DependenciesDirectory.name,
                         Constants.DependenciesDirectory.carthageDirectoryName,
-                      xcframeworkName,
+                        xcFrameworkName,
                     ])
 
                 return [.xcframework(path: Path(path.pathString))]

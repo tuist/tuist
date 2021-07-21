@@ -95,9 +95,9 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
 
             // run `Swift Package Manager`
             if shouldUpdate {
-                try swiftPackageManagerController.update(at: temporaryDirectoryPath)
+                try swiftPackageManagerController.update(at: temporaryDirectoryPath, printOutput: true)
             } else {
-                try swiftPackageManagerController.resolve(at: temporaryDirectoryPath)
+                try swiftPackageManagerController.resolve(at: temporaryDirectoryPath, printOutput: true)
             }
 
             // post installation

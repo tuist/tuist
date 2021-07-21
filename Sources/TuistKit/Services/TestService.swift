@@ -77,7 +77,8 @@ final class TestService {
         path: AbsolutePath,
         deviceName: String?,
         osVersion: String?,
-        skipUITests: Bool
+        skipUITests: Bool,
+        resultBundlePath: AbsolutePath?
     ) throws {
         // Load config
         let manifestLoaderFactory = ManifestLoaderFactory()
@@ -136,7 +137,8 @@ final class TestService {
                     clean: clean,
                     configuration: configuration,
                     version: version,
-                    deviceName: deviceName
+                    deviceName: deviceName,
+                    resultBundlePath: resultBundlePath
                 )
             }
         } else {
@@ -157,7 +159,8 @@ final class TestService {
                     clean: clean,
                     configuration: configuration,
                     version: version,
-                    deviceName: deviceName
+                    deviceName: deviceName,
+                    resultBundlePath: resultBundlePath
                 )
             }
 
@@ -191,7 +194,8 @@ final class TestService {
         clean: Bool,
         configuration: String?,
         version: Version?,
-        deviceName: String?
+        deviceName: String?,
+        resultBundlePath: AbsolutePath?
     ) throws {
         logger.log(level: .notice, "Testing scheme \(scheme.name)", metadata: .section)
         guard let buildableTarget = buildGraphInspector.testableTarget(scheme: scheme, graphTraverser: graphTraverser) else {
@@ -212,6 +216,7 @@ final class TestService {
             clean: clean,
             destination: destination,
             derivedDataPath: nil,
+            resultBundlePath: resultBundlePath,
             arguments: buildGraphInspector.buildArguments(
                 project: buildableTarget.project,
                 target: buildableTarget.target,

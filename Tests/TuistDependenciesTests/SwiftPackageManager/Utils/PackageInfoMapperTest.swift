@@ -34,7 +34,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
                 ],
                 targets: [
-                    .test(name: "Target1")
+                    .test(name: "Target1"),
                 ],
                 platforms: []
             )
@@ -44,7 +44,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1")
+                    .test("Target1"),
                 ]
             )
         )
@@ -57,7 +57,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .init(name: "Product1", type: .library(.automatic), targets: ["Target_1"]),
                 ],
                 targets: [
-                    .test(name: "Target_1")
+                    .test(name: "Target_1"),
                 ],
                 platforms: []
             )
@@ -67,7 +67,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target_1", customBundleID: "Target-1")
+                    .test("Target_1", customBundleID: "Target-1"),
                 ]
             )
         )
@@ -91,7 +91,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1")
+                    .test("Target1"),
                 ]
             )
         )
@@ -116,7 +116,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1")
+                    .test("Target1"),
                 ]
             )
         )
@@ -143,7 +143,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1")
+                    .test("Target1"),
                 ]
             )
         )
@@ -172,7 +172,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             "/Package/Path/Sources/Target1/Subfolder/**",
                             "/Package/Path/Sources/Target1/Another/Subfolder/file.swift",
                         ]
-                    )
+                    ),
                 ]
             )
         )
@@ -207,7 +207,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             "/Package/Path/Sources/Target1/Resource/Folder/**",
                             "/Package/Path/Sources/Target1/Another/Resource/Folder/**",
                         ]
-                    )
+                    ),
                 ]
             )
         )
@@ -243,7 +243,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         headers: .init(public: "/Package/Path/Sources/Package/Source.h")
-                    )
+                    ),
                 ]
             )
         )
@@ -284,7 +284,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         customSources: "/Package/Path/Custom/Path/Sources/Folder/**",
                         resources: "/Package/Path/Custom/Path/Resource/Folder/**",
                         headers: .init(public: "/Package/Path/Custom/Path/Source.h")
-                    )
+                    ),
                 ]
             )
         )
@@ -308,7 +308,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", platform: .iOS)
+                    .test("Target1", platform: .iOS),
                 ]
             )
         )
@@ -332,7 +332,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", platform: .tvOS)
+                    .test("Target1", platform: .tvOS),
                 ]
             )
         )
@@ -378,7 +378,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", platform: .iOS, deploymentTarget: .iOS(targetVersion: "13.0", devices: [.iphone, .ipad, .mac]))
+                    .test("Target1", platform: .iOS, deploymentTarget: .iOS(targetVersion: "13.0", devices: [.iphone, .ipad, .mac])),
                 ]
             )
         )
@@ -394,7 +394,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         name: "Target1",
                         settings: [.init(tool: .c, name: .headerSearchPath, condition: nil, value: ["value"])]
-                    )
+                    ),
                 ],
                 platforms: []
             )
@@ -404,7 +404,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", customSettings: ["HEADER_SEARCH_PATHS": ["value"]])
+                    .test("Target1", customSettings: ["HEADER_SEARCH_PATHS": ["value"]]),
                 ]
             )
         )
@@ -420,7 +420,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         name: "Target1",
                         settings: [.init(tool: .cxx, name: .headerSearchPath, condition: nil, value: ["value"])]
-                    )
+                    ),
                 ],
                 platforms: []
             )
@@ -430,7 +430,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", customSettings: ["HEADER_SEARCH_PATHS": ["value"]])
+                    .test("Target1", customSettings: ["HEADER_SEARCH_PATHS": ["value"]]),
                 ]
             )
         )
@@ -449,7 +449,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             .init(tool: .c, name: .define, condition: nil, value: ["key1"]),
                             .init(tool: .c, name: .define, condition: nil, value: ["key2=value"]),
                         ]
-                    )
+                    ),
                 ],
                 platforms: []
             )
@@ -459,7 +459,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", customSettings: ["GCC_PREPROCESSOR_DEFINITIONS": ["key1=1", "key2=value"]])
+                    .test("Target1", customSettings: ["GCC_PREPROCESSOR_DEFINITIONS": ["key1=1", "key2=value"]]),
                 ]
             )
         )
@@ -478,7 +478,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             .init(tool: .cxx, name: .define, condition: nil, value: ["key1"]),
                             .init(tool: .cxx, name: .define, condition: nil, value: ["key2=value"]),
                         ]
-                    )
+                    ),
                 ],
                 platforms: []
             )
@@ -488,7 +488,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", customSettings: ["GCC_PREPROCESSOR_DEFINITIONS": ["key1=1", "key2=value"]])
+                    .test("Target1", customSettings: ["GCC_PREPROCESSOR_DEFINITIONS": ["key1=1", "key2=value"]]),
                 ]
             )
         )
@@ -506,7 +506,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         settings: [
                             .init(tool: .swift, name: .define, condition: nil, value: ["key"]),
                         ]
-                    )
+                    ),
                 ],
                 platforms: []
             )
@@ -516,7 +516,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", customSettings: ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": ["key"]])
+                    .test("Target1", customSettings: ["SWIFT_ACTIVE_COMPILATION_CONDITIONS": ["key"]]),
                 ]
             )
         )
@@ -535,7 +535,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             .init(tool: .c, name: .unsafeFlags, condition: nil, value: ["key1"]),
                             .init(tool: .c, name: .unsafeFlags, condition: nil, value: ["key2", "key3"]),
                         ]
-                    )
+                    ),
                 ],
                 platforms: []
             )
@@ -545,7 +545,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", customSettings: ["OTHER_CFLAGS": ["key1", "key2", "key3"]])
+                    .test("Target1", customSettings: ["OTHER_CFLAGS": ["key1", "key2", "key3"]]),
                 ]
             )
         )
@@ -564,7 +564,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             .init(tool: .cxx, name: .unsafeFlags, condition: nil, value: ["key1"]),
                             .init(tool: .cxx, name: .unsafeFlags, condition: nil, value: ["key2", "key3"]),
                         ]
-                    )
+                    ),
                 ],
                 platforms: []
             )
@@ -574,7 +574,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", customSettings: ["OTHER_CPLUSPLUSFLAGS": ["key1", "key2", "key3"]])
+                    .test("Target1", customSettings: ["OTHER_CPLUSPLUSFLAGS": ["key1", "key2", "key3"]]),
                 ]
             )
         )
@@ -590,10 +590,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         name: "Target1",
                         settings: [
-                            .init(tool: .swift, name: .unsafeFlags, condition: nil, value: ["key1",]),
+                            .init(tool: .swift, name: .unsafeFlags, condition: nil, value: ["key1"]),
                             .init(tool: .swift, name: .unsafeFlags, condition: nil, value: ["key2", "key3"]),
                         ]
-                    )
+                    ),
                 ],
                 platforms: []
             )
@@ -603,7 +603,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", customSettings: ["OTHER_SWIFT_FLAGS": ["key1", "key2", "key3"]])
+                    .test("Target1", customSettings: ["OTHER_SWIFT_FLAGS": ["key1", "key2", "key3"]]),
                 ]
             )
         )
@@ -622,7 +622,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             .init(tool: .c, name: .headerSearchPath, condition: .init(platformNames: ["tvos"], config: nil), value: ["value"]),
                             .init(tool: .c, name: .headerSearchPath, condition: .init(platformNames: ["ios"], config: nil), value: ["otherValue"]),
                         ]
-                    )
+                    ),
                 ],
                 platforms: []
             )
@@ -632,7 +632,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", customSettings: ["HEADER_SEARCH_PATHS": ["otherValue"]])
+                    .test("Target1", customSettings: ["HEADER_SEARCH_PATHS": ["otherValue"]]),
                 ]
             )
         )
@@ -650,7 +650,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         settings: [
                             .init(tool: .linker, name: .linkedFramework, condition: nil, value: ["Framework"]),
                         ]
-                    )
+                    ),
                 ],
                 platforms: []
             )
@@ -660,7 +660,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", dependencies: [.sdk(name: "Framework.framework", status: .required)])
+                    .test("Target1", dependencies: [.sdk(name: "Framework.framework", status: .required)]),
                 ]
             )
         )
@@ -678,7 +678,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         settings: [
                             .init(tool: .linker, name: .linkedLibrary, condition: nil, value: ["Library"]),
                         ]
-                    )
+                    ),
                 ],
                 platforms: []
             )
@@ -688,7 +688,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", dependencies: [.sdk(name: "Library.tbd", status: .required)])
+                    .test("Target1", dependencies: [.sdk(name: "Library.tbd", status: .required)]),
                 ]
             )
         )
@@ -851,7 +851,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         dependencies: [
                             .project(target: "Target2", path: "/Package2/Path"),
                             .project(target: "Target3", path: "/Package2/Path"),
-                        ]),
+                        ]
+                    ),
                 ]
             )
         )
@@ -898,7 +899,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         dependencies: [
                             .project(target: "Target2", path: "/Product2/Path"),
                             .project(target: "Target3", path: "/Product2/Path"),
-                        ]),
+                        ]
+                    ),
                 ]
             )
         )
@@ -913,7 +915,7 @@ extension PackageInfoMapping {
         platforms: Set<TuistGraph.Platform> = [.iOS],
         targetDependencyToFramework: [String: Path] = [:]
     ) throws -> ProjectDescription.Project {
-        return try self.map(
+        return try map(
             packageInfo: packageInfo,
             packageInfos: packageInfos,
             name: name,
@@ -959,7 +961,7 @@ extension PackageInfo.Target {
 }
 
 extension ProjectDescription.Project {
-    fileprivate static func test(name: String, targets: [ProjectDescription.Target]) -> Self {
+    fileprivate static func test(name _: String, targets: [ProjectDescription.Target]) -> Self {
         return .init(
             name: "Package",
             targets: targets,

@@ -10,7 +10,7 @@ module Fourier
             # Given
             Utilities::System
               .expects(:tuist)
-              .with("build")
+              .with("build", "--generate")
 
             # Then
             Services::Build::Tuist::All.call

@@ -6,12 +6,16 @@ import TuistSupport
 /// Protocol that defines an interface to interact with the Swift Package Manager.
 public protocol SwiftPackageManagerControlling {
     /// Resolves package dependencies.
-    /// - Parameter path: Directory where the `Package.swift` is defined.
-    func resolve(at path: AbsolutePath) throws
+    /// - Parameters:
+    ///   - path: Directory where the `Package.swift` is defined.
+    ///   - printOutput: When true it prints the Swift Package Manager's ouput.
+    func resolve(at path: AbsolutePath, printOutput: Bool) throws
 
     /// Updates package dependencies.
-    /// - Parameter path: Directory where the `Package.swift` is defined.
-    func update(at path: AbsolutePath) throws
+    /// - Parameters:
+    ///   - path: Directory where the `Package.swift` is defined.
+    ///   - printOutput: When true it prints the Swift Package Manager's ouput.
+    func update(at path: AbsolutePath, printOutput: Bool) throws
 
     /// Sets tools version of package to the given value.
     /// - Parameter path: Directory where the `Package.swift` is defined.
@@ -26,16 +30,20 @@ public protocol SwiftPackageManagerControlling {
 public final class SwiftPackageManagerController: SwiftPackageManagerControlling {
     public init() {}
 
-    public func resolve(at path: AbsolutePath) throws {
+    public func resolve(at path: AbsolutePath, printOutput: Bool) throws {
         let command = buildSwiftPackageCommand(packagePath: path, extraArguments: ["resolve"])
 
-        try System.shared.run(command)
+        printOutput ?
+            try System.shared.runAndPrint(command) :
+            try System.shared.run(command)
     }
 
-    public func update(at path: AbsolutePath) throws {
+    public func update(at path: AbsolutePath, printOutput: Bool) throws {
         let command = buildSwiftPackageCommand(packagePath: path, extraArguments: ["update"])
 
-        try System.shared.run(command)
+        printOutput ?
+            try System.shared.runAndPrint(command) :
+            try System.shared.run(command)
     }
 
     public func setToolsVersion(at path: AbsolutePath, to version: String?) throws {

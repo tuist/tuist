@@ -107,12 +107,14 @@ public final class CarthageInteractor: CarthageInteracting {
                 if shouldUpdate {
                     try carthageController.update(
                         at: temporaryDirectoryPath,
-                        platforms: platforms
+                        platforms: platforms,
+                        printOutput: true
                     )
                 } else {
                     try carthageController.bootstrap(
                         at: temporaryDirectoryPath,
-                        platforms: platforms
+                        platforms: platforms,
+                        printOutput: true
                     )
                 }
 

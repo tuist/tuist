@@ -9,7 +9,7 @@ on:
       - projects/tuistbench/**
 
 concurrency:
-  group: ${{ github.head_ref }}
+  group: benchmark-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:

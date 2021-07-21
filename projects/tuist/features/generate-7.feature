@@ -21,11 +21,12 @@ Scenario: The project is a macOS command line tool with dynamic dependencies (co
     Then tuist generates the project
     Then I should be able to build for macOS the scheme CommandLineTool
 
-Scenario: The project is a macOS command line tool with dynamic framework (framework)
+Scenario: The project is a macOS command line tool with dynamic framework (command_line_tool_with_dynamic_framework)
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture command_line_tool_with_dynamic_framework into the working directory
-    Then tuist lints the project and fails
+    Then tuist generates the project
+    Then I should be able to build for macOS the scheme CommandLineTool
 
 Scenario: The project is a macOS app without any dependencies (macos_app_with_copy_files)
     Given that tuist is available

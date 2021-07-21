@@ -8,8 +8,8 @@ on:
     paths:
       - projects/docs/**
 
-concurrency: 
-  group: ${{ github.head_ref }}
+concurrency:
+  group: docs-${{ github.head_ref }}
   cancel-in-progress: true
 
 env:

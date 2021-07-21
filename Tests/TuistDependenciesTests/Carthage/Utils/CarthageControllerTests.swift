@@ -73,7 +73,7 @@ final class CarthageControllerTests: TuistUnitTestCase {
         ])
 
         // When / Then
-        XCTAssertNoThrow(try subject.bootstrap(at: path, platforms: []))
+        XCTAssertNoThrow(try subject.bootstrap(at: path, platforms: [], printOutput: false))
     }
 
     func test_bootstrap_with_platforms() throws {
@@ -96,7 +96,7 @@ final class CarthageControllerTests: TuistUnitTestCase {
         ])
 
         // When / Then
-        XCTAssertNoThrow(try subject.bootstrap(at: path, platforms: [.iOS]))
+        XCTAssertNoThrow(try subject.bootstrap(at: path, platforms: [.iOS], printOutput: false))
     }
 
     func test_bootstrap_with_platforms_throws_when_xcframeworkdProductionUnsupported() throws {
@@ -121,7 +121,7 @@ final class CarthageControllerTests: TuistUnitTestCase {
 
         // When / Then
         XCTAssertThrowsSpecific(
-            try subject.bootstrap(at: path, platforms: [.iOS]),
+            try subject.bootstrap(at: path, platforms: [.iOS], printOutput: false),
             CarthageControllerError.xcframeworksProductionNotSupported(installedVersion: carthageVersion)
         )
     }
@@ -144,7 +144,7 @@ final class CarthageControllerTests: TuistUnitTestCase {
         ])
 
         // When / Then
-        XCTAssertNoThrow(try subject.update(at: path, platforms: []))
+        XCTAssertNoThrow(try subject.update(at: path, platforms: [], printOutput: false))
     }
 
     func test_update_with_platforms() throws {
@@ -167,7 +167,7 @@ final class CarthageControllerTests: TuistUnitTestCase {
         ])
 
         // When / Then
-        XCTAssertNoThrow(try subject.update(at: path, platforms: [.iOS]))
+        XCTAssertNoThrow(try subject.update(at: path, platforms: [.iOS], printOutput: false))
     }
 
     func test_update_with_platforms_throws_when_xcframeworkdProductionUnsupported() throws {
@@ -192,7 +192,7 @@ final class CarthageControllerTests: TuistUnitTestCase {
 
         // When / Then
         XCTAssertThrowsSpecific(
-            try subject.bootstrap(at: path, platforms: [.iOS]),
+            try subject.bootstrap(at: path, platforms: [.iOS], printOutput: false),
             CarthageControllerError.xcframeworksProductionNotSupported(installedVersion: carthageVersion)
         )
     }

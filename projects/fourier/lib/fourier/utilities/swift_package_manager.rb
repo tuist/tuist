@@ -50,7 +50,7 @@ module Fourier
           "--disable-sandbox",
           "--package-path", path,
           "--product", product,
-          "--build-path", swift_build_directory
+          "--build-path", swift_build_directory,
         ]
 
         arm_64 = [*command, "--triple", ARM64_TARGET]

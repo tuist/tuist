@@ -1,9 +1,41 @@
 import Foundation
+import TSCBasic
 import TuistCore
 import TuistGraph
+import TuistSupport
 
 public protocol DependenciesContentHashing {
-    func hash(dependencies: [TargetDependency]) throws -> String
+    func hash(graphTarget: GraphTarget, hashedTargets: inout [GraphHashedTarget: String]) throws -> String
+}
+
+enum DependenciesContentHasherError: FatalError, Equatable {
+    case missingTargetHash(
+        sourceTargetName: String,
+        dependencyProjectPath: AbsolutePath,
+        dependencyTargetName: String
+    )
+    case missingProjectTargetHash(
+        sourceProjectPath: AbsolutePath,
+        sourceTargetName: String,
+        dependencyProjectPath: AbsolutePath,
+        dependencyTargetName: String
+    )
+
+    var description: String {
+        switch self {
+        case let .missingTargetHash(sourceTargetName, dependencyProjectPath, dependencyTargetName):
+            return "The target '\(sourceTargetName)' depends on the target '\(dependencyTargetName)' from the same project at path \(dependencyProjectPath.pathString) whose hash hasn't been previously calculated."
+        case let .missingProjectTargetHash(sourceProjectPath, sourceTargetName, dependencyProjectPath, dependencyTargetName):
+            return "The target '\(sourceTargetName)' from project at path \(sourceProjectPath.pathString) depends on the target '\(dependencyTargetName)' from the project at path \(dependencyProjectPath.pathString) whose hash hasn't been previously calculated."
+        }
+    }
+
+    var type: ErrorType {
+        switch self {
+        case .missingTargetHash: return .bug
+        case .missingProjectTargetHash: return .bug
+        }
+    }
 }
 
 /// `DependencyContentHasher`
@@ -19,20 +51,34 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
 
     // MARK: - DependenciesContentHashing
 
-    public func hash(dependencies: [TargetDependency]) throws -> String {
-        let hashes = dependencies.map { try? hash(dependency: $0) }
+    public func hash(graphTarget: GraphTarget, hashedTargets: inout [GraphHashedTarget: String]) throws -> String {
+        let hashes = try graphTarget.target.dependencies.map { try hash(graphTarget: graphTarget, dependency: $0, hashedTargets: &hashedTargets) }
         return hashes.compactMap { $0 }.joined()
     }
 
     // MARK: - Private
 
-    private func hash(dependency: TargetDependency) throws -> String {
+    private func hash(graphTarget: GraphTarget, dependency: TargetDependency, hashedTargets: inout [GraphHashedTarget: String]) throws -> String {
         switch dependency {
-        case let .target(name):
-            return try contentHasher.hash("target-\(name)")
-        case let .project(target, path):
-            let projectHash = try contentHasher.hash(path: path)
-            return try contentHasher.hash("project-\(projectHash)-\(target)")
+        case let .target(targetName):
+            guard let dependencyHash = hashedTargets[GraphHashedTarget(projectPath: graphTarget.path, targetName: targetName)] else {
+                throw DependenciesContentHasherError.missingTargetHash(
+                    sourceTargetName: graphTarget.target.name,
+                    dependencyProjectPath: graphTarget.path,
+                    dependencyTargetName: targetName
+                )
+            }
+            return dependencyHash
+        case let .project(targetName, projectPath):
+            guard let dependencyHash = hashedTargets[GraphHashedTarget(projectPath: projectPath, targetName: targetName)] else {
+                throw DependenciesContentHasherError.missingProjectTargetHash(
+                    sourceProjectPath: graphTarget.path,
+                    sourceTargetName: graphTarget.target.name,
+                    dependencyProjectPath: projectPath,
+                    dependencyTargetName: targetName
+                )
+            }
+            return dependencyHash
         case let .framework(path):
             return try contentHasher.hash(path: path)
         case let .xcframework(path):

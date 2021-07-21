@@ -4,6 +4,19 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+
+- Meta tuist support [#3103](https://github.com/tuist/tuist/pull/3103) by [@fortmarek](https://github.com/fortmarek)
+- Add `--result-bundle-path` parameter to test command [#3177](https://github.com/tuist/tuist/pull/3177) by [@olejnjak](https://github.com/olejnjak)
+- The `tuist dependencies` command prints dependency managers' output to console. [#3185](https://github.com/tuist/tuist/pull/3185) by [@laxmorek](https://github.com/laxmorek)
+
+### Removed
+
+- **Breaking** Remove `tuist create-issue` command [#3194](https://github.com/tuist/tuist/pull/3194) by [@pepibumur](https://github.com/pepibumur).
+- **Breaking** Remove `tuist secret` command [#3194](https://github.com/tuist/tuist/pull/3194) by [@pepibumur](https://github.com/pepibumur).
+
+## 1.46.1
+
 ### Fixed
 
 - Fix failed `tuist dependencies fetch/update` command when `Carthage` dependency is imported as binary [#3164](https://github.com/tuist/tuist/pull/3164) by [@havebenfitz](https://github.com/havebeenfitz)
