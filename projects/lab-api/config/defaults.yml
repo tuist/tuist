@@ -1,0 +1,20 @@
+base_urls: &base_urls
+  app: http://127.0.0.1:5000
+default: &default
+  urls:
+    <<: *base_urls
+  site_metadata:
+    description: "TuistLab is a server-side extension for Tuist projects"
+    title: "TuistLab | A server buddy for your Xcode projects"
+    keywords: "Xcode,Swift,Deployment,DocC,Xcode 13,WWDC"
+    twitter: swift_docs
+development: &development
+  <<: *default
+production:
+  <<: *default
+  urls:
+    <<: *base_urls
+    app: https://lab.tuist.io
+  domain: tuist.io
+test:
+  <<: *development

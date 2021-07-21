@@ -1,0 +1,10 @@
+---
+:concurrency: 5
+:verbose: true
+:timeout: 25
+:queues:
+  - default
+  - mailers
+:schedule:
+  # TestJob:
+  #   cron: '0 8 * * *'   # Runs once per minute
