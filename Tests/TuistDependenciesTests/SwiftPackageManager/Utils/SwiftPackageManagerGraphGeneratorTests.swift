@@ -136,22 +136,6 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
               }
             ]
             """,
-            stubFilesAndDirectoriesContained: { path in
-                guard path == testPath
-                    .appending(component: "customPath")
-                    .appending(component: "custom")
-                    .appending(component: "Public")
-                    .appending(component: "Headers")
-                    .appending(component: "Path")
-                else {
-                    return nil
-                }
-
-                return [
-                    AbsolutePath("/not/an/header.swift"),
-                    AbsolutePath("/an/header.h"),
-                ]
-            },
             loadPackageInfoStub: { packagePath in
                 switch packagePath {
                 case testPath:
@@ -176,7 +160,6 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
 
     private func checkGenerated(
         workspaceDependenciesJSON: String,
-        stubFilesAndDirectoriesContained: @escaping (AbsolutePath) -> [AbsolutePath]? = { _ in nil },
         loadPackageInfoStub: @escaping (AbsolutePath) -> PackageInfo,
         deploymentTargets: Set<TuistGraph.DeploymentTarget> = [],
         dependenciesGraph: TuistCore.DependenciesGraph
@@ -197,8 +180,6 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
             // called to convert globs to AbsolutePath
             true
         }
-
-        fileHandler.stubFilesAndDirectoriesContained = stubFilesAndDirectoriesContained
 
         swiftPackageManagerController.loadPackageInfoStub = loadPackageInfoStub
 

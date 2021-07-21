@@ -31,12 +31,12 @@ public final class MockFileHandler: FileHandler {
         return try stubContentsOfDirectory(path)
     }
 
-    public var stubFilesAndDirectoriesContained: ((AbsolutePath) -> [AbsolutePath]?)?
-    override public func filesAndDirectoriesContained(in path: AbsolutePath) -> [AbsolutePath]? {
+    public var stubFilesAndDirectoriesContained: ((AbsolutePath, Bool) -> [AbsolutePath]?)?
+    override public func filesAndDirectoriesContained(in path: AbsolutePath, shallow: Bool) -> [AbsolutePath]? {
         guard let stubFilesAndDirectoriesContained = stubFilesAndDirectoriesContained else {
-            return super.filesAndDirectoriesContained(in: path)
+            return super.filesAndDirectoriesContained(in: path, shallow: shallow)
         }
-        return stubFilesAndDirectoriesContained(path)
+        return stubFilesAndDirectoriesContained(path, shallow)
     }
 
     public var stubExists: ((AbsolutePath) -> Bool)?

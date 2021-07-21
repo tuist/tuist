@@ -192,7 +192,7 @@ extension ProjectDescription.Target {
             productToPackage: productToPackage,
             targetDependencyToFramework: targetDependencyToFramework
         )
-        let settings = try Settings.from(settings: target.settings, platform: platform)
+        let settings = try Settings.from(path: path, settings: target.settings, platform: platform)
 
         return .init(
             name: target.name,
@@ -359,10 +359,16 @@ extension ResourceFileElements {
 
 extension ProjectDescription.Headers {
     fileprivate static func from(path: AbsolutePath, publicHeadersPath: String?) -> Self? {
-        let headersPath = publicHeadersPath.map { path.appending(RelativePath($0)) } ?? path
-        let possibleHeaders = FileHandler.shared.filesAndDirectoriesContained(in: headersPath) ?? []
-        let headers = possibleHeaders.filter { $0.extension == "h" }
-        return headers.isEmpty ? nil : .init(public: .init(globs: headers.map { Path($0.pathString) }))
+        let publicHeadersAbsolutePath = path.appending(RelativePath(publicHeadersPath ?? "include"))
+        let publicHeadersPathContent = FileHandler.shared.filesAndDirectoriesContained(in: publicHeadersAbsolutePath, shallow: true)
+        guard
+            let publicHeaders = publicHeadersPathContent?.filter({ $0.extension == "h" }),
+            !publicHeaders.isEmpty
+        else {
+            return nil
+        }
+
+        return .init(public: .init(globs: publicHeaders.map { Path($0.pathString) }))
     }
 }
 
@@ -439,6 +445,7 @@ extension ProjectDescription.TargetDependency {
 extension ProjectDescription.Settings {
     // swiftlint:disable:next function_body_length
     fileprivate static func from(
+        path: AbsolutePath,
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         platform: ProjectDescription.Platform
     ) throws -> Self? {
