@@ -404,7 +404,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", customSettings: ["HEADER_SEARCH_PATHS": ["value"]]),
+                    .test("Target1", customSettings: ["HEADER_SEARCH_PATHS": ["/Package/Path/Sources/Target1/value"]]),
                 ]
             )
         )
@@ -430,7 +430,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", customSettings: ["HEADER_SEARCH_PATHS": ["value"]]),
+                    .test("Target1", customSettings: ["HEADER_SEARCH_PATHS": ["/Package/Path/Sources/Target1/value"]]),
                 ]
             )
         )
@@ -632,7 +632,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", customSettings: ["HEADER_SEARCH_PATHS": ["otherValue"]]),
+                    .test("Target1", customSettings: ["HEADER_SEARCH_PATHS": ["/Package/Path/Sources/Target1/otherValue"]]),
                 ]
             )
         )

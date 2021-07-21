@@ -495,7 +495,7 @@ extension ProjectDescription.Settings {
             "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
         ]
         if !headerSearchPaths.isEmpty {
-            settingsDictionary["HEADER_SEARCH_PATHS"] = .array(headerSearchPaths)
+            settingsDictionary["HEADER_SEARCH_PATHS"] = .array(headerSearchPaths.map { path.appending(RelativePath($0)).pathString })
         }
         if !defines.isEmpty {
             let sortedDefines = defines.sorted { $0.key < $1.key }
