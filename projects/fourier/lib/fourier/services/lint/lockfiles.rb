@@ -5,6 +5,12 @@ module Fourier
   module Services
     module Lint
       class Lockfiles < Base
+        attr_reader :root_directory
+
+        def initialize(root_directory: Constants::ROOT_DIRECTORY)
+          @root_directory = root_directory
+        end
+
         def call
           spm_lockfile = self.spm_lockfile
           tuist_lockfile = self.tuist_lockfile
@@ -31,12 +37,12 @@ module Fourier
           end
 
           def spm_lockfile
-            path = File.expand_path("Package.resolved", Constants::ROOT_DIRECTORY)
+            path = File.expand_path("Package.resolved", root_directory)
             load_lockfile(path)
           end
 
           def tuist_lockfile
-            path = File.expand_path(".package.resolved", Constants::ROOT_DIRECTORY)
+            path = File.expand_path(".package.resolved", root_directory)
             load_lockfile(path)
           end
 
