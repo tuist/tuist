@@ -492,6 +492,7 @@ extension ProjectDescription.Settings {
         // SPM always adds it to the Xcode build settings.
         var settingsDictionary: ProjectDescription.SettingsDictionary = [
             "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
+            "ENABLE_TESTING_SEARCH_PATHS": "YES",
         ]
         if !headerSearchPaths.isEmpty {
             settingsDictionary["HEADER_SEARCH_PATHS"] = .array(headerSearchPaths.map { path.appending(RelativePath($0)).pathString })

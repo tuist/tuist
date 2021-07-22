@@ -407,6 +407,7 @@ extension DependenciesGraph {
     static func spmSettings(with customSettings: SettingsDictionary = [:]) -> Settings {
         var settingsDictionary = customSettings
         settingsDictionary["FRAMEWORK_SEARCH_PATHS"] = "$(PLATFORM_DIR)/Developer/Library/Frameworks"
+        settingsDictionary["ENABLE_TESTING_SEARCH_PATHS"] = "YES"
         if case let .array(cDefinitions) = settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] {
             settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array((cDefinitions + ["SWIFT_PACKAGE=1"]).sorted())
         } else {
