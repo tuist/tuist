@@ -360,15 +360,14 @@ extension ResourceFileElements {
 extension ProjectDescription.Headers {
     fileprivate static func from(path: AbsolutePath, publicHeadersPath: String?) -> Self? {
         let publicHeadersAbsolutePath = path.appending(RelativePath(publicHeadersPath ?? "include"))
-        let publicHeadersPathContent = FileHandler.shared.filesAndDirectoriesContained(in: publicHeadersAbsolutePath, shallow: true)
         guard
-            let publicHeaders = publicHeadersPathContent?.filter({ $0.extension == "h" }),
+            let publicHeaders = try? FileHandler.shared.contentsOfDirectory(publicHeadersAbsolutePath).filter({ $0.extension == "h" }),
             !publicHeaders.isEmpty
         else {
             return nil
         }
 
-        return .init(public: .init(globs: publicHeaders.map { Path($0.pathString) }))
+        return Headers(public: ProjectDescription.FileList(globs: publicHeaders.map { Path($0.pathString) }))
     }
 }
 

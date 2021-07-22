@@ -214,9 +214,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     }
 
     func testMap_whenHasHeaders() throws {
-        fileHandler.stubFilesAndDirectoriesContained = { path, shallow in
+        fileHandler.contentsOfDirectory = { path in
             XCTAssertEqual(path, "/Package/Path/Sources/Target1/include")
-            XCTAssertTrue(shallow)
             return [
                 "/Package/Path/Sources/Target1/include/Public.h",
                 "/Package/Path/Sources/Target1/include/Others.swift",
@@ -250,9 +249,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     }
 
     func testMap_whenCustomPath() throws {
-        fileHandler.stubFilesAndDirectoriesContained = { path, shallow in
+        fileHandler.contentsOfDirectory = { path in
             XCTAssertEqual(path, "/Package/Path/Custom/Path/Headers")
-            XCTAssertTrue(shallow)
             return [
                 "/Package/Path/Custom/Path/Headers/Source.h",
             ]
