@@ -192,7 +192,7 @@ extension ProjectDescription.Target {
             productToPackage: productToPackage,
             targetDependencyToFramework: targetDependencyToFramework
         )
-        let settings = try Settings.from(settings: target.settings, platform: platform)
+        let settings = try Settings.from(path: path, settings: target.settings, platform: platform)
 
         return .init(
             name: target.name,
@@ -359,10 +359,15 @@ extension ResourceFileElements {
 
 extension ProjectDescription.Headers {
     fileprivate static func from(path: AbsolutePath, publicHeadersPath: String?) -> Self? {
-        let headersPath = publicHeadersPath.map { path.appending(RelativePath($0)) } ?? path
-        let possibleHeaders = FileHandler.shared.filesAndDirectoriesContained(in: headersPath) ?? []
-        let headers = possibleHeaders.filter { $0.extension == "h" }
-        return headers.isEmpty ? nil : .init(public: .init(globs: headers.map { Path($0.pathString) }))
+        let publicHeadersAbsolutePath = path.appending(RelativePath(publicHeadersPath ?? "include"))
+        guard
+            let publicHeaders = try? FileHandler.shared.contentsOfDirectory(publicHeadersAbsolutePath).filter({ $0.extension == "h" }),
+            !publicHeaders.isEmpty
+        else {
+            return nil
+        }
+
+        return Headers(public: ProjectDescription.FileList(globs: publicHeaders.map { Path($0.pathString) }))
     }
 }
 
@@ -439,6 +444,7 @@ extension ProjectDescription.TargetDependency {
 extension ProjectDescription.Settings {
     // swiftlint:disable:next function_body_length
     fileprivate static func from(
+        path: AbsolutePath,
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         platform: ProjectDescription.Platform
     ) throws -> Self? {
@@ -488,7 +494,7 @@ extension ProjectDescription.Settings {
             "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
         ]
         if !headerSearchPaths.isEmpty {
-            settingsDictionary["HEADER_SEARCH_PATHS"] = .array(headerSearchPaths)
+            settingsDictionary["HEADER_SEARCH_PATHS"] = .array(headerSearchPaths.map { path.appending(RelativePath($0)).pathString })
         }
         if !defines.isEmpty {
             let sortedDefines = defines.sorted { $0.key < $1.key }

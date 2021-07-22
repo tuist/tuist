@@ -214,12 +214,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     }
 
     func testMap_whenHasHeaders() throws {
-        fileHandler.stubFilesAndDirectoriesContained = { path in
-            XCTAssertEqual(path, "/Package/Path/Sources/Target1")
+        fileHandler.stubContentsOfDirectory = { path in
+            XCTAssertEqual(path, "/Package/Path/Sources/Target1/include")
             return [
-                "/Package/Path/Sources/Package/Source.swift",
-                "/Package/Path/Sources/Package/Source.c",
-                "/Package/Path/Sources/Package/Source.h",
+                "/Package/Path/Sources/Target1/include/Public.h",
+                "/Package/Path/Sources/Target1/include/Others.swift",
             ]
         }
         let project = try subject.map(
@@ -242,7 +241,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 targets: [
                     .test(
                         "Target1",
-                        headers: .init(public: "/Package/Path/Sources/Package/Source.h")
+                        headers: .init(public: "/Package/Path/Sources/Target1/include/Public.h")
                     ),
                 ]
             )
@@ -250,12 +249,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     }
 
     func testMap_whenCustomPath() throws {
-        fileHandler.stubFilesAndDirectoriesContained = { path in
-            XCTAssertEqual(path, "/Package/Path/Custom/Path")
+        fileHandler.stubContentsOfDirectory = { path in
+            XCTAssertEqual(path, "/Package/Path/Custom/Path/Headers")
             return [
-                "/Package/Path/Custom/Path/Source.swift",
-                "/Package/Path/Custom/Path/Source.c",
-                "/Package/Path/Custom/Path/Source.h",
+                "/Package/Path/Custom/Path/Headers/Source.h",
             ]
         }
         let project = try subject.map(
@@ -268,7 +265,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         name: "Target1",
                         path: "Custom/Path",
                         sources: ["Sources/Folder"],
-                        resources: [.init(rule: .copy, path: "Resource/Folder")]
+                        resources: [.init(rule: .copy, path: "Resource/Folder")],
+                        publicHeadersPath: "Headers"
                     ),
                 ],
                 platforms: []
@@ -283,7 +281,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         "Target1",
                         customSources: "/Package/Path/Custom/Path/Sources/Folder/**",
                         resources: "/Package/Path/Custom/Path/Resource/Folder/**",
-                        headers: .init(public: "/Package/Path/Custom/Path/Source.h")
+                        headers: .init(public: "/Package/Path/Custom/Path/Headers/Source.h")
                     ),
                 ]
             )
@@ -404,7 +402,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", customSettings: ["HEADER_SEARCH_PATHS": ["value"]]),
+                    .test("Target1", customSettings: ["HEADER_SEARCH_PATHS": ["/Package/Path/Sources/Target1/value"]]),
                 ]
             )
         )
@@ -430,7 +428,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", customSettings: ["HEADER_SEARCH_PATHS": ["value"]]),
+                    .test("Target1", customSettings: ["HEADER_SEARCH_PATHS": ["/Package/Path/Sources/Target1/value"]]),
                 ]
             )
         )
@@ -632,7 +630,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", customSettings: ["HEADER_SEARCH_PATHS": ["otherValue"]]),
+                    .test("Target1", customSettings: ["HEADER_SEARCH_PATHS": ["/Package/Path/Sources/Target1/otherValue"]]),
                 ]
             )
         )
@@ -942,6 +940,7 @@ extension PackageInfo.Target {
         sources: [String]? = nil,
         resources: [PackageInfo.Target.Resource] = [],
         dependencies: [PackageInfo.Target.Dependency] = [],
+        publicHeadersPath: String? = nil,
         settings: [TargetBuildSettingDescription.Setting] = []
     ) -> Self {
         return .init(
@@ -952,7 +951,7 @@ extension PackageInfo.Target {
             resources: resources,
             exclude: [],
             dependencies: dependencies,
-            publicHeadersPath: nil,
+            publicHeadersPath: publicHeadersPath,
             type: type,
             settings: settings,
             checksum: nil

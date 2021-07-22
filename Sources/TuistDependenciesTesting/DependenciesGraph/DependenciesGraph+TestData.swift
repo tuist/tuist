@@ -67,14 +67,15 @@ public extension TuistCore.DependenciesGraph {
                             resources: [
                                 "\(packageFolder.pathString)/customPath/resources/**",
                             ],
-                            headers: .init(public: ["/an/header.h"]),
                             dependencies: [
                                 .target(name: "TuistKit"),
                                 .project(target: "ALibrary", path: Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency")),
                                 .project(target: "ALibraryUtils", path: Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency")),
                             ],
                             settings: Self.spmSettings(with: [
-                                "HEADER_SEARCH_PATHS": .array(["cSearchPath", "cxxSearchPath"]),
+                                "HEADER_SEARCH_PATHS": .array(
+                                    ["/tmp/localPackage/customPath/cSearchPath", "/tmp/localPackage/customPath/cxxSearchPath"]
+                                ),
                                 "OTHER_CFLAGS": .array(["CUSTOM_C_FLAG"]),
                                 "OTHER_CPLUSPLUSFLAGS": .array(["CUSTOM_CXX_FLAG"]),
                                 "OTHER_SWIFT_FLAGS": .array(["CUSTOM_SWIFT_FLAG1", "CUSTOM_SWIFT_FLAG2"]),

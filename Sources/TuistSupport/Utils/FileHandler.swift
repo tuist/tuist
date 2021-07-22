@@ -73,7 +73,6 @@ public protocol FileHandling: AnyObject {
     func changeExtension(path: AbsolutePath, to newExtension: String) throws -> AbsolutePath
     func resolveSymlinks(_ path: AbsolutePath) -> AbsolutePath
     func fileAttributes(at path: AbsolutePath) throws -> [FileAttributeKey: Any]
-    func filesAndDirectoriesContained(in path: AbsolutePath) -> [AbsolutePath]?
 }
 
 public class FileHandler: FileHandling {
@@ -271,10 +270,6 @@ public class FileHandler: FileHandling {
 
     public func fileAttributes(at path: AbsolutePath) throws -> [FileAttributeKey: Any] {
         try fileManager.attributesOfItem(atPath: path.pathString)
-    }
-
-    public func filesAndDirectoriesContained(in path: AbsolutePath) -> [AbsolutePath]? {
-        return fileManager.subpaths(atPath: path.pathString)?.map { path.appending(RelativePath($0)) }
     }
 
     // MARK: - MD5
