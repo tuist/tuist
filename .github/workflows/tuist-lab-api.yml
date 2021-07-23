@@ -11,7 +11,7 @@ on:
 env:
   RAILS_ENV: test
   RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
-  RUBY_VERSION: "2.7.3"
+  RUBY_VERSION: "3.0.1"
   NODE_VERSION: "16.4.0"
   CI: 1
 jobs:
