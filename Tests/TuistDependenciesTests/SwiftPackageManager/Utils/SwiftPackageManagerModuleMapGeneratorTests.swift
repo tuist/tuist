@@ -27,19 +27,19 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
     func test_generate_when_umbrella_header() throws {
         fileHandler.stubExists = stubExists(for: .header("/Absolute/Public/Headers/Path/Module.h"))
         let moduleMapPath = try subject.generate(moduleName: "Module", publicHeadersPath: "/Absolute/Public/Headers/Path")
-        XCTAssertEqual(moduleMapPath, "/Absolute/Public/Headers/Path/module.modulemap")
+        XCTAssertEqual(moduleMapPath, "/Absolute/Public/Headers/Path/Module.modulemap")
     }
 
     func test_generate_when_nested_umbrella_header() throws {
         fileHandler.stubExists = stubExists(for: .header("/Absolute/Public/Headers/Path/Module/Module.h"))
         let moduleMapPath = try subject.generate(moduleName: "Module", publicHeadersPath: "/Absolute/Public/Headers/Path")
-        XCTAssertEqual(moduleMapPath, "/Absolute/Public/Headers/Path/module.modulemap")
+        XCTAssertEqual(moduleMapPath, "/Absolute/Public/Headers/Path/Module.modulemap")
     }
 
     func test_generate_when_umbrella_directory() throws {
         fileHandler.stubExists = stubExists(for: .directory("/Absolute/Public/Headers/Path"))
         let moduleMapPath = try subject.generate(moduleName: "Module", publicHeadersPath: "/Absolute/Public/Headers/Path")
-        XCTAssertEqual(moduleMapPath, "/Absolute/Public/Headers/Path/module.modulemap")
+        XCTAssertEqual(moduleMapPath, "/Absolute/Public/Headers/Path/Module.modulemap")
     }
 
     func test_generate_when_no_headers() throws {

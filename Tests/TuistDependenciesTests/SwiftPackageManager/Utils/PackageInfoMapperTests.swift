@@ -213,7 +213,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenHasCustomModuleMap() throws {
+    func testMap_whenHasHeaders() throws {
         moduleMapGenerator.generateStub = { moduleName, path in
             XCTAssertEqual(moduleName, "Target1")
             XCTAssertEqual(path, "/Package/Path/Sources/Target1/include")

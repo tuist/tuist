@@ -177,9 +177,6 @@ extension ProjectDescription.Target {
 
         let path = folder.appending(RelativePath(target.path ?? "Sources/\(target.name)"))
 
-        let publicHeadersPath = path.appending(RelativePath(target.publicHeadersPath ?? "include"))
-        let moduleMap = try moduleMapGenerator.generate(moduleName: target.name, publicHeadersPath: publicHeadersPath)
-
         let platform = try ProjectDescription.Platform.from(configured: platforms, package: packageInfo.platforms, packageName: packageName)
         let deploymentTarget = try ProjectDescription.DeploymentTarget.from(
             configuredPlatforms: platforms,
@@ -199,7 +196,13 @@ extension ProjectDescription.Target {
             productToPackage: productToPackage,
             targetDependencyToFramework: targetDependencyToFramework
         )
-        let settings = try Settings.from(path: path, moduleMap: moduleMap, settings: target.settings, platform: platform)
+        let settings = try Settings.from(
+            target: target,
+            path: path,
+            settings: target.settings,
+            platform: platform,
+            moduleMapGenerator: moduleMapGenerator
+        )
 
         return .init(
             name: target.name,
@@ -436,12 +439,17 @@ extension ProjectDescription.TargetDependency {
 extension ProjectDescription.Settings {
     // swiftlint:disable:next function_body_length
     fileprivate static func from(
+        target: PackageInfo.Target,
         path: AbsolutePath,
-        moduleMap: AbsolutePath?,
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
-        platform: ProjectDescription.Platform
+        platform: ProjectDescription.Platform,
+        moduleMapGenerator: SwiftPackageManagerModuleMapGenerating
     ) throws -> Self? {
-        var headerSearchPaths: [String] = []
+        let relativePublicHeadersPath = RelativePath(target.publicHeadersPath ?? "include")
+        let publicHeadersPath = path.appending(relativePublicHeadersPath)
+        let moduleMap = try moduleMapGenerator.generate(moduleName: target.name, publicHeadersPath: publicHeadersPath)
+
+        var headerSearchPaths: [String] = moduleMap != nil ? [relativePublicHeadersPath.pathString] : []
         var defines: [String: String] = ["SWIFT_PACKAGE": "1"]
         var swiftDefines: [String] = ["SWIFT_PACKAGE"]
         var cFlags: [String] = []

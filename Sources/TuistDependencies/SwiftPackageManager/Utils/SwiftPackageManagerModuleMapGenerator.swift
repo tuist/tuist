@@ -42,16 +42,16 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
             moduleMapType = .none
         }
 
-        let generatedModuleMapContent: String?
+        let generatedModuleMapContent: String
         switch moduleMapType {
         case .none:
             return nil
         case .custom:
-            generatedModuleMapContent = nil
+            return moduleMapPath
         case .header(let path):
             generatedModuleMapContent =
                 """
-                framework module \(moduleName) {
+                module \(moduleName) {
                     umbrella header "\(path.pathString)"
                     export *
                 }
@@ -59,17 +59,15 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
         case .directory(let path):
             generatedModuleMapContent =
                 """
-                framework module \(moduleName) {
+                module \(moduleName) {
                     umbrella "\(path.pathString)"
                     export *
                 }
                 """
         }
 
-        if let generatedModuleMapContent = generatedModuleMapContent {
-            try FileHandler.shared.write(generatedModuleMapContent, path: moduleMapPath, atomically: true)
-        }
-
-        return moduleMapPath
+        let generatedModuleMapPath = publicHeadersPath.appending(component: "\(moduleName).modulemap")
+        try FileHandler.shared.write(generatedModuleMapContent, path: generatedModuleMapPath, atomically: true)
+        return generatedModuleMapPath
     }
 }

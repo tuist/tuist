@@ -408,7 +408,14 @@ extension DependenciesGraph {
         var settingsDictionary = customSettings
         settingsDictionary["FRAMEWORK_SEARCH_PATHS"] = "$(PLATFORM_DIR)/Developer/Library/Frameworks"
         settingsDictionary["ENABLE_TESTING_SEARCH_PATHS"] = "YES"
-        settingsDictionary["MODULEMAP_FILE"] = moduleMap.map { .string($0.pathString) }
+        if let moduleMap = moduleMap {
+            settingsDictionary["MODULEMAP_FILE"] = .string(moduleMap.pathString)
+            if case let .array(searchPaths) = settingsDictionary["HEADER_SEARCH_PATHS"] {
+                settingsDictionary["HEADER_SEARCH_PATHS"] = .array((searchPaths + [moduleMap.parentDirectory.pathString]).sorted())
+            } else {
+                settingsDictionary["HEADER_SEARCH_PATHS"] = .array([moduleMap.parentDirectory.pathString])
+            }
+        }
         if case let .array(cDefinitions) = settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] {
             settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array((cDefinitions + ["SWIFT_PACKAGE=1"]).sorted())
         } else {
