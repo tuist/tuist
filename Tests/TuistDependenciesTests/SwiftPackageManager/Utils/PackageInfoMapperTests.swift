@@ -1,4 +1,5 @@
 import ProjectDescription
+import TSCBasic
 import TuistCore
 import TuistGraph
 import TuistSupport
@@ -9,20 +10,19 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class PackageInfoMapperTests: TuistUnitTestCase {
+    private var moduleMapGenerator: MockSwiftPackageManagerModuleMapGenerator!
     private var subject: PackageInfoMapper!
 
     override func setUp() {
         super.setUp()
 
-        subject = PackageInfoMapper()
-
-        // FileHandler
-        fileHandler = MockFileHandler(temporaryDirectory: { try self.temporaryPath() })
-        FileHandler.shared = fileHandler
+        moduleMapGenerator = MockSwiftPackageManagerModuleMapGenerator()
+        subject = PackageInfoMapper(moduleMapGenerator: moduleMapGenerator)
     }
 
     override func tearDown() {
         subject = nil
+        moduleMapGenerator = nil
 
         super.tearDown()
     }
@@ -213,13 +213,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenHasHeaders() throws {
-        fileHandler.stubContentsOfDirectory = { path in
+    func testMap_whenHasCustomModuleMap() throws {
+        moduleMapGenerator.generateStub = { moduleName, path in
+            XCTAssertEqual(moduleName, "Target1")
             XCTAssertEqual(path, "/Package/Path/Sources/Target1/include")
-            return [
-                "/Package/Path/Sources/Target1/include/Public.h",
-                "/Package/Path/Sources/Target1/include/Others.swift",
-            ]
+            return "/Package/Path/Sources/Target1/include/module.modulemap"
         }
         let project = try subject.map(
             packageInfo: .init(
@@ -241,7 +239,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 targets: [
                     .test(
                         "Target1",
-                        headers: .init(public: "/Package/Path/Sources/Target1/include/Public.h")
+                        moduleMap: "/Package/Path/Sources/Target1/include/module.modulemap"
                     ),
                 ]
             )
@@ -249,11 +247,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     }
 
     func testMap_whenCustomPath() throws {
-        fileHandler.stubContentsOfDirectory = { path in
+        moduleMapGenerator.generateStub = { moduleName, path in
+            XCTAssertEqual(moduleName, "Target1")
             XCTAssertEqual(path, "/Package/Path/Custom/Path/Headers")
-            return [
-                "/Package/Path/Custom/Path/Headers/Source.h",
-            ]
+            return "/Package/Path/Custom/Path/Headers/module.modulemap"
         }
         let project = try subject.map(
             packageInfo: .init(
@@ -281,7 +278,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         "Target1",
                         customSources: "/Package/Path/Custom/Path/Sources/Folder/**",
                         resources: "/Package/Path/Custom/Path/Resource/Folder/**",
-                        headers: .init(public: "/Package/Path/Custom/Path/Headers/Source.h")
+                        moduleMap: "/Package/Path/Custom/Path/Headers/module.modulemap"
                     ),
                 ]
             )
@@ -977,9 +974,9 @@ extension ProjectDescription.Target {
         deploymentTarget: ProjectDescription.DeploymentTarget? = nil,
         customSources: SourceFilesList? = nil,
         resources: ResourceFileElements? = nil,
-        headers: ProjectDescription.Headers? = nil,
         dependencies: [ProjectDescription.TargetDependency] = [],
-        customSettings: ProjectDescription.SettingsDictionary = [:]
+        customSettings: ProjectDescription.SettingsDictionary = [:],
+        moduleMap: AbsolutePath? = nil
     ) -> Self {
         return .init(
             name: name,
@@ -990,9 +987,8 @@ extension ProjectDescription.Target {
             infoPlist: .default,
             sources: customSources ?? "/Package/Path/Sources/\(name)/**",
             resources: resources,
-            headers: headers,
             dependencies: dependencies,
-            settings: DependenciesGraph.spmSettings(with: customSettings)
+            settings: DependenciesGraph.spmSettings(with: customSettings, moduleMap: moduleMap)
         )
     }
 }

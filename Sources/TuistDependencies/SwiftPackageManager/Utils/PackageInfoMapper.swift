@@ -80,7 +80,11 @@ public protocol PackageInfoMapping {
 }
 
 public final class PackageInfoMapper: PackageInfoMapping {
-    public init() {}
+    let moduleMapGenerator: SwiftPackageManagerModuleMapGenerating
+
+    public init(moduleMapGenerator: SwiftPackageManagerModuleMapGenerating = SwiftPackageManagerModuleMapGenerator()) {
+        self.moduleMapGenerator = moduleMapGenerator
+    }
 
     public func map(
         packageInfo: PackageInfo,
@@ -120,7 +124,6 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
         let targets = try packageInfo.targets.compactMap { target -> ProjectDescription.Target? in
             guard let products = targetToProducts[target.name] else { return nil }
-
             return try Target.from(
                 target: target,
                 products: products,
@@ -133,7 +136,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 platforms: platforms,
                 deploymentTargets: deploymentTargets,
                 productToPackage: productToPackage,
-                targetDependencyToFramework: targetDependencyToFramework
+                targetDependencyToFramework: targetDependencyToFramework,
+                moduleMapGenerator: moduleMapGenerator
             )
         }
 
@@ -158,7 +162,8 @@ extension ProjectDescription.Target {
         platforms: Set<TuistGraph.Platform>,
         deploymentTargets: Set<TuistGraph.DeploymentTarget>,
         productToPackage: [String: String],
-        targetDependencyToFramework: [String: Path]
+        targetDependencyToFramework: [String: Path],
+        moduleMapGenerator: SwiftPackageManagerModuleMapGenerating
     ) throws -> Self? {
         guard target.type == .regular else {
             logger.debug("Target \(target.name) of type \(target.type) ignored")
@@ -172,6 +177,9 @@ extension ProjectDescription.Target {
 
         let path = folder.appending(RelativePath(target.path ?? "Sources/\(target.name)"))
 
+        let publicHeadersPath = path.appending(RelativePath(target.publicHeadersPath ?? "include"))
+        let moduleMap = try moduleMapGenerator.generate(moduleName: target.name, publicHeadersPath: publicHeadersPath)
+
         let platform = try ProjectDescription.Platform.from(configured: platforms, package: packageInfo.platforms, packageName: packageName)
         let deploymentTarget = try ProjectDescription.DeploymentTarget.from(
             configuredPlatforms: platforms,
@@ -181,7 +189,6 @@ extension ProjectDescription.Target {
         )
         let sources = SourceFilesList.from(sources: target.sources, path: path, excluding: target.exclude)
         let resources = ResourceFileElements.from(resources: target.resources, path: path)
-        let headers = ProjectDescription.Headers.from(path: path, publicHeadersPath: target.publicHeadersPath)
         let dependencies = try ProjectDescription.TargetDependency.from(
             packageInfo: packageInfo,
             platform: platform,
@@ -192,7 +199,7 @@ extension ProjectDescription.Target {
             productToPackage: productToPackage,
             targetDependencyToFramework: targetDependencyToFramework
         )
-        let settings = try Settings.from(path: path, settings: target.settings, platform: platform)
+        let settings = try Settings.from(path: path, moduleMap: moduleMap, settings: target.settings, platform: platform)
 
         return .init(
             name: target.name,
@@ -203,7 +210,6 @@ extension ProjectDescription.Target {
             infoPlist: .default,
             sources: sources,
             resources: resources,
-            headers: headers,
             dependencies: dependencies,
             settings: settings
         )
@@ -357,20 +363,6 @@ extension ResourceFileElements {
     }
 }
 
-extension ProjectDescription.Headers {
-    fileprivate static func from(path: AbsolutePath, publicHeadersPath: String?) -> Self? {
-        let publicHeadersAbsolutePath = path.appending(RelativePath(publicHeadersPath ?? "include"))
-        guard
-            let publicHeaders = try? FileHandler.shared.contentsOfDirectory(publicHeadersAbsolutePath).filter({ $0.extension == "h" }),
-            !publicHeaders.isEmpty
-        else {
-            return nil
-        }
-
-        return Headers(public: ProjectDescription.FileList(globs: publicHeaders.map { Path($0.pathString) }))
-    }
-}
-
 extension ProjectDescription.TargetDependency {
     // swiftlint:disable:next function_body_length
     fileprivate static func from(
@@ -445,6 +437,7 @@ extension ProjectDescription.Settings {
     // swiftlint:disable:next function_body_length
     fileprivate static func from(
         path: AbsolutePath,
+        moduleMap: AbsolutePath?,
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         platform: ProjectDescription.Platform
     ) throws -> Self? {
@@ -494,6 +487,9 @@ extension ProjectDescription.Settings {
             "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
             "ENABLE_TESTING_SEARCH_PATHS": "YES",
         ]
+        if let moduleMap = moduleMap {
+            settingsDictionary["MODULEMAP_FILE"] = .string(moduleMap.pathString)
+        }
         if !headerSearchPaths.isEmpty {
             settingsDictionary["HEADER_SEARCH_PATHS"] = .array(headerSearchPaths.map { path.appending(RelativePath($0)).pathString })
         }
