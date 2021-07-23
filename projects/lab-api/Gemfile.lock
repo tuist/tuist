@@ -68,7 +68,6 @@ GEM
       zeitwerk (~> 2.3)
     addressable (2.8.0)
       public_suffix (>= 2.0.2, < 5.0)
-    ast (2.4.2)
     babel-source (5.8.35)
     babel-transpiler (0.7.0)
       babel-source (>= 4.0, < 6)
@@ -217,9 +216,6 @@ GEM
       actionpack (>= 4.2)
       omniauth (~> 2.0)
     orm_adapter (0.5.0)
-    parallel (1.20.1)
-    parser (3.0.2.0)
-      ast (~> 2.4.1)
     pg (1.2.3)
     public_suffix (4.0.6)
     puma (5.3.2)
@@ -276,7 +272,6 @@ GEM
       method_source
       rake (>= 0.13)
       thor (~> 1.0)
-    rainbow (3.0.0)
     rake (13.0.3)
     rb-fsevent (0.11.0)
     rb-inotify (0.10.1)
@@ -294,26 +289,7 @@ GEM
     responders (3.0.1)
       actionpack (>= 5.0)
       railties (>= 5.0)
-    rexml (3.2.5)
     rolify (6.0.0)
-    rubocop (1.18.3)
-      parallel (~> 1.10)
-      parser (>= 3.0.0.0)
-      rainbow (>= 2.2.2, < 4.0)
-      regexp_parser (>= 1.8, < 3.0)
-      rexml
-      rubocop-ast (>= 1.7.0, < 2.0)
-      ruby-progressbar (~> 1.7)
-      unicode-display_width (>= 1.4.0, < 3.0)
-    rubocop-ast (1.7.0)
-      parser (>= 3.0.1.1)
-    rubocop-rails (2.11.3)
-      activesupport (>= 4.2.0)
-      rack (>= 1.1)
-      rubocop (>= 1.7.0, < 2.0)
-    rubocop-shopify (2.1.0)
-      rubocop (~> 1.13)
-    ruby-progressbar (1.11.0)
     ruby2_keywords (0.0.4)
     rubyzip (2.3.0)
     rufus-scheduler (3.7.0)
@@ -364,7 +340,6 @@ GEM
     tilt (2.0.10)
     tzinfo (2.0.4)
       concurrent-ruby (~> 1.0)
-    unicode-display_width (2.0.0)
     warden (1.2.9)
       rack (>= 2.0.9)
     web-console (4.1.0)
@@ -425,8 +400,6 @@ DEPENDENCIES
   redcarpet (~> 3.5)
   redis (~> 4.0)
   rolify (~> 6.0)
-  rubocop-rails (~> 2.10)
-  rubocop-shopify
   sass-rails (>= 6)
   securecompare (~> 1.0)
   selenium-webdriver
@@ -440,7 +413,7 @@ DEPENDENCIES
   webpacker (~> 5.4)
 
 RUBY VERSION
-   ruby 2.7.1p83
+   ruby 3.0.1p64
 
 BUNDLED WITH
    2.2.21
