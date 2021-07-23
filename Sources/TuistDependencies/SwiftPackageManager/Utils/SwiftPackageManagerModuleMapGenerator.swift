@@ -10,7 +10,7 @@ public protocol SwiftPackageManagerModuleMapGenerating {
 }
 
 public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMapGenerating {
-    enum ModuleMapType: Equatable    {
+    enum ModuleMapType: Equatable {
         case none
         case custom
         case header(AbsolutePath)
@@ -48,7 +48,7 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
             return nil
         case .custom:
             return moduleMapPath
-        case .header(let path):
+        case let .header(path):
             generatedModuleMapContent =
                 """
                 module \(moduleName) {
@@ -56,7 +56,7 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
                     export *
                 }
                 """
-        case .directory(let path):
+        case let .directory(path):
             generatedModuleMapContent =
                 """
                 module \(moduleName) {

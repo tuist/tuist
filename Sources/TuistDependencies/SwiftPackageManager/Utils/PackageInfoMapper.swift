@@ -150,6 +150,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
 }
 
 extension ProjectDescription.Target {
+    // swiftlint:disable:next function_body_length
     fileprivate static func from(
         target: PackageInfo.Target,
         products: Set<PackageInfo.Product>,

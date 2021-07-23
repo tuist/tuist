@@ -2,6 +2,7 @@ import TSCBasic
 
 @testable import TuistDependencies
 
+// swiftlint:disable:next type_name
 public final class MockSwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMapGenerating {
     public init() {}
 

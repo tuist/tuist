@@ -49,7 +49,7 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
     }
 }
 
-fileprivate func stubExists(for moduleMapType: SwiftPackageManagerModuleMapGenerator.ModuleMapType) -> (AbsolutePath) -> Bool {
+private func stubExists(for moduleMapType: SwiftPackageManagerModuleMapGenerator.ModuleMapType) -> (AbsolutePath) -> Bool {
     return { path in
         switch path {
         case "/Absolute/Public/Headers/Path/module.modulemap":
