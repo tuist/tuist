@@ -86,6 +86,10 @@ let sfProBoldFont = MyFrameworkFontFamily.SFProDisplay.bold
 let sfProHeavyFont = MyFrameworkFontFamily.SFProDisplay.heavy
 ```
 
+:::note Default templates
+Default templates used by Tuist can be examined [here](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator/Templates).
+:::
+
 These templates are used by default via a parameter in `Project`, `resourceSynthesizers`. But there is a lot that you can customize here 👇
 
 ## ResourceSynthesizers
