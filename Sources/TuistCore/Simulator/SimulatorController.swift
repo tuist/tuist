@@ -50,6 +50,9 @@ public protocol SimulatorControlling {
     ///   - device: The simulator device to install the app on.
     ///   - arguments: Any additional arguments to pass the app on launch.
     func launchApp(bundleId: String, device: SimulatorDevice, arguments: [String]) throws
+
+    /// Finds the simulator destination for the target platform
+    func destination(for targetPlatform: Platform) -> Single<String>
 }
 
 public enum SimulatorControllerError: Equatable, FatalError {
@@ -194,6 +197,21 @@ public final class SimulatorController: SimulatorControlling {
         let device = try device.booted()
         try System.shared.run(["/usr/bin/open", "-a", "Simulator"])
         try System.shared.run(["/usr/bin/xcrun", "simctl", "launch", device.udid, bundleId] + arguments)
+    }
+
+    public func destination(for targetPlatform: Platform) -> Single<String> {
+        var platform: Platform!
+        switch targetPlatform {
+        case .iOS: platform = .iOS
+        case .watchOS: platform = .watchOS
+        case .tvOS: platform = .tvOS
+        case .macOS: return .just("platform=OS X,arch=x86_64")
+        }
+
+        return findAvailableDevice(platform: platform)
+            .flatMap { (deviceAndRuntime) -> Single<String> in
+                .just("id=\(deviceAndRuntime.device.udid)")
+            }
     }
 }
 

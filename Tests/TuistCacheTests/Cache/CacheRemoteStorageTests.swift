@@ -176,7 +176,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         case .completed:
             XCTFail("Expected result to complete with error, but result was successful.")
         case let .failed(_, error) where error is CacheRemoteStorageError:
-            XCTAssertEqual(error as! CacheRemoteStorageError, CacheRemoteStorageError.frameworkNotFound(hash: hash))
+            XCTAssertEqual(error as! CacheRemoteStorageError, CacheRemoteStorageError.artifactNotFound(hash: hash))
         default:
             XCTFail("Expected result to complete with error, but result error wasn't the expected type.")
         }

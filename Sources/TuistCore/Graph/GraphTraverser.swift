@@ -412,6 +412,7 @@ public class GraphTraverser: GraphTraversing {
             case let .xcframework(path, _, _, _): return path
             case let .framework(path, _, _, _, _, _, _): return path
             case .library: return nil
+            case .bundle: return nil
             case .packageProduct: return nil
             case .target: return nil
             case .sdk: return nil
@@ -472,6 +473,13 @@ public class GraphTraverser: GraphTraversing {
                 return false
             }
         })
+    }
+
+    public func prebuiltDependencies(for rootDependency: GraphDependency) -> Set<GraphDependency> {
+        filterDependencies(
+            from: rootDependency,
+            test: \.isPrecompiled
+        )
     }
 
     // MARK: - Internal
@@ -539,6 +547,7 @@ public class GraphTraverser: GraphTraversing {
         case .xcframework: return true
         case .framework: return true
         case .library: return true
+        case .bundle: return true
         case .packageProduct: return false
         case .target: return false
         case .sdk: return false
@@ -551,6 +560,7 @@ public class GraphTraverser: GraphTraversing {
         case .xcframework: return true
         case .framework: return true
         case .library: return false
+        case .bundle: return false
         case .packageProduct: return false
         case .target: return false
         case .sdk: return false
@@ -581,6 +591,7 @@ public class GraphTraverser: GraphTraversing {
         case .xcframework: return false
         case .framework: return false
         case .library: return false
+        case .bundle: return false
         case .packageProduct: return false
         case let .target(name, path):
             guard let target = self.target(path: path, name: name) else { return false }
@@ -595,6 +606,7 @@ public class GraphTraverser: GraphTraversing {
         case let .xcframework(_, _, _, linking): return linking == .dynamic
         case let .framework(_, _, _, _, linking, _, _): return linking == .dynamic
         case .library: return false
+        case .bundle: return false
         case .packageProduct: return false
         case .target: return false
         case .sdk: return false
@@ -651,6 +663,8 @@ public class GraphTraverser: GraphTraversing {
                 architectures: architectures,
                 product: (linking == .static) ? .staticLibrary : .dynamicLibrary
             )
+        case let .bundle(path):
+            return .bundle(path: path)
         case .packageProduct:
             return nil
         case let .sdk(_, path, status, source):

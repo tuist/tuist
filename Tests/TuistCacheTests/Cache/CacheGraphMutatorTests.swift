@@ -121,7 +121,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try subject.map(graph: graph, precompiledFrameworks: xcframeworks, sources: Set(["App"]))
+        let got = try subject.map(graph: graph, precompiledArtifacts: xcframeworks, sources: Set(["App"]))
 
         // Then
         XCTAssertEqual(
@@ -215,7 +215,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try subject.map(graph: graph, precompiledFrameworks: xcframeworks, sources: Set(["App"]))
+        let got = try subject.map(graph: graph, precompiledArtifacts: xcframeworks, sources: Set(["App"]))
 
         // Then
         XCTAssertEqual(
@@ -317,7 +317,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try subject.map(graph: graph, precompiledFrameworks: xcframeworks, sources: Set(["App"]))
+        let got = try subject.map(graph: graph, precompiledArtifacts: xcframeworks, sources: Set(["App"]))
 
         // Then
         XCTAssertEqual(
@@ -416,7 +416,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try subject.map(graph: graph, precompiledFrameworks: xcframeworks, sources: Set(["App"]))
+        let got = try subject.map(graph: graph, precompiledArtifacts: xcframeworks, sources: Set(["App"]))
 
         // Then
         XCTAssertEqual(
@@ -468,7 +468,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try subject.map(graph: graph, precompiledFrameworks: [:], sources: Set(["App"]))
+        let got = try subject.map(graph: graph, precompiledArtifacts: [:], sources: Set(["App"]))
 
         // Then
         XCTAssertEqual(
@@ -568,7 +568,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try subject.map(graph: graph, precompiledFrameworks: frameworks, sources: Set(["App"]))
+        let got = try subject.map(graph: graph, precompiledArtifacts: frameworks, sources: Set(["App"]))
 
         // Then
         XCTAssertEqual(
@@ -662,7 +662,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try subject.map(graph: graph, precompiledFrameworks: frameworks, sources: Set(["App"]))
+        let got = try subject.map(graph: graph, precompiledArtifacts: frameworks, sources: Set(["App"]))
 
         // Then
         XCTAssertEqual(
@@ -765,7 +765,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try subject.map(graph: graph, precompiledFrameworks: frameworks, sources: Set(["App"]))
+        let got = try subject.map(graph: graph, precompiledArtifacts: frameworks, sources: Set(["App"]))
 
         // Then
         XCTAssertEqual(
@@ -859,7 +859,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try subject.map(graph: graph, precompiledFrameworks: frameworks, sources: Set(["App"]))
+        let got = try subject.map(graph: graph, precompiledArtifacts: frameworks, sources: Set(["App"]))
 
         // Then
         XCTAssertEqual(

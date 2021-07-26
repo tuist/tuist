@@ -221,6 +221,8 @@ final class LinkGenerator: LinkGenerating {
             case .library:
                 // Do nothing
                 break
+            case .bundle:
+                break
             case let .xcframework(path, _, _, _):
                 guard let fileRef = fileElements.file(path: path) else {
                     throw LinkGeneratorError.missingReference(path: path)
@@ -382,6 +384,8 @@ final class LinkGenerator: LinkGenerating {
                     try addBuildFile(path)
                 case let .xcframework(path, _, _, _):
                     try addBuildFile(path)
+                case .bundle:
+                    break
                 case let .product(target, _):
                     guard let fileRef = fileElements.product(target: target) else {
                         throw LinkGeneratorError.missingProduct(name: target)

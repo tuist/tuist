@@ -70,6 +70,8 @@ final class CacheController: CacheControlling {
     /// Utility to build the (xc)frameworks.
     private let artifactBuilder: CacheArtifactBuilding
 
+    private let bundleArtifactBuilder: CacheArtifactBuilding
+
     /// Cache graph content hasher.
     private let cacheGraphContentHasher: CacheGraphContentHashing
 
@@ -81,11 +83,13 @@ final class CacheController: CacheControlling {
 
     convenience init(cache: CacheStoring,
                      artifactBuilder: CacheArtifactBuilding,
+                     bundleArtifactBuilder: CacheArtifactBuilding,
                      contentHasher: ContentHashing)
     {
         self.init(
             cache: cache,
             artifactBuilder: artifactBuilder,
+            bundleArtifactBuilder: bundleArtifactBuilder,
             projectGeneratorProvider: CacheControllerProjectGeneratorProvider(contentHasher: contentHasher),
             cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
             cacheGraphLinter: CacheGraphLinter()
@@ -94,6 +98,7 @@ final class CacheController: CacheControlling {
 
     init(cache: CacheStoring,
          artifactBuilder: CacheArtifactBuilding,
+         bundleArtifactBuilder: CacheArtifactBuilding,
          projectGeneratorProvider: CacheControllerProjectGeneratorProviding,
          cacheGraphContentHasher: CacheGraphContentHashing,
          cacheGraphLinter: CacheGraphLinting)
@@ -101,6 +106,7 @@ final class CacheController: CacheControlling {
         self.cache = cache
         self.projectGeneratorProvider = projectGeneratorProvider
         self.artifactBuilder = artifactBuilder
+        self.bundleArtifactBuilder = bundleArtifactBuilder
         self.cacheGraphContentHasher = cacheGraphContentHasher
         self.cacheGraphLinter = cacheGraphLinter
     }
@@ -148,44 +154,47 @@ final class CacheController: CacheControlling {
             }
 
             // Build
-            try buildAndCacheFramework(path: projectPath, target: target, configuration: cacheProfile.configuration, hash: hash)
+            try buildAndCacheArtifact(
+                path: projectPath,
+                target: target,
+                configuration: cacheProfile.configuration,
+                hash: hash
+            )
         }
 
         logger.notice("All cacheable targets have been cached successfully as \(artifactBuilder.cacheOutputType.description)s", metadata: .success)
     }
 
-    /// Builds the .xcframework for the given target and returns an obervable to store them in the cache.
+    /// Builds and caches the artifact
     /// - Parameters:
-    ///   - path: Path to either the .xcodeproj or .xcworkspace that contains the framework to be cached.
-    ///   - target: Target whose .(xc)framework will be built and cached.
-    ///   - configuration: The configuration.
+    ///   - path: Path to either the .xcodeproj or .xcworkspace that contains the artifact to be cached
+    ///   - target: Target whose product will be built and cached.
+    ///   - configuration: The configuration
     ///   - hash: Hash of the target.
-    fileprivate func buildAndCacheFramework(path: AbsolutePath,
-                                            target: GraphTarget,
-                                            configuration: String,
-                                            hash: String) throws
+    private func buildAndCacheArtifact(path: AbsolutePath,
+                                       target: GraphTarget,
+                                       configuration: String,
+                                       hash: String) throws
     {
-        let outputDirectory = try FileHandler.shared.temporaryDirectory()
-        defer {
-            try? FileHandler.shared.delete(outputDirectory)
-        }
-
-        if path.extension == "xcworkspace" {
-            try artifactBuilder.build(
-                workspacePath: path,
-                target: target.target,
-                configuration: configuration,
-                into: outputDirectory
-            )
+        let builder: CacheArtifactBuilding
+        if target.target.product == .bundle {
+            builder = bundleArtifactBuilder
         } else {
-            try artifactBuilder.build(
-                projectPath: path,
+            builder = artifactBuilder
+        }
+
+        try FileHandler.shared.inTemporaryDirectory { outputDirectory in
+            try builder.build(
+                projectTarget: XcodeBuildTarget(with: path),
                 target: target.target,
                 configuration: configuration,
                 into: outputDirectory
             )
-        }
 
-        _ = try cache.store(hash: hash, paths: FileHandler.shared.glob(outputDirectory, glob: "*")).toBlocking().last()
+            _ = try cache.store(
+                hash: hash,
+                paths: FileHandler.shared.glob(outputDirectory, glob: "*")
+            ).toBlocking().last()
+        }
     }
 }

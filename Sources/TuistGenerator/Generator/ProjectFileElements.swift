@@ -220,6 +220,8 @@ class ProjectFileElements {
                 try generatePrecompiled(path)
             case let .library(path, _, _, _):
                 try generatePrecompiled(path)
+            case let .bundle(path):
+                try generatePrecompiled(path)
             case let .sdk(sdkNodePath, _, _):
                 generateSDKFileElement(
                     sdkNodePath: sdkNodePath,
