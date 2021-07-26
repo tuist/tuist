@@ -9,6 +9,7 @@ public struct RunAction: Equatable, Codable {
     public let filePath: AbsolutePath?
     public let arguments: Arguments?
     public let options: RunActionOptions
+    public let language: String?
     public let diagnosticsOptions: Set<SchemeDiagnosticsOption>
 
     // MARK: - Init
@@ -18,6 +19,7 @@ public struct RunAction: Equatable, Codable {
                 filePath: AbsolutePath?,
                 arguments: Arguments?,
                 options: RunActionOptions = .init(),
+                language: String? = nil,
                 diagnosticsOptions: Set<SchemeDiagnosticsOption>)
     {
         self.configurationName = configurationName
@@ -25,6 +27,7 @@ public struct RunAction: Equatable, Codable {
         self.filePath = filePath
         self.arguments = arguments
         self.options = options
+        self.language = language
         self.diagnosticsOptions = diagnosticsOptions
     }
 }

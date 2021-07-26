@@ -6,6 +6,9 @@ public struct RunActionOptions: Equatable, Codable {
     /// [StoreKit configuration file](https://developer.apple.com/documentation/xcode/setting_up_storekit_testing_in_xcode#3625700).
     public let storeKitConfigurationPath: Path?
 
+    /// Language code
+    public let appLanguage: String?
+
     /// A simulated location used when running the provided run action.
     public let simulatedLocation: SimulatedLocation?
 
@@ -21,9 +24,11 @@ public struct RunActionOptions: Equatable, Codable {
     ///     Please note that the `.custom(gpxPath:)` case must refer to a valid GPX file in your project's resources.
     init(
         storeKitConfigurationPath: Path? = nil,
+        appLanguage: String? = nil,
         simulatedLocation: SimulatedLocation? = nil
     ) {
         self.storeKitConfigurationPath = storeKitConfigurationPath
+        self.appLanguage = appLanguage
         self.simulatedLocation = simulatedLocation
     }
 
@@ -39,10 +44,12 @@ public struct RunActionOptions: Equatable, Codable {
     ///     Please note that the `.custom(gpxPath:)` case must refer to a valid GPX file in your project's resources.
     public static func options(
         storeKitConfigurationPath: Path? = nil,
+        appLanguage: String? = nil,
         simulatedLocation: SimulatedLocation? = nil
     ) -> Self {
         self.init(
             storeKitConfigurationPath: storeKitConfigurationPath,
+            appLanguage: appLanguage,
             simulatedLocation: simulatedLocation
         )
     }

@@ -7,6 +7,9 @@ public struct RunActionOptions: Equatable, Codable {
     /// [StoreKit configuration file](https://developer.apple.com/documentation/xcode/setting_up_storekit_testing_in_xcode#3625700)
     public let storeKitConfigurationPath: AbsolutePath?
 
+    /// Language code
+    public let appLanguage: String?
+
     /// A simulated location used when running the provided run action.
     public let simulatedLocation: SimulatedLocation?
 
@@ -21,9 +24,11 @@ public struct RunActionOptions: Equatable, Codable {
     ///     - simulatedLocation: The simulated GPS location to use when running the app.
     public init(
         storeKitConfigurationPath: AbsolutePath? = nil,
+        appLanguage: String? = nil,
         simulatedLocation: SimulatedLocation? = nil
     ) {
         self.storeKitConfigurationPath = storeKitConfigurationPath
+        self.appLanguage = appLanguage
         self.simulatedLocation = simulatedLocation
     }
 }

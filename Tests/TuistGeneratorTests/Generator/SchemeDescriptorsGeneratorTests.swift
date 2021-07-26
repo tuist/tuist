@@ -694,7 +694,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             options: .init(
                 storeKitConfigurationPath: "/somepath/Workspace/Projects/Project/nested/configuration/configuration.storekit",
                 simulatedLocation: .reference("New York, NY, USA")
-            )
+            ),
+            language: "pl"
         )
 
         let scheme = Scheme.test(buildAction: buildAction, runAction: runAction)
@@ -755,6 +756,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.storeKitConfigurationFileReference, .init(identifier: "../nested/configuration/configuration.storekit"))
         XCTAssertEqual(result.locationScenarioReference?.referenceType, "1")
         XCTAssertEqual(result.locationScenarioReference?.identifier, "New York, NY, USA")
+        XCTAssertEqual(result.language, "pl")
     }
 
     func test_schemeLaunchAction_argumentsOrder() throws {
