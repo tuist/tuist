@@ -382,6 +382,7 @@ It represents the scheme action that runs the built products on the supported pl
 | `executable`         | The name of the executable or target to run.                       | [`TargetReference`](#target-reference)                    | No       |                        |
 | `arguments`          | Command line arguments passed on launch and environment variables. | [`Arguments`](#arguments)                                 | No       |                        |
 | `options`            | List of options to set to the action.                              | [`RunActionOptions`](#run-action-options)                 | No       | `.options()`           |
+| `language`           | Language used to run.                                              | `String`                                                  | No       |                        |
 | `diagnosticsOptions` | List of diagnostics options to set to the action.                  | [`[SchemeDiagnosticsOption]`](#scheme-diagnostics-option) | No       | `[.mainThreadChecker]` |
 
 Alternatively, when leveraging custom configurations, the configuration name can be explicitly specified:
