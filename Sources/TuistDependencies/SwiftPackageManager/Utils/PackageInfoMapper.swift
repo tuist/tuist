@@ -187,6 +187,7 @@ extension ProjectDescription.Target {
         )
         let sources = SourceFilesList.from(sources: target.sources, path: path, excluding: target.exclude)
         let resources = ResourceFileElements.from(resources: target.resources, path: path)
+        let headers = try Headers.from(target: target, path: path)
         let dependencies = try ProjectDescription.TargetDependency.from(
             packageInfo: packageInfo,
             platform: platform,
@@ -214,6 +215,7 @@ extension ProjectDescription.Target {
             infoPlist: .default,
             sources: sources,
             resources: resources,
+            headers: headers,
             dependencies: dependencies,
             settings: settings
         )
@@ -434,6 +436,25 @@ extension ProjectDescription.TargetDependency {
         }
 
         return targetDependencies + linkerDependencies
+    }
+}
+
+extension ProjectDescription.Headers {
+    // swiftlint:disable:next function_body_length
+    fileprivate static func from(
+        target: PackageInfo.Target,
+        path: AbsolutePath
+    ) throws -> Self? {
+        let relativePublicHeadersPath = RelativePath(target.publicHeadersPath ?? "include")
+        let publicHeadersPath = path.appending(relativePublicHeadersPath)
+        guard
+            let publicHeaders = FileHandler.shared.filesAndDirectoriesContained(in: publicHeadersPath)?.filter({ $0.extension == "h" }),
+            !publicHeaders.isEmpty
+        else {
+            return nil
+        }
+
+        return Headers(public: ProjectDescription.FileList(globs: publicHeaders.map { Path($0.pathString) }))
     }
 }
 

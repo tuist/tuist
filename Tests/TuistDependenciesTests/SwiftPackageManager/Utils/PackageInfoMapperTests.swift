@@ -21,6 +21,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
+        fileHandler = nil
         subject = nil
         moduleMapGenerator = nil
 
@@ -214,6 +215,13 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     }
 
     func testMap_whenHasHeaders() throws {
+        fileHandler.stubFilesAndDirectoriesContained = { path in
+            XCTAssertEqual(path, "/Package/Path/Sources/Target1/include")
+            return [
+                "/Package/Path/Sources/Target1/include/AnHeader.h",
+                "/Package/Path/Sources/Target1/include/Subfolder/AnotherHeader.h",
+            ]
+        }
         moduleMapGenerator.generateStub = { moduleName, path in
             XCTAssertEqual(moduleName, "Target1")
             XCTAssertEqual(path, "/Package/Path/Sources/Target1/include")
@@ -239,6 +247,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 targets: [
                     .test(
                         "Target1",
+                        headers: .init(public: [
+                            "/Package/Path/Sources/Target1/include/AnHeader.h",
+                            "/Package/Path/Sources/Target1/include/Subfolder/AnotherHeader.h",
+                        ]),
                         moduleMap: "/Package/Path/Sources/Target1/include/module.modulemap"
                     ),
                 ]
@@ -247,6 +259,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     }
 
     func testMap_whenCustomPath() throws {
+        fileHandler.stubFilesAndDirectoriesContained = { path in
+            XCTAssertEqual(path, "/Package/Path/Custom/Path/Headers")
+            return [
+                "/Package/Path/Custom/Path/Headers/Header.h",
+            ]
+        }
         moduleMapGenerator.generateStub = { moduleName, path in
             XCTAssertEqual(moduleName, "Target1")
             XCTAssertEqual(path, "/Package/Path/Custom/Path/Headers")
@@ -278,6 +296,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         "Target1",
                         customSources: "/Package/Path/Custom/Path/Sources/Folder/**",
                         resources: "/Package/Path/Custom/Path/Resource/Folder/**",
+                        headers: .init(public: ["/Package/Path/Custom/Path/Headers/Header.h"]),
                         moduleMap: "/Package/Path/Custom/Path/Headers/module.modulemap"
                     ),
                 ]
@@ -974,6 +993,7 @@ extension ProjectDescription.Target {
         deploymentTarget: ProjectDescription.DeploymentTarget? = nil,
         customSources: SourceFilesList? = nil,
         resources: ResourceFileElements? = nil,
+        headers: ProjectDescription.Headers? = nil,
         dependencies: [ProjectDescription.TargetDependency] = [],
         customSettings: ProjectDescription.SettingsDictionary = [:],
         moduleMap: AbsolutePath? = nil
@@ -987,6 +1007,7 @@ extension ProjectDescription.Target {
             infoPlist: .default,
             sources: customSources ?? "/Package/Path/Sources/\(name)/**",
             resources: resources,
+            headers: headers,
             dependencies: dependencies,
             settings: DependenciesGraph.spmSettings(with: customSettings, moduleMap: moduleMap)
         )
