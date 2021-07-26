@@ -69,7 +69,7 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
 
         XCTAssertThrowsSpecific(
             try subject.fetch(hash: hash).toBlocking().first(),
-            CacheLocalStorageError.xcframeworkNotFound(hash: hash)
+            CacheLocalStorageError.compiledArtifactNotFound(hash: hash)
         )
     }
 

@@ -136,7 +136,7 @@ public final class CacheMapper: GraphMapping {
         fetch(hashes: hashes).map { xcframeworkPaths in
             try self.cacheGraphMutator.map(
                 graph: graph,
-                precompiledFrameworks: xcframeworkPaths,
+                precompiledArtifacts: xcframeworkPaths,
                 sources: sources
             )
         }

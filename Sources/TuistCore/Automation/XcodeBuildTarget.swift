@@ -8,6 +8,15 @@ public enum XcodeBuildTarget: Equatable {
     /// The target is an Xcode workspace.
     case workspace(AbsolutePath)
 
+    public init(with path: AbsolutePath) {
+        switch path.extension {
+        case "xcworkspace":
+            self = .workspace(path)
+        default:
+            self = .project(path)
+        }
+    }
+
     /// Returns the arguments that need to be passed to xcodebuild to build this target.
     public var xcodebuildArguments: [String] {
         switch self {

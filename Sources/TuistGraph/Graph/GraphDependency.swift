@@ -31,6 +31,9 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         swiftModuleMap: AbsolutePath?
     )
 
+    /// A dependency that represents a pre-compiled bundle.
+    case bundle(path: AbsolutePath)
+
     /// A dependency that represents a package product.
     case packageProduct(path: AbsolutePath, product: String)
 
@@ -53,6 +56,9 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
             hasher.combine(path)
         case let .library(path, _, _, _, _):
             hasher.combine("library")
+            hasher.combine(path)
+        case let .bundle(path):
+            hasher.combine("bundle")
             hasher.combine(path)
         case let .packageProduct(path, product):
             hasher.combine("package")
@@ -79,6 +85,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         case .xcframework: return false
         case .framework: return false
         case .library: return false
+        case .bundle: return false
         case .packageProduct: return false
         case .target: return true
         case .sdk: return false
@@ -91,6 +98,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         case .xcframework: return true
         case .framework: return true
         case .library: return true
+        case .bundle: return true
         case .packageProduct: return false
         case .target: return false
         case .sdk: return false
@@ -119,6 +127,8 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
             return "framework '\(path.basename)'"
         case let .library(path, _, _, _, _):
             return "library '\(path.basename)'"
+        case let .bundle(path):
+            return "bundle '\(path.basename)'"
         case let .packageProduct(_, product):
             return "package '\(product)'"
         case let .target(name, _):
@@ -142,6 +152,7 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         case xcframework
         case framework
         case library
+        case bundle
         case packageProduct
         case target
         case sdk
@@ -213,6 +224,9 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
                 architectures: architectures,
                 swiftModuleMap: swiftModuleMap
             )
+        case .bundle:
+            let path = try container.decode(AbsolutePath.self, forKey: .path)
+            self = .bundle(path: path)
         case .packageProduct:
             let path = try container.decode(AbsolutePath.self, forKey: .path)
             let product = try container.decode(String.self, forKey: .product)
@@ -264,6 +278,9 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
             try container.encode(linking, forKey: .linking)
             try container.encode(architectures, forKey: .architectures)
             try container.encodeIfPresent(swiftModuleMap, forKey: .swiftModuleMap)
+        case let .bundle(path):
+            try container.encode(Kind.bundle, forKey: .kind)
+            try container.encode(path, forKey: .path)
         case let .packageProduct(path, product):
             try container.encode(Kind.packageProduct, forKey: .kind)
             try container.encode(path, forKey: .path)
