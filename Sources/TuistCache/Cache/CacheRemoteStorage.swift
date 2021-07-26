@@ -6,18 +6,18 @@ import TuistGraph
 import TuistSupport
 
 enum CacheRemoteStorageError: FatalError, Equatable {
-    case frameworkNotFound(hash: String)
+    case artifactNotFound(hash: String)
 
     var type: ErrorType {
         switch self {
-        case .frameworkNotFound: return .abort
+        case .artifactNotFound: return .abort
         }
     }
 
     var description: String {
         switch self {
-        case let .frameworkNotFound(hash):
-            return "The downloaded artifact with hash '\(hash)' has an incorrect format and doesn't contain a xcframework nor a framework."
+        case let .artifactNotFound(hash):
+            return "The downloaded artifact with hash '\(hash)' has an incorrect format and doesn't contain xcframework, framework or bundle."
         }
     }
 }
@@ -146,11 +146,13 @@ public final class CacheRemoteStorage: CacheStoring {
         }
     }
 
-    private func frameworkPath(in archive: AbsolutePath) -> AbsolutePath? {
+    private func artifactPath(in archive: AbsolutePath) -> AbsolutePath? {
         if let xcframeworkPath = FileHandler.shared.glob(archive, glob: "*.xcframework").first {
             return xcframeworkPath
         } else if let frameworkPath = FileHandler.shared.glob(archive, glob: "*.framework").first {
             return frameworkPath
+        } else if let bundlePath = FileHandler.shared.glob(archive, glob: "*.bundle").first {
+            return bundlePath
         }
         return nil
     }
@@ -163,14 +165,14 @@ public final class CacheRemoteStorage: CacheStoring {
         defer {
             try? fileUnarchiver.delete()
         }
-        if frameworkPath(in: unarchivedDirectory) == nil {
-            throw CacheRemoteStorageError.frameworkNotFound(hash: hash)
+        if artifactPath(in: unarchivedDirectory) == nil {
+            throw CacheRemoteStorageError.artifactNotFound(hash: hash)
         }
         if !FileHandler.shared.exists(archiveDestination.parentDirectory) {
             try FileHandler.shared.createFolder(archiveDestination.parentDirectory)
         }
         try FileHandler.shared.move(from: unarchivedDirectory, to: archiveDestination)
-        return frameworkPath(in: archiveDestination)!
+        return artifactPath(in: archiveDestination)!
     }
 
     private func deleteZipArchiveCompletable(archiver: FileArchiving) -> Completable {

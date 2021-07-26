@@ -5,17 +5,17 @@ import TuistCore
 import TuistSupport
 
 enum CacheLocalStorageError: FatalError, Equatable {
-    case xcframeworkNotFound(hash: String)
+    case compiledArtifactNotFound(hash: String)
 
     var type: ErrorType {
         switch self {
-        case .xcframeworkNotFound: return .abort
+        case .compiledArtifactNotFound: return .abort
         }
     }
 
     var description: String {
         switch self {
-        case let .xcframeworkNotFound(hash):
+        case let .compiledArtifactNotFound(hash):
             return "xcframework with hash '\(hash)' not found in the local cache"
         }
     }
@@ -40,17 +40,17 @@ public final class CacheLocalStorage: CacheStoring {
 
     public func exists(hash: String) -> Single<Bool> {
         Single.create { (completed) -> Disposable in
-            completed(.success(self.lookupFramework(directory: self.cacheDirectory.appending(component: hash)) != nil))
+            completed(.success(self.lookupCompiledArtifact(directory: self.cacheDirectory.appending(component: hash)) != nil))
             return Disposables.create()
         }
     }
 
     public func fetch(hash: String) -> Single<AbsolutePath> {
         Single.create { (completed) -> Disposable in
-            if let path = self.lookupFramework(directory: self.cacheDirectory.appending(component: hash)) {
+            if let path = self.lookupCompiledArtifact(directory: self.cacheDirectory.appending(component: hash)) {
                 completed(.success(path))
             } else {
-                completed(.error(CacheLocalStorageError.xcframeworkNotFound(hash: hash)))
+                completed(.error(CacheLocalStorageError.compiledArtifactNotFound(hash: hash)))
             }
             return Disposables.create()
         }
@@ -85,8 +85,8 @@ public final class CacheLocalStorage: CacheStoring {
 
     // MARK: - Fileprivate
 
-    fileprivate func lookupFramework(directory: AbsolutePath) -> AbsolutePath? {
-        let extensions = ["framework", "xcframework"]
+    fileprivate func lookupCompiledArtifact(directory: AbsolutePath) -> AbsolutePath? {
+        let extensions = ["framework", "xcframework", "bundle"]
         for ext in extensions {
             if let filePath = FileHandler.shared.glob(directory, glob: "*.\(ext)").first { return filePath }
         }

@@ -74,4 +74,9 @@ public final class MockSimulatorController: SimulatorControlling {
     public func launchApp(bundleId: String, device: SimulatorDevice, arguments: [String]) throws {
         try launchAppStub?(bundleId, device, arguments)
     }
+
+    public var destinationStub: ((Platform) -> Single<String>)?
+    public func destination(for targetPlatform: Platform) -> Single<String> {
+        destinationStub?(targetPlatform) ?? .just("id=\(SimulatorDeviceAndRuntime.test().device.udid)")
+    }
 }

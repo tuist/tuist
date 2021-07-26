@@ -142,6 +142,8 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
             return linking == .static
         case let .library(_, _, linking, _, _):
             return linking == .static
+        case .bundle:
+            return true
         case .packageProduct:
             // Swift package products are currently assumed to be static
             return true

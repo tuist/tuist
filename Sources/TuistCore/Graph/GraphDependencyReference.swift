@@ -25,6 +25,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         architectures: [BinaryArchitecture],
         product: Product
     )
+    case bundle(path: AbsolutePath)
     case product(target: String, productName: String)
     case sdk(path: AbsolutePath, status: SDKStatus, source: SDKSource)
 
@@ -63,6 +64,8 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     public func hash(into hasher: inout Hasher) {
         switch self {
         case let .library(path, _, _, _):
+            hasher.combine(path)
+        case let .bundle(path):
             hasher.combine(path)
         case let .framework(path, _, _, _, _, _, _, _):
             hasher.combine(path)

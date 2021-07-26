@@ -71,38 +71,10 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
     /// Returns the type of artifact that the concrete builder processes
     public var cacheOutputType: CacheOutputType = .framework
 
-    public func build(workspacePath: AbsolutePath,
+    public func build(projectTarget: XcodeBuildTarget,
                       target: Target,
                       configuration: String,
                       into outputDirectory: AbsolutePath) throws
-    {
-        try build(
-            .workspace(workspacePath),
-            target: target,
-            configuration: configuration,
-            into: outputDirectory
-        )
-    }
-
-    public func build(projectPath: AbsolutePath,
-                      target: Target,
-                      configuration: String,
-                      into outputDirectory: AbsolutePath) throws
-    {
-        try build(
-            .project(projectPath),
-            target: target,
-            configuration: configuration,
-            into: outputDirectory
-        )
-    }
-
-    // MARK: - Fileprivate
-
-    fileprivate func build(_ projectTarget: XcodeBuildTarget,
-                           target: Target,
-                           configuration: String,
-                           into outputDirectory: AbsolutePath) throws
     {
         guard target.product.isFramework else {
             throw CacheBinaryBuilderError.nonFrameworkTargetForFramework(target.name)
@@ -138,6 +110,8 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
             target: target
         )
     }
+
+    // MARK: - Fileprivate
 
     fileprivate func arguments(target: Target,
                                sdk: String,

@@ -15,11 +15,11 @@ final class MockCacheGraphMutator: CacheGraphMutating {
     var stubbedMapError: Error?
     var stubbedMapResult: Graph!
 
-    func map(graph: Graph, precompiledFrameworks: [GraphTarget: AbsolutePath], sources: Set<String>) throws -> Graph {
+    func map(graph: Graph, precompiledArtifacts: [GraphTarget: AbsolutePath], sources: Set<String>) throws -> Graph {
         invokedMap = true
         invokedMapCount += 1
-        invokedMapParameters = (graph, precompiledFrameworks, sources)
-        invokedMapParametersList.append((graph, precompiledFrameworks, sources))
+        invokedMapParameters = (graph, precompiledArtifacts, sources)
+        invokedMapParametersList.append((graph, precompiledArtifacts, sources))
         if let error = stubbedMapError {
             throw error
         }

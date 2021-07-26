@@ -282,7 +282,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             pbxproj: pbxproj
         ))
 
-        pbxBuildFiles.append(contentsOf: generateResourceBundle(
+        try pbxBuildFiles.append(contentsOf: generateResourceBundle(
             path: path,
             target: target,
             graphTraverser: graphTraverser,
@@ -431,13 +431,29 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                                         target: Target,
                                         graphTraverser: GraphTraversing,
                                         fileElements: ProjectFileElements,
-                                        pbxproj _: PBXProj) -> [PBXBuildFile]
+                                        pbxproj _: PBXProj) throws -> [PBXBuildFile]
     {
         var pbxBuildFiles = [PBXBuildFile]()
         let bundles = graphTraverser
             .resourceBundleDependencies(path: path, name: target.name)
             .sorted()
-        let refs = bundles.compactMap { fileElements.product(target: $0.target.name) }
+        var refs = bundles.compactMap { fileElements.product(target: $0.target.name) }
+
+        if target.product.runnable {
+            let linkableBundles = try graphTraverser
+                .linkableDependencies(path: path, name: target.name)
+                .compactMap { dependency -> PBXFileReference? in
+                    switch dependency {
+                    case let .bundle(path: path):
+                        let element = fileElements.file(path: path)
+                        return element
+                    default:
+                        return nil
+                    }
+                }
+
+            refs.append(contentsOf: linkableBundles)
+        }
 
         refs.forEach {
             let pbxBuildFile = PBXBuildFile(file: $0)
