@@ -4,6 +4,8 @@ let dependencies = Dependencies(
     swiftPackageManager: .init(
         [
             .package(url: "https://github.com/adjust/ios_sdk/", .upToNextMajor(from: "4.0.0")),
+            .remote(url: "https://github.com/firebase/firebase-ios-sdk", requirement: .upToNextMajor(from: "8.3.0")),
+            .remote(url: "https://github.com/facebook/facebook-ios-sdk", requirement: .upToNextMajor(from: "11.0.0")),
             .package(url: "https://github.com/Alamofire/Alamofire", .upToNextMajor(from: "5.0.0")),
             .package(url: "https://github.com/pointfreeco/swift-composable-architecture", .upToNextMinor(from: "0.22.0")),
             .package(url: "https://github.com/Quick/Quick", .upToNextMajor(from: "4.0.0")),

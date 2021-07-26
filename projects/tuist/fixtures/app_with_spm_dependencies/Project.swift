@@ -14,6 +14,8 @@ let project = Project(
                 .external(name: "Adjust"),
                 .external(name: "Alamofire"),
                 .external(name: "ComposableArchitecture"),
+                .external(name: "FacebookCore"),
+                .external(name: "FirebaseAnalytics"),
             ]
         ),
         Target(
