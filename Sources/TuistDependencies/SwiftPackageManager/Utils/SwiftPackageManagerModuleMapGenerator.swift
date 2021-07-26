@@ -55,6 +55,7 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
                     umbrella header "\(path.pathString)"
                     export *
                 }
+
                 """
         case let .directory(path):
             generatedModuleMapContent =
@@ -63,6 +64,7 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
                     umbrella "\(path.pathString)"
                     export *
                 }
+
                 """
         }
 
