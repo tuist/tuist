@@ -8,7 +8,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
-- Caching for static frameworks with resources [#3090](https://github.com/tuist/tuist/pull/3090) by [@mstfy](https://github/com/mstfy)
+- Caching for static frameworks with resources [#3090](https://github.com/tuist/tuist/pull/3090) by [@mstfy](https://github.com/mstfy)
 - Meta tuist support [#3103](https://github.com/tuist/tuist/pull/3103) by [@fortmarek](https://github.com/fortmarek)
 - Add `--result-bundle-path` parameter to test command [#3177](https://github.com/tuist/tuist/pull/3177) by [@olejnjak](https://github.com/olejnjak)
 - The `tuist dependencies` command prints dependency managers' output to console. [#3185](https://github.com/tuist/tuist/pull/3185) by [@laxmorek](https://github.com/laxmorek)
