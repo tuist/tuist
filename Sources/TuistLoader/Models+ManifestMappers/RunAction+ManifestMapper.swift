@@ -25,8 +25,6 @@ extension TuistGraph.RunAction {
 
         let options = try TuistGraph.RunActionOptions.from(manifest: manifest.options, generatorPaths: generatorPaths)
 
-        let language = manifest.language
-
         let diagnosticsOptions = Set(manifest.diagnosticsOptions.map { TuistGraph.SchemeDiagnosticsOption.from(manifest: $0) })
 
         return TuistGraph.RunAction(
@@ -35,7 +33,6 @@ extension TuistGraph.RunAction {
             filePath: nil,
             arguments: arguments,
             options: options,
-            language: language,
             diagnosticsOptions: diagnosticsOptions
         )
     }

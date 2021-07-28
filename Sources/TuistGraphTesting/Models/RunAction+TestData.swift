@@ -8,7 +8,6 @@ public extension RunAction {
                      filePath: AbsolutePath? = nil,
                      arguments: Arguments? = Arguments.test(),
                      options: RunActionOptions = .init(),
-                     language: String? = nil,
                      diagnosticsOptions: Set<SchemeDiagnosticsOption> = [.mainThreadChecker]) -> RunAction
     {
         RunAction(
@@ -17,7 +16,6 @@ public extension RunAction {
             filePath: filePath,
             arguments: arguments,
             options: options,
-            language: language,
             diagnosticsOptions: diagnosticsOptions
         )
     }

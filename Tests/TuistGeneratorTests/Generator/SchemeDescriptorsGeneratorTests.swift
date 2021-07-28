@@ -692,10 +692,10 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             executable: TargetReference(projectPath: projectPath, name: "App"),
             arguments: Arguments(environment: environment, launchArguments: launchArguments),
             options: .init(
+                language: "pl",
                 storeKitConfigurationPath: "/somepath/Workspace/Projects/Project/nested/configuration/configuration.storekit",
                 simulatedLocation: .reference("New York, NY, USA")
-            ),
-            language: "pl"
+            )
         )
 
         let scheme = Scheme.test(buildAction: buildAction, runAction: runAction)
@@ -847,6 +847,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.buildConfiguration, "Debug")
         XCTAssertEqual(result.pathRunnable?.filePath, "/usr/bin/foo")
         XCTAssertFalse(result.disableMainThreadChecker)
+        XCTAssertEqual(result.language, nil)
     }
 
     func test_schemeLaunchAction_with_path() throws {

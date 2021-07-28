@@ -438,8 +438,6 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             )
         }
 
-        let language = scheme.runAction?.language
-
         return XCScheme.LaunchAction(
             runnable: buildableProductRunnable,
             buildConfiguration: buildConfiguration,
@@ -452,7 +450,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             disableMainThreadChecker: disableMainThreadChecker,
             commandlineArguments: commandlineArguments,
             environmentVariables: environments,
-            language: language,
+            language: scheme.runAction?.options.language,
             launchAutomaticallySubstyle: launchActionConstants.launchAutomaticallySubstyle,
             storeKitConfigurationFileReference: storeKitConfigurationFileReference
         )

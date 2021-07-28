@@ -30,7 +30,7 @@ public struct TestAction: Equatable, Codable {
     public let postActions: [ExecutionAction]
 
     /// Language
-    public let language: String?
+    public let language: SchemeLanguage?
 
     /// Region
     public let region: String?
@@ -48,7 +48,7 @@ public struct TestAction: Equatable, Codable {
                  preActions: [ExecutionAction],
                  postActions: [ExecutionAction],
                  diagnosticsOptions: [SchemeDiagnosticsOption],
-                 language: String?,
+                 language: SchemeLanguage?,
                  region: String?)
     {
         self.testPlans = testPlans
@@ -86,7 +86,7 @@ public struct TestAction: Equatable, Codable {
                 preActions: [ExecutionAction] = [],
                 postActions: [ExecutionAction] = [],
                 diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker],
-                language: String? = nil,
+                language: SchemeLanguage? = nil,
                 region: String? = nil)
     {
         self.init(
@@ -126,7 +126,7 @@ public struct TestAction: Equatable, Codable {
                 preActions: [ExecutionAction] = [],
                 postActions: [ExecutionAction] = [],
                 diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker],
-                language: String? = nil,
+                language: SchemeLanguage? = nil,
                 region: String? = nil)
     {
         self.init(
