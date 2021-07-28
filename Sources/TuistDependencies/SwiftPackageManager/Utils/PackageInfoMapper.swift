@@ -442,7 +442,6 @@ extension ProjectDescription.TargetDependency {
 }
 
 extension ProjectDescription.Headers {
-    // swiftlint:disable:next function_body_length
     fileprivate static func from(publicHeadersPath: AbsolutePath) throws -> Self? {
         guard
             let publicHeaders = FileHandler.shared.filesAndDirectoriesContained(in: publicHeadersPath)?.filter({ $0.extension == "h" }),
@@ -669,9 +668,10 @@ extension ProjectDescription.DeploymentDevice {
 
 extension PackageInfo.Target {
     var relativePath: RelativePath {
-        RelativePath(self.path ?? "Sources/\(self.name)")
+        RelativePath(path ?? "Sources/\(name)")
     }
+
     var relativePublicHeadersPath: RelativePath {
-        RelativePath(self.publicHeadersPath ?? "include")
+        RelativePath(publicHeadersPath ?? "include")
     }
 }

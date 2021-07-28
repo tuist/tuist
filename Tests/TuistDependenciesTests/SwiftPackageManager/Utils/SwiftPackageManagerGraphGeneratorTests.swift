@@ -121,16 +121,14 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
               {
                 "packageRef": {
                   "kind": "remote",
-                  "name": "a-dependency",
-                  "path": "https://github.com/dependencies/a-dependency"
+                  "name": "a-dependency"
                 },
                 "subpath": "ADependency"
               },
               {
                 "packageRef": {
                   "kind": "remote",
-                  "name": "another-dependency",
-                  "path": "https://github.com/dependencies/another-dependency"
+                  "name": "another-dependency"
                 },
                 "subpath": "another-dependency"
               }

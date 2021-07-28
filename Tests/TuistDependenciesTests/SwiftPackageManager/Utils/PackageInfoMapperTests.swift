@@ -336,7 +336,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         customSettings: [
                             "HEADER_SEARCH_PATHS": [
                                 "$(SRCROOT)/Sources/Dependency1/include",
-                            ]
+                            ],
                         ]
                     ),
                     .test("Dependency1"),

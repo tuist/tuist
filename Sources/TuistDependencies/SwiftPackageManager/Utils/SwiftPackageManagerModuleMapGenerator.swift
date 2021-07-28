@@ -19,6 +19,7 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
 
     public init() {}
 
+    // swiftlint:disable:next function_body_length
     public func generate(moduleName: String, publicHeadersPath: AbsolutePath) throws -> AbsolutePath? {
         let moduleMapPath = publicHeadersPath.appending(component: "module.modulemap")
         let umbrellaHeaderPath = publicHeadersPath.appending(component: moduleName + ".h")
