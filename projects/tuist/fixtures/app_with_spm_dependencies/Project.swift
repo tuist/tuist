@@ -15,7 +15,6 @@ let project = Project(
                 .external(name: "Alamofire"),
                 .external(name: "ComposableArchitecture"),
                 .external(name: "FacebookCore"),
-                .external(name: "FirebaseAnalytics"),
             ]
         ),
         Target(

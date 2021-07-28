@@ -2,7 +2,6 @@ import Adjust
 import Alamofire
 import ComposableArchitecture
 import FacebookCore
-import FirebaseAnalytics
 import UIKit
 
 @UIApplicationMain
