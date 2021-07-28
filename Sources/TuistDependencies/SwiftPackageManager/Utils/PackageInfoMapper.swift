@@ -531,8 +531,9 @@ extension ProjectDescription.Settings {
         // FRAMEWORK_SEARCH_PATHS is required for targets depending on system frameworks (for example, XCTest).
         // SPM always adds it to the Xcode build settings.
         var settingsDictionary: ProjectDescription.SettingsDictionary = [
-            "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
+            "CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER": "NO",
             "ENABLE_TESTING_SEARCH_PATHS": "YES",
+            "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
         ]
         if let moduleMap = moduleMap {
             settingsDictionary["MODULEMAP_FILE"] = .string(moduleMap.pathString)

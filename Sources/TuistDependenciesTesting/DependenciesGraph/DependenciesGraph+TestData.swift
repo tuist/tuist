@@ -406,8 +406,9 @@ extension DependenciesGraph {
 
     static func spmSettings(with customSettings: SettingsDictionary = [:], moduleMap: AbsolutePath? = nil) -> Settings {
         var settingsDictionary = customSettings
-        settingsDictionary["FRAMEWORK_SEARCH_PATHS"] = "$(PLATFORM_DIR)/Developer/Library/Frameworks"
+        settingsDictionary["CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER"] = "NO"
         settingsDictionary["ENABLE_TESTING_SEARCH_PATHS"] = "YES"
+        settingsDictionary["FRAMEWORK_SEARCH_PATHS"] = "$(PLATFORM_DIR)/Developer/Library/Frameworks"
         if let moduleMap = moduleMap {
             settingsDictionary["MODULEMAP_FILE"] = .string(moduleMap.pathString)
             if case let .array(searchPaths) = settingsDictionary["HEADER_SEARCH_PATHS"] {
