@@ -21,6 +21,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
+        fileHandler.stubExists = nil
         fileHandler = nil
         subject = nil
         moduleMapGenerator = nil
@@ -299,6 +300,46 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         headers: .init(public: ["/Package/Path/Custom/Path/Headers/Header.h"]),
                         moduleMap: "/Package/Path/Custom/Path/Headers/module.modulemap"
                     ),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenDependencyHasHeaders_addsThemToHeaderSearchPath() throws {
+        fileHandler.stubExists = { path in
+            XCTAssertEqual(path, "/Package/Path/Sources/Dependency1/include")
+            return true
+        }
+        let project = try subject.map(
+            packageInfo: .init(
+                products: [
+                    .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                ],
+                targets: [
+                    .test(
+                        name: "Target1",
+                        dependencies: [.target(name: "Dependency1", condition: nil)]
+                    ),
+                    .test(name: "Dependency1"),
+                ],
+                platforms: []
+            )
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test(
+                        "Target1",
+                        dependencies: [.target(name: "Dependency1")],
+                        customSettings: [
+                            "HEADER_SEARCH_PATHS": [
+                                "$(SRCROOT)/Sources/Dependency1/include",
+                            ]
+                        ]
+                    ),
+                    .test("Dependency1"),
                 ]
             )
         )

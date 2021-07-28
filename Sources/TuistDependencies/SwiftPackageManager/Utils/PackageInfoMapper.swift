@@ -130,7 +130,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 packageName: name,
                 packageInfo: packageInfo,
                 packageInfos: packageInfos,
-                folder: path,
+                packageFolder: path,
                 packageToProject: packageToProject,
                 productTypes: productTypes,
                 platforms: platforms,
@@ -157,7 +157,7 @@ extension ProjectDescription.Target {
         packageName: String,
         packageInfo: PackageInfo,
         packageInfos: [String: PackageInfo],
-        folder: AbsolutePath,
+        packageFolder: AbsolutePath,
         packageToProject: [String: Path],
         productTypes: [String: TuistGraph.Product],
         platforms: Set<TuistGraph.Platform>,
@@ -176,7 +176,7 @@ extension ProjectDescription.Target {
             return nil
         }
 
-        let path = folder.appending(RelativePath(target.path ?? "Sources/\(target.name)"))
+        let path = packageFolder.appending(target.relativePath)
 
         let platform = try ProjectDescription.Platform.from(configured: platforms, package: packageInfo.platforms, packageName: packageName)
         let deploymentTarget = try ProjectDescription.DeploymentTarget.from(
@@ -187,7 +187,7 @@ extension ProjectDescription.Target {
         )
         let sources = SourceFilesList.from(sources: target.sources, path: path, excluding: target.exclude)
         let resources = ResourceFileElements.from(resources: target.resources, path: path)
-        let headers = try Headers.from(target: target, path: path)
+        let headers = try Headers.from(publicHeadersPath: path.appending(target.relativePublicHeadersPath))
         let dependencies = try ProjectDescription.TargetDependency.from(
             packageInfo: packageInfo,
             platform: platform,
@@ -200,13 +200,15 @@ extension ProjectDescription.Target {
         )
         let settings = try Settings.from(
             target: target,
+            packageFolder: packageFolder,
+            packageInfo: packageInfo,
             path: path,
             settings: target.settings,
             platform: platform,
             moduleMapGenerator: moduleMapGenerator
         )
 
-        return .init(
+        return ProjectDescription.Target(
             name: target.name,
             platform: platform,
             product: product,
@@ -441,12 +443,7 @@ extension ProjectDescription.TargetDependency {
 
 extension ProjectDescription.Headers {
     // swiftlint:disable:next function_body_length
-    fileprivate static func from(
-        target: PackageInfo.Target,
-        path: AbsolutePath
-    ) throws -> Self? {
-        let relativePublicHeadersPath = RelativePath(target.publicHeadersPath ?? "include")
-        let publicHeadersPath = path.appending(relativePublicHeadersPath)
+    fileprivate static func from(publicHeadersPath: AbsolutePath) throws -> Self? {
         guard
             let publicHeaders = FileHandler.shared.filesAndDirectoriesContained(in: publicHeadersPath)?.filter({ $0.extension == "h" }),
             !publicHeaders.isEmpty
@@ -462,21 +459,41 @@ extension ProjectDescription.Settings {
     // swiftlint:disable:next function_body_length
     fileprivate static func from(
         target: PackageInfo.Target,
+        packageFolder: AbsolutePath,
+        packageInfo: PackageInfo,
         path: AbsolutePath,
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         platform: ProjectDescription.Platform,
         moduleMapGenerator: SwiftPackageManagerModuleMapGenerating
     ) throws -> Self? {
-        let relativePublicHeadersPath = RelativePath(target.publicHeadersPath ?? "include")
-        let publicHeadersPath = path.appending(relativePublicHeadersPath)
-        let moduleMap = try moduleMapGenerator.generate(moduleName: target.name, publicHeadersPath: publicHeadersPath)
-
-        var headerSearchPaths: [String] = moduleMap != nil ? [relativePublicHeadersPath.pathString] : []
+        var headerSearchPaths: [String] = []
         var defines: [String: String] = ["SWIFT_PACKAGE": "1"]
         var swiftDefines: [String] = ["SWIFT_PACKAGE"]
         var cFlags: [String] = []
         var cxxFlags: [String] = []
         var swiftFlags: [String] = []
+
+        let moduleMap = try moduleMapGenerator.generate(moduleName: target.name, publicHeadersPath: path.appending(target.relativePublicHeadersPath))
+        if moduleMap != nil {
+            headerSearchPaths.append(path.appending(target.relativePublicHeadersPath).pathString)
+        }
+        headerSearchPaths += target.dependencies
+            .compactMap { dependency in
+                switch dependency {
+                case let .target(name, _), let .byName(name, _):
+                    guard
+                        let dependencyTarget = packageInfo.targets.first(where: { $0.name == name }),
+                        FileHandler.shared.exists(
+                            packageFolder.appending(dependencyTarget.relativePath).appending(dependencyTarget.relativePublicHeadersPath)
+                        )
+                    else {
+                        return nil
+                    }
+                    return "$(SRCROOT)/\(dependencyTarget.relativePath.pathString)/\(dependencyTarget.relativePublicHeadersPath.pathString)"
+                default:
+                    return nil
+                }
+            }
 
         try settings.forEach { setting in
             if let condition = setting.condition {
@@ -487,7 +504,7 @@ extension ProjectDescription.Settings {
 
             switch (setting.tool, setting.name) {
             case (.c, .headerSearchPath), (.cxx, .headerSearchPath):
-                headerSearchPaths.append(setting.value[0])
+                headerSearchPaths.append(path.appending(RelativePath(setting.value[0])).pathString)
             case (.c, .define), (.cxx, .define):
                 let (name, value) = setting.extractDefine
                 defines[name] = value
@@ -521,8 +538,9 @@ extension ProjectDescription.Settings {
             settingsDictionary["MODULEMAP_FILE"] = .string(moduleMap.pathString)
         }
         if !headerSearchPaths.isEmpty {
-            settingsDictionary["HEADER_SEARCH_PATHS"] = .array(headerSearchPaths.map { path.appending(RelativePath($0)).pathString })
+            settingsDictionary["HEADER_SEARCH_PATHS"] = .array(headerSearchPaths.map { $0 })
         }
+
         if !defines.isEmpty {
             let sortedDefines = defines.sorted { $0.key < $1.key }
             settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array(sortedDefines.map { key, value in "\(key)=\(value)" })
@@ -645,5 +663,14 @@ extension ProjectDescription.DeploymentTarget {
 extension ProjectDescription.DeploymentDevice {
     fileprivate static func from(devices: TuistGraph.DeploymentDevice) -> Self {
         return .init(rawValue: devices.rawValue)
+    }
+}
+
+extension PackageInfo.Target {
+    var relativePath: RelativePath {
+        RelativePath(self.path ?? "Sources/\(self.name)")
+    }
+    var relativePublicHeadersPath: RelativePath {
+        RelativePath(self.publicHeadersPath ?? "include")
     }
 }
