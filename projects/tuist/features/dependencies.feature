@@ -22,7 +22,7 @@ Feature: Tuist dependencies.
         Then a file Tuist/Dependencies/Lockfiles/Cartfile.resolved exists
         Then a directory Tuist/Dependencies/SwiftPackageManager/checkouts/SnapKit exists
         Then a file Tuist/Dependencies/Lockfiles/Package.resolved exists
-        Then a file Tuist/Dependencies/graph.json exists 
+        Then a file Tuist/Dependencies/graph.json exists
 
     Scenario: The project is an application with SPM Dependencies.swift (app_with_spm_dependencies)
         Given that tuist is available
