@@ -31,7 +31,7 @@ class ProjectFileElements {
         "storyboard",
         "strings",
         "xib",
-        "intentdefinition"
+        "intentdefinition",
     ]
 
     // MARK: - Attributes

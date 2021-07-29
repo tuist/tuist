@@ -300,7 +300,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             "resources/en.lproj/Storyboard.strings",
             "resources/fr.lproj/Controller.strings",
             "resources/fr.lproj/Intents.strings",
-            "resources/fr.lproj/Storyboard.strings"
+            "resources/fr.lproj/Storyboard.strings",
         ])
 
         let elements = resources.map {
