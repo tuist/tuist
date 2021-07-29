@@ -109,6 +109,10 @@ For `strings`, `plists`, `fonts`, and `assets` there are templates offered by tu
 .strings()
 ```
 
+:::note Default templates
+Default templates used by Tuist can be examined [here](https://github.com/tuist/tuist/tree/main/Sources/TuistGenerator/Templates).
+:::
+
 You can also use a local template. Just add it to `Tuist/ResourceSynthesizers/{name}.stencil` where name is derived from the resource and then use the default initializer (e.g. `plists()` for Plists). Here you have listed all of the name mappings:
 
 - `strings` => `Strings.stencil`
