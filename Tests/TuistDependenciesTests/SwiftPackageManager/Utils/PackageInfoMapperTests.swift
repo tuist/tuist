@@ -249,7 +249,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         customSettings: [
-                            "HEADER_SEARCH_PATHS": [ "/Package/Path/Sources/Target1/include"],
+                            "HEADER_SEARCH_PATHS": ["/Package/Path/Sources/Target1/include"],
                         ],
                         moduleMap: "/Package/Path/Sources/Target1/include/module.modulemap"
                     ),
@@ -296,7 +296,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             "/Package/Path/Sources/Target1/include/Subfolder/AnHeader.h",
                         ]),
                         customSettings: [
-                            "HEADER_SEARCH_PATHS": [ "/Package/Path/Sources/Target1/include"],
+                            "HEADER_SEARCH_PATHS": ["/Package/Path/Sources/Target1/include"],
                         ]
                     ),
                 ]
@@ -343,7 +343,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         customSources: "/Package/Path/Custom/Path/Sources/Folder/**",
                         resources: "/Package/Path/Custom/Path/Resource/Folder/**",
                         customSettings: [
-                            "HEADER_SEARCH_PATHS": [ "/Package/Path/Custom/Path/Headers"],
+                            "HEADER_SEARCH_PATHS": ["/Package/Path/Custom/Path/Headers"],
                         ],
                         moduleMap: "/Package/Path/Custom/Path/Headers/module.modulemap"
                     ),
