@@ -469,6 +469,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "dbarden",
+      "name": "Daniel Barden",
+      "avatar_url": "https://avatars.githubusercontent.com/u/104456?v=4",
+      "profile": "http://twitter.com/danielbarden",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
