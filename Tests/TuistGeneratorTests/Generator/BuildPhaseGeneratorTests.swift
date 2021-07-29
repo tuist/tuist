@@ -391,6 +391,51 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         ])
     }
 
+    func test_generateResourcesBuildPhase_whenLocalizedIntentsFile() throws {
+        // Given
+        let path = try temporaryPath()
+        let pbxproj = PBXProj()
+        let fileElements = ProjectFileElements()
+        let nativeTarget = PBXNativeTarget(name: "Test")
+        let files = try createFiles([
+            "resources/Base.lproj/Intents.intentdefinition",
+            "resources/en.lproj/Intents.strings",
+            "resources/fr.lproj/Intents.strings",
+        ])
+        let resourceFiles = files.filter { $0.suffix != ".intentdefinition" }
+
+        let groups = ProjectGroups.generate(
+            project: .test(path: "/path", sourceRootPath: "/path", xcodeProjPath: "/path/Project.xcodeproj"),
+            pbxproj: pbxproj
+        )
+        try files.forEach {
+            try fileElements.generate(
+                fileElement: GroupFileElement(
+                    path: $0,
+                    group: .group(name: "Project"),
+                    isReference: true
+                ),
+                groups: groups,
+                pbxproj: pbxproj,
+                sourceRootPath: path
+            )
+        }
+
+        // When
+        try subject.generateResourcesBuildPhase(
+            path: "/path",
+            target: .test(resources: resourceFiles.map { .file(path: $0) }),
+            graphTraverser: GraphTraverser(graph: .test(path: path)),
+            pbxTarget: nativeTarget,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let buildFiles = try XCTUnwrap(nativeTarget.buildPhases.first?.files)
+        XCTAssertEmpty(buildFiles)
+    }
+
     func test_generateSourcesBuildPhase_whenCoreDataModel() throws {
         // Given
         let coreDataModel = CoreDataModel(

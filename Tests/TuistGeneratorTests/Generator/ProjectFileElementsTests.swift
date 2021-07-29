@@ -288,16 +288,19 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ])
     }
 
-    func test_addElement_lproj_xib_variant_groups() throws {
+    func test_addElement_lproj_variant_groups() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
         let resources = try createFiles([
-            "resources/fr.lproj/Controller.strings",
             "resources/Base.lproj/Controller.xib",
+            "resources/Base.lproj/Intents.intentdefinition",
             "resources/Base.lproj/Storyboard.storyboard",
             "resources/en.lproj/Controller.xib",
+            "resources/en.lproj/Intents.strings",
             "resources/en.lproj/Storyboard.strings",
-            "resources/fr.lproj/Storyboard.strings",
+            "resources/fr.lproj/Controller.strings",
+            "resources/fr.lproj/Intents.strings",
+            "resources/fr.lproj/Storyboard.strings"
         ])
 
         let elements = resources.map {
@@ -324,6 +327,9 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             "resources/Controller.xib/Base",
             "resources/Controller.xib/en",
             "resources/Controller.xib/fr",
+            "resources/Intents.intentdefinition/Base",
+            "resources/Intents.intentdefinition/en",
+            "resources/Intents.intentdefinition/fr",
             "resources/Storyboard.storyboard/Base",
             "resources/Storyboard.storyboard/en",
             "resources/Storyboard.storyboard/fr",
@@ -331,6 +337,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         XCTAssertEqual(projectGroup?.debugVariantGroupPaths, [
             "resources/Controller.xib",
+            "resources/Intents.intentdefinition",
             "resources/Storyboard.storyboard",
         ])
     }
