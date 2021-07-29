@@ -8835,7 +8835,7 @@ gatsby-core-utils@^1.10.1:
     tmp "^0.2.1"
     xdg-basedir "^4.0.0"
 
-gatsby-core-utils@^2.10.0, gatsby-core-utils@^2.9.0:
+gatsby-core-utils@^2.10.0:
   version "2.10.0"
   resolved "https://registry.yarnpkg.com/gatsby-core-utils/-/gatsby-core-utils-2.10.0.tgz#bc37ea9eb6bb5f327aa4bdc0345a37d9390d4a7a"
   integrity sha512-xvVebKSrjHkZQQkeEjuAekCAg17KT2l44d/yn7w2dzBGay244m8hoY8LRtLRdsrSp30ix89QklefuP9frEfhbA==
@@ -8917,16 +8917,16 @@ gatsby-plugin-feed@^2.13.1:
     lodash.merge "^4.6.2"
     rss "^1.2.2"
 
-gatsby-plugin-manifest@^3.9.0:
-  version "3.9.0"
-  resolved "https://registry.yarnpkg.com/gatsby-plugin-manifest/-/gatsby-plugin-manifest-3.9.0.tgz#28e84611382b3d068c03417337ffee6438925a5c"
-  integrity sha512-cRGsgvwtYLWLJUvbrl6uAWwv4ragPKGjPF7w9m5uRlpXh5zLguMqcgUVL9SfLMH2LJUyM7P5YyyiE/6tigOHqA==
+gatsby-plugin-manifest@^3.10.0:
+  version "3.10.0"
+  resolved "https://registry.yarnpkg.com/gatsby-plugin-manifest/-/gatsby-plugin-manifest-3.10.0.tgz#87ce4383b938b06a9346610b9e4bd0cccd72c15a"
+  integrity sha512-vx5bZDxEUYgXYXo4OqMJ+affCUi6mDhgT39Oppy1hBMkwYeNQKeiP8mJ77kRqlGUX44rsTJ4/bD2qvJgJLHaMQ==
   dependencies:
-    "@babel/runtime" "^7.14.0"
-    gatsby-core-utils "^2.9.0"
-    gatsby-plugin-utils "^1.9.0"
+    "@babel/runtime" "^7.14.6"
+    gatsby-core-utils "^2.10.0"
+    gatsby-plugin-utils "^1.10.0"
     semver "^7.3.5"
-    sharp "^0.28.1"
+    sharp "^0.28.3"
 
 gatsby-plugin-mdx@^2.10.0:
   version "2.10.0"
@@ -9105,7 +9105,7 @@ gatsby-plugin-utils@^0.9.0:
   dependencies:
     joi "^17.2.1"
 
-gatsby-plugin-utils@^1.10.0, gatsby-plugin-utils@^1.9.0:
+gatsby-plugin-utils@^1.10.0:
   version "1.10.0"
   resolved "https://registry.yarnpkg.com/gatsby-plugin-utils/-/gatsby-plugin-utils-1.10.0.tgz#88ca8a1d63be68ebdd65af83046c0f2fa011f725"
   integrity sha512-JRg3er+8qay7qCaGTlFR96AeMPYVShihcAJd8TwpbfrmVSn69iWVLt3hUstpSdQxvhSRF4m4unVEhlKH3oSTOg==
@@ -12921,11 +12921,6 @@ node-abi@^2.7.0:
   dependencies:
     semver "^5.4.1"
 
-node-addon-api@^3.1.0:
-  version "3.1.0"
-  resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-3.1.0.tgz#98b21931557466c6729e51cb77cd39c965f42239"
-  integrity sha512-flmrDNB06LIl5lywUz7YlNGZH/5p0M7W28k8hzd9Lshtdh1wshD2Y+U4h9LD6KObOy1f+fEVdgprPrEymjM5uw==
-
 node-addon-api@^3.2.0:
   version "3.2.1"
   resolved "https://registry.yarnpkg.com/node-addon-api/-/node-addon-api-3.2.1.tgz#81325e0a2117789c0128dab65e7e38f07ceba161"
@@ -16280,20 +16275,6 @@ sharp@^0.23.3:
     semver "^6.3.0"
     simple-get "^3.1.0"
     tar "^5.0.5"
-    tunnel-agent "^0.6.0"
-
-sharp@^0.28.1:
-  version "0.28.2"
-  resolved "https://registry.yarnpkg.com/sharp/-/sharp-0.28.2.tgz#31c6ebdf8ddb9b4ca3e30179e3f4a73f0c7474e4"
-  integrity sha512-CdmySbsQVe/+ZM2j9zzvUfWumM0L0iHj1kpxJMFuyWvSuBULebvGCdOLb1f5vbbBrIGroX714Fx1wiWaKniz4A==
-  dependencies:
-    color "^3.1.3"
-    detect-libc "^1.0.3"
-    node-addon-api "^3.1.0"
-    prebuild-install "^6.1.2"
-    semver "^7.3.5"
-    simple-get "^3.1.0"
-    tar-fs "^2.1.1"
     tunnel-agent "^0.6.0"
 
 sharp@^0.28.3:
