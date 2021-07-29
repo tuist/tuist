@@ -535,6 +535,7 @@ extension ProjectDescription.Settings {
         // FRAMEWORK_SEARCH_PATHS is required for targets depending on system frameworks (for example, XCTest).
         // SPM always adds it to the Xcode build settings.
         var settingsDictionary: ProjectDescription.SettingsDictionary = [
+            "GCC_WARN_INHIBIT_ALL_WARNINGS": "YES",
             "CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER": "NO",
             "ENABLE_TESTING_SEARCH_PATHS": "YES",
             "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",

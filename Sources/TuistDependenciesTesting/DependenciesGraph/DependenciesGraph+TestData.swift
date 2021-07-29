@@ -409,6 +409,7 @@ extension DependenciesGraph {
         moduleMap: AbsolutePath? = nil
     ) -> Settings {
         var settingsDictionary = customSettings
+        settingsDictionary["GCC_WARN_INHIBIT_ALL_WARNINGS"] = "YES"
         settingsDictionary["CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER"] = "NO"
         settingsDictionary["ENABLE_TESTING_SEARCH_PATHS"] = "YES"
         settingsDictionary["FRAMEWORK_SEARCH_PATHS"] = "$(PLATFORM_DIR)/Developer/Library/Frameworks"
