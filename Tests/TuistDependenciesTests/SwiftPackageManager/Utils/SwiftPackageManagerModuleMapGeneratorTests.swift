@@ -18,38 +18,38 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
         super.tearDown()
     }
 
+    func test_generate_when_no_headers() throws {
+        try test_generate(for: .none)
+    }
+
     func test_generate_when_custom_module_map() throws {
         try test_generate(for: .custom)
     }
 
     func test_generate_when_umbrella_header() throws {
-        try test_generate(for: .header("/Absolute/Public/Headers/Path/Module.h"))
+        try test_generate(for: .header)
     }
 
     func test_generate_when_nested_umbrella_header() throws {
-        try test_generate(for: .header("/Absolute/Public/Headers/Path/Module/Module.h"))
+        try test_generate(for: .nestedHeader)
     }
 
     func test_generate_when_umbrella_directory() throws {
-        try test_generate(for: .directory("/Absolute/Public/Headers/Path"))
+        try test_generate(for: .directory)
     }
 
-    func test_generate_when_no_headers() throws {
-        try test_generate(for: .none)
-    }
-
-    private func test_generate(for moduleMapType: SwiftPackageManagerModuleMapGenerator.ModuleMapType) throws {
+    private func test_generate(for moduleMapType: ModuleMapType) throws {
         var writeCalled = false
         fileHandler.stubExists = { path in
             switch path {
             case "/Absolute/Public/Headers/Path/module.modulemap":
                 return moduleMapType == .custom
             case "/Absolute/Public/Headers/Path/Module.h":
-                return moduleMapType == .header(path)
+                return moduleMapType == .header
             case "/Absolute/Public/Headers/Path/Module/Module.h":
-                return moduleMapType == .header(path)
+                return moduleMapType == .nestedHeader
             case "/Absolute/Public/Headers/Path":
-                return moduleMapType == .directory(path)
+                return moduleMapType == .directory
             default:
                 XCTFail("Unexpected exists call: \(path)")
                 return false
@@ -59,13 +59,13 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
             writeCalled = true
             let expectedContent: String
             switch moduleMapType {
-            case .none, .custom:
+            case .none, .custom, .header:
                 XCTFail("FileHandler.write should not be called")
                 return
-            case let .header(path):
+            case .nestedHeader:
                 expectedContent = """
                 module Module {
-                    umbrella header "\(path.pathString)"
+                    umbrella header "/Absolute/Public/Headers/Path/Module/Module.h"
                     export *
                 }
 
@@ -83,19 +83,20 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
             XCTAssertEqual(path, "/Absolute/Public/Headers/Path/Module.modulemap")
             XCTAssertTrue(atomically)
         }
-        let moduleMapPath = try subject.generate(moduleName: "Module", publicHeadersPath: "/Absolute/Public/Headers/Path")
+        let moduleMap = try subject.generate(moduleName: "Module", publicHeadersPath: "/Absolute/Public/Headers/Path")
+        XCTAssertEqual(moduleMap.type, moduleMapType)
         switch moduleMapType {
-        case .none:
-            XCTAssertNil(moduleMapPath)
+        case .none, .header:
+            XCTAssertNil(moduleMap.path)
         case .custom:
-            XCTAssertEqual(moduleMapPath, "/Absolute/Public/Headers/Path/module.modulemap")
-        case .header, .directory:
-            XCTAssertEqual(moduleMapPath, "/Absolute/Public/Headers/Path/Module.modulemap")
+            XCTAssertEqual(moduleMap.path, "/Absolute/Public/Headers/Path/module.modulemap")
+        case .nestedHeader, .directory:
+            XCTAssertEqual(moduleMap.path, "/Absolute/Public/Headers/Path/Module.modulemap")
         }
         switch moduleMapType {
-        case .none, .custom:
+        case .none, .custom, .header:
             XCTAssertFalse(writeCalled)
-        case .header, .directory:
+        case .nestedHeader, .directory:
             XCTAssertTrue(writeCalled)
         }
     }

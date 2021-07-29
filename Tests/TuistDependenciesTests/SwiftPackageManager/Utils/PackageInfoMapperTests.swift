@@ -215,7 +215,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenHasHeaders() throws {
+    func testMap_whenHasHeadersWithCustomModuleMap() throws {
         fileHandler.stubFilesAndDirectoriesContained = { path in
             XCTAssertEqual(path, "/Package/Path/Sources/Target1/include")
             return [
@@ -226,7 +226,50 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         moduleMapGenerator.generateStub = { moduleName, path in
             XCTAssertEqual(moduleName, "Target1")
             XCTAssertEqual(path, "/Package/Path/Sources/Target1/include")
-            return "/Package/Path/Sources/Target1/include/module.modulemap"
+            return (type: .custom, path: "/Package/Path/Sources/Target1/include/module.modulemap")
+        }
+        let project = try subject.map(
+            packageInfo: .init(
+                products: [
+                    .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                ],
+                targets: [
+                    .test(
+                        name: "Target1"
+                    ),
+                ],
+                platforms: []
+            )
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test(
+                        "Target1",
+                        customSettings: [
+                            "HEADER_SEARCH_PATHS": [ "/Package/Path/Sources/Target1/include"],
+                        ],
+                        moduleMap: "/Package/Path/Sources/Target1/include/module.modulemap"
+                    ),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenHasHeadersWithUmbrellaHeader() throws {
+        fileHandler.stubFilesAndDirectoriesContained = { path in
+            XCTAssertEqual(path, "/Package/Path/Sources/Target1/include")
+            return [
+                "/Package/Path/Sources/Target1/include/Target1.h",
+                "/Package/Path/Sources/Target1/include/Subfolder/AnHeader.h",
+            ]
+        }
+        moduleMapGenerator.generateStub = { moduleName, path in
+            XCTAssertEqual(moduleName, "Target1")
+            XCTAssertEqual(path, "/Package/Path/Sources/Target1/include")
+            return (type: .header, path: nil)
         }
         let project = try subject.map(
             packageInfo: .init(
@@ -249,10 +292,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         headers: .init(public: [
-                            "/Package/Path/Sources/Target1/include/AnHeader.h",
-                            "/Package/Path/Sources/Target1/include/Subfolder/AnotherHeader.h",
+                            "/Package/Path/Sources/Target1/include/Target1.h",
+                            "/Package/Path/Sources/Target1/include/Subfolder/AnHeader.h",
                         ]),
-                        moduleMap: "/Package/Path/Sources/Target1/include/module.modulemap"
+                        customSettings: [
+                            "HEADER_SEARCH_PATHS": [ "/Package/Path/Sources/Target1/include"],
+                        ]
                     ),
                 ]
             )
@@ -269,7 +314,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         moduleMapGenerator.generateStub = { moduleName, path in
             XCTAssertEqual(moduleName, "Target1")
             XCTAssertEqual(path, "/Package/Path/Custom/Path/Headers")
-            return "/Package/Path/Custom/Path/Headers/module.modulemap"
+            return (type: .custom, path: "/Package/Path/Custom/Path/Headers/module.modulemap")
         }
         let project = try subject.map(
             packageInfo: .init(
@@ -297,7 +342,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         "Target1",
                         customSources: "/Package/Path/Custom/Path/Sources/Folder/**",
                         resources: "/Package/Path/Custom/Path/Resource/Folder/**",
-                        headers: .init(public: ["/Package/Path/Custom/Path/Headers/Header.h"]),
+                        customSettings: [
+                            "HEADER_SEARCH_PATHS": [ "/Package/Path/Custom/Path/Headers"],
+                        ],
                         moduleMap: "/Package/Path/Custom/Path/Headers/module.modulemap"
                     ),
                 ]

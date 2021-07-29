@@ -177,6 +177,8 @@ extension ProjectDescription.Target {
         }
 
         let path = packageFolder.appending(target.relativePath)
+        let publicHeadersPath = path.appending(target.relativePublicHeadersPath)
+        let moduleMap = try moduleMapGenerator.generate(moduleName: target.name, publicHeadersPath: publicHeadersPath)
 
         let platform = try ProjectDescription.Platform.from(configured: platforms, package: packageInfo.platforms, packageName: packageName)
         let deploymentTarget = try ProjectDescription.DeploymentTarget.from(
@@ -187,7 +189,7 @@ extension ProjectDescription.Target {
         )
         let sources = SourceFilesList.from(sources: target.sources, path: path, excluding: target.exclude)
         let resources = ResourceFileElements.from(resources: target.resources, path: path)
-        let headers = try Headers.from(publicHeadersPath: path.appending(target.relativePublicHeadersPath))
+        let headers = try Headers.from(moduleMapType: moduleMap.type, publicHeadersPath: publicHeadersPath)
         let dependencies = try ProjectDescription.TargetDependency.from(
             packageInfo: packageInfo,
             platform: platform,
@@ -205,7 +207,7 @@ extension ProjectDescription.Target {
             path: path,
             settings: target.settings,
             platform: platform,
-            moduleMapGenerator: moduleMapGenerator
+            moduleMap: moduleMap
         )
 
         return ProjectDescription.Target(
@@ -442,8 +444,11 @@ extension ProjectDescription.TargetDependency {
 }
 
 extension ProjectDescription.Headers {
-    fileprivate static func from(publicHeadersPath: AbsolutePath) throws -> Self? {
+    fileprivate static func from(moduleMapType: ModuleMapType, publicHeadersPath: AbsolutePath) throws -> Self? {
+        // As per SPM logic, headers should be added only when using the umbrella header without modulemap:
+        // https://github.com/apple/swift-package-manager/blob/9b9bed7eaf0f38eeccd0d8ca06ae08f6689d1c3f/Sources/Xcodeproj/pbxproj.swift#L588-L609
         guard
+            moduleMapType == .header,
             let publicHeaders = FileHandler.shared.filesAndDirectoriesContained(in: publicHeadersPath)?.filter({ $0.extension == "h" }),
             !publicHeaders.isEmpty
         else {
@@ -463,7 +468,7 @@ extension ProjectDescription.Settings {
         path: AbsolutePath,
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         platform: ProjectDescription.Platform,
-        moduleMapGenerator: SwiftPackageManagerModuleMapGenerating
+        moduleMap: (type: ModuleMapType, path: AbsolutePath?)
     ) throws -> Self? {
         var headerSearchPaths: [String] = []
         var defines: [String: String] = ["SWIFT_PACKAGE": "1"]
@@ -472,10 +477,10 @@ extension ProjectDescription.Settings {
         var cxxFlags: [String] = []
         var swiftFlags: [String] = []
 
-        let moduleMap = try moduleMapGenerator.generate(moduleName: target.name, publicHeadersPath: path.appending(target.relativePublicHeadersPath))
-        if moduleMap != nil {
+        if moduleMap.type != .none {
             headerSearchPaths.append(path.appending(target.relativePublicHeadersPath).pathString)
         }
+
         headerSearchPaths += target.dependencies
             .compactMap { dependency in
                 switch dependency {
@@ -534,8 +539,8 @@ extension ProjectDescription.Settings {
             "ENABLE_TESTING_SEARCH_PATHS": "YES",
             "FRAMEWORK_SEARCH_PATHS": "$(PLATFORM_DIR)/Developer/Library/Frameworks",
         ]
-        if let moduleMap = moduleMap {
-            settingsDictionary["MODULEMAP_FILE"] = .string(moduleMap.pathString)
+        if let moduleMapPath = moduleMap.path {
+            settingsDictionary["MODULEMAP_FILE"] = .string(moduleMapPath.pathString)
         }
         if !headerSearchPaths.isEmpty {
             settingsDictionary["HEADER_SEARCH_PATHS"] = .array(headerSearchPaths.map { $0 })

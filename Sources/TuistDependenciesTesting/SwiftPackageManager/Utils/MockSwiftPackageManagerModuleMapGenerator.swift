@@ -8,11 +8,11 @@ public final class MockSwiftPackageManagerModuleMapGenerator: SwiftPackageManage
 
     var invokedGenerate = false
     var generateStub: (
-        (String, AbsolutePath) throws -> AbsolutePath?
+        (String, AbsolutePath) throws -> (type: ModuleMapType, path: AbsolutePath?)
     )?
 
-    public func generate(moduleName: String, publicHeadersPath: AbsolutePath) throws -> AbsolutePath? {
+    public func generate(moduleName: String, publicHeadersPath: AbsolutePath) throws -> (type: ModuleMapType, path: AbsolutePath?) {
         invokedGenerate = true
-        return try generateStub?(moduleName, publicHeadersPath) ?? nil
+        return try generateStub?(moduleName, publicHeadersPath) ?? (.none, nil)
     }
 }

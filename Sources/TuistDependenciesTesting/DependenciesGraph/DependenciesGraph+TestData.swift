@@ -404,18 +404,16 @@ extension DependenciesGraph {
         return Path("\(spmFolder.pathString)/checkouts/\(packageName)")
     }
 
-    static func spmSettings(with customSettings: SettingsDictionary = [:], moduleMap: AbsolutePath? = nil) -> Settings {
+    static func spmSettings(
+        with customSettings: SettingsDictionary = [:],
+        moduleMap: AbsolutePath? = nil
+    ) -> Settings {
         var settingsDictionary = customSettings
         settingsDictionary["CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER"] = "NO"
         settingsDictionary["ENABLE_TESTING_SEARCH_PATHS"] = "YES"
         settingsDictionary["FRAMEWORK_SEARCH_PATHS"] = "$(PLATFORM_DIR)/Developer/Library/Frameworks"
         if let moduleMap = moduleMap {
             settingsDictionary["MODULEMAP_FILE"] = .string(moduleMap.pathString)
-            if case let .array(searchPaths) = settingsDictionary["HEADER_SEARCH_PATHS"] {
-                settingsDictionary["HEADER_SEARCH_PATHS"] = .array((searchPaths + [moduleMap.parentDirectory.pathString]).sorted())
-            } else {
-                settingsDictionary["HEADER_SEARCH_PATHS"] = .array([moduleMap.parentDirectory.pathString])
-            }
         }
         if case let .array(cDefinitions) = settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] {
             settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array((cDefinitions + ["SWIFT_PACKAGE=1"]).sorted())
