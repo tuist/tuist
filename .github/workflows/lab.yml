@@ -1,4 +1,4 @@
-name: TuistLab API
+name: TuistLab
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - main
   pull_request:
     paths:
-      - projects/lab-api/**
+      - projects/lab/**
 
 env:
   RAILS_ENV: test
@@ -44,23 +44,23 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
       - name: Install dependencies
-        working-directory: projects/lab-api
+        working-directory: projects/lab
         run: |
           sudo apt-get -yqq install libpq-dev
           gem install bundler
           bundle config path vendor/bundle
           bundle install --jobs=4 --retry=3
       - name: Set up database (to detect schema breaking changes)
-        working-directory: projects/lab-api
+        working-directory: projects/lab
         run: |
           cp config/database.ci.yml config/database.yml
           bundle exec rails db:create
           bundle exec rails db:schema:load
       - name: Migrate database
-        working-directory: projects/lab-api
+        working-directory: projects/lab
         run: bin/rails db:migrate
       - name: Run Ruby tests
-        working-directory: projects/lab-api
+        working-directory: projects/lab
         run: |
           bundle exec rails test
   assets_precompile:
@@ -84,11 +84,11 @@ jobs:
         id: yarn-cache # use this to check for `cache-hit` (`steps.yarn-cache.outputs.cache-hit != 'true'`)
         with:
           path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
-          key: ${{ runner.os }}-yarn-${{ hashFiles('projects/lab-api/yarn.lock') }}
+          key: ${{ runner.os }}-yarn-${{ hashFiles('projects/lab/yarn.lock') }}
           restore-keys: |
             ${{ runner.os }}-yarn-
       - name: Install dependencies
-        working-directory: projects/lab-api
+        working-directory: projects/lab
         run: |
           sudo apt-get -yqq install libpq-dev
           gem install bundler
@@ -96,7 +96,7 @@ jobs:
           bundle install --jobs=4 --retry=3
           yarn install --frozen-lockfile
       - name: Precompile assets
-        working-directory: projects/lab-api
+        working-directory: projects/lab
         run: |
           bin/rails assets:precompile
   detect_schema_breaking_changes:
@@ -120,11 +120,11 @@ jobs:
         id: yarn-cache # use this to check for `cache-hit` (`steps.yarn-cache.outputs.cache-hit != 'true'`)
         with:
           path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
-          key: ${{ runner.os }}-yarn-${{ hashFiles('projects/lab-api/yarn.lock') }}
+          key: ${{ runner.os }}-yarn-${{ hashFiles('projects/lab/yarn.lock') }}
           restore-keys: |
             ${{ runner.os }}-yarn-
       - name: Install dependencies
-        working-directory: projects/lab-api
+        working-directory: projects/lab
         run: |
           sudo apt-get -yqq install libpq-dev
           gem install bundler
@@ -132,7 +132,7 @@ jobs:
           bundle install --jobs=4 --retry=3
           yarn install --frozen-lockfile
       - name: Precompile assets
-        working-directory: projects/lab-api
+        working-directory: projects/lab
         run: |
           mv schema.graphql old_schema.graphql
           bin/rails graphql:schema:dump
@@ -153,17 +153,17 @@ jobs:
         id: yarn-cache # use this to check for `cache-hit` (`steps.yarn-cache.outputs.cache-hit != 'true'`)
         with:
           path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
-          key: ${{ runner.os }}-yarn-${{ hashFiles('projects/lab-api/yarn.lock') }}
+          key: ${{ runner.os }}-yarn-${{ hashFiles('projects/lab/yarn.lock') }}
           restore-keys: |
             ${{ runner.os }}-yarn-
       - name: Install dependencies
-        working-directory: projects/lab-api
+        working-directory: projects/lab
         run: |
           sudo apt-get -yqq install libpq-dev
           yarn install --frozen-lockfile
           yarn install --frozen-lockfile --cwd website
       - name: Typecheck
-        working-directory: projects/lab-api
+        working-directory: projects/lab
         run: |
           yarn type-check
   frontend_tests:
@@ -182,16 +182,16 @@ jobs:
         id: yarn-cache # use this to check for `cache-hit` (`steps.yarn-cache.outputs.cache-hit != 'true'`)
         with:
           path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
-          key: ${{ runner.os }}-yarn-${{ hashFiles('projects/lab-api/yarn.lock') }}
+          key: ${{ runner.os }}-yarn-${{ hashFiles('projects/lab/yarn.lock') }}
           restore-keys: |
             ${{ runner.os }}-yarn-
       - name: Install dependencies
-        working-directory: projects/lab-api
+        working-directory: projects/lab
         run: |
           sudo apt-get -yqq install libpq-dev
           yarn install --frozen-lockfile
       - name: Typecheck
-        working-directory: projects/lab-api
+        working-directory: projects/lab
         run: |
           yarn test
   eslint:
@@ -210,17 +210,17 @@ jobs:
         id: yarn-cache # use this to check for `cache-hit` (`steps.yarn-cache.outputs.cache-hit != 'true'`)
         with:
           path: ${{ steps.yarn-cache-dir-path.outputs.dir }}
-          key: ${{ runner.os }}-yarn-${{ hashFiles('projects/lab-api/yarn.lock') }}
+          key: ${{ runner.os }}-yarn-${{ hashFiles('projects/lab/yarn.lock') }}
           restore-keys: |
             ${{ runner.os }}-yarn-
       - name: Install dependencies
-        working-directory: projects/lab-api
+        working-directory: projects/lab
         run: |
           sudo apt-get -yqq install libpq-dev
           yarn install --frozen-lockfile
           yarn install --frozen-lockfile --cwd website
       - name: ESLint
-        working-directory: projects/lab-api
+        working-directory: projects/lab
         run: |
           yarn lint
 

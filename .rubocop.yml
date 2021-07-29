@@ -26,8 +26,8 @@ AllCops:
     - vendor/**/*
     - projects/website/node_modules/**/*
     - projects/tuist/fixtures/**/*
-    - projects/lab-api/bin/**/*
-    - projects/lab-api/db/schema.rb
-    - projects/lab-api/node_modules/**/*
-    - projects/lab-api/docs/**
-    - projects/lab-api/website/**/*
+    - projects/lab/bin/**/*
+    - projects/lab/db/schema.rb
+    - projects/lab/node_modules/**/*
+    - projects/lab/docs/**
+    - projects/lab/website/**/*

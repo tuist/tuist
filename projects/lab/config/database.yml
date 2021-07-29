@@ -6,11 +6,11 @@ default: &default
   pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
 development:
   <<: *default
-  database: swift_docs_development
+  database: tuist_lab_development
   url: <%= ENV['DATABASE_URL'] %>
 test:
   <<: *default
-  database: swift_docs_test
+  database: tuist_lab_test
   url: <%= ENV['DATABASE_URL'] %>
 production:
   <<: *default

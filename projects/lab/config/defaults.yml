@@ -7,7 +7,7 @@ default: &default
     description: "TuistLab is a server-side extension for Tuist projects"
     title: "TuistLab | A server buddy for your Xcode projects"
     keywords: "Xcode,Swift,Deployment,DocC,Xcode 13,WWDC"
-    twitter: swift_docs
+    twitter: tuistio
 development: &development
   <<: *default
 production:
