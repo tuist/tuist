@@ -487,6 +487,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "randomeizer",
+      "name": "David Peterson",
+      "avatar_url": "https://avatars.githubusercontent.com/u/3589315?v=4",
+      "profile": "http://randombits.org/",
+      "contributions": [
+        "ideas"
+      ]
     }
   ],
   "contributorsPerLine": 7,
