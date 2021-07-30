@@ -25,6 +25,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Remove the `sudo` requirement for the install and uninstall scripts. [#3056](https://github.com/tuist/tuist/pull/3056) by [@luispadron](https://github.com/luispadron).
 
+### Fixed
+
+- Editing projects in development [#3199](https://github.com/tuist/tuist/pull/3199) by [@pepibumur](https://github.com/pepibumur).
+
 ## 1.46.1
 
 ### Fixed

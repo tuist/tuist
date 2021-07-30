@@ -33,8 +33,8 @@
         "repositoryURL": "https://github.com/pointfreeco/combine-schedulers",
         "state": {
           "branch": null,
-          "revision": "c37e5ae8012fb654af776cc556ff8ae64398c841",
-          "version": "0.5.0"
+          "revision": "f1250faa1c1436ca83950ce676a4fe97a309a457",
+          "version": "0.4.1"
         }
       },
       {
@@ -186,8 +186,8 @@
         "repositoryURL": "https://github.com/apple/swift-log.git",
         "state": {
           "branch": null,
-          "revision": "5d66f7ba25daf4f94100e7022febf3c75e37a6c7",
-          "version": "1.4.2"
+          "revision": "12d3a8651d32295794a850307f77407f95b8c881",
+          "version": "1.4.1"
         }
       },
       {
@@ -195,8 +195,8 @@
         "repositoryURL": "https://github.com/apple/swift-tools-support-core.git",
         "state": {
           "branch": null,
-          "revision": "3b6b97d612b56e25d80d0807f5bc38ea08b7bdf3",
-          "version": "0.2.3"
+          "revision": "ab6339b6a33b69886b3cf2254d3326eddfe58eb0",
+          "version": "0.2.2"
         }
       },
       {
@@ -231,8 +231,8 @@
         "repositoryURL": "https://github.com/pointfreeco/xctest-dynamic-overlay",
         "state": {
           "branch": null,
-          "revision": "152390e9e78ebbf0d767ee52971d41e7f44f39bc",
-          "version": "0.1.1"
+          "revision": "603974e3909ad4b48ba04aad7e0ceee4f077a518",
+          "version": "0.1.0"
         }
       },
       {
