@@ -3,7 +3,6 @@ import TSCBasic
 @testable import TuistSupport
 
 public final class MockDeveloperEnvironment: DeveloperEnvironmenting {
-
     public var invokedDerivedDataDirectoryGetter = false
     public var invokedDerivedDataDirectoryGetterCount = 0
     public var stubbedDerivedDataDirectory: AbsolutePath!

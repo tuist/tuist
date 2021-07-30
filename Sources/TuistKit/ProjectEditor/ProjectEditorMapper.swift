@@ -424,15 +424,15 @@ final class ProjectEditorMapper: ProjectEditorMapping {
 
     private func targetBaseSettings(for includes: [AbsolutePath], swiftVersion: String) -> SettingsDictionary {
         let includePaths = includes
-            .flatMap({ path in
+            .flatMap { path in
                 // In development, the .swiftmodule is generated in a directory up from the directory of the framework.
                 // /path/to/derived/tuist-xyz/
                 //    PackageFrameworks/
                 //      ProjectDescription.framework
                 //    ProjectDescription.swiftmodule
                 // Because of that we need to expose the parent directory too in SWIFT_INCLUDE_PATHS
-                return [path.parentDirectory.pathString, path.parentDirectory.parentDirectory.pathString]
-            })
+                [path.parentDirectory.pathString, path.parentDirectory.parentDirectory.pathString]
+            }
             .map { "\"\($0)\"" }
         return [
             "FRAMEWORK_SEARCH_PATHS": .array(includePaths),
@@ -441,7 +441,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             "SWIFT_VERSION": .string(swiftVersion),
         ]
     }
-    
+
     private func excludedArchs() -> String {
         let architecture = DeveloperEnvironment.shared.architecture
         switch architecture {

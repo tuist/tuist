@@ -4,7 +4,7 @@ import TSCBasic
 public protocol DeveloperEnvironmenting {
     /// Returns the derived data directory selected in the environment.
     var derivedDataDirectory: AbsolutePath { get }
-    
+
     /// Returns the system's architecture.
     var architecture: MacArchitecture { get }
 }
@@ -17,7 +17,7 @@ public final class DeveloperEnvironment: DeveloperEnvironmenting {
 
     /// File handler instance.
     let fileHandler: FileHandling
-    
+
     convenience init() {
         self.init(fileHandler: FileHandler())
     }
@@ -43,8 +43,9 @@ public final class DeveloperEnvironment: DeveloperEnvironmenting {
         _derivedDataDirectory = location
         return location
     }
+
     // swiftlint:enable identifier_name
-    
+
     @Atomic private var _architecture: MacArchitecture?
     public var architecture: MacArchitecture {
         if let _architecture = _architecture {
