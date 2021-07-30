@@ -4,6 +4,9 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+
+- Add support for localized intent definition files using `.strings`. [#3236](https://github.com/tuist/tuist/pull/3236) by [@dbarden](https://github.com/dbarden)
 ## 1.47.0 - Mirror
 
 ### Added
@@ -21,6 +24,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Changed
 
 - Remove the `sudo` requirement for the install and uninstall scripts. [#3056](https://github.com/tuist/tuist/pull/3056) by [@luispadron](https://github.com/luispadron).
+
+### Fixed
+
+- Editing projects in development [#3199](https://github.com/tuist/tuist/pull/3199) by [@pepibumur](https://github.com/pepibumur).
 
 ## 1.46.1
 

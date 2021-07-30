@@ -20,5 +20,9 @@
     "**/node_modules": true,
     "**/.DS_Store": true
   },
-  "editor.formatOnSave": true
+  "editor.formatOnSave": false,
+  "workbench.colorTheme": "Dracula Soft",
+  "editor.quickSuggestions": {
+    "strings": true
+  }
 }

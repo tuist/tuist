@@ -356,6 +356,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
     {
         var buildFilesCache = Set<AbsolutePath>()
         var pbxBuildFiles = [PBXBuildFile]()
+        let ignoredVariantGroupExtensions = [".intentdefinition"]
 
         try files.sorted(by: { $0.path < $1.path }).forEach { resource in
             let buildFilePath = resource.path
@@ -378,6 +379,13 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 guard let (group, path) = fileElements.variantGroup(containing: buildFilePath) else {
                     throw BuildPhaseGenerationError.missingFileReference(buildFilePath)
                 }
+
+                // Xcode automatically copies the string files for some files (i.e. .intentdefinition files), hence we need
+                // to remove them from the Copy Resources build phase
+                if let suffix = path.suffix, ignoredVariantGroupExtensions.contains(suffix) {
+                    return
+                }
+
                 element = (group, path)
             } else if !isLproj {
                 guard let fileReference = fileElements.file(path: buildFilePath) else {
