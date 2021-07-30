@@ -12,9 +12,6 @@ environment.plugins.append(
   'DefinePlugin',
   new webpack.DefinePlugin({
     BASE_URL: JSON.stringify(process.env.BASE_URL),
-    BUGSNAG_FRONTEND_API_KEY: JSON.stringify(
-      process.env.BUGSNAG_FRONTEND_API_KEY,
-    ),
     ENVIRONMENT: JSON.stringify(ENVIRONMENT),
   }),
 );
