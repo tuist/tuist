@@ -465,7 +465,7 @@ extension ProjectDescription.Settings {
         target: PackageInfo.Target,
         packageFolder: AbsolutePath,
         packageInfo: PackageInfo,
-        path: AbsolutePath,
+        path _: AbsolutePath,
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         platform: ProjectDescription.Platform,
         moduleMap: (type: ModuleMapType, path: AbsolutePath?)
@@ -497,7 +497,7 @@ extension ProjectDescription.Settings {
 
             switch (setting.tool, setting.name) {
             case (.c, .headerSearchPath), (.cxx, .headerSearchPath):
-                headerSearchPaths.append(path.appending(RelativePath(setting.value[0])).pathString)
+                headerSearchPaths.append("$(SRCROOT)/\(target.relativePath.pathString)/\(setting.value[0])")
             case (.c, .define), (.cxx, .define):
                 let (name, value) = setting.extractDefine
                 defines[name] = value
@@ -683,6 +683,7 @@ extension PackageInfo {
         )
     }
 }
+
 extension PackageInfo.Target {
     var relativePath: RelativePath {
         RelativePath(path ?? "Sources/\(name)")

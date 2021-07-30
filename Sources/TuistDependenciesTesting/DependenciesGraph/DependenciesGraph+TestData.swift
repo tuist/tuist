@@ -419,7 +419,7 @@ extension DependenciesGraph {
             "GCC_NO_COMMON_BLOCKS": "NO",
             "USE_HEADERMAP": "NO",
         ]
-        var settingsDictionary = customSettings.merging(defaultSpmSettings, uniquingKeysWith: { custom, spmDefault in custom })
+        var settingsDictionary = customSettings.merging(defaultSpmSettings, uniquingKeysWith: { custom, _ in custom })
 
         if let moduleMap = moduleMap {
             settingsDictionary["MODULEMAP_FILE"] = .string(moduleMap.pathString)
