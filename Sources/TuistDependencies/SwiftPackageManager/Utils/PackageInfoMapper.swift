@@ -478,26 +478,15 @@ extension ProjectDescription.Settings {
         var swiftFlags: [String] = []
 
         if moduleMap.type != .none {
-            headerSearchPaths.append(path.appending(target.relativePublicHeadersPath).pathString)
+            headerSearchPaths.append("$(SRCROOT)/\(target.relativePath.appending(target.relativePublicHeadersPath))")
         }
 
-        headerSearchPaths += target.dependencies
-            .compactMap { dependency in
-                switch dependency {
-                case let .target(name, _), let .byName(name, _):
-                    guard
-                        let dependencyTarget = packageInfo.targets.first(where: { $0.name == name }),
-                        FileHandler.shared.exists(
-                            packageFolder.appending(dependencyTarget.relativePath).appending(dependencyTarget.relativePublicHeadersPath)
-                        )
-                    else {
-                        return nil
-                    }
-                    return "$(SRCROOT)/\(dependencyTarget.relativePath.pathString)/\(dependencyTarget.relativePublicHeadersPath.pathString)"
-                default:
-                    return nil
-                }
-            }
+        let allDependencies = packageInfo.recursiveTargetDependencies(of: target)
+        headerSearchPaths += allDependencies
+            .map { $0.relativePath.appending($0.relativePublicHeadersPath) }
+            .filter { FileHandler.shared.exists(packageFolder.appending($0)) }
+            .map { "$(SRCROOT)/\($0.pathString)" }
+            .sorted()
 
         try settings.forEach { setting in
             if let condition = setting.condition {
@@ -535,7 +524,6 @@ extension ProjectDescription.Settings {
         var settingsDictionary: ProjectDescription.SettingsDictionary = [
             // Xcode settings configured by SPM by default
             "ALWAYS_SEARCH_USER_PATHS": "YES",
-            "CLANG_ENABLE_MODULES": "NO",
             "CLANG_ENABLE_OBJC_WEAK": "NO",
             "CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER": "NO",
             "ENABLE_STRICT_OBJC_MSGSEND": "NO",
@@ -678,6 +666,23 @@ extension ProjectDescription.DeploymentDevice {
     }
 }
 
+extension PackageInfo {
+    func recursiveTargetDependencies(of target: PackageInfo.Target) -> Set<PackageInfo.Target> {
+        return transitiveClosure(
+            [target],
+            successors: { target in
+                target.dependencies.compactMap { dependency in
+                    switch dependency {
+                    case let .target(name, _), let .byName(name, _):
+                        return self.targets.first(where: { $0.name == name })
+                    default:
+                        return nil
+                    }
+                }
+            }
+        )
+    }
+}
 extension PackageInfo.Target {
     var relativePath: RelativePath {
         RelativePath(path ?? "Sources/\(name)")

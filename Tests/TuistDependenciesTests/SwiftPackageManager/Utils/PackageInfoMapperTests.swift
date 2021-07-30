@@ -249,7 +249,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         customSettings: [
-                            "HEADER_SEARCH_PATHS": ["/Package/Path/Sources/Target1/include"],
+                            "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Target1/include"],
                         ],
                         moduleMap: "/Package/Path/Sources/Target1/include/module.modulemap"
                     ),
@@ -296,8 +296,78 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             "/Package/Path/Sources/Target1/include/Subfolder/AnHeader.h",
                         ]),
                         customSettings: [
-                            "HEADER_SEARCH_PATHS": ["/Package/Path/Sources/Target1/include"],
+                            "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Target1/include"],
                         ]
+                    ),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenDependenciesHaveHeaders() throws {
+        fileHandler.stubFilesAndDirectoriesContained = { path in
+            return [path.appending(component: "Headehr.h")]
+        }
+        fileHandler.stubExists = { path in
+            return true
+        }
+        moduleMapGenerator.generateStub = { moduleName, path in
+            XCTAssertEqual(path, .init("/Package/Path/Sources/\(moduleName)/include"))
+            return (type: .custom, path: .init("/Package/Path/Sources/\(moduleName)/include/module.modulemap"))
+        }
+        let project = try subject.map(
+            packageInfo: .init(
+                products: [
+                    .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                ],
+                targets: [
+                    .test(
+                        name: "Target1",
+                        dependencies: [.target(name: "Dependency1", condition: nil)]
+                    ),
+                    .test(
+                        name: "Dependency1",
+                        dependencies: [.target(name: "Dependency2", condition: nil)]
+                    ),
+                    .test(name: "Dependency2"),
+                ],
+                platforms: []
+            )
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test(
+                        "Target1",
+                        dependencies: [.target(name: "Dependency1")],
+                        customSettings: [
+                            "HEADER_SEARCH_PATHS": [
+                                "$(SRCROOT)/Sources/Target1/include",
+                                "$(SRCROOT)/Sources/Dependency1/include",
+                                "$(SRCROOT)/Sources/Dependency2/include",
+                            ],
+                        ],
+                        moduleMap: "/Package/Path/Sources/Target1/include/module.modulemap"
+                    ),
+                    .test(
+                        "Dependency1",
+                        dependencies: [.target(name: "Dependency2")],
+                        customSettings: [
+                            "HEADER_SEARCH_PATHS": [
+                                "$(SRCROOT)/Sources/Dependency1/include",
+                                "$(SRCROOT)/Sources/Dependency2/include",
+                            ],
+                        ],
+                        moduleMap: "/Package/Path/Sources/Dependency1/include/module.modulemap"
+                    ),
+                    .test(
+                        "Dependency2",
+                        customSettings: [
+                            "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Dependency2/include"],
+                        ],
+                        moduleMap: "/Package/Path/Sources/Dependency2/include/module.modulemap"
                     ),
                 ]
             )
@@ -343,7 +413,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         customSources: "/Package/Path/Custom/Path/Sources/Folder/**",
                         resources: "/Package/Path/Custom/Path/Resource/Folder/**",
                         customSettings: [
-                            "HEADER_SEARCH_PATHS": ["/Package/Path/Custom/Path/Headers"],
+                            "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Custom/Path/Headers"],
                         ],
                         moduleMap: "/Package/Path/Custom/Path/Headers/module.modulemap"
                     ),
