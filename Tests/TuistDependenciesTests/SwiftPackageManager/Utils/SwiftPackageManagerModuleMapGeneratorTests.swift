@@ -13,7 +13,6 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
     }
 
     override func tearDown() {
-        fileHandler = nil
         subject = nil
         super.tearDown()
     }
