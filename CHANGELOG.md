@@ -7,6 +7,11 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Add support for localized intent definition files using `.strings`. [#3236](https://github.com/tuist/tuist/pull/3236) by [@dbarden](https://github.com/dbarden)
+
+### Fixed
+
+- Build file of dependencies having the wrong platform filter in iOS targets with Catalyst enabled [#3152](https://github.com/tuist/tuist/pull/3152) by [@pepibumur](https://github.com/pepibumur) and [@sampettersson](https://github.com/sampettersson).
+
 ## 1.47.0 - Mirror
 
 ### Added

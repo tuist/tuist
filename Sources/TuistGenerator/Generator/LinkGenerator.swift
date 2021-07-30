@@ -244,7 +244,7 @@ final class LinkGenerator: LinkGenerating {
                     file: fileRef,
                     settings: ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]]
                 )
-                buildFile.platformFilter = platformFilter
+                buildFile.platformFilter = platformFilter?.xcodeprojValue
                 pbxproj.add(object: buildFile)
                 embedPhase.files?.append(buildFile)
             }
@@ -392,7 +392,7 @@ final class LinkGenerator: LinkGenerating {
                         throw LinkGeneratorError.missingProduct(name: target)
                     }
                     let buildFile = PBXBuildFile(file: fileRef)
-                    buildFile.platformFilter = platformFilter
+                    buildFile.platformFilter = platformFilter?.xcodeprojValue
                     pbxproj.add(object: buildFile)
                     buildPhase.files?.append(buildFile)
                 case let .sdk(sdkPath, sdkStatus, _):
@@ -453,7 +453,7 @@ final class LinkGenerator: LinkGenerating {
             }
 
             let buildFile = PBXBuildFile(file: fileRef)
-            buildFile.platformFilter = platformFilter
+            buildFile.platformFilter = platformFilter?.xcodeprojValue
             pbxproj.add(object: buildFile)
             files.append(buildFile)
         }
