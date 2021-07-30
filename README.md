@@ -161,6 +161,9 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
   <tr>
     <td align="center"><a href="https://github.com/havebeenfitz"><img src="https://avatars.githubusercontent.com/u/31866271?v=4" width="100px;" alt=""/><br /><sub><b>Max Kraev</b></sub></a></td>
     <td align="center"><a href="https://github.com/mstfy"><img src="https://avatars.githubusercontent.com/u/5105861?v=4" width="100px;" alt=""/><br /><sub><b>Mustafa Yusuf</b></sub></a></td>
+    <td align="center"><a href="http://twitter.com/danielbarden"><img src="https://avatars.githubusercontent.com/u/104456?v=4" width="100px;" alt=""/><br /><sub><b>Daniel Barden</b></sub></a></td>
+    <td align="center"><a href="https://github.com/zzzkk"><img src="https://avatars.githubusercontent.com/u/12541603?v=4" width="100px;" alt=""/><br /><sub><b>Zofia Kulus</b></sub></a></td>
+    <td align="center"><a href="http://randombits.org/"><img src="https://avatars.githubusercontent.com/u/3589315?v=4" width="100px;" alt=""/><br /><sub><b>David Peterson</b></sub></a></td>
   </tr>
 </table>
 
