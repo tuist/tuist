@@ -163,7 +163,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     public var targetDependencyBuildFilesPlatformFilter: BuildFilePlatformFilter? {
         switch deploymentTarget {
         case let .iOS(_, devices):
-            if devices == .mac {
+            if devices.contains(.mac) {
                 return .catalyst
             }
 
