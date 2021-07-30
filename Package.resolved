@@ -146,15 +146,6 @@
         }
       },
       {
-        "package": "ShellOut",
-        "repositoryURL": "https://github.com/JohnSundell/ShellOut.git",
-        "state": {
-          "branch": null,
-          "revision": "e1577acf2b6e90086d01a6d5e2b8efdaae033568",
-          "version": "2.3.0"
-        }
-      },
-      {
         "package": "Spectre",
         "repositoryURL": "https://github.com/kylef/Spectre.git",
         "state": {
@@ -182,15 +173,6 @@
         }
       },
       {
-        "package": "StencilSwiftKit",
-        "repositoryURL": "https://github.com/SwiftGen/StencilSwiftKit.git",
-        "state": {
-          "branch": null,
-          "revision": "54cbedcdbb4334e03930adcff7343ffaf317bf0f",
-          "version": "2.8.0"
-        }
-      },
-      {
         "package": "swift-argument-parser",
         "repositoryURL": "https://github.com/apple/swift-argument-parser.git",
         "state": {
@@ -204,7 +186,7 @@
         "repositoryURL": "https://github.com/apple/swift-log.git",
         "state": {
           "branch": null,
-          "revision": "12d3a8651d32295794a850307f77407f95b8c881",
+          "revision": "5d66f7ba25daf4f94100e7022febf3c75e37a6c7",
           "version": "1.4.2"
         }
       },
