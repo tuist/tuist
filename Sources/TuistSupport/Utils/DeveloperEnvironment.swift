@@ -44,15 +44,16 @@ public final class DeveloperEnvironment: DeveloperEnvironmenting {
         return location
     }
 
-    // swiftlint:enable identifier_name
-
     @Atomic private var _architecture: MacArchitecture?
     public var architecture: MacArchitecture {
         if let _architecture = _architecture {
             return _architecture
         }
+        // swiftlint:disable:next force_try
         let output = try! System.shared.capture("/usr/bin/uname", "-m").chomp()
         _architecture = MacArchitecture(rawValue: output)
         return _architecture!
     }
+
+    // swiftlint:enable identifier_name
 }
