@@ -408,24 +408,52 @@ extension DependenciesGraph {
         with customSettings: SettingsDictionary = [:],
         moduleMap: AbsolutePath? = nil
     ) -> Settings {
-        var settingsDictionary = customSettings
-        settingsDictionary["GCC_WARN_INHIBIT_ALL_WARNINGS"] = "YES"
-        settingsDictionary["CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER"] = "NO"
-        settingsDictionary["ENABLE_TESTING_SEARCH_PATHS"] = "YES"
-        settingsDictionary["FRAMEWORK_SEARCH_PATHS"] = "$(PLATFORM_DIR)/Developer/Library/Frameworks"
+        let defaultSpmSettings: SettingsDictionary = [
+            "ALWAYS_SEARCH_USER_PATHS": "YES",
+            "GCC_WARN_INHIBIT_ALL_WARNINGS": "YES",
+            "CLANG_ENABLE_MODULES": "NO",
+            "CLANG_ENABLE_OBJC_WEAK": "NO",
+            "CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER": "NO",
+            "ENABLE_STRICT_OBJC_MSGSEND": "NO",
+            "ENABLE_TESTING_SEARCH_PATHS": "YES",
+            "FRAMEWORK_SEARCH_PATHS": ["$(inherited)", "$(PLATFORM_DIR)/Developer/Library/Frameworks"],
+            "GCC_NO_COMMON_BLOCKS": "NO",
+            "USE_HEADERMAP": "NO",
+        ]
+        var settingsDictionary = customSettings.merging(defaultSpmSettings, uniquingKeysWith: { custom, spmDefault in custom })
+
         if let moduleMap = moduleMap {
             settingsDictionary["MODULEMAP_FILE"] = .string(moduleMap.pathString)
         }
+
+        if case let .array(headerSearchPaths) = settingsDictionary["HEADER_SEARCH_PATHS"] {
+            settingsDictionary["HEADER_SEARCH_PATHS"] = .array(["$(inherited)"] + headerSearchPaths)
+        }
+
         if case let .array(cDefinitions) = settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] {
-            settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array((cDefinitions + ["SWIFT_PACKAGE=1"]).sorted())
+            settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array(["$(inherited)"] + (cDefinitions + ["SWIFT_PACKAGE=1"]).sorted())
         } else {
-            settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array(["SWIFT_PACKAGE=1"])
+            settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array(["$(inherited)", "SWIFT_PACKAGE=1"])
         }
+
         if case let .array(swiftDefinitions) = settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] {
-            settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .array(["SWIFT_PACKAGE"] + swiftDefinitions)
+            settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .array(["$(inherited)"] + ["SWIFT_PACKAGE"] + swiftDefinitions)
         } else {
-            settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .array(["SWIFT_PACKAGE"])
+            settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .array(["$(inherited)"] + ["SWIFT_PACKAGE"])
         }
+
+        if case let .array(cFlags) = settingsDictionary["OTHER_CFLAGS"] {
+            settingsDictionary["OTHER_CFLAGS"] = .array(["$(inherited)"] + cFlags)
+        }
+
+        if case let .array(cxxFlags) = settingsDictionary["OTHER_CPLUSPLUSFLAGS"] {
+            settingsDictionary["OTHER_CPLUSPLUSFLAGS"] = .array(["$(inherited)"] + cxxFlags)
+        }
+
+        if case let .array(swiftFlags) = settingsDictionary["OTHER_SWIFT_FLAGS"] {
+            settingsDictionary["OTHER_SWIFT_FLAGS"] = .array(["$(inherited)"] + swiftFlags)
+        }
+
         return Settings(base: settingsDictionary)
     }
 }

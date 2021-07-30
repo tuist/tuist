@@ -381,9 +381,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         "Target1",
                         dependencies: [.target(name: "Dependency1")],
                         customSettings: [
-                            "HEADER_SEARCH_PATHS": [
-                                "$(SRCROOT)/Sources/Dependency1/include",
-                            ],
+                            "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Dependency1/include"],
                         ]
                     ),
                     .test("Dependency1"),
