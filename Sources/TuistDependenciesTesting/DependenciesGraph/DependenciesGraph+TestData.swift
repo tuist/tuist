@@ -74,7 +74,7 @@ public extension TuistCore.DependenciesGraph {
                             ],
                             settings: Self.spmSettings(with: [
                                 "HEADER_SEARCH_PATHS": .array(
-                                    ["/tmp/localPackage/customPath/cSearchPath", "/tmp/localPackage/customPath/cxxSearchPath"]
+                                    ["$(SRCROOT)/customPath/cSearchPath", "$(SRCROOT)/customPath/cxxSearchPath"]
                                 ),
                                 "OTHER_CFLAGS": .array(["CUSTOM_C_FLAG"]),
                                 "OTHER_CPLUSPLUSFLAGS": .array(["CUSTOM_CXX_FLAG"]),
