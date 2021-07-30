@@ -4,6 +4,7 @@ inherit_gem:
     - config/rails.yml
 require:
   - rubocop-minitest
+  - rubocop-rails
 
 Style/ClassAndModuleChildren:
   Enabled: false
@@ -25,3 +26,8 @@ AllCops:
     - vendor/**/*
     - projects/website/node_modules/**/*
     - projects/tuist/fixtures/**/*
+    - projects/lab/bin/**/*
+    - projects/lab/db/schema.rb
+    - projects/lab/node_modules/**/*
+    - projects/lab/docs/**
+    - projects/lab/website/**/*

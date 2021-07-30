@@ -1,0 +1,6 @@
+query Me {
+  me {
+    email
+    avatarUrl
+  }
+}

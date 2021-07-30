@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+  <head>
+
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+
+    <%= javascript_pack_tag 'server-side' %>
+    <%= stylesheet_pack_tag "server-side" %>
+    <%= favicon_pack_tag 'media/images/icon.png' %>
+
+    <!-- Meta tags -->
+    <title><%= content_for_meta_title %></title>
+    <meta name='description' content='<%= content_for_meta_description %>' />
+    <meta name='keywords' content='<%= content_for_meta_keywords %>' />
+    <meta property='og:title' content='<%= content_for_meta_title %>' />
+    <meta property='og:description' content='<%= content_for_meta_description %>' />
+    <meta property="og:image" content="<%= content_for_meta_image %>" />
+    <meta property="og:image:width" content="300" />
+    <meta property="og:image:height" content="300" />
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:site" content="@<%= content_for_meta_twitter_handle %>" />
+    <meta name="twitter:title" content="<%= content_for_meta_title %>" />
+    <meta name="twitter:description" content="<%= content_for_meta_description %>" />
+    <meta name="twitter:image" content="<%= content_for_meta_image %>" />
+  </head>
+
+  <body>
+    <%= yield %>
+  </body>
+</html>
