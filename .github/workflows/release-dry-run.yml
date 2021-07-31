@@ -6,9 +6,10 @@ on:
       - main
   pull_request:
     paths:
+      - .package.resolved
+      - Package.resolved
       - Gemfile*
       - Package.swift
-      - Package.resolved
       - Sources/**
       - Project.swift
       - projects/fourier/**
