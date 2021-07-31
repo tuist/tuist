@@ -211,8 +211,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     }
 
     func testMap_whenHasHeadersWithCustomModuleMap() throws {
-        let temporaryPath = try temporaryPath()
-        let headersPath = temporaryPath.appending(RelativePath("Package/Path/Sources/Target1/include"))
+        let basePath = try temporaryPath()
+        let headersPath = basePath.appending(RelativePath("Package/Path/Sources/Target1/include"))
         let moduleMapPath = headersPath.appending(component: "module.modulemap")
         let topHeaderPath = headersPath.appending(component: "AnHeader.h")
         let nestedHeaderPath = headersPath.appending(component: "Subfolder").appending(component: "AnotherHeader.h")
@@ -233,7 +233,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ],
                 platforms: []
             ),
-            basePath: temporaryPath
+            basePath: basePath
         )
         XCTAssertEqual(
             project,
@@ -242,7 +242,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 targets: [
                     .test(
                         "Target1",
-                        basePath: temporaryPath,
+                        basePath: basePath,
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Target1/include"],
                         ],
@@ -254,8 +254,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     }
 
     func testMap_whenHasHeadersWithUmbrellaHeader() throws {
-        let temporaryPath = try temporaryPath()
-        let headersPath = temporaryPath.appending(RelativePath("Package/Path/Sources/Target1/include"))
+        let basePath = try temporaryPath()
+        let headersPath = basePath.appending(RelativePath("Package/Path/Sources/Target1/include"))
         let topHeaderPath = headersPath.appending(component: "Target1.h")
         let nestedHeaderPath = headersPath.appending(component: "Subfolder").appending(component: "AnHeader.h")
         try fileHandler.createFolder(headersPath.appending(component: "Subfolder"))
@@ -274,7 +274,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ],
                 platforms: []
             ),
-            basePath: temporaryPath
+            basePath: basePath
         )
         XCTAssertEqual(
             project,
@@ -283,7 +283,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 targets: [
                     .test(
                         "Target1",
-                        basePath: temporaryPath,
+                        basePath: basePath,
                         headers: .init(public: [nestedHeaderPath.pathString, topHeaderPath.pathString]),
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Target1/include"],
@@ -295,12 +295,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     }
 
     func testMap_whenDependenciesHaveHeaders() throws {
-        let temporaryPath = try temporaryPath()
-        let target1HeadersPath = temporaryPath.appending(RelativePath("Package/Path/Sources/Target1/include"))
+        let basePath = try temporaryPath()
+        let target1HeadersPath = basePath.appending(RelativePath("Package/Path/Sources/Target1/include"))
         let target1ModuleMapPath = target1HeadersPath.appending(component: "module.modulemap")
-        let dependency1HeadersPath = temporaryPath.appending(RelativePath("Package/Path/Sources/Dependency1/include"))
+        let dependency1HeadersPath = basePath.appending(RelativePath("Package/Path/Sources/Dependency1/include"))
         let dependency1ModuleMapPath = dependency1HeadersPath.appending(component: "module.modulemap")
-        let dependency2HeadersPath = temporaryPath.appending(RelativePath("Package/Path/Sources/Dependency2/include"))
+        let dependency2HeadersPath = basePath.appending(RelativePath("Package/Path/Sources/Dependency2/include"))
         let dependency2ModuleMapPath = dependency2HeadersPath.appending(component: "module.modulemap")
         try fileHandler.createFolder(target1HeadersPath.appending(component: "Subfolder"))
         try fileHandler.write("", path: target1ModuleMapPath, atomically: true)
@@ -327,7 +327,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ],
                 platforms: []
             ),
-            basePath: temporaryPath
+            basePath: basePath
         )
         XCTAssertEqual(
             project,
@@ -336,7 +336,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 targets: [
                     .test(
                         "Target1",
-                        basePath: temporaryPath,
+                        basePath: basePath,
                         dependencies: [.target(name: "Dependency1")],
                         customSettings: [
                             "HEADER_SEARCH_PATHS": [
@@ -349,7 +349,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     ),
                     .test(
                         "Dependency1",
-                        basePath: temporaryPath,
+                        basePath: basePath,
                         dependencies: [.target(name: "Dependency2")],
                         customSettings: [
                             "HEADER_SEARCH_PATHS": [
@@ -361,7 +361,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     ),
                     .test(
                         "Dependency2",
-                        basePath: temporaryPath,
+                        basePath: basePath,
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Dependency2/include"],
                         ],
@@ -373,8 +373,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     }
 
     func testMap_whenCustomPath() throws {
-        let temporaryPath = try temporaryPath()
-        let headersPath = temporaryPath.appending(RelativePath("Package/Path/Custom/Path/Headers"))
+        let basePath = try temporaryPath()
+        let headersPath = basePath.appending(RelativePath("Package/Path/Custom/Path/Headers"))
         let headerPath = headersPath.appending(component: "module.modulemap")
         let moduleMapPath = headersPath.appending(component: "module.modulemap")
         try fileHandler.createFolder(headersPath)
@@ -397,7 +397,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ],
                 platforms: []
             ),
-            basePath: temporaryPath
+            basePath: basePath
         )
         XCTAssertEqual(
             project,
@@ -406,10 +406,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 targets: [
                     .test(
                         "Target1",
-                        basePath: temporaryPath,
-                        customSources: .init(globs: [temporaryPath.appending(RelativePath("Package/Path/Custom/Path/Sources/Folder/**")).pathString]),
+                        basePath: basePath,
+                        customSources: .init(globs: [basePath.appending(RelativePath("Package/Path/Custom/Path/Sources/Folder/**")).pathString]),
                         resources: .init(resources: [
-                            .init(stringLiteral: temporaryPath.appending(RelativePath("Package/Path/Custom/Path/Resource/Folder/**")).pathString),
+                            .init(stringLiteral: basePath.appending(RelativePath("Package/Path/Custom/Path/Resource/Folder/**")).pathString),
                         ]),
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Custom/Path/Headers"],
@@ -422,8 +422,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     }
 
     func testMap_whenDependencyHasHeaders_addsThemToHeaderSearchPath() throws {
-        let temporaryPath = try temporaryPath()
-        let dependencyHeadersPath = temporaryPath.appending(RelativePath("Package/Path/Sources/Dependency1/include"))
+        let basePath = try temporaryPath()
+        let dependencyHeadersPath = basePath.appending(RelativePath("Package/Path/Sources/Dependency1/include"))
         try fileHandler.createFolder(dependencyHeadersPath)
         let project = try subject.map(
             packageInfo: .init(
@@ -439,7 +439,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ],
                 platforms: []
             ),
-            basePath: temporaryPath
+            basePath: basePath
         )
         XCTAssertEqual(
             project,
@@ -448,7 +448,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 targets: [
                     .test(
                         "Target1",
-                        basePath: temporaryPath,
+                        basePath: basePath,
                         dependencies: [.target(name: "Dependency1")],
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Dependency1/include"],
@@ -456,7 +456,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     ),
                     .test(
                         "Dependency1",
-                        basePath: temporaryPath,
+                        basePath: basePath,
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Dependency1/include"],
                         ],
