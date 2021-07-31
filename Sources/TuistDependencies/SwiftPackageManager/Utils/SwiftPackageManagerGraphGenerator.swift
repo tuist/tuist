@@ -19,6 +19,8 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
         switch self {
         case .unsupportedDependencyKind, .missingPathInLocalSwiftPackage:
             return .bug
+        case .missingPathInLocalSwiftPackage:
+            return .abort
         }
     }
 
