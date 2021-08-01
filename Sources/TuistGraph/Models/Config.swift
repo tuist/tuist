@@ -31,8 +31,8 @@ public struct Config: Equatable, Hashable {
     /// List of Xcode versions the project or set of projects is compatible with.
     public let compatibleXcodeVersions: CompatibleXcodeVersions
 
-    /// Lab configuration.
-    public let lab: Lab?
+    /// Cloud configuration.
+    public let cloud: Cloud?
 
     /// Cache configuration.
     public let cache: Cache?
@@ -46,14 +46,22 @@ public struct Config: Equatable, Hashable {
 
     /// Returns the default Tuist configuration.
     public static var `default`: Config {
-        Config(compatibleXcodeVersions: .all, lab: nil, cache: nil, swiftVersion: nil, plugins: [], generationOptions: [], path: nil)
+        Config(
+            compatibleXcodeVersions: .all,
+            cloud: nil,
+            cache: nil,
+            swiftVersion: nil,
+            plugins: [],
+            generationOptions: [],
+            path: nil
+        )
     }
 
     /// Initializes the tuist cofiguration.
     ///
     /// - Parameters:
     ///   - compatibleXcodeVersions: List of Xcode versions the project or set of projects is compatible with.
-    ///   - lab: Lab configuration.
+    ///   - cloud: Cloud configuration.
     ///   - cache: Cache configuration.
     ///   - swiftVersion: The version of Swift that will be used by Tuist.
     ///   - plugins: List of locations to a `Plugin` manifest.
@@ -61,7 +69,7 @@ public struct Config: Equatable, Hashable {
     ///   - path: The path of the config file.
     public init(
         compatibleXcodeVersions: CompatibleXcodeVersions,
-        lab: Lab?,
+        cloud: Cloud?,
         cache: Cache?,
         swiftVersion: String?,
         plugins: [PluginLocation],
@@ -69,7 +77,7 @@ public struct Config: Equatable, Hashable {
         path: AbsolutePath?
     ) {
         self.compatibleXcodeVersions = compatibleXcodeVersions
-        self.lab = lab
+        self.cloud = cloud
         self.cache = cache
         self.swiftVersion = swiftVersion
         self.plugins = plugins
@@ -81,7 +89,7 @@ public struct Config: Equatable, Hashable {
 
     public func hash(into hasher: inout Hasher) {
         hasher.combine(generationOptions)
-        hasher.combine(lab)
+        hasher.combine(cloud)
         hasher.combine(cache)
         hasher.combine(swiftVersion)
         hasher.combine(compatibleXcodeVersions)

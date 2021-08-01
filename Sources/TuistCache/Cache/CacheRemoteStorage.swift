@@ -26,34 +26,34 @@ enum CacheRemoteStorageError: FatalError, Equatable {
 public final class CacheRemoteStorage: CacheStoring {
     // MARK: - Attributes
 
-    private let labClient: LabClienting
+    private let cloudClient: CloudClienting
     private let fileClient: FileClienting
     private let fileArchiverFactory: FileArchivingFactorying
-    private let labCacheResourceFactory: LabCacheResourceFactorying
+    private let cloudCacheResourceFactory: CloudCacheResourceFactorying
     private let cacheDirectoriesProvider: CacheDirectoriesProviding
 
     // MARK: - Init
 
-    public convenience init(labConfig: Lab, labClient: LabClienting, cacheDirectoriesProvider: CacheDirectoriesProviding) {
+    public convenience init(cloudConfig: Cloud, cloudClient: CloudClienting, cacheDirectoriesProvider: CacheDirectoriesProviding) {
         self.init(
-            labClient: labClient,
+            cloudClient: cloudClient,
             fileArchiverFactory: FileArchivingFactory(),
             fileClient: FileClient(),
-            labCacheResourceFactory: LabCacheResourceFactory(labConfig: labConfig),
+            cloudCacheResourceFactory: CloudCacheResourceFactory(cloudConfig: cloudConfig),
             cacheDirectoriesProvider: cacheDirectoriesProvider
         )
     }
 
-    init(labClient: LabClienting,
+    init(cloudClient: CloudClienting,
          fileArchiverFactory: FileArchivingFactorying,
          fileClient: FileClienting,
-         labCacheResourceFactory: LabCacheResourceFactorying,
+         cloudCacheResourceFactory: CloudCacheResourceFactorying,
          cacheDirectoriesProvider: CacheDirectoriesProviding)
     {
-        self.labClient = labClient
+        self.cloudClient = cloudClient
         self.fileArchiverFactory = fileArchiverFactory
         self.fileClient = fileClient
-        self.labCacheResourceFactory = labCacheResourceFactory
+        self.cloudCacheResourceFactory = cloudCacheResourceFactory
         self.cacheDirectoriesProvider = cacheDirectoriesProvider
     }
 
@@ -62,8 +62,8 @@ public final class CacheRemoteStorage: CacheStoring {
     public func exists(hash: String) -> Single<Bool> {
         do {
             let successRange = 200 ..< 300
-            let resource = try labCacheResourceFactory.existsResource(hash: hash)
-            return labClient.request(resource)
+            let resource = try cloudCacheResourceFactory.existsResource(hash: hash)
+            return cloudClient.request(resource)
                 .flatMap { _, response in
                     .just(successRange.contains(response.statusCode))
                 }
@@ -81,8 +81,8 @@ public final class CacheRemoteStorage: CacheStoring {
 
     public func fetch(hash: String) -> Single<AbsolutePath> {
         do {
-            let resource = try labCacheResourceFactory.fetchResource(hash: hash)
-            return labClient
+            let resource = try cloudCacheResourceFactory.fetchResource(hash: hash)
+            return cloudClient
                 .request(resource)
                 .map(\.object.data.url)
                 .flatMap { (url: URL) in
@@ -107,12 +107,12 @@ public final class CacheRemoteStorage: CacheStoring {
             let archiver = try fileArchiverFactory.makeFileArchiver(for: paths)
             let destinationZipPath = try archiver.zip(name: hash)
             let md5 = try FileHandler.shared.urlSafeBase64MD5(path: destinationZipPath)
-            let storeResource = try labCacheResourceFactory.storeResource(
+            let storeResource = try cloudCacheResourceFactory.storeResource(
                 hash: hash,
                 contentMD5: md5
             )
 
-            return labClient
+            return cloudClient
                 .request(storeResource)
                 .map { (responseTuple) -> URL in responseTuple.object.data.url }
                 .flatMapCompletable { (url: URL) in
@@ -134,12 +134,12 @@ public final class CacheRemoteStorage: CacheStoring {
 
     private func verify(hash: String, contentMD5: String) -> Completable {
         do {
-            let verifyUploadResource = try labCacheResourceFactory.verifyUploadResource(
+            let verifyUploadResource = try cloudCacheResourceFactory.verifyUploadResource(
                 hash: hash,
                 contentMD5: contentMD5
             )
 
-            return labClient
+            return cloudClient
                 .request(verifyUploadResource).asCompletable()
         } catch {
             return Completable.error(error)
