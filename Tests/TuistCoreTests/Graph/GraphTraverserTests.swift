@@ -210,7 +210,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.directStaticDependencies(path: path, name: framework.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [.product(target: staticLibrary.name, productName: staticLibrary.productNameWithExtension)])
+        XCTAssertEqual(got, [.product(target: staticLibrary.name, productName: staticLibrary.productNameWithExtension, platformFilter: .ios)])
     }
 
     func test_directLocalTargetDependencies() {
@@ -879,7 +879,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got.first, GraphDependencyReference.product(target: "Dependency", productName: "Dependency.framework"))
+        XCTAssertEqual(got.first, GraphDependencyReference.product(target: "Dependency", productName: "Dependency.framework", platformFilter: .ios))
     }
 
     func test_embeddableFrameworks_when_dependencyIsAFramework() throws {
@@ -986,7 +986,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, [
-            GraphDependencyReference.product(target: "Dependency", productName: "Dependency.framework"),
+            GraphDependencyReference.product(target: "Dependency", productName: "Dependency.framework", platformFilter: .ios),
             GraphDependencyReference(frameworkDependency),
         ])
     }
@@ -1049,8 +1049,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, [
-            .product(target: "FrameworkA", productName: "FrameworkA.framework"),
-            .product(target: "FrameworkB", productName: "FrameworkB.framework"),
+            .product(target: "FrameworkA", productName: "FrameworkA.framework", platformFilter: .ios),
+            .product(target: "FrameworkB", productName: "FrameworkB.framework", platformFilter: .ios),
         ])
     }
 
@@ -1541,7 +1541,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got.first, .product(target: "Dependency", productName: "libDependency.a"))
+        XCTAssertEqual(got.first, .product(target: "Dependency", productName: "libDependency.a", platformFilter: .ios))
     }
 
     func test_linkableDependencies_whenAFrameworkTarget() throws {
@@ -1574,12 +1574,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got.count, 1)
-        XCTAssertEqual(got.first, .product(target: "Dependency", productName: "Dependency.framework"))
+        XCTAssertEqual(got.first, .product(target: "Dependency", productName: "Dependency.framework", platformFilter: .ios))
 
         let frameworkGot = try subject.linkableDependencies(path: project.path, name: dependency.name)
 
         XCTAssertEqual(frameworkGot.count, 1)
-        XCTAssertTrue(frameworkGot.contains(.product(target: "StaticDependency", productName: "libStaticDependency.a")))
+        XCTAssertTrue(frameworkGot.contains(.product(target: "StaticDependency", productName: "libStaticDependency.a", platformFilter: .ios)))
     }
 
     func test_linkableDependencies_transitiveDynamicLibrariesOneStaticHop() throws {
@@ -1616,8 +1616,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [GraphDependencyReference.product(target: "DynamicFramework", productName: "DynamicFramework.framework"),
-                             GraphDependencyReference.product(target: "StaticFramework", productName: "StaticFramework.framework")])
+        XCTAssertEqual(got, [GraphDependencyReference.product(target: "DynamicFramework", productName: "DynamicFramework.framework", platformFilter: .ios),
+                             GraphDependencyReference.product(target: "StaticFramework", productName: "StaticFramework.framework", platformFilter: .ios)])
     }
 
     func test_linkableDependencies_transitiveDynamicLibrariesThreeHops() throws {
@@ -1670,12 +1670,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(appGot, [
-            GraphDependencyReference.product(target: "DynamicFramework1", productName: "DynamicFramework1.framework"),
+            GraphDependencyReference.product(target: "DynamicFramework1", productName: "DynamicFramework1.framework", platformFilter: .ios),
         ])
         XCTAssertEqual(dynamicFramework1Got, [
-            GraphDependencyReference.product(target: "DynamicFramework2", productName: "DynamicFramework2.framework"),
-            GraphDependencyReference.product(target: "StaticFramework1", productName: "libStaticFramework1.a"),
-            GraphDependencyReference.product(target: "StaticFramework2", productName: "libStaticFramework2.a"),
+            GraphDependencyReference.product(target: "DynamicFramework2", productName: "DynamicFramework2.framework", platformFilter: .ios),
+            GraphDependencyReference.product(target: "StaticFramework1", productName: "libStaticFramework1.a", platformFilter: .ios),
+            GraphDependencyReference.product(target: "StaticFramework2", productName: "libStaticFramework2.a", platformFilter: .ios),
         ])
     }
 
@@ -1736,7 +1736,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let dynamicFramework1Got = try subject.linkableDependencies(path: project.path, name: dynamicFramework1.name).sorted()
 
         // Then
-        XCTAssertEqual(dynamicFramework1Got, [GraphDependencyReference.product(target: "DynamicFramework2", productName: "DynamicFramework2.framework")])
+        XCTAssertEqual(dynamicFramework1Got, [GraphDependencyReference.product(target: "DynamicFramework2", productName: "DynamicFramework2.framework", platformFilter: .ios)])
     }
 
     func test_linkableDependencies_transitiveSDKDependenciesStatic() throws {
@@ -2006,7 +2006,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(result.sorted(), [
-            .product(target: "StaticFramework", productName: "StaticFramework.framework"),
+            .product(target: "StaticFramework", productName: "StaticFramework.framework", platformFilter: .ios),
             .framework(
                 path: "/path/to/frameworks/precompiled.framework",
                 binaryPath: "/path/to/frameworks/precompiled.framework/precompiled",
@@ -2059,7 +2059,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(result.sorted(), [
-            .product(target: "DynamicFramework", productName: "DynamicFramework.framework"),
+            .product(target: "DynamicFramework", productName: "DynamicFramework.framework", platformFilter: .ios),
         ])
     }
 
@@ -2107,8 +2107,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(result.sorted(), [
-            .product(target: "DynamicFramework", productName: "DynamicFramework.framework"),
-            .product(target: "StaticFramework", productName: "StaticFramework.framework"),
+            .product(target: "DynamicFramework", productName: "DynamicFramework.framework", platformFilter: .ios),
+            .product(target: "StaticFramework", productName: "StaticFramework.framework", platformFilter: .ios),
         ])
     }
 
@@ -2139,7 +2139,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, [
-            .product(target: "FrameworkA", productName: "FrameworkA.framework"),
+            .product(target: "FrameworkA", productName: "FrameworkA.framework", platformFilter: .ios),
         ])
     }
 
@@ -2170,8 +2170,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, [
-            .product(target: "FrameworkA", productName: "FrameworkA.framework"),
-            .product(target: "FrameworkB", productName: "FrameworkB.framework"),
+            .product(target: "FrameworkA", productName: "FrameworkA.framework", platformFilter: .ios),
+            .product(target: "FrameworkB", productName: "FrameworkB.framework", platformFilter: .ios),
         ])
     }
 
@@ -2245,7 +2245,7 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, [
-            .product(target: "Framework", productName: "Framework.framework"),
+            .product(target: "Framework", productName: "Framework.framework", platformFilter: .ios),
         ])
     }
 
