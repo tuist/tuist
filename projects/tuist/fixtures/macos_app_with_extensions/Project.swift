@@ -30,8 +30,8 @@ let project = Project(
             product: .appExtension,
             bundleId: "io.tuist.app.workflow",
             infoPlist: .extendingDefault(with: [
-                "NSExtensionPointIdentifier": .string("com.apple.FinalCut.WorkflowExtension"),
-                "ProExtensionPrincipalViewControllerClass": .string("$(PRODUCT_MODULE_NAME).WorkflowViewController")
+                "NSExtensionPointIdentifier": "com.apple.FinalCut.WorkflowExtension",
+                "ProExtensionPrincipalViewControllerClass": "$(PRODUCT_MODULE_NAME).WorkflowViewController",
             ]),
             sources: "Workflow/Sources/**",
             resources: "Workflow/Resources/**",
