@@ -552,6 +552,14 @@ func targets() -> [Target] {
 
 let project = Project(
     name: "Tuist",
+    options: [
+        .textSettings(
+            .init(
+                indentWidth: 4,
+                tabWidth: 4
+            )
+        )
+    ],
     packages: packages,
     settings: Settings(configurations: [
         .debug(name: "Debug", settings: debugSettings(), xcconfig: nil),

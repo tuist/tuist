@@ -17,6 +17,7 @@ extension TuistGraph.Project {
     ) throws -> TuistGraph.Project {
         let name = manifest.name
         let organizationName = manifest.organizationName
+        let options = manifest.options.map { TuistGraph.Project.Options.from(manifest: $0) }
         let settings = try manifest.settings.map { try TuistGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
         let targets = try manifest.targets.map { try TuistGraph.Target.from(manifest: $0, generatorPaths: generatorPaths) }
         let schemes = try manifest.schemes.map { try TuistGraph.Scheme.from(manifest: $0, generatorPaths: generatorPaths) }
@@ -38,6 +39,7 @@ extension TuistGraph.Project {
             name: name,
             organizationName: organizationName,
             developmentRegion: nil,
+            options: options,
             settings: settings ?? .default,
             filesGroup: .group(name: "Project"),
             targets: targets,
@@ -46,6 +48,28 @@ extension TuistGraph.Project {
             ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles,
             resourceSynthesizers: resourceSynthesizers
+        )
+    }
+}
+
+extension TuistGraph.Project.Options {
+    static func from(manifest: ProjectDescription.Project.Options) -> TuistGraph.Project.Options {
+        switch manifest {
+        case let .textSettings(textSettings):
+            return .textSettings(.from(manifest: textSettings))
+        }
+    }
+}
+
+extension TuistGraph.Project.Options.TextSettings {
+    static func from(
+        manifest: ProjectDescription.Project.Options.TextSettings
+    ) -> TuistGraph.Project.Options.TextSettings {
+        TuistGraph.Project.Options.TextSettings(
+            usesTabs: manifest.usesTabs,
+            indentWidth: manifest.indentWidth,
+            tabWidth: manifest.tabWidth,
+            wrapsLines: manifest.wrapsLines
         )
     }
 }

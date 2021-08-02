@@ -68,10 +68,15 @@ class ProjectGroups {
     {
         /// Main
         let projectRelativePath = project.sourceRootPath.relative(to: project.xcodeProjPath.parentDirectory).pathString
+        let textSettings = extractProjectTextSettings(from: project.options)
         let mainGroup = PBXGroup(
             children: [],
             sourceTree: .group,
-            path: (projectRelativePath != ".") ? projectRelativePath : nil
+            path: (projectRelativePath != ".") ? projectRelativePath : nil,
+            wrapsLines: textSettings?.wrapsLines,
+            usesTabs: textSettings?.usesTabs,
+            indentWidth: textSettings?.indentWidth,
+            tabWidth: textSettings?.tabWidth
         )
         pbxproj.add(object: mainGroup)
 
@@ -114,5 +119,15 @@ class ProjectGroups {
             }
         }
         return groupNames
+    }
+    
+    private static func extractProjectTextSettings(from options: [Project.Options]) -> Project.Options.TextSettings? {
+        let textSettings: [Project.Options.TextSettings] = options.compactMap {
+            switch $0 {
+            case let .textSettings(textSettings):
+                return textSettings
+            }
+        }
+        return textSettings.first
     }
 }

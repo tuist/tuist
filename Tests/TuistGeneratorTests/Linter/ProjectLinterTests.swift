@@ -60,4 +60,20 @@ final class ProjectLinterTests: XCTestCase {
         // Then
         XCTAssertTrue(got.isEmpty)
     }
+    
+    func test_lint_duplicated_options() {
+        // Given
+        let project = Project.test(
+            options: [
+                .textSettings(.init(usesTabs: true, indentWidth: 0, tabWidth: 0, wrapsLines: true)),
+                .textSettings(.init(usesTabs: false, indentWidth: 1, tabWidth: 1, wrapsLines: false))
+            ]
+        )
+
+        // When
+        let got = subject.lint(project)
+
+        // Then
+        XCTAssertFalse(got.isEmpty)
+    }
 }
