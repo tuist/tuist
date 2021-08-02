@@ -5,10 +5,10 @@ public struct GitHubReleaseAsset: Decodable {
     public let name: String
 
     /// The URL to download the asset
-    public let browserDownloadURL: String
+    public let browserDownloadUrl: URL
 
     private enum CodingKeys: String, CodingKey {
         case name
-        case browserDownloadURL = "browser_download_url"
+        case browserDownloadUrl
     }
 }

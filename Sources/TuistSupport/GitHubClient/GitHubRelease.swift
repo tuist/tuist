@@ -6,7 +6,7 @@ public struct GitHubRelease: Decodable {
     public let name: String
 
     /// Release tag name.
-    public let tagName: Version
+    public let tagName: Version?
 
     /// Whether the release is a draft.
     public let draft: Bool
@@ -19,7 +19,7 @@ public struct GitHubRelease: Decodable {
 
     private enum CodingKeys: String, CodingKey {
         case name
-        case tagName = "tag_name"
+        case tagName
         case draft
         case prerelease
         case assets
@@ -32,6 +32,19 @@ public struct GitHubRelease: Decodable {
         return HTTPResource.jsonResource {
             var components = URLComponents(string: Constants.githubAPIURL)!
             components.path = "/repos/\(repositoryFullName)/releases/latest"
+            var request = URLRequest(url: components.url!)
+            request.httpMethod = "GET"
+            return request
+        }
+    }
+
+    /// Returns a resource to get all the releases of the given repository.
+    /// - Parameter repositoryFullName: Repository full name (e.g. tuist/tuist)
+    /// - Returns: Resource to get releases.
+    public static func releases(repositoryFullName: String) -> HTTPResource<[GitHubRelease], GitHubError> {
+        return HTTPResource.jsonResource {
+            var components = URLComponents(string: Constants.githubAPIURL)!
+            components.path = "/repos/\(repositoryFullName)/releases"
             var request = URLRequest(url: components.url!)
             request.httpMethod = "GET"
             return request
