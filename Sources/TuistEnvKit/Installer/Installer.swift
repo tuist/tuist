@@ -53,19 +53,19 @@ enum InstallerError: FatalError, Equatable {
 final class Installer: Installing {
     // MARK: - Attributes
 
+    let githubClient: GitHubClienting
     let buildCopier: BuildCopying
     let versionsController: VersionsControlling
-    let googleCloudStorageClient: GoogleCloudStorageClienting
 
     // MARK: - Init
 
-    init(buildCopier: BuildCopying = BuildCopier(),
-         versionsController: VersionsControlling = VersionsController(),
-         googleCloudStorageClient: GoogleCloudStorageClienting = GoogleCloudStorageClient())
+    init(githubClient: GitHubClienting = GitHubClient(),
+         buildCopier: BuildCopying = BuildCopier(),
+         versionsController: VersionsControlling = VersionsController())
     {
+        self.githubClient = githubClient
         self.buildCopier = buildCopier
         self.versionsController = versionsController
-        self.googleCloudStorageClient = googleCloudStorageClient
     }
 
     // MARK: - Installing
@@ -77,15 +77,15 @@ final class Installer: Installing {
     }
 
     func install(version: String, temporaryDirectory: AbsolutePath) throws {
-        let bundleURL: URL? = try googleCloudStorageClient.tuistBundleURL(version: version).toBlocking().first() ?? nil
+        let release = try githubClient.dispatch(resource: GitHubRelease.release(repositoryFullName: Constants.githubSlug, version: version)).toBlocking().first?.object
+        guard let release = release else { return }
+        guard let asset = release.assets.first(where: { $0.name == Constants.bundleName }) else { return }
 
-        if let bundleURL = bundleURL {
-            try installFromBundle(
-                bundleURL: bundleURL,
-                version: version,
-                temporaryDirectory: temporaryDirectory
-            )
-        }
+        try installFromBundle(
+            bundleURL: asset.browserDownloadUrl,
+            version: version,
+            temporaryDirectory: temporaryDirectory
+        )
     }
 
     func installFromBundle(bundleURL: URL,

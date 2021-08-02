@@ -20,8 +20,7 @@ final class InstallerTests: TuistUnitTestCase {
         googleCloudStorageClient = MockGoogleCloudStorageClient()
         subject = Installer(
             buildCopier: buildCopier,
-            versionsController: versionsController,
-            googleCloudStorageClient: googleCloudStorageClient
+            versionsController: versionsController
         )
     }
 

@@ -38,6 +38,20 @@ public struct GitHubRelease: Decodable {
         }
     }
 
+    /// Returns a resource to get a specific release of the given repository.
+    /// - Parameter repositoryFullName: Repository full name (e.g. tuist/tuist)
+    /// - Parameter version: Release version
+    /// - Returns: Resource to get the release.
+    public static func release(repositoryFullName: String, version: String) -> HTTPResource<GitHubRelease, GitHubError> {
+        return HTTPResource.jsonResource {
+            var components = URLComponents(string: Constants.githubAPIURL)!
+            components.path = "/repos/\(repositoryFullName)/releases/tags/\(version)"
+            var request = URLRequest(url: components.url!)
+            request.httpMethod = "GET"
+            return request
+        }
+    }
+
     /// Returns a resource to get all the releases of the given repository.
     /// - Parameter repositoryFullName: Repository full name (e.g. tuist/tuist)
     /// - Returns: Resource to get releases.
