@@ -121,8 +121,8 @@ class ProjectGroups {
         return groupNames
     }
     
-    private static func extractProjectTextSettings(from options: [Project.Options]) -> Project.Options.TextSettings? {
-        let textSettings: [Project.Options.TextSettings] = options.compactMap {
+    private static func extractProjectTextSettings(from options: [ProjectOption]) -> TextSettings? {
+        let textSettings: [TextSettings] = options.compactMap {
             switch $0 {
             case let .textSettings(textSettings):
                 return textSettings

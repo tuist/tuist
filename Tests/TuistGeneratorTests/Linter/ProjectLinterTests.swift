@@ -65,8 +65,8 @@ final class ProjectLinterTests: XCTestCase {
         // Given
         let project = Project.test(
             options: [
-                .textSettings(.init(usesTabs: true, indentWidth: 0, tabWidth: 0, wrapsLines: true)),
-                .textSettings(.init(usesTabs: false, indentWidth: 1, tabWidth: 1, wrapsLines: false))
+                .textSettings(.test(indentWidth: 0, tabWidth: 0)),
+                .textSettings(.test(indentWidth: 1, tabWidth: 1))
             ]
         )
 
@@ -74,6 +74,13 @@ final class ProjectLinterTests: XCTestCase {
         let got = subject.lint(project)
 
         // Then
-        XCTAssertFalse(got.isEmpty)
+        XCTAssertTrue(
+            got.contains(
+                LintingIssue(
+                    reason: "Options \"textSettings\" from project at \(project.path.pathString) have duplicates.",
+                    severity: .error
+                )
+            )
+        )
     }
 }

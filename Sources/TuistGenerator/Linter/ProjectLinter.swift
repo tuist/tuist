@@ -79,7 +79,7 @@ class ProjectLinter: ProjectLinting {
     private func lintNotDuplicatedOptions(project: Project) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         let duplicatedOptions = project.options
-            .reduce(into: [Project.Options: Int]()) { $0[$1] = ($0[$1] ?? 0) + 1 }
+            .reduce(into: [ProjectOption: Int]()) { $0[$1] = ($0[$1] ?? 0) + 1 }
             .filter { $0.value > 1 }
             .keys
         if !duplicatedOptions.isEmpty {

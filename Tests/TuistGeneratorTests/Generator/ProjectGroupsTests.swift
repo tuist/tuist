@@ -28,7 +28,7 @@ final class ProjectGroupsTests: XCTestCase {
             name: "Project",
             organizationName: nil,
             developmentRegion: nil,
-            options: [.textSettings(textSettings())],
+            options: [],
             settings: .default,
             filesGroup: .group(name: "Project"),
             targets: [
@@ -71,12 +71,6 @@ final class ProjectGroupsTests: XCTestCase {
         XCTAssertNotNil(main.group(named: "Target"))
         XCTAssertNil(main.group(named: "Target")?.path)
         XCTAssertEqual(main.group(named: "Target")?.sourceTree, .group)
-        
-        let expectedTextSettings = textSettings()
-        XCTAssertEqual(main.usesTabs, expectedTextSettings.usesTabs)
-        XCTAssertEqual(main.indentWidth, expectedTextSettings.indentWidth)
-        XCTAssertEqual(main.tabWidth, expectedTextSettings.tabWidth)
-        XCTAssertEqual(main.wrapsLines, expectedTextSettings.wrapsLines)
 
         XCTAssertTrue(main.children.contains(subject.frameworks))
         XCTAssertEqual(subject.frameworks.name, "Frameworks")
@@ -178,9 +172,38 @@ final class ProjectGroupsTests: XCTestCase {
         XCTAssertEqual(ProjectGroupsError.missingGroup("abc").type, .bug)
     }
     
-    // MARK: - Helpers
+    func test_generate_with_text_settings() {
+        // Given
+        let textSettings = TextSettings.test()
+        let project = Project.test(options: [.textSettings(textSettings)])
+
+        // When
+        let main = ProjectGroups.generate(
+            project: project,
+            pbxproj: pbxproj
+        ).sortedMain
+        
+        // Then
+        XCTAssertEqual(main.usesTabs, textSettings.usesTabs)
+        XCTAssertEqual(main.indentWidth, textSettings.indentWidth)
+        XCTAssertEqual(main.tabWidth, textSettings.tabWidth)
+        XCTAssertEqual(main.wrapsLines, textSettings.wrapsLines)
+    }
     
-    private func textSettings() -> Project.Options.TextSettings  {
-        .init(usesTabs: true, indentWidth: 1, tabWidth: 1, wrapsLines: true)
+    func test_generate_without_text_settings() {
+        // Given
+        let project = Project.test(options: [])
+
+        // When
+        let main = ProjectGroups.generate(
+            project: project,
+            pbxproj: pbxproj
+        ).sortedMain
+        
+        // Then
+        XCTAssertNil(main.usesTabs)
+        XCTAssertNil(main.indentWidth)
+        XCTAssertNil(main.tabWidth)
+        XCTAssertNil(main.wrapsLines)
     }
 }
