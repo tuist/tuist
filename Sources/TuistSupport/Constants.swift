@@ -5,6 +5,7 @@ public enum Constants {
     public static let binFolderName = ".tuist-bin"
     public static let binName = "tuist"
     public static let gitRepositoryURL = "https://github.com/tuist/tuist.git"
+    public static let githubAPIURL = "https://api.github.com"
     public static let communityURL = "https://community.tuist.io"
     public static let version = "1.47.0"
     public static let bundleName: String = "tuist.zip"

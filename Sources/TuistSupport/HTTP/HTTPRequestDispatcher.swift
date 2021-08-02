@@ -51,7 +51,7 @@ public enum HTTPRequestDispatcherError: LocalizedError, FatalError {
 
 public protocol HTTPRequestDispatching {
     func dispatch<T, E: Error>(resource: HTTPResource<T, E>) -> Single<(object: T, response: HTTPURLResponse)>
-    func deferred<T, E: Error>(resource: HTTPResource<T, E>) -> Deferred<Future<(object: T, response: HTTPURLResponse), Error>>
+    func dispatch<T, E: Error>(resource: HTTPResource<T, E>) -> AnyPublisher<(object: T, response: HTTPURLResponse), Error>
 }
 
 public final class HTTPRequestDispatcher: HTTPRequestDispatching {
@@ -95,15 +95,17 @@ public final class HTTPRequestDispatcher: HTTPRequestDispatching {
         }
     }
 
-    public func deferred<T, E>(resource: HTTPResource<T, E>) -> Deferred<Future<(object: T, response: HTTPURLResponse), Error>> where E: Error {
-        return Deferred {
-            Future<(object: T, response: HTTPURLResponse), Error> { promise in
-                _ = self.dispatch(resource: resource)
-                    .subscribe(onSuccess: { value in
-                        promise(.success(value))
-                    }, onError: { error in
-                        promise(.failure(error))
-                    })
+    public func dispatch<T, E>(resource: HTTPResource<T, E>) -> AnyPublisher<(object: T, response: HTTPURLResponse), Error> where E: Error {
+        return AnyPublisher.create { subscriber in
+            let disposable = self.dispatch(resource: resource)
+                .subscribe(onSuccess: { value in
+                    subscriber.send(value)
+                    subscriber.send(completion: .finished)
+                }, onError: { error in
+                    subscriber.send(completion: .failure(error))
+                })
+            return AnyCancellable {
+                disposable.dispose()
             }
         }
     }
