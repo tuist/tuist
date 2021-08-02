@@ -3,7 +3,7 @@ import CombineExt
 import Foundation
 
 public protocol GitHubClienting {
-    func deferred<T, E: Error>(resource: HTTPResource<T, E>) -> Deferred<Future<(object: T, response: HTTPURLResponse), Error>>
+    func dispatch<T, E: Error>(resource: HTTPResource<T, E>) -> AnyPublisher<(object: T, response: HTTPURLResponse), Error>
 }
 
 public final class GitHubClient: GitHubClienting {
@@ -17,32 +17,19 @@ public final class GitHubClient: GitHubClienting {
         self.gitEnvironment = gitEnvironment
     }
 
-    public func deferred<T, E: Error>(resource: HTTPResource<T, E>) -> Deferred<Future<(object: T, response: HTTPURLResponse), Error>> {
-        return Deferred {
-            Future<(object: T, response: HTTPURLResponse), Error> { promise in
-                _ = self.gitEnvironment.githubAuthentication().sink { completion in
-                    if case let .failure(error) = completion {
-                        promise(.failure(error))
-                    }
-                } receiveValue: { authentication in
-                    var mappedResource: HTTPResource<T, E> = resource
-                    do {
-                        mappedResource = try self.authenticatedResource(resource: resource, authentication: authentication)
-                    } catch {
-                        promise(.failure(error))
-                        return
-                    }
-                    _ = self.requestDispatcher.deferred(resource: mappedResource)
-                        .sink { completion in
-                            if case let .failure(error) = completion {
-                                promise(.failure(error))
-                            }
-                        } receiveValue: { response in
-                            promise(.success(response))
-                        }
+    public func dispatch<T, E: Error>(resource: HTTPResource<T, E>) -> AnyPublisher<(object: T, response: HTTPURLResponse), Error> {
+        gitEnvironment.githubAuthentication()
+            .flatMap { (authentication: GitHubAuthentication?) -> AnyPublisher<HTTPResource<T, E>, Error> in
+                do {
+                    return AnyPublisher(value: try self.authenticatedResource(resource: resource, authentication: authentication))
+                } catch {
+                    return AnyPublisher(error: error)
                 }
             }
-        }
+            .flatMap { (resource: HTTPResource<T, E>) -> AnyPublisher<(object: T, response: HTTPURLResponse), Error> in
+                self.requestDispatcher.dispatch(resource: resource)
+            }
+            .eraseToAnyPublisher()
     }
 
     // MARK: - Private
