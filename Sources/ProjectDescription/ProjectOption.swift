@@ -2,7 +2,7 @@ import Foundation
 
 /// Additional options related to the `Project`
 public enum ProjectOption: Codable, Equatable {
-    /// Text settings to override user ones for currecnt project
+    /// Text settings to override user ones for current project
     case textSettings(TextSettings)
 }
 
