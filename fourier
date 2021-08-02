@@ -15,4 +15,9 @@ $LOAD_PATH.unshift(fourier_directory) unless $LOAD_PATH.include?(fourier_directo
 # Load Fourier
 require "fourier"
 
-Fourier::CLI.start(ARGV)
+begin
+  Fourier::CLI.start(ARGV)
+rescue Fourier::Utilities::Errors::Error => error
+  Fourier::Utilities::Output.error(error.message)
+  Kernel.exit(1)
+end

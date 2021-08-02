@@ -264,4 +264,26 @@ final class TargetTests: TuistUnitTestCase {
             "resources/f.otf",
         ])
     }
+
+    func test_targetDependencyBuildFilesPlatformFilter_when_iOS_targets_mac() {
+        // Given
+        let target = Target.test(deploymentTarget: .iOS("14.0", [.mac]))
+
+        // When
+        let got = target.targetDependencyBuildFilesPlatformFilter
+
+        // Then
+        XCTAssertEqual(got, .catalyst)
+    }
+
+    func test_targetDependencyBuildFilesPlatformFilter_when_iOS_and_doesnt_target_mac() {
+        // Given
+        let target = Target.test(deploymentTarget: .iOS("14.0", [.iphone]))
+
+        // When
+        let got = target.targetDependencyBuildFilesPlatformFilter
+
+        // Then
+        XCTAssertEqual(got, .ios)
+    }
 }

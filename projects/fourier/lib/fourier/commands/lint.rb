@@ -20,6 +20,11 @@ module Fourier
         Services::Lint::Swift.call(fix: options[:fix])
         Services::Lint::Ruby.call(fix: options[:fix])
       end
+
+      desc "lockfiles", "Ensures SPM and Tuist's generated lockfiles are consistent"
+      def lockfiles
+        Services::Lint::Lockfiles.call
+      end
     end
   end
 end
