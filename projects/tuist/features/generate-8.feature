@@ -41,5 +41,6 @@ Scenario: The project is a macOS app with extensions (macos_app_with_extensions)
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture macos_app_with_extensions into the working directory
+    Then I install the Workflow extensions SDK
     Then tuist generates the project
     Then I should be able to build for macOS the scheme App
