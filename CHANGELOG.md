@@ -7,6 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Add support for localized intent definition files using `.strings`. [#3236](https://github.com/tuist/tuist/pull/3236) by [@dbarden](https://github.com/dbarden)
+- Add `TextSettings` configuration into `Project` [#3253](https://github.com/tuist/tuist/pull/3253) by [@DimaMishchenko](https://github.com/DimaMishchenko)
 ## 1.47.0 - Mirror
 
 ### Added
