@@ -14,6 +14,19 @@ public enum ProjectOption: Codable {
     }
 }
 
+// MARK: - Array + ProjectOption
+
+extension Array where Element == ProjectOption {
+    public var textSettings: TextSettings? {
+        compactMap {
+            switch $0 {
+            case let .textSettings(textSettings):
+                return textSettings
+            }
+        }.first
+    }
+}
+
 // MARK: - Options + Hashable
 
 extension ProjectOption: Hashable {

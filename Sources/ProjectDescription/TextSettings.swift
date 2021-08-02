@@ -11,6 +11,13 @@ public struct TextSettings: Codable, Equatable {
     /// Wrap lines
     public let wrapsLines: Bool?
     
+    /// Create new `TextSettings` instance.
+    ///
+    /// - Parameters:
+    ///   - usesTabs: Use tabs over spaces.
+    ///   - indentWidth: Indent width.
+    ///   - tabWidth: Tab width.
+    ///   - wrapsLines: Wrap lines.
     public static func textSettings(
         usesTabs: Bool? = nil,
         indentWidth: UInt? = nil,
