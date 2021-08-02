@@ -42,6 +42,20 @@ final class EnvironmentTests: XCTestCase {
         }
     }
 
+    func test_stringValue() {
+        let stringValue = UUID().uuidString
+        let environment: [String: String] = [
+            "0": stringValue,
+        ]
+        let value = Environment.value(for: "0", environment: environment)
+        switch value {
+        case .string(stringValue):
+            break
+        default:
+            XCTFail("Unexpected value. Got: \(String(describing: value)), expected: .boolean(_)")
+        }
+    }
+
     func test_unknownKeysReturnNil() {
         let environment: [String: String] = [
             "0": "0",
