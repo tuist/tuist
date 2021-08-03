@@ -10,7 +10,7 @@ public struct TextSettings: Codable {
     public let tabWidth: UInt?
     /// Wrap lines
     public let wrapsLines: Bool?
-    
+
     public init(
         usesTabs: Bool?,
         indentWidth: UInt?,

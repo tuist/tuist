@@ -171,7 +171,7 @@ final class ProjectGroupsTests: XCTestCase {
     func test_projectGroupsError_type() {
         XCTAssertEqual(ProjectGroupsError.missingGroup("abc").type, .bug)
     }
-    
+
     func test_generate_with_text_settings() {
         // Given
         let textSettings = TextSettings.test()
@@ -182,14 +182,14 @@ final class ProjectGroupsTests: XCTestCase {
             project: project,
             pbxproj: pbxproj
         ).sortedMain
-        
+
         // Then
         XCTAssertEqual(main.usesTabs, textSettings.usesTabs)
         XCTAssertEqual(main.indentWidth, textSettings.indentWidth)
         XCTAssertEqual(main.tabWidth, textSettings.tabWidth)
         XCTAssertEqual(main.wrapsLines, textSettings.wrapsLines)
     }
-    
+
     func test_generate_without_text_settings() {
         // Given
         let project = Project.test(options: [])
@@ -199,7 +199,7 @@ final class ProjectGroupsTests: XCTestCase {
             project: project,
             pbxproj: pbxproj
         ).sortedMain
-        
+
         // Then
         XCTAssertNil(main.usesTabs)
         XCTAssertNil(main.indentWidth)

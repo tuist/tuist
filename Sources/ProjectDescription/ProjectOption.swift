@@ -23,7 +23,7 @@ extension ProjectOption {
     private enum OptionsCodingKeys: String, CodingKey {
         case textSettings
     }
-    
+
     private enum TextSettingsKeys: String, CodingKey {
         case usesTabs
         case indentWidth
@@ -39,7 +39,7 @@ extension ProjectOption {
                 keyedBy: TextSettingsKeys.self,
                 forKey: .textSettings
             )
-            
+
             self = .textSettings(
                 usesTabs: try textSettingsContainer.decodeIfPresent(Bool.self, forKey: .usesTabs),
                 indentWidth: try textSettingsContainer.decodeIfPresent(UInt.self, forKey: .indentWidth),

@@ -69,13 +69,13 @@ class ProjectLinter: ProjectLinting {
         }
         return issues
     }
-    
+
     private func lintOptions(project: Project) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         issues.append(contentsOf: lintNotDuplicatedOptions(project: project))
         return issues
     }
-    
+
     private func lintNotDuplicatedOptions(project: Project) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         let duplicatedOptions = project.options
@@ -84,7 +84,7 @@ class ProjectLinter: ProjectLinting {
             .keys
         if !duplicatedOptions.isEmpty {
             let optionsNames = duplicatedOptions.map { $0.name }
-            
+
             let issue = LintingIssue(
                 reason: "Options \"\(optionsNames.joined(separator: ", "))\" from project at \(project.path.pathString) have duplicates.",
                 severity: .error

@@ -4,7 +4,7 @@ import Foundation
 public enum ProjectOption: Codable {
     /// Text settings to override user ones for current project
     case textSettings(TextSettings)
-    
+
     /// Option name
     public var name: String {
         switch self {
@@ -33,7 +33,7 @@ extension ProjectOption: Hashable {
     public func hash(into hasher: inout Hasher) {
         hasher.combine(name)
     }
-    
+
     public static func == (lhs: ProjectOption, rhs: ProjectOption) -> Bool {
         switch (lhs, rhs) {
         case (.textSettings, .textSettings):

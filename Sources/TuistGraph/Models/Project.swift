@@ -21,7 +21,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
 
     /// Development region code e.g. `en`.
     public var developmentRegion: String?
-    
+
     /// Additional project options.
     public var options: [ProjectOption]
 
