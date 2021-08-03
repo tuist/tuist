@@ -40,16 +40,11 @@ extension ProjectOption {
                 forKey: .textSettings
             )
             
-            let usesTabs = try textSettingsContainer.decodeIfPresent(Bool.self, forKey: .usesTabs)
-            let indentWidth = try textSettingsContainer.decodeIfPresent(UInt.self, forKey: .indentWidth)
-            let tabWidth = try textSettingsContainer.decodeIfPresent(UInt.self, forKey: .tabWidth)
-            let wrapsLines = try textSettingsContainer.decodeIfPresent(Bool.self, forKey: .wrapsLines)
-            
             self = .textSettings(
-                usesTabs: usesTabs,
-                indentWidth: indentWidth,
-                tabWidth: tabWidth,
-                wrapsLines: wrapsLines
+                usesTabs: try textSettingsContainer.decodeIfPresent(Bool.self, forKey: .usesTabs),
+                indentWidth: try textSettingsContainer.decodeIfPresent(UInt.self, forKey: .indentWidth),
+                tabWidth: try textSettingsContainer.decodeIfPresent(UInt.self, forKey: .tabWidth),
+                wrapsLines: try textSettingsContainer.decodeIfPresent(Bool.self, forKey: .wrapsLines)
             )
         } else {
             throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown enum case"))
