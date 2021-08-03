@@ -1025,7 +1025,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", dependencies: [.sdk(name: "Library.tbd", status: .required)]),
+                    .test("Target1", dependencies: [.sdk(name: "libLibrary.tbd", status: .required)]),
                 ]
             )
         )

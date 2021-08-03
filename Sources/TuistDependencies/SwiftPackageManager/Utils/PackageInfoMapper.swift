@@ -252,7 +252,6 @@ extension ProjectDescription.Target {
             target: target,
             packageFolder: packageFolder,
             packageName: packageName,
-            packageInfo: packageInfo,
             packageInfos: packageInfos,
             packageToProject: packageToProject,
             path: path,
@@ -454,7 +453,7 @@ extension ProjectDescription.TargetDependency {
             case (.linker, .linkedFramework):
                 return .sdk(name: "\(setting.value[0]).framework", status: .required)
             case (.linker, .linkedLibrary):
-                return .sdk(name: "\(setting.value[0]).tbd", status: .required)
+                return .sdk(name: "lib\(setting.value[0]).tbd", status: .required)
             case (.c, _), (.cxx, _), (.swift, _), (.linker, .headerSearchPath), (.linker, .define), (.linker, .unsafeFlags):
                 return nil
             }
@@ -486,7 +485,6 @@ extension ProjectDescription.Settings {
         target: PackageInfo.Target,
         packageFolder: AbsolutePath,
         packageName: String,
-        packageInfo: PackageInfo,
         packageInfos: [String: PackageInfo],
         packageToProject: [String: AbsolutePath],
         path _: AbsolutePath,
