@@ -506,9 +506,9 @@ extension ProjectDescription.Settings {
             headerSearchPaths.append("$(SRCROOT)/\(target.relativePath.appending(target.relativePublicHeadersPath))")
         }
 
-        let allDependencies = packageInfo.recursiveTargetDependencies(
+        let allDependencies = Self.recursiveTargetDependencies(
             of: target,
-            package: packageName,
+            packageName: packageName,
             packageInfos: packageInfos,
             targetToResolvedDependencies: targetToResolvedDependencies
         )
@@ -593,6 +593,45 @@ extension ProjectDescription.Settings {
         }
 
         return .init(base: settingsDictionary)
+    }
+
+    fileprivate struct PackageTarget: Hashable {
+        let package: String
+        let target: PackageInfo.Target
+    }
+
+    fileprivate static func recursiveTargetDependencies(
+        of target: PackageInfo.Target,
+        packageName: String,
+        packageInfos: [String: PackageInfo],
+        targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]]
+    ) -> Set<PackageTarget> {
+        let result = transitiveClosure(
+            [PackageTarget(package: packageName, target: target)],
+            successors: { packageTarget in
+                let resolvedDependencies = targetToResolvedDependencies[packageTarget.target.name] ?? []
+                return resolvedDependencies.flatMap { resolvedDependency -> [PackageTarget] in
+                    switch resolvedDependency {
+                    case let .target(name):
+                        guard
+                            let packageInfo = packageInfos[packageTarget.package],
+                            let target = packageInfo.targets.first(where: { $0.name == name })
+                        else {
+                            return []
+                        }
+                        return [PackageTarget(package: packageTarget.package, target: target)]
+                    case let .externalTargets(package, targets):
+                        guard let packageInfo = packageInfos[package] else { return [] }
+                        return packageInfo.targets.filter { targets.contains($0.name) }.map {
+                            return PackageTarget(package: package, target: $0)
+                        }
+                    case .xcframework:
+                        return []
+                    }
+                }
+            }
+        )
+        return result
     }
 }
 
@@ -697,39 +736,6 @@ extension ProjectDescription.DeploymentTarget {
 extension ProjectDescription.DeploymentDevice {
     fileprivate static func from(devices: TuistGraph.DeploymentDevice) -> Self {
         return .init(rawValue: devices.rawValue)
-    }
-}
-
-extension PackageInfo {
-    fileprivate struct PackageTarget: Hashable {
-        let package: String
-        let target: PackageInfo.Target
-    }
-
-    fileprivate func recursiveTargetDependencies(
-        of target: PackageInfo.Target,
-        package: String,
-        packageInfos: [String: PackageInfo],
-        targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]]
-    ) -> Set<PackageTarget> {
-        return transitiveClosure(
-            [PackageTarget(package: package, target: target)],
-            successors: { packageTarget in
-                let resolvedDependencies = targetToResolvedDependencies[packageTarget.target.name] ?? []
-                return resolvedDependencies.flatMap { resolvedDependencies -> [PackageTarget] in
-                    switch resolvedDependencies {
-                    case let .target(name):
-                        guard let target = self.targets.first(where: { $0.name == name }) else { return [] }
-                        return [PackageTarget(package: package, target: target)]
-                    case let .externalTargets(package, targets):
-                        guard let packageInfo = packageInfos[package] else { return [] }
-                        return packageInfo.targets.filter { targets.contains($0.name) }.map { PackageTarget(package: package, target: $0) }
-                    case .xcframework:
-                        return []
-                    }
-                }
-            }
-        )
     }
 }
 
