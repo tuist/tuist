@@ -125,7 +125,7 @@ public final class CocoaPodsInteractor: CocoaPodsInteracting {
         }
     }
 
-    /// Returns true if CocoaPods is avaiable in the environment.
+    /// Returns true if CocoaPods is available in the environment.
     ///
     /// - Returns: True if CocoaPods is available globally in the system.
     fileprivate func canUseSystemPod() -> Bool {

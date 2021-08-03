@@ -26,7 +26,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         product: Product
     )
     case bundle(path: AbsolutePath)
-    case product(target: String, productName: String)
+    case product(target: String, productName: String, platformFilter: BuildFilePlatformFilter? = nil)
     case sdk(path: AbsolutePath, status: SDKStatus, source: SDKSource)
 
     init(_ dependency: GraphDependency) {
@@ -71,9 +71,10 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
             hasher.combine(path)
         case let .xcframework(path, _, _, _):
             hasher.combine(path)
-        case let .product(target, productName):
+        case let .product(target, productName, platformFilter):
             hasher.combine(target)
             hasher.combine(productName)
+            hasher.combine(platformFilter)
         case let .sdk(path, status, source):
             hasher.combine(path)
             hasher.combine(status)
@@ -104,11 +105,10 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
             return lhsPath < rhsPath
         case let (.library(lhsPath, _, _, _), .library(rhsPath, _, _, _)):
             return lhsPath < rhsPath
-        case let (.product(lhsTarget, lhsProductName), .product(rhsTarget, rhsProductName)):
-            if lhsTarget == rhsTarget {
-                return lhsProductName < rhsProductName
-            }
-            return lhsTarget < rhsTarget
+        case let (.product(lhsTarget, lhsProductName, lhsPlatformFilter), .product(rhsTarget, rhsProductName, rhsPlatformFilter)):
+            return lhsTarget < rhsTarget ||
+                lhsProductName < rhsProductName ||
+                (lhsPlatformFilter != nil && rhsPlatformFilter != nil && (lhsPlatformFilter! < rhsPlatformFilter!))
         case let (.sdk(lhsPath, _, _), .sdk(rhsPath, _, _)):
             return lhsPath < rhsPath
         case (.sdk, .framework):

@@ -325,3 +325,7 @@ A framework project that leverages environment variables to change the name of t
 ## manifest_with_logs
 
 A project that contains logs to verify that the logs are forwarded by Tuist.
+
+## macos_app_with_extensions
+
+The project contains a macOS app with various types of extensions.

@@ -24,22 +24,22 @@ public class MockHTTPRequestDispatcher: HTTPRequestDispatching {
         }
     }
 
-    public func deferred<T, E>(resource: HTTPResource<T, E>) -> Deferred<Future<(object: T, response: HTTPURLResponse), Error>> where E: Error {
-        return Deferred {
-            Future<(object: T, response: HTTPURLResponse), Error> { promise in
-                if T.self != Void.self {
-                    fatalError(
-                        """
-                        MockHTTPRequestDispatcher only supports resources with Void as its generic value. \
-                        Use HTTPResource.noop from TuistSupportTesting.
-                        """
-                    )
-                }
-                self.requests.append(resource.request())
-                let response = HTTPURLResponse()
-                // swiftlint:disable:next force_cast
-                promise(.success((object: () as! T, response: response)))
+    public func dispatch<T, E>(resource: HTTPResource<T, E>) -> AnyPublisher<(object: T, response: HTTPURLResponse), Error> where E: Error {
+        AnyPublisher.create { subscriber in
+            if T.self != Void.self {
+                fatalError(
+                  """
+                  MockHTTPRequestDispatcher only supports resources with Void as its generic value. \
+                  Use HTTPResource.noop from TuistSupportTesting.
+                  """
+                )
             }
+            self.requests.append(resource.request())
+            let response = HTTPURLResponse()
+            // swiftlint:disable:next force_cast
+            subscriber.send((object: () as! T, response: response))
+            subscriber.send(completion: .finished)
+            return AnyCancellable {}
         }
     }
 }

@@ -65,10 +65,14 @@ public extension GraphDependencyReference {
         )
     }
 
-    static func testProduct(target: String = "Target", productName: String = "Target.framework") -> GraphDependencyReference {
+    static func testProduct(target: String = "Target",
+                            productName: String = "Target.framework",
+                            platformFilter: BuildFilePlatformFilter = .ios) -> GraphDependencyReference
+    {
         GraphDependencyReference.product(
             target: target,
-            productName: productName
+            productName: productName,
+            platformFilter: platformFilter
         )
     }
 }
