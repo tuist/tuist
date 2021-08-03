@@ -118,7 +118,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 result[target.name] = Path(artifactsFolder.appending(component: "\(target.name).xcframework").pathString)
             }
         }
-        let targetToResolvedDependencies = try packageInfoMapper.resolveDependencies(
+        let (targetToProducts, targetToResolvedDependencies) = try packageInfoMapper.preprocess(
             packageInfos: packageInfoDictionary,
             productToPackage: productToPackage,
             targetDependencyToFramework: targetDependencyToFramework
@@ -132,6 +132,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 productTypes: productTypes,
                 platforms: platforms,
                 deploymentTargets: deploymentTargets,
+                targetToProducts: targetToProducts,
                 targetToResolvedDependencies: targetToResolvedDependencies,
                 packageToProject: packageToProject,
                 productToPackage: productToPackage

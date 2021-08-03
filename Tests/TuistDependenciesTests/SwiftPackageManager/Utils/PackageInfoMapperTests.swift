@@ -1268,7 +1268,7 @@ extension PackageInfoMapping {
             }
         }
 
-        let targetToResolvedDependencies = try resolveDependencies(
+        let (targetToProducts, targetToResolvedDependencies) = try preprocess(
             packageInfos: packageInfos, productToPackage: productToPackage, targetDependencyToFramework: targetDependencyToFramework
         )
 
@@ -1280,6 +1280,7 @@ extension PackageInfoMapping {
             productTypes: [:],
             platforms: platforms,
             deploymentTargets: [],
+            targetToProducts: targetToProducts,
             targetToResolvedDependencies: targetToResolvedDependencies,
             packageToProject: Dictionary(uniqueKeysWithValues: packageInfos.keys.map {
                 ($0, basePath.appending(component: $0).appending(component: "Path"))

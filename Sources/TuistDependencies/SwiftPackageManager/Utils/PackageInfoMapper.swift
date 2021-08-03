@@ -41,7 +41,7 @@ enum PackageInfoMapperError: FatalError, Equatable {
         case let .unknownPlatform(platform):
             return "The \(platform) platform is not supported."
         case let .unknownProductDependency(name, package):
-            return "The product \(name) of the package \(package) cannot be found."
+            return "The product \(name) of package \(package) cannot be found."
         case let .unsupportedSetting(tool, setting):
             return "The \(tool) and \(setting) pair is not a supported setting."
         }
@@ -52,17 +52,20 @@ enum PackageInfoMapperError: FatalError, Equatable {
 
 /// Protocol that allows to map a `PackageInfo` to a `ProjectDescription.Project`.
 public protocol PackageInfoMapping {
-    /// Resolves all SwiftPackageManager dependencies.
+    /// Preproces SwiftPackageManager dependencies.
     /// - Parameters:
     ///   - packageInfos: All available `PackageInfo`s
     ///   - productToPackage: Mapping from a product to its package
     ///   - targetDependencyToFramework: Mapping from a target dependency to its framework
     /// - Returns: Mapped project
-    func resolveDependencies(
+    func preprocess(
         packageInfos: [String: PackageInfo],
         productToPackage: [String: String],
         targetDependencyToFramework: [String: Path]
-    ) throws -> [String: [PackageInfoMapper.ResolvedDependency]]
+    ) throws -> (
+        targetToProducts: [String: Set<PackageInfo.Product>],
+        resolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]]
+    )
 
     /// Maps a `PackageInfo` to a `ProjectDescription.Project`.
     /// - Parameters:
@@ -84,6 +87,7 @@ public protocol PackageInfoMapping {
         productTypes: [String: TuistGraph.Product],
         platforms: Set<TuistGraph.Platform>,
         deploymentTargets: Set<TuistGraph.DeploymentTarget>,
+        targetToProducts: [String: Set<PackageInfo.Product>],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         packageToProject: [String: AbsolutePath],
         productToPackage: [String: String]
@@ -103,23 +107,55 @@ public final class PackageInfoMapper: PackageInfoMapping {
     ///   - productToPackage: Mapping from a product to its package
     ///   - targetDependencyToFramework: Mapping from a target dependency to its framework
     /// - Returns: Mapped project
-    public func resolveDependencies(
+    public func preprocess(
         packageInfos: [String: PackageInfo],
         productToPackage: [String: String],
         targetDependencyToFramework: [String: Path]
-    ) throws -> [String: [ResolvedDependency]] {
-        return try packageInfos.values.reduce(into: [:]) { result, packageInfo in
-            try packageInfo.targets.forEach { target in
-                guard result[target.name] == nil else { return }
-                result[target.name] = try ResolvedDependency.from(
-                    dependencies: target.dependencies,
-                    packageInfo: packageInfo,
-                    packageInfos: packageInfos,
-                    productToPackage: productToPackage,
-                    targetDependencyToFramework: targetDependencyToFramework
-                )
+    ) throws -> (
+        targetToProducts: [String: Set<PackageInfo.Product>],
+        resolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]]
+    ) {
+        let targetToProducts: [String: Set<PackageInfo.Product>] = packageInfos.values.reduce(into: [:]) { result, packageInfo in
+            for product in packageInfo.products {
+                var targetsToProcess = Set(product.targets)
+                while !targetsToProcess.isEmpty {
+                    let target = targetsToProcess.removeFirst()
+                    let alreadyProcessed = result[target]?.contains(product) ?? false
+                    guard !alreadyProcessed else {
+                        continue
+                    }
+                    result[target, default: []].insert(product)
+                    let dependencies = packageInfo.targets.first(where: { $0.name == target })!.dependencies
+                    for dependency in dependencies {
+                        switch dependency {
+                        case let .target(name, _):
+                            targetsToProcess.insert(name)
+                        case let .byName(name, _) where packageInfo.targets.contains(where: { $0.name == name }):
+                            targetsToProcess.insert(name)
+                        case .byName, .product:
+                            continue
+                        }
+                    }
+                }
             }
         }
+
+        let resolvedDependencies: [String: [ResolvedDependency]] = try packageInfos.values.reduce(into: [:]) { result, packageInfo in
+            try packageInfo.targets
+                .filter { targetToProducts[$0.name] != nil }
+                .forEach { target in
+                    guard result[target.name] == nil else { return }
+                    result[target.name] = try ResolvedDependency.from(
+                        dependencies: target.dependencies,
+                        packageInfo: packageInfo,
+                        packageInfos: packageInfos,
+                        productToPackage: productToPackage,
+                        targetDependencyToFramework: targetDependencyToFramework
+                    )
+                }
+        }
+
+        return (targetToProducts: targetToProducts, resolvedDependencies: resolvedDependencies)
     }
 
     public func map(
@@ -130,34 +166,11 @@ public final class PackageInfoMapper: PackageInfoMapping {
         productTypes: [String: TuistGraph.Product],
         platforms: Set<TuistGraph.Platform>,
         deploymentTargets: Set<TuistGraph.DeploymentTarget>,
+        targetToProducts: [String: Set<PackageInfo.Product>],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         packageToProject: [String: AbsolutePath],
         productToPackage: [String: String]
     ) throws -> ProjectDescription.Project {
-        var targetToProducts: [String: Set<PackageInfo.Product>] = [:]
-        for product in packageInfo.products {
-            var targetsToProcess = Set(product.targets)
-            while !targetsToProcess.isEmpty {
-                let target = targetsToProcess.removeFirst()
-                let alreadyProcessed = targetToProducts[target]?.contains(product) ?? false
-                guard !alreadyProcessed else {
-                    continue
-                }
-                targetToProducts[target, default: []].insert(product)
-                let dependencies = packageInfo.targets.first(where: { $0.name == target })!.dependencies
-                for dependency in dependencies {
-                    switch dependency {
-                    case let .target(name, _):
-                        targetsToProcess.insert(name)
-                    case let .byName(name, _) where packageInfo.targets.contains(where: { $0.name == name }):
-                        targetsToProcess.insert(name)
-                    case .byName, .product:
-                        continue
-                    }
-                }
-            }
-        }
-
         let targets = try packageInfo.targets.compactMap { target -> ProjectDescription.Target? in
             guard let products = targetToProducts[target.name] else { return nil }
             return try Target.from(
@@ -740,7 +753,7 @@ extension PackageInfoMapper {
             dependencies: [PackageInfo.Target.Dependency],
             packageInfo: PackageInfo,
             packageInfos: [String: PackageInfo],
-            productToPackage: [String: String],
+            productToPackage _: [String: String],
             targetDependencyToFramework: [String: Path]
         ) throws -> [ResolvedDependency] {
             return try dependencies.map { dependency -> Self in
@@ -752,10 +765,12 @@ extension PackageInfoMapper {
                 case let .byName(name, _):
                     if packageInfo.targets.contains(where: { $0.name == name }) {
                         return Self.fromTarget(name: name, targetDependencyToFramework: targetDependencyToFramework)
-                    } else if productToPackage[name] != nil {
-                        return try Self.fromProduct(package: name, product: name, packageInfos: packageInfos)
                     } else {
-                        throw PackageInfoMapperError.unknownByNameDependency(name)
+                        guard let packageNameAndInfo = packageInfos.first(where: { $0.value.products.contains { $0.name == name } }) else {
+                            throw PackageInfoMapperError.unknownByNameDependency(name)
+                        }
+
+                        return try Self.fromProduct(package: packageNameAndInfo.key, product: name, packageInfos: packageInfos)
                     }
                 }
             }

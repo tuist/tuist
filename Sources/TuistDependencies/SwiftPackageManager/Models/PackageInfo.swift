@@ -71,7 +71,7 @@ extension PackageInfo {
 // MARK: - Product
 
 extension PackageInfo {
-    struct Product: Decodable, Hashable {
+    public struct Product: Decodable, Hashable {
         /// The name of the product.
         let name: String
 
