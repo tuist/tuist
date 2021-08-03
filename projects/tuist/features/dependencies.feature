@@ -29,4 +29,4 @@ Feature: Tuist dependencies.
         And I have a working directory
         Then I copy the fixture app_with_spm_dependencies into the working directory
         Then tuist fetches dependencies
-        Then tuist builds the scheme App from the project
+        Then tuist builds the scheme AppTests from the project
