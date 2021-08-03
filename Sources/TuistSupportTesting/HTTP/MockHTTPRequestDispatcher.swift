@@ -28,10 +28,10 @@ public class MockHTTPRequestDispatcher: HTTPRequestDispatching {
         AnyPublisher.create { subscriber in
             if T.self != Void.self {
                 fatalError(
-                  """
-                  MockHTTPRequestDispatcher only supports resources with Void as its generic value. \
-                  Use HTTPResource.noop from TuistSupportTesting.
-                  """
+                    """
+                    MockHTTPRequestDispatcher only supports resources with Void as its generic value. \
+                    Use HTTPResource.noop from TuistSupportTesting.
+                    """
                 )
             }
             self.requests.append(resource.request())
