@@ -5,7 +5,10 @@ import XCTest
 final class ProjectOptionTests: XCTestCase {
     func test_toJSON() {
         let subject = ProjectOption.textSettings(
-            .textSettings(usesTabs: true, indentWidth: 0, tabWidth: 0, wrapsLines: true)
+            usesTabs: true,
+            indentWidth: 0,
+            tabWidth: 0,
+            wrapsLines: true
         )
         XCTAssertCodable(subject)
     }

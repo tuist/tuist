@@ -7,8 +7,15 @@ extension TuistGraph.ProjectOption {
     ///   - manifest: Manifest representation of project options.
     static func from(manifest: ProjectDescription.ProjectOption) -> TuistGraph.ProjectOption {
         switch manifest {
-        case let .textSettings(textSettings):
-            return .textSettings(.from(manifest: textSettings))
+        case let .textSettings(usesTabs, indentWidth, tabWidth, wrapsLines):
+            return .textSettings(
+                .init(
+                    usesTabs: usesTabs,
+                    indentWidth: indentWidth,
+                    tabWidth: tabWidth,
+                    wrapsLines: wrapsLines
+                )
+            )
         }
     }
 }

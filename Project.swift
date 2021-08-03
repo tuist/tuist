@@ -554,10 +554,8 @@ let project = Project(
     name: "Tuist",
     options: [
         .textSettings(
-            .textSettings(
-                indentWidth: 4,
-                tabWidth: 4
-            )
+            indentWidth: 4,
+            tabWidth: 4
         )
     ],
     packages: packages,

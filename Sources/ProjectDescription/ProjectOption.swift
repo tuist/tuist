@@ -3,35 +3,69 @@ import Foundation
 /// Additional options related to the `Project`
 public enum ProjectOption: Codable, Equatable {
     /// Text settings to override user ones for current project
-    case textSettings(TextSettings)
+    ///
+    /// - Parameters:
+    ///   - usesTabs: Use tabs over spaces.
+    ///   - indentWidth: Indent width.
+    ///   - tabWidth: Tab width.
+    ///   - wrapsLines: Wrap lines.
+    case textSettings(
+        usesTabs: Bool? = nil,
+        indentWidth: UInt? = nil,
+        tabWidth: UInt? = nil,
+        wrapsLines: Bool? = nil
+    )
 }
 
 // MARK: - Options + Codable
 
 extension ProjectOption {
-    enum CodingKeys: String, CodingKey {
+    private enum OptionsCodingKeys: String, CodingKey {
         case textSettings
+    }
+    
+    private enum TextSettingsKeys: String, CodingKey {
+        case usesTabs
+        case indentWidth
+        case tabWidth
+        case wrapsLines
     }
 
     public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let container = try decoder.container(keyedBy: OptionsCodingKeys.self)
 
         if container.allKeys.contains(.textSettings), try container.decodeNil(forKey: .textSettings) == false {
-            var associatedValues = try container.nestedUnkeyedContainer(forKey: .textSettings)
-            let textSettings = try associatedValues.decode(TextSettings.self)
-            self = .textSettings(textSettings)
+            let textSettingsContainer = try container.nestedContainer(
+                keyedBy: TextSettingsKeys.self,
+                forKey: .textSettings
+            )
+            
+            let usesTabs = try textSettingsContainer.decodeIfPresent(Bool.self, forKey: .usesTabs)
+            let indentWidth = try textSettingsContainer.decodeIfPresent(UInt.self, forKey: .indentWidth)
+            let tabWidth = try textSettingsContainer.decodeIfPresent(UInt.self, forKey: .tabWidth)
+            let wrapsLines = try textSettingsContainer.decodeIfPresent(Bool.self, forKey: .wrapsLines)
+            
+            self = .textSettings(
+                usesTabs: usesTabs,
+                indentWidth: indentWidth,
+                tabWidth: tabWidth,
+                wrapsLines: wrapsLines
+            )
         } else {
             throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown enum case"))
         }
     }
 
     public func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
+        var container = encoder.container(keyedBy: OptionsCodingKeys.self)
 
         switch self {
-        case let .textSettings(textSettings):
-            var associatedValues = container.nestedUnkeyedContainer(forKey: .textSettings)
-            try associatedValues.encode(textSettings)
+        case let .textSettings(usesTabs, indentWidth, tabWidth, wrapsLines):
+            var associatedValues = container.nestedContainer(keyedBy: TextSettingsKeys.self, forKey: .textSettings)
+            try associatedValues.encodeIfPresent(usesTabs, forKey: .usesTabs)
+            try associatedValues.encodeIfPresent(indentWidth, forKey: .indentWidth)
+            try associatedValues.encodeIfPresent(tabWidth, forKey: .tabWidth)
+            try associatedValues.encodeIfPresent(wrapsLines, forKey: .wrapsLines)
         }
     }
 }

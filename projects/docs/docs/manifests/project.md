@@ -83,7 +83,7 @@ List of additional options:
 | `.textSettings(TextSettings)`| [Text settings](#Text-Settings) to override user ones for current project |
 
 #### Text Settings
-Text settings for Xcode project
+Text settings to override user ones. Would use Xcode defined settings if pass `nil`.
 
 | Property      | Description          | Type    | Required | Default |
 | ------------- | -------------------- | ------- | -------- | ------- |
