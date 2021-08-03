@@ -25,6 +25,6 @@ struct SwiftPackageManagerWorkspaceState: Decodable, Equatable {
         /// The king of the dependency (either local or remote)
         let kind: String
         /// The path of the local dependency
-        let path: String
+        let path: String?
     }
 }

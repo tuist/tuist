@@ -3,7 +3,7 @@
 /// The Swift Package Manager package information.
 /// It decodes data encoded from Manifest.swift: https://github.com/apple/swift-package-manager/blob/06f9b30f4593940272f57f6284e5614d817d2f22/Sources/PackageModel/Manifest.swift#L372-L409
 /// Fields not needed by tuist are commented out and not decoded at all.
-public struct PackageInfo: Decodable, Equatable {
+public struct PackageInfo: Decodable, Hashable {
     /// The products declared in the manifest.
     let products: [Product]
 
@@ -52,7 +52,7 @@ public struct PackageInfo: Decodable, Equatable {
 // MARK: Platform
 
 extension PackageInfo {
-    struct Platform: Decodable, Equatable {
+    struct Platform: Decodable, Hashable {
         let platformName: String
         let version: String
         let options: [String]
@@ -62,7 +62,7 @@ extension PackageInfo {
 // MARK: PackageConditionDescription
 
 extension PackageInfo {
-    struct PackageConditionDescription: Decodable, Equatable {
+    struct PackageConditionDescription: Decodable, Hashable {
         let platformNames: [String]
         let config: String?
     }
@@ -71,7 +71,7 @@ extension PackageInfo {
 // MARK: - Product
 
 extension PackageInfo {
-    struct Product: Decodable, Hashable {
+    public struct Product: Decodable, Hashable {
         /// The name of the product.
         let name: String
 
@@ -117,7 +117,7 @@ extension PackageInfo.Product {
 // MARK: - Target
 
 extension PackageInfo {
-    struct Target: Decodable, Equatable {
+    struct Target: Decodable, Hashable {
         /// The name of the target.
         let name: String
 
@@ -157,7 +157,7 @@ extension PackageInfo {
 
 extension PackageInfo.Target {
     /// A dependency of the target.
-    enum Dependency: Equatable {
+    enum Dependency: Hashable {
         /// A dependency internal to the same package.
         case target(name: String, condition: PackageInfo.PackageConditionDescription?)
 
@@ -172,13 +172,13 @@ extension PackageInfo.Target {
 // MARK: Target.Resource
 
 extension PackageInfo.Target {
-    struct Resource: Decodable, Equatable {
-        enum Rule: String, Decodable, Equatable {
+    struct Resource: Decodable, Hashable {
+        enum Rule: String, Decodable, Hashable {
             case process
             case copy
         }
 
-        enum Localization: String, Decodable, Equatable {
+        enum Localization: String, Decodable, Hashable {
             case `default`
             case base
         }
@@ -203,7 +203,7 @@ extension PackageInfo.Target {
 // MARK: Target.TargetType
 
 extension PackageInfo.Target {
-    enum TargetType: String, Equatable, Decodable {
+    enum TargetType: String, Hashable, Decodable {
         case regular
         case executable
         case test
@@ -219,7 +219,7 @@ extension PackageInfo.Target {
     /// A namespace for target-specific build settings.
     enum TargetBuildSettingDescription {
         /// The tool for which a build setting is declared.
-        enum Tool: String, Decodable, Equatable, CaseIterable {
+        enum Tool: String, Decodable, Hashable, CaseIterable {
             case c
             case cxx
             case swift
@@ -227,7 +227,7 @@ extension PackageInfo.Target {
         }
 
         /// The name of the build setting.
-        enum SettingName: String, Decodable, Equatable {
+        enum SettingName: String, Decodable, Hashable {
             case headerSearchPath
             case define
             case linkedLibrary
@@ -236,7 +236,7 @@ extension PackageInfo.Target {
         }
 
         /// An individual build setting.
-        struct Setting: Decodable, Equatable {
+        struct Setting: Decodable, Hashable {
             /// The tool associated with this setting.
             let tool: Tool
 

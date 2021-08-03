@@ -203,8 +203,9 @@ extension PackageInfo {
             {
               "dependencies" : [
                 {
-                  "byName" : [
+                  "product" : [
                     "AnotherLibrary",
+                    "another-dependency",
                     null
                   ]
                 }
@@ -318,7 +319,7 @@ extension PackageInfo {
                     resources: [],
                     exclude: [],
                     dependencies: [
-                        .byName(name: "AnotherLibrary", condition: nil),
+                        .product(name: "AnotherLibrary", package: "another-dependency", condition: nil),
                     ],
                     publicHeadersPath: nil,
                     type: .regular,

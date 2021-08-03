@@ -31,6 +31,14 @@ public final class MockFileHandler: FileHandler {
         return try stubContentsOfDirectory(path)
     }
 
+    public var stubFilesAndDirectoriesContained: ((AbsolutePath) -> [AbsolutePath]?)?
+    override public func filesAndDirectoriesContained(in path: AbsolutePath) -> [AbsolutePath]? {
+        guard let stubFilesAndDirectoriesContained = stubFilesAndDirectoriesContained else {
+            return super.filesAndDirectoriesContained(in: path)
+        }
+        return stubFilesAndDirectoriesContained(path)
+    }
+
     public var stubExists: ((AbsolutePath) -> Bool)?
     override public func exists(_ path: AbsolutePath) -> Bool {
         guard let stubExists = stubExists else {
@@ -45,6 +53,14 @@ public final class MockFileHandler: FileHandler {
             return try super.readFile(path)
         }
         return try stubReadFile(path)
+    }
+
+    public var stubWrite: ((String, AbsolutePath, Bool) throws -> Void)?
+    override public func write(_ content: String, path: AbsolutePath, atomically: Bool) throws {
+        guard let stubWrite = stubWrite else {
+            return try super.write(content, path: path, atomically: atomically)
+        }
+        return try stubWrite(content, path, atomically)
     }
 
     public var stubIsFolder: ((AbsolutePath) -> Bool)?

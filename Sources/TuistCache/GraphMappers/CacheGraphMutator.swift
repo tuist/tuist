@@ -16,6 +16,7 @@ protocol CacheGraphMutating {
     func map(graph: Graph, precompiledArtifacts: [GraphTarget: AbsolutePath], sources: Set<String>) throws -> Graph
 }
 
+// swiftlint:disable:next type_body_length
 class CacheGraphMutator: CacheGraphMutating {
     struct VisitedArtifact {
         let path: AbsolutePath?

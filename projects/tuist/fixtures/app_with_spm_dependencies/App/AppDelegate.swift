@@ -1,6 +1,7 @@
 import Adjust
 import Alamofire
 import ComposableArchitecture
+import FacebookCore
 import UIKit
 
 @UIApplicationMain

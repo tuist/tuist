@@ -11,11 +11,13 @@ import TuistSupport
 enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
     /// Thrown when `SwiftPackageManagerWorkspaceState.Dependency.Kind` is not one of the expected values.
     case unsupportedDependencyKind(String)
+    /// Thrown when `SwiftPackageManagerWorkspaceState.packageRef.path` is not present in a local swift package.
+    case missingPathInLocalSwiftPackage(String)
 
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .unsupportedDependencyKind:
+        case .unsupportedDependencyKind, .missingPathInLocalSwiftPackage:
             return .bug
         }
     }
@@ -25,6 +27,8 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
         switch self {
         case let .unsupportedDependencyKind(name):
             return "The dependency kind \(name) is not supported."
+        case let .missingPathInLocalSwiftPackage(name):
+            return "The local package \(name) does not contain the path in the generated `workspace-state.json` file."
         }
     }
 }
@@ -78,7 +82,10 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             case "remote":
                 packageFolder = checkoutsFolder.appending(component: dependency.subpath)
             case "local":
-                packageFolder = AbsolutePath(dependency.packageRef.path)
+                guard let path = dependency.packageRef.path else {
+                    throw SwiftPackageManagerGraphGeneratorError.missingPathInLocalSwiftPackage(name)
+                }
+                packageFolder = AbsolutePath(path)
             default:
                 throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
             }
@@ -102,16 +109,21 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             }
         }
 
-        let packageToProject = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, Path($0.folder.pathString)) })
+        let packageToProject = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.folder) })
         let packageInfoDictionary = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.info) })
-        let externalProjects: [Path: ProjectDescription.Project] = try packageInfos.reduce(into: [:]) { result, packageInfo in
+        let targetDependencyToFramework: [String: Path] = packageInfos.reduce(into: [:]) { result, packageInfo in
             let artifactsFolder = artifactsFolder.appending(component: packageInfo.name)
-            let targetDependencyToFramework: [String: Path] = packageInfo.info.targets.reduce(into: [:]) { result, target in
+            packageInfo.info.targets.forEach { target in
                 guard target.type == .binary else { return }
-
                 result[target.name] = Path(artifactsFolder.appending(component: "\(target.name).xcframework").pathString)
             }
-
+        }
+        let (targetToProducts, targetToResolvedDependencies) = try packageInfoMapper.preprocess(
+            packageInfos: packageInfoDictionary,
+            productToPackage: productToPackage,
+            targetDependencyToFramework: targetDependencyToFramework
+        )
+        let externalProjects: [Path: ProjectDescription.Project] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             let manifest = try packageInfoMapper.map(
                 packageInfo: packageInfo.info,
                 packageInfos: packageInfoDictionary,
@@ -120,9 +132,10 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 productTypes: productTypes,
                 platforms: platforms,
                 deploymentTargets: deploymentTargets,
+                targetToProducts: targetToProducts,
+                targetToResolvedDependencies: targetToResolvedDependencies,
                 packageToProject: packageToProject,
-                productToPackage: productToPackage,
-                targetDependencyToFramework: targetDependencyToFramework
+                productToPackage: productToPackage
             )
             result[Path(packageInfo.folder.pathString)] = manifest
         }
