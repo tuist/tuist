@@ -33,22 +33,32 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
         try test_generate(for: .nestedHeader)
     }
 
-    func test_generate_when_umbrella_directory() throws {
-        try test_generate(for: .directory)
-    }
-
     private func test_generate(for moduleMapType: ModuleMapType) throws {
         var writeCalled = false
+        fileHandler.stubContentsOfDirectory = { path in
+            switch moduleMapType {
+            case .none:
+                return []
+            case .custom:
+                return ["/Absolute/Public/Headers/Path/module.modulemap"]
+            case .header:
+                return ["/Absolute/Public/Headers/Path/Module.h"]
+            case .nestedHeader:
+                return ["/Absolute/Public/Headers/Path/Module/Module.h"]
+            case .directory:
+                return ["/Absolute/Public/Headers/Path/AnotherHeader.h"]
+            }
+        }
         fileHandler.stubExists = { path in
             switch path {
+            case "/Absolute/Public/Headers/Path":
+                return moduleMapType != .none
             case "/Absolute/Public/Headers/Path/module.modulemap":
                 return moduleMapType == .custom
             case "/Absolute/Public/Headers/Path/Module.h":
                 return moduleMapType == .header
             case "/Absolute/Public/Headers/Path/Module/Module.h":
                 return moduleMapType == .nestedHeader
-            case "/Absolute/Public/Headers/Path":
-                return moduleMapType == .directory
             default:
                 XCTFail("Unexpected exists call: \(path)")
                 return false
