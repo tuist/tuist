@@ -88,10 +88,10 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
         if publicHeadersFolderContent.contains(publicHeadersPath.appending(moduleMapPath)) {
             return publicHeadersPath.appending(moduleMapPath)
         } else if publicHeadersFolderContent.count == 1,
-                  let nestedHeadersPath = publicHeadersFolderContent.first,
-                  FileHandler.shared.isFolder(nestedHeadersPath),
-                  FileHandler.shared.exists(nestedHeadersPath.appending(moduleMapPath))
-                  {
+            let nestedHeadersPath = publicHeadersFolderContent.first,
+            FileHandler.shared.isFolder(nestedHeadersPath),
+            FileHandler.shared.exists(nestedHeadersPath.appending(moduleMapPath))
+        {
             return nestedHeadersPath.appending(moduleMapPath)
         } else {
             return nil

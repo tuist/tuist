@@ -35,7 +35,7 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
 
     private func test_generate(for moduleMapType: ModuleMapType) throws {
         var writeCalled = false
-        fileHandler.stubContentsOfDirectory = { path in
+        fileHandler.stubContentsOfDirectory = { _ in
             switch moduleMapType {
             case .none:
                 return []
