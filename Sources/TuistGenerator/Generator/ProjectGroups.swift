@@ -68,10 +68,15 @@ class ProjectGroups {
     {
         /// Main
         let projectRelativePath = project.sourceRootPath.relative(to: project.xcodeProjPath.parentDirectory).pathString
+        let textSettings = project.options.textSettings
         let mainGroup = PBXGroup(
             children: [],
             sourceTree: .group,
-            path: (projectRelativePath != ".") ? projectRelativePath : nil
+            path: (projectRelativePath != ".") ? projectRelativePath : nil,
+            wrapsLines: textSettings?.wrapsLines,
+            usesTabs: textSettings?.usesTabs,
+            indentWidth: textSettings?.indentWidth,
+            tabWidth: textSettings?.tabWidth
         )
         pbxproj.add(object: mainGroup)
 
