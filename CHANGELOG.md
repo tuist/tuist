@@ -6,10 +6,23 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
+- Add support for localized intent definition files using `.strings`. [#3236](https://github.com/tuist/tuist/pull/3236) by [@dbarden](https://github.com/dbarden)
+- Add `TextSettings` configuration into `Project` [#3253](https://github.com/tuist/tuist/pull/3253) by [@DimaMishchenko](https://github.com/DimaMishchenko)
+- Add `language` option for `RunAction`, add `SchemeLanguage` [#3231](https://github.com/tuist/tuist/pull/3231) by [@zzzkk](https://github.com/zzzkk)
+
+### Fixed
+
+- Build file of dependencies having the wrong platform filter in iOS targets with Catalyst enabled [#3152](https://github.com/tuist/tuist/pull/3152) by [@pepibumur](https://github.com/pepibumur) and [@sampettersson](https://github.com/sampettersson).
+
+## 1.47.0 - Mirror
+
+### Added
+
+- Caching for static frameworks with resources [#3090](https://github.com/tuist/tuist/pull/3090) by [@mstfy](https://github.com/mstfy)
 - Meta tuist support [#3103](https://github.com/tuist/tuist/pull/3103) by [@fortmarek](https://github.com/fortmarek)
 - Add `--result-bundle-path` parameter to test command [#3177](https://github.com/tuist/tuist/pull/3177) by [@olejnjak](https://github.com/olejnjak)
 - The `tuist dependencies` command prints dependency managers' output to console. [#3185](https://github.com/tuist/tuist/pull/3185) by [@laxmorek](https://github.com/laxmorek)
-- Add `language` option for `RunAction`, add `SchemeLanguage` [#3231](https://github.com/tuist/tuist/pull/3231) by [@zzzkk](https://github.com/zzzkk)
+- CI check to ensure lockfiles are consistent [#3208](https://github.com/tuist/tuist/pull/3208) by by [@pepibumur](https://github.com/pepibumur).
 
 ### Removed
 
@@ -19,6 +32,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Changed
 
 - Remove the `sudo` requirement for the install and uninstall scripts. [#3056](https://github.com/tuist/tuist/pull/3056) by [@luispadron](https://github.com/luispadron).
+
+### Fixed
+
+- Editing projects in development [#3199](https://github.com/tuist/tuist/pull/3199) by [@pepibumur](https://github.com/pepibumur).
 
 ## 1.46.1
 

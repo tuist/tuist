@@ -4,6 +4,7 @@ inherit_gem:
     - config/rails.yml
 require:
   - rubocop-minitest
+  - rubocop-rails
 
 Style/ClassAndModuleChildren:
   Enabled: false

@@ -27,10 +27,11 @@ class ProjectFileElements {
         options: []
     )
 
-    private static let localizedInterfaceBuilderGroupExtensions = [
+    private static let localizedGroupExtensions = [
         "storyboard",
         "strings",
         "xib",
+        "intentdefinition",
     ]
 
     // MARK: - Attributes
@@ -228,7 +229,7 @@ class ProjectFileElements {
                     toGroup: groups.frameworks,
                     pbxproj: pbxproj
                 )
-            case let .product(target: target, productName: productName):
+            case let .product(target: target, productName: productName, _):
                 generateProduct(
                     targetName: target,
                     productName: productName,
@@ -637,16 +638,16 @@ class ProjectFileElements {
     func variantGroup(containing localizedFile: AbsolutePath) -> (group: PBXVariantGroup, path: AbsolutePath)? {
         let variantGroupBasePath = localizedFile.parentDirectory.parentDirectory
 
-        // Variant groups used to localize Interface Builder files (.xib or .storyboard) can contain files of these
-        // types, respectively, and corresponding .strings files. However, the groups' names must always use the
-        // extension of the Interface Builder file, i.e. either .xib or .storyboard. Since the order in which such
+        // Variant groups used to localize Interface Builder or Intent Definition files (.xib, .storyboard or .intentdefition)
+        // can contain files of these, respectively, and corresponding .strings files. However, the groups' names must always
+        // use the extension of the main file, i.e. either .xib or .storyboard. Since the order in which such
         // groups are formed is not deterministic, we must check for existing groups having the same name as the
         // localized file and any of these extensions.
         if
             let fileExtension = localizedFile.extension,
-            Self.localizedInterfaceBuilderGroupExtensions.contains(fileExtension)
+            Self.localizedGroupExtensions.contains(fileExtension)
         {
-            for groupExtension in Self.localizedInterfaceBuilderGroupExtensions {
+            for groupExtension in Self.localizedGroupExtensions {
                 let variantGroupPath = variantGroupBasePath.appending(
                     component: "\(localizedFile.basenameWithoutExt).\(groupExtension)"
                 )

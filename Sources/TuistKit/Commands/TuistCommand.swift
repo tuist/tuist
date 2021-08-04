@@ -23,7 +23,7 @@ public struct TuistCommand: ParsableCommand {
                 GenerateCommand.self,
                 GraphCommand.self,
                 InitCommand.self,
-                LabCommand.self,
+                CloudCommand.self,
                 LintCommand.self,
                 MigrationCommand.self,
                 RunCommand.self,

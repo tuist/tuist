@@ -156,6 +156,27 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         return false
     }
 
+    /// For iOS targets that support macOS (Catalyst), this value is used
+    /// in the generated build files of the target dependency products to
+    /// indicate the build system that the dependency should be compiled
+    /// with Catalyst compatibility.
+    public var targetDependencyBuildFilesPlatformFilter: BuildFilePlatformFilter? {
+        switch deploymentTarget {
+        case let .iOS(_, devices):
+            if devices.contains(.mac) {
+                return .catalyst
+            }
+
+            if !devices.contains(.mac) {
+                return .ios
+            }
+
+            return nil
+        default:
+            return nil
+        }
+    }
+
     // MARK: - Equatable
 
     public static func == (lhs: Target, rhs: Target) -> Bool {

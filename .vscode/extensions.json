@@ -5,6 +5,8 @@
     "bradlc.vscode-tailwindcss",
     "rebornix.ruby",
     "misogi.ruby-rubocop",
-    "shopify.vscode-shadowenv"
+    "shopify.vscode-shadowenv",
+    "editorconfig.editorconfig",
+    "dracula-theme.theme-dracula",
   ]
 }

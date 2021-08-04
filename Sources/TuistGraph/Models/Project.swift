@@ -22,6 +22,9 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     /// Development region code e.g. `en`.
     public var developmentRegion: String?
 
+    /// Additional project options.
+    public var options: [ProjectOption]
+
     /// Project targets.
     public var targets: [Target]
 
@@ -57,6 +60,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     ///   - name: Project name.
     ///   - organizationName: Organization name.
     ///   - developmentRegion: Development region.
+    ///   - options: Additional project options.
     ///   - settings: The settings to apply at the project level
     ///   - filesGroup: The root group to place project files within
     ///   - targets: The project targets
@@ -69,6 +73,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
         name: String,
         organizationName: String?,
         developmentRegion: String?,
+        options: [ProjectOption],
         settings: Settings,
         filesGroup: ProjectGroup,
         targets: [Target],
@@ -84,6 +89,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
         self.name = name
         self.organizationName = organizationName
         self.developmentRegion = developmentRegion
+        self.options = options
         self.targets = targets
         self.packages = packages
         self.schemes = schemes
@@ -124,6 +130,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
             name: name,
             organizationName: organizationName,
             developmentRegion: developmentRegion,
+            options: options,
             settings: settings,
             filesGroup: filesGroup,
             targets: targets,
@@ -145,6 +152,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
             name: name,
             organizationName: organizationName,
             developmentRegion: developmentRegion,
+            options: options,
             settings: settings,
             filesGroup: filesGroup,
             targets: targets,

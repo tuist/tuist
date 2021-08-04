@@ -17,9 +17,9 @@ extension TuistGraph.Config {
         let plugins = try manifest.plugins.map { try PluginLocation.from(manifest: $0, generatorPaths: generatorPaths) }
         let swiftVersion = manifest.swiftVersion?.description
 
-        var lab: TuistGraph.Lab?
-        if let manifestLab = manifest.lab {
-            lab = try TuistGraph.Lab.from(manifest: manifestLab)
+        var cloud: TuistGraph.Cloud?
+        if let manifestCloud = manifest.cloud {
+            cloud = try TuistGraph.Cloud.from(manifest: manifestCloud)
         }
 
         var cache: TuistGraph.Cache?
@@ -34,7 +34,7 @@ extension TuistGraph.Config {
 
         return TuistGraph.Config(
             compatibleXcodeVersions: compatibleXcodeVersions,
-            lab: lab,
+            cloud: cloud,
             cache: cache,
             swiftVersion: swiftVersion,
             plugins: plugins,

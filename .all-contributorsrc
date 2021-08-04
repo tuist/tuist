@@ -469,6 +469,42 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "dbarden",
+      "name": "Daniel Barden",
+      "avatar_url": "https://avatars.githubusercontent.com/u/104456?v=4",
+      "profile": "http://twitter.com/danielbarden",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "zzzkk",
+      "name": "Zofia Kulus",
+      "avatar_url": "https://avatars.githubusercontent.com/u/12541603?v=4",
+      "profile": "https://github.com/zzzkk",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "randomeizer",
+      "name": "David Peterson",
+      "avatar_url": "https://avatars.githubusercontent.com/u/3589315?v=4",
+      "profile": "http://randombits.org/",
+      "contributions": [
+        "ideas"
+      ]
+    },
+    {
+      "login": "eltociear",
+      "name": "Ikko Ashimine",
+      "avatar_url": "https://avatars.githubusercontent.com/u/22633385?v=4",
+      "profile": "https://bandism.net/",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
