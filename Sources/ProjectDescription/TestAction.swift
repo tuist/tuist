@@ -29,10 +29,10 @@ public struct TestAction: Equatable, Codable {
     /// List of actions to be executed after running the tests.
     public let postActions: [ExecutionAction]
 
-    /// Language
+    /// Language.
     public let language: SchemeLanguage?
 
-    /// Region
+    /// Region.
     public let region: String?
 
     /// Diagnostics options.
@@ -75,8 +75,8 @@ public struct TestAction: Equatable, Codable {
     ///   - preActions: ist of actions to be executed before running the tests.
     ///   - postActions: List of actions to be executed after running the tests.
     ///   - diagnosticsOptions: Diagnostics options.
-    ///   - language: Language (e.g. "pl")
-    ///   - region: Region (e.g. "PL")
+    ///   - language: Language (e.g. "pl").
+    ///   - region: Region (e.g. "PL").
     public init(targets: [TestableTarget],
                 arguments: Arguments? = nil,
                 configurationName: String,
@@ -86,7 +86,7 @@ public struct TestAction: Equatable, Codable {
                 preActions: [ExecutionAction] = [],
                 postActions: [ExecutionAction] = [],
                 diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker],
-                language: SchemeLanguage? = nil,
+                language: String? = nil,
                 region: String? = nil)
     {
         self.init(
@@ -100,7 +100,7 @@ public struct TestAction: Equatable, Codable {
             preActions: preActions,
             postActions: postActions,
             diagnosticsOptions: diagnosticsOptions,
-            language: language,
+            language: language.flatMap(SchemeLanguage.init(stringLiteral:)),
             region: region
         )
     }
@@ -115,8 +115,8 @@ public struct TestAction: Equatable, Codable {
     ///   - preActions: ist of actions to be executed before running the tests.
     ///   - postActions: List of actions to be executed after running the tests.
     ///   - diagnosticsOptions: Diagnostics options.
-    ///   - language: Language (e.g. "pl")
-    ///   - region: Region (e.g. "PL")
+    ///   - language: Language (e.g. "pl").
+    ///   - region: Region (e.g. "PL").
     public init(targets: [TestableTarget],
                 arguments: Arguments? = nil,
                 config: PresetBuildConfiguration = .debug,
@@ -126,7 +126,7 @@ public struct TestAction: Equatable, Codable {
                 preActions: [ExecutionAction] = [],
                 postActions: [ExecutionAction] = [],
                 diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker],
-                language: SchemeLanguage? = nil,
+                language: String? = nil,
                 region: String? = nil)
     {
         self.init(
@@ -140,7 +140,7 @@ public struct TestAction: Equatable, Codable {
             preActions: preActions,
             postActions: postActions,
             diagnosticsOptions: diagnosticsOptions,
-            language: language,
+            language: language.flatMap(SchemeLanguage.init(stringLiteral:)),
             region: region
         )
     }
@@ -151,12 +151,14 @@ public struct TestAction: Equatable, Codable {
     ///   - config: Configuration that should be used for building the test targets.
     ///   - preActions: ist of actions to be executed before running the tests.
     ///   - postActions: List of actions to be executed after running the tests.
+    ///   - language: Language (e.g. "pl").
     public static func testPlans(_ testPlans: Path...,
                                  config: PresetBuildConfiguration = .debug,
                                  preActions: [ExecutionAction] = [],
-                                 postActions: [ExecutionAction] = []) -> Self
+                                 postActions: [ExecutionAction] = [],
+                                 language: SchemeLanguage?) -> Self
     {
-        Self.testPlans(testPlans, config: config, preActions: preActions, postActions: postActions)
+        Self.testPlans(testPlans, config: config, preActions: preActions, postActions: postActions, language: language)
     }
 
     /// Initializes a new instance of a test action using test plans
@@ -165,12 +167,14 @@ public struct TestAction: Equatable, Codable {
     ///   - config: Configuration that should be used for building the test targets.
     ///   - preActions: ist of actions to be executed before running the tests.
     ///   - postActions: List of actions to be executed after running the tests.
+    ///   - language: Language (e.g. "pl").
     public static func testPlans(_ testPlans: Path...,
                                  configurationName: String,
                                  preActions: [ExecutionAction] = [],
-                                 postActions: [ExecutionAction] = []) -> Self
+                                 postActions: [ExecutionAction] = [],
+                                 language: SchemeLanguage?) -> Self
     {
-        Self.testPlans(testPlans, configurationName: configurationName, preActions: preActions, postActions: postActions)
+        Self.testPlans(testPlans, configurationName: configurationName, preActions: preActions, postActions: postActions, language: language)
     }
 
     /// Initializes a new instance of a test action using test plans
@@ -179,12 +183,14 @@ public struct TestAction: Equatable, Codable {
     ///   - config: Configuration that should be used for building the test targets.
     ///   - preActions: ist of actions to be executed before running the tests.
     ///   - postActions: List of actions to be executed after running the tests.
+    ///   - language: Language (e.g. "pl").
     public static func testPlans(_ testPlans: [Path],
                                  config: PresetBuildConfiguration = .debug,
                                  preActions: [ExecutionAction] = [],
-                                 postActions: [ExecutionAction] = []) -> Self
+                                 postActions: [ExecutionAction] = [],
+                                 language: SchemeLanguage?) -> Self
     {
-        Self.testPlans(testPlans, configurationName: config.name, preActions: preActions, postActions: postActions)
+        Self.testPlans(testPlans, configurationName: config.name, preActions: preActions, postActions: postActions, language: language)
     }
 
     /// Initializes a new instance of a test action using test plans
@@ -193,10 +199,12 @@ public struct TestAction: Equatable, Codable {
     ///   - config: Configuration that should be used for building the test targets.
     ///   - preActions: ist of actions to be executed before running the tests.
     ///   - postActions: List of actions to be executed after running the tests.
+    ///   - language: Language (e.g. "pl").
     public static func testPlans(_ testPlans: [Path],
                                  configurationName: String,
                                  preActions: [ExecutionAction] = [],
-                                 postActions: [ExecutionAction] = []) -> Self
+                                 postActions: [ExecutionAction] = [],
+                                 language: SchemeLanguage?) -> Self
     {
         Self(
             testPlans: testPlans,
@@ -209,7 +217,7 @@ public struct TestAction: Equatable, Codable {
             preActions: preActions,
             postActions: postActions,
             diagnosticsOptions: [.mainThreadChecker],
-            language: nil,
+            language: language,
             region: nil
         )
     }

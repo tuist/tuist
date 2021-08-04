@@ -4,7 +4,7 @@ public struct SchemeLanguage: Codable, Equatable, ExpressibleByStringLiteral {
     public let identifier: String
 
     public init(identifier: String) {
-       self.identifier = identifier
+        self.identifier = identifier
     }
 
     public init(stringLiteral value: String) {
