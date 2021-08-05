@@ -19,7 +19,7 @@ extension TuistGraph.TestAction {
         let codeCoverageTargets: [TuistGraph.TargetReference]
         let expandVariablesFromTarget: TuistGraph.TargetReference?
         let diagnosticsOptions: Set<TuistGraph.SchemeDiagnosticsOption>
-        let language: String?
+        let language: SchemeLanguage?
         let region: String?
 
         if let plans = manifest.testPlans {
@@ -81,7 +81,7 @@ extension TuistGraph.TestAction {
             preActions: preActions,
             postActions: postActions,
             diagnosticsOptions: diagnosticsOptions,
-            language: language,
+            language: language?.identifier,
             region: region,
             testPlans: testPlans
         )

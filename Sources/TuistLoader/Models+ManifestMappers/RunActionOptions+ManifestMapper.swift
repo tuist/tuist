@@ -12,8 +12,11 @@ extension TuistGraph.RunActionOptions {
     static func from(manifest: ProjectDescription.RunActionOptions,
                      generatorPaths: GeneratorPaths) throws -> TuistGraph.RunActionOptions
     {
+        var language: String?
         var storeKitConfigurationPath: AbsolutePath?
         var simulatedLocation: SimulatedLocation?
+
+        language = manifest.language?.identifier
 
         if let path = manifest.storeKitConfigurationPath {
             storeKitConfigurationPath = try generatorPaths.resolveSchemeActionProjectPath(path)
@@ -31,6 +34,7 @@ extension TuistGraph.RunActionOptions {
         }
 
         return TuistGraph.RunActionOptions(
+            language: language,
             storeKitConfigurationPath: storeKitConfigurationPath,
             simulatedLocation: simulatedLocation
         )

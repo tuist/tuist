@@ -3,6 +3,9 @@ import TSCBasic
 
 /// Options for the `RunAction` action
 public struct RunActionOptions: Equatable, Codable {
+    /// App Language.
+    public let language: String?
+
     /// The path of the
     /// [StoreKit configuration file](https://developer.apple.com/documentation/xcode/setting_up_storekit_testing_in_xcode#3625700)
     public let storeKitConfigurationPath: AbsolutePath?
@@ -13,6 +16,8 @@ public struct RunActionOptions: Equatable, Codable {
     /// Creates an `RunActionOptions` instance
     ///
     /// - Parameters:
+    ///     - language: language (e.g. "pl").
+    ///
     ///     - storeKitConfigurationPath: The absolute path of the
     ///     [StoreKit configuration file](https://developer.apple.com/documentation/xcode/setting_up_storekit_testing_in_xcode#3625700).
     ///     The default value is `nil`, which results in no
@@ -20,9 +25,11 @@ public struct RunActionOptions: Equatable, Codable {
     ///
     ///     - simulatedLocation: The simulated GPS location to use when running the app.
     public init(
+        language: String? = nil,
         storeKitConfigurationPath: AbsolutePath? = nil,
         simulatedLocation: SimulatedLocation? = nil
     ) {
+        self.language = language
         self.storeKitConfigurationPath = storeKitConfigurationPath
         self.simulatedLocation = simulatedLocation
     }

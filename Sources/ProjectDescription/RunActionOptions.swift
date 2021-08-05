@@ -2,6 +2,9 @@ import Foundation
 
 /// Options for the `RunAction` action
 public struct RunActionOptions: Equatable, Codable {
+    /// App Language.
+    public let language: SchemeLanguage?
+
     /// The path of the
     /// [StoreKit configuration file](https://developer.apple.com/documentation/xcode/setting_up_storekit_testing_in_xcode#3625700).
     public let storeKitConfigurationPath: Path?
@@ -12,6 +15,8 @@ public struct RunActionOptions: Equatable, Codable {
     /// Creates an `RunActionOptions` instance
     ///
     /// - Parameters:
+    ///     - language: language (e.g. "pl").
+    ///
     ///     - storeKitConfigurationPath: The path of the
     ///     [StoreKit configuration file](https://developer.apple.com/documentation/xcode/setting_up_storekit_testing_in_xcode#3625700).
     ///     Please note that this file is automatically added to the Project/Workpace. You should not add it manually.
@@ -20,9 +25,11 @@ public struct RunActionOptions: Equatable, Codable {
     ///     - simulatedLocation: The simulated GPS location to use when running the app.
     ///     Please note that the `.custom(gpxPath:)` case must refer to a valid GPX file in your project's resources.
     init(
+        language: SchemeLanguage? = nil,
         storeKitConfigurationPath: Path? = nil,
         simulatedLocation: SimulatedLocation? = nil
     ) {
+        self.language = language
         self.storeKitConfigurationPath = storeKitConfigurationPath
         self.simulatedLocation = simulatedLocation
     }
@@ -30,6 +37,8 @@ public struct RunActionOptions: Equatable, Codable {
     /// Creates an `RunActionOptions` instance
     ///
     /// - Parameters:
+    ///     - language: language (e.g. "pl").
+    ///
     ///     - storeKitConfigurationPath: The path of the
     ///     [StoreKit configuration file](https://developer.apple.com/documentation/xcode/setting_up_storekit_testing_in_xcode#3625700).
     ///     Please note that this file is automatically added to the Project/Workpace. You should not add it manually.
@@ -38,10 +47,12 @@ public struct RunActionOptions: Equatable, Codable {
     ///     - simulatedLocation: The simulated GPS location to use when running the app.
     ///     Please note that the `.custom(gpxPath:)` case must refer to a valid GPX file in your project's resources.
     public static func options(
+        language: SchemeLanguage? = nil,
         storeKitConfigurationPath: Path? = nil,
         simulatedLocation: SimulatedLocation? = nil
     ) -> Self {
         self.init(
+            language: language,
             storeKitConfigurationPath: storeKitConfigurationPath,
             simulatedLocation: simulatedLocation
         )
