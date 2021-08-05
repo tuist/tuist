@@ -151,14 +151,12 @@ public struct TestAction: Equatable, Codable {
     ///   - config: Configuration that should be used for building the test targets.
     ///   - preActions: ist of actions to be executed before running the tests.
     ///   - postActions: List of actions to be executed after running the tests.
-    ///   - language: Language (e.g. "pl").
     public static func testPlans(_ testPlans: Path...,
                                  config: PresetBuildConfiguration = .debug,
                                  preActions: [ExecutionAction] = [],
-                                 postActions: [ExecutionAction] = [],
-                                 language: SchemeLanguage?) -> Self
+                                 postActions: [ExecutionAction] = []) -> Self
     {
-        Self.testPlans(testPlans, config: config, preActions: preActions, postActions: postActions, language: language)
+        Self.testPlans(testPlans, config: config, preActions: preActions, postActions: postActions)
     }
 
     /// Initializes a new instance of a test action using test plans
@@ -167,14 +165,12 @@ public struct TestAction: Equatable, Codable {
     ///   - config: Configuration that should be used for building the test targets.
     ///   - preActions: ist of actions to be executed before running the tests.
     ///   - postActions: List of actions to be executed after running the tests.
-    ///   - language: Language (e.g. "pl").
     public static func testPlans(_ testPlans: Path...,
                                  configurationName: String,
                                  preActions: [ExecutionAction] = [],
-                                 postActions: [ExecutionAction] = [],
-                                 language: SchemeLanguage?) -> Self
+                                 postActions: [ExecutionAction] = []) -> Self
     {
-        Self.testPlans(testPlans, configurationName: configurationName, preActions: preActions, postActions: postActions, language: language)
+        Self.testPlans(testPlans, configurationName: configurationName, preActions: preActions, postActions: postActions)
     }
 
     /// Initializes a new instance of a test action using test plans
@@ -183,14 +179,12 @@ public struct TestAction: Equatable, Codable {
     ///   - config: Configuration that should be used for building the test targets.
     ///   - preActions: ist of actions to be executed before running the tests.
     ///   - postActions: List of actions to be executed after running the tests.
-    ///   - language: Language (e.g. "pl").
     public static func testPlans(_ testPlans: [Path],
                                  config: PresetBuildConfiguration = .debug,
                                  preActions: [ExecutionAction] = [],
-                                 postActions: [ExecutionAction] = [],
-                                 language: SchemeLanguage?) -> Self
+                                 postActions: [ExecutionAction] = []) -> Self
     {
-        Self.testPlans(testPlans, configurationName: config.name, preActions: preActions, postActions: postActions, language: language)
+        Self.testPlans(testPlans, configurationName: config.name, preActions: preActions, postActions: postActions)
     }
 
     /// Initializes a new instance of a test action using test plans
@@ -199,12 +193,10 @@ public struct TestAction: Equatable, Codable {
     ///   - config: Configuration that should be used for building the test targets.
     ///   - preActions: ist of actions to be executed before running the tests.
     ///   - postActions: List of actions to be executed after running the tests.
-    ///   - language: Language (e.g. "pl").
     public static func testPlans(_ testPlans: [Path],
                                  configurationName: String,
                                  preActions: [ExecutionAction] = [],
-                                 postActions: [ExecutionAction] = [],
-                                 language: SchemeLanguage?) -> Self
+                                 postActions: [ExecutionAction] = []) -> Self
     {
         Self(
             testPlans: testPlans,
@@ -217,7 +209,7 @@ public struct TestAction: Equatable, Codable {
             preActions: preActions,
             postActions: postActions,
             diagnosticsOptions: [.mainThreadChecker],
-            language: language,
+            language: nil,
             region: nil
         )
     }
