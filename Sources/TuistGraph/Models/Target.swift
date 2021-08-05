@@ -165,13 +165,9 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         case let .iOS(_, devices):
             if devices.contains(.mac) {
                 return .catalyst
-            }
-
-            if !devices.contains(.mac) {
+            } else {
                 return .ios
             }
-
-            return nil
         default:
             return nil
         }

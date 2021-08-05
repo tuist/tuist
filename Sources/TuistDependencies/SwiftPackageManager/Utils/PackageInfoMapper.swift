@@ -315,7 +315,7 @@ extension ProjectDescription.DeploymentTarget {
         switch platform {
         case .iOS:
             if let packagePlatform = package.first(where: { $0.platformName == "ios" }) {
-                return .iOS(targetVersion: packagePlatform.version, devices: [.iphone, .ipad, .mac])
+                return .iOS(targetVersion: packagePlatform.version, devices: [.iphone, .ipad])
             } else if let configuredDeploymentTarget = configuredDeploymentTargets.first(where: { $0.platform == "iOS" }) {
                 return .from(deploymentTarget: configuredDeploymentTarget)
             }
