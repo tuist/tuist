@@ -427,7 +427,7 @@ Test plans do not support all properties (those are part of the plan itself). Us
 | `preActions`               | A list of actions that are executed before starting the tests-run process.                                             | [`[ExecutionAction]`](#execution-action)                  | No       | `[]`                   |
 | `postActions`              | A list of actions that are executed after the tests-run process.                                                       | [`[ExecutionAction]`](#execution-action)                  | No       | `[]`                   |
 | `diagnosticsOptions`       | List of diagnostics options to set to the action.                                                                      | [`[SchemeDiagnosticsOption]`](#scheme-diagnostics-option) | Yes      | `[.mainThreadChecker]` |
-| `language`                 | Language used to run the tests.                                                                                        | `String`                                                  | No       |                        |
+| `language`                 | Language used to run the tests.                                                                                        | [`SchemeLanguage`](#scheme-language)                      | No       |                        |
 | `region`                   | Region used to run the tests.                                                                                          | `String`                                                  | No       |                        |
 
 Alternatively, when leveraging custom configurations, the configuration name can be explicitly specified:
@@ -493,6 +493,7 @@ Run action options represent the configuration of a run action.
 
 | Property                    | Description                                                                                                                          | Type                                       | Required | Default |
 | --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------ | -------- | ------- |
+| `language`                  | Language to use when running the app.                                                                                                | [`SchemeLanguage`](#scheme-language)                           | No       |         |
 | `storeKitConfigurationPath` | Path of the StoreKit Configuration file that is used to control and debug StoreKit purchases. It only works with Xcode 12 and above. | [`Path`](#path)                            | No       |         |
 | `simulatedLocation`         | A simulated GPS location to use when running the app.                                                                                | [`SimulatedLocation`](#simulated-location) | No       |         |
 
@@ -766,6 +767,18 @@ A path represents a path to a file, directory, or a group of files represented b
 :::note ExpressibleByStringLiteral
 The path can be initialized with a plain string. It's equivalent to using `.relativeToManifest.` except when the path starts with `//`, in which case the path is considered relative to the root directory.
 :::
+
+### SchemeLanguage
+
+Language to use in target action. Can be initialized with `String` which should be a valid language code or used as pre-defined pseudo language.
+
+| Pre-defined languages                  | Description                                           |
+| -------------------------------------- | ----------------------------------------------------- |
+| `doubleLengthPseudoLanguage`           | `IDELaunchSchemeLanguageDoubleLocalizedStrings`       |
+| `rightToLeftPseudoLanguage`            | `IDELaunchSchemeLanguageRightToLeftLayoutDirection`   |
+| `accentedPseudoLanguage`               | `IDELaunchSchemeLanguageAccentedLatin`                |
+| `boundedStringPseudoLanguage`          | `IDELaunchSchemeLanguageBoundedString`                |
+| `rightToLeftWithStringsPseudoLanguage` | `IDELaunchSchemeLanguageRLO`                          |
 
 ### Target Reference
 

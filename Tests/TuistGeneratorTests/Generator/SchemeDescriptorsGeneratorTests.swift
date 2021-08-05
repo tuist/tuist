@@ -692,6 +692,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             executable: TargetReference(projectPath: projectPath, name: "App"),
             arguments: Arguments(environment: environment, launchArguments: launchArguments),
             options: .init(
+                language: "pl",
                 storeKitConfigurationPath: "/somepath/Workspace/Projects/Project/nested/configuration/configuration.storekit",
                 simulatedLocation: .reference("New York, NY, USA")
             )
@@ -755,6 +756,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.storeKitConfigurationFileReference, .init(identifier: "../nested/configuration/configuration.storekit"))
         XCTAssertEqual(result.locationScenarioReference?.referenceType, "1")
         XCTAssertEqual(result.locationScenarioReference?.identifier, "New York, NY, USA")
+        XCTAssertEqual(result.language, "pl")
     }
 
     func test_schemeLaunchAction_argumentsOrder() throws {
@@ -845,6 +847,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.buildConfiguration, "Debug")
         XCTAssertEqual(result.pathRunnable?.filePath, "/usr/bin/foo")
         XCTAssertFalse(result.disableMainThreadChecker)
+        XCTAssertEqual(result.language, nil)
     }
 
     func test_schemeLaunchAction_with_path() throws {

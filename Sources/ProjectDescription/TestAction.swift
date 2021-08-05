@@ -29,10 +29,10 @@ public struct TestAction: Equatable, Codable {
     /// List of actions to be executed after running the tests.
     public let postActions: [ExecutionAction]
 
-    /// Language
-    public let language: String?
+    /// Language.
+    public let language: SchemeLanguage?
 
-    /// Region
+    /// Region.
     public let region: String?
 
     /// Diagnostics options.
@@ -48,7 +48,7 @@ public struct TestAction: Equatable, Codable {
                  preActions: [ExecutionAction],
                  postActions: [ExecutionAction],
                  diagnosticsOptions: [SchemeDiagnosticsOption],
-                 language: String?,
+                 language: SchemeLanguage?,
                  region: String?)
     {
         self.testPlans = testPlans
@@ -75,8 +75,8 @@ public struct TestAction: Equatable, Codable {
     ///   - preActions: ist of actions to be executed before running the tests.
     ///   - postActions: List of actions to be executed after running the tests.
     ///   - diagnosticsOptions: Diagnostics options.
-    ///   - language: Language (e.g. "pl")
-    ///   - region: Region (e.g. "PL")
+    ///   - language: Language (e.g. "pl").
+    ///   - region: Region (e.g. "PL").
     public init(targets: [TestableTarget],
                 arguments: Arguments? = nil,
                 configurationName: String,
@@ -100,7 +100,7 @@ public struct TestAction: Equatable, Codable {
             preActions: preActions,
             postActions: postActions,
             diagnosticsOptions: diagnosticsOptions,
-            language: language,
+            language: language.flatMap(SchemeLanguage.init(stringLiteral:)),
             region: region
         )
     }
@@ -115,8 +115,8 @@ public struct TestAction: Equatable, Codable {
     ///   - preActions: ist of actions to be executed before running the tests.
     ///   - postActions: List of actions to be executed after running the tests.
     ///   - diagnosticsOptions: Diagnostics options.
-    ///   - language: Language (e.g. "pl")
-    ///   - region: Region (e.g. "PL")
+    ///   - language: Language (e.g. "pl").
+    ///   - region: Region (e.g. "PL").
     public init(targets: [TestableTarget],
                 arguments: Arguments? = nil,
                 config: PresetBuildConfiguration = .debug,
@@ -140,7 +140,7 @@ public struct TestAction: Equatable, Codable {
             preActions: preActions,
             postActions: postActions,
             diagnosticsOptions: diagnosticsOptions,
-            language: language,
+            language: language.flatMap(SchemeLanguage.init(stringLiteral:)),
             region: region
         )
     }

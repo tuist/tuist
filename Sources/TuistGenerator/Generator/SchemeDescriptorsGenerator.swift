@@ -450,6 +450,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             disableMainThreadChecker: disableMainThreadChecker,
             commandlineArguments: commandlineArguments,
             environmentVariables: environments,
+            language: scheme.runAction?.options.language,
             launchAutomaticallySubstyle: launchActionConstants.launchAutomaticallySubstyle,
             storeKitConfigurationFileReference: storeKitConfigurationFileReference
         )
