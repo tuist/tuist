@@ -760,6 +760,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             settings: [
                                 .init(tool: .c, name: .define, condition: nil, value: ["key1"]),
                                 .init(tool: .c, name: .define, condition: nil, value: ["key2=value"]),
+                                .init(tool: .c, name: .define, condition: nil, value: ["key3="]),
                             ]
                         ),
                     ],
@@ -772,7 +773,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", customSettings: ["GCC_PREPROCESSOR_DEFINITIONS": ["key1=1", "key2=value"]]),
+                    .test("Target1", customSettings: ["GCC_PREPROCESSOR_DEFINITIONS": ["key1=1", "key2=value", "key3="]]),
                 ]
             )
         )

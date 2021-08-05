@@ -637,7 +637,7 @@ extension PackageInfo.Target.TargetBuildSettingDescription.Setting {
     fileprivate var extractDefine: (name: String, value: String) {
         let define = value[0]
         if define.contains("=") {
-            let split = define.split(separator: "=", maxSplits: 1)
+            let split = define.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
             return (name: String(split[0]), value: String(split[1]))
         } else {
             return (name: define, value: "1")
