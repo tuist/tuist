@@ -56,7 +56,7 @@ public extension TuistCore.DependenciesGraph {
                             platform: .iOS,
                             product: .staticFramework,
                             bundleId: "Tuist",
-                            deploymentTarget: .iOS(targetVersion: "13.0", devices: [.iphone, .ipad, .mac]),
+                            deploymentTarget: .iOS(targetVersion: "13.0", devices: [.iphone, .ipad]),
                             infoPlist: .default,
                             sources: [
                                 .init(
@@ -88,7 +88,7 @@ public extension TuistCore.DependenciesGraph {
                             platform: .iOS,
                             product: .staticFramework,
                             bundleId: "TuistKit",
-                            deploymentTarget: .iOS(targetVersion: "13.0", devices: [.iphone, .ipad, .mac]),
+                            deploymentTarget: .iOS(targetVersion: "13.0", devices: [.iphone, .ipad]),
                             infoPlist: .default,
                             sources: [
                                 "\(packageFolder.pathString)/Sources/TuistKit/**",
@@ -123,7 +123,7 @@ public extension TuistCore.DependenciesGraph {
                             platform: .iOS,
                             product: .staticFramework,
                             bundleId: "ALibrary",
-                            deploymentTarget: .iOS(targetVersion: "13.0", devices: [.iphone, .ipad, .mac]),
+                            deploymentTarget: .iOS(targetVersion: "13.0", devices: [.iphone, .ipad]),
                             infoPlist: .default,
                             sources: [
                                 "\(packageFolder.pathString)/Sources/ALibrary/**",
@@ -138,7 +138,7 @@ public extension TuistCore.DependenciesGraph {
                             platform: .iOS,
                             product: .staticFramework,
                             bundleId: "ALibraryUtils",
-                            deploymentTarget: .iOS(targetVersion: "13.0", devices: [.iphone, .ipad, .mac]),
+                            deploymentTarget: .iOS(targetVersion: "13.0", devices: [.iphone, .ipad]),
                             infoPlist: .default,
                             sources: [
                                 "\(packageFolder.pathString)/Sources/ALibraryUtils/**",
@@ -169,7 +169,7 @@ public extension TuistCore.DependenciesGraph {
                             platform: .iOS,
                             product: .staticFramework,
                             bundleId: "AnotherLibrary",
-                            deploymentTarget: .iOS(targetVersion: "13.0", devices: [.iphone, .ipad, .mac]),
+                            deploymentTarget: .iOS(targetVersion: "13.0", devices: [.iphone, .ipad]),
                             infoPlist: .default,
                             sources: [
                                 "\(packageFolder.pathString)/Sources/AnotherLibrary/**",
@@ -200,7 +200,7 @@ public extension TuistCore.DependenciesGraph {
                             platform: .iOS,
                             product: .staticFramework,
                             bundleId: "Alamofire",
-                            deploymentTarget: .iOS(targetVersion: "10.0", devices: [.iphone, .ipad, .mac]),
+                            deploymentTarget: .iOS(targetVersion: "10.0", devices: [.iphone, .ipad]),
                             infoPlist: .default,
                             sources: [
                                 "\(packageFolder.pathString)/Source/**",
@@ -240,7 +240,7 @@ public extension TuistCore.DependenciesGraph {
                             platform: .iOS,
                             product: .staticFramework,
                             bundleId: "GoogleAppMeasurementTarget",
-                            deploymentTarget: .iOS(targetVersion: "10.0", devices: [.iphone, .ipad, .mac]),
+                            deploymentTarget: .iOS(targetVersion: "10.0", devices: [.iphone, .ipad]),
                             infoPlist: .default,
                             sources: [
                                 "\(packageFolder.pathString)/GoogleAppMeasurementWrapper/**",
@@ -267,7 +267,7 @@ public extension TuistCore.DependenciesGraph {
                             platform: .iOS,
                             product: .staticFramework,
                             bundleId: "GoogleAppMeasurementWithoutAdIdSupportTarget",
-                            deploymentTarget: .iOS(targetVersion: "10.0", devices: [.iphone, .ipad, .mac]),
+                            deploymentTarget: .iOS(targetVersion: "10.0", devices: [.iphone, .ipad]),
                             infoPlist: .default,
                             sources: [
                                 "\(packageFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupportWrapper/**",
@@ -315,7 +315,7 @@ public extension TuistCore.DependenciesGraph {
                             platform: .iOS,
                             product: customProductTypes["GULAppDelegateSwizzler"] ?? .staticFramework,
                             bundleId: "GULAppDelegateSwizzler",
-                            deploymentTarget: .iOS(targetVersion: "10.0", devices: [.iphone, .ipad, .mac]),
+                            deploymentTarget: .iOS(targetVersion: "10.0", devices: [.iphone, .ipad]),
                             infoPlist: .default,
                             sources: [
                                 "\(packageFolder.pathString)/Sources/GULAppDelegateSwizzler/**",
@@ -327,7 +327,7 @@ public extension TuistCore.DependenciesGraph {
                             platform: .iOS,
                             product: customProductTypes["GULMethodSwizzler"] ?? .staticFramework,
                             bundleId: "GULMethodSwizzler",
-                            deploymentTarget: .iOS(targetVersion: "10.0", devices: [.iphone, .ipad, .mac]),
+                            deploymentTarget: .iOS(targetVersion: "10.0", devices: [.iphone, .ipad]),
                             infoPlist: .default,
                             sources: [
                                 "\(packageFolder.pathString)/Sources/GULMethodSwizzler/**",
@@ -339,7 +339,7 @@ public extension TuistCore.DependenciesGraph {
                             platform: .iOS,
                             product: customProductTypes["GULNSData"] ?? .staticFramework,
                             bundleId: "GULNSData",
-                            deploymentTarget: .iOS(targetVersion: "10.0", devices: [.iphone, .ipad, .mac]),
+                            deploymentTarget: .iOS(targetVersion: "10.0", devices: [.iphone, .ipad]),
                             infoPlist: .default,
                             sources: [
                                 "\(packageFolder.pathString)/Sources/GULNSData/**",
@@ -351,7 +351,7 @@ public extension TuistCore.DependenciesGraph {
                             platform: .iOS,
                             product: customProductTypes["GULNetwork"] ?? .staticFramework,
                             bundleId: "GULNetwork",
-                            deploymentTarget: .iOS(targetVersion: "10.0", devices: [.iphone, .ipad, .mac]),
+                            deploymentTarget: .iOS(targetVersion: "10.0", devices: [.iphone, .ipad]),
                             infoPlist: .default,
                             sources: [
                                 "\(packageFolder.pathString)/Sources/GULNetwork/**",
@@ -380,7 +380,7 @@ public extension TuistCore.DependenciesGraph {
                             platform: .iOS,
                             product: .staticFramework,
                             bundleId: "nanopb",
-                            deploymentTarget: .iOS(targetVersion: "10.0", devices: [.iphone, .ipad, .mac]),
+                            deploymentTarget: .iOS(targetVersion: "10.0", devices: [.iphone, .ipad]),
                             infoPlist: .default,
                             sources: [
                                 "\(packageFolder.pathString)/Sources/nanopb/**",

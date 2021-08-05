@@ -26,7 +26,6 @@ public protocol SwiftPackageManagerModuleMapGenerating {
 public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMapGenerating {
     public init() {}
 
-    // swiftlint:disable:next function_body_length
     public func generate(moduleName: String, publicHeadersPath: AbsolutePath) throws -> (type: ModuleMapType, path: AbsolutePath?) {
         let umbrellaHeaderPath = publicHeadersPath.appending(component: moduleName + ".h")
         let nestedUmbrellaHeaderPath = publicHeadersPath.appending(component: moduleName).appending(component: moduleName + ".h")

@@ -148,7 +148,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
                 }
             },
             deploymentTargets: [
-                .iOS("13.0", [.iphone, .ipad, .mac]),
+                .iOS("13.0", [.iphone, .ipad]),
             ],
             dependenciesGraph: DependenciesGraph.test(spmFolder: spmFolder, packageFolder: Path(testPath.pathString))
                 .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder))
