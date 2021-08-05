@@ -111,6 +111,7 @@ final class TestModelGenerator {
             name: name,
             organizationName: nil,
             developmentRegion: nil,
+            options: [],
             settings: settings,
             filesGroup: .group(name: "Project"),
             targets: targets,

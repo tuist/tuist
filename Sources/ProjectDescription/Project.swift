@@ -8,6 +8,8 @@ public struct Project: Codable, Equatable {
     public let name: String
     /// Organization name to be used for the project
     public let organizationName: String?
+    /// Additional project options
+    public let options: [ProjectOption]
     /// Project Swift packages
     public let packages: [Package]
     /// Project targets
@@ -26,6 +28,7 @@ public struct Project: Codable, Equatable {
     public init(
         name: String,
         organizationName: String? = nil,
+        options: [ProjectOption] = [],
         packages: [Package] = [],
         settings: Settings? = nil,
         targets: [Target] = [],
@@ -36,6 +39,7 @@ public struct Project: Codable, Equatable {
     ) {
         self.name = name
         self.organizationName = organizationName
+        self.options = options
         self.packages = packages
         self.targets = targets
         self.schemes = schemes
