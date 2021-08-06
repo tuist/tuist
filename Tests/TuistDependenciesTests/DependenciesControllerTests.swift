@@ -1,4 +1,6 @@
+import ProjectDescription
 import TSCBasic
+import TuistCore
 import TuistGraph
 import TuistSupport
 import XCTest
@@ -37,7 +39,6 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         carthageInteractor = nil
         cocoaPodsInteractor = nil
         swiftPackageManagerInteractor = nil
-        dependenciesGraphController = nil
 
         super.tearDown()
     }
@@ -51,7 +52,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
 
-        let platforms: Set<Platform> = [.iOS]
+        let platforms: Set<TuistGraph.Platform> = [.iOS]
         let carthageDependencies = CarthageDependencies(
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
@@ -63,7 +64,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             swiftPackageManager: nil,
             platforms: platforms
         )
-        let graph: DependenciesGraph = .test(thirdPartyDependencies: ["Name": .testXCFramework()])
+
+        let expectedGraphManifest = TuistCore.DependenciesGraph.testXCFramework(name: "Name")
 
         carthageInteractor.installStub = { arg0, arg1, arg2, arg3 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
@@ -71,17 +73,15 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             XCTAssertEqual(arg2, platforms)
             XCTAssertFalse(arg3)
 
-            return graph
-        }
-        dependenciesGraphController.saveStub = { arg0, arg1 in
-            XCTAssertEqual(graph, arg0)
-            XCTAssertEqual(rootPath, arg1)
+            return expectedGraphManifest
         }
 
         // When
-        try subject.fetch(at: rootPath, dependencies: dependencies, swiftVersion: nil)
+        let graphManifest = try subject.fetch(at: rootPath, dependencies: dependencies, swiftVersion: nil)
 
         // Then
+        XCTAssertEqual(graphManifest, expectedGraphManifest)
+
         XCTAssertFalse(carthageInteractor.invokedClean)
         XCTAssertTrue(carthageInteractor.invokedInstall)
 
@@ -90,9 +90,6 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertFalse(cocoaPodsInteractor.invokedClean)
         XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
-
-        XCTAssertTrue(dependenciesGraphController.invokedSave)
-        XCTAssertFalse(dependenciesGraphController.invokedClean)
     }
 
     func test_fetch_swiftPackageManger() throws {
@@ -102,12 +99,14 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
 
-        let platforms: Set<Platform> = [.iOS]
+        let platforms: Set<TuistGraph.Platform> = [.iOS]
         let swiftPackageManagerDependencies = SwiftPackageManagerDependencies(
             [
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
-            ]
+            ],
+            productTypes: [:],
+            deploymentTargets: []
         )
         let dependencies = Dependencies(
             carthage: nil,
@@ -116,21 +115,21 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         )
         let swiftVersion = "5.4.0"
 
-        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3 in
+        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3, arg4 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
             XCTAssertEqual(arg1, swiftPackageManagerDependencies)
-            XCTAssertFalse(arg2)
-            XCTAssertEqual(arg3, swiftVersion)
-        }
-        dependenciesGraphController.saveStub = { arg0, arg1 in
-            XCTAssertEqual(.test(), arg0)
-            XCTAssertEqual(rootPath, arg1)
+            XCTAssertEqual(arg2, [.iOS])
+            XCTAssertFalse(arg3)
+            XCTAssertEqual(arg4, swiftVersion)
+            return .test()
         }
 
         // When
-        try subject.fetch(at: rootPath, dependencies: dependencies, swiftVersion: swiftVersion)
+        let graphManifest = try subject.fetch(at: rootPath, dependencies: dependencies, swiftVersion: swiftVersion)
 
         // Then
+        XCTAssertEqual(graphManifest, .test())
+
         XCTAssertFalse(swiftPackageManagerInteractor.invokedClean)
         XCTAssertTrue(swiftPackageManagerInteractor.invokedInstall)
 
@@ -139,9 +138,6 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertFalse(cocoaPodsInteractor.invokedClean)
         XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
-
-        XCTAssertFalse(dependenciesGraphController.invokedSave)
-        XCTAssertTrue(dependenciesGraphController.invokedClean)
     }
 
     func test_fetch_carthage_swiftPackageManger() throws {
@@ -151,7 +147,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
 
-        let platforms: Set<Platform> = [.iOS]
+        let platforms: Set<TuistGraph.Platform> = [.iOS]
         let carthageDependencies = CarthageDependencies(
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
@@ -162,7 +158,9 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             [
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
-            ]
+            ],
+            productTypes: [:],
+            deploymentTargets: []
         )
         let dependencies = Dependencies(
             carthage: carthageDependencies,
@@ -170,7 +168,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             platforms: platforms
         )
         let swiftVersion = "5.4.0"
-        let graph: DependenciesGraph = .test(thirdPartyDependencies: ["Name": .testXCFramework()])
+        let carthageGraph = TuistCore.DependenciesGraph.testXCFramework(name: "Carthage")
+        let spmGraph = TuistCore.DependenciesGraph.testXCFramework(name: "SPM")
 
         carthageInteractor.installStub = { arg0, arg1, arg2, arg3 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
@@ -178,21 +177,85 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             XCTAssertEqual(arg2, platforms)
             XCTAssertFalse(arg3)
 
-            return graph
+            return carthageGraph
         }
-        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3 in
+        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3, arg4 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
             XCTAssertEqual(arg1, swiftPackageManagerDependencies)
-            XCTAssertFalse(arg2)
-            XCTAssertEqual(arg3, swiftVersion)
-        }
-        dependenciesGraphController.saveStub = { arg0, arg1 in
-            XCTAssertEqual(graph, arg0)
-            XCTAssertEqual(rootPath, arg1)
+            XCTAssertEqual(arg2, [.iOS])
+            XCTAssertFalse(arg3)
+            XCTAssertEqual(arg4, swiftVersion)
+            return spmGraph
         }
 
         // When
-        try subject.fetch(at: rootPath, dependencies: dependencies, swiftVersion: swiftVersion)
+        let graphManifest = try subject.fetch(at: rootPath, dependencies: dependencies, swiftVersion: swiftVersion)
+
+        // Then
+        XCTAssertEqual(
+            graphManifest,
+            .init(
+                externalDependencies: [
+                    "Carthage": TuistCore.DependenciesGraph.testXCFramework(name: "Carthage").externalDependencies.values.first!,
+                    "SPM": TuistCore.DependenciesGraph.testXCFramework(name: "SPM").externalDependencies.values.first!,
+                ],
+                externalProjects: [:]
+            )
+        )
+
+        XCTAssertTrue(carthageInteractor.invokedInstall)
+        XCTAssertFalse(carthageInteractor.invokedClean)
+
+        XCTAssertTrue(swiftPackageManagerInteractor.invokedInstall)
+        XCTAssertFalse(swiftPackageManagerInteractor.invokedClean)
+
+        XCTAssertFalse(cocoaPodsInteractor.invokedClean)
+        XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
+    }
+
+    func test_fetch_carthage_swiftPackageManger_throws_when_duplicatedDependency() throws {
+        // Given
+        let rootPath = try temporaryPath()
+        let dependencies = TuistGraph.Dependencies(
+            carthage: .init(
+                [
+                    .github(path: "Moya", requirement: .exact("1.1.1")),
+                ]
+            ),
+            swiftPackageManager: .init(
+                [
+                    .remote(url: "Moya", requirement: .exact("2.3.4")),
+                ],
+                productTypes: [:],
+                deploymentTargets: []
+            ),
+            platforms: [.iOS]
+        )
+        let carthageGraph = TuistCore.DependenciesGraph.testXCFramework(
+            name: "Duplicated",
+            path: Path(rootPath.appending(component: "Carthage").pathString)
+        )
+        let spmGraph = TuistCore.DependenciesGraph.testXCFramework(
+            name: "Duplicated",
+            path: Path(rootPath.appending(component: "SPM").pathString)
+        )
+
+        carthageInteractor.installStub = { _, _, _, _ in
+            carthageGraph
+        }
+        swiftPackageManagerInteractor.installStub = { _, _, _, _, _ in
+            spmGraph
+        }
+
+        // When / Then
+        XCTAssertThrowsSpecific(
+            try subject.fetch(at: rootPath, dependencies: dependencies, swiftVersion: nil),
+            DependenciesControllerError.duplicatedDependency(
+                "Duplicated",
+                carthageGraph.externalDependencies.values.first!,
+                spmGraph.externalDependencies.values.first!
+            )
+        )
 
         // Then
         XCTAssertTrue(carthageInteractor.invokedInstall)
@@ -203,18 +266,15 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertFalse(cocoaPodsInteractor.invokedClean)
         XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
-
-        XCTAssertTrue(dependenciesGraphController.invokedSave)
-        XCTAssertFalse(dependenciesGraphController.invokedClean)
     }
 
     func test_fetch_throws_when_noPlatforms() throws {
         // Given
         let rootPath = try temporaryPath()
 
-        let dependencies = Dependencies(
+        let dependencies = TuistGraph.Dependencies(
             carthage: .init([]),
-            swiftPackageManager: .init([]),
+            swiftPackageManager: .init([], productTypes: [:], deploymentTargets: []),
             platforms: []
         )
 
@@ -229,16 +289,17 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         // Given
         let rootPath = try temporaryPath()
 
-        let dependencies = Dependencies(
+        let dependencies = TuistGraph.Dependencies(
             carthage: .init([]),
-            swiftPackageManager: .init([]),
+            swiftPackageManager: .init([], productTypes: [:], deploymentTargets: []),
             platforms: [.iOS]
         )
 
         // When
-        try subject.fetch(at: rootPath, dependencies: dependencies, swiftVersion: nil)
+        let graphManifest = try subject.fetch(at: rootPath, dependencies: dependencies, swiftVersion: nil)
 
         // Then
+        XCTAssertEqual(graphManifest, .none)
         XCTAssertFalse(carthageInteractor.invokedInstall)
         XCTAssertTrue(carthageInteractor.invokedClean)
 
@@ -247,9 +308,6 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertFalse(cocoaPodsInteractor.invokedClean)
         XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
-
-        XCTAssertFalse(dependenciesGraphController.invokedSave)
-        XCTAssertTrue(dependenciesGraphController.invokedClean)
     }
 
     // MARK: - Update
@@ -261,7 +319,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
 
-        let platforms: Set<Platform> = [.iOS]
+        let platforms: Set<TuistGraph.Platform> = [.iOS]
         let carthageDependencies = CarthageDependencies(
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
@@ -273,7 +331,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             swiftPackageManager: nil,
             platforms: platforms
         )
-        let graph: DependenciesGraph = .test(thirdPartyDependencies: ["Name": .testXCFramework()])
+        let expectedGraph = TuistCore.DependenciesGraph.testXCFramework(name: "Name")
 
         carthageInteractor.installStub = { arg0, arg1, arg2, arg3 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
@@ -281,17 +339,14 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             XCTAssertEqual(arg2, platforms)
             XCTAssertTrue(arg3)
 
-            return graph
-        }
-        dependenciesGraphController.saveStub = { arg0, arg1 in
-            XCTAssertEqual(graph, arg0)
-            XCTAssertEqual(rootPath, arg1)
+            return expectedGraph
         }
 
         // When
-        try subject.update(at: rootPath, dependencies: dependencies, swiftVersion: nil)
+        let graphManifest = try subject.update(at: rootPath, dependencies: dependencies, swiftVersion: nil)
 
         // Then
+        XCTAssertEqual(graphManifest, expectedGraph)
         XCTAssertFalse(carthageInteractor.invokedClean)
         XCTAssertTrue(carthageInteractor.invokedInstall)
 
@@ -300,9 +355,6 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertFalse(cocoaPodsInteractor.invokedClean)
         XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
-
-        XCTAssertTrue(dependenciesGraphController.invokedSave)
-        XCTAssertFalse(dependenciesGraphController.invokedClean)
     }
 
     func test_update_swiftPackageManger() throws {
@@ -312,12 +364,14 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
 
-        let platforms: Set<Platform> = [.iOS]
+        let platforms: Set<TuistGraph.Platform> = [.iOS]
         let swiftPackageManagerDependencies = SwiftPackageManagerDependencies(
             [
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
-            ]
+            ],
+            productTypes: [:],
+            deploymentTargets: [.iOS("13.0", [.iphone])]
         )
         let dependencies = Dependencies(
             carthage: nil,
@@ -326,21 +380,20 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         )
         let swiftVersion = "5.4.0"
 
-        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3 in
+        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3, arg4 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
             XCTAssertEqual(arg1, swiftPackageManagerDependencies)
-            XCTAssertTrue(arg2)
-            XCTAssertEqual(arg3, swiftVersion)
-        }
-        dependenciesGraphController.saveStub = { arg0, arg1 in
-            XCTAssertEqual(.test(), arg0)
-            XCTAssertEqual(rootPath, arg1)
+            XCTAssertEqual(arg2, [.iOS])
+            XCTAssertTrue(arg3)
+            XCTAssertEqual(arg4, swiftVersion)
+            return .test()
         }
 
         // When
-        try subject.update(at: rootPath, dependencies: dependencies, swiftVersion: swiftVersion)
+        let graphManifest = try subject.update(at: rootPath, dependencies: dependencies, swiftVersion: swiftVersion)
 
         // Then
+        XCTAssertEqual(graphManifest, .test())
         XCTAssertFalse(swiftPackageManagerInteractor.invokedClean)
         XCTAssertTrue(swiftPackageManagerInteractor.invokedInstall)
 
@@ -349,9 +402,6 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertFalse(cocoaPodsInteractor.invokedClean)
         XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
-
-        XCTAssertFalse(dependenciesGraphController.invokedSave)
-        XCTAssertTrue(dependenciesGraphController.invokedClean)
     }
 
     func test_update_carthage_swiftPackageManger() throws {
@@ -361,7 +411,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
 
-        let platforms: Set<Platform> = [.iOS]
+        let platforms: Set<TuistGraph.Platform> = [.iOS]
         let carthageDependencies = CarthageDependencies(
             [
                 .github(path: "Moya", requirement: .exact("1.1.1")),
@@ -372,7 +422,9 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             [
                 .remote(url: "Moya", requirement: .exact("2.3.4")),
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
-            ]
+            ],
+            productTypes: [:],
+            deploymentTargets: [.iOS("13.0", [.iphone])]
         )
         let dependencies = Dependencies(
             carthage: carthageDependencies,
@@ -380,7 +432,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             platforms: platforms
         )
         let swiftVersion = "5.4.0"
-        let graph: DependenciesGraph = .test(thirdPartyDependencies: ["Name": .testXCFramework()])
+        let expectedGraph = TuistCore.DependenciesGraph.testXCFramework(name: "Name")
 
         carthageInteractor.installStub = { arg0, arg1, arg2, arg3 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
@@ -388,23 +440,22 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             XCTAssertEqual(arg2, platforms)
             XCTAssertTrue(arg3)
 
-            return graph
+            return expectedGraph
         }
-        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3 in
+        swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3, arg4 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
             XCTAssertEqual(arg1, swiftPackageManagerDependencies)
-            XCTAssertTrue(arg2)
-            XCTAssertEqual(arg3, swiftVersion)
-        }
-        dependenciesGraphController.saveStub = { arg0, arg1 in
-            XCTAssertEqual(graph, arg0)
-            XCTAssertEqual(rootPath, arg1)
+            XCTAssertEqual(arg2, [.iOS])
+            XCTAssertTrue(arg3)
+            XCTAssertEqual(arg4, swiftVersion)
+            return .test()
         }
 
         // When
-        try subject.update(at: rootPath, dependencies: dependencies, swiftVersion: swiftVersion)
+        let graphManifest = try subject.update(at: rootPath, dependencies: dependencies, swiftVersion: swiftVersion)
 
         // Then
+        XCTAssertEqual(graphManifest, expectedGraph)
         XCTAssertFalse(carthageInteractor.invokedClean)
         XCTAssertTrue(carthageInteractor.invokedInstall)
 
@@ -413,18 +464,15 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertFalse(cocoaPodsInteractor.invokedClean)
         XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
-
-        XCTAssertTrue(dependenciesGraphController.invokedSave)
-        XCTAssertFalse(dependenciesGraphController.invokedClean)
     }
 
     func test_update_throws_when_noPlatforms() throws {
         // Given
         let rootPath = try temporaryPath()
 
-        let dependencies = Dependencies(
+        let dependencies = TuistGraph.Dependencies(
             carthage: .init([]),
-            swiftPackageManager: .init([]),
+            swiftPackageManager: .init([], productTypes: [:], deploymentTargets: []),
             platforms: []
         )
 
@@ -439,16 +487,17 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         // Given
         let rootPath = try temporaryPath()
 
-        let dependencies = Dependencies(
+        let dependencies = TuistGraph.Dependencies(
             carthage: .init([]),
-            swiftPackageManager: .init([]),
+            swiftPackageManager: .init([], productTypes: [:], deploymentTargets: []),
             platforms: [.iOS]
         )
 
         // When
-        try subject.update(at: rootPath, dependencies: dependencies, swiftVersion: nil)
+        let graphManifest = try subject.update(at: rootPath, dependencies: dependencies, swiftVersion: nil)
 
         // Then
+        XCTAssertEqual(graphManifest, .none)
         XCTAssertFalse(carthageInteractor.invokedInstall)
         XCTAssertTrue(carthageInteractor.invokedClean)
 
@@ -457,8 +506,49 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertFalse(cocoaPodsInteractor.invokedClean)
         XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
+    }
 
-        XCTAssertFalse(dependenciesGraphController.invokedSave)
+    func test_save() throws {
+        // Given
+        let rootPath = try temporaryPath()
+
+        let dependenciesGraph = TuistGraph.DependenciesGraph(
+            externalDependencies: [
+                "library": [.xcframework(path: "/library.xcframework")],
+                "anotherLibrary": [.project(target: "Target", path: "/anotherLibrary")],
+            ],
+            externalProjects: [
+                "/anotherLibrary": .test(),
+            ]
+        )
+
+        dependenciesGraphController.saveStub = { arg0, arg1 in
+            XCTAssertEqual(arg0, dependenciesGraph)
+            XCTAssertEqual(arg1, rootPath)
+        }
+
+        // When
+        try subject.save(dependenciesGraph: dependenciesGraph, to: rootPath)
+
+        // Then
+        XCTAssertFalse(dependenciesGraphController.invokedClean)
+        XCTAssertTrue(dependenciesGraphController.invokedSave)
+    }
+
+    func test_save_no_dependencies() throws {
+        // Given
+        let rootPath = try temporaryPath()
+
+        dependenciesGraphController.saveStub = { arg0, arg1 in
+            XCTAssertEqual(arg0, .none)
+            XCTAssertEqual(arg1, rootPath)
+        }
+
+        // When
+        try subject.save(dependenciesGraph: .none, to: rootPath)
+
+        // Then
         XCTAssertTrue(dependenciesGraphController.invokedClean)
+        XCTAssertFalse(dependenciesGraphController.invokedSave)
     }
 }

@@ -92,6 +92,7 @@ final class ProjectEditor: ProjectEditing {
         self.tasksLocator = tasksLocator
     }
 
+    // swiftlint:disable:next function_body_length
     func edit(
         at editingPath: AbsolutePath,
         in destinationDirectory: AbsolutePath,

@@ -14,20 +14,18 @@ public final class DependenciesGraphControllerTests: TuistUnitTestCase {
 
     override public func setUp() {
         super.setUp()
-
         subject = DependenciesGraphController()
     }
 
     override public func tearDown() {
-        super.tearDown()
-
         subject = nil
+        super.tearDown()
     }
 
     func test_save() throws {
         // Given
         let root = try temporaryPath()
-        let graph = DependenciesGraph.test()
+        let graph = TuistGraph.DependenciesGraph.test()
 
         // When
         try subject.save(graph, to: root)
@@ -43,21 +41,49 @@ public final class DependenciesGraphControllerTests: TuistUnitTestCase {
         let graphPath = root.appending(components: "Tuist", "Dependencies", "graph.json")
         try fileHandler.touch(graphPath)
 
-        try fileHandler.write(DependenciesGraph.testJson, path: graphPath, atomically: true)
+        try fileHandler.write(TuistGraph.DependenciesGraph.testJson, path: graphPath, atomically: true)
 
         // When
         let got = try subject.load(at: root)
 
         // Then
-        let expected = DependenciesGraph.test(
-            thirdPartyDependencies: [
-                "RxSwift": .xcframework(
-                    path: "/Tuist/Dependencies/Carthage/RxSwift.xcframework"
-                ),
-            ]
+        let expected = TuistGraph.DependenciesGraph(
+            externalDependencies: [
+                "RxSwift": [.xcframework(path: "/Tuist/Dependencies/Carthage/RxSwift.xcframework")],
+            ],
+            externalProjects: [:]
         )
 
         XCTAssertEqual(got, expected)
+    }
+
+    func test_load_failed() throws {
+        // Given
+        let root = try temporaryPath()
+        let graphPath = root.appending(components: "Tuist", "Dependencies", "graph.json")
+        try fileHandler.touch(graphPath)
+
+        try fileHandler.write(
+            """
+            {
+              "externalDependencies": {},
+              "externalProjects": [
+                "ProjectPath",
+                {
+                  "invalid": "Project"
+                }
+              ]
+            }
+            """,
+            path: graphPath,
+            atomically: true
+        )
+
+        // When / Then
+        XCTAssertThrowsSpecific(
+            try subject.load(at: root),
+            DependenciesGraphControllerError.failedToDecodeDependenciesGraph
+        )
     }
 
     func test_clean() throws {

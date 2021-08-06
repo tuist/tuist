@@ -24,9 +24,9 @@ public final class GenerateInfoPlistProjectMapperTests: TuistUnitTestCase {
     }
 
     override public func tearDown() {
-        super.tearDown()
         infoPlistContentProvider = nil
         subject = nil
+        super.tearDown()
     }
 
     func test_map() throws {

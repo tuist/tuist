@@ -11,8 +11,10 @@ public protocol ManifestModelConverting {
     func convert(
         manifest: ProjectDescription.Project,
         path: AbsolutePath,
-        plugins: Plugins
+        plugins: Plugins,
+        externalDependencies: [String: [TuistGraph.TargetDependency]]
     ) throws -> TuistGraph.Project
+    func convert(manifest: TuistCore.DependenciesGraph, path: AbsolutePath) throws -> TuistGraph.DependenciesGraph
 }
 
 public final class ManifestModelConverter: ManifestModelConverting {
@@ -45,13 +47,15 @@ public final class ManifestModelConverter: ManifestModelConverting {
     public func convert(
         manifest: ProjectDescription.Project,
         path: AbsolutePath,
-        plugins: Plugins
+        plugins: Plugins,
+        externalDependencies: [String: [TuistGraph.TargetDependency]]
     ) throws -> TuistGraph.Project {
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         return try TuistGraph.Project.from(
             manifest: manifest,
             generatorPaths: generatorPaths,
             plugins: plugins,
+            externalDependencies: externalDependencies,
             resourceSynthesizerPathLocator: resourceSynthesizerPathLocator
         )
     }
@@ -68,5 +72,37 @@ public final class ManifestModelConverter: ManifestModelConverting {
             manifestLoader: manifestLoader
         )
         return workspace
+    }
+
+    public func convert(
+        manifest: TuistCore.DependenciesGraph,
+        path: AbsolutePath
+    ) throws -> TuistGraph.DependenciesGraph {
+        let externalDependencies = try manifest.externalDependencies.mapValues { targetDependencies in
+            try targetDependencies.flatMap { targetDependencyManifest in
+                try TuistGraph.TargetDependency.from(
+                    manifest: targetDependencyManifest,
+                    generatorPaths: GeneratorPaths(manifestDirectory: path),
+                    externalDependencies: [:] // externalDependencies manifest can't contain other external dependencies
+                )
+            }
+        }
+
+        return .init(
+            externalDependencies: externalDependencies,
+            externalProjects: try Dictionary(uniqueKeysWithValues: manifest.externalProjects.map { project in
+                let projectPath = AbsolutePath(project.key.pathString)
+                return (
+                    projectPath,
+                    try convert(
+                        manifest: project.value,
+                        path: projectPath,
+                        plugins: .none,
+                        externalDependencies: externalDependencies
+                    )
+                )
+
+            })
+        )
     }
 }

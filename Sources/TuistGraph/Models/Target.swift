@@ -165,13 +165,9 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         case let .iOS(_, devices):
             if devices.contains(.mac) {
                 return .catalyst
-            }
-
-            if !devices.contains(.mac) {
+            } else {
                 return .ios
             }
-
-            return nil
         default:
             return nil
         }
@@ -220,6 +216,25 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     public func with(actions: [TargetAction]) -> Target {
         var copy = self
         copy.actions = actions
+        return copy
+    }
+
+    /// Returns a new copy of the target with the given additional settings
+    /// - Parameter settingsDictionary: settings to be added.
+    public func with(additionalSettings: SettingsDictionary) -> Target {
+        var copy = self
+        if let oldSettings = copy.settings {
+            copy.settings = Settings(
+                base: oldSettings.base.merging(additionalSettings, uniquingKeysWith: { $1 }),
+                configurations: oldSettings.configurations,
+                defaultSettings: oldSettings.defaultSettings
+            )
+        } else {
+            copy.settings = Settings(
+                base: additionalSettings,
+                configurations: [:]
+            )
+        }
         return copy
     }
 

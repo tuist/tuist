@@ -156,7 +156,7 @@ public class ManifestLoader: ManifestLoading {
     }
 
     public func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project {
-        try loadManifest(.project, at: path)
+        return try loadManifest(.project, at: path)
     }
 
     public func loadWorkspace(at path: AbsolutePath) throws -> ProjectDescription.Workspace {
@@ -288,6 +288,7 @@ public class ManifestLoader: ManifestLoading {
         }
     }
 
+    // swiftlint:disable:next function_body_length
     private func buildArguments(
         _ manifest: Manifest,
         at path: AbsolutePath

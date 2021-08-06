@@ -5,13 +5,24 @@ public struct SwiftPackageManagerDependencies: Equatable {
     /// List of packages that will be installed using Swift Package Manager.
     public let packages: [Package]
 
+    /// The custom `Product` types to be used for SPM targets.
+    public let productTypes: [String: Product]
+
+    /// Set of deployment targets to be used when the SPM package does not specify a target version.
+    public let deploymentTargets: Set<DeploymentTarget>
+
     /// Initializes a new `SwiftPackageManagerDependencies` instance.
     /// - Parameters:
     ///    - packages: List of packages that will be installed using Swift Package Manager.
+    ///    - productTypes: The custom `Product` types to be used for SPM targets.
     public init(
-        _ packages: [Package]
+        _ packages: [Package],
+        productTypes: [String: Product],
+        deploymentTargets: Set<DeploymentTarget>
     ) {
         self.packages = packages
+        self.productTypes = productTypes
+        self.deploymentTargets = deploymentTargets
     }
 }
 

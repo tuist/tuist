@@ -23,4 +23,23 @@ final class PackageTests: TuistUnitTestCase {
         // Then
         XCTAssertCodable(subject)
     }
+
+    func test_is_remote_local() {
+        // Given
+        let subject = Package.local(path: "/path/to/package")
+
+        // Then
+        XCTAssertFalse(subject.isRemote)
+    }
+
+    func test_is_remote_remote() {
+        // Given
+        let subject = Package.remote(
+            url: "/url/to/package",
+            requirement: .branch("branch")
+        )
+
+        // Then
+        XCTAssertTrue(subject.isRemote)
+    }
 }

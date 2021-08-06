@@ -32,10 +32,13 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let subject = makeSubject()
 
         // When
-        let graph = try subject.loadWorkspace(workspace: workspace, projects: [
-            projectA,
-            projectB,
-        ])
+        let graph = try subject.loadWorkspace(
+            workspace: workspace,
+            projects: [
+                projectA,
+                projectB,
+            ]
+        )
 
         // Then
         XCTAssertEqual(graph.workspace, workspace)
@@ -54,10 +57,13 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let subject = makeSubject()
 
         // When
-        let graph = try subject.loadWorkspace(workspace: workspace, projects: [
-            projectA,
-            projectB,
-        ])
+        let graph = try subject.loadWorkspace(
+            workspace: workspace,
+            projects: [
+                projectA,
+                projectB,
+            ]
+        )
 
         // Then
         XCTAssertEqual(graph.workspace, workspace)
@@ -79,10 +85,13 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let subject = makeSubject()
 
         // When
-        let graph = try subject.loadWorkspace(workspace: workspace, projects: [
-            projectA,
-            projectB,
-        ])
+        let graph = try subject.loadWorkspace(
+            workspace: workspace,
+            projects: [
+                projectA,
+                projectB,
+            ]
+        )
 
         // Then
         XCTAssertEqual(graph.workspace, workspace.replacing(projects: ["/A", "/B"]))
@@ -110,10 +119,13 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let subject = makeSubject()
 
         // When
-        let (loadedProject, graph) = try subject.loadProject(at: "/A", projects: [
-            projectA,
-            projectB,
-        ])
+        let (loadedProject, graph) = try subject.loadProject(
+            at: "/A",
+            projects: [
+                projectA,
+                projectB,
+            ]
+        )
 
         // Then
         XCTAssertEqual(loadedProject, projectA)
@@ -133,10 +145,13 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let subject = makeSubject()
 
         // When
-        let (loadedProject, graph) = try subject.loadProject(at: "/A", projects: [
-            projectA,
-            projectB,
-        ])
+        let (loadedProject, graph) = try subject.loadProject(
+            at: "/A",
+            projects: [
+                projectA,
+                projectB,
+            ]
+        )
 
         // Then
         XCTAssertEqual(loadedProject, projectA)
@@ -183,10 +198,13 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let subject = makeSubject()
 
         // When
-        let graph = try subject.loadWorkspace(workspace: workspace, projects: [
-            projectA,
-            projectB,
-        ])
+        let graph = try subject.loadWorkspace(
+            workspace: workspace,
+            projects: [
+                projectA,
+                projectB,
+            ]
+        )
 
         // Then
         XCTAssertEqual(graph.dependencies, [
@@ -234,10 +252,13 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let subject = makeSubject()
 
         // When
-        let graph = try subject.loadWorkspace(workspace: workspace, projects: [
-            projectA,
-            projectB,
-        ])
+        let graph = try subject.loadWorkspace(
+            workspace: workspace,
+            projects: [
+                projectA,
+                projectB,
+            ]
+        )
 
         // Then
         let frameworkDependency: GraphDependency = .framework(
@@ -295,10 +316,13 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let subject = makeSubject()
 
         // When
-        let graph = try subject.loadWorkspace(workspace: workspace, projects: [
-            projectA,
-            projectB,
-        ])
+        let graph = try subject.loadWorkspace(
+            workspace: workspace,
+            projects: [
+                projectA,
+                projectB,
+            ]
+        )
 
         // Then
         XCTAssertEqual(graph.dependencies, [
@@ -327,7 +351,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
     func test_loadWorkspace_xcframeworkDependency() throws {
         // Given
-        let targetA = Target.test(name: "A", dependencies: [.xcFramework(path: "/XCFrameworks/XF1.xcframework")])
+        let targetA = Target.test(name: "A", dependencies: [.xcframework(path: "/XCFrameworks/XF1.xcframework")])
         let projectA = Project.test(path: "/A", name: "A", targets: [targetA])
         let workspace = Workspace.test(path: "/", name: "Workspace", projects: ["/A"])
 
@@ -343,9 +367,12 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let subject = makeSubject()
 
         // When
-        let graph = try subject.loadWorkspace(workspace: workspace, projects: [
-            projectA,
-        ])
+        let graph = try subject.loadWorkspace(
+            workspace: workspace,
+            projects: [
+                projectA,
+            ]
+        )
 
         // Then
         XCTAssertEqual(graph.dependencies, [
@@ -372,9 +399,12 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let subject = makeSubject()
 
         // When
-        let graph = try subject.loadWorkspace(workspace: workspace, projects: [
-            projectA,
-        ])
+        let graph = try subject.loadWorkspace(
+            workspace: workspace,
+            projects: [
+                projectA,
+            ]
+        )
 
         // Then
         XCTAssertEqual(graph.dependencies, [
@@ -432,11 +462,14 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let subject = makeSubject()
 
         // When
-        let graph = try subject.loadWorkspace(workspace: workspace, projects: [
-            projectA,
-            projectB,
-            projectC,
-        ])
+        let graph = try subject.loadWorkspace(
+            workspace: workspace,
+            projects: [
+                projectA,
+                projectB,
+                projectC,
+            ]
+        )
 
         // Then
 
@@ -473,9 +506,12 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
         // When / Then
         XCTAssertThrowsSpecific(
-            try subject.loadProject(at: "/A", projects: [
-                project,
-            ]),
+            try subject.loadProject(
+                at: "/A",
+                projects: [
+                    project,
+                ]
+            ),
             GraphLoadingError.circularDependency([
                 .init(path: "/A", name: "A"),
                 .init(path: "/A", name: "B"),
@@ -496,11 +532,14 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
         // When / Then
         XCTAssertThrowsSpecific(
-            try subject.loadProject(at: "/A", projects: [
-                projectA,
-                projectB,
-                projectC,
-            ]),
+            try subject.loadProject(
+                at: "/A",
+                projects: [
+                    projectA,
+                    projectB,
+                    projectC,
+                ]
+            ),
             GraphLoadingError.circularDependency([
                 .init(path: "/A", name: "A"),
                 .init(path: "/B", name: "B"),
@@ -522,11 +561,14 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
         // When / Then
         XCTAssertThrowsSpecific(
-            try subject.loadWorkspace(workspace: workspace, projects: [
-                projectA,
-                projectB,
-                projectC,
-            ]),
+            try subject.loadWorkspace(
+                workspace: workspace,
+                projects: [
+                    projectA,
+                    projectB,
+                    projectC,
+                ]
+            ),
             GraphLoadingError.circularDependency([
                 .init(path: "/A", name: "A"),
                 .init(path: "/B", name: "B"),
@@ -549,11 +591,14 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
         // When / Then
         XCTAssertNoThrow(
-            try subject.loadProject(at: "/A", projects: [
-                projectA,
-                projectB,
-                projectC,
-            ])
+            try subject.loadProject(
+                at: "/A",
+                projects: [
+                    projectA,
+                    projectB,
+                    projectC,
+                ]
+            )
         )
     }
 
@@ -572,11 +617,14 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
         // When / Then
         XCTAssertNoThrow(
-            try subject.loadWorkspace(workspace: workspace, projects: [
-                projectA,
-                projectB,
-                projectC,
-            ])
+            try subject.loadWorkspace(
+                workspace: workspace,
+                projects: [
+                    projectA,
+                    projectB,
+                    projectC,
+                ]
+            )
         )
     }
 
@@ -596,11 +644,14 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
         // When / Then
         XCTAssertThrowsError(
-            try subject.loadWorkspace(workspace: workspace, projects: [
-                projectA,
-                projectB,
-                projectC,
-            ])
+            try subject.loadWorkspace(
+                workspace: workspace,
+                projects: [
+                    projectA,
+                    projectB,
+                    projectC,
+                ]
+            )
         ) { error in
             // need to manually inspect the error as depending on traversal order may result in different nodes getting listed
             let graphError = error as? GraphLoadingError
@@ -619,9 +670,12 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
         // When / Then
         XCTAssertThrowsSpecific(
-            try subject.loadWorkspace(workspace: workspace, projects: [
-                projectA,
-            ]),
+            try subject.loadWorkspace(
+                workspace: workspace,
+                projects: [
+                    projectA,
+                ]
+            ),
             GraphLoadingError.missingProject("/Missing")
         )
     }
@@ -635,9 +689,12 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
         // When / Then
         XCTAssertThrowsSpecific(
-            try subject.loadWorkspace(workspace: workspace, projects: [
-                projectA,
-            ]),
+            try subject.loadWorkspace(
+                workspace: workspace,
+                projects: [
+                    projectA,
+                ]
+            ),
             GraphLoadingError.missingProject("/Missing")
         )
     }
@@ -651,9 +708,12 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
         // When / Then
         XCTAssertThrowsSpecific(
-            try subject.loadWorkspace(workspace: workspace, projects: [
-                projectA,
-            ]),
+            try subject.loadWorkspace(
+                workspace: workspace,
+                projects: [
+                    projectA,
+                ]
+            ),
             GraphLoadingError.targetNotFound("Missing", "/A")
         )
     }
@@ -668,10 +728,13 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
         // When / Then
         XCTAssertThrowsSpecific(
-            try subject.loadWorkspace(workspace: workspace, projects: [
-                projectA,
-                projectB,
-            ]),
+            try subject.loadWorkspace(
+                workspace: workspace,
+                projects: [
+                    projectA,
+                    projectB,
+                ]
+            ),
             GraphLoadingError.targetNotFound("Missing", "/B")
         )
     }

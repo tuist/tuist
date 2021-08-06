@@ -21,6 +21,10 @@ public protocol SwiftPackageManagerControlling {
     /// - Parameter path: Directory where the `Package.swift` is defined.
     /// - Parameter version: Version of tools. When `nil` then the environment’s version will be set.
     func setToolsVersion(at path: AbsolutePath, to version: String?) throws
+
+    /// Loads the information from the package.
+    /// - Parameter path: Directory where the `Package.swift` is defined.
+    func loadPackageInfo(at path: AbsolutePath) throws -> PackageInfo
 }
 
 public final class SwiftPackageManagerController: SwiftPackageManagerControlling {
@@ -53,6 +57,17 @@ public final class SwiftPackageManagerController: SwiftPackageManagerControlling
         let command = buildSwiftPackageCommand(packagePath: path, extraArguments: extraArguments)
 
         try System.shared.run(command)
+    }
+
+    public func loadPackageInfo(at path: AbsolutePath) throws -> PackageInfo {
+        let command = buildSwiftPackageCommand(packagePath: path, extraArguments: ["dump-package"])
+
+        let json = try System.shared.capture(command)
+
+        let data = Data(json.utf8)
+        let decoder = JSONDecoder()
+
+        return try decoder.decode(PackageInfo.self, from: data)
     }
 
     // MARK: - Helpers

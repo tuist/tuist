@@ -1,3 +1,4 @@
+import ProjectDescription
 import TSCBasic
 import TuistCore
 import TuistGraph
@@ -5,14 +6,20 @@ import TuistSupport
 
 // MARK: - Dependencies Controller Error
 
-enum DependenciesControllerError: FatalError {
+enum DependenciesControllerError: FatalError, Equatable {
+    /// Thrown when the same dependency is defined more than once.
+    case duplicatedDependency(String, [ProjectDescription.TargetDependency], [ProjectDescription.TargetDependency])
+
+    /// Thrown when the same project is defined more than once.
+    case duplicatedProject(Path, ProjectDescription.Project, ProjectDescription.Project)
+
     /// Thrown when platforms for dependencies to install are not determined in `Dependencies.swift`.
     case noPlatforms
 
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .noPlatforms:
+        case .duplicatedDependency, .duplicatedProject, .noPlatforms:
             return .abort
         }
     }
@@ -20,6 +27,18 @@ enum DependenciesControllerError: FatalError {
     // Error description.
     var description: String {
         switch self {
+        case let .duplicatedDependency(name, first, second):
+            return """
+            The \(name) dependency is defined twice across different dependency managers:
+            First: \(first)
+            Second: \(second)
+            """
+        case let .duplicatedProject(name, first, second):
+            return """
+            The \(name) project is defined twice across different dependency managers:
+            First: \(first)
+            Second: \(second)
+            """
         case .noPlatforms:
             return "Platforms were not determined. Select platforms in `Dependencies.swift` manifest file."
         }
@@ -30,7 +49,7 @@ enum DependenciesControllerError: FatalError {
 
 /// `DependenciesControlling` controls:
 ///     1. Fetching/updating dependencies defined in `./Tuist/Dependencies.swift` by running appropriate dependencies managers (`Cocoapods`, `Carthage`, `SPM`).
-///     2. Compiling fetched/updated depedencies into `.framework.`/`.xcframework.`.
+///     2. Compiling fetched/updated dependencies into `.framework.`/`.xcframework.`.
 ///     3. Saving compiled frameworks under `./Tuist/Dependencies/*`.
 ///     4. Generating dependencies graph under `./Tuist/Dependencies/graph.json`.
 public protocol DependenciesControlling {
@@ -40,9 +59,9 @@ public protocol DependenciesControlling {
     /// - Parameter swiftVersion: The specified version of Swift. If `nil` is passed then the environment’s version will be used.
     func fetch(
         at path: AbsolutePath,
-        dependencies: Dependencies,
+        dependencies: TuistGraph.Dependencies,
         swiftVersion: String?
-    ) throws
+    ) throws -> TuistCore.DependenciesGraph
 
     /// Updates dependencies.
     /// - Parameters:
@@ -51,8 +70,17 @@ public protocol DependenciesControlling {
     ///   - swiftVersion: The specified version of Swift. If `nil` is passed then will use the environment’s version will be used.
     func update(
         at path: AbsolutePath,
-        dependencies: Dependencies,
+        dependencies: TuistGraph.Dependencies,
         swiftVersion: String?
+    ) throws -> TuistCore.DependenciesGraph
+
+    /// Save dependencies graph.
+    /// - Parameters:
+    ///   - dependenciesGraph: The dependencies graph to be saved.
+    ///   - path: Directory where dependencies graph will be saved.
+    func save(
+        dependenciesGraph: TuistGraph.DependenciesGraph,
+        to path: AbsolutePath
     ) throws
 }
 
@@ -78,10 +106,10 @@ public final class DependenciesController: DependenciesControlling {
 
     public func fetch(
         at path: AbsolutePath,
-        dependencies: Dependencies,
+        dependencies: TuistGraph.Dependencies,
         swiftVersion: String?
-    ) throws {
-        try install(
+    ) throws -> TuistCore.DependenciesGraph {
+        return try install(
             at: path,
             dependencies: dependencies,
             shouldUpdate: false,
@@ -91,10 +119,10 @@ public final class DependenciesController: DependenciesControlling {
 
     public func update(
         at path: AbsolutePath,
-        dependencies: Dependencies,
+        dependencies: TuistGraph.Dependencies,
         swiftVersion: String?
-    ) throws {
-        try install(
+    ) throws -> TuistCore.DependenciesGraph {
+        return try install(
             at: path,
             dependencies: dependencies,
             shouldUpdate: true,
@@ -102,14 +130,32 @@ public final class DependenciesController: DependenciesControlling {
         )
     }
 
+    public func save(
+        dependenciesGraph: TuistGraph.DependenciesGraph,
+        to path: AbsolutePath
+    ) throws {
+        if dependenciesGraph.externalDependencies.isEmpty {
+            try dependenciesGraphController.clean(at: path)
+        } else {
+            try dependenciesGraphController.save(dependenciesGraph, to: path)
+        }
+    }
+
     // MARK: - Helpers
 
     private func install(
         at path: AbsolutePath,
-        dependencies: Dependencies,
+        dependencies: TuistGraph.Dependencies,
         shouldUpdate: Bool,
         swiftVersion: String?
-    ) throws {
+    ) throws -> TuistCore.DependenciesGraph {
+        logger.warning(
+            """
+            The integration of external dependencies is in alpha. \
+            Be aware some APIs might change as we iterate the functionality with the feedback we get from users.
+            """
+        )
+
         let dependenciesDirectory = path
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
@@ -119,34 +165,53 @@ public final class DependenciesController: DependenciesControlling {
             throw DependenciesControllerError.noPlatforms
         }
 
-        var dependenciesGraph = DependenciesGraph(thirdPartyDependencies: [:])
+        var dependenciesGraph = TuistCore.DependenciesGraph.none
 
-        if let carthageDepedencies = dependencies.carthage, !carthageDepedencies.dependencies.isEmpty {
-            dependenciesGraph = try carthageInteractor.install(
+        if let carthageDependencies = dependencies.carthage, !carthageDependencies.dependencies.isEmpty {
+            let carthageDependenciesGraph = try carthageInteractor.install(
                 dependenciesDirectory: dependenciesDirectory,
-                dependencies: carthageDepedencies,
+                dependencies: carthageDependencies,
                 platforms: platforms,
                 shouldUpdate: shouldUpdate
             )
+            dependenciesGraph = try dependenciesGraph.merging(with: carthageDependenciesGraph)
         } else {
             try carthageInteractor.clean(dependenciesDirectory: dependenciesDirectory)
         }
 
         if let swiftPackageManagerDependencies = dependencies.swiftPackageManager, !swiftPackageManagerDependencies.packages.isEmpty {
-            try swiftPackageManagerInteractor.install(
+            let swiftPackageManagerDependenciesGraph = try swiftPackageManagerInteractor.install(
                 dependenciesDirectory: dependenciesDirectory,
                 dependencies: swiftPackageManagerDependencies,
+                platforms: platforms,
                 shouldUpdate: shouldUpdate,
                 swiftToolsVersion: swiftVersion
             )
+            dependenciesGraph = try dependenciesGraph.merging(with: swiftPackageManagerDependenciesGraph)
         } else {
             try swiftPackageManagerInteractor.clean(dependenciesDirectory: dependenciesDirectory)
         }
 
-        if dependenciesGraph.thirdPartyDependencies.isEmpty {
-            try dependenciesGraphController.clean(at: path)
-        } else {
-            try dependenciesGraphController.save(dependenciesGraph, to: path)
+        return dependenciesGraph
+    }
+}
+
+extension TuistCore.DependenciesGraph {
+    public func merging(with other: Self) throws -> Self {
+        let mergedExternalDependencies = try other.externalDependencies.reduce(into: externalDependencies) { result, entry in
+            if let alreadyPresent = result[entry.key] {
+                throw DependenciesControllerError.duplicatedDependency(entry.key, alreadyPresent, entry.value)
+            }
+
+            result[entry.key] = entry.value
         }
+        let mergedExternalProjects = try other.externalProjects.reduce(into: externalProjects) { result, entry in
+            if let alreadyPresent = result[entry.key] {
+                throw DependenciesControllerError.duplicatedProject(entry.key, alreadyPresent, entry.value)
+            }
+
+            result[entry.key] = entry.value
+        }
+        return .init(externalDependencies: mergedExternalDependencies, externalProjects: mergedExternalProjects)
     }
 }

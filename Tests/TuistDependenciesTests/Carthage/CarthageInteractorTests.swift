@@ -268,7 +268,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             "Dependencies/Lockfiles/Cartfile.resolved",
             "Dependencies/Lockfiles/OtherLockfile.lock",
             "Dependencies/Carthage/Info.plist",
-            "Dependencies/OtherDepedenciesManager/bar.bar",
+            "Dependencies/OtherDependenciesManager/bar.bar",
         ])
 
         // When
@@ -279,7 +279,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             dependenciesDirectory,
             [
                 Constants.DependenciesDirectory.lockfilesDirectoryName,
-                "OtherDepedenciesManager",
+                "OtherDependenciesManager",
             ]
         )
         try XCTAssertDirectoryContentEqual(

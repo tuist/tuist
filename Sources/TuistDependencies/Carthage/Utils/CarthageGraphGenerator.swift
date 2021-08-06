@@ -1,8 +1,8 @@
 import Foundation
+import ProjectDescription
 import TSCBasic
 import TSCUtility
 import TuistCore
-import TuistGraph
 import TuistSupport
 
 /// A protocol that defines an interface to generate the `DependenciesGraph` for the `Carthage` dependencies.
@@ -26,12 +26,12 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
             .map { try jsonDecoder.decode(CarthageVersionFile.self, from: $0) }
             .flatMap { $0.allProducts }
 
-        let thirdPartyDependencies: [String: ThirdPartyDependency] = Dictionary(grouping: products, by: \.name)
+        let externalDependencies: [String: [TargetDependency]] = Dictionary(grouping: products, by: \.name)
             .compactMapValues { products in
                 guard let product = products.first else { return nil }
 
                 guard let xcFrameworkName = product.container else {
-                    logger.warning("\(product.name) was not added to the DependenciesGraph.")
+                    logger.warning("\(product.name) was not added to the DependenciesGraph", metadata: .subsection)
                     return nil
                 }
 
@@ -43,9 +43,9 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
                         xcFrameworkName,
                     ])
 
-                return .xcframework(path: path)
+                return [.xcframework(path: Path(path.pathString))]
             }
 
-        return DependenciesGraph(thirdPartyDependencies: thirdPartyDependencies)
+        return DependenciesGraph(externalDependencies: externalDependencies, externalProjects: [:])
     }
 }

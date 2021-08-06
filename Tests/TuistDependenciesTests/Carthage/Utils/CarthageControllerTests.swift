@@ -99,7 +99,7 @@ final class CarthageControllerTests: TuistUnitTestCase {
         XCTAssertNoThrow(try subject.bootstrap(at: path, platforms: [.iOS], printOutput: false))
     }
 
-    func test_bootstrap_with_platforms_throws_when_xcFrameworkdProductionUnsupported() throws {
+    func test_bootstrap_with_platforms_throws_when_xcframeworkdProductionUnsupported() throws {
         // Given
         let carthageVersion = Version("0.36.0")
         system.stubs["/usr/bin/env carthage version"] = (stderror: nil, stdout: carthageVersion.description, exitstatus: 0)
@@ -122,7 +122,7 @@ final class CarthageControllerTests: TuistUnitTestCase {
         // When / Then
         XCTAssertThrowsSpecific(
             try subject.bootstrap(at: path, platforms: [.iOS], printOutput: false),
-            CarthageControllerError.xcFrameworksProductionNotSupported(installedVersion: carthageVersion)
+            CarthageControllerError.xcframeworksProductionNotSupported(installedVersion: carthageVersion)
         )
     }
 
@@ -170,7 +170,7 @@ final class CarthageControllerTests: TuistUnitTestCase {
         XCTAssertNoThrow(try subject.update(at: path, platforms: [.iOS], printOutput: false))
     }
 
-    func test_update_with_platforms_throws_when_xcFrameworkdProductionUnsupported() throws {
+    func test_update_with_platforms_throws_when_xcframeworkdProductionUnsupported() throws {
         // Given
         let carthageVersion = Version("0.36.0")
         system.stubs["/usr/bin/env carthage version"] = (stderror: nil, stdout: carthageVersion.description, exitstatus: 0)
@@ -193,7 +193,7 @@ final class CarthageControllerTests: TuistUnitTestCase {
         // When / Then
         XCTAssertThrowsSpecific(
             try subject.bootstrap(at: path, platforms: [.iOS], printOutput: false),
-            CarthageControllerError.xcFrameworksProductionNotSupported(installedVersion: carthageVersion)
+            CarthageControllerError.xcframeworksProductionNotSupported(installedVersion: carthageVersion)
         )
     }
 }

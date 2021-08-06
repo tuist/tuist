@@ -1,4 +1,6 @@
+import ProjectDescription
 import TSCBasic
+import TuistCore
 import TuistGraph
 import TuistSupport
 
@@ -37,14 +39,16 @@ public protocol SwiftPackageManagerInteracting {
     /// - Parameters:
     ///   - dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
     ///   - dependencies: List of dependencies to install using `Swift Package Manager`.
+    ///   - platforms: Set of supported platforms.
     ///   - shouldUpdate: Indicates whether dependencies should be updated or fetched based on the `Tuist/Lockfiles/Package.resolved` lockfile.
     ///   - swiftToolsVersion: The version of Swift tools that will be used to resolve dependencies. If `nil` is passed then the environment’s version will be used.
     func install(
         dependenciesDirectory: AbsolutePath,
-        dependencies: SwiftPackageManagerDependencies,
+        dependencies: TuistGraph.SwiftPackageManagerDependencies,
+        platforms: Set<TuistGraph.Platform>,
         shouldUpdate: Bool,
         swiftToolsVersion: String?
-    ) throws
+    ) throws -> TuistCore.DependenciesGraph
 
     /// Removes all cached `Swift Package Manager` dependencies.
     /// - Parameter dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
@@ -56,25 +60,30 @@ public protocol SwiftPackageManagerInteracting {
 public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
     private let fileHandler: FileHandling
     private let swiftPackageManagerController: SwiftPackageManagerControlling
+    private let swiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGenerating
 
     public init(
         fileHandler: FileHandling = FileHandler.shared,
-        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController()
+        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
+        swiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGenerating = SwiftPackageManagerGraphGenerator(
+            swiftPackageManagerController: SwiftPackageManagerController()
+        )
     ) {
         self.fileHandler = fileHandler
         self.swiftPackageManagerController = swiftPackageManagerController
+        self.swiftPackageManagerGraphGenerator = swiftPackageManagerGraphGenerator
     }
 
     public func install(
         dependenciesDirectory: AbsolutePath,
-        dependencies: SwiftPackageManagerDependencies,
+        dependencies: TuistGraph.SwiftPackageManagerDependencies,
+        platforms: Set<TuistGraph.Platform>,
         shouldUpdate: Bool,
         swiftToolsVersion: String?
-    ) throws {
-        logger.warning("Support for Swift Package Manager dependencies is currently being worked on and is not ready to be used yet.")
+    ) throws -> TuistCore.DependenciesGraph {
         logger.info("Installing Swift Package Manager dependencies.", metadata: .subsection)
 
-        try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in
+        let dependenciesGraph: TuistCore.DependenciesGraph = try fileHandler.inTemporaryDirectory { temporaryDirectoryPath in
             // prepare paths
             let pathsProvider = SwiftPackageManagerPathsProvider(
                 dependenciesDirectory: dependenciesDirectory,
@@ -92,10 +101,23 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
             }
 
             // post installation
-            try saveDepedencies(pathsProvider: pathsProvider)
+            try saveDependencies(
+                pathsProvider: pathsProvider,
+                hasRemoteDependencies: dependencies.packages.contains(where: \.isRemote)
+            )
+
+            // generate dependencies graph
+            return try swiftPackageManagerGraphGenerator.generate(
+                at: pathsProvider.destinationBuildDirectory,
+                productTypes: dependencies.productTypes,
+                platforms: platforms,
+                deploymentTargets: dependencies.deploymentTargets
+            )
         }
 
         logger.info("Swift Package Manager dependencies installed successfully.", metadata: .subsection)
+
+        return dependenciesGraph
     }
 
     public func clean(dependenciesDirectory: AbsolutePath) throws {
@@ -114,7 +136,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
     /// Loads lockfile and dependencies into working directory if they had been saved before.
     private func loadDependencies(
         pathsProvider: SwiftPackageManagerPathsProvider,
-        dependencies: SwiftPackageManagerDependencies,
+        dependencies: TuistGraph.SwiftPackageManagerDependencies,
         swiftToolsVersion: String?
     ) throws {
         // copy `.build` directory from previous run if exist
@@ -146,21 +168,23 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         logger.debug("\(generatedManifestContent)")
     }
 
-    /// Saves lockfile resolved depedencies in `Tuist/Depedencies` directory.
-    private func saveDepedencies(pathsProvider: SwiftPackageManagerPathsProvider) throws {
+    /// Saves lockfile resolved dependencies in `Tuist/Dependencies` directory.
+    private func saveDependencies(pathsProvider: SwiftPackageManagerPathsProvider, hasRemoteDependencies: Bool) throws {
         // validation
-        guard fileHandler.exists(pathsProvider.temporaryPackageResolvedPath) else {
+        guard !hasRemoteDependencies || fileHandler.exists(pathsProvider.temporaryPackageResolvedPath) else {
             throw SwiftPackageManagerInteractorError.packageResolvedNotFound
         }
         guard fileHandler.exists(pathsProvider.temporaryBuildDirectory) else {
             throw SwiftPackageManagerInteractorError.buildDirectoryNotFound
         }
 
-        // save `Package.resolved`
-        try copy(
-            from: pathsProvider.temporaryPackageResolvedPath,
-            to: pathsProvider.destinationPackageResolvedPath
-        )
+        if fileHandler.exists(pathsProvider.temporaryPackageResolvedPath) {
+            // save `Package.resolved`
+            try copy(
+                from: pathsProvider.temporaryPackageResolvedPath,
+                to: pathsProvider.destinationPackageResolvedPath
+            )
+        }
 
         // save `.build` directory
         try copy(

@@ -23,12 +23,52 @@ public final class MockFileHandler: FileHandler {
     // swiftlint:disable:next force_try
     override public var currentPath: AbsolutePath { try! temporaryDirectory() }
 
+    public var stubContentsOfDirectory: ((AbsolutePath) throws -> [AbsolutePath])?
+    override public func contentsOfDirectory(_ path: AbsolutePath) throws -> [AbsolutePath] {
+        guard let stubContentsOfDirectory = stubContentsOfDirectory else {
+            return try super.contentsOfDirectory(path)
+        }
+        return try stubContentsOfDirectory(path)
+    }
+
+    public var stubFilesAndDirectoriesContained: ((AbsolutePath) -> [AbsolutePath]?)?
+    override public func filesAndDirectoriesContained(in path: AbsolutePath) -> [AbsolutePath]? {
+        guard let stubFilesAndDirectoriesContained = stubFilesAndDirectoriesContained else {
+            return super.filesAndDirectoriesContained(in: path)
+        }
+        return stubFilesAndDirectoriesContained(path)
+    }
+
     public var stubExists: ((AbsolutePath) -> Bool)?
     override public func exists(_ path: AbsolutePath) -> Bool {
         guard let stubExists = stubExists else {
             return super.exists(path)
         }
         return stubExists(path)
+    }
+
+    public var stubReadFile: ((AbsolutePath) throws -> Data)?
+    override public func readFile(_ path: AbsolutePath) throws -> Data {
+        guard let stubReadFile = stubReadFile else {
+            return try super.readFile(path)
+        }
+        return try stubReadFile(path)
+    }
+
+    public var stubWrite: ((String, AbsolutePath, Bool) throws -> Void)?
+    override public func write(_ content: String, path: AbsolutePath, atomically: Bool) throws {
+        guard let stubWrite = stubWrite else {
+            return try super.write(content, path: path, atomically: atomically)
+        }
+        return try stubWrite(content, path, atomically)
+    }
+
+    public var stubIsFolder: ((AbsolutePath) -> Bool)?
+    override public func isFolder(_ path: AbsolutePath) -> Bool {
+        guard let stubIsFolder = stubIsFolder else {
+            return super.isFolder(path)
+        }
+        return stubIsFolder(path)
     }
 
     override public func inTemporaryDirectory<Result>(removeOnCompletion _: Bool, _ closure: (AbsolutePath) throws -> Result) throws -> Result {

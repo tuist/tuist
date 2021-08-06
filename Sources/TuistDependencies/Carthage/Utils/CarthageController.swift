@@ -12,14 +12,14 @@ enum CarthageControllerError: FatalError, Equatable {
     /// Thrown when version of Carthage cannot be determined.
     case unrecognizedCarthageVersion
     /// Thrown when version of Carthage installed in environment does not support XCFrameworks production.
-    case xcFrameworksProductionNotSupported(installedVersion: Version)
+    case xcframeworksProductionNotSupported(installedVersion: Version)
 
     /// Error type.
     var type: ErrorType {
         switch self {
         case .carthageNotFound,
              .unrecognizedCarthageVersion,
-             .xcFrameworksProductionNotSupported:
+             .xcframeworksProductionNotSupported:
             return .abort
         }
     }
@@ -37,7 +37,7 @@ enum CarthageControllerError: FatalError, Equatable {
             The version of Carthage cannot be determined.
             It's possible that the tool is not installed or hasn't been exposed to your environment.
             """
-        case let .xcFrameworksProductionNotSupported(installedVersion):
+        case let .xcframeworksProductionNotSupported(installedVersion):
             return """
             The version of Carthage installed in your environment (\(installedVersion.description)) doesn't suppport production of XCFrameworks.
             You have to update the tool to at least 0.37.0 version.
@@ -110,7 +110,7 @@ public final class CarthageController: CarthageControlling {
 
     public func bootstrap(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>, printOutput: Bool) throws {
         guard try isXCFrameworksProductionSupported() else {
-            throw CarthageControllerError.xcFrameworksProductionNotSupported(installedVersion: try carthageVersion())
+            throw CarthageControllerError.xcframeworksProductionNotSupported(installedVersion: try carthageVersion())
         }
 
         let command = buildCarthageCommand(path: path, platforms: platforms, subcommand: "bootstrap")
@@ -122,7 +122,7 @@ public final class CarthageController: CarthageControlling {
 
     public func update(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>, printOutput: Bool) throws {
         guard try isXCFrameworksProductionSupported() else {
-            throw CarthageControllerError.xcFrameworksProductionNotSupported(installedVersion: try carthageVersion())
+            throw CarthageControllerError.xcframeworksProductionNotSupported(installedVersion: try carthageVersion())
         }
 
         let command = buildCarthageCommand(path: path, platforms: platforms, subcommand: "update")

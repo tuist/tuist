@@ -79,7 +79,8 @@ extension Target {
                         return true
                     }
                     return false
-                }.forEach { sourceFiles[$0] = SourceFile(path: $0, compilerFlags: source.compilerFlags) }
+                }
+                .forEach { sourceFiles[$0] = SourceFile(path: $0, compilerFlags: source.compilerFlags) }
         }
 
         if !invalidGlobs.isEmpty {

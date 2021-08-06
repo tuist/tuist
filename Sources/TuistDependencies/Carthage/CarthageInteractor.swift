@@ -1,3 +1,4 @@
+import ProjectDescription
 import RxBlocking
 import TSCBasic
 import TuistCore
@@ -53,10 +54,10 @@ public protocol CarthageInteracting {
     /// - Returns: A graph that represents dependencies installed using `Carthage`.
     func install(
         dependenciesDirectory: AbsolutePath,
-        dependencies: CarthageDependencies,
-        platforms: Set<Platform>,
+        dependencies: TuistGraph.CarthageDependencies,
+        platforms: Set<TuistGraph.Platform>,
         shouldUpdate: Bool
-    ) throws -> DependenciesGraph
+    ) throws -> TuistCore.DependenciesGraph
 
     /// Removes all cached `Carthage` dependencies.
     /// - Parameter dependenciesDirectory: The path to the directory that contains the `Tuist/Dependencies/` directory.
@@ -79,10 +80,10 @@ public final class CarthageInteractor: CarthageInteracting {
 
     public func install(
         dependenciesDirectory: AbsolutePath,
-        dependencies: CarthageDependencies,
-        platforms: Set<Platform>,
+        dependencies: TuistGraph.CarthageDependencies,
+        platforms: Set<TuistGraph.Platform>,
         shouldUpdate: Bool
-    ) throws -> DependenciesGraph {
+    ) throws -> TuistCore.DependenciesGraph {
         logger.info("Installing Carthage dependencies.", metadata: .subsection)
 
         // check availability of `carthage`
@@ -90,8 +91,8 @@ public final class CarthageInteractor: CarthageInteracting {
             throw CarthageInteractorError.carthageNotFound
         }
 
-        // install depedencies and generate dependencies graph
-        let dependenciesGraph: DependenciesGraph = try FileHandler.shared
+        // install dependencies and generate dependencies graph
+        let dependenciesGraph: TuistCore.DependenciesGraph = try FileHandler.shared
             .inTemporaryDirectory { temporaryDirectoryPath in
                 // prepare paths
                 let pathsProvider = CarthagePathsProvider(
@@ -118,7 +119,7 @@ public final class CarthageInteractor: CarthageInteracting {
                 }
 
                 // post installation
-                try saveDepedencies(pathsProvider: pathsProvider)
+                try saveDependencies(pathsProvider: pathsProvider)
 
                 // generate dependencies graph
                 return try carthageGraphGenerator
@@ -144,7 +145,7 @@ public final class CarthageInteractor: CarthageInteracting {
     // MARK: - Installation
 
     /// Loads lockfile and dependencies into working directory if they had been saved before.
-    private func loadDependencies(pathsProvider: CarthagePathsProvider, dependencies: CarthageDependencies) throws {
+    private func loadDependencies(pathsProvider: CarthagePathsProvider, dependencies: TuistGraph.CarthageDependencies) throws {
         // copy build directory from previous run if exist
         if FileHandler.shared.exists(pathsProvider.destinationCarthageDirectory) {
             try copy(
@@ -171,8 +172,8 @@ public final class CarthageInteractor: CarthageInteracting {
         logger.debug("\(cartfileContent)")
     }
 
-    /// Saves lockfile resolved depedencies in `Tuist/Depedencies` directory.
-    private func saveDepedencies(pathsProvider: CarthagePathsProvider) throws {
+    /// Saves lockfile resolved dependencies in `Tuist/Dependencies` directory.
+    private func saveDependencies(pathsProvider: CarthagePathsProvider) throws {
         // validation
         guard FileHandler.shared.exists(pathsProvider.temporaryCarfileResolvedPath) else {
             throw CarthageInteractorError.cartfileResolvedNotFound

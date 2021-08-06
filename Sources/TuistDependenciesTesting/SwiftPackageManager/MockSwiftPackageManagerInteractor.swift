@@ -1,4 +1,6 @@
+import ProjectDescription
 import TSCBasic
+import TuistCore
 import TuistGraph
 
 @testable import TuistDependencies
@@ -7,16 +9,25 @@ public final class MockSwiftPackageManagerInteractor: SwiftPackageManagerInterac
     public init() {}
 
     var invokedInstall = false
-    var installStub: ((AbsolutePath, SwiftPackageManagerDependencies, Bool, String?) throws -> Void)?
+    var installStub: (
+        (
+            AbsolutePath,
+            TuistGraph.SwiftPackageManagerDependencies,
+            Set<TuistGraph.Platform>,
+            Bool,
+            String?
+        ) throws -> TuistCore.DependenciesGraph
+    )?
 
     public func install(
         dependenciesDirectory: AbsolutePath,
-        dependencies: SwiftPackageManagerDependencies,
+        dependencies: TuistGraph.SwiftPackageManagerDependencies,
+        platforms: Set<TuistGraph.Platform>,
         shouldUpdate: Bool,
         swiftToolsVersion: String?
-    ) throws {
+    ) throws -> TuistCore.DependenciesGraph {
         invokedInstall = true
-        try installStub?(dependenciesDirectory, dependencies, shouldUpdate, swiftToolsVersion)
+        return try installStub?(dependenciesDirectory, dependencies, platforms, shouldUpdate, swiftToolsVersion) ?? .none
     }
 
     var invokedClean = false

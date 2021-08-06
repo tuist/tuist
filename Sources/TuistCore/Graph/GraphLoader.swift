@@ -2,6 +2,8 @@ import Foundation
 import TSCBasic
 import TuistGraph
 
+// MARK: - GraphLoading
+
 public protocol GraphLoading {
     func loadWorkspace(workspace: Workspace, projects: [Project]) throws -> Graph
     func loadProject(at path: AbsolutePath, projects: [Project]) throws -> (Project, Graph)
@@ -43,9 +45,9 @@ public final class GraphLoader: GraphLoading {
         let cache = Cache(projects: projects)
         let cycleDetector = GraphCircularDetector()
 
-        try workspace.projects.forEach { project in
+        try workspace.projects.forEach {
             try loadProject(
-                path: project,
+                path: $0,
                 cache: cache,
                 cycleDetector: cycleDetector
             )
@@ -199,7 +201,7 @@ public final class GraphLoader: GraphLoading {
                 cache: cache
             )
 
-        case let .xcFramework(frameworkPath):
+        case let .xcframework(frameworkPath):
             return try loadXCFramework(path: frameworkPath, cache: cache)
 
         case let .sdk(name, status):

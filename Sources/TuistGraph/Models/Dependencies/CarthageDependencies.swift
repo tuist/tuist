@@ -2,12 +2,12 @@ import Foundation
 
 /// Contains descriptions of dependencies to be fetched with Carthage.
 public struct CarthageDependencies: Equatable {
-    /// List of depedencies that can be installed using Carthage.
+    /// List of dependencies that can be installed using Carthage.
     public let dependencies: [Dependency]
 
     /// Initializes a new `CarthageDependencies` instance.
     /// - Parameters:
-    ///   - dependencies: List of depedencies that can be installed using Carthage.
+    ///   - dependencies: List of dependencies that can be installed using Carthage.
     public init(
         _ dependencies: [Dependency]
     ) {

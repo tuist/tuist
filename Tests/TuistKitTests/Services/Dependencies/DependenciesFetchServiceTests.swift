@@ -53,7 +53,12 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
             ),
             swiftPackageManager: .init(
                 [
-                    .remote(url: "Depedency1/Depedency1", requirement: .upToNextMajor("1.2.3")),
+                    .remote(url: "Dependency1/Dependency1", requirement: .upToNextMajor("1.2.3")),
+                ],
+                productTypes: [:],
+                deploymentTargets: [
+                    .iOS("13.0", [.iphone]),
+                    .macOS("10.0"),
                 ]
             ),
             platforms: [.iOS, .macOS]
@@ -67,6 +72,11 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
             XCTAssertEqual(path, stubbedPath)
             XCTAssertEqual(dependencies, stubbedDependencies)
             XCTAssertEqual(swiftVersion, stubbedSwiftVersion)
+            return .none
+        }
+        dependenciesController.saveStub = { dependenciesGraph, path in
+            XCTAssertEqual(dependenciesGraph, .none)
+            XCTAssertEqual(path, stubbedPath)
         }
 
         // When
@@ -75,6 +85,7 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
         // Then
         XCTAssertTrue(dependenciesModelLoader.invokedLoadDependencies)
         XCTAssertTrue(dependenciesController.invokedFetch)
+        XCTAssertTrue(dependenciesController.invokedSave)
 
         XCTAssertFalse(dependenciesController.invokedUpdate)
     }

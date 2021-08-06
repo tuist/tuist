@@ -81,7 +81,7 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
             return dependencyHash
         case let .framework(path):
             return try contentHasher.hash(path: path)
-        case let .xcFramework(path):
+        case let .xcframework(path):
             return try contentHasher.hash(path: path)
         case let .library(path, publicHeaders, swiftModuleMap):
             let libraryHash = try contentHasher.hash(path: path)

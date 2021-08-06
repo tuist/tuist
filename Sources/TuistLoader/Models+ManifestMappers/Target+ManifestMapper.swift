@@ -24,7 +24,12 @@ extension TuistGraph.Target {
     /// - Parameters:
     ///   - manifest: Manifest representation of  the target.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.Target, generatorPaths: GeneratorPaths) throws -> TuistGraph.Target {
+    ///   - externalDependencies: External dependencies graph.
+    static func from(
+        manifest: ProjectDescription.Target,
+        generatorPaths: GeneratorPaths,
+        externalDependencies: [String: [TuistGraph.TargetDependency]]
+    ) throws -> TuistGraph.Target {
         let name = manifest.name
         let platform = try TuistGraph.Platform.from(manifest: manifest.platform)
         let product = TuistGraph.Product.from(manifest: manifest.product)
@@ -33,7 +38,9 @@ extension TuistGraph.Target {
         let productName = manifest.productName
         let deploymentTarget = manifest.deploymentTarget.map { TuistGraph.DeploymentTarget.from(manifest: $0) }
 
-        let dependencies = try manifest.dependencies.map { try TuistGraph.TargetDependency.from(manifest: $0, generatorPaths: generatorPaths) }
+        let dependencies = try manifest.dependencies.flatMap {
+            try TuistGraph.TargetDependency.from(manifest: $0, generatorPaths: generatorPaths, externalDependencies: externalDependencies)
+        }
 
         let infoPlist = try TuistGraph.InfoPlist.from(manifest: manifest.infoPlist, generatorPaths: generatorPaths)
         let entitlements = try manifest.entitlements.map { try generatorPaths.resolve(path: $0) }

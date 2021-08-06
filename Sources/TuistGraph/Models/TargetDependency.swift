@@ -10,7 +10,7 @@ public enum TargetDependency: Equatable, Hashable, Codable {
     case target(name: String)
     case project(target: String, path: AbsolutePath)
     case framework(path: AbsolutePath)
-    case xcFramework(path: AbsolutePath)
+    case xcframework(path: AbsolutePath)
     case library(path: AbsolutePath, publicHeaders: AbsolutePath, swiftModuleMap: AbsolutePath?)
     case package(product: String)
     case sdk(name: String, status: SDKStatus)
@@ -25,7 +25,7 @@ extension TargetDependency {
         case target
         case project
         case framework
-        case xcFramework
+        case xcframework
         case library
         case package
         case sdk
@@ -58,9 +58,9 @@ extension TargetDependency {
         case .framework:
             let path = try container.decode(AbsolutePath.self, forKey: .path)
             self = .framework(path: path)
-        case .xcFramework:
+        case .xcframework:
             let path = try container.decode(AbsolutePath.self, forKey: .path)
-            self = .xcFramework(path: path)
+            self = .xcframework(path: path)
         case .library:
             let path = try container.decode(AbsolutePath.self, forKey: .path)
             let publicHeaders = try container.decode(AbsolutePath.self, forKey: .publicHeaders)
@@ -94,8 +94,8 @@ extension TargetDependency {
         case let .framework(path):
             try container.encode(Kind.framework, forKey: .kind)
             try container.encode(path, forKey: .path)
-        case let .xcFramework(path):
-            try container.encode(Kind.xcFramework, forKey: .kind)
+        case let .xcframework(path):
+            try container.encode(Kind.xcframework, forKey: .kind)
             try container.encode(path, forKey: .path)
         case let .library(path, publicHeaders, swiftModuleMap):
             try container.encode(Kind.library, forKey: .kind)

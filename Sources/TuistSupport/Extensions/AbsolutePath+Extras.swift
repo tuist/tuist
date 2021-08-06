@@ -47,7 +47,7 @@ extension AbsolutePath {
         if globPath.isGlobComponent {
             let pathUpToLastNonGlob = AbsolutePath(globPath).upToLastNonGlob
 
-            if !pathUpToLastNonGlob.isFolder {
+            if !FileHandler.shared.isFolder(pathUpToLastNonGlob) {
                 let invalidGlob = InvalidGlob(
                     pattern: globPath,
                     nonExistentPath: pathUpToLastNonGlob
@@ -57,13 +57,6 @@ extension AbsolutePath {
         }
 
         return glob(pattern)
-    }
-
-    /// Returns true if the path points to a directory
-    public var isFolder: Bool {
-        var isDirectory = ObjCBool(true)
-        let exists = FileManager.default.fileExists(atPath: pathString, isDirectory: &isDirectory)
-        return exists && isDirectory.boolValue
     }
 
     /// Returns true if the path is a package, recognized by having a UTI `com.apple.package`

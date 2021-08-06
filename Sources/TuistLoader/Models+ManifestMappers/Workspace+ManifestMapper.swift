@@ -10,11 +10,12 @@ extension TuistGraph.Workspace {
     /// - Parameters:
     ///   - manifest: Manifest representation of  workspace.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.Workspace,
-                     path: AbsolutePath,
-                     generatorPaths: GeneratorPaths,
-                     manifestLoader: ManifestLoading) throws -> TuistGraph.Workspace
-    {
+    static func from(
+        manifest: ProjectDescription.Workspace,
+        path: AbsolutePath,
+        generatorPaths: GeneratorPaths,
+        manifestLoader: ManifestLoading
+    ) throws -> TuistGraph.Workspace {
         func globProjects(_ path: Path) throws -> [AbsolutePath] {
             let resolvedPath = try generatorPaths.resolve(path: path)
             let projects = FileHandler.shared.glob(AbsolutePath.root, glob: String(resolvedPath.pathString.dropFirst()))

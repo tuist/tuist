@@ -6,18 +6,23 @@ import TuistSupport
 // MARK: - Dependencies Graph Controller Errors
 
 enum DependenciesGraphControllerError: FatalError, Equatable {
-    case failedToEncodeDependeniesGraph
+    case failedToDecodeDependenciesGraph
+    case failedToEncodeDependenciesGraph
 
     var type: ErrorType {
         switch self {
-        case .failedToEncodeDependeniesGraph:
+        case .failedToDecodeDependenciesGraph:
+            return .abort
+        case .failedToEncodeDependenciesGraph:
             return .bug
         }
     }
 
     var description: String {
         switch self {
-        case .failedToEncodeDependeniesGraph:
+        case .failedToDecodeDependenciesGraph:
+            return "Couldn't decode the DependenciesGraph from the serialized JSON file. Running `tuist dependencies fetch` should solve the problem."
+        case .failedToEncodeDependenciesGraph:
             return "Couldn't encode the DependenciesGraph as a JSON file."
         }
     }
@@ -31,11 +36,11 @@ public protocol DependenciesGraphControlling {
     /// - Parameters:
     ///   - dependenciesGraph: A model that will be saved.
     ///   - path: Directory where project's dependencies graph will be saved.
-    func save(_ dependenciesGraph: DependenciesGraph, to path: AbsolutePath) throws
+    func save(_ dependenciesGraph: TuistGraph.DependenciesGraph, to path: AbsolutePath) throws
 
     /// Loads the `DependenciesGraph` from `graph.json` file.
     /// - Parameter path: Directory where project's dependencies graph will be loaded.
-    func load(at path: AbsolutePath) throws -> DependenciesGraph
+    func load(at path: AbsolutePath) throws -> TuistGraph.DependenciesGraph
 
     /// Removes cached `graph.json`.
     /// - Parameter path: Directory where project's dependencies graph was saved.
@@ -47,14 +52,14 @@ public protocol DependenciesGraphControlling {
 public final class DependenciesGraphController: DependenciesGraphControlling {
     public init() {}
 
-    public func save(_ dependenciesGraph: DependenciesGraph, to path: AbsolutePath) throws {
+    public func save(_ dependenciesGraph: TuistGraph.DependenciesGraph, to path: AbsolutePath) throws {
         let jsonEncoder = JSONEncoder()
         jsonEncoder.outputFormatting = .prettyPrinted
 
         let encodedGraph = try jsonEncoder.encode(dependenciesGraph)
 
         guard let encodedGraphContent = String(data: encodedGraph, encoding: .utf8) else {
-            throw DependenciesGraphControllerError.failedToEncodeDependeniesGraph
+            throw DependenciesGraphControllerError.failedToEncodeDependenciesGraph
         }
 
         let graphPath = self.graphPath(at: path)
@@ -63,14 +68,19 @@ public final class DependenciesGraphController: DependenciesGraphControlling {
         try FileHandler.shared.write(encodedGraphContent, path: graphPath, atomically: true)
     }
 
-    public func load(at path: AbsolutePath) throws -> DependenciesGraph {
+    public func load(at path: AbsolutePath) throws -> TuistGraph.DependenciesGraph {
         let graphPath = self.graphPath(at: path)
+        guard FileHandler.shared.exists(graphPath) else {
+            return .none
+        }
         let graphData = try FileHandler.shared.readFile(graphPath)
 
-        let jsonDecoder = JSONDecoder()
-        let decodedGraph = try jsonDecoder.decode(DependenciesGraph.self, from: graphData)
-
-        return decodedGraph
+        do {
+            return try JSONDecoder().decode(TuistGraph.DependenciesGraph.self, from: graphData)
+        } catch {
+            logger.debug("Failed to load dependencies graph, running `tuist dependencies fetch` should solve the problem.\nError: \(error)")
+            throw DependenciesGraphControllerError.failedToDecodeDependenciesGraph
+        }
     }
 
     public func clean(at path: AbsolutePath) throws {

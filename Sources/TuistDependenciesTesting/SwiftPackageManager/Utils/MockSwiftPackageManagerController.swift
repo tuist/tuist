@@ -29,4 +29,12 @@ public final class MockSwiftPackageManagerController: SwiftPackageManagerControl
         invokedSetToolsVersion = true
         try setToolsVersionStub?(path, version)
     }
+
+    var invokedLoadPackageInfo = false
+    var loadPackageInfoStub: ((AbsolutePath) throws -> PackageInfo)?
+
+    public func loadPackageInfo(at path: AbsolutePath) throws -> PackageInfo {
+        invokedLoadPackageInfo = true
+        return try loadPackageInfoStub?(path) ?? .init(products: [], targets: [], platforms: [])
+    }
 }

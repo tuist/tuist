@@ -107,7 +107,7 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
 
     func test_hash_whenDependencyIsXCFramework_callsContentHasherAsExpected() throws {
         // Given
-        let dependency = TargetDependency.xcFramework(path: filePath1)
+        let dependency = TargetDependency.xcframework(path: filePath1)
         mockContentHasher.stubHashForPath[filePath1] = "file-hashed"
 
         // When

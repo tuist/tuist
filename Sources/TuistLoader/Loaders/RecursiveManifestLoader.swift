@@ -1,6 +1,7 @@
 import Foundation
 import ProjectDescription
 import TSCBasic
+import TuistGraph
 import TuistSupport
 
 /// A component that can load a manifest and all its (transitive) manifest dependencies
@@ -10,18 +11,19 @@ public protocol RecursiveManifestLoading {
 }
 
 public struct LoadedProjects {
-    public var projects: [AbsolutePath: Project]
+    public var projects: [AbsolutePath: ProjectDescription.Project]
 }
 
 public struct LoadedWorkspace {
     public var path: AbsolutePath
-    public var workspace: Workspace
-    public var projects: [AbsolutePath: Project]
+    public var workspace: ProjectDescription.Workspace
+    public var projects: [AbsolutePath: ProjectDescription.Project]
 }
 
 public class RecursiveManifestLoader: RecursiveManifestLoading {
     private let manifestLoader: ManifestLoading
     private let fileHandler: FileHandling
+
     public init(manifestLoader: ManifestLoading = ManifestLoader(),
                 fileHandler: FileHandling = FileHandler.shared)
     {
@@ -58,7 +60,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
     // MARK: - Private
 
     private func loadProjects(paths: [AbsolutePath]) throws -> LoadedProjects {
-        var cache = [AbsolutePath: Project]()
+        var cache = [AbsolutePath: ProjectDescription.Project]()
 
         var paths = Set(paths)
         while !paths.isEmpty {
@@ -76,7 +78,7 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         return LoadedProjects(projects: cache)
     }
 
-    private func dependencyPaths(for project: Project, path: AbsolutePath) throws -> [AbsolutePath] {
+    private func dependencyPaths(for project: ProjectDescription.Project, path: AbsolutePath) throws -> [AbsolutePath] {
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         let paths: [AbsolutePath] = try project.targets.flatMap {
             try $0.dependencies.compactMap {

@@ -1,6 +1,8 @@
 import Foundation
+import ProjectDescription
 import TSCBasic
 import TuistCore
+import TuistDependencies
 import TuistGenerator
 import TuistGraph
 import TuistLoader
@@ -11,7 +13,7 @@ import TuistSupport
 protocol Generating {
     @discardableResult
     func load(path: AbsolutePath) throws -> Graph
-    func loadProject(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]) // swiftlint:disable:this large_tuple
+    func loadProject(path: AbsolutePath) throws -> (TuistGraph.Project, Graph, [SideEffectDescriptor]) // swiftlint:disable:this large_tuple
     func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath
     func generateWithGraph(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, Graph)
     func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph)
@@ -25,8 +27,8 @@ class Generator: Generating {
     private let environmentLinter: EnvironmentLinting = EnvironmentLinter()
     private let generator: DescriptorGenerating = DescriptorGenerator()
     private let writer: XcodeProjWriting = XcodeProjWriter()
-    private let cocoapodsInteractor: CocoaPodsInteracting = CocoaPodsInteractor()
-    private let swiftPackageManagerInteractor: SwiftPackageManagerInteracting = SwiftPackageManagerInteractor()
+    private let cocoapodsInteractor: TuistGenerator.CocoaPodsInteracting = TuistGenerator.CocoaPodsInteractor()
+    private let swiftPackageManagerInteractor: TuistGenerator.SwiftPackageManagerInteracting = TuistGenerator.SwiftPackageManagerInteractor()
     private let signingInteractor: SigningInteracting = SigningInteractor()
     private let sideEffectDescriptorExecutor: SideEffectDescriptorExecuting
     private let graphMapperProvider: GraphMapperProviding
@@ -35,6 +37,7 @@ class Generator: Generating {
     private let manifestLoader: ManifestLoading
     private let pluginsService: PluginServicing
     private let configLoader: ConfigLoading
+    private let dependenciesGraphController: DependenciesGraphControlling
 
     convenience init(contentHasher: ContentHashing) {
         self.init(
@@ -49,7 +52,8 @@ class Generator: Generating {
         projectMapperProvider: ProjectMapperProviding,
         graphMapperProvider: GraphMapperProviding,
         workspaceMapperProvider: WorkspaceMapperProviding,
-        manifestLoaderFactory: ManifestLoaderFactory
+        manifestLoaderFactory: ManifestLoaderFactory,
+        dependenciesGraphController: DependenciesGraphControlling = DependenciesGraphController()
     ) {
         let manifestLoader = manifestLoaderFactory.createManifestLoader()
         recursiveManifestLoader = RecursiveManifestLoader(manifestLoader: manifestLoader)
@@ -67,6 +71,7 @@ class Generator: Generating {
             rootDirectoryLocator: RootDirectoryLocator(),
             fileHandler: FileHandler.shared
         )
+        self.dependenciesGraphController = dependenciesGraphController
     }
 
     func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath {
@@ -101,7 +106,7 @@ class Generator: Generating {
     }
 
     // swiftlint:disable:next large_tuple
-    func loadProject(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]) {
+    func loadProject(path: AbsolutePath) throws -> (TuistGraph.Project, Graph, [SideEffectDescriptor]) {
         // Load config
         let config = try configLoader.loadConfig(path: path)
 
@@ -109,16 +114,20 @@ class Generator: Generating {
         let plugins = try pluginsService.loadPlugins(using: config)
         manifestLoader.register(plugins: plugins)
 
+        // Load DependenciesGraph
+        let dependenciesGraph = try dependenciesGraphController.load(at: path)
+
         // Load all manifests
-        let manifests = try recursiveManifestLoader.loadProject(at: path)
+        let projects = try recursiveManifestLoader.loadProject(at: path).projects
 
         // Lint Manifests
-        try manifests.projects.flatMap {
+        try projects.flatMap {
             manifestLinter.lint(project: $0.value)
         }.printAndThrowIfNeeded()
 
         // Convert to models
-        let models = try convert(manifests: manifests, plugins: plugins)
+        let models = try convert(projects: projects, plugins: plugins, externalDependencies: dependenciesGraph.externalDependencies) +
+            dependenciesGraph.externalProjects.values
 
         // Apply any registered model mappers
         let projectMapper = projectMapperProvider.mapper(config: config)
@@ -226,13 +235,16 @@ class Generator: Generating {
     }
 
     // swiftlint:disable:next large_tuple
-    private func loadProjectWorkspace(path: AbsolutePath) throws -> (Project, Graph, [SideEffectDescriptor]) {
+    private func loadProjectWorkspace(path: AbsolutePath) throws -> (TuistGraph.Project, Graph, [SideEffectDescriptor]) {
         // Load config
         let config = try configLoader.loadConfig(path: path)
 
         // Load Plugins
         let plugins = try pluginsService.loadPlugins(using: config)
         manifestLoader.register(plugins: plugins)
+
+        // Load DependenciesGraph
+        let dependenciesGraph = try dependenciesGraphController.load(at: path)
 
         // Load all manifests
         let manifests = try recursiveManifestLoader.loadProject(at: path)
@@ -243,7 +255,8 @@ class Generator: Generating {
         }.printAndThrowIfNeeded()
 
         // Convert to models
-        let projects = try convert(manifests: manifests, plugins: plugins)
+        let projects = try convert(projects: manifests.projects, plugins: plugins, externalDependencies: dependenciesGraph.externalDependencies) +
+            dependenciesGraph.externalProjects.values
 
         let workspaceName = manifests.projects[path]?.name ?? "Workspace"
         let workspace = Workspace(
@@ -292,6 +305,9 @@ class Generator: Generating {
         let plugins = try pluginsService.loadPlugins(using: config)
         manifestLoader.register(plugins: plugins)
 
+        // Load DependenciesGraph
+        let dependenciesGraph = try dependenciesGraphController.load(at: path)
+
         // Load all manifests
         let manifests = try recursiveManifestLoader.loadWorkspace(at: path)
 
@@ -301,7 +317,11 @@ class Generator: Generating {
         }.printAndThrowIfNeeded()
 
         // Convert to models
-        let models = try convert(manifests: manifests, plugins: plugins)
+        let models = (
+            workspace: try converter.convert(manifest: manifests.workspace, path: manifests.path),
+            projects: try convert(projects: manifests.projects, plugins: plugins, externalDependencies: dependenciesGraph.externalDependencies) +
+                dependenciesGraph.externalProjects.values
+        )
 
         // Apply model mappers
         let workspaceMapper = workspaceMapperProvider.mapper(config: config)
@@ -325,26 +345,14 @@ class Generator: Generating {
     }
 
     private func convert(
-        manifests: LoadedProjects,
+        projects: [AbsolutePath: ProjectDescription.Project],
         plugins: Plugins,
+        externalDependencies: [String: [TuistGraph.TargetDependency]],
         context: ExecutionContext = .concurrent
     ) throws -> [TuistGraph.Project] {
-        let tuples = manifests.projects.map { (path: $0.key, manifest: $0.value) }
+        let tuples = projects.map { (path: $0.key, manifest: $0.value) }
         return try tuples.map(context: context) {
-            try converter.convert(manifest: $0.manifest, path: $0.path, plugins: plugins)
+            try converter.convert(manifest: $0.manifest, path: $0.path, plugins: plugins, externalDependencies: externalDependencies)
         }
-    }
-
-    private func convert(
-        manifests: LoadedWorkspace,
-        plugins: Plugins,
-        context: ExecutionContext = .concurrent
-    ) throws -> (workspace: Workspace, projects: [TuistGraph.Project]) {
-        let workspace = try converter.convert(manifest: manifests.workspace, path: manifests.path)
-        let tuples = manifests.projects.map { (path: $0.key, manifest: $0.value) }
-        let projects = try tuples.map(context: context) {
-            try converter.convert(manifest: $0.manifest, path: $0.path, plugins: plugins)
-        }
-        return (workspace, projects)
     }
 }

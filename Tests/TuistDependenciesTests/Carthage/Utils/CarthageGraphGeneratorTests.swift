@@ -1,7 +1,7 @@
+import ProjectDescription
 import TSCBasic
 import TSCUtility
 import TuistCore
-import TuistGraph
 import TuistSupport
 import XCTest
 
@@ -41,26 +41,15 @@ final class CarthageGraphGeneratorTests: TuistUnitTestCase {
 
         // Then
         let expected = DependenciesGraph(
-            thirdPartyDependencies: [
-                "RxSwift": .xcframework(
-                    path: "/Tuist/Dependencies/Carthage/RxSwift.xcframework"
-                ),
-                "RxCocoa": .xcframework(
-                    path: "/Tuist/Dependencies/Carthage/RxCocoa.xcframework"
-                ),
-                "RxRelay": .xcframework(
-                    path: "/Tuist/Dependencies/Carthage/RxRelay.xcframework"
-                ),
-                "RxTest": .xcframework(
-                    path: "/Tuist/Dependencies/Carthage/RxTest.xcframework"
-                ),
-                "RxBlocking": .xcframework(
-                    path: "/Tuist/Dependencies/Carthage/RxBlocking.xcframework"
-                ),
-                "Alamofire": .xcframework(
-                    path: "/Tuist/Dependencies/Carthage/Alamofire.xcframework"
-                ),
-            ]
+            externalDependencies: [
+                "RxSwift": [.xcframework(path: "/Tuist/Dependencies/Carthage/RxSwift.xcframework")],
+                "RxCocoa": [.xcframework(path: "/Tuist/Dependencies/Carthage/RxCocoa.xcframework")],
+                "RxRelay": [.xcframework(path: "/Tuist/Dependencies/Carthage/RxRelay.xcframework")],
+                "RxTest": [.xcframework(path: "/Tuist/Dependencies/Carthage/RxTest.xcframework")],
+                "RxBlocking": [.xcframework(path: "/Tuist/Dependencies/Carthage/RxBlocking.xcframework")],
+                "Alamofire": [.xcframework(path: "/Tuist/Dependencies/Carthage/Alamofire.xcframework")],
+            ],
+            externalProjects: [:]
         )
 
         XCTAssertEqual(got, expected)

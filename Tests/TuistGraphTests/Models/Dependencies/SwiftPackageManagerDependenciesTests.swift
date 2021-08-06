@@ -9,7 +9,9 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
         let subject = SwiftPackageManagerDependencies(
             [
                 .remote(url: "url/url/url", requirement: .branch("branch")),
-            ]
+            ],
+            productTypes: [:],
+            deploymentTargets: []
         )
 
         // When
@@ -40,7 +42,9 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
                 .remote(url: "https://www.google.com/", requirement: .revision("a083aa1435eb35d8a1cb369115a7636cb4b65135")),
                 .remote(url: "url/url/url", requirement: .range(from: "1.2.3", to: "5.2.1")),
                 .local(path: "/path/path/path"),
-            ]
+            ],
+            productTypes: [:],
+            deploymentTargets: []
         )
 
         // When
