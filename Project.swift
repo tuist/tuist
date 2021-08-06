@@ -68,29 +68,28 @@ func targets() -> [Target] {
     + [
         Target.module(
             name: "TuistSupport",
-            product: .framework,
             hasIntegrationTests: true,
             dependencies: [
-                .package(product: "CombineExt"),
-                .package(product: "SwiftToolsSupport-auto"),
-                .package(product: "RxSwift"),
-                .package(product: "RxRelay"),
-                .package(product: "RxBlocking"),
-                .package(product: "Logging"),
-                .package(product: "KeychainAccess"),
-                .package(product: "Swifter"),
-                .package(product: "Signals"),
-                .package(product: "Zip"),
-                .package(product: "Checksum"),
-                .package(product: "StencilSwiftKit"),
-                .package(product: "SwiftGenKit"),
-                .package(product: "Stencil"),
-                .package(product: "XcodeProj"),
-                .package(product: "Queuer"),
-                .package(product: "CryptoSwift"),
-                .package(product: "GraphViz"),
-                .package(product: "ArgumentParser"),
-                .package(product: "PathKit"),
+                .external(name: "ArgumentParser"),
+                .external(name: "Checksum"),
+                .external(name: "CombineExt"),
+                .external(name: "CryptoSwift"),
+                .external(name: "GraphViz"),
+                .external(name: "KeychainAccess"),
+                .external(name: "Logging"),
+                .external(name: "PathKit"),
+                .external(name: "Queuer"),
+                .external(name: "RxBlocking"),
+                .external(name: "RxRelay"),
+                .external(name: "RxSwift"),
+                .external(name: "Signals"),
+                .external(name: "Stencil"),
+                .external(name: "StencilSwiftKit"),
+                .external(name: "SwiftGenKit"),
+                .external(name: "Swifter"),
+                .external(name: "SwiftToolsSupport-auto"),
+                .external(name: "XcodeProj"),
+                .external(name: "Zip"),
             ]
         ),
         Target.module(
@@ -534,12 +533,8 @@ func targets() -> [Target] {
 let project = Project(
     name: "Tuist",
     options: [
-        .textSettings(
-            indentWidth: 4,
-            tabWidth: 4
-        )
+        .textSettings(indentWidth: 4, tabWidth: 4)
     ],
-    packages: packages,
     settings: Settings(configurations: [
         .debug(name: "Debug", settings: debugSettings(), xcconfig: nil),
         .release(name: "Release", settings: releaseSettings(), xcconfig: nil),

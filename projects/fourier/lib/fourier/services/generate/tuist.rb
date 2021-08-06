@@ -10,9 +10,12 @@ module Fourier
         end
 
         def call
-          arguments = ["generate"]
-          arguments << "--open" if open
-          Utilities::System.tuist(*arguments)
+          dependencies = ["dependencies", "fetch"]
+          Utilities::System.tuist(*dependencies)
+
+          generate = ["generate"]
+          generate << "--open" if open
+          Utilities::System.tuist(*generate)
         end
       end
     end
