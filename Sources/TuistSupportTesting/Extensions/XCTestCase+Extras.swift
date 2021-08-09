@@ -1,7 +1,7 @@
 import Foundation
 import TSCBasic
-import XCTest
 import TuistSupport
+import XCTest
 
 public extension XCTestCase {
     // MARK: - Fixtures
@@ -188,15 +188,15 @@ public extension XCTestCase {
         }
         return element
     }
-    
+
     // MARK: - HTTPResource
-    
-    func XCTAssertHTTPMethod<T, E: Error>(_ resource: HTTPResource<T, E>, _ method: String, file: StaticString = #file, line: UInt = #line) {
+
+    func XCTAssertHTTPMethod<T, E: Error>(_ resource: HTTPResource<T, E>, _ method: String, file _: StaticString = #file, line _: UInt = #line) {
         let request = resource.request()
         XCTAssertEqual(request.httpMethod!, method, "Expected the HTTP request method \(method) but got \(request.httpMethod!)")
     }
-    
-    func XCTAssertURLPath<T, E: Error>(_ resource: HTTPResource<T, E>, path: String, file: StaticString = #file, line: UInt = #line) {
+
+    func XCTAssertURLPath<T, E: Error>(_ resource: HTTPResource<T, E>, path: String, file _: StaticString = #file, line _: UInt = #line) {
         let request = resource.request()
         let url = request.url!
         let components = URLComponents(string: url.absoluteString)!

@@ -25,6 +25,19 @@ public struct GitHubRelease: Decodable {
         case assets
     }
 
+    public init(name: String,
+                tagName: Version?,
+                draft: Bool,
+                prerelease: Bool,
+                assets: [GitHubReleaseAsset])
+    {
+        self.name = name
+        self.tagName = tagName
+        self.draft = draft
+        self.prerelease = prerelease
+        self.assets = assets
+    }
+
     /// Returns a resource to get the latest release of the given repository.
     /// - Parameter repositoryFullName: Repository full name (e.g. tuist/tuist)
     /// - Returns: Resource to get the latest release.

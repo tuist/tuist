@@ -29,6 +29,16 @@ public struct HTTPResource<T, E: Error>: Equatable, Hashable, CustomStringConver
         )
     }
 
+    public func eraseToAnyResource() -> HTTPResource<Any, Error> {
+        HTTPResource<Any, Error> {
+            self.request()
+        } parse: { data, response in
+            try self.parse(data, response) as Any
+        } parseError: { data, response in
+            try self.parseError(data, response)
+        }
+    }
+
     // MARK: - Hashable
 
     public func hash(into hasher: inout Hasher) {
