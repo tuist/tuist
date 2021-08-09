@@ -37,6 +37,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Build file of dependencies having the wrong platform filter in iOS targets with Catalyst enabled [#3152](https://github.com/tuist/tuist/pull/3152) by [@pepibumur](https://github.com/pepibumur) and [@sampettersson](https://github.com/sampettersson).
 
+### Changed
+
+- The installation of Tuist versions pulls the binaries from the GitHub releases [#3255](https://github.com/tuist/tuist/pull/3255) by [@pepibumur](https://github.com/pepibumur).
+
 ## 1.47.0 - Mirror
 
 ### Added
