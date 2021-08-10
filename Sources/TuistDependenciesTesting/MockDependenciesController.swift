@@ -1,5 +1,6 @@
 import ProjectDescription
 import TSCBasic
+import TSCUtility
 import TuistCore
 import TuistGraph
 
@@ -9,24 +10,24 @@ public final class MockDependenciesController: DependenciesControlling {
     public init() {}
 
     var invokedFetch = false
-    var fetchStub: ((AbsolutePath, TuistGraph.Dependencies, String?) throws -> TuistCore.DependenciesGraph)?
+    var fetchStub: ((AbsolutePath, TuistGraph.Dependencies, TSCUtility.Version?) throws -> TuistCore.DependenciesGraph)?
 
     public func fetch(
         at path: AbsolutePath,
         dependencies: TuistGraph.Dependencies,
-        swiftVersion: String?
+        swiftVersion: TSCUtility.Version?
     ) throws -> TuistCore.DependenciesGraph {
         invokedFetch = true
         return try fetchStub?(path, dependencies, swiftVersion) ?? .none
     }
 
     var invokedUpdate = false
-    var updateStub: ((AbsolutePath, TuistGraph.Dependencies, String?) throws -> TuistCore.DependenciesGraph)?
+    var updateStub: ((AbsolutePath, TuistGraph.Dependencies, TSCUtility.Version?) throws -> TuistCore.DependenciesGraph)?
 
     public func update(
         at path: AbsolutePath,
         dependencies: TuistGraph.Dependencies,
-        swiftVersion: String?
+        swiftVersion: TSCUtility.Version?
     ) throws -> TuistCore.DependenciesGraph {
         invokedUpdate = true
         return try updateStub?(path, dependencies, swiftVersion) ?? .none

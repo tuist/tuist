@@ -42,11 +42,13 @@ public protocol SwiftPackageManagerGraphGenerating {
     /// - Parameter productTypes: The custom `Product` types to be used for SPM targets.
     /// - Parameter platforms: The supported platforms.
     /// - Parameter deploymentTargets: The configured deployment targets.
+    /// - Parameter swiftToolsVersion: The version of Swift tools that will be used to generate dependencies.
     func generate(
         at path: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
         platforms: Set<TuistGraph.Platform>,
-        deploymentTargets: Set<TuistGraph.DeploymentTarget>
+        deploymentTargets: Set<TuistGraph.DeploymentTarget>,
+        swiftToolsVersion: TSCUtility.Version?
     ) throws -> TuistCore.DependenciesGraph
 }
 
@@ -67,7 +69,8 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         at path: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
         platforms: Set<TuistGraph.Platform>,
-        deploymentTargets: Set<TuistGraph.DeploymentTarget>
+        deploymentTargets: Set<TuistGraph.DeploymentTarget>,
+        swiftToolsVersion: TSCUtility.Version?
     ) throws -> TuistCore.DependenciesGraph {
         let artifactsFolder = path.appending(component: "artifacts")
         let checkoutsFolder = path.appending(component: "checkouts")
@@ -135,7 +138,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 targetToProducts: targetToProducts,
                 targetToResolvedDependencies: targetToResolvedDependencies,
                 packageToProject: packageToProject,
-                productToPackage: productToPackage
+                swiftToolsVersion: swiftToolsVersion
             )
             result[Path(packageInfo.folder.pathString)] = manifest
         }

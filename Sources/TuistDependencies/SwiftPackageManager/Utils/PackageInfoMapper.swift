@@ -1,5 +1,6 @@
 import ProjectDescription
 import TSCBasic
+import TSCUtility
 import TuistGraph
 import TuistSupport
 
@@ -77,7 +78,7 @@ public protocol PackageInfoMapping {
     ///   - platforms: Configured platforms
     ///   - deploymentTargets: Configured deployment targets
     ///   - packageToProject: Mapping from a package name to its path
-    ///   - productToPackage: Mapping from a product to its package
+    ///   - swiftToolsVersion: The version of Swift tools that will be used to map dependencies
     /// - Returns: Mapped project
     func map(
         packageInfo: PackageInfo,
@@ -90,7 +91,7 @@ public protocol PackageInfoMapping {
         targetToProducts: [String: Set<PackageInfo.Product>],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         packageToProject: [String: AbsolutePath],
-        productToPackage: [String: String]
+        swiftToolsVersion: TSCUtility.Version?
     ) throws -> ProjectDescription.Project
 }
 
@@ -169,7 +170,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         targetToProducts: [String: Set<PackageInfo.Product>],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         packageToProject: [String: AbsolutePath],
-        productToPackage: [String: String]
+        swiftToolsVersion: TSCUtility.Version?
     ) throws -> ProjectDescription.Project {
         let targets = try packageInfo.targets.compactMap { target -> ProjectDescription.Target? in
             guard let products = targetToProducts[target.name] else { return nil }
@@ -185,13 +186,13 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 platforms: platforms,
                 deploymentTargets: deploymentTargets,
                 targetToResolvedDependencies: targetToResolvedDependencies,
-                productToPackage: productToPackage,
                 moduleMapGenerator: moduleMapGenerator
             )
         }
 
         return ProjectDescription.Project(
             name: name,
+            settings: packageInfo.projectSettings(swiftToolsVersion: swiftToolsVersion),
             targets: targets,
             resourceSynthesizers: []
         )
@@ -212,7 +213,6 @@ extension ProjectDescription.Target {
         platforms: Set<TuistGraph.Platform>,
         deploymentTargets: Set<TuistGraph.DeploymentTarget>,
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
-        productToPackage _: [String: String],
         moduleMapGenerator: SwiftPackageManagerModuleMapGenerating
     ) throws -> Self? {
         guard target.type == .regular else {
@@ -254,7 +254,6 @@ extension ProjectDescription.Target {
             packageName: packageName,
             packageInfos: packageInfos,
             packageToProject: packageToProject,
-            path: path,
             targetToResolvedDependencies: targetToResolvedDependencies,
             settings: target.settings,
             platform: platform,
@@ -487,7 +486,6 @@ extension ProjectDescription.Settings {
         packageName: String,
         packageInfos: [String: PackageInfo],
         packageToProject: [String: AbsolutePath],
-        path _: AbsolutePath,
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         platform: ProjectDescription.Platform,
@@ -566,9 +564,11 @@ extension ProjectDescription.Settings {
             // Disable warnings in generated projects
             "GCC_WARN_INHIBIT_ALL_WARNINGS": "YES",
         ]
+
         if let moduleMapPath = moduleMap.path {
             settingsDictionary["MODULEMAP_FILE"] = .string(moduleMapPath.pathString)
         }
+
         if !headerSearchPaths.isEmpty {
             settingsDictionary["HEADER_SEARCH_PATHS"] = .array(["$(inherited)"] + headerSearchPaths.map { $0 })
         }
@@ -577,15 +577,19 @@ extension ProjectDescription.Settings {
             let sortedDefines = defines.sorted { $0.key < $1.key }
             settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array(["$(inherited)"] + sortedDefines.map { key, value in "\(key)=\(value)" })
         }
+
         if !swiftDefines.isEmpty {
             settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .array(["$(inherited)"] + swiftDefines)
         }
+
         if !cFlags.isEmpty {
             settingsDictionary["OTHER_CFLAGS"] = .array(["$(inherited)"] + cFlags)
         }
+
         if !cxxFlags.isEmpty {
             settingsDictionary["OTHER_CPLUSPLUSFLAGS"] = .array(["$(inherited)"] + cxxFlags)
         }
+
         if !swiftFlags.isEmpty {
             settingsDictionary["OTHER_SWIFT_FLAGS"] = .array(["$(inherited)"] + swiftFlags)
         }
@@ -734,6 +738,43 @@ extension ProjectDescription.DeploymentTarget {
 extension ProjectDescription.DeploymentDevice {
     fileprivate static func from(devices: TuistGraph.DeploymentDevice) -> Self {
         return .init(rawValue: devices.rawValue)
+    }
+}
+
+extension PackageInfo {
+    fileprivate func projectSettings(
+        swiftToolsVersion: TSCUtility.Version?
+    ) -> ProjectDescription.Settings? {
+        var settingsDictionary: ProjectDescription.SettingsDictionary = [:]
+
+        if let cLanguageStandard = self.cLanguageStandard {
+            settingsDictionary["GCC_C_LANGUAGE_STANDARD"] = .string(cLanguageStandard)
+        }
+
+        if let cxxLanguageStandard = self.cxxLanguageStandard {
+            settingsDictionary["CLANG_CXX_LANGUAGE_STANDARD"] = .string(cxxLanguageStandard)
+        }
+
+        if let swiftLanguageVersion = swiftVersion(for: swiftToolsVersion) {
+            settingsDictionary["SWIFT_VERSION"] = .string(swiftLanguageVersion)
+        }
+
+        return settingsDictionary.isEmpty ? nil : .init(base: settingsDictionary)
+    }
+
+    fileprivate func swiftVersion(for configuredSwiftVersion: TSCUtility.Version?) -> String? {
+        /// Take the latest swift version compatible with the configured one
+        let maxAllowedSwiftLanguageVersion = swiftLanguageVersions?
+            .filter {
+                guard let configuredSwiftVersion = configuredSwiftVersion else {
+                    return true
+                }
+                return $0 <= configuredSwiftVersion
+            }
+            .sorted()
+            .last
+
+        return maxAllowedSwiftLanguageVersion?.description
     }
 }
 

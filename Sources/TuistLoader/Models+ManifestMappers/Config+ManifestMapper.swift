@@ -1,6 +1,7 @@
 import Foundation
 import ProjectDescription
 import TSCBasic
+import TSCUtility
 import TuistCore
 import TuistGraph
 import TuistSupport
@@ -15,7 +16,12 @@ extension TuistGraph.Config {
         let compatibleXcodeVersions = TuistGraph.CompatibleXcodeVersions.from(manifest: manifest.compatibleXcodeVersions)
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         let plugins = try manifest.plugins.map { try PluginLocation.from(manifest: $0, generatorPaths: generatorPaths) }
-        let swiftVersion = manifest.swiftVersion?.description
+        let swiftVersion: TSCUtility.Version?
+        if let configuredVersion = manifest.swiftVersion {
+            swiftVersion = TSCUtility.Version(configuredVersion.major, configuredVersion.minor, configuredVersion.patch)
+        } else {
+            swiftVersion = nil
+        }
 
         var cloud: TuistGraph.Cloud?
         if let manifestCloud = manifest.cloud {

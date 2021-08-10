@@ -1,9 +1,13 @@
+import ProjectDescription
+import TSCUtility
+import TuistSupport
+
 // MARK: - PackageInfo
 
 /// The Swift Package Manager package information.
 /// It decodes data encoded from Manifest.swift: https://github.com/apple/swift-package-manager/blob/06f9b30f4593940272f57f6284e5614d817d2f22/Sources/PackageModel/Manifest.swift#L372-L409
 /// Fields not needed by tuist are commented out and not decoded at all.
-public struct PackageInfo: Decodable, Hashable {
+public struct PackageInfo: Hashable {
     /// The products declared in the manifest.
     let products: [Product]
 
@@ -12,6 +16,15 @@ public struct PackageInfo: Decodable, Hashable {
 
     /// The declared platforms in the manifest.
     let platforms: [Platform]
+
+    /// The supported C language standard to use for compiling C sources in the package.
+    let cLanguageStandard: String?
+
+    /// The supported C++ language standard to use for compiling C++ sources in the package.
+    let cxxLanguageStandard: String?
+
+    /// The supported swift language standard to use for compiling Swift sources in the package.
+    let swiftLanguageVersions: [TSCUtility.Version]?
 
     // Ignored fields
 
@@ -27,25 +40,26 @@ public struct PackageInfo: Decodable, Hashable {
     // /// The system package providers of a system package.
     // let providers: [SystemPackageProviderDescription]?
 
-    // /// The C language standard flag.
-    // let cLanguageStandard: String?
-
-    // /// The C++ language standard flag.
-    // let cxxLanguageStandard: String?
-
-    // /// The supported Swift language versions of the package.
-    // let swiftLanguageVersions: [SwiftLanguageVersion]?
-
     // /// The declared package dependencies.
     // let dependencies: [PackageDependencyDescription]
 
     // /// Whether kind of package this manifest is from.
     // let packageKind: PackageReference.Kind
 
-    init(products: [Product], targets: [Target], platforms: [Platform]) {
+    init(
+        products: [Product],
+        targets: [Target],
+        platforms: [Platform],
+        cLanguageStandard: String?,
+        cxxLanguageStandard: String?,
+        swiftLanguageVersions: [TSCUtility.Version]?
+    ) {
         self.products = products
         self.targets = targets
         self.platforms = platforms
+        self.cLanguageStandard = cLanguageStandard
+        self.cxxLanguageStandard = cxxLanguageStandard
+        self.swiftLanguageVersions = swiftLanguageVersions
     }
 }
 
@@ -256,6 +270,24 @@ extension PackageInfo.Target {
 }
 
 // MARK: Decodable conformances
+
+extension PackageInfo: Decodable {
+    private enum CodingKeys: String, CodingKey {
+        case products, targets, platforms, cLanguageStandard, cxxLanguageStandard, swiftLanguageVersions
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        self.products = try values.decode([Product].self, forKey: .products)
+        self.targets = try values.decode([Target].self, forKey: .targets)
+        self.platforms = try values.decode([Platform].self, forKey: .platforms)
+        self.cLanguageStandard = try values.decodeIfPresent(String.self, forKey: .cLanguageStandard)
+        self.cxxLanguageStandard = try values.decodeIfPresent(String.self, forKey: .cxxLanguageStandard)
+        self.swiftLanguageVersions = try values
+            .decodeIfPresent([String].self, forKey: .swiftLanguageVersions)?
+            .compactMap { TSCUtility.Version(unformattedString: $0) }
+    }
+}
 
 extension PackageInfo.Target.Dependency: Decodable {
     private enum CodingKeys: String, CodingKey {
