@@ -278,12 +278,12 @@ extension PackageInfo: Decodable {
 
     public init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
-        self.products = try values.decode([Product].self, forKey: .products)
-        self.targets = try values.decode([Target].self, forKey: .targets)
-        self.platforms = try values.decode([Platform].self, forKey: .platforms)
-        self.cLanguageStandard = try values.decodeIfPresent(String.self, forKey: .cLanguageStandard)
-        self.cxxLanguageStandard = try values.decodeIfPresent(String.self, forKey: .cxxLanguageStandard)
-        self.swiftLanguageVersions = try values
+        products = try values.decode([Product].self, forKey: .products)
+        targets = try values.decode([Target].self, forKey: .targets)
+        platforms = try values.decode([Platform].self, forKey: .platforms)
+        cLanguageStandard = try values.decodeIfPresent(String.self, forKey: .cLanguageStandard)
+        cxxLanguageStandard = try values.decodeIfPresent(String.self, forKey: .cxxLanguageStandard)
+        swiftLanguageVersions = try values
             .decodeIfPresent([String].self, forKey: .swiftLanguageVersions)?
             .compactMap { TSCUtility.Version(unformattedString: $0) }
     }
