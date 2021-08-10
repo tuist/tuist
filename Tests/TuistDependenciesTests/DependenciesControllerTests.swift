@@ -1,5 +1,6 @@
 import ProjectDescription
 import TSCBasic
+import TSCUtility
 import TuistCore
 import TuistGraph
 import TuistSupport
@@ -113,14 +114,14 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             swiftPackageManager: swiftPackageManagerDependencies,
             platforms: platforms
         )
-        let swiftVersion = "5.4.0"
+        let swiftVersion = TSCUtility.Version(5, 4, 0)
 
         swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3, arg4 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
             XCTAssertEqual(arg1, swiftPackageManagerDependencies)
             XCTAssertEqual(arg2, [.iOS])
             XCTAssertFalse(arg3)
-            XCTAssertEqual(arg4, swiftVersion)
+            XCTAssertEqual(arg4, TSCUtility.Version(5, 4, 0))
             return .test()
         }
 
@@ -167,7 +168,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             swiftPackageManager: swiftPackageManagerDependencies,
             platforms: platforms
         )
-        let swiftVersion = "5.4.0"
+        let swiftVersion = TSCUtility.Version(5, 4, 0)
         let carthageGraph = TuistCore.DependenciesGraph.testXCFramework(name: "Carthage")
         let spmGraph = TuistCore.DependenciesGraph.testXCFramework(name: "SPM")
 
@@ -378,7 +379,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             swiftPackageManager: swiftPackageManagerDependencies,
             platforms: platforms
         )
-        let swiftVersion = "5.4.0"
+        let swiftVersion = TSCUtility.Version(5, 4, 0)
 
         swiftPackageManagerInteractor.installStub = { arg0, arg1, arg2, arg3, arg4 in
             XCTAssertEqual(arg0, dependenciesDirectoryPath)
@@ -431,7 +432,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
             swiftPackageManager: swiftPackageManagerDependencies,
             platforms: platforms
         )
-        let swiftVersion = "5.4.0"
+        let swiftVersion = TSCUtility.Version(5, 4, 0)
         let expectedGraph = TuistCore.DependenciesGraph.testXCFramework(name: "Name")
 
         carthageInteractor.installStub = { arg0, arg1, arg2, arg3 in

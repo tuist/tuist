@@ -8,7 +8,7 @@ extension PackageInfo {
     static var testJSON: String {
         """
         {
-          "cLanguageStandard" : "something",
+          "cLanguageStandard" : "c99",
           "cxxLanguageStandard" : null,
           "dependencies" : [
             {
@@ -360,7 +360,10 @@ extension PackageInfo {
                 .init(platformName: "ios", version: "13.0", options: []),
                 .init(platformName: "macos", version: "10.15", options: []),
                 .init(platformName: "watchos", version: "6.0", options: []),
-            ]
+            ],
+            cLanguageStandard: "c99",
+            cxxLanguageStandard: nil,
+            swiftLanguageVersions: nil
         )
     }
 
@@ -399,7 +402,10 @@ extension PackageInfo {
                     checksum: nil
                 ),
             ],
-            platforms: []
+            platforms: [],
+            cLanguageStandard: nil,
+            cxxLanguageStandard: nil,
+            swiftLanguageVersions: nil
         )
     }
 
@@ -427,7 +433,10 @@ extension PackageInfo {
                 .init(platformName: "ios", version: "13.0", options: []),
                 .init(platformName: "macos", version: "10.15", options: []),
                 .init(platformName: "watchos", version: "6.0", options: []),
-            ]
+            ],
+            cLanguageStandard: nil,
+            cxxLanguageStandard: nil,
+            swiftLanguageVersions: nil
         )
     }
 }
@@ -606,7 +615,10 @@ extension PackageInfo {
                 .init(platformName: "ios", version: "10.0", options: []),
                 .init(platformName: "tvos", version: "10.0", options: []),
                 .init(platformName: "watchos", version: "3.0", options: []),
-            ]
+            ],
+            cLanguageStandard: nil,
+            cxxLanguageStandard: nil,
+            swiftLanguageVersions: ["5.0.0"]
         )
     }
 }
@@ -1035,7 +1047,10 @@ extension PackageInfo {
             ],
             platforms: [
                 .init(platformName: "ios", version: "10.0", options: []),
-            ]
+            ],
+            cLanguageStandard: "c99",
+            cxxLanguageStandard: "gnu++14",
+            swiftLanguageVersions: nil
         )
     }
 
@@ -1103,7 +1118,10 @@ extension PackageInfo {
             ],
             platforms: [
                 .init(platformName: "ios", version: "10.0", options: []),
-            ]
+            ],
+            cLanguageStandard: nil,
+            cxxLanguageStandard: nil,
+            swiftLanguageVersions: nil
         )
     }
 
@@ -1129,7 +1147,10 @@ extension PackageInfo {
             ],
             platforms: [
                 .init(platformName: "ios", version: "10.0", options: []),
-            ]
+            ],
+            cLanguageStandard: nil,
+            cxxLanguageStandard: nil,
+            swiftLanguageVersions: nil
         )
     }
 }

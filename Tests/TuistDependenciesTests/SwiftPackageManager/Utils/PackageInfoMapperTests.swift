@@ -1,5 +1,6 @@
 import ProjectDescription
 import TSCBasic
+import TSCUtility
 import TuistCore
 import TuistGraph
 import TuistSupport
@@ -35,7 +36,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     targets: [
                         .test(name: "Target1"),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ]
         )
@@ -61,7 +65,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     targets: [
                         .test(name: "Target_1"),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ]
         )
@@ -88,7 +95,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         .test(name: "Target1"),
                         .test(name: "Target2"),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ]
         )
@@ -116,7 +126,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         .test(name: "Target2", type: .test),
                         .test(name: "Target3", type: .binary),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ]
         )
@@ -146,7 +159,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         .test(name: "Target2"),
                         .test(name: "Target3"),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ]
         )
@@ -172,7 +188,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     targets: [
                         .test(name: "Target1", sources: ["Subfolder", "Another/Subfolder/file.swift"]),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ]
         )
@@ -210,7 +229,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             ]
                         ),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ]
         )
@@ -255,7 +277,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             name: "Target1"
                         ),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ]
         )
@@ -299,7 +324,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             name: "Target1"
                         ),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ]
         )
@@ -355,7 +383,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         ),
                         .test(name: "Dependency2"),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ]
         )
@@ -431,7 +462,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             dependencies: [.product(name: "Dependency1", package: "Package2", condition: nil)]
                         ),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
                 "Package2": .init(
                     products: [
@@ -443,7 +477,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             dependencies: [.product(name: "Dependency2", package: "Package3", condition: nil)]
                         ),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
                 "Package3": .init(
                     products: [
@@ -454,7 +491,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             name: "Dependency2"
                         ),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ]
         )
@@ -507,7 +547,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             publicHeadersPath: "Headers"
                         ),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ]
         )
@@ -552,7 +595,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         ),
                         .test(name: "Dependency1"),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ]
         )
@@ -593,7 +639,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     targets: [
                         .test(name: "Target1"),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ],
             platforms: [.iOS, .tvOS]
@@ -620,7 +669,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     targets: [
                         .test(name: "Target1"),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ],
             platforms: [.tvOS]
@@ -648,7 +700,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         targets: [
                             .test(name: "Target1"),
                         ],
-                        platforms: [.init(platformName: "tvos", version: "13.0", options: [])]
+                        platforms: [.init(platformName: "tvos", version: "13.0", options: [])],
+                        cLanguageStandard: nil,
+                        cxxLanguageStandard: nil,
+                        swiftLanguageVersions: nil
                     ),
                 ],
                 platforms: [.iOS]
@@ -672,7 +727,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     targets: [
                         .test(name: "Target1"),
                     ],
-                    platforms: [.init(platformName: "ios", version: "13.0", options: [])]
+                    platforms: [.init(platformName: "ios", version: "13.0", options: [])],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ],
             platforms: [.iOS]
@@ -702,7 +760,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             settings: [.init(tool: .c, name: .headerSearchPath, condition: nil, value: ["value"])]
                         ),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ]
         )
@@ -731,7 +792,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             settings: [.init(tool: .cxx, name: .headerSearchPath, condition: nil, value: ["value"])]
                         ),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ]
         )
@@ -764,7 +828,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             ]
                         ),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ]
         )
@@ -796,7 +863,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             ]
                         ),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ]
         )
@@ -827,7 +897,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             ]
                         ),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ]
         )
@@ -859,7 +932,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             ]
                         ),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ]
         )
@@ -891,7 +967,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             ]
                         ),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ]
         )
@@ -923,7 +1002,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             ]
                         ),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ]
         )
@@ -955,7 +1037,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             ]
                         ),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ]
         )
@@ -986,7 +1071,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             ]
                         ),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ]
         )
@@ -1017,7 +1105,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             ]
                         ),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ]
         )
@@ -1047,7 +1138,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         ),
                         .test(name: "Dependency1"),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ]
         )
@@ -1078,7 +1172,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         ),
                         .test(name: "Dependency1", type: .binary),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ],
             targetDependencyToFramework: [
@@ -1111,7 +1208,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         ),
                         .test(name: "Dependency1"),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ]
         )
@@ -1142,7 +1242,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         ),
                         .test(name: "Dependency1", type: .binary),
                     ],
-                    platforms: []
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
                 ),
             ],
             targetDependencyToFramework: [
@@ -1172,7 +1275,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
                 .test(name: "Dependency1"),
             ],
-            platforms: []
+            platforms: [],
+            cLanguageStandard: nil,
+            cxxLanguageStandard: nil,
+            swiftLanguageVersions: nil
         )
         let package2 = PackageInfo(
             products: [
@@ -1184,7 +1290,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 .test(name: "Target3"),
                 .test(name: "Target4"),
             ],
-            platforms: []
+            platforms: [],
+            cLanguageStandard: nil,
+            cxxLanguageStandard: nil,
+            swiftLanguageVersions: nil
         )
         let project = try subject.map(
             package: "Package",
@@ -1219,7 +1328,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
                 .test(name: "Dependency1"),
             ],
-            platforms: []
+            platforms: [],
+            cLanguageStandard: nil,
+            cxxLanguageStandard: nil,
+            swiftLanguageVersions: nil
         )
         let package2 = PackageInfo(
             products: [
@@ -1231,7 +1343,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 .test(name: "Target3"),
                 .test(name: "Target4"),
             ],
-            platforms: []
+            platforms: [],
+            cLanguageStandard: nil,
+            cxxLanguageStandard: nil,
+            swiftLanguageVersions: nil
         )
         let project = try subject.map(
             package: "Package",
@@ -1253,6 +1368,157 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             )
         )
     }
+
+    func testMap_whenCustomCVersion_mapsToGccCLanguageStandardSetting() throws {
+        let project = try subject.map(
+            package: "Package",
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: "c99",
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                settings: .init(base: ["GCC_C_LANGUAGE_STANDARD": "c99"]),
+                targets: [
+                    .test("Target1"),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenCustomCXXVersion_mapsToClangCxxLanguageStandardSetting() throws {
+        let project = try subject.map(
+            package: "Package",
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: "gnu++14",
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                settings: .init(base: ["CLANG_CXX_LANGUAGE_STANDARD": "gnu++14"]),
+                targets: [
+                    .test("Target1"),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenCustomSwiftVersion_mapsToSwiftVersionSetting() throws {
+        let project = try subject.map(
+            package: "Package",
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: ["4.0.0"]
+                ),
+            ]
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                settings: .init(base: ["SWIFT_VERSION": "4.0.0"]),
+                targets: [
+                    .test("Target1"),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenMultipleCustomSwiftVersions_mapsLargestToSwiftVersionSetting() throws {
+        let project = try subject.map(
+            package: "Package",
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: ["4.0.0", "5.0.0", "4.2.0"]
+                ),
+            ]
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                settings: .init(base: ["SWIFT_VERSION": "5.0.0"]),
+                targets: [
+                    .test("Target1"),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenMultipleCustomSwiftVersionsAndConfiguredVersion_mapsLargestToSwiftVersionLowerThanConfigured() throws {
+        let project = try subject.map(
+            package: "Package",
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: ["4.0.0", "5.0.0", "4.2.0"]
+                ),
+            ],
+            swiftToolsVersion: "4.4.0"
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                settings: .init(base: ["SWIFT_VERSION": "4.2.0"]),
+                targets: [
+                    .test("Target1"),
+                ]
+            )
+        )
+    }
 }
 
 extension PackageInfoMapping {
@@ -1261,7 +1527,8 @@ extension PackageInfoMapping {
         basePath: AbsolutePath = "/",
         packageInfos: [String: PackageInfo] = [:],
         platforms: Set<TuistGraph.Platform> = [.iOS],
-        targetDependencyToFramework: [String: Path] = [:]
+        targetDependencyToFramework: [String: Path] = [:],
+        swiftToolsVersion: TSCUtility.Version? = nil
     ) throws -> ProjectDescription.Project {
         let productToPackage: [String: String] = packageInfos.reduce(into: [:]) { result, packageInfo in
             for product in packageInfo.value.products {
@@ -1285,9 +1552,8 @@ extension PackageInfoMapping {
             targetToResolvedDependencies: targetToResolvedDependencies,
             packageToProject: Dictionary(uniqueKeysWithValues: packageInfos.keys.map {
                 ($0, basePath.appending(component: $0).appending(component: "Path"))
-            }
-            ),
-            productToPackage: productToPackage
+            }),
+            swiftToolsVersion: swiftToolsVersion
         )
     }
 }
@@ -1320,9 +1586,14 @@ extension PackageInfo.Target {
 }
 
 extension ProjectDescription.Project {
-    fileprivate static func test(name: String, targets: [ProjectDescription.Target]) -> Self {
+    fileprivate static func test(
+        name: String,
+        settings: ProjectDescription.Settings? = nil,
+        targets: [ProjectDescription.Target]
+    ) -> Self {
         return .init(
             name: name,
+            settings: settings,
             targets: targets,
             resourceSynthesizers: []
         )

@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TSCUtility
 
 /// This model allows to configure Tuist.
 public struct Config: Equatable, Hashable {
@@ -39,7 +40,7 @@ public struct Config: Equatable, Hashable {
 
     /// The version of Swift that will be used by Tuist.
     /// If `nil` is passed then Tuist will use the environment’s version.
-    public let swiftVersion: String?
+    public let swiftVersion: Version?
 
     /// The path of the config file.
     public let path: AbsolutePath?
@@ -71,7 +72,7 @@ public struct Config: Equatable, Hashable {
         compatibleXcodeVersions: CompatibleXcodeVersions,
         cloud: Cloud?,
         cache: Cache?,
-        swiftVersion: String?,
+        swiftVersion: Version?,
         plugins: [PluginLocation],
         generationOptions: [GenerationOption],
         path: AbsolutePath?
