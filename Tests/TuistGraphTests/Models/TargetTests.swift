@@ -30,7 +30,10 @@ final class TargetTests: TuistUnitTestCase {
     }
 
     func test_validSourceExtensions() {
-        XCTAssertEqual(Target.validSourceExtensions, ["m", "swift", "mm", "cpp", "c", "d", "s", "intentdefinition", "xcmappingmodel", "metal", "mlmodel"])
+        XCTAssertEqual(
+            Target.validSourceExtensions,
+            ["m", "swift", "mm", "cpp", "cc", "c", "d", "s", "intentdefinition", "xcmappingmodel", "metal", "mlmodel"]
+        )
     }
 
     func test_productName_when_staticLibrary() {
