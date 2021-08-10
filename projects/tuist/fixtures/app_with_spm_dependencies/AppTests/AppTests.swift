@@ -5,6 +5,7 @@ import XCTest
 
 @testable import App
 
+// Use Quick&Nimble to make sure they link fine
 class CrashTests: QuickSpec {
   override func spec() {
       context("when importing Nimble through SPM") {
