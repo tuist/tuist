@@ -77,7 +77,8 @@ final class Installer: Installing {
     }
 
     func install(version: String, temporaryDirectory: AbsolutePath) throws {
-        guard let release = try githubClient.dispatch(resource: GitHubRelease.release(repositoryFullName: Constants.githubSlug, version: version)).toBlocking().first?.object else { return }
+        let resource = GitHubRelease.release(repositoryFullName: Constants.githubSlug, version: version)
+        guard let release = try githubClient.dispatch(resource: resource).toBlocking().first?.object else { return }
         guard let asset = release.assets.first(where: { $0.name == Constants.bundleName }) else { return }
 
         try installFromBundle(
