@@ -22,7 +22,7 @@ Ask yourself if you'd be able to understand the code in a near future,
 without any surrounding context like the pull request description.
 
 **🌱 Small pull request:** Large pull requests are hard to review and it's easier to miss out details.
-If a pull request and unmanageable,
+If a pull request becomes too large and unmanageable,
 suggest the author to break it down.
 
 **📦 Consistency:** It's important that the changes are consistent with the rest of the project.
