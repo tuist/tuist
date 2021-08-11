@@ -18,7 +18,10 @@ let project = Project(
                 .external(name: "FacebookCore"),
                 .external(name: "FirebaseAnalytics"),
                 .external(name: "FirebaseDatabase"),
-            ]
+            ],
+            settings: .init(base: [
+                "OTHER_LDFLAGS": "-ObjC",
+            ])
         ),
         Target(
             name: "AppTests",
