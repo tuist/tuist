@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.48.1
+
 ### Fixed
 
 - Fixed text settings docs [#3288](https://github.com/tuist/tuist/pull/3288) by [@DimaMishchenko](https://github.com/DimaMishchenko)
