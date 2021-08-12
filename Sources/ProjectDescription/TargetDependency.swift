@@ -65,7 +65,6 @@ public enum TargetDependency: Codable, Equatable {
     ///
     /// - Parameters:
     ///   - path: Relative path to the xcframework
-
     case xcframework(path: Path)
 
     /// Dependency on XCTest.
@@ -83,6 +82,15 @@ public enum TargetDependency: Codable, Equatable {
     /// Note: Defaults to using a `required` dependency status
     public static func sdk(name: String) -> TargetDependency {
         .sdk(name: name, status: .required)
+    }
+
+    /// Dependency on a xcframework
+    ///
+    /// - Parameters:
+    ///   - path: Relative path to the xcframework
+    @available(*, deprecated, message: "Use `.xcframework(path:)` (all lower case) instead")
+    public static func xcFramework(path: Path) -> TargetDependency {
+        .xcframework(path: path)
     }
 
     public var typeName: String {
