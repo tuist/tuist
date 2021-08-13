@@ -482,7 +482,8 @@ extension SourceFilesList {
 
 extension ResourceFileElements {
     fileprivate static func from(resources: [PackageInfo.Target.Resource], path: AbsolutePath, excluding: [String]) -> Self? {
-        let resourcesPaths = resources.map { path.appending(RelativePath($0.path)) }
+        var resourcesPaths = resources.map { path.appending(RelativePath($0.path)) }
+        resourcesPaths.append(contentsOf: defaultResources(from: path))
         guard !resourcesPaths.isEmpty else { return nil }
         return .init(
             resources: resourcesPaths.map { absolutePath in
@@ -497,6 +498,24 @@ extension ResourceFileElements {
                 )
             }
         )
+    }
+
+    private static let defaultResourceFileExtensions = ["xib", "storyboard", "xcdatamodeld", "xcmappingmodel", "xcassets", "lproj"]
+
+    private static func defaultResources(from path: AbsolutePath) -> [AbsolutePath] {
+        let files = FileHandler.shared.filesAndDirectoriesContained(in: path) ?? []
+        var defaultFiles: [AbsolutePath] = []
+        for file in files {
+            if let fileExtension = file.extension, defaultResourceFileExtensions.contains(fileExtension) {
+                defaultFiles.append(file)
+            }
+
+            if FileHandler.shared.isFolder(file) {
+                defaultFiles.append(contentsOf: defaultResources(from: file))
+            }
+        }
+
+        return defaultFiles
     }
 }
 
