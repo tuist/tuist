@@ -18,6 +18,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         window?.rootViewController = viewController
         window?.makeKeyAndVisible()
 
+        // Use Adjust to make sure it links fine
+        Adjust.adid()
+
         // Use Alamofire to make sure it links fine
         _ = AF.download("http://www.tuist.io")
 

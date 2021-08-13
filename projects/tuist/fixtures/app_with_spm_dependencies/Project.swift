@@ -20,7 +20,7 @@ let project = Project(
                 .external(name: "FirebaseDatabase"),
             ],
             settings: .init(base: [
-                "OTHER_LDFLAGS": "-ObjC",
+                "OTHER_LDFLAGS": "-framework \"FirebaseAnalytics\"",
             ])
         ),
         Target(
