@@ -118,7 +118,11 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             let artifactsFolder = artifactsFolder.appending(component: packageInfo.name)
             packageInfo.info.targets.forEach { target in
                 guard target.type == .binary else { return }
-                result[target.name] = Path(artifactsFolder.appending(component: "\(target.name).xcframework").pathString)
+                if let path = target.path {
+                   result[target.name] = Path(packageInfo.folder.appending(RelativePath(path)).pathString)
+                } else {
+                   result[target.name] = Path(artifactsFolder.appending(component: "\(target.name).xcframework").pathString)
+                }
             }
         }
         let (targetToProducts, targetToResolvedDependencies) = try packageInfoMapper.preprocess(
