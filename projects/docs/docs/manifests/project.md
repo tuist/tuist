@@ -80,7 +80,7 @@ List of additional options:
 
 | Case       | Description                                                   |
 | ---------- | ------------------------------------------------------------- |
-| `.textSettings(TextSettings)`| [Text settings](#Text-Settings) to override user ones for current project |
+| `.textSettings(usesTabs: Bool?, indentWidth: UInt?, tabWidth: UInt?, wrapsLines: Bool?)`| [Text settings](#text-settings) to override user ones for current project. |
 
 #### Text Settings
 Text settings to override user ones. Would use Xcode defined settings if pass `nil`.
