@@ -18,10 +18,7 @@ let project = Project(
                 .external(name: "FacebookCore"),
                 .external(name: "FirebaseAnalytics"),
                 .external(name: "FirebaseDatabase"),
-            ],
-            settings: .init(base: [
-                "OTHER_LDFLAGS": "-framework \"FirebaseAnalytics\"",
-            ])
+            ]
         ),
         Target(
             name: "AppTests",
