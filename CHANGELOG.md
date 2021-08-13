@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Fixed
+
+- Fix mapping of SPM linker flags [#3276](https://github.com/tuist/tuist/pull/3276) by [@danyf90](https://github.com/danyf90)
+
 ## 1.48.1
 
 ### Fixed

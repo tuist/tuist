@@ -497,6 +497,7 @@ extension ProjectDescription.Settings {
         var cFlags: [String] = []
         var cxxFlags: [String] = []
         var swiftFlags: [String] = []
+        var linkerFlags: [String] = []
 
         if moduleMap.type != .none {
             headerSearchPaths.append("$(SRCROOT)/\(target.relativePath.appending(target.relativePublicHeadersPath))")
@@ -539,6 +540,8 @@ extension ProjectDescription.Settings {
                 swiftDefines.append(setting.value[0])
             case (.swift, .unsafeFlags):
                 swiftFlags.append(contentsOf: setting.value)
+            case (.linker, .unsafeFlags):
+                linkerFlags.append(contentsOf: setting.value)
 
             case (.linker, .linkedFramework), (.linker, .linkedLibrary):
                 // Handled as dependency
@@ -546,7 +549,7 @@ extension ProjectDescription.Settings {
 
             case (.c, .linkedFramework), (.c, .linkedLibrary), (.cxx, .linkedFramework), (.cxx, .linkedLibrary),
                  (.swift, .headerSearchPath), (.swift, .linkedFramework), (.swift, .linkedLibrary),
-                 (.linker, .headerSearchPath), (.linker, .define), (.linker, .unsafeFlags):
+                 (.linker, .headerSearchPath), (.linker, .define):
                 throw PackageInfoMapperError.unsupportedSetting(setting.tool, setting.name)
             }
         }
@@ -592,6 +595,10 @@ extension ProjectDescription.Settings {
 
         if !swiftFlags.isEmpty {
             settingsDictionary["OTHER_SWIFT_FLAGS"] = .array(["$(inherited)"] + swiftFlags)
+        }
+
+        if !linkerFlags.isEmpty {
+            settingsDictionary["OTHER_LDFLAGS"] = .array(["$(inherited)"] + linkerFlags)
         }
 
         return .init(base: settingsDictionary)
