@@ -84,6 +84,7 @@ If you are interested in contributed to the project, our documentation has a sec
     <td align="center"><a href="https://github.com/RomainBoulay"><img src="https://avatars1.githubusercontent.com/u/169323?v=4" width="100px;" alt=""/><br /><sub><b>Romain Boulay</b></sub></a><br /></td>
     <td align="center"><a href="https://github.com/laxmorek"><img src="https://avatars1.githubusercontent.com/u/4774319?v=4" width="100px;" alt=""/><br /><sub><b>Kamil Harasimowicz</b></sub></a><br /></td>
     <td align="center"><a href="http://www.luispadron.com"><img src="https://avatars3.githubusercontent.com/u/13840545?v=4" width="100px;" alt=""/><br /><sub><b>Luis Padron</b></sub></a></td>
+    <td align="center"><a href="https://github.com/danyf90"><img src="https://avatars.githubusercontent.com/u/2794031?v=4" width="100px;" alt=""/><br /><sub><b>Daniele Formichelli</b></sub></a><br /></td>
   </tr>
 </table>
 
