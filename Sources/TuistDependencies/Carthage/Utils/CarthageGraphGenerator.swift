@@ -35,15 +35,16 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
                     return nil
                 }
 
-                let path = AbsolutePath("/")
-                    .appending(components: [
-                        Constants.tuistDirectoryName,
-                        Constants.DependenciesDirectory.name,
-                        Constants.DependenciesDirectory.carthageDirectoryName,
-                        xcFrameworkName,
-                    ])
+                var pathString = ""
+                pathString += Constants.tuistDirectoryName
+                pathString += "/"
+                pathString += Constants.DependenciesDirectory.name
+                pathString += "/"
+                pathString += Constants.DependenciesDirectory.carthageDirectoryName
+                pathString += "/"
+                pathString += xcFrameworkName
 
-                return [.xcframework(path: Path(path.pathString))]
+                return [.xcframework(path: Path(pathString))]
             }
 
         return DependenciesGraph(externalDependencies: externalDependencies, externalProjects: [:])
