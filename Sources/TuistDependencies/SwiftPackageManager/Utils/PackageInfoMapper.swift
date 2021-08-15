@@ -1,6 +1,8 @@
+import Foundation
 import ProjectDescription
 import TSCBasic
 import TSCUtility
+import TuistCore
 import TuistGraph
 import TuistSupport
 
@@ -62,7 +64,7 @@ public protocol PackageInfoMapping {
     func preprocess(
         packageInfos: [String: PackageInfo],
         productToPackage: [String: String],
-        targetDependencyToFramework: [String: Path]
+        artifactsFolder: AbsolutePath
     ) throws -> (
         targetToProducts: [String: Set<PackageInfo.Product>],
         resolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]]
@@ -111,11 +113,23 @@ public final class PackageInfoMapper: PackageInfoMapping {
     public func preprocess(
         packageInfos: [String: PackageInfo],
         productToPackage: [String: String],
-        targetDependencyToFramework: [String: Path]
+        artifactsFolder: AbsolutePath
     ) throws -> (
         targetToProducts: [String: Set<PackageInfo.Product>],
         resolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]]
     ) {
+        let targetDependencyToFramework: [String: Path] = packageInfos.reduce(into: [:]) { result, packageInfo in
+            let artifactsFolderForPackage = artifactsFolder.appending(component: packageInfo.key)
+            packageInfos[packageInfo.key]?.targets.forEach { target in
+                guard target.type == .binary else { return }
+                if let path = target.path {
+                    result[target.name] = Path(RelativePath(path).pathString)
+                } else {
+                   result[target.name] = Path(artifactsFolderForPackage.appending(component: "\(target.name).xcframework").pathString)
+                }
+            }
+        }
+        
         let targetToProducts: [String: Set<PackageInfo.Product>] = packageInfos.values.reduce(into: [:]) { result, packageInfo in
             for product in packageInfo.products {
                 var targetsToProcess = Set(product.targets)

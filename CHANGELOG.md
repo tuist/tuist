@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Fixed
+
+- Fixed Dependency.swift Binary path's with `path` instead of `url` [#3269](https://github.com/tuist/tuist/pull/3269) by [@apps4everyone](https://github.com/apps4everyone)
+
 ## 1.48.1
 
 ### Fixed

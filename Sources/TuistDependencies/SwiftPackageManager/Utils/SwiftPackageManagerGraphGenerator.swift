@@ -114,21 +114,10 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
 
         let packageToProject = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.folder) })
         let packageInfoDictionary = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.info) })
-        let targetDependencyToFramework: [String: Path] = packageInfos.reduce(into: [:]) { result, packageInfo in
-            let artifactsFolder = artifactsFolder.appending(component: packageInfo.name)
-            packageInfo.info.targets.forEach { target in
-                guard target.type == .binary else { return }
-                if let path = target.path {
-                   result[target.name] = Path(packageInfo.folder.appending(RelativePath(path)).pathString)
-                } else {
-                   result[target.name] = Path(artifactsFolder.appending(component: "\(target.name).xcframework").pathString)
-                }
-            }
-        }
         let (targetToProducts, targetToResolvedDependencies) = try packageInfoMapper.preprocess(
             packageInfos: packageInfoDictionary,
             productToPackage: productToPackage,
-            targetDependencyToFramework: targetDependencyToFramework
+            artifactsFolder: artifactsFolder
         )
         let externalProjects: [Path: ProjectDescription.Project] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             let manifest = try packageInfoMapper.map(
