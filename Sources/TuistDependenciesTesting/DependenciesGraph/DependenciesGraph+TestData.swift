@@ -459,6 +459,10 @@ extension DependenciesGraph {
             settingsDictionary["OTHER_SWIFT_FLAGS"] = .array(["$(inherited)"] + swiftFlags)
         }
 
+        if case let .array(linkerFlags) = settingsDictionary["OTHER_LDFLAGS"] {
+            settingsDictionary["OTHER_LDFLAGS"] = .array(["$(inherited)"] + linkerFlags)
+        }
+
         return Settings(base: settingsDictionary)
     }
 }

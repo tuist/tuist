@@ -1,7 +1,10 @@
 import Adjust
 import Alamofire
 import ComposableArchitecture
-import FacebookCore
+import FBSDKCoreKit
+import FirebaseAnalytics
+import FirebaseCore
+import FirebaseDatabase
 import UIKit
 
 @UIApplicationMain
@@ -14,6 +17,22 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         viewController.view.backgroundColor = .white
         window?.rootViewController = viewController
         window?.makeKeyAndVisible()
+
+        // Use Adjust to make sure it links fine
+        Adjust.adid()
+
+        // Use Alamofire to make sure it links fine
+        _ = AF.download("http://www.tuist.io")
+
+        // Use FirebaseAnalytics to make sure it links fine
+        Analytics.logEvent("Event", parameters: [:])
+
+        // Use FirebaseDatabase to make sure it links fine
+        Database.database(app: FirebaseApp.app()!).reference().setValue("value")
+
+        // Use Facebook to make sure it links fine
+        Settings.setAdvertiserTrackingEnabled(true)
+
         return true
     }
     

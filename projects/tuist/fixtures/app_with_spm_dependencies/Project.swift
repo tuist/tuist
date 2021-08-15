@@ -11,11 +11,17 @@ let project = Project(
             infoPlist: .default,
             sources: "App/**",
             dependencies: [
+                .sdk(name: "libc++.tbd", status: .required),
                 .external(name: "Adjust"),
                 .external(name: "Alamofire"),
                 .external(name: "ComposableArchitecture"),
                 .external(name: "FacebookCore"),
-            ]
+                .external(name: "FirebaseAnalytics"),
+                .external(name: "FirebaseDatabase"),
+            ],
+            settings: .init(base: [
+                "OTHER_LDFLAGS": "-framework \"FirebaseAnalytics\"",
+            ])
         ),
         Target(
             name: "AppTests",

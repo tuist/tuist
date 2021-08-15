@@ -1020,6 +1020,41 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
+    func testMap_whenSettingsContainsLinkerUnsafeFlags_mapsToOtherLdFlags() throws {
+        let project = try subject.map(
+            package: "Package",
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1",
+                            settings: [
+                                .init(tool: .linker, name: .unsafeFlags, condition: nil, value: ["key1"]),
+                                .init(tool: .linker, name: .unsafeFlags, condition: nil, value: ["key2", "key3"]),
+                            ]
+                        ),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test("Target1", customSettings: ["OTHER_LDFLAGS": ["key1", "key2", "key3"]]),
+                ]
+            )
+        )
+    }
+
     func testMap_whenConditionalSetting_ignoresByPlatform() throws {
         let project = try subject.map(
             package: "Package",
