@@ -1239,7 +1239,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         .test(
                             name: "Target1",
                             dependencies: [
-                                .byName(name: "Dependency1", condition: nil)
+                                .byName(name: "Dependency1", condition: nil),
                             ]
                         ),
                         .test(name: "Dependency1", type: .binary), // url is default
@@ -1251,7 +1251,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ),
             ],
             targetDependencyToFramework: [
-                "Dependency1": "/Path/To/Dependency1.framework"
+                "Dependency1": "/Path/To/Dependency1.framework",
             ]
         )
         XCTAssertEqual(
@@ -1259,12 +1259,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", dependencies: [.xcframework(path: "/artifacts/Package/Dependency1.xcframework")])
+                    .test("Target1", dependencies: [.xcframework(path: "/artifacts/Package/Dependency1.xcframework")]),
                 ]
             )
         )
     }
-    
+
     func testMap_whenBinaryTargetPathByNameDependency_mapsToXcFramework() throws {
         let project = try subject.map(
             package: "Package",
@@ -1277,7 +1277,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         .test(
                             name: "Target1",
                             dependencies: [
-                                .byName(name: "Dependency1", condition: nil)
+                                .byName(name: "Dependency1", condition: nil),
                             ]
                         ),
                         .test(name: "Dependency1", type: .binary, path: "Dependency1/Dependency1.xcframework"),
@@ -1567,7 +1567,7 @@ extension PackageInfoMapping {
         basePath: AbsolutePath = "/",
         packageInfos: [String: PackageInfo] = [:],
         platforms: Set<TuistGraph.Platform> = [.iOS],
-        targetDependencyToFramework: [String: Path] = [:],
+        targetDependencyToFramework _: [String: Path] = [:],
         swiftToolsVersion: TSCUtility.Version? = nil
     ) throws -> ProjectDescription.Project {
         let productToPackage: [String: String] = packageInfos.reduce(into: [:]) { result, packageInfo in
@@ -1575,7 +1575,7 @@ extension PackageInfoMapping {
                 result[product.name] = packageInfo.key
             }
         }
-        
+
         let artifactsFolder = basePath.appending(component: "artifacts")
         let (targetToProducts, targetToResolvedDependencies) = try preprocess(
             packageInfos: packageInfos, productToPackage: productToPackage, artifactsFolder: artifactsFolder

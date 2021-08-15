@@ -125,11 +125,11 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 if let path = target.path {
                     result[target.name] = Path(RelativePath(path).pathString)
                 } else {
-                   result[target.name] = Path(artifactsFolderForPackage.appending(component: "\(target.name).xcframework").pathString)
+                    result[target.name] = Path(artifactsFolderForPackage.appending(component: "\(target.name).xcframework").pathString)
                 }
             }
         }
-        
+
         let targetToProducts: [String: Set<PackageInfo.Product>] = packageInfos.values.reduce(into: [:]) { result, packageInfo in
             for product in packageInfo.products {
                 var targetsToProcess = Set(product.targets)
