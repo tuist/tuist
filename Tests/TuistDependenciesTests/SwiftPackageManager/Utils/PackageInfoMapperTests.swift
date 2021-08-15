@@ -1212,9 +1212,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     cxxLanguageStandard: nil,
                     swiftLanguageVersions: nil
                 ),
-            ],
-            targetDependencyToFramework: [
-                "Dependency1": "/Path/To/Dependency1.framework",
             ]
         )
         XCTAssertEqual(
@@ -1277,16 +1274,13 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 .byName(name: "Dependency1", condition: nil),
                             ]
                         ),
-                        .test(name: "Dependency1", type: .binary), // url is default
+                        .test(name: "Dependency1", type: .binary, url: "someURL"),
                     ],
                     platforms: [],
                     cLanguageStandard: nil,
                     cxxLanguageStandard: nil,
                     swiftLanguageVersions: nil
                 ),
-            ],
-            targetDependencyToFramework: [
-                "Dependency1": "/Path/To/Dependency1.framework",
             ]
         )
         XCTAssertEqual(
@@ -1322,9 +1316,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     cxxLanguageStandard: nil,
                     swiftLanguageVersions: nil
                 ),
-            ],
-            targetDependencyToFramework: [
-                "Dependency1": "Dependency1/Dependency1.framework",
             ]
         )
         XCTAssertEqual(
@@ -1602,7 +1593,6 @@ extension PackageInfoMapping {
         basePath: AbsolutePath = "/",
         packageInfos: [String: PackageInfo] = [:],
         platforms: Set<TuistGraph.Platform> = [.iOS],
-        targetDependencyToFramework _: [String: Path] = [:],
         swiftToolsVersion: TSCUtility.Version? = nil
     ) throws -> ProjectDescription.Project {
         let productToPackage: [String: String] = packageInfos.reduce(into: [:]) { result, packageInfo in
