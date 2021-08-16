@@ -116,7 +116,7 @@ extension TuistGraph.Target {
         var resourcesWithoutPlaygrounds: [TuistGraph.ResourceFileElement] = []
         var playgrounds: Set<AbsolutePath> = []
 
-        let allResources = try (manifest.resources?.resources ?? []).flatMap { manifest -> [TuistGraph.ResourceFileElement] in
+        var allResources = try (manifest.resources?.resources ?? []).flatMap { manifest -> [TuistGraph.ResourceFileElement] in
             do {
                 return try TuistGraph.ResourceFileElement.from(
                     manifest: manifest,
@@ -128,6 +128,12 @@ extension TuistGraph.Target {
                 return []
             }
         }
+        
+        // remove excluding
+        manifest.resources?.excluding.forEach { path in
+            allResources.remove(path: AbsolutePath(path.pathString))
+        }
+        
         allResources.forEach { fileElement in
             switch fileElement {
             case .folderReference: resourcesWithoutPlaygrounds.append(fileElement)
@@ -179,5 +185,12 @@ extension TuistGraph.Target {
         }
 
         return (sources: sourcesWithoutPlaygrounds, playgrounds: Array(playgrounds))
+    }
+}
+
+extension Array where Element == TuistGraph.ResourceFileElement {
+    mutating func remove(path: AbsolutePath) {
+        guard let index = firstIndex(of: TuistGraph.ResourceFileElement(path: path)) else { return }
+        self.remove(at: index)
     }
 }

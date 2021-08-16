@@ -253,7 +253,7 @@ extension ProjectDescription.Target {
             packageName: packageName
         )
         let sources = SourceFilesList.from(sources: target.sources, path: path, excluding: target.exclude)
-        let resources = ResourceFileElements.from(resources: target.resources, path: path)
+        let resources = ResourceFileElements.from(resources: target.resources, path: path, excluding: target.exclude)
         let headers = try Headers.from(moduleMapType: moduleMap.type, publicHeadersPath: publicHeadersPath)
 
         let resolvedDependencies = targetToResolvedDependencies[target.name] ?? []
@@ -429,13 +429,20 @@ extension SourceFilesList {
 }
 
 extension ResourceFileElements {
-    fileprivate static func from(resources: [PackageInfo.Target.Resource], path: AbsolutePath) -> Self? {
+    fileprivate static func from(resources: [PackageInfo.Target.Resource], path: AbsolutePath, excluding: [String]) -> Self? {
         let resourcesPaths = resources.map { path.appending(RelativePath($0.path)) }
         guard !resourcesPaths.isEmpty else { return nil }
-        return .init(resources: resourcesPaths.map { absolutePath in
-            let absolutePathGlob = absolutePath.extension != nil ? absolutePath : absolutePath.appending(component: "**")
-            return .glob(pattern: Path(absolutePathGlob.pathString))
-        })
+        return .init(
+            resources: resourcesPaths.map { absolutePath in
+                let absolutePathGlob = absolutePath.extension != nil ? absolutePath : absolutePath.appending(component: "**")
+                return .glob(pattern: Path(absolutePathGlob.pathString))
+            },
+            excluding: excluding.map {
+                let excludePath = path.appending(RelativePath($0))
+                let excludeGlob = excludePath.extension != nil ? excludePath : excludePath.appending(component: "**")
+                return Path(excludeGlob.pathString)
+            }
+        )
     }
 }
 
