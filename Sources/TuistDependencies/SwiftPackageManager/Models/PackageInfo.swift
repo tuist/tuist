@@ -148,7 +148,7 @@ extension PackageInfo {
         let resources: [Resource]
 
         /// The exclude patterns.
-        let exclude: [String] // TODO: test with: https://github.com/microsoft/appcenter-sdk-apple/blob/develop/Package%40swift-5.3.swift
+        let exclude: [String] // TODO: tests
 
         /// The declared target dependencies.
         let dependencies: [Dependency]
