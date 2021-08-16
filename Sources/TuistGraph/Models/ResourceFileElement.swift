@@ -31,6 +31,10 @@ public enum ResourceFileElement: Equatable, Hashable, Codable {
             return tags
         }
     }
+    
+    public init(path: AbsolutePath) {
+        self = .file(path: path)
+    }
 }
 
 // MARK: - Codable
