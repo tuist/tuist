@@ -439,7 +439,7 @@ extension ResourceFileElements {
             },
             excluding: excluding.map {
                 let excludePath = path.appending(RelativePath($0))
-                let excludeGlob = (excludePath.extension != nil && absolutePath.pathString.suffix(3) != "/**") ? excludePath : excludePath.appending(component: "**")
+                let excludeGlob = (excludePath.extension != nil && excludePath.pathString.suffix(3) != "/**") ? excludePath : excludePath.appending(component: "**")
                 return Path(excludeGlob.pathString)
             }
         )
