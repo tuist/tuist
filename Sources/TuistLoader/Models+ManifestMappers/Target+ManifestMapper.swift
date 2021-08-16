@@ -131,7 +131,14 @@ extension TuistGraph.Target {
         
         // remove excluding
         manifest.resources?.excluding.forEach { path in
-            allResources.remove(path: AbsolutePath(path.pathString))
+            if path.pathString.suffix(2) == "**" {
+                let exclude = path.pathString.dropSuffix("/**")
+                allResources.removeAll { element in
+                    element.path.upToLastNonGlob.dirname.contains(exclude)
+                }
+            } else {
+                allResources.remove(path: AbsolutePath(path.pathString))
+            }
         }
         
         allResources.forEach { fileElement in
