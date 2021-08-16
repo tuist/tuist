@@ -2384,6 +2384,107 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
+    func test_linkableFrameworks_when_transitivePrecompiledStaticFramework() throws {
+        // Given
+        let unitTests = Target.test(name: "MyStaticFrameworkTests", product: .unitTests)
+        let staticFramework = Target.test(name: "MyStaticFramework", product: .staticFramework)
+        let precompiledStaticFramework = GraphDependency.testFramework(
+            path: "/test/PrecompiledStaticFramework.framework",
+            binaryPath: "/test/PrecompiledStaticFramework.framework/PrecompiledStaticFramework",
+            linking: .static
+        )
+        let project = Project.test(targets: [staticFramework, unitTests])
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: unitTests.name, path: project.path): [
+                .target(name: staticFramework.name, path: project.path),
+            ],
+            .target(name: staticFramework.name, path: project.path): [
+                precompiledStaticFramework,
+            ],
+        ]
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    unitTests.name: unitTests,
+                    staticFramework.name: staticFramework,
+                ],
+            ],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.linkableDependencies(path: project.path, name: unitTests.name)
+
+        // Then
+        XCTAssertEqual(got.sorted(), [
+            .product(
+                target: staticFramework.name,
+                productName: staticFramework.productNameWithExtension,
+                platformFilter: .ios
+            ),
+            GraphDependencyReference(precompiledStaticFramework),
+        ])
+    }
+
+    func test_linkableFrameworks_when_transitivePrecompiledStaticFrameworkLinkedByDynamicFramework() throws {
+        // Given
+        let unitTests = Target.test(name: "MyDynamicFrameworkTests", product: .unitTests)
+        let dynamicFramework = Target.test(name: "MyDynamicFramework", product: .framework)
+        let staticFramework = Target.test(name: "MyStaticFramework", product: .staticFramework)
+        let precompiledStaticFramework = GraphDependency.testFramework(
+            path: "/test/PrecompiledStaticFramework.framework",
+            binaryPath: "/test/PrecompiledStaticFramework.framework/PrecompiledStaticFramework",
+            linking: .static
+        )
+        let project = Project.test(targets: [dynamicFramework, staticFramework, unitTests])
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: unitTests.name, path: project.path): [
+                .target(name: dynamicFramework.name, path: project.path),
+            ],
+            .target(name: dynamicFramework.name, path: project.path): [
+                .target(name: staticFramework.name, path: project.path),
+            ],
+            .target(name: staticFramework.name, path: project.path): [
+                precompiledStaticFramework,
+            ],
+        ]
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    unitTests.name: unitTests,
+                    dynamicFramework.name: dynamicFramework,
+                    staticFramework.name: staticFramework,
+                ],
+            ],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let frameworkResults = try subject.linkableDependencies(path: project.path, name: dynamicFramework.name)
+        let testResults = try subject.linkableDependencies(path: project.path, name: unitTests.name)
+
+        // Then
+        XCTAssertEqual(frameworkResults.sorted(), [
+            .product(
+                target: staticFramework.name,
+                productName: staticFramework.productNameWithExtension,
+                platformFilter: .ios
+            ),
+            GraphDependencyReference(precompiledStaticFramework),
+        ])
+        XCTAssertEqual(testResults.sorted(), [
+            .product(
+                target: dynamicFramework.name,
+                productName: dynamicFramework.productNameWithExtension,
+                platformFilter: .ios
+            ),
+        ])
+    }
+
     func test_librariesSwiftIncludePaths() throws {
         // Given
         let target = Target.test(name: "Main")

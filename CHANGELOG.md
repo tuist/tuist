@@ -9,6 +9,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Fix Dependency.swift binary path's with `path` instead of `url`. [#3269](https://github.com/tuist/tuist/pull/3269) by [@apps4everyone](https://github.com/apps4everyone)
 - Fix mapping of SPM linker flags [#3276](https://github.com/tuist/tuist/pull/3276) by [@danyf90](https://github.com/danyf90)
 - Fix adding `Carthage` dependencies to `Target` using `TargetDepedency.external` [#3300](https://github.com/tuist/tuist/pull/3300) by [@laxmorek](https://github.com/laxmorek)
+- Fix for missing transitive precompiled static frameworks [#3296](https://github.com/tuist/tuist/pull/3296) by [@kwridan](https://github.com/kwridan)
 
 ## 1.48.1
 

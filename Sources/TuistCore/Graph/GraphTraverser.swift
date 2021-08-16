@@ -325,18 +325,17 @@ public class GraphTraverser: GraphTraversing {
             }
 
             // swiftlint:disable:next identifier_name
-            let staticDependenciesPrecompiledDynamicLibrariesAndFrameworks = transitiveStaticTargets.flatMap { dependency in
+            let staticDependenciesPrecompiledLibrariesAndFrameworks = transitiveStaticTargets.flatMap { dependency in
                 self.graph.dependencies[dependency, default: []]
                     .lazy
                     .filter(\.isPrecompiled)
-                    .filter(isDependencyPrecompiledDynamicAndLinkable)
                     .compactMap(dependencyReference)
             }
 
             references.formUnion(
                 transitiveStaticTargetReferences
                     + staticDependenciesDynamicLibrariesAndFrameworks
-                    + staticDependenciesPrecompiledDynamicLibrariesAndFrameworks
+                    + staticDependenciesPrecompiledLibrariesAndFrameworks
             )
         }
 
