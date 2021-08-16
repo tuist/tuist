@@ -128,7 +128,7 @@ extension TuistGraph.Target {
                 return []
             }
         }
-        
+
         // remove excluding
         manifest.resources?.excluding.forEach { path in
             if path.pathString.suffix(2) == "**" {
@@ -140,7 +140,7 @@ extension TuistGraph.Target {
                 allResources.remove(path: AbsolutePath(path.pathString))
             }
         }
-        
+
         allResources.forEach { fileElement in
             switch fileElement {
             case .folderReference: resourcesWithoutPlaygrounds.append(fileElement)
@@ -198,6 +198,6 @@ extension TuistGraph.Target {
 extension Array where Element == TuistGraph.ResourceFileElement {
     mutating func remove(path: AbsolutePath) {
         guard let index = firstIndex(of: TuistGraph.ResourceFileElement(path: path)) else { return }
-        self.remove(at: index)
+        remove(at: index)
     }
 }
