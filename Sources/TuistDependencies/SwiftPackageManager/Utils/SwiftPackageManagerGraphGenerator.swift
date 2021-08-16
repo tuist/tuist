@@ -77,7 +77,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         let workspacePath = path.appending(component: "workspace-state.json")
 
         let workspaceState = try JSONDecoder().decode(SwiftPackageManagerWorkspaceState.self, from: try FileHandler.shared.readFile(workspacePath))
-        let packageInfos: [(name: String, folder: AbsolutePath, artifactsFolder: AbsolutePath, info: PackageInfo)]
+        let packageInfos: [(name: String, folder: AbsolutePath, info: PackageInfo)]
         packageInfos = try workspaceState.object.dependencies.map { dependency in
             let name = dependency.packageRef.name
             let packageFolder: AbsolutePath
@@ -97,7 +97,6 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             return (
                 name: name,
                 folder: packageFolder,
-                artifactsFolder: artifactsFolder.appending(component: name),
                 info: packageInfo
             )
         }
@@ -114,17 +113,10 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
 
         let packageToProject = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.folder) })
         let packageInfoDictionary = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.info) })
-        let targetDependencyToFramework: [String: Path] = packageInfos.reduce(into: [:]) { result, packageInfo in
-            let artifactsFolder = artifactsFolder.appending(component: packageInfo.name)
-            packageInfo.info.targets.forEach { target in
-                guard target.type == .binary else { return }
-                result[target.name] = Path(artifactsFolder.appending(component: "\(target.name).xcframework").pathString)
-            }
-        }
         let (targetToProducts, targetToResolvedDependencies) = try packageInfoMapper.preprocess(
             packageInfos: packageInfoDictionary,
             productToPackage: productToPackage,
-            targetDependencyToFramework: targetDependencyToFramework
+            artifactsFolder: artifactsFolder
         )
         let externalProjects: [Path: ProjectDescription.Project] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             let manifest = try packageInfoMapper.map(

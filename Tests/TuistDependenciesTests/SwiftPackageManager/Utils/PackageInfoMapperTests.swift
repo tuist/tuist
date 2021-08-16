@@ -1212,9 +1212,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     cxxLanguageStandard: nil,
                     swiftLanguageVersions: nil
                 ),
-            ],
-            targetDependencyToFramework: [
-                "Dependency1": "/Path/To/Dependency1.framework",
             ]
         )
         XCTAssertEqual(
@@ -1222,7 +1219,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", dependencies: [.xcframework(path: "/Path/To/Dependency1.framework")]),
+                    .test("Target1", dependencies: [.xcframework(path: "/artifacts/Package/Dependency1.xcframework")]),
                 ]
             )
         )
@@ -1262,7 +1259,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenBinaryTargetByNameDependency_mapsToXcFramework() throws {
+    func testMap_whenBinaryTargetURLByNameDependency_mapsToXcFramework() throws {
         let project = try subject.map(
             package: "Package",
             packageInfos: [
@@ -1273,18 +1270,17 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     targets: [
                         .test(
                             name: "Target1",
-                            dependencies: [.byName(name: "Dependency1", condition: nil)]
+                            dependencies: [
+                                .byName(name: "Dependency1", condition: nil),
+                            ]
                         ),
-                        .test(name: "Dependency1", type: .binary),
+                        .test(name: "Dependency1", type: .binary, url: "someURL"),
                     ],
                     platforms: [],
                     cLanguageStandard: nil,
                     cxxLanguageStandard: nil,
                     swiftLanguageVersions: nil
                 ),
-            ],
-            targetDependencyToFramework: [
-                "Dependency1": "/Path/To/Dependency1.framework",
             ]
         )
         XCTAssertEqual(
@@ -1292,7 +1288,42 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", dependencies: [.xcframework(path: "/Path/To/Dependency1.framework")]),
+                    .test("Target1", dependencies: [.xcframework(path: "/artifacts/Package/Dependency1.xcframework")]),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenBinaryTargetPathByNameDependency_mapsToXcFramework() throws {
+        let project = try subject.map(
+            package: "Package",
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1",
+                            dependencies: [
+                                .byName(name: "Dependency1", condition: nil),
+                            ]
+                        ),
+                        .test(name: "Dependency1", type: .binary, path: "Dependency1/Dependency1.xcframework"),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test("Target1", dependencies: [.xcframework(path: "Dependency1/Dependency1.xcframework")]),
                 ]
             )
         )
@@ -1562,7 +1593,6 @@ extension PackageInfoMapping {
         basePath: AbsolutePath = "/",
         packageInfos: [String: PackageInfo] = [:],
         platforms: Set<TuistGraph.Platform> = [.iOS],
-        targetDependencyToFramework: [String: Path] = [:],
         swiftToolsVersion: TSCUtility.Version? = nil
     ) throws -> ProjectDescription.Project {
         let productToPackage: [String: String] = packageInfos.reduce(into: [:]) { result, packageInfo in
@@ -1571,8 +1601,9 @@ extension PackageInfoMapping {
             }
         }
 
+        let artifactsFolder = basePath.appending(component: "artifacts")
         let (targetToProducts, targetToResolvedDependencies) = try preprocess(
-            packageInfos: packageInfos, productToPackage: productToPackage, targetDependencyToFramework: targetDependencyToFramework
+            packageInfos: packageInfos, productToPackage: productToPackage, artifactsFolder: artifactsFolder
         )
 
         return try map(
@@ -1598,6 +1629,7 @@ extension PackageInfo.Target {
         name: String,
         type: PackageInfo.Target.TargetType = .regular,
         path: String? = nil,
+        url: String? = nil,
         sources: [String]? = nil,
         resources: [PackageInfo.Target.Resource] = [],
         dependencies: [PackageInfo.Target.Dependency] = [],
@@ -1607,7 +1639,7 @@ extension PackageInfo.Target {
         return .init(
             name: name,
             path: path,
-            url: nil,
+            url: url,
             sources: sources,
             resources: resources,
             exclude: [],
