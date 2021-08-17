@@ -123,16 +123,10 @@ public class Glob: Collection {
 
         let fileManager = FileManager.default
 
-        var directories: [String]
-
-        do {
-            directories = try fileManager.subpathsOfDirectory(atPath: firstPart).compactMap { subpath in
-                let fullPath = NSString(string: firstPart).appendingPathComponent(subpath)
-                guard isDirectory(path: fullPath) else { return nil }
-                return fullPath
-            }
-        } catch {
-            directories = []
+        var directories: [String] = fileManager.subpathsResolvingSymbolicLinks(atPath: firstPart).compactMap { subpath in
+            let fullPath = NSString(string: firstPart).appendingPathComponent(subpath)
+            guard fileManager.isDirectory(path: fullPath) else { return nil }
+            return fullPath
         }
 
         if behavior.includesFilesFromRootOfGlobstar {
@@ -156,22 +150,6 @@ public class Glob: Collection {
         return results
     }
 
-    private func isDirectory(path: String) -> Bool {
-        #if os(macOS)
-            var isDirectoryBool = ObjCBool(false)
-        #else
-            var isDirectoryBool = false
-        #endif
-        var isDirectory = FileManager.default.fileExists(atPath: path, isDirectory: &isDirectoryBool)
-        #if os(macOS)
-            isDirectory = isDirectory && isDirectoryBool.boolValue
-        #else
-            isDirectory = isDirectory && isDirectoryBool
-        #endif
-
-        return isDirectory
-    }
-
     private func populateFiles(gt: glob_t, includeFiles: Bool) {
         let includeDirectories = behavior.includesDirectoriesInResults
         #if os(Linux)
@@ -182,7 +160,7 @@ public class Glob: Collection {
         for i in 0 ..< matchesCount {
             if let path = String(validatingUTF8: gt.gl_pathv[i]!) {
                 if !includeFiles || !includeDirectories {
-                    let isDirectory = self.isDirectory(path: path)
+                    let isDirectory = FileManager.default.isDirectory(path: path)
                     if (!includeFiles && !isDirectory) || (!includeDirectories && isDirectory) {
                         continue
                     }
