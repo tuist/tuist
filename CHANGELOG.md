@@ -13,9 +13,11 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Fix Dependency.swift binary path's with `path` instead of `url`. [#3269](https://github.com/tuist/tuist/pull/3269) by [@apps4everyone](https://github.com/apps4everyone)
 - Fix mapping of SPM linker flags [#3276](https://github.com/tuist/tuist/pull/3276) by [@danyf90](https://github.com/danyf90)
 - Fix adding `Carthage` dependencies to `Target` using `TargetDepedency.external` [#3300](https://github.com/tuist/tuist/pull/3300) by [@laxmorek](https://github.com/laxmorek)
-- Fix for missing transitive precompiled static frameworks [#3296](https://github.com/tuist/tuist/pull/3296) by [@kwridan](https://github.com/kwridan)
+- Fix for missing transitive precompiled static frameworks [#3296](https://github.com/tuist/tuist/pull/3296) by [@kwridan](https://github.com/kwridan)## 1.48.1
 
-## 1.48.1
+### Changed
+
+- The installation of Tuist versions pulls the binaries from the GitHub releases [#3255](https://github.com/tuist/tuist/pull/3255) by [@pepibumur](https://github.com/pepibumur).
 
 ### Fixed
 
@@ -37,9 +39,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Build file of dependencies having the wrong platform filter in iOS targets with Catalyst enabled [#3152](https://github.com/tuist/tuist/pull/3152) by [@pepibumur](https://github.com/pepibumur) and [@sampettersson](https://github.com/sampettersson).
 
-### Changed
-
-- The installation of Tuist versions pulls the binaries from the GitHub releases [#3255](https://github.com/tuist/tuist/pull/3255) by [@pepibumur](https://github.com/pepibumur).
 
 ## 1.47.0 - Mirror
 
