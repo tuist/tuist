@@ -36,7 +36,7 @@ public struct UnhandledError: FatalError {
             - Localized description: \(error.localizedDescription)
             - Error: \(error)
 
-        If you think it's a legit issue, please file an issue including the reproducible steps: https://github.com/tuist/tuist/issues/new
+        If you think it's a legit issue, please file an issue including the reproducible steps: https://github.com/tuist/tuist/issues/new/choose
         """
     }
 }
