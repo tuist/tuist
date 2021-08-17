@@ -32,11 +32,11 @@ final class CacheProfileResolverTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(
+            resolvedProfile,
             CacheProfile(
                 name: "Development",
                 configuration: "Debug"
-            ),
-            resolvedProfile
+            )
         )
     }
 
@@ -49,11 +49,11 @@ final class CacheProfileResolverTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(
+            resolvedProfile,
             CacheProfile(
                 name: "Development",
                 configuration: "Debug"
-            ),
-            resolvedProfile
+            )
         )
     }
 
@@ -66,11 +66,11 @@ final class CacheProfileResolverTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(
+            resolvedProfile,
             CacheProfile(
                 name: "foo",
                 configuration: "configuration"
-            ),
-            resolvedProfile
+            )
         )
     }
 
@@ -90,11 +90,79 @@ final class CacheProfileResolverTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(
+            resolvedProfile,
             CacheProfile(
                 name: "bar",
                 configuration: "release"
-            ),
-            resolvedProfile
+            )
+        )
+    }
+
+    func test_resolves_selected_release_profile_from_tuist_defaults_when_cache_config_is_nil() throws {
+        // When
+        let resolvedProfile = try subject.resolveCacheProfile(
+            named: "Release",
+            from: .test(cache: nil)
+        )
+
+        // Then
+        XCTAssertEqual(
+            resolvedProfile,
+            CacheProfile(
+                name: "Release",
+                configuration: "Release"
+            )
+        )
+    }
+
+    func test_resolves_selected_release_profile_from_tuist_defaults_when_profiles_list_is_empty() throws {
+        // When
+        let resolvedProfile = try subject.resolveCacheProfile(
+            named: "Release",
+            from: .test(cache: .test(profiles: []))
+        )
+
+        // Then
+        XCTAssertEqual(
+            resolvedProfile,
+            CacheProfile(
+                name: "Release",
+                configuration: "Release"
+            )
+        )
+    }
+
+    func test_resolves_selected_development_profile_from_tuist_defaults_when_cache_config_is_nil() throws {
+        // When
+        let resolvedProfile = try subject.resolveCacheProfile(
+            named: "Development",
+            from: .test(cache: nil)
+        )
+
+        // Then
+        XCTAssertEqual(
+            resolvedProfile,
+            CacheProfile(
+                name: "Development",
+                configuration: "Debug"
+            )
+        )
+    }
+
+    func test_resolves_selected_development_profile_from_tuist_defaults_when_profiles_list_is_empty() throws {
+        // When
+        let resolvedProfile = try subject.resolveCacheProfile(
+            named: "Development",
+            from: .test(cache: .test(profiles: []))
+        )
+
+        // Then
+        XCTAssertEqual(
+            resolvedProfile,
+            CacheProfile(
+                name: "Development",
+                configuration: "Debug"
+            )
         )
     }
 

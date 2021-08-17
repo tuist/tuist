@@ -54,9 +54,7 @@ final class FocusService {
         let path = self.path(path)
         let config = try configLoader.loadConfig(path: path)
 
-        let cacheProfile = ignoreCache
-            ? CacheProfileResolver.defaultCacheProfileFromTuist
-            : try CacheProfileResolver().resolveCacheProfile(named: profile, from: config)
+        let cacheProfile = try CacheProfileResolver().resolveCacheProfile(named: profile, from: config)
 
         let generator = projectGeneratorFactory.generator(
             sources: sources,
