@@ -31,10 +31,20 @@ public enum HTTPRequestDispatcherError: LocalizedError, FatalError {
             }
         case .invalidResponse: return "Received unexpected response from the network."
         case let .serverSideError(error, response):
+            let url: URL = response.url!
             if let error = error as? LocalizedError {
-                return "Error returned by the server, code \(response.statusCode): \(error.localizedDescription)"
+                return """
+                Error returned by the server:
+                  - URL: \(url.absoluteString)
+                  - Code: \(response.statusCode)
+                  - Description: \(error.localizedDescription)
+                """
             } else {
-                return "Error returned by the server, code: \(response.statusCode)."
+                return """
+                Error returned by the server:
+                  - URL: \(url.absoluteString)
+                  - Code: \(response.statusCode)
+                """
             }
         }
     }

@@ -25,6 +25,19 @@ public struct GitHubRelease: Decodable {
         case assets
     }
 
+    public init(name: String,
+                tagName: Version?,
+                draft: Bool,
+                prerelease: Bool,
+                assets: [GitHubReleaseAsset])
+    {
+        self.name = name
+        self.tagName = tagName
+        self.draft = draft
+        self.prerelease = prerelease
+        self.assets = assets
+    }
+
     /// Returns a resource to get the latest release of the given repository.
     /// - Parameter repositoryFullName: Repository full name (e.g. tuist/tuist)
     /// - Returns: Resource to get the latest release.
@@ -32,6 +45,20 @@ public struct GitHubRelease: Decodable {
         return HTTPResource.jsonResource {
             var components = URLComponents(string: Constants.githubAPIURL)!
             components.path = "/repos/\(repositoryFullName)/releases/latest"
+            var request = URLRequest(url: components.url!)
+            request.httpMethod = "GET"
+            return request
+        }
+    }
+
+    /// Returns a resource to get a specific release of the given repository.
+    /// - Parameter repositoryFullName: Repository full name (e.g. tuist/tuist)
+    /// - Parameter version: Release version
+    /// - Returns: Resource to get the release.
+    public static func release(repositoryFullName: String, version: String) -> HTTPResource<GitHubRelease, GitHubError> {
+        return HTTPResource.jsonResource {
+            var components = URLComponents(string: Constants.githubAPIURL)!
+            components.path = "/repos/\(repositoryFullName)/releases/tags/\(version)"
             var request = URLRequest(url: components.url!)
             request.httpMethod = "GET"
             return request

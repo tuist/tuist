@@ -11,4 +11,13 @@ public struct GitHubReleaseAsset: Decodable {
         case name
         case browserDownloadUrl
     }
+
+    // MARK: - Init
+
+    public init(name: String,
+                browserDownloadUrl: URL)
+    {
+        self.name = name
+        self.browserDownloadUrl = browserDownloadUrl
+    }
 }
