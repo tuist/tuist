@@ -10,18 +10,18 @@ final class InstallerTests: TuistUnitTestCase {
     var versionsController: MockVersionsController!
     var subject: Installer!
     var tmpDir: TemporaryDirectory!
-    var googleCloudStorageClient: MockGoogleCloudStorageClient!
+    var githubClient: MockGitHubClient!
 
     override func setUp() {
         super.setUp()
         buildCopier = MockBuildCopier()
         versionsController = try! MockVersionsController()
         tmpDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
-        googleCloudStorageClient = MockGoogleCloudStorageClient()
+        githubClient = MockGitHubClient()
         subject = Installer(
+            githubClient: githubClient,
             buildCopier: buildCopier,
-            versionsController: versionsController,
-            googleCloudStorageClient: googleCloudStorageClient
+            versionsController: versionsController
         )
     }
 
@@ -30,7 +30,7 @@ final class InstallerTests: TuistUnitTestCase {
         buildCopier = nil
         versionsController = nil
         tmpDir = nil
-        googleCloudStorageClient = nil
+        githubClient = nil
         subject = nil
     }
 
@@ -41,10 +41,13 @@ final class InstallerTests: TuistUnitTestCase {
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         let downloadURL = URL(string: "https://test.com/tuist.zip")!
 
-        googleCloudStorageClient.tuistBundleURLStub = {
-            if $0 == version { return downloadURL }
-            else { return nil }
-        }
+        let githubRelease = GitHubRelease.test(name: version, tagName: "3.2.1", assets: [
+            .test(name: "tuist.zip", browserDownloadUrl: downloadURL),
+        ])
+        githubClient.stub(
+            GitHubRelease.release(repositoryFullName: Constants.githubSlug, version: version),
+            result: .success(githubRelease)
+        )
 
         versionsController.installStub = { _, closure in
             try closure(temporaryPath)
@@ -87,10 +90,13 @@ final class InstallerTests: TuistUnitTestCase {
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         let downloadURL = URL(string: "https://test.com/tuist.zip")!
 
-        googleCloudStorageClient.tuistBundleURLStub = {
-            if $0 == version { return downloadURL }
-            else { return nil }
-        }
+        let githubRelease = GitHubRelease.test(name: version, tagName: "3.2.1", assets: [
+            .test(name: "tuist.zip", browserDownloadUrl: downloadURL),
+        ])
+        githubClient.stub(
+            GitHubRelease.release(repositoryFullName: Constants.githubSlug, version: version),
+            result: .success(githubRelease)
+        )
 
         versionsController.installStub = { _, closure in
             try closure(temporaryPath)
@@ -117,10 +123,13 @@ final class InstallerTests: TuistUnitTestCase {
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         let downloadURL = URL(string: "https://test.com/tuist.zip")!
-        googleCloudStorageClient.tuistBundleURLStub = {
-            if $0 == version { return downloadURL }
-            else { return nil }
-        }
+        let githubRelease = GitHubRelease.test(name: version, tagName: "3.2.1", assets: [
+            .test(name: "tuist.zip", browserDownloadUrl: downloadURL),
+        ])
+        githubClient.stub(
+            GitHubRelease.release(repositoryFullName: Constants.githubSlug, version: version),
+            result: .success(githubRelease)
+        )
 
         versionsController.installStub = { _, closure in
             try closure(temporaryPath)

@@ -111,6 +111,8 @@ jobs:
             'graph',
             'tasks',
           ]
+    env:
+      TUIST_GITHUB_API_TOKEN: ${{ secrets.GH_TOKEN }}
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode

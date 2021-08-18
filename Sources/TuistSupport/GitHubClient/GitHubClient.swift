@@ -10,8 +10,15 @@ public final class GitHubClient: GitHubClienting {
     let requestDispatcher: HTTPRequestDispatching
     let gitEnvironment: GitEnvironmenting
 
-    init(requestDispatcher: HTTPRequestDispatching = HTTPRequestDispatcher(),
-         gitEnvironment: GitEnvironmenting = GitEnvironment())
+    public convenience init() {
+        self.init(
+            requestDispatcher: HTTPRequestDispatcher(),
+            gitEnvironment: GitEnvironment()
+        )
+    }
+
+    init(requestDispatcher: HTTPRequestDispatching,
+         gitEnvironment: GitEnvironmenting)
     {
         self.requestDispatcher = requestDispatcher
         self.gitEnvironment = gitEnvironment
