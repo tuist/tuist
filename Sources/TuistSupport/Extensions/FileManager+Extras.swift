@@ -2,23 +2,26 @@ import Foundation
 
 extension FileManager {
     func subpathsResolvingSymbolicLinks(atPath path: String) -> [String] {
-        subpathsResolvingSymbolicLinks(atPath: path, basePath: nil)
+        subpathsResolvingSymbolicLinks(atNestedPath: nil, basePath: path)
     }
 
-    private func subpathsResolvingSymbolicLinks(atPath path: String, basePath: String?) -> [String] {
-        let currentPath = basePath.map { "\($0)/\(path)" } ?? path
+    private func subpathsResolvingSymbolicLinks(atNestedPath nestedPath: String?, basePath: String) -> [String] {
+        let currentLevelPath = nestedPath.map { "\(basePath)/\($0)" } ?? basePath
 
-        guard let shallowSubpaths = subpaths(atPath: currentPath) else {
+        guard let currentLevelSubpaths = subpaths(atPath: currentLevelPath) else {
             return []
         }
 
         var resolvedSubpaths: [String] = []
-        for subpath in shallowSubpaths {
-            let completeSubpath = "\(currentPath)/\(subpath)"
+        for subpath in currentLevelSubpaths {
+            let relativeSubpath = nestedPath.map { "\($0)/\(subpath)" } ?? subpath
+            let completeSubpath = "\(basePath)/\(relativeSubpath)"
             if isDirectory(path: completeSubpath), isSymbolicLink(path: completeSubpath) {
-                resolvedSubpaths.append(contentsOf: subpathsResolvingSymbolicLinks(atPath: subpath, basePath: currentPath))
+                resolvedSubpaths.append(
+                    contentsOf: subpathsResolvingSymbolicLinks(atNestedPath: relativeSubpath, basePath: basePath)
+                )
             }
-            resolvedSubpaths.append(completeSubpath)
+            resolvedSubpaths.append(relativeSubpath)
         }
 
         return resolvedSubpaths.sorted()

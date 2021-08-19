@@ -29,7 +29,7 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
 
         // Then
         let got = fileManager.subpathsResolvingSymbolicLinks(atPath: folderPath.pathString)
-        XCTAssertEqual(got, [file1Path, subfolderPath, file2Path].map(\.pathString))
+        XCTAssertEqual(got, ["File1", "Subfolder", "Subfolder/File2"])
     }
 
     func testSubpaths_whenSymbolicLinksToFiles() throws {
@@ -59,7 +59,7 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
 
         // Then
         let got = fileManager.subpathsResolvingSymbolicLinks(atPath: folderPath.pathString)
-        XCTAssertEqual(got, [subfolderPath, filePath, symlinkPath].map(\.pathString))
+        XCTAssertEqual(got, ["Subfolder", "Subfolder/File", "Symlink"])
     }
 
     func testSubpaths_whenSymbolicLinksToDirectory() throws {
@@ -87,7 +87,7 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
 
         // Then
         let got = fileManager.subpathsResolvingSymbolicLinks(atPath: folderPath.pathString)
-        XCTAssertEqual(got, [symlinkPath, symlinkPath.appending(component: "File")].map(\.pathString))
+        XCTAssertEqual(got, ["SymlinkFolder", "SymlinkFolder/File"])
     }
 
     func testSubpaths_whenSymbolicLinkAndOriginalInSameSubtree() throws {
@@ -112,6 +112,48 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
 
         // Then
         let got = fileManager.subpathsResolvingSymbolicLinks(atPath: folderPath.pathString)
-        XCTAssertEqual(got, [filePath, symlinkPath].map(\.pathString))
+        XCTAssertEqual(got, ["File", "Symlink"])
+    }
+
+    func testSubpaths_whenNestedDirectories() throws {
+        // Given
+        let fileManager = FileManager.default
+
+        // When
+
+        // - <Root>
+        //   - Folder
+        //     - File
+        //     - Subfolder
+        //       - SubFile
+        //       - SubSubfolder
+        //         - SubSubFile
+
+        let rootPath = try temporaryPath()
+        let folderPath = rootPath.appending(component: "Folder")
+        let filePath = folderPath.appending(component: "File")
+        let subFolderPath = folderPath.appending(component: "SubFolder")
+        let subFilePath = subFolderPath.appending(component: "SubFile")
+        let subSubFolderPath = subFolderPath.appending(component: "SubSubFolder")
+        let subSubFilePath = subSubFolderPath.appending(component: "SubSubFile")
+
+        try fileHandler.createFolder(folderPath)
+        try fileHandler.createFolder(subFolderPath)
+        try fileHandler.createFolder(subSubFolderPath)
+        try fileHandler.write("Test", path: filePath, atomically: true)
+        try fileHandler.write("Test", path: subFilePath, atomically: true)
+        try fileHandler.write("Test", path: subSubFilePath, atomically: true)
+
+        // Then
+        let got = fileManager.subpathsResolvingSymbolicLinks(atPath: rootPath.pathString)
+        let expected = [
+            "Folder",
+            "Folder/File",
+            "Folder/SubFolder",
+            "Folder/SubFolder/SubFile",
+            "Folder/SubFolder/SubSubFolder",
+            "Folder/SubFolder/SubSubFolder/SubSubFile",
+        ]
+        XCTAssertEqual(got, expected)
     }
 }
