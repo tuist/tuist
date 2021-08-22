@@ -29,7 +29,10 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
     func test_from_when_the_scheme_has_actions() throws {
         // Given
         let arguments = ProjectDescription.Arguments.test(
-            environment: ["FOO": "BAR", "FIZ": "BUZZ"],
+            environmentVariables: [
+                .init(key: "FOO", value: "BAR", isEnabled: true),
+                .init(key: "FIZ", value: "BUZZ", isEnabled: false),
+            ],
             launchArguments: [
                 LaunchArgument(name: "--help", isEnabled: true),
                 LaunchArgument(name: "subcommand", isEnabled: false),

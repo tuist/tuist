@@ -3,11 +3,11 @@ import TSCBasic
 @testable import TuistGraph
 
 public extension Arguments {
-    static func test(environment: [String: String] = [:],
+    static func test(environmentVariables: [EnvironmentVariable] = [],
                      launchArguments: [LaunchArgument] = []) -> Arguments
     {
         Arguments(
-            environment: environment,
+            environmentVariables: environmentVariables,
             launchArguments: launchArguments
         )
     }

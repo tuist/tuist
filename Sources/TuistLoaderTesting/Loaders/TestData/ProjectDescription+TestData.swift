@@ -67,7 +67,7 @@ extension Target {
                             dependencies: [TargetDependency] = [],
                             settings: Settings? = nil,
                             coreDataModels: [CoreDataModel] = [],
-                            environment: [String: String] = [:]) -> Target
+                            environmentVariables: [EnvironmentVariable] = []) -> Target
     {
         Target(
             name: name,
@@ -84,7 +84,7 @@ extension Target {
             dependencies: dependencies,
             settings: settings,
             coreDataModels: coreDataModels,
-            environment: environment
+            environmentVariables: environmentVariables
         )
     }
 }
@@ -182,11 +182,11 @@ extension ExecutionAction {
 }
 
 extension Arguments {
-    public static func test(environment: [String: String] = [:],
+    public static func test(environmentVariables: [EnvironmentVariable] = [],
                             launchArguments: [LaunchArgument] = []) -> Arguments
     {
         Arguments(
-            environment: environment,
+            environmentVariables: environmentVariables,
             launchArguments: launchArguments
         )
     }

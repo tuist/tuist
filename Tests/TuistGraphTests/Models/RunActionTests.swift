@@ -15,8 +15,12 @@ final class RunActionTests: TuistUnitTestCase {
             ),
             filePath: "/path/to/file",
             arguments: .init(
-                environment: [
-                    "key": "value",
+                environmentVariables: [
+                    .init(
+                        key: "key",
+                        value: "value",
+                        isEnabled: true
+                    ),
                 ],
                 launchArguments: [
                     .init(

@@ -38,7 +38,6 @@ extension TuistTestCase {
         XCTAssertTrue(target.product == manifest.product, file: file, line: line)
         XCTAssertEqual(target.infoPlist?.path, try generatorPaths.resolve(path: manifest.infoPlist.path!), file: file, line: line)
         XCTAssertEqual(target.entitlements, try manifest.entitlements.map { try generatorPaths.resolve(path: $0) }, file: file, line: line)
-        XCTAssertEqual(target.environment, manifest.environment, file: file, line: line)
         try assert(coreDataModels: target.coreDataModels, matches: manifest.coreDataModels, at: path, generatorPaths: generatorPaths, file: file, line: line)
         try optionalAssert(target.settings, manifest.settings, file: file, line: line) {
             XCTAssertSettingsMatchesManifest(settings: $0, matches: $1, at: path, generatorPaths: generatorPaths, file: file, line: line)
@@ -168,7 +167,11 @@ extension TuistTestCase {
                 file: StaticString = #file,
                 line: UInt = #line)
     {
-        XCTAssertEqual(arguments.environment, manifest.environment, file: file, line: line)
+        typealias EnvironmentVariable = [String: String]
+
+        // - FIXME: Need help for this.
+        let rawEnvironments: [EnvironmentVariable: Bool] = arguments.environmentVariables.reduce(into: [:]) { _, _ in }
+        let rawEnvironmenstManifest = manifest.environmentVariables.reduce(into: [:]) { _, _ in }
 
         let rawArguments = arguments.launchArguments.reduce(into: [:]) { $0[$1.name] = $1.isEnabled }
         let rawManifest = manifest.launchArguments.reduce(into: [:]) { $0[$1.name] = $1.isEnabled }

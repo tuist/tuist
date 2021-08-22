@@ -70,7 +70,7 @@ extension TuistGraph.Target {
             try TuistGraph.TargetAction.from(manifest: $0, generatorPaths: generatorPaths)
         }
 
-        let environment = manifest.environment
+        let environmentVariables = manifest.environmentVariables.map(EnvironmentVariable.from)
         let launchArguments = manifest.launchArguments.map(LaunchArgument.from)
 
         let playgrounds = sourcesPlaygrounds + resourcesPlaygrounds
@@ -91,7 +91,7 @@ extension TuistGraph.Target {
             headers: headers,
             coreDataModels: coreDataModels,
             actions: actions,
-            environment: environment,
+            environmentVariables: environmentVariables,
             launchArguments: launchArguments,
             filesGroup: .group(name: "Project"),
             dependencies: dependencies,

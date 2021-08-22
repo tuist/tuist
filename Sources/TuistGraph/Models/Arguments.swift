@@ -3,15 +3,15 @@ import Foundation
 public struct Arguments: Equatable, Codable {
     // MARK: - Attributes
 
-    public let environment: [String: String]
+    public let environmentVariables: [EnvironmentVariable]
     public let launchArguments: [LaunchArgument]
 
     // MARK: - Init
 
-    public init(environment: [String: String] = [:],
+    public init(environmentVariables: [EnvironmentVariable] = [],
                 launchArguments: [LaunchArgument] = [])
     {
-        self.environment = environment
+        self.environmentVariables = environmentVariables
         self.launchArguments = launchArguments
     }
 }

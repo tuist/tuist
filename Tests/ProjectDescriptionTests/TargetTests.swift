@@ -43,7 +43,7 @@ final class TargetTests: XCTestCase {
                 )
             ),
             coreDataModels: [CoreDataModel("pat", currentVersion: "version")],
-            environment: ["a": "b"]
+            environmentVariables: [EnvironmentVariable(key: "a", value: "b", isEnabled: true)]
         )
         XCTAssertCodable(subject)
     }
@@ -87,7 +87,7 @@ final class TargetTests: XCTestCase {
                 )
             ),
             coreDataModels: [CoreDataModel("pat", currentVersion: "version")],
-            environment: ["a": "b"]
+            environmentVariables: [EnvironmentVariable(key: "a", value: "b", isEnabled: true)]
         )
         XCTAssertCodable(subject)
     }

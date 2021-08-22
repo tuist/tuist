@@ -24,7 +24,7 @@ final class SchemeTests: XCTestCase {
             testAction: TestAction(
                 targets: [.init(target: .init(projectPath: nil, target: "target"))],
                 arguments: Arguments(
-                    environment: ["test": "b"],
+                    environmentVariables: [EnvironmentVariable(key: "test", value: "b", isEnabled: true)],
                     launchArguments: [LaunchArgument(name: "test", isEnabled: true)]
                 ),
                 config: .debug,
@@ -36,7 +36,7 @@ final class SchemeTests: XCTestCase {
                 config: .debug,
                 executable: .init(projectPath: nil, target: "executable"),
                 arguments: Arguments(
-                    environment: ["run": "b"],
+                    environmentVariables: [EnvironmentVariable(key: "run", value: "b", isEnabled: true)],
                     launchArguments: [LaunchArgument(name: "run", isEnabled: true)]
                 )
             )
@@ -66,7 +66,7 @@ final class SchemeTests: XCTestCase {
             testAction: TestAction(
                 targets: [.init(target: .init(projectPath: nil, target: "target"))],
                 arguments: Arguments(
-                    environment: ["test": "b"],
+                    environmentVariables: [EnvironmentVariable(key: "test", value: "b", isEnabled: true)],
                     launchArguments: [LaunchArgument(name: "test", isEnabled: true)]
                 ),
                 config: .debug,
@@ -78,7 +78,7 @@ final class SchemeTests: XCTestCase {
                 config: .release,
                 executable: .init(projectPath: nil, target: "executable"),
                 arguments: Arguments(
-                    environment: ["run": "b"],
+                    environmentVariables: [EnvironmentVariable(key: "run", value: "b", isEnabled: true)],
                     launchArguments: [LaunchArgument(name: "run", isEnabled: true)]
                 )
             )

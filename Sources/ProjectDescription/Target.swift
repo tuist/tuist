@@ -54,7 +54,7 @@ public struct Target: Codable, Equatable {
     public let coreDataModels: [CoreDataModel]
 
     /// Environment variables to be exposed to the target.
-    public let environment: [String: String]
+    public let environmentVariables: [EnvironmentVariable]
 
     /// Launch argument to be exposed to the target.
     public let launchArguments: [LaunchArgument]
@@ -75,7 +75,7 @@ public struct Target: Codable, Equatable {
         case headers
         case coreDataModels = "core_data_models"
         case actions
-        case environment
+        case environmentVariables
         case launchArguments
         case deploymentTarget
     }
@@ -97,7 +97,7 @@ public struct Target: Codable, Equatable {
     ///   - dependencies: target dependencies.
     ///   - settings: target settings.
     ///   - coreDataModels: CoreData models.
-    ///   - environment: Environment variables to be exposed to the target.
+    ///   - environmentVariables: Environment variables to be exposed to the target.
     ///   - launchArguments: Launch arguments that are passwd to target.
     @available(*, deprecated, message: "Use init with `launchArguments: [LaunchArgument]` instead")
     public init(name: String,
@@ -116,7 +116,7 @@ public struct Target: Codable, Equatable {
                 dependencies: [TargetDependency] = [],
                 settings: Settings? = nil,
                 coreDataModels: [CoreDataModel] = [],
-                environment: [String: String] = [:],
+                environmentVariables: [EnvironmentVariable] = [],
                 launchArguments: [String: Bool])
     {
         self.name = name
@@ -134,7 +134,7 @@ public struct Target: Codable, Equatable {
         self.headers = headers
         self.actions = actions
         self.coreDataModels = coreDataModels
-        self.environment = environment
+        self.environmentVariables = environmentVariables
         self.launchArguments = .init(launchArguments: launchArguments)
         self.deploymentTarget = deploymentTarget
     }
@@ -156,7 +156,7 @@ public struct Target: Codable, Equatable {
     ///   - dependencies: target dependencies.
     ///   - settings: target settings.
     ///   - coreDataModels: CoreData models.
-    ///   - environment: Environment variables to be exposed to the target.
+    ///   - environmentVariables: Environment variables to be exposed to the target.
     ///   - launchArguments: Launch arguments that are passwd to target.
     public init(name: String,
                 platform: Platform,
@@ -174,7 +174,7 @@ public struct Target: Codable, Equatable {
                 dependencies: [TargetDependency] = [],
                 settings: Settings? = nil,
                 coreDataModels: [CoreDataModel] = [],
-                environment: [String: String] = [:],
+                environmentVariables: [EnvironmentVariable] = [],
                 launchArguments: [LaunchArgument] = [])
     {
         self.name = name
@@ -192,7 +192,7 @@ public struct Target: Codable, Equatable {
         self.headers = headers
         self.actions = actions
         self.coreDataModels = coreDataModels
-        self.environment = environment
+        self.environmentVariables = environmentVariables
         self.launchArguments = launchArguments
         self.deploymentTarget = deploymentTarget
     }

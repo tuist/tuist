@@ -678,7 +678,12 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
     func test_schemeLaunchAction() throws {
         // Given
         let projectPath = AbsolutePath("/somepath/Workspace/Projects/Project")
-        let environment = ["env1": "1", "env2": "2", "env3": "3", "env4": "4"]
+        let environmentVariables = [
+            EnvironmentVariable(key: "env1", value: "1", isEnabled: true),
+            EnvironmentVariable(key: "env2", value: "2", isEnabled: true),
+            EnvironmentVariable(key: "env3", value: "3", isEnabled: false),
+            EnvironmentVariable(key: "env4", value: "4", isEnabled: true),
+        ]
         let launchArguments = [
             LaunchArgument(name: "arg1", isEnabled: true),
             LaunchArgument(name: "arg2", isEnabled: true),
@@ -690,7 +695,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let runAction = RunAction.test(
             configurationName: "Release",
             executable: TargetReference(projectPath: projectPath, name: "App"),
-            arguments: Arguments(environment: environment, launchArguments: launchArguments),
+            arguments: Arguments(environmentVariables: environmentVariables, launchArguments: launchArguments),
             options: .init(
                 language: "pl",
                 storeKitConfigurationPath: "/somepath/Workspace/Projects/Project/nested/configuration/configuration.storekit",
@@ -700,7 +705,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let scheme = Scheme.test(buildAction: buildAction, runAction: runAction)
 
-        let app = Target.test(name: "App", product: .app, environment: environment)
+        let app = Target.test(name: "App", product: .app, environmentVariables: environmentVariables)
 
         let project = Project.test(
             path: projectPath,
@@ -742,7 +747,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.environmentVariables, [
             XCScheme.EnvironmentVariable(variable: "env1", value: "1", enabled: true),
             XCScheme.EnvironmentVariable(variable: "env2", value: "2", enabled: true),
-            XCScheme.EnvironmentVariable(variable: "env3", value: "3", enabled: true),
+            XCScheme.EnvironmentVariable(variable: "env3", value: "3", enabled: false),
             XCScheme.EnvironmentVariable(variable: "env4", value: "4", enabled: true),
         ])
         XCTAssertNil(result.askForAppToLaunch)
@@ -1072,7 +1077,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let runAction = RunAction.test(
             executable: appTargetReference,
             arguments: Arguments(
-                environment: ["SOME": "ENV"],
+                environmentVariables: [.init(key: "SOME", value: "ENV", isEnabled: true)],
                 launchArguments: [.init(name: "something", isEnabled: true)]
             )
         )
