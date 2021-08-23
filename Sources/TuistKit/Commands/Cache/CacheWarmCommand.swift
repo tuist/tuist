@@ -19,7 +19,16 @@ struct CacheWarmCommand: ParsableCommand {
     @Argument(help: "A list of targets to cache. Those and their dependent targets will be cached.")
     var targets: [String] = []
 
+    @Flag(help: "If passed, the command doesn't cache the targets passed in the `--targets` argument.")
+    var dependenciesOnly: Bool = false
+
     func run() throws {
-        try CacheWarmService().run(path: options.path, profile: options.profile, xcframeworks: options.xcframeworks, targets: targets)
+        try CacheWarmService().run(
+            path: options.path,
+            profile: options.profile,
+            xcframeworks: options.xcframeworks,
+            targets: targets,
+            dependenciesOnly: dependenciesOnly
+        )
     }
 }

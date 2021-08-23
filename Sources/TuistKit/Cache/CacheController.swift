@@ -60,7 +60,8 @@ protocol CacheControlling {
     ///   - path: Path to the directory that contains a workspace or a project.
     ///   - cacheProfile: The caching profile.
     ///   - targets: If present, a list of target to build.
-    func cache(path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile, targetsToFilter: [String]) throws
+    ///   - dependenciesOnly: If true, the targets passed in the `targets` parameter are not cached
+    func cache(path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile, targetsToFilter: [String], dependenciesOnly: Bool) throws
 }
 
 final class CacheController: CacheControlling {
@@ -111,7 +112,7 @@ final class CacheController: CacheControlling {
         self.cacheGraphLinter = cacheGraphLinter
     }
 
-    func cache(path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile, targetsToFilter: [String]) throws {
+    func cache(path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile, targetsToFilter: [String], dependenciesOnly: Bool) throws {
         let generator = projectGeneratorProvider.generator()
         let (projectPath, graph) = try generator.generateWithGraph(path: path, projectOnly: false)
 
@@ -124,7 +125,8 @@ final class CacheController: CacheControlling {
         let hashesByTargetToBeCached = try makeHashesByTargetToBeCached(
             for: graph,
             cacheProfile: cacheProfile,
-            targetsToFilter: targetsToFilter
+            targetsToFilter: targetsToFilter,
+            dependenciesOnly: dependenciesOnly
         )
 
         logger.notice("Building cacheable targets")
@@ -180,7 +182,8 @@ final class CacheController: CacheControlling {
     func makeHashesByTargetToBeCached(
         for graph: Graph,
         cacheProfile: TuistGraph.Cache.Profile,
-        targetsToFilter: [String]
+        targetsToFilter: [String],
+        dependenciesOnly: Bool
     ) throws -> [(GraphTarget, String)] {
         let hashesByCacheableTarget = try cacheGraphContentHasher.contentHashes(
             for: graph,
@@ -204,6 +207,9 @@ final class CacheController: CacheControlling {
                 logger.pretty("The target \(.bold(.raw(target.target.name))) with hash \(.bold(.raw(hash))) and type \(artifactBuilder.cacheOutputType.description) is already in the cache. Skipping...")
             }
             return !cacheExists
+        }
+        .filter {
+            return !dependenciesOnly || !targetsToFilter.contains($0.target.name)
         }
         .reversed()
         .map { ($0, hashesByCacheableTarget[$0]!) }
