@@ -13,6 +13,9 @@ module Fourier
         end
 
         def call
+          FileUtils.rm_rf(File.expand_path("Tuist.xcodeproj", Constants::ROOT_DIRECTORY))
+          FileUtils.rm_rf(File.expand_path("Tuist.xcworkspace", Constants::ROOT_DIRECTORY))
+
           output_directory = File.expand_path("build", Constants::ROOT_DIRECTORY) if output_directory.nil?
           FileUtils.mkdir_p(output_directory) unless Dir.exist?(output_directory)
 
