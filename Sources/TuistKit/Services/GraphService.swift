@@ -95,6 +95,11 @@ final class GraphService {
         logger.notice("Installing GraphViz...")
         var env = System.shared.env
         env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
-        try System.shared.runAndPrint(["brew", "install", "graphviz"], verbose: false, environment: env)
+        
+        try System.shared.runAndPrint(
+            ["arch", DeveloperEnvironment.shared.architecture.homebrewArch, "brew", "install", "graphviz"],
+            verbose: false,
+            environment: env
+        )
     }
 }

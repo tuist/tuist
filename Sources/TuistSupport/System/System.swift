@@ -631,7 +631,11 @@ public final class System: Systeming {
     /// - Returns: The output of running 'which' with the given tool name.
     /// - Throws: An error if which exits unsuccessfully.
     public func which(_ name: String) throws -> String {
-        try capture("/usr/bin/env", "which", name).spm_chomp()
+        do {
+            return try capture("/usr/bin/env", "which", name).spm_chomp()
+        } catch {
+            return try capture("/opt/homebrew", "which", name).spm_chomp()
+        }
     }
 
     // MARK: Helpers

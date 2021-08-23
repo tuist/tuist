@@ -49,9 +49,9 @@ public final class DeveloperEnvironment: DeveloperEnvironmenting {
         if let _architecture = _architecture {
             return _architecture
         }
-        // swiftlint:disable:next force_try
-        let output = try! System.shared.capture("/usr/bin/uname", "-m").chomp()
-        _architecture = MacArchitecture(rawValue: output)
+        _architecture = MacArchitecture(
+            rawValue: MachineEnvironment.shared.machineHardwareName
+        )
         return _architecture!
     }
 

@@ -6,6 +6,7 @@ import TuistSupport
 class UpHomebrew: Up, GraphInitiatable {
     /// Homebrew packages to be installed.
     let packages: [String]
+    private let architecture = DeveloperEnvironment.shared.architecture
 
     /// Initializes the Homebrew command.
     ///
@@ -47,7 +48,7 @@ class UpHomebrew: Up, GraphInitiatable {
         if !toolInstalled("brew") {
             logger.notice("Installing Homebrew")
             try System.shared.runAndPrint(
-                "/usr/bin/env",
+                self.architecture.homebrewPath,
                 "ruby",
                 "-e",
                 "\"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)\"",
@@ -59,7 +60,9 @@ class UpHomebrew: Up, GraphInitiatable {
         try nonInstalledPackages.forEach { package in
             logger.notice("Installing Homebrew package: \(package)")
             try System.shared.runAndPrint(
-                "/usr/bin/env",
+                self.architecture.homebrewPath,
+                "arch",
+                self.architecture.homebrewArch,
                 "brew",
                 "install",
                 package,
@@ -70,6 +73,6 @@ class UpHomebrew: Up, GraphInitiatable {
     }
 
     private func packageInstalled(_ name: String) -> Bool {
-        (try? System.shared.run("/usr/bin/env", "brew", "list", name)) != nil
+        (try? System.shared.run(self.architecture.homebrewPath, "brew", "list", name)) != nil
     }
 }

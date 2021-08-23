@@ -7,6 +7,14 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class UpHomebrewTests: TuistUnitTestCase {
+    private let homebrewPath = DeveloperEnvironment.shared.architecture.homebrewPath
+
+    override func setUp() {
+        super.setUp()
+
+        developerEnvironment.stubbedArchitecture = .arm64
+    }
+    
     func test_isMet_when_homebrew_is_missing() throws {
         let temporaryPath = try self.temporaryPath()
         let subject = UpHomebrew(packages: [])
@@ -31,7 +39,7 @@ final class UpHomebrewTests: TuistUnitTestCase {
                 throw NSError.test()
             }
         }
-        system.errorCommand("/usr/bin/env", "brew", "list", "swiftlint")
+        system.errorCommand(self.homebrewPath, "brew", "list", "swiftlint")
         let got = try subject.isMet(projectPath: temporaryPath)
         XCTAssertFalse(got)
     }
@@ -46,7 +54,7 @@ final class UpHomebrewTests: TuistUnitTestCase {
                 throw NSError.test()
             }
         }
-        system.succeedCommand("/usr/bin/env", "brew", "list", "swiftlint")
+        system.succeedCommand(self.homebrewPath, "brew", "list", "swiftlint")
         let got = try subject.isMet(projectPath: temporaryPath)
         XCTAssertTrue(got)
     }
@@ -56,14 +64,13 @@ final class UpHomebrewTests: TuistUnitTestCase {
         let subject = UpHomebrew(packages: ["swiftlint"])
 
         system.whichStub = { _ in nil }
-        system.errorCommand("/usr/bin/env", "brew", "list", "swiftlint")
+        system.errorCommand(self.homebrewPath, "brew", "list", "swiftlint")
         system.succeedCommand(
-            "/usr/bin/env",
-            "ruby",
-            "-e",
-            "\"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)\""
+            "/bin/bash",
+            "-c",
+            "\"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
         )
-        system.succeedCommand("/usr/bin/env", "brew", "install", "swiftlint")
+        system.succeedCommand(self.homebrewPath, "brew", "install", "swiftlint")
 
         try subject.meet(projectPath: temporaryPath)
 
