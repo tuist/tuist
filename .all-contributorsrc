@@ -514,6 +514,15 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "apps4everyone",
+      "name": "apps4everyone",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1915802?v=4",
+      "profile": "https://apps4everyone.at",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
