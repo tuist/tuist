@@ -1587,7 +1587,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             )
         )
     }
-    
+
     // HELP NEEDED: FAILING TEST
     func testMap_whenHasResourcesAndExcludeResources() throws {
         let project = try subject.map(
@@ -1605,7 +1605,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 .init(rule: .process, path: "Another/Resource/Folder"),
                             ],
                             exclude: [
-                                "Resource/**"
+                                "Resource/**",
                             ]
                         ),
                     ],
@@ -1626,10 +1626,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         resources: try ResourceFileElements(
                             resources: [
                                 "/Package/Path/Sources/Target1/Resource/Folder/**",
-                                "/Package/Path/Sources/Target1/Another/Resource/Folder/**"
+                                "/Package/Path/Sources/Target1/Another/Resource/Folder/**",
                             ],
                             excluding: [
-                                "/Package/Path/Sources/Target1/Resource/Resource/**"
+                                "/Package/Path/Sources/Target1/Resource/Resource/**",
                             ]
                         )
                     ),
@@ -1637,7 +1637,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             )
         )
     }
-    
+
     // HELP NEEDED: FAILING TEST
     func testMap_whenHasResourcesAndExcludeThowingGlobResources() throws {
         let project = try subject.map(
@@ -1653,7 +1653,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             resources: [
                             ],
                             exclude: [
-                                "Resource/**/**"
+                                "Resource/**/**",
                             ]
                         ),
                     ],

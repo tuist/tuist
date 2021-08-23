@@ -134,7 +134,7 @@ extension TuistGraph.Target {
             guard !path.pathString.contains("/**/") else {
                 throw ResourceFileElementError.globsNotAllowed
             }
-            
+
             if path.pathString.hasSuffix("/**") {
                 let exclude = path.pathString.dropSuffix("/**")
                 allResources.removeAll { element in
@@ -201,7 +201,7 @@ extension TuistGraph.Target {
 
 enum ResourceFileElementError: FatalError {
     case globsNotAllowed
-    
+
     /// Error type.
     var type: ErrorType {
         switch self {

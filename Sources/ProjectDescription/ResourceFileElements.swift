@@ -11,12 +11,12 @@ public struct ResourceFileElements: Codable, Equatable {
 
     public init(resources: [ResourceFileElement]) {
         self.resources = resources
-        self.excluding = []
+        excluding = []
     }
-    
-    public init(resources: [ResourceFileElement], excluding: [Path]) throws {
+
+    public init(resources: [ResourceFileElement], excluding _: [Path]) throws {
         self.resources = resources
-        self.excluding = []
+        excluding = []
     }
 }
 
