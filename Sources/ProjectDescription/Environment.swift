@@ -28,16 +28,12 @@ public struct Environment {
     }
 
     public static subscript(dynamicMember member: String) -> Value? {
-        let snakeCaseMember = "TUIST_\(member.camelCaseToSnakeCase().uppercased())"
-        return value(for: snakeCaseMember)
+        value(for: member, environment: ProcessInfo.processInfo.environment)
     }
 
-    public static func value(for key: String) -> Value? {
-        value(for: key, environment: ProcessInfo.processInfo.environment)
-    }
-
-    static func value(for key: String, environment: [String: String]) -> Value? {
-        guard let value = environment[key] else { return nil }
+    static func value(for key: String, environment: [String: String] = ProcessInfo.processInfo.environment) -> Value? {
+        let formattedName = key.camelCaseToSnakeCase().uppercased()
+        guard let value = environment["TUIST_\(formattedName)"] ?? environment[formattedName] else { return nil }
         let trueValues = ["1", "true", "TRUE", "yes", "YES"]
         let falseValues = ["0", "false", "FALSE", "no", "NO"]
         if trueValues.contains(value) {

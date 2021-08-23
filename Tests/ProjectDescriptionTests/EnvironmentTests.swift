@@ -63,4 +63,35 @@ final class EnvironmentTests: XCTestCase {
         let value = Environment.value(for: "1", environment: environment)
         XCTAssertNil(value)
     }
+
+    func testValueChecksForTuistPrefixedValuesFirst() {
+        let environment: [String: String] = [
+            "TUIST_NAME_SUFFIX": "0",
+            "NAME_SUFFIX": "1",
+        ]
+
+        // mimicing the camel cased dynamic member format
+        let value = Environment.value(for: "nameSuffix", environment: environment)
+        switch value {
+        case .boolean(false):
+            break
+        default:
+            XCTFail("Unexpected value. Got: \(String(describing: value)), expected: .boolean(false)")
+        }
+    }
+
+    func testNonPrefixedKeysAreFetchedIfPrefixedValueDoesNotExist() {
+        let environment: [String: String] = [
+            "NAME_SUFFIX": "1",
+        ]
+
+        // mimicing the camel cased dynamic member format
+        let value = Environment.value(for: "nameSuffix", environment: environment)
+        switch value {
+        case .boolean(true):
+            break
+        default:
+            XCTFail("Unexpected value. Got: \(String(describing: value)), expected: .boolean(true)")
+        }
+    }
 }
