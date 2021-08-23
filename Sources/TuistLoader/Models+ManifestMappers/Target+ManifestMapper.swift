@@ -132,7 +132,10 @@ extension TuistGraph.Target {
         // remove excluding
         try manifest.resources?.excluding.forEach { path in
             guard !path.pathString.contains("/**/") else {
-                throw ResourceFileElementError.globsNotAllowed
+                throw TargetManifestMapperError.invalidResourcesGlob(
+                    targetName: manifest.name,
+                    invalidGlobs: [InvalidGlob(pattern: "/**/", nonExistentPath: AbsolutePath(path.pathString))]
+                )
             }
 
             if path.pathString.hasSuffix("/**") {
@@ -196,24 +199,5 @@ extension TuistGraph.Target {
         }
 
         return (sources: sourcesWithoutPlaygrounds, playgrounds: Array(playgrounds))
-    }
-}
-
-enum ResourceFileElementError: FatalError {
-    case globsNotAllowed
-
-    /// Error type.
-    var type: ErrorType {
-        switch self {
-        case .globsNotAllowed: return .abort
-        }
-    }
-
-    /// Error description.
-    var description: String {
-        switch self {
-        case .globsNotAllowed:
-            return "Globs `/**/` aren't allowed in ResourceFiles."
-        }
     }
 }
