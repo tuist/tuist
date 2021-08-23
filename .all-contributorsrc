@@ -27,15 +27,6 @@
       ]
     },
     {
-      "login": "fortmarek",
-      "name": "Marek Fořt",
-      "avatar_url": "https://avatars0.githubusercontent.com/u/9371695?v=4",
-      "profile": "https://github.com/fortmarek",
-      "contributions": [
-        "ideas"
-      ]
-    },
-    {
       "login": "kwridan",
       "name": "Kas",
       "avatar_url": "https://avatars3.githubusercontent.com/u/11914919?v=4",
@@ -504,6 +495,24 @@
       "profile": "https://bandism.net/",
       "contributions": [
         "doc"
+      ]
+    },
+    {
+      "login": "setoelkahfi",
+      "name": "Seto Elkahfi / 塞托·埃尔卡菲",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1797197?v=4",
+      "profile": "https://github.com/setoelkahfi",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "apps4everyone",
+      "name": "apps4everyone",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1915802?v=4",
+      "profile": "https://apps4everyone.at",
+      "contributions": [
+        "code"
       ]
     }
   ],
