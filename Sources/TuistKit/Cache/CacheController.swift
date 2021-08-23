@@ -60,7 +60,7 @@ protocol CacheControlling {
     ///   - path: Path to the directory that contains a workspace or a project.
     ///   - cacheProfile: The caching profile.
     ///   - targets: If present, a list of target to build.
-    ///   - dependenciesOnly: If true, the targets passed in the `targets` parameter are not cached
+    ///   - dependenciesOnly: If true, the targets passed in the `targets` parameter are not cached, but only their dependencies
     func cache(path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile, targetsToFilter: [String], dependenciesOnly: Bool) throws
 }
 
