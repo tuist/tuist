@@ -1587,6 +1587,101 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             )
         )
     }
+    
+    // HELP NEEDED: FAILING TEST
+    func testMap_whenHasResourcesAndExcludeResources() throws {
+        let project = try subject.map(
+            package: "Package",
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1",
+                            resources: [
+                                .init(rule: .copy, path: "Resource/Folder"),
+                                .init(rule: .process, path: "Another/Resource/Folder"),
+                            ],
+                            exclude: [
+                                "Resource/**"
+                            ]
+                        ),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test(
+                        "Target1",
+                        resources: try ResourceFileElements(
+                            resources: [
+                                "/Package/Path/Sources/Target1/Resource/Folder/**",
+                                "/Package/Path/Sources/Target1/Another/Resource/Folder/**"
+                            ],
+                            excluding: [
+                                "/Package/Path/Sources/Target1/Resource/Resource/**"
+                            ]
+                        )
+                    ),
+                ]
+            )
+        )
+    }
+    
+    // HELP NEEDED: FAILING TEST
+    func testMap_whenHasResourcesAndExcludeThowingGlobResources() throws {
+        let project = try subject.map(
+            package: "Package",
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1",
+                            resources: [
+                            ],
+                            exclude: [
+                                "Resource/**/**"
+                            ]
+                        ),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test(
+                        "Target1",
+                        resources: try ResourceFileElements(
+                            resources: [
+                            ],
+                            excluding: [
+                            ]
+                        )
+                    ),
+                ]
+            )
+        )
+    }
 }
 
 extension PackageInfoMapping {
@@ -1634,6 +1729,7 @@ extension PackageInfo.Target {
         url: String? = nil,
         sources: [String]? = nil,
         resources: [PackageInfo.Target.Resource] = [],
+        exclude: [String] = [],
         dependencies: [PackageInfo.Target.Dependency] = [],
         publicHeadersPath: String? = nil,
         settings: [TargetBuildSettingDescription.Setting] = []
@@ -1644,7 +1740,7 @@ extension PackageInfo.Target {
             url: url,
             sources: sources,
             resources: resources,
-            exclude: [],
+            exclude: exclude,
             dependencies: dependencies,
             publicHeadersPath: publicHeadersPath,
             type: type,

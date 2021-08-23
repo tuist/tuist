@@ -130,8 +130,12 @@ extension TuistGraph.Target {
         }
 
         // remove excluding
-        manifest.resources?.excluding.forEach { path in
-            if path.pathString.suffix(2) == "**" {
+        try manifest.resources?.excluding.forEach { path in
+            guard !path.pathString.contains("/**/") else {
+                throw ResourceFileElementError.globsNotAllowed
+            }
+            
+            if path.pathString.hasSuffix("/**") {
                 let exclude = path.pathString.dropSuffix("/**")
                 allResources.removeAll { element in
                     element.path.upToLastNonGlob.dirname.contains(exclude)
@@ -195,9 +199,21 @@ extension TuistGraph.Target {
     }
 }
 
-extension Array where Element == TuistGraph.ResourceFileElement {
-    mutating func remove(path: AbsolutePath) {
-        guard let index = firstIndex(of: TuistGraph.ResourceFileElement(path: path)) else { return }
-        remove(at: index)
+enum ResourceFileElementError: FatalError {
+    case globsNotAllowed
+    
+    /// Error type.
+    var type: ErrorType {
+        switch self {
+        case .globsNotAllowed: return .abort
+        }
+    }
+
+    /// Error description.
+    var description: String {
+        switch self {
+        case .globsNotAllowed:
+            return "Globs `/**/` aren't allowed in ResourceFiles."
+        }
     }
 }

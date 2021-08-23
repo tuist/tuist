@@ -148,7 +148,7 @@ extension PackageInfo {
         let resources: [Resource]
 
         /// The exclude patterns.
-        let exclude: [String] // TODO: tests
+        let exclude: [String]
 
         /// The declared target dependencies.
         let dependencies: [Dependency]

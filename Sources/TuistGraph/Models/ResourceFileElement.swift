@@ -37,6 +37,13 @@ public enum ResourceFileElement: Equatable, Hashable, Codable {
     }
 }
 
+public extension Array where Element == TuistGraph.ResourceFileElement {
+    mutating func remove(path: AbsolutePath) {
+        guard let index = firstIndex(of: TuistGraph.ResourceFileElement(path: path)) else { return }
+        remove(at: index)
+    }
+}
+
 // MARK: - Codable
 
 extension ResourceFileElement {
