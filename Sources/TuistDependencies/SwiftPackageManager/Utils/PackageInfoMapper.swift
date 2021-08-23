@@ -236,7 +236,7 @@ extension ProjectDescription.Target {
             return nil
         }
 
-        guard let product = ProjectDescription.Product.from(name: target.name, products: products, productTypes: productTypes) else {
+        guard let product = ProjectDescription.Product.from(name: target.name, hasResources: !target.resources.isEmpty, products: products, productTypes: productTypes) else {
             logger.debug("Target \(target.name) ignored by product type")
             return nil
         }
@@ -361,6 +361,7 @@ extension ProjectDescription.DeploymentTarget {
 extension ProjectDescription.Product {
     fileprivate static func from(
         name: String,
+        hasResources: Bool,
         products: Set<PackageInfo.Product>,
         productTypes: [String: TuistGraph.Product]
     ) -> Self? {
@@ -395,7 +396,8 @@ extension ProjectDescription.Product {
             return product
         } else if hasLibraryProducts {
             // only automatic products, default to static framework
-            return .staticFramework
+            // Products with resources should default to a dynamic framework
+            return hasResources ? .framework : .staticFramework
         } else {
             // only executable, plugin, or test products, ignore it
             return nil
