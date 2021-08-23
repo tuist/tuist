@@ -70,7 +70,7 @@ final class EnvironmentTests: XCTestCase {
             "NAME_SUFFIX": "1",
         ]
 
-        // mimicing the camel cased dynamic member format
+        // mimicking the camel cased dynamic member format
         let value = Environment.value(for: "nameSuffix", environment: environment)
         switch value {
         case .boolean(false):
@@ -85,7 +85,7 @@ final class EnvironmentTests: XCTestCase {
             "NAME_SUFFIX": "1",
         ]
 
-        // mimicing the camel cased dynamic member format
+        // mimicking the camel cased dynamic member format
         let value = Environment.value(for: "nameSuffix", environment: environment)
         switch value {
         case .boolean(true):
