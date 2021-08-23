@@ -566,8 +566,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         resources: .init(
                             resources: [
                                 .init(stringLiteral: basePath.appending(RelativePath("Package/Path/Custom/Path/Resource/Folder/**")).pathString),
-                            ],
-                            excluding: []
+                            ]
                         ),
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Custom/Path/Headers"],
