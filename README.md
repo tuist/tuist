@@ -166,6 +166,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="https://github.com/zzzkk"><img src="https://avatars.githubusercontent.com/u/12541603?v=4" width="100px;" alt=""/><br /><sub><b>Zofia Kulus</b></sub></a></td>
     <td align="center"><a href="http://randombits.org/"><img src="https://avatars.githubusercontent.com/u/3589315?v=4" width="100px;" alt=""/><br /><sub><b>David Peterson</b></sub></a></td>
     <td align="center"><a href="https://bandism.net/"><img src="https://avatars.githubusercontent.com/u/22633385?v=4" width="100px;" alt=""/><br /><sub><b>Ikko Ashimine</b></sub></a></td>
+    <td align="center"><a href="https://github.com/setoelkahfi"><img src="https://avatars.githubusercontent.com/u/1797197?v=4" width="100px;" alt=""/><br /><sub><b>Seto Elkahfi / 塞托·埃尔卡菲</b></sub></a></td>
   </tr>
 </table>
 
