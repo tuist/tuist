@@ -203,4 +203,42 @@ final class CacheControllerTests: TuistUnitTestCase {
         XCTAssertEqual(artifactBuilder.invokedBuildProjectTargetParametersList[0].target, aTarget)
         XCTAssertEqual(artifactBuilder.invokedBuildProjectTargetParametersList[1].target, bTarget)
     }
+
+    func test_given_target_to_filter_is_not_cacheable_should_cache_its_depedendencies() throws {
+        // Given
+        let project = Project.test()
+        let aTarget = Target.test(name: "a")
+        let bTarget = Target.test(name: "b")
+        let aGraphTarget = GraphTarget.test(path: project.path, target: aTarget, project: project)
+        let bGraphTarget = GraphTarget.test(path: project.path, target: bTarget, project: project)
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [aGraphTarget, bGraphTarget].reduce(into: [project.path: [String: Target]()]) { $0[project.path]?[$1.target.name] = $1.target },
+            dependencies: [
+                // `bTarget` is a dependency of `aTarget`.
+                .target(name: aGraphTarget.target.name, path: aGraphTarget.path): [
+                    .target(name: bGraphTarget.target.name, path: bGraphTarget.path),
+                ],
+            ]
+        )
+
+        // `aTarget` is not cacheable, but `bTarget` (its dependency) it is.
+        let nodeWithHashes = [
+            bGraphTarget: "\(bTarget.name)_HASH",
+        ]
+        cacheGraphContentHasher.contentHashesStub = { _, _, _ in
+            nodeWithHashes
+        }
+
+        artifactBuilder.stubbedCacheOutputType = .xcframework
+
+        // When
+        let results = try subject.makeHashesByTargetToBeCached(for: graph, cacheProfile: .test(), targetsToFilter: [aTarget.name])
+
+        // Then
+        XCTAssertEqual(results.count, 1)
+        let first = try XCTUnwrap(results.first)
+        XCTAssertEqual(first.0, bGraphTarget)
+        XCTAssertEqual(first.1, nodeWithHashes[bGraphTarget])
+    }
 }

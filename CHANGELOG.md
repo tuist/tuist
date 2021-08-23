@@ -14,6 +14,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Fix mapping of SPM linker flags [#3276](https://github.com/tuist/tuist/pull/3276) by [@danyf90](https://github.com/danyf90)
 - Fix adding `Carthage` dependencies to `Target` using `TargetDepedency.external` [#3300](https://github.com/tuist/tuist/pull/3300) by [@laxmorek](https://github.com/laxmorek)
 - Fix for missing transitive precompiled static frameworks [#3296](https://github.com/tuist/tuist/pull/3296) by [@kwridan](https://github.com/kwridan)## 1.48.1
+- Fix for filtering logic for caching dependencies to include dependencies of filtered non-cacheable targets [#3333](https://github.com/tuist/tuist/pull/3333) by [@adellibovi](https://github.com/adellibovi)
 
 ### Changed
 
