@@ -29,7 +29,7 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
 
         // Then
         let got = fileManager.subpathsResolvingSymbolicLinks(atPath: folderPath.pathString)
-        XCTAssertEqual(got, ["File1", "Subfolder", "Subfolder/File2"])
+        XCTAssertEqual(got.sorted(), ["File1", "Subfolder", "Subfolder/File2"])
     }
 
     func testSubpaths_whenSymbolicLinksToFiles() throws {
@@ -59,7 +59,7 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
 
         // Then
         let got = fileManager.subpathsResolvingSymbolicLinks(atPath: folderPath.pathString)
-        XCTAssertEqual(got, ["Subfolder", "Subfolder/File", "Symlink"])
+        XCTAssertEqual(got.sorted(), ["Subfolder", "Subfolder/File", "Symlink"])
     }
 
     func testSubpaths_whenSymbolicLinksToDirectory() throws {
@@ -87,7 +87,7 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
 
         // Then
         let got = fileManager.subpathsResolvingSymbolicLinks(atPath: folderPath.pathString)
-        XCTAssertEqual(got, ["SymlinkFolder", "SymlinkFolder/File"])
+        XCTAssertEqual(got.sorted(), ["SymlinkFolder", "SymlinkFolder/File"])
     }
 
     func testSubpaths_whenSymbolicLinkAndOriginalInSameSubtree() throws {
@@ -112,7 +112,7 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
 
         // Then
         let got = fileManager.subpathsResolvingSymbolicLinks(atPath: folderPath.pathString)
-        XCTAssertEqual(got, ["File", "Symlink"])
+        XCTAssertEqual(got.sorted(), ["File", "Symlink"])
     }
 
     func testSubpaths_whenNestedDirectories() throws {
@@ -154,6 +154,6 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
             "Folder/SubFolder/SubSubFolder",
             "Folder/SubFolder/SubSubFolder/SubSubFile",
         ]
-        XCTAssertEqual(got, expected)
+        XCTAssertEqual(got.sorted(), expected)
     }
 }

@@ -24,7 +24,7 @@ extension FileManager {
             resolvedSubpaths.append(relativeSubpath)
         }
 
-        return resolvedSubpaths.sorted()
+        return resolvedSubpaths
     }
 
     private func isSymbolicLink(path: String) -> Bool {
