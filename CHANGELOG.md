@@ -14,11 +14,13 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Fix mapping of SPM linker flags [#3276](https://github.com/tuist/tuist/pull/3276) by [@danyf90](https://github.com/danyf90)
 - Fix adding `Carthage` dependencies to `Target` using `TargetDepedency.external` [#3300](https://github.com/tuist/tuist/pull/3300) by [@laxmorek](https://github.com/laxmorek)
 - Fix for missing transitive precompiled static frameworks [#3296](https://github.com/tuist/tuist/pull/3296) by [@kwridan](https://github.com/kwridan)
-- Fix for `./fourier bundle` command when `xcodeproj` or `xcworkspace` files are present [#3331](https://github.com/tuist/tuist/pull/3331) by [@danyf90](https://github.com/danyf90)
+- Fix for `./fourier bundle` command when `xcodeproj` or `xcworkspace` files are present [#3331](https://github.com/tuist/tuist/pull/3331) by [@danyf90](https://github.com/danyf90).
 
 ### Changed
 
 - Get the latest available version from GitHub releases instead of the Google Cloud Storage bucket [#3335](https://github.com/tuist/tuist/pull/3335) by [@pepibumur](https://github.com/pepibumur).
+- The `install` script has been updated to pull the `tuistenv` binary from the latest GitHub release's assets [#3336](https://github.com/tuist/tuist/pull/3336) by [@pepibumur](https://github.com/pepibumur).
+
 ## 1.48.1
 
 ### Changed

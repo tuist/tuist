@@ -22,7 +22,11 @@
   },
   "editor.formatOnSave": false,
   "workbench.colorTheme": "Dracula Soft",
-  "editor.quickSuggestions": {
-    "strings": true
-  }
+  "spellright.language": [
+    "en"
+  ],
+  "spellright.documentTypes": [
+    "latex",
+    "plaintext"
+  ]
 }
