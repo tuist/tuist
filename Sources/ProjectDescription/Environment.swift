@@ -2,7 +2,7 @@ import Foundation
 
 @dynamicMemberLookup
 public struct Environment {
-    public enum Value {
+    public enum Value: Equatable {
         case boolean(Bool)
         case string(String)
 

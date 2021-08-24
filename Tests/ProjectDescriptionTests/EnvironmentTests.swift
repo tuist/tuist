@@ -14,12 +14,7 @@ final class EnvironmentTests: XCTestCase {
         ]
         try environment.keys.forEach { key in
             let value = try XCTUnwrap(Environment.value(for: key, environment: environment))
-            switch value {
-            case .boolean(true):
-                break
-            default:
-                XCTFail("Unexpected value. Got: \(value), expected: .boolean(true)")
-            }
+            XCTAssertEqual(value, .boolean(true))
         }
     }
 
@@ -33,12 +28,7 @@ final class EnvironmentTests: XCTestCase {
         ]
         try environment.keys.forEach { key in
             let value = try XCTUnwrap(Environment.value(for: key, environment: environment))
-            switch value {
-            case .boolean(false):
-                break
-            default:
-                XCTFail("Unexpected value. Got: \(value), expected: .boolean(false)")
-            }
+            XCTAssertEqual(value, .boolean(false))
         }
     }
 
@@ -48,12 +38,7 @@ final class EnvironmentTests: XCTestCase {
             "0": stringValue,
         ]
         let value = Environment.value(for: "0", environment: environment)
-        switch value {
-        case .string(stringValue):
-            break
-        default:
-            XCTFail("Unexpected value. Got: \(String(describing: value)), expected: .boolean(_)")
-        }
+        XCTAssertEqual(value, .string(stringValue))
     }
 
     func test_unknownKeysReturnNil() {
@@ -72,12 +57,7 @@ final class EnvironmentTests: XCTestCase {
 
         // mimicking the camel cased dynamic member format
         let value = Environment.value(for: "nameSuffix", environment: environment)
-        switch value {
-        case .boolean(false):
-            break
-        default:
-            XCTFail("Unexpected value. Got: \(String(describing: value)), expected: .boolean(false)")
-        }
+        XCTAssertEqual(value, .boolean(false))
     }
 
     func testNonPrefixedKeysAreFetchedIfPrefixedValueDoesNotExist() {
@@ -87,11 +67,6 @@ final class EnvironmentTests: XCTestCase {
 
         // mimicking the camel cased dynamic member format
         let value = Environment.value(for: "nameSuffix", environment: environment)
-        switch value {
-        case .boolean(true):
-            break
-        default:
-            XCTFail("Unexpected value. Got: \(String(describing: value)), expected: .boolean(true)")
-        }
+        XCTAssertEqual(value, .boolean(true))
     }
 }
