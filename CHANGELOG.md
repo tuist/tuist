@@ -21,6 +21,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Skip making API call for latest Github artifact [#3342](https://github.com/tuist/tuist/pull/3342) by [@fortmarek](https://github.com/fortmarek)
 - Get the latest available version from GitHub releases instead of the Google Cloud Storage bucket [#3335](https://github.com/tuist/tuist/pull/3335) by [@pepibumur](https://github.com/pepibumur).
 - The `install` script has been updated to pull the `tuistenv` binary from the latest GitHub release's assets [#3336](https://github.com/tuist/tuist/pull/3336) by [@pepibumur](https://github.com/pepibumur).
+- Remove unneeded `BUILD_LIBRARY_FOR_DISTRIBUTION` setting when building `xcframework` for cache [#3344](https://github.com/tuist/tuist/pull/3344) by [@danyf90](https://github.com/danyf90).
 
 ## 1.48.1
 
