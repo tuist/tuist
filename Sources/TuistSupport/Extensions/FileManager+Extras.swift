@@ -42,7 +42,15 @@ extension FileManager {
             return path
         }
 
-        return resolvingSymbolicLinks(path: destination)
+        let absoluteDestination: String
+        if destination.starts(with: "/") {
+            absoluteDestination = destination
+        } else {
+            // Transform symlinks with relative destinations to absolute paths.
+            absoluteDestination = URL(fileURLWithPath: path).deletingLastPathComponent().appendingPathComponent(destination).path
+        }
+
+        return resolvingSymbolicLinks(path: absoluteDestination)
     }
 
     func isDirectory(path: String) -> Bool {
@@ -51,13 +59,11 @@ extension FileManager {
         #else
             var isDirectoryBool = false
         #endif
-        var isDirectory = fileExists(atPath: path, isDirectory: &isDirectoryBool)
+        let fileExists = fileExists(atPath: path, isDirectory: &isDirectoryBool)
         #if os(macOS)
-            isDirectory = isDirectory && isDirectoryBool.boolValue
+            return fileExists && isDirectoryBool.boolValue
         #else
-            isDirectory = isDirectory && isDirectoryBool
+            return fileExists && isDirectoryBool
         #endif
-
-        return isDirectory
     }
 }

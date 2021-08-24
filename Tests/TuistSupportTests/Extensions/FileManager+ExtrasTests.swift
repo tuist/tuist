@@ -192,4 +192,36 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
         ]
         XCTAssertEqual(got.sorted(), expected)
     }
+
+    func testSubdirectoriesResolvingSymbolicLinks_whenRelativeSymlink() throws {
+        // Given
+        let fileManager = FileManager.default
+
+        // When
+
+        // - <Root>
+        //   - OutsideFolder
+        //     - Subfolder
+        //   - Folder
+        //     - SymlinkFolder -> [Relative] OutsideFolder
+
+        let rootPath = try temporaryPath()
+        let outsideFolderPath = rootPath.appending(component: "OutsideFolder")
+        let subfolderPath = outsideFolderPath.appending(component: "Subfolder")
+        let folderPath = rootPath.appending(component: "Folder")
+        let symlinkFolderPath = folderPath.appending(component: "SymlinkFolder")
+
+        try fileHandler.createFolder(folderPath)
+        try fileHandler.createFolder(outsideFolderPath)
+        try fileHandler.createFolder(subfolderPath)
+        try fileManager.createSymbolicLink(atPath: symlinkFolderPath.pathString, withDestinationPath: "../OutsideFolder")
+
+        // Then
+        let got = fileManager.subdirectoriesResolvingSymbolicLinks(atPath: folderPath.pathString)
+        let expected = [
+            "SymlinkFolder",
+            "SymlinkFolder/Subfolder",
+        ]
+        XCTAssertEqual(got.sorted(), expected)
+    }
 }
