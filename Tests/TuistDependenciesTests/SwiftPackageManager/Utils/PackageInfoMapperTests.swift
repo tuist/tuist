@@ -243,6 +243,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 targets: [
                     .test(
                         "Target1",
+                        customProduct: .framework,
                         resources: [
                             "/Package/Path/Sources/Target1/Resource/Folder/**",
                             "/Package/Path/Sources/Target1/Another/Resource/Folder/**",
@@ -562,6 +563,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
+                        customProduct: .framework,
                         customSources: .init(globs: [basePath.appending(RelativePath("Package/Path/Custom/Path/Sources/Folder/**")).pathString]),
                         resources: .init(resources: [
                             .init(stringLiteral: basePath.appending(RelativePath("Package/Path/Custom/Path/Resource/Folder/**")).pathString),
@@ -1672,6 +1674,7 @@ extension ProjectDescription.Target {
         _ name: String,
         basePath: AbsolutePath = "/",
         platform: ProjectDescription.Platform = .iOS,
+        customProduct: ProjectDescription.Product? = nil,
         customBundleID: String? = nil,
         deploymentTarget: ProjectDescription.DeploymentTarget? = nil,
         customSources: SourceFilesList? = nil,
@@ -1684,7 +1687,7 @@ extension ProjectDescription.Target {
         return .init(
             name: name,
             platform: platform,
-            product: .staticFramework,
+            product: customProduct ?? .staticFramework,
             bundleId: customBundleID ?? name,
             deploymentTarget: deploymentTarget,
             infoPlist: .default,
