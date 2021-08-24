@@ -123,7 +123,7 @@ public final class CarthageInteractor: CarthageInteracting {
 
                 // generate dependencies graph
                 return try carthageGraphGenerator
-                    .generate(at: pathsProvider.temporaryCarthageBuildDirectory)
+                    .generate(at: pathsProvider.temporaryCarthageBuildDirectory, for: platforms)
             }
 
         logger.info("Carthage dependencies installed successfully.", metadata: .subsection)
