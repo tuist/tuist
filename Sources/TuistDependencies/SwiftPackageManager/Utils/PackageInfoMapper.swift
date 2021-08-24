@@ -236,12 +236,13 @@ extension ProjectDescription.Target {
             return nil
         }
 
-        guard let product = ProjectDescription.Product.from(name: target.name, hasResources: !target.resources.isEmpty, products: products, productTypes: productTypes) else {
+        let path = packageFolder.appending(target.relativePath)
+        let resources = ResourceFileElements.from(resources: target.resources, path: path)
+        guard let product = ProjectDescription.Product.from(name: target.name, hasResources: resources != nil, products: products, productTypes: productTypes) else {
             logger.debug("Target \(target.name) ignored by product type")
             return nil
         }
 
-        let path = packageFolder.appending(target.relativePath)
         let publicHeadersPath = path.appending(target.relativePublicHeadersPath)
         let moduleMap = try moduleMapGenerator.generate(moduleName: target.name, publicHeadersPath: publicHeadersPath)
 
@@ -253,7 +254,6 @@ extension ProjectDescription.Target {
             packageName: packageName
         )
         let sources = SourceFilesList.from(sources: target.sources, path: path, excluding: target.exclude)
-        let resources = ResourceFileElements.from(resources: target.resources, path: path)
         let headers = try Headers.from(moduleMapType: moduleMap.type, publicHeadersPath: publicHeadersPath)
 
         let resolvedDependencies = targetToResolvedDependencies[target.name] ?? []
@@ -395,8 +395,7 @@ extension ProjectDescription.Product {
         if product != nil {
             return product
         } else if hasLibraryProducts {
-            // only automatic products, default to static framework
-            // Products with resources should default to a dynamic framework
+            // only automatic products, default to dynamic framework if there are resources, or static framework otherwise
             return hasResources ? .framework : .staticFramework
         } else {
             // only executable, plugin, or test products, ignore it
