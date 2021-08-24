@@ -8,6 +8,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Add default `Release` caching profile [#3304](https://github.com/tuist/tuist/pull/3304) by [@danyf90](https://github.com/danyf90)
 
+### Changed
+
+- Environment variables now support keys with and without `TUIST_` prefix [#3337](https://github.com/tuist/tuist/pull/3337) by [@wattson12](https://github.com/wattson12)
+
 ### Fixed
 
 - Fix Dependency.swift binary path's with `path` instead of `url`. [#3269](https://github.com/tuist/tuist/pull/3269) by [@apps4everyone](https://github.com/apps4everyone)
