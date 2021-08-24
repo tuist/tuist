@@ -123,11 +123,8 @@ public class Glob: Collection {
 
         let fileManager = FileManager.default
 
-        var directories: [String] = fileManager.subpathsResolvingSymbolicLinks(atPath: firstPart).compactMap { subpath in
-            let fullPath = NSString(string: firstPart).appendingPathComponent(subpath)
-            guard fileManager.isDirectory(path: fullPath) else { return nil }
-            return fullPath
-        }
+        var directories = fileManager.subdirectoriesResolvingSymbolicLinks(atPath: firstPart)
+            .map { NSString(string: firstPart).appendingPathComponent($0) }
 
         if behavior.includesFilesFromRootOfGlobstar {
             // Check the base directory for the glob star as well.
