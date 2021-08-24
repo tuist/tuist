@@ -7,7 +7,8 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
 
     /// The custom `Product` type to be used for SPM targets.
     /// Unless provided in this map, Tuist will use the product type defined in the respective Package.swift manifest.
-    /// In case no explicit product type is defined in the Package.swift, Tuist will default to a `.framework` when the target has resources and `.staticFramework` otherwise
+    /// In case no explicit product type is defined in the Package.swift,
+    /// Tuist will default to a `.framework` when the target has resources and `.staticFramework` otherwise
     public let productTypes: [String: Product]
 
     /// Set of deployment targets to be used when the SPM package does not specify a target version.
