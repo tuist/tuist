@@ -20,8 +20,10 @@ warn() {
   printf "${tty_red}Warning${tty_reset}: %s\n" "$(chomp "$1")"
 }
 
+LATEST_VERSION=$(curl --silent "https://api.github.com/repos/tuist/tuist/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+
 ohai "Downloading tuistenv..."
-curl -LSs --output /tmp/tuistenv.zip https://github.com/tuist/tuist/releases/download/1.48.1/tuistenv.zip
+curl -LSs --output /tmp/tuistenv.zip https://github.com/tuist/tuist/releases/download/${LATEST_VERSION}/tuistenv.zip
 ohai "Unzipping tuistenv..."
 unzip -o /tmp/tuistenv.zip -d /tmp/tuistenv > /dev/null
 ohai "Installing tuistenv..."
