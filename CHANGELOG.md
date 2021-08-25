@@ -7,10 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Add default `Release` caching profile [#3304](https://github.com/tuist/tuist/pull/3304) by [@danyf90](https://github.com/danyf90)
-
-### Changed
-
-- Environment variables now support keys with and without `TUIST_` prefix [#3337](https://github.com/tuist/tuist/pull/3337) by [@wattson12](https://github.com/wattson12)
+- Add `--dependencies-only` parameter to `tuist cache warm` command [#3334](https://github.com/tuist/tuist/pull/3334) by [@danyf90](https://github.com/danyf90)
 
 ### Fixed
 
@@ -26,6 +23,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Get the latest available version from GitHub releases instead of the Google Cloud Storage bucket [#3335](https://github.com/tuist/tuist/pull/3335) by [@pepibumur](https://github.com/pepibumur).
 - The `install` script has been updated to pull the `tuistenv` binary from the latest GitHub release's assets [#3336](https://github.com/tuist/tuist/pull/3336) by [@pepibumur](https://github.com/pepibumur).
 - Remove unneeded `BUILD_LIBRARY_FOR_DISTRIBUTION` setting when building `xcframework` for cache [#3344](https://github.com/tuist/tuist/pull/3344) by [@danyf90](https://github.com/danyf90).
+- Environment variables now support keys with and without `TUIST_` prefix [#3337](https://github.com/tuist/tuist/pull/3337) by [@wattson12](https://github.com/wattson12)
 
 ## 1.48.1
 
