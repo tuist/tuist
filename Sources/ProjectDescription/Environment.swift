@@ -2,7 +2,7 @@ import Foundation
 
 @dynamicMemberLookup
 public struct Environment {
-    public enum Value {
+    public enum Value: Equatable {
         case boolean(Bool)
         case string(String)
 
@@ -28,8 +28,12 @@ public struct Environment {
     }
 
     public static subscript(dynamicMember member: String) -> Value? {
-        let snakeCaseMember = "TUIST_\(member.camelCaseToSnakeCase().uppercased())"
-        guard let value = ProcessInfo.processInfo.environment[snakeCaseMember] else { return nil }
+        value(for: member, environment: ProcessInfo.processInfo.environment)
+    }
+
+    static func value(for key: String, environment: [String: String] = ProcessInfo.processInfo.environment) -> Value? {
+        let formattedName = key.camelCaseToSnakeCase().uppercased()
+        guard let value = environment["TUIST_\(formattedName)"] ?? environment[formattedName] else { return nil }
         let trueValues = ["1", "true", "TRUE", "yes", "YES"]
         let falseValues = ["0", "false", "FALSE", "no", "NO"]
         if trueValues.contains(value) {
@@ -42,12 +46,12 @@ public struct Environment {
     }
 }
 
-extension Optional where Wrapped == Environment.Value {
+public extension Optional where Wrapped == Environment.Value {
     /// Retrieve the Environment value as a string or return the specified default string value
     /// - Parameters:
     ///   - default: default String value to be returned
     /// - Returns: String
-    public func getString(default defaultString: String) -> String {
+    func getString(default defaultString: String) -> String {
         if case let .string(value) = self { return value }
         return defaultString
     }
@@ -56,7 +60,7 @@ extension Optional where Wrapped == Environment.Value {
     /// - Parameters:
     ///   - default: default Boolean value to be returned
     /// - Returns: Bool
-    public func getBoolean(default defaultBoolean: Bool) -> Bool {
+    func getBoolean(default defaultBoolean: Bool) -> Bool {
         if case let .boolean(value) = self { return value }
         return defaultBoolean
     }

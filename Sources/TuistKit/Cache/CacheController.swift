@@ -120,38 +120,17 @@ final class CacheController: CacheControlling {
 
         // Hash
         logger.notice("Hashing cacheable targets")
-        let hashesByCacheableTarget = try cacheGraphContentHasher.contentHashes(
+
+        let hashesByTargetToBeCached = try makeHashesByTargetToBeCached(
             for: graph,
             cacheProfile: cacheProfile,
-            cacheOutputType: artifactBuilder.cacheOutputType
+            targetsToFilter: targetsToFilter
         )
-
-        let filteredTargets: [GraphTarget]
-        if targetsToFilter.isEmpty {
-            filteredTargets = Array(hashesByCacheableTarget.keys)
-        } else {
-            filteredTargets = Array(hashesByCacheableTarget.keys.filter { targetsToFilter.contains($0.target.name) })
-        }
 
         logger.notice("Building cacheable targets")
 
-        let graphTraveser = GraphTraverser(graph: graph)
-        let sortedCacheableTargets = try topologicalSort(
-            filteredTargets,
-            successors: {
-                Array(graphTraveser.directTargetDependencies(path: $0.path, name: $0.target.name))
-            }
-        )
-
-        for (index, target) in sortedCacheableTargets.reversed().enumerated() {
-            logger.notice("Building cacheable targets: \(target.target.name), \(index + 1) out of \(sortedCacheableTargets.count)")
-
-            let hash = hashesByCacheableTarget[target]!
-
-            if let exists = try cache.exists(hash: hash).toBlocking().first(), exists {
-                logger.pretty("The target \(.bold(.raw(target.target.name))) with hash \(.bold(.raw(hash))) and type \(artifactBuilder.cacheOutputType.description) is already in the cache. Skipping...")
-                continue
-            }
+        for (index, (target, hash)) in hashesByTargetToBeCached.enumerated() {
+            logger.notice("Building cacheable targets: \(target.target.name), \(index + 1) out of \(hashesByTargetToBeCached.count)")
 
             // Build
             try buildAndCacheArtifact(
@@ -196,5 +175,37 @@ final class CacheController: CacheControlling {
                 paths: FileHandler.shared.glob(outputDirectory, glob: "*")
             ).toBlocking().last()
         }
+    }
+
+    func makeHashesByTargetToBeCached(
+        for graph: Graph,
+        cacheProfile: TuistGraph.Cache.Profile,
+        targetsToFilter: [String]
+    ) throws -> [(GraphTarget, String)] {
+        let hashesByCacheableTarget = try cacheGraphContentHasher.contentHashes(
+            for: graph,
+            cacheProfile: cacheProfile,
+            cacheOutputType: artifactBuilder.cacheOutputType
+        )
+
+        let graphTraveser = GraphTraverser(graph: graph)
+        let filteredTargets = graphTraveser.allTargets().filter { targetsToFilter.isEmpty ? true : targetsToFilter.contains($0.target.name) }
+
+        return try topologicalSort(
+            Array(filteredTargets),
+            successors: {
+                Array(graphTraveser.directTargetDependencies(path: $0.path, name: $0.target.name))
+            }
+        )
+        .filter { target in
+            guard let hash = hashesByCacheableTarget[target] else { return false }
+            let cacheExists = try cache.exists(hash: hash).toBlocking().first() ?? false
+            if cacheExists {
+                logger.pretty("The target \(.bold(.raw(target.target.name))) with hash \(.bold(.raw(hash))) and type \(artifactBuilder.cacheOutputType.description) is already in the cache. Skipping...")
+            }
+            return !cacheExists
+        }
+        .reversed()
+        .map { ($0, hashesByCacheableTarget[$0]!) }
     }
 }
