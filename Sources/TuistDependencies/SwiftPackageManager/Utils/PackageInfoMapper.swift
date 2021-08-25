@@ -72,7 +72,7 @@ public protocol PackageInfoMapping {
         productToPackage: [String: String],
         packageToFolder: [String: AbsolutePath],
         artifactsFolder: AbsolutePath
-    ) throws -> (
+    ) throws -> ( // swiftlint:disable:this large_tuple
         targetToProducts: [String: Set<PackageInfo.Product>],
         resolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         externalDependencies: [String: [ProjectDescription.TargetDependency]]
@@ -119,12 +119,12 @@ public final class PackageInfoMapper: PackageInfoMapping {
     ///   - packageToFolder: Mapping from a package name to its local folder
     ///   - targetDependencyToFramework: Mapping from a target dependency to its framework
     /// - Returns: Mapped project
-    public func preprocess(
+    public func preprocess( // swiftlint:disable:this function_body_length
         packageInfos: [String: PackageInfo],
         productToPackage: [String: String],
         packageToFolder: [String: AbsolutePath],
         artifactsFolder: AbsolutePath
-    ) throws -> (
+    ) throws -> ( // swiftlint:disable:this large_tuple
         targetToProducts: [String: Set<PackageInfo.Product>],
         resolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         externalDependencies: [String: [ProjectDescription.TargetDependency]]

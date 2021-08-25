@@ -49,19 +49,19 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         XCTAssertEqual(
             targetToProducts,
             [
-                "Target_1": [.init(name: "Product1", type: .library(.automatic), targets: ["Target_1"])]
+                "Target_1": [.init(name: "Product1", type: .library(.automatic), targets: ["Target_1"])],
             ]
         )
         XCTAssertEqual(
             resolvedDependencies,
             [
-                "Target_1": []
+                "Target_1": [],
             ]
         )
         XCTAssertEqual(
             externalDependencies,
             [
-                "Product1": [.xcframework(path: "/Artifacts/Package/Target_1.xcframework")]
+                "Product1": [.xcframework(path: "/Artifacts/Package/Target_1.xcframework")],
             ]
         )
     }
