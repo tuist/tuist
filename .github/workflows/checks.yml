@@ -15,6 +15,7 @@ on:
       - projects/fixturegen/**
       - projects/tuistbench/**
       - projects/fourier/**
+      - .github/workflows/checks.yml
 
 concurrency:
   group: checks-${{ github.head_ref }}
@@ -29,7 +30,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        xcode: ['12.2', '12.4']
+        xcode: ['12.4']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode ${{ matrix.xcode }}
@@ -54,7 +55,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        xcode: ['12.2', '12.4']
+        xcode: ['12.4']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode

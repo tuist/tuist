@@ -7,6 +7,7 @@ on:
   pull_request:
     paths:
       - projects/website/**
+      - .github/workflows/website.yml
 
 concurrency:
   group: website-${{ github.head_ref }}
