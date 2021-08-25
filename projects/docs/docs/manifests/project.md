@@ -126,26 +126,26 @@ Tuist creates a `.package.resolved` file, so your team can share the same versio
 
 Each target in the list of project targets can be initialized with the following attributes:
 
-| Property           | Description                                                                                                                           | Type                                            | Required | Default          |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | -------- | ---------------- |
-| `name`             | The name of the target. The Xcode project target and the derivated product take the same name.                                        | `String`                                        | Yes      |                  |
-| `platform`         | The platform the target product is built for.                                                                                         | [`Platform`](#platform)                         | Yes      |                  |
-| `product`          | The type of build product this target will output.                                                                                    | [`Product`](#product)                           | Yes      |                  |
-| `productName`      | The built product name.                                                                                                               | `String`                                        | No       | `$(TARGET_NAME)` |
-| `deploymentTarget` | The minimum iOS version your product will support.                                                                                    | [#deployment-target](#deployment-target)        | No       |                  |
-| `bundleId`         | The product bundle identifier.                                                                                                        | `String`                                        | Yes      |                  |
-| `infoPlist`        | Relative path to the `Info.plist`                                                                                                     | [`InfoPlist`](#infoplist)                       | Yes      |                  |
-| `resources`        | List of files to include in the resources build phase. Note that localizable files, `*.lproj`, are supported.                         | [`ResourceFileElements`](#resourcefileelements) | No       |                  |
-| `copyFiles`        | Copy files actions allow defining copy files build phases.                                                                            | [`[CopyFilesAction]`](#copy-files-action)       | No       |                  |
-| `headers`          | The target headers.                                                                                                                   | [`Headers`](#headers)                           | No       |                  |
-| `entitlements`     | Path to the entitlement file.                                                                                                         | [`Path`](#path)                                 | No       |                  |
-| `actions`          | Target actions allow defining extra script build phases.                                                                              | [`[TargetAction]`](#target-action)              | No       | `[]`             |
-| `dependencies`     | List of target dependencies.                                                                                                          | [`[TargetDependency]` ](/guides/dependencies)   | No       | `[]`             |
-| `sources`          | Source files that are compiled by the target. Any playgrounds matched by the globs used in this property will be automatically added. | [`SourceFilesList`](#source-file-list)          | Yes      |                  |
-| `settings`         | Target build settings and configuration files.                                                                                        | [`Settings`](#settings)                         | No       |                  |
-| `coreDataModels`   | Core Data models.                                                                                                                     | [`[CoreDataModel]`](#core-data-model)           | No       |                  |
-| `environment`      | List of variables that will be set to the scheme that Tuist automatically generates for the target.                                   | `[String: String]`                              | No       | `[:]`            |
-| `launchArguments`  | List of launch arguments that will be set to the scheme that Tuist automatically generates for the target.                            | [`[LaunchArgument]`](#launch-argument)          | No       | `[]`             |
+| Property                | Description                                                                                                                           | Type                                            | Required | Default          |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- | -------- | ---------------- |
+| `name`                  | The name of the target. The Xcode project target and the derivated product take the same name.                                        | `String`                                        | Yes      |                  |
+| `platform`              | The platform the target product is built for.                                                                                         | [`Platform`](#platform)                         | Yes      |                  |
+| `product`               | The type of build product this target will output.                                                                                    | [`Product`](#product)                           | Yes      |                  |
+| `productName`           | The built product name.                                                                                                               | `String`                                        | No       | `$(TARGET_NAME)` |
+| `deploymentTarget`      | The minimum iOS version your product will support.                                                                                    | [`DeploymentTarget`](#deployment-target)        | No       |                  |
+| `bundleId`              | The product bundle identifier.                                                                                                        | `String`                                        | Yes      |                  |
+| `infoPlist`             | Relative path to the `Info.plist`                                                                                                     | [`InfoPlist`](#infoplist)                       | Yes      |                  |
+| `resources`             | List of files to include in the resources build phase. Note that localizable files, `*.lproj`, are supported.                         | [`ResourceFileElements`](#resourcefileelements) | No       |                  |
+| `copyFiles`             | Copy files actions allow defining copy files build phases.                                                                            | [`[CopyFilesAction]`](#copy-files-action)       | No       |                  |
+| `headers`               | The target headers.                                                                                                                   | [`Headers`](#headers)                           | No       |                  |
+| `entitlements`          | Path to the entitlement file.                                                                                                         | [`Path`](#path)                                 | No       |                  |
+| `actions`               | Target actions allow defining extra script build phases.                                                                              | [`[TargetAction]`](#target-action)              | No       | `[]`             |
+| `dependencies`          | List of target dependencies.                                                                                                          | [`[TargetDependency]` ](/guides/dependencies)   | No       | `[]`             |
+| `sources`               | Source files that are compiled by the target. Any playgrounds matched by the globs used in this property will be automatically added. | [`SourceFilesList`](#source-file-list)          | Yes      |                  |
+| `settings`              | Target build settings and configuration files.                                                                                        | [`Settings`](#settings)                         | No       |                  |
+| `coreDataModels`        | Core Data models.                                                                                                                     | [`[CoreDataModel]`](#core-data-model)           | No       |                  |
+| `environmentVariables`  | List of environment variables that will be set to the scheme that Tuist automatically generates for the target.                       | [`[EnvironmentVariable]`](#environment-variable)| No       | `[]`             |
+| `launchArguments`       | List of launch arguments that will be set to the scheme that Tuist automatically generates for the target.                            | [`[LaunchArgument]`](#launch-argument)          | No       | `[]`             |
 
 ```swift
 import ProjectDescription
@@ -473,10 +473,20 @@ Testable target descibe target and tests information.
 
 Arguments contain commandline arguments passed on launch and Environment variables.
 
-| Property          | Description                                                                               | Type                                  | Required | Default |
-| ----------------- | ----------------------------------------------------------------------------------------- | ------------------------------------- | -------- | ------- |
-| `environment`     | The environment variables that are passed by the scheme when running a scheme action.     | `[String: String]`                    | No       | `[:]`   |
-| `launchArguments` | Command line launch arguments that are passed by the scheme when running a scheme action. | [[LaunchArgument]`](#launch-argument) | No       | `[]`    |
+| Property                   | Description                                                                               | Type                                               | Required | Default |
+| -------------------------- | ----------------------------------------------------------------------------------------- | -------------------------------------------------- | -------- | ------- |
+| `environmentVariables`     | The environment variables that are passed by the scheme when running a scheme action.     | [`[EnvironmentVariable]`](#environment-variable)   | No       | `[]`    |
+| `launchArguments`          | Command line launch arguments that are passed by the scheme when running a scheme action. | [`[LaunchArgument]`](#launch-argument)             | No       | `[]`    |
+
+#### Environment Variable
+
+It represents an environment variable that is passed when running a scheme's action:
+
+| Property    | Description                            | Type     | Required | Default |
+| ----------- | -------------------------------------- | -------- | -------- | ------- |
+| `key`       | The key of the environment variable    | `String` | Yes      |         |
+| `value`     | The value of the environment variable  | `String` | Yes      |         |
+| `isEnabled` | Whether the argument is enabled or not | `Bool`   | Yes      |         |
 
 #### Launch Argument
 
