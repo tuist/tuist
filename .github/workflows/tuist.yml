@@ -29,7 +29,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        xcode: ['12.2', '12.4']
+        xcode: ['12.5']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -62,7 +62,7 @@ jobs:
     runs-on: macOS-latest
     strategy:
       matrix:
-        xcode: ['12.2', '12.4']
+        xcode: ['12.2', '12.5'] # keep 12.2 to ensure backwards compatibility
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -82,7 +82,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        xcode: ['12.4']
+        xcode: ['12.5']
         feature:
           [
             'build',

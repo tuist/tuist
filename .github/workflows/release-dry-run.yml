@@ -24,7 +24,7 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        xcode: ['12.2']
+        xcode: ['12.5']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
