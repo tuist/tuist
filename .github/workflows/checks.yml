@@ -15,6 +15,7 @@ on:
       - projects/fixturegen/**
       - projects/tuistbench/**
       - projects/fourier/**
+      - .github/workflows/checks.yml
 
 concurrency:
   group: checks-${{ github.head_ref }}

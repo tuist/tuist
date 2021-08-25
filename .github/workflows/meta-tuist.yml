@@ -14,6 +14,7 @@ on:
       - Tests/**
       - projects/tuist/features/**
       - Project.swift
+      - .github/workflows/meta-tuist.yml
 
 concurrency:
   group: meta-tuist-${{ github.head_ref }}

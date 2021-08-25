@@ -13,6 +13,7 @@ on:
       - Sources/**
       - Project.swift
       - projects/fourier/**
+      - .github/workflows/release-dry-run.yml
 
 env:
   RUBY_VERSION: '3.0.1'

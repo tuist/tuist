@@ -7,6 +7,7 @@ on:
   pull_request:
     paths:
       - projects/docs/**
+      - .github/workflows/docs.yml
 
 concurrency:
   group: docs-${{ github.head_ref }}

@@ -14,6 +14,7 @@ on:
       - Tests/**
       - projects/tuist/features/**
       - projects/tuist/fixtures/**
+      - .github/workflows/tuist.yml
 
 concurrency:
   group: tuist-${{ github.head_ref }}

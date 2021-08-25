@@ -10,6 +10,7 @@ on:
       - Package.swift
       - Package.resolved
       - Sources/**
+      - .github/workflows/fixture-generator.yml
 
 concurrency:
   group: fixture-generator-${{ github.head_ref }}
