@@ -191,13 +191,13 @@ final class CacheController: CacheControlling {
             cacheOutputType: artifactBuilder.cacheOutputType
         )
 
-        let graphTraveser = GraphTraverser(graph: graph)
-        let filteredTargets = graphTraveser.allTargets().filter { targetsToFilter.isEmpty ? true : targetsToFilter.contains($0.target.name) }
+        let graphTraverser = GraphTraverser(graph: graph)
+        let filteredTargets = graphTraverser.allTargets().filter { targetsToFilter.isEmpty ? true : targetsToFilter.contains($0.target.name) }
 
         return try topologicalSort(
             Array(filteredTargets),
             successors: {
-                Array(graphTraveser.directTargetDependencies(path: $0.path, name: $0.target.name))
+                Array(graphTraverser.directTargetDependencies(path: $0.path, name: $0.target.name))
             }
         )
         .filter { target in

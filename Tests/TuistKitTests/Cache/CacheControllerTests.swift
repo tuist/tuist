@@ -282,7 +282,12 @@ final class CacheControllerTests: TuistUnitTestCase {
         artifactBuilder.stubbedCacheOutputType = .xcframework
 
         // When
-        let results = try subject.makeHashesByTargetToBeCached(for: graph, cacheProfile: .test(), targetsToFilter: [aTarget.name], dependenciesOnly: false)
+        let results = try subject.makeHashesByTargetToBeCached(
+            for: graph,
+            cacheProfile: .test(),
+            targetsToFilter: [aTarget.name],
+            dependenciesOnly: false
+        )
 
         // Then
         XCTAssertEqual(results.count, 1)

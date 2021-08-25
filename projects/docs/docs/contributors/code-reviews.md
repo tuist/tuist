@@ -33,7 +33,7 @@ we should stick to that.
 If the author disagrees with the project's standards,
 suggest them to open an issue where we can discuss them further.
 
-**✅ Tests:** Tests allow changing code with confidence.
+**🔬 Tests:** Tests allow changing code with confidence.
 The code on pull requests should be tested,
 and all tests should pass.
 A good test is a test that consistently produces the same result and that it's easy to understand and maintain.
@@ -59,6 +59,9 @@ must include documentation.
 Pull requests should add an entry to that file describing in one sentence what the change is about.
 They should link to the pull request and mention the author or authors of the changes.
 
-**✅ Tests:** Continuous integration must be happy with the changes.
+**🚦 Continuous integration:** Continuous integration must be happy with the changes.
 The pipelines are designed to bring an extra level of confidence and validate that the changes are right.
 A red CI blocks the merge of the pull request.
+
+**✅ Merging:** A pull request is ready to be merged once there are at least 2 approvals from [Tuist core members](/contributors/core-team.md).
+When merging a pull request, prefer to use `Squash and merge` to keep the git history cleaner.

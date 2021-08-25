@@ -9,7 +9,7 @@ final class UpdaterTests: TuistUnitTestCase {
     var versionsController: MockVersionsController!
     var installer: MockInstaller!
     var envUpdater: MockEnvUpdater!
-    var googleCloudStorageClient: MockGoogleCloudStorageClient!
+    var githubClient: MockGitHubClient!
     var subject: Updater!
 
     override func setUp() {
@@ -18,12 +18,12 @@ final class UpdaterTests: TuistUnitTestCase {
         versionsController = try! MockVersionsController()
         installer = MockInstaller()
         envUpdater = MockEnvUpdater()
-        googleCloudStorageClient = MockGoogleCloudStorageClient()
+        githubClient = MockGitHubClient()
         subject = Updater(
             versionsController: versionsController,
             installer: installer,
             envUpdater: envUpdater,
-            googleCloudStorageClient: googleCloudStorageClient
+            githubClient: githubClient
         )
     }
 
@@ -34,12 +34,14 @@ final class UpdaterTests: TuistUnitTestCase {
         installer = nil
         envUpdater = nil
         subject = nil
-        googleCloudStorageClient = nil
+        githubClient = nil
     }
 
     func test_update_when_there_are_no_updates() throws {
         versionsController.semverVersionsStub = ["3.2.1"]
-        googleCloudStorageClient.latestVersionStub = Version(string: "3.2.1")!
+        let resource = GitHubRelease.latest(repositoryFullName: Constants.githubSlug)
+        let result = GitHubRelease.test(name: "3.2.1", tagName: "3.2.1")
+        githubClient.stub(resource, result: .success(result))
 
         try subject.update()
 
@@ -49,7 +51,9 @@ final class UpdaterTests: TuistUnitTestCase {
 
     func test_update_when_there_are_updates() throws {
         versionsController.semverVersionsStub = ["3.1.1"]
-        googleCloudStorageClient.latestVersionStub = Version(string: "3.2.1")!
+        let resource = GitHubRelease.latest(repositoryFullName: Constants.githubSlug)
+        let result = GitHubRelease.test(name: "3.2.1", tagName: "3.2.1")
+        githubClient.stub(resource, result: .success(result))
         var installArgs: [String] = []
         installer.installStub = { version in installArgs.append(version) }
 
@@ -63,7 +67,10 @@ final class UpdaterTests: TuistUnitTestCase {
 
     func test_update_when_no_local_versions_available() throws {
         versionsController.semverVersionsStub = []
-        googleCloudStorageClient.latestVersionStub = Version(string: "3.2.1")!
+        let resource = GitHubRelease.latest(repositoryFullName: Constants.githubSlug)
+        let result = GitHubRelease.test(name: "3.2.1", tagName: "3.2.1")
+        githubClient.stub(resource, result: .success(result))
+
         var installArgs: [String] = []
         installer.installStub = { version in installArgs.append(version) }
 
