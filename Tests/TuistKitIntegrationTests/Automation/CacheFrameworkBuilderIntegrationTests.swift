@@ -31,10 +31,10 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
         let temporaryPath = try self.temporaryPath()
         let frameworksPath = try temporaryFixture("Frameworks")
         let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
-        let target = Target.test(name: "iOS", platform: .iOS, product: .framework, productName: "iOS")
+        let scheme = Scheme.test(name: "iOS")
 
         // When
-        try subject.build(projectTarget: XcodeBuildTarget(with: projectPath), target: target, configuration: "Debug", into: temporaryPath)
+        try subject.build(scheme: scheme, projectTarget: XcodeBuildTarget(with: projectPath), configuration: "Debug", into: temporaryPath)
 
         // Then
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.framework").count, 1)
@@ -50,10 +50,10 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
         let temporaryPath = try self.temporaryPath()
         let frameworksPath = try temporaryFixture("Frameworks")
         let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
-        let target = Target.test(name: "macOS", platform: .macOS, product: .framework, productName: "macOS")
+        let scheme = Scheme.test(name: "macOS")
 
         // When
-        try subject.build(projectTarget: XcodeBuildTarget(with: projectPath), target: target, configuration: "Debug", into: temporaryPath)
+        try subject.build(scheme: scheme, projectTarget: XcodeBuildTarget(with: projectPath), configuration: "Debug", into: temporaryPath)
 
         // Then
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.framework").count, 1)
@@ -69,10 +69,10 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
         let temporaryPath = try self.temporaryPath()
         let frameworksPath = try temporaryFixture("Frameworks")
         let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
-        let target = Target.test(name: "tvOS", platform: .tvOS, product: .framework, productName: "tvOS")
+        let scheme = Scheme.test(name: "tvOS")
 
         // When
-        try subject.build(projectTarget: XcodeBuildTarget(with: projectPath), target: target, configuration: "Debug", into: temporaryPath)
+        try subject.build(scheme: scheme, projectTarget: XcodeBuildTarget(with: projectPath), configuration: "Debug", into: temporaryPath)
 
         // Then
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.framework").count, 1)
@@ -88,10 +88,10 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
         let temporaryPath = try self.temporaryPath()
         let frameworksPath = try temporaryFixture("Frameworks")
         let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
-        let target = Target.test(name: "watchOS", platform: .watchOS, product: .framework, productName: "watchOS")
+        let scheme = Scheme.test(name: "watchOS")
 
         // When
-        try subject.build(projectTarget: XcodeBuildTarget(with: projectPath), target: target, configuration: "Debug", into: temporaryPath)
+        try subject.build(scheme: scheme, projectTarget: XcodeBuildTarget(with: projectPath), configuration: "Debug", into: temporaryPath)
 
         // Then
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.framework").count, 1)

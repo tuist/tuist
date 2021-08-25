@@ -6,23 +6,6 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
-enum CacheBundleBuilderError: FatalError {
-    case bundleNotFound(name: String, derivedDataPath: AbsolutePath)
-
-    var description: String {
-        switch self {
-        case let .bundleNotFound(name, derivedDataPath):
-            return "Couldn't find bundle '\(name)' in the derived data directory: \(derivedDataPath.pathString)"
-        }
-    }
-
-    var type: ErrorType {
-        switch self {
-        case .bundleNotFound: return .bug
-        }
-    }
-}
-
 public final class CacheBundleBuilder: CacheArtifactBuilding {
     public var cacheOutputType: CacheOutputType = .bundle
 
@@ -43,62 +26,41 @@ public final class CacheBundleBuilder: CacheArtifactBuilding {
         self.developerEnvironment = developerEnvironment
     }
 
-    public func build(projectTarget: XcodeBuildTarget,
-                      target: Target,
-                      configuration: String,
-                      into outputDirectory: AbsolutePath) throws
-    {
-        guard target.product == .bundle else {
-            throw CacheBinaryBuilderError.nonBundleTarget(target.name)
-        }
-        let scheme = target.name.spm_shellEscaped()
-
-        logger.notice("Building .bundle for \(target.name)...", metadata: .section)
-
-        let sdk = self.sdk(target: target)
+    public func build(scheme: Scheme, projectTarget: XcodeBuildTarget, configuration: String, into outputDirectory: AbsolutePath) throws {
+        let platform = self.platform(scheme: scheme)
 
         let arguments = try self.arguments(
-            target: target,
-            sdk: sdk,
+            platform: platform,
             configuration: configuration
         )
 
         try xcodebuild(
             projectTarget: projectTarget,
-            scheme: scheme,
-            target: target,
+            scheme: scheme.name,
             arguments: arguments
         )
 
         let buildDirectory = try xcodeProjectBuildDirectoryLocator.locate(
-            platform: target.platform,
+            platform: platform,
             projectPath: projectTarget.path,
             configuration: configuration
         )
 
-        try exportBundle(
+        try exportBundles(
             from: buildDirectory,
-            into: outputDirectory,
-            target: target
+            into: outputDirectory
         )
     }
 
-    private func sdk(target: Target) -> String {
-        if target.platform == .macOS {
-            return target.platform.xcodeDeviceSDK
-        } else {
-            return target.platform.xcodeSimulatorSDK!
-        }
-    }
+    // MARK: - Fileprivate
 
-    private func arguments(target: Target,
-                           sdk: String,
-                           configuration: String) throws -> [XcodeBuildArgument]
+    fileprivate func arguments(platform: Platform,
+                               configuration: String) throws -> [XcodeBuildArgument]
     {
-        try simulatorController.destination(for: target.platform)
+        return try simulatorController.destination(for: platform)
             .map { (destination: String) -> [XcodeBuildArgument] in
                 [
-                    .sdk(sdk),
+                    .sdk(platform == .macOS ? platform.xcodeDeviceSDK : platform.xcodeSimulatorSDK!),
                     .configuration(configuration),
                     .destination(destination),
                 ]
@@ -107,10 +69,9 @@ public final class CacheBundleBuilder: CacheArtifactBuilding {
             .single()
     }
 
-    private func xcodebuild(projectTarget: XcodeBuildTarget,
-                            scheme: String,
-                            target: Target,
-                            arguments: [XcodeBuildArgument]) throws
+    fileprivate func xcodebuild(projectTarget: XcodeBuildTarget,
+                                scheme: String,
+                                arguments: [XcodeBuildArgument]) throws
     {
         _ = try xcodeBuildController.build(
             projectTarget,
@@ -119,26 +80,17 @@ public final class CacheBundleBuilder: CacheArtifactBuilding {
             arguments: arguments
         )
         .printFormattedOutput()
-        .do(onSubscribed: {
-            logger.notice("Building \(target.name) as .bundle...", metadata: .subsection)
-        })
         .ignoreElements()
         .toBlocking()
         .last()
     }
 
-    private func exportBundle(from buildDirectory: AbsolutePath,
-                              into outputDirectory: AbsolutePath,
-                              target: Target) throws
+    fileprivate func exportBundles(from buildDirectory: AbsolutePath,
+                                   into outputDirectory: AbsolutePath) throws
     {
-        logger.info("Exporting built \(target.name) bundle...")
-
-        guard let bundle = FileHandler.shared.glob(buildDirectory, glob: target.productNameWithExtension).first else {
-            let derivedDataPath = developerEnvironment.derivedDataDirectory
-            throw CacheBundleBuilderError.bundleNotFound(name: target.productNameWithExtension, derivedDataPath: derivedDataPath)
+        let bundles = FileHandler.shared.glob(buildDirectory, glob: "*.bundle")
+        try bundles.forEach { bundle in
+            try FileHandler.shared.copy(from: bundle, to: outputDirectory.appending(component: bundle.basename))
         }
-        try FileHandler.shared.copy(from: bundle, to: outputDirectory.appending(component: bundle.basename))
-
-        logger.info("Done exporting from \(target.name) into Tuist cache")
     }
 }
