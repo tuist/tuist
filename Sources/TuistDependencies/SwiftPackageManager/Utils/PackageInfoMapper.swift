@@ -21,13 +21,16 @@ enum PackageInfoMapperError: FatalError, Equatable {
     /// Thrown when `PackageInfo.Target.Dependency.product` dependency cannot be resolved.
     case unknownProductDependency(String, String)
 
+    /// Thrown when a target defined in a product is not present in the package
+    case unknownProductTarget(package: String, product: String, target: String)
+
     /// Thrown when unsupported `PackageInfo.Target.TargetBuildSettingDescription` `Tool`/`SettingName` pair is found.
     case unsupportedSetting(PackageInfo.Target.TargetBuildSettingDescription.Tool, PackageInfo.Target.TargetBuildSettingDescription.SettingName)
 
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .noSupportedPlatforms, .unknownByNameDependency, .unknownPlatform, .unknownProductDependency:
+        case .noSupportedPlatforms, .unknownByNameDependency, .unknownPlatform, .unknownProductDependency, .unknownProductTarget:
             return .abort
         case .unsupportedSetting:
             return .bug
@@ -45,6 +48,8 @@ enum PackageInfoMapperError: FatalError, Equatable {
             return "The \(platform) platform is not supported."
         case let .unknownProductDependency(name, package):
             return "The product \(name) of package \(package) cannot be found."
+        case let .unknownProductTarget(package, product, target):
+            return "The target \(target) of product \(product) cannot be found in package \(package)."
         case let .unsupportedSetting(tool, setting):
             return "The \(tool) and \(setting) pair is not a supported setting."
         }
@@ -55,19 +60,22 @@ enum PackageInfoMapperError: FatalError, Equatable {
 
 /// Protocol that allows to map a `PackageInfo` to a `ProjectDescription.Project`.
 public protocol PackageInfoMapping {
-    /// Preproces SwiftPackageManager dependencies.
+    /// Preprocesses SwiftPackageManager dependencies.
     /// - Parameters:
     ///   - packageInfos: All available `PackageInfo`s
     ///   - productToPackage: Mapping from a product to its package
+    ///   - packageToFolder: Mapping from a package name to its local folder
     ///   - targetDependencyToFramework: Mapping from a target dependency to its framework
     /// - Returns: Mapped project
     func preprocess(
         packageInfos: [String: PackageInfo],
         productToPackage: [String: String],
+        packageToFolder: [String: AbsolutePath],
         artifactsFolder: AbsolutePath
-    ) throws -> (
+    ) throws -> ( // swiftlint:disable:this large_tuple
         targetToProducts: [String: Set<PackageInfo.Product>],
-        resolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]]
+        resolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
+        externalDependencies: [String: [ProjectDescription.TargetDependency]]
     )
 
     /// Maps a `PackageInfo` to a `ProjectDescription.Project`.
@@ -94,7 +102,7 @@ public protocol PackageInfoMapping {
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         packageToProject: [String: AbsolutePath],
         swiftToolsVersion: TSCUtility.Version?
-    ) throws -> ProjectDescription.Project
+    ) throws -> ProjectDescription.Project?
 }
 
 public final class PackageInfoMapper: PackageInfoMapping {
@@ -108,15 +116,18 @@ public final class PackageInfoMapper: PackageInfoMapping {
     /// - Parameters:
     ///   - packageInfos: All available `PackageInfo`s
     ///   - productToPackage: Mapping from a product to its package
+    ///   - packageToFolder: Mapping from a package name to its local folder
     ///   - targetDependencyToFramework: Mapping from a target dependency to its framework
     /// - Returns: Mapped project
-    public func preprocess(
+    public func preprocess( // swiftlint:disable:this function_body_length
         packageInfos: [String: PackageInfo],
         productToPackage: [String: String],
+        packageToFolder: [String: AbsolutePath],
         artifactsFolder: AbsolutePath
-    ) throws -> (
+    ) throws -> ( // swiftlint:disable:this large_tuple
         targetToProducts: [String: Set<PackageInfo.Product>],
-        resolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]]
+        resolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
+        externalDependencies: [String: [ProjectDescription.TargetDependency]]
     ) {
         let targetDependencyToFramework: [String: Path] = packageInfos.reduce(into: [:]) { result, packageInfo in
             let artifactsFolderForPackage = artifactsFolder.appending(component: packageInfo.key)
@@ -172,7 +183,23 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 }
         }
 
-        return (targetToProducts: targetToProducts, resolvedDependencies: resolvedDependencies)
+        let externalDependencies: [String: [ProjectDescription.TargetDependency]] = try packageInfos.reduce(into: [:]) { result, packageInfo in
+            try packageInfo.value.products.forEach { product in
+                result[product.name] = try product.targets.map { target in
+                    let resolvedDependency = ResolvedDependency.fromTarget(name: target, targetDependencyToFramework: targetDependencyToFramework)
+                    switch resolvedDependency {
+                    case let .xcframework(path):
+                        return .xcframework(path: path)
+                    case let .target(name):
+                        return .project(target: name, path: Path(packageToFolder[packageInfo.key]!.pathString))
+                    case .externalTargets:
+                        throw PackageInfoMapperError.unknownProductTarget(package: packageInfo.key, product: product.name, target: target)
+                    }
+                }
+            }
+        }
+
+        return (targetToProducts: targetToProducts, resolvedDependencies: resolvedDependencies, externalDependencies: externalDependencies)
     }
 
     public func map(
@@ -187,7 +214,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         packageToProject: [String: AbsolutePath],
         swiftToolsVersion: TSCUtility.Version?
-    ) throws -> ProjectDescription.Project {
+    ) throws -> ProjectDescription.Project? {
         let targets = try packageInfo.targets.compactMap { target -> ProjectDescription.Target? in
             guard let products = targetToProducts[target.name] else { return nil }
             return try Target.from(
@@ -204,6 +231,10 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 targetToResolvedDependencies: targetToResolvedDependencies,
                 moduleMapGenerator: moduleMapGenerator
             )
+        }
+
+        guard !targets.isEmpty else {
+            return nil
         }
 
         return ProjectDescription.Project(
@@ -813,7 +844,7 @@ extension PackageInfo.Target {
 }
 
 extension PackageInfoMapper {
-    public enum ResolvedDependency {
+    public enum ResolvedDependency: Equatable {
         case target(name: String)
         case xcframework(path: Path)
         case externalTargets(package: String, targets: [String])
@@ -845,7 +876,7 @@ extension PackageInfoMapper {
             }
         }
 
-        private static func fromTarget(name: String, targetDependencyToFramework: [String: Path]) -> Self {
+        fileprivate static func fromTarget(name: String, targetDependencyToFramework: [String: Path]) -> Self {
             if let framework = targetDependencyToFramework[name] {
                 return .xcframework(path: framework)
             } else {

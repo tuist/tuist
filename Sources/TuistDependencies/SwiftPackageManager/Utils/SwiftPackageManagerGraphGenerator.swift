@@ -105,19 +105,17 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             packageInfo.info.products.forEach { result[$0.name] = packageInfo.name }
         }
 
-        let externalDependencies: [String: [ProjectDescription.TargetDependency]] = packageInfos.reduce(into: [:]) { result, packageInfo in
-            packageInfo.info.products.forEach { product in
-                result[product.name] = product.targets.map { .project(target: $0, path: Path(packageInfo.folder.pathString)) }
-            }
-        }
-
         let packageToProject = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.folder) })
         let packageInfoDictionary = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.info) })
-        let (targetToProducts, targetToResolvedDependencies) = try packageInfoMapper.preprocess(
+        let packageToFolder = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.folder) })
+
+        let (targetToProducts, targetToResolvedDependencies, externalDependencies) = try packageInfoMapper.preprocess(
             packageInfos: packageInfoDictionary,
             productToPackage: productToPackage,
+            packageToFolder: packageToFolder,
             artifactsFolder: artifactsFolder
         )
+
         let externalProjects: [Path: ProjectDescription.Project] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             let manifest = try packageInfoMapper.map(
                 packageInfo: packageInfo.info,
