@@ -59,11 +59,11 @@ extension FileManager {
         #else
             var isDirectoryBool = false
         #endif
-        let fileExists = fileExists(atPath: path, isDirectory: &isDirectoryBool)
+        let doesFileExist = fileExists(atPath: path, isDirectory: &isDirectoryBool)
         #if os(macOS)
-            return fileExists && isDirectoryBool.boolValue
+            return doesFileExist && isDirectoryBool.boolValue
         #else
-            return fileExists && isDirectoryBool
+            return doesFileExist && isDirectoryBool
         #endif
     }
 }
