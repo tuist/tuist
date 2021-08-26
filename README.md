@@ -45,7 +45,7 @@ tuist build # Builds your project
 
 The repository is a monorepo with multiple projects:
 
-- [Swift Package (CLI)](/)
+- [Tuist CLI project](https://github.com/tuist/tuist)
 - [Main Website](projects/website)
 - [Benchmarking tool](projects/tuistbench)
 - [Fixture generator](projects/fixturegen)
