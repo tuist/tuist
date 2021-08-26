@@ -738,7 +738,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     private func environmentVariables(_ environments: [EnvironmentVariable]) -> [XCScheme.EnvironmentVariable] {
         environments.map { environment in
             XCScheme.EnvironmentVariable(variable: environment.key, value: environment.value, enabled: environment.isEnabled)
-        }.sorted { $0.variable < $1.variable }
+        }
     }
 
     /// Returns the scheme buildable reference for a given target.
