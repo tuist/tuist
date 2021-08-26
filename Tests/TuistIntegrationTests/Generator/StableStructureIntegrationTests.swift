@@ -28,6 +28,8 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
                 projects: 4,
                 testTargets: 10,
                 frameworkTargets: 10,
+                staticFrameworkTargets: 10,
+                staticLibraryTargets: 10,
                 schemes: 10,
                 sources: 200,
                 resources: 100,
