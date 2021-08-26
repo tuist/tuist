@@ -51,9 +51,9 @@ final class EditService {
         onlyCurrentDirectory: Bool
     ) throws {
         let path = self.path(path)
-        
+
         let pathsToExclude = [
-            "**/\(Constants.tuistDirectoryName)/\(Constants.DependenciesDirectory.name)/**"
+            "**/\(Constants.tuistDirectoryName)/\(Constants.DependenciesDirectory.name)/**",
         ]
 
         if !permanent {

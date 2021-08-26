@@ -24,7 +24,7 @@ public final class MockManifestFilesLocator: ManifestFilesLocating {
 
     public func locatePluginManifests(
         at: AbsolutePath,
-        excluding: [String],
+        excluding _: [String],
         onlyCurrentDirectory _: Bool
     ) -> [AbsolutePath] {
         locatePluginManifestsArgs.append(at)

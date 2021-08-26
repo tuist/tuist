@@ -72,15 +72,15 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
             return [pluginPath]
         } else {
             let path = rootDirectoryLocator.locate(from: locatingPath) ?? locatingPath
-            
+
             let excludedPaths = excluding
                 .flatMap {
                     FileHandler.shared.glob(path, glob: $0)
                 }
-            
+
             let pluginsPaths = Set(FileHandler.shared.glob(path, glob: "**/\(Manifest.plugin.fileName(path))"))
                 .subtracting(excludedPaths)
-            
+
             return Array(pluginsPaths)
         }
     }
@@ -122,13 +122,12 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
             .filter { FileHandler.shared.exists($0.path) }
         } else {
             let path = rootDirectoryLocator.locate(from: locatingPath) ?? locatingPath
-            
+
             let excludedPaths = excluding
                 .flatMap {
                     FileHandler.shared.glob(path, glob: $0)
                 }
-            
-            
+
             let projectsPaths = Set(FileHandler.shared.glob(path, glob: "**/\(Manifest.project.fileName(path))"))
                 .subtracting(excludedPaths)
                 .map {
@@ -145,7 +144,7 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
                         path: $0
                     )
                 }
-            
+
             return projectsPaths + workspacesPaths
         }
     }

@@ -135,7 +135,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
             ]
         )
     }
-    
+
     func test_locateProjectManifests_excludes_paths() throws {
         // Given
         let paths = try createFiles([
@@ -148,12 +148,12 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         let excluding = [
             "**/ExcludeMe/**",
         ]
-        
+
         // When
         let manifests = subject
             .locateProjectManifests(at: try temporaryPath(), excluding: excluding, onlyCurrentDirectory: false)
             .sorted(by: { $0.path < $1.path })
-        
+
         // Then
         XCTAssertEqual(
             manifests,
@@ -173,7 +173,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
             ]
         )
     }
-    
+
     func test_locateProjectManifests_excludes_paths_when_fell_back_to_locatingPath_given_no_root_path() throws {
         // Given
         let paths = try createFiles([
@@ -310,7 +310,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
             ]
         )
     }
-    
+
     func test_locatePluginManifests_excludes_paths() throws {
         // Given
         let paths = try createFiles([
@@ -345,7 +345,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
             ]
         )
     }
-    
+
     func test_locatePluginManifests_excludes_paths_when_fell_back_to_locatingPath_when_no_root_path() throws {
         // Given
         let paths = try createFiles([
