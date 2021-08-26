@@ -25,6 +25,7 @@ public class EnvironmentLinter: EnvironmentLinting {
 
         issues.append(contentsOf: lintConfigPath(config: config))
         issues.append(contentsOf: try lintXcodeVersion(config: config))
+        issues.append(contentsOf: lintCodeCoverageMode(config: config))
 
         return issues
     }
@@ -70,5 +71,13 @@ public class EnvironmentLinter: EnvironmentLinting {
         }
 
         return []
+    }
+
+    func lintCodeCoverageMode(config: Config) -> [LintingIssue] {
+        switch config.codeCoverageMode {
+        case .none, .all: return []
+        case .relevant: return [] // TODO: Check if we have any relevant targets, if not, produce a warning
+        case let .targets(targets): return [] // TODO: Check if targets exist, if not, produce an error
+        }
     }
 }
