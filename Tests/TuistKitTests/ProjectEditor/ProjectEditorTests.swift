@@ -106,7 +106,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
         resourceLocator.projectAutomationStub = { projectAutomationPath }
-        manifestFilesLocator.locateProjectManifestsStub = { _, _ in
+        manifestFilesLocator.locateProjectManifestsStub = { _, _, _ in
             manifests
         }
         manifestFilesLocator.locateConfigStub = configPath
@@ -122,7 +122,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         }
 
         // When
-        try _ = subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test())
+        try _ = subject.edit(at: directory, excluding: [], in: directory, onlyCurrentDirectory: false, plugins: .test())
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
@@ -147,7 +147,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         try FileHandler.shared.createFolder(helpersDirectory)
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
-        manifestFilesLocator.locateProjectManifestsStub = { _, _ in
+        manifestFilesLocator.locateProjectManifestsStub = { _, _, _ in
             []
         }
         manifestFilesLocator.locatePluginManifestsStub = []
@@ -160,7 +160,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         // Then
         XCTAssertThrowsSpecific(
             // When
-            try subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test()), ProjectEditorError.noEditableFiles(directory)
+            try subject.edit(at: directory, excluding: [], in: directory, onlyCurrentDirectory: false, plugins: .test()), ProjectEditorError.noEditableFiles(directory)
         )
     }
 
@@ -182,7 +182,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         }
 
         // When
-        try _ = subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test())
+        try _ = subject.edit(at: directory, excluding: [], in: directory, onlyCurrentDirectory: false, plugins: .test())
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
@@ -217,7 +217,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         }
 
         // When
-        try _ = subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test())
+        try _ = subject.edit(at: directory, excluding: [], in: directory, onlyCurrentDirectory: false, plugins: .test())
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
@@ -254,7 +254,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let tuistPath = AbsolutePath(ProcessInfo.processInfo.arguments.first!)
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
-        manifestFilesLocator.locateProjectManifestsStub = { _, _ in
+        manifestFilesLocator.locateProjectManifestsStub = { _, _, _ in
             manifests
         }
         manifestFilesLocator.locatePluginManifestsStub = [pluginManifestPath]
@@ -267,7 +267,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let plugins = Plugins.test(projectDescriptionHelpers: [
             .init(name: "LocalPlugin", path: pluginManifestPath, location: .local),
         ])
-        try _ = subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: plugins)
+        try _ = subject.edit(at: directory, excluding: [], in: directory, onlyCurrentDirectory: false, plugins: plugins)
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
@@ -301,7 +301,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let tuistPath = AbsolutePath(ProcessInfo.processInfo.arguments.first!)
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
-        manifestFilesLocator.locateProjectManifestsStub = { _, _ in
+        manifestFilesLocator.locateProjectManifestsStub = { _, _, _ in
             manifests
         }
         manifestFilesLocator.locatePluginManifestsStub = [pluginManifestPath]
@@ -315,7 +315,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
             .init(name: "LocalPlugin", path: pluginManifestPath, location: .local),
         ])
 
-        try _ = subject.edit(at: editingPath, in: editingPath, onlyCurrentDirectory: false, plugins: plugins)
+        try _ = subject.edit(at: editingPath, excluding: [], in: editingPath, onlyCurrentDirectory: false, plugins: plugins)
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
@@ -344,7 +344,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let tuistPath = AbsolutePath(ProcessInfo.processInfo.arguments.first!)
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
-        manifestFilesLocator.locateProjectManifestsStub = { _, _ in
+        manifestFilesLocator.locateProjectManifestsStub = { _, _, _ in
             manifests
         }
         manifestFilesLocator.locatePluginManifestsStub = []
@@ -361,7 +361,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let plugins = Plugins.test(projectDescriptionHelpers: [
             .init(name: "RemotePlugin", path: AbsolutePath("/Some/Path/To/Plugin"), location: .remote),
         ])
-        try _ = subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: plugins)
+        try _ = subject.edit(at: directory, excluding: [], in: directory, onlyCurrentDirectory: false, plugins: plugins)
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
