@@ -244,8 +244,16 @@ public class GraphTraverser: GraphTraversing {
         return references
     }
 
-    // swiftlint:disable:next function_body_length
+    public func searchablePathDependencies(path: AbsolutePath, name: String) throws -> Set<GraphDependencyReference> {
+        try linkableDependencies(path: path, name: name, isForSearchPath: true)
+    }
+
     public func linkableDependencies(path: AbsolutePath, name: String) throws -> Set<GraphDependencyReference> {
+        try linkableDependencies(path: path, name: name, isForSearchPath: false)
+    }
+
+    // swiftlint:disable:next function_body_length
+    public func linkableDependencies(path: AbsolutePath, name: String, isForSearchPath: Bool) throws -> Set<GraphDependencyReference> {
         guard let target = self.target(path: path, name: name) else { return Set() }
 
         var references = Set<GraphDependencyReference>()
@@ -302,18 +310,19 @@ public class GraphTraverser: GraphTraversing {
 
         // Static libraries and frameworks / Static libraries' dynamic libraries
         if target.target.canLinkStaticProducts() {
-            var transitiveStaticTargets = self.transitiveStaticTargets(from: .target(name: name, path: path))
+            let transitiveStaticTargets = self.transitiveStaticTargets(from: .target(name: name, path: path))
 
             // Exclude any static products linked in a host application
-            if target.target.product == .unitTests {
-                if let hostApp = hostApplication(path: path, name: name) {
-                    transitiveStaticTargets.subtract(
-                        self.transitiveStaticTargets(from: .target(name: hostApp.target.name, path: hostApp.project.path))
-                    )
-                }
+            let hostApplicationStaticTargets: Set<GraphDependency>
+            if target.target.product == .unitTests,
+                let hostApp = hostApplication(path: path, name: name)
+            {
+                hostApplicationStaticTargets = self.transitiveStaticTargets(from: .target(name: hostApp.target.name, path: hostApp.project.path))
+            } else {
+                hostApplicationStaticTargets = Set()
             }
 
-            let transitiveStaticTargetReferences = transitiveStaticTargets.compactMap(dependencyReference)
+            let transitiveStaticTargetReferences = transitiveStaticTargets
 
             // swiftlint:disable:next identifier_name
             let staticDependenciesDynamicLibrariesAndFrameworks = transitiveStaticTargets.flatMap { dependency in
@@ -321,7 +330,6 @@ public class GraphTraverser: GraphTraversing {
                     .lazy
                     .filter(\.isTarget)
                     .filter(isDependencyDynamicTarget)
-                    .compactMap(dependencyReference)
             }
 
             // swiftlint:disable:next identifier_name
@@ -329,14 +337,16 @@ public class GraphTraverser: GraphTraversing {
                 self.graph.dependencies[dependency, default: []]
                     .lazy
                     .filter(\.isPrecompiled)
-                    .compactMap(dependencyReference)
             }
 
+            let allDependencies = (transitiveStaticTargetReferences
+                + staticDependenciesDynamicLibrariesAndFrameworks
+                + staticDependenciesPrecompiledLibrariesAndFrameworks)
+
             references.formUnion(
-                transitiveStaticTargetReferences
-                    + staticDependenciesDynamicLibrariesAndFrameworks
-                    + staticDependenciesPrecompiledLibrariesAndFrameworks
-            )
+                allDependencies
+                    .filter { isForSearchPath || !hostApplicationStaticTargets.contains($0) }
+                    .compactMap(dependencyReference))
         }
 
         // Link dynamic libraries and frameworks
@@ -533,7 +543,7 @@ public class GraphTraverser: GraphTraversing {
     func transitiveStaticTargets(from dependency: GraphDependency) -> Set<GraphDependency> {
         filterDependencies(
             from: dependency,
-            test: isDependencyStaticTarget,
+            test: isDependencyStatic,
             skip: canDependencyLinkStaticProducts
         )
     }
@@ -572,10 +582,20 @@ public class GraphTraverser: GraphTraversing {
         }
     }
 
-    func isDependencyStaticTarget(dependency: GraphDependency) -> Bool {
-        guard case let GraphDependency.target(name, path) = dependency,
-            let target = self.target(path: path, name: name) else { return false }
-        return target.target.product.isStatic
+    func isDependencyStatic(dependency: GraphDependency) -> Bool {
+        switch dependency {
+        case let .xcframework(_, _, _, linking),
+             let .framework(_, _, _, _, linking, _, _),
+             let .library(_, _, linking, _, _):
+            return linking == .static
+        case .bundle: return false
+        case .packageProduct: return false
+        case let .target(name, path):
+            guard let target = self.target(path: path, name: name) else { return false }
+            return target.target.product.isStatic
+        case .sdk: return false
+        case .cocoapods: return false
+        }
     }
 
     func isDependencyDynamicLibrary(dependency: GraphDependency) -> Bool {

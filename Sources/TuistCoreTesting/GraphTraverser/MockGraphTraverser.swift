@@ -318,6 +318,10 @@ final class MockGraphTraverser: GraphTraversing {
         return stubbedLinkableDependenciesResult
     }
 
+    func searchablePathDependencies(path: AbsolutePath, name: String) throws -> Set<GraphDependencyReference> {
+        fatalError()
+    }
+
     var invokedCopyProductDependencies = false
     var invokedCopyProductDependenciesCount = 0
     var invokedCopyProductDependenciesParameters: (path: AbsolutePath, name: String)?

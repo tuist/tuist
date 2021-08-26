@@ -20,7 +20,8 @@ let project = Project(name: "App",
                                  infoPlist: "Tests.plist",
                                  sources: "Tests/**",
                                  dependencies: [
-                                     .project(target: "A", path: "Modules/A"),
+                                    .project(target: "A", path: "Modules/A"),
+                                    .project(target: "AppTestsSupport", path: "Modules/AppTestsSupport"),
                                      .target(name: "App"),
                           ]),
 ])
