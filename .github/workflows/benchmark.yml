@@ -7,6 +7,7 @@ on:
   pull_request:
     paths:
       - projects/tuistbench/**
+      - .github/workflows/benchmark.yml
 
 concurrency:
   group: benchmark-${{ github.head_ref }}
@@ -22,7 +23,7 @@ jobs:
     runs-on: macOS-latest
     strategy:
       matrix:
-        xcode: ['12.2', '12.4']
+        xcode: ['12.4']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode

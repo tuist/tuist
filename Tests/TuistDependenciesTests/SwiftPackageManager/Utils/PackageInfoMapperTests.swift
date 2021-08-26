@@ -25,6 +25,47 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         super.tearDown()
     }
 
+    func testPreprocess_whenProductContainsBinaryTarget_mapsToXcframework() throws {
+        let (targetToProducts, resolvedDependencies, externalDependencies) = try subject.preprocess(
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target_1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target_1", type: .binary, url: "https://binary.target.com"),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            productToPackage: [:],
+            packageToFolder: ["Package": "/Package"],
+            artifactsFolder: .init("/Artifacts/")
+        )
+
+        XCTAssertEqual(
+            targetToProducts,
+            [
+                "Target_1": [.init(name: "Product1", type: .library(.automatic), targets: ["Target_1"])],
+            ]
+        )
+        XCTAssertEqual(
+            resolvedDependencies,
+            [
+                "Target_1": [],
+            ]
+        )
+        XCTAssertEqual(
+            externalDependencies,
+            [
+                "Product1": [.xcframework(path: "/Artifacts/Package/Target_1.xcframework")],
+            ]
+        )
+    }
+
     func testMap() throws {
         let project = try subject.map(
             package: "Package",
@@ -52,6 +93,28 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 ]
             )
         )
+    }
+
+    func testPreprocess_whenOnlyBinaries_doesNotCreateProject() throws {
+        let project = try subject.map(
+            package: "Package",
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target_1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target_1", type: .binary, url: "https://binary.target.com"),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+
+        XCTAssertNil(project)
     }
 
     func testMap_whenNameContainsUnderscors_mapsToDashInBundleID() throws {
@@ -1192,7 +1255,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenBinaryTargetDependency_mapsToXcFramework() throws {
+    func testMap_whenBinaryTargetDependency_mapsToXcframework() throws {
         let project = try subject.map(
             package: "Package",
             packageInfos: [
@@ -1594,16 +1657,22 @@ extension PackageInfoMapping {
         packageInfos: [String: PackageInfo] = [:],
         platforms: Set<TuistGraph.Platform> = [.iOS],
         swiftToolsVersion: TSCUtility.Version? = nil
-    ) throws -> ProjectDescription.Project {
+    ) throws -> ProjectDescription.Project? {
         let productToPackage: [String: String] = packageInfos.reduce(into: [:]) { result, packageInfo in
             for product in packageInfo.value.products {
                 result[product.name] = packageInfo.key
             }
         }
+        let packageToFolder: [String: AbsolutePath] = packageInfos.keys.reduce(into: [:]) { result, packageName in
+            result[packageName] = basePath.appending(component: packageName)
+        }
 
         let artifactsFolder = basePath.appending(component: "artifacts")
-        let (targetToProducts, targetToResolvedDependencies) = try preprocess(
-            packageInfos: packageInfos, productToPackage: productToPackage, artifactsFolder: artifactsFolder
+        let (targetToProducts, targetToResolvedDependencies, _) = try preprocess(
+            packageInfos: packageInfos,
+            productToPackage: productToPackage,
+            packageToFolder: packageToFolder,
+            artifactsFolder: artifactsFolder
         )
 
         return try map(
