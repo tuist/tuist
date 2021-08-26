@@ -58,6 +58,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
+- **Breaking** Add `EnvironmentVariable` array in the `Arguments` [#3320](https://github.com/tuist/tuist/pull/3320) by [@setoelkahfi](https://github.com/setoelkahfi)
 - Support for `Swift Package Manager` in `Dependencies.swift` [#3072](https://github.com/tuist/tuist/pull/3072) by [@danyf90](https://github.com/danyf90)
 - Add `cc` as a valid source extension [#3273](https://github.com/tuist/tuist/pull/3273) by [@danyf90](https://github.com/danyf90)
 - Add support for localized intent definition files using `.strings`. [#3236](https://github.com/tuist/tuist/pull/3236) by [@dbarden](https://github.com/dbarden)
