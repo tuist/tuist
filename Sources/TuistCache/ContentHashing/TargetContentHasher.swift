@@ -85,6 +85,7 @@ public final class TargetContentHasher: TargetContentHashing {
         let coreDataModelHash = try coreDataModelsContentHasher.hash(coreDataModels: graphTarget.target.coreDataModels)
         let targetActionsHash = try targetActionsContentHasher.hash(targetActions: graphTarget.target.actions)
         let dependenciesHash = try dependenciesContentHasher.hash(graphTarget: graphTarget, hashedTargets: &hashedTargets)
+        let environmentHash = try contentHasher.hash(graphTarget.target.environmentVariables.map { $0.value })
         var stringsToHash = [
             graphTarget.target.name,
             graphTarget.target.platform.rawValue,
@@ -97,6 +98,7 @@ public final class TargetContentHasher: TargetContentHashing {
             copyFilesHash,
             coreDataModelHash,
             targetActionsHash,
+            environmentHash,
         ]
         if let headers = graphTarget.target.headers {
             let headersHash = try headersContentHasher.hash(headers: headers)
