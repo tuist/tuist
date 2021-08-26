@@ -10,8 +10,13 @@ public protocol CacheArtifactBuilding {
     ///
     /// - Parameters:
     ///   - projectTarget: Build target whether .xcworkspace or .xcodeproj
-    ///   - target: Target whose .(xc)framework or bundle will be generated.
     ///   - configuration: The configuration that will be used when compiling the given target.
     ///   - into: The directory into which the output artifacts will be copied.
-    func build(projectTarget: XcodeBuildTarget, target: Target, configuration: String, into outputDirectory: AbsolutePath) throws
+    func build(scheme: Scheme, projectTarget: XcodeBuildTarget, configuration: String, into outputDirectory: AbsolutePath) throws
+}
+
+extension CacheArtifactBuilding {
+    func platform(scheme: Scheme) -> Platform {
+        Platform.allCases.first { scheme.name.hasSuffix($0.caseValue) }!
+    }
 }

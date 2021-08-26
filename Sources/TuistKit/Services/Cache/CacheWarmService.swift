@@ -27,7 +27,7 @@ final class CacheWarmService {
         }
 
         let profile = try CacheProfileResolver().resolveCacheProfile(named: profile, from: config)
-        try cacheController.cache(path: path, cacheProfile: profile, targetsToFilter: targets, dependenciesOnly: dependenciesOnly)
+        try cacheController.cache(path: path, cacheProfile: profile, includedTargets: targets, dependenciesOnly: dependenciesOnly)
     }
 
     // MARK: - Helpers
