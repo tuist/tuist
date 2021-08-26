@@ -138,14 +138,8 @@ extension Config.GenerationOptions {
         {
             self = .disableShowEnvironmentVarsInScriptPhases
         } else if container.allKeys.contains(.enableCodeCoverage) {
-            do {
-                // try to maintain backwards compatibility
-                _ = try container.decode(Bool.self, forKey: .enableCodeCoverage)
-                self = .enableCodeCoverage(.all)
-            } catch {
-                let mode = try container.decode(CodeCoverageMode.self, forKey: .enableCodeCoverage)
-                self = .enableCodeCoverage(mode)
-            }
+            let mode = try container.decode(CodeCoverageMode.self, forKey: .enableCodeCoverage)
+            self = .enableCodeCoverage(mode)
         } else if container.allKeys.contains(.disablePackageVersionLocking), try container.decode(Bool.self, forKey: .disablePackageVersionLocking) {
             self = .disablePackageVersionLocking
         } else if container.allKeys.contains(.resolveDependenciesWithSystemScm),
