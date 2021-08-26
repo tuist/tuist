@@ -167,11 +167,12 @@ extension TuistTestCase {
                 file: StaticString = #file,
                 line: UInt = #line)
     {
-        typealias EnvironmentVariable = [String: String]
-
-        // - FIXME: Need help for this.
-        let rawEnvironments: [EnvironmentVariable: Bool] = arguments.environmentVariables.reduce(into: [:]) { _, _ in }
-        let rawEnvironmenstManifest = manifest.environmentVariables.reduce(into: [:]) { _, _ in }
+        XCTAssertEqual(arguments.environmentVariables.count, manifest.environmentVariables.count)
+        zip(arguments.environmentVariables, manifest.environmentVariables).forEach { model, manifest in
+            XCTAssertEqual(model.isEnabled, manifest.isEnabled)
+            XCTAssertEqual(model.key, manifest.key)
+            XCTAssertEqual(model.value, manifest.value)
+        }
 
         let rawArguments = arguments.launchArguments.reduce(into: [:]) { $0[$1.name] = $1.isEnabled }
         let rawManifest = manifest.launchArguments.reduce(into: [:]) { $0[$1.name] = $1.isEnabled }
