@@ -59,6 +59,12 @@ struct TestCommand: ParsableCommand {
     )
     var resultBundlePath: String?
 
+    @Flag(
+        name: .long,
+        help: "Skip Tuist cache and run all tests"
+    )
+    var skipCache = false
+
     func run() throws {
         let absolutePath: AbsolutePath
 
@@ -81,7 +87,8 @@ struct TestCommand: ParsableCommand {
                     $0,
                     relativeTo: FileHandler.shared.currentPath
                 )
-            }
+            },
+            skipCache: skipCache
         )
     }
 }

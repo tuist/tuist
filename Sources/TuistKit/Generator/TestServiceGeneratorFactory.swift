@@ -9,7 +9,8 @@ protocol TestServiceGeneratorFactorying {
     func generator(
         automationPath: AbsolutePath,
         testsCacheDirectory: AbsolutePath,
-        skipUITests: Bool
+        skipUITests: Bool,
+        skipCache: Bool
     ) -> Generating
 }
 
@@ -17,12 +18,14 @@ final class TestServiceGeneratorFactory: TestServiceGeneratorFactorying {
     func generator(
         automationPath: AbsolutePath,
         testsCacheDirectory: AbsolutePath,
-        skipUITests: Bool
+        skipUITests: Bool,
+        skipCache: Bool
     ) -> Generating {
         Generator(
             projectMapperProvider: AutomationProjectMapperProvider(skipUITests: skipUITests),
             graphMapperProvider: AutomationGraphMapperProvider(
-                testsCacheDirectory: testsCacheDirectory
+                testsCacheDirectory: testsCacheDirectory,
+                skipTestsCache: skipCache
             ),
             workspaceMapperProvider: AutomationWorkspaceMapperProvider(
                 workspaceDirectory: FileHandler.shared.resolveSymlinks(automationPath),

@@ -33,7 +33,7 @@ final class TestServiceTests: TuistUnitTestCase {
         contentHasher = .init()
         testsCacheTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         testServiceGeneratorFactory = .init()
-        testServiceGeneratorFactory.generatorStub = { _, _, _ in
+        testServiceGeneratorFactory.generatorStub = { _, _, _, _ in
             self.generator
         }
         let mockCacheDirectoriesProvider = try MockCacheDirectoriesProvider()
@@ -70,7 +70,7 @@ final class TestServiceTests: TuistUnitTestCase {
         // Given
         var automationPath: AbsolutePath?
 
-        testServiceGeneratorFactory.generatorStub = { gotAutomationPath, _, _ in
+        testServiceGeneratorFactory.generatorStub = { gotAutomationPath, _, _, _ in
             automationPath = gotAutomationPath
             return self.generator
         }
@@ -331,7 +331,8 @@ private extension TestService {
         deviceName: String? = nil,
         osVersion: String? = nil,
         skipUiTests: Bool = false,
-        resultBundlePath: AbsolutePath? = nil
+        resultBundlePath: AbsolutePath? = nil,
+        skipCache: Bool = true
     ) throws {
         try run(
             schemeName: schemeName,
@@ -341,7 +342,8 @@ private extension TestService {
             deviceName: deviceName,
             osVersion: osVersion,
             skipUITests: skipUiTests,
-            resultBundlePath: resultBundlePath
+            resultBundlePath: resultBundlePath,
+            skipCache: skipCache
         )
     }
 }

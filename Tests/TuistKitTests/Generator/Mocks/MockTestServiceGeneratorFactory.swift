@@ -4,12 +4,13 @@ import TSCBasic
 @testable import TuistKit
 
 final class MockTestServiceGeneratorFactory: TestServiceGeneratorFactorying {
-    var generatorStub: ((AbsolutePath, AbsolutePath, Bool) -> Generating)?
+    var generatorStub: ((AbsolutePath, AbsolutePath, Bool, Bool) -> Generating)?
     func generator(
         automationPath: AbsolutePath,
         testsCacheDirectory: AbsolutePath,
-        skipUITests: Bool
+        skipUITests: Bool,
+        skipCache: Bool
     ) -> Generating {
-        generatorStub?(automationPath, testsCacheDirectory, skipUITests) ?? MockGenerator()
+        generatorStub?(automationPath, testsCacheDirectory, skipUITests, skipCache) ?? MockGenerator()
     }
 }
