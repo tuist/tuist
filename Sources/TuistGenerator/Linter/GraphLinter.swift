@@ -51,7 +51,20 @@ public class GraphLinter: GraphLinting {
 
     public func lintCodeCoverageMode(_ mode: CodeCoverageMode?, graphTraverser: GraphTraversing) -> [LintingIssue] {
         switch mode {
-        case .none, .all, .relevant: return []
+        case .none, .all: return []
+        case .relevant:
+            let targets = graphTraverser.workspace.codeCoverageTargets(mode: mode, projects: Array(graphTraverser.projects.values))
+
+            if targets.isEmpty {
+                return [
+                    LintingIssue(
+                        reason: "Cannot find any any targets configured for code coverage, perhaps you wanted to use `CodeCoverageMode.all`?",
+                        severity: .warning
+                    ),
+                ]
+            }
+
+            return []
         case let .targets(targets):
             if targets.isEmpty {
                 return [LintingIssue(reason: "List of targets for code coverage is empty", severity: .warning)]
@@ -60,8 +73,7 @@ public class GraphLinter: GraphLinting {
             let nonExistingTargets = targets
                 .filter { target in
                     graphTraverser.target(
-                        // We need project directory path, so we need to remove last component
-                        path: target.projectPath.removingLastComponent(),
+                        path: target.projectPath,
                         name: target.name
                     ) == nil
                 }

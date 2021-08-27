@@ -1227,7 +1227,46 @@ final class GraphLinterTests: TuistUnitTestCase {
         XCTAssertEmpty(got)
     }
 
-    func test_lintCodeCoverage_relevant() {
+    func test_lintCodeCoverage_relevant() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        let targetA = Target.test(name: "TargetA")
+        let targetB = Target.test(name: "TargetB")
+        let project = Project.test(
+            path: temporaryPath,
+            targets: [targetA, targetB],
+            schemes: [
+                .test(testAction: .test(
+                    coverage: true,
+                    codeCoverageTargets: [
+                        TargetReference(
+                            projectPath: temporaryPath,
+                            name: "TargetA"
+                        ),
+                    ]
+                )),
+            ]
+        )
+
+        let graph = Graph.test(
+            projects: [temporaryPath: project],
+            targets: [
+                temporaryPath: [
+                    "TargetA": targetA,
+                    "TargetB": targetB,
+                ],
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.lintCodeCoverageMode(.relevant, graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertEmpty(got)
+    }
+
+    func test_lintCodeCoverage_relevant_notConfigured() {
         // Given
         let graphTraverser = GraphTraverser(graph: .test())
 
@@ -1235,7 +1274,15 @@ final class GraphLinterTests: TuistUnitTestCase {
         let got = subject.lintCodeCoverageMode(.relevant, graphTraverser: graphTraverser)
 
         // Then
-        XCTAssertEmpty(got)
+        XCTAssertEqual(
+            got,
+            [
+                LintingIssue(
+                    reason: "Cannot find any any targets configured for code coverage, perhaps you wanted to use `CodeCoverageMode.all`?",
+                    severity: .warning
+                ),
+            ]
+        )
     }
 
     func test_lintCodeCoverage_targets() throws {
@@ -1249,9 +1296,9 @@ final class GraphLinterTests: TuistUnitTestCase {
             ]
         )
         let graph = Graph.test(
-            projects: [temporaryPath.removingLastComponent(): project],
+            projects: [temporaryPath: project],
             targets: [
-                temporaryPath.removingLastComponent(): [
+                temporaryPath: [
                     "TargetA": .test(),
                     "TargetB": .test(),
                 ],
@@ -1299,9 +1346,9 @@ final class GraphLinterTests: TuistUnitTestCase {
             ]
         )
         let graph = Graph.test(
-            projects: [temporaryPath.removingLastComponent(): project],
+            projects: [temporaryPath: project],
             targets: [
-                temporaryPath.removingLastComponent(): [
+                temporaryPath: [
                     "TargetB": .test(),
                     "TargetC": .test(),
                 ],
