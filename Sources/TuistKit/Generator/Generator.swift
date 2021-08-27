@@ -224,6 +224,7 @@ class Generator: Generating {
 
         try environmentLinter.lint(config: config).printAndThrowIfNeeded()
         try graphLinter.lint(graphTraverser: graphTraverser).printAndThrowIfNeeded()
+        try graphLinter.lintCodeCoverageMode(config.codeCoverageMode, graphTraverser: graphTraverser).printAndThrowIfNeeded()
     }
 
     private func postGenerationActions(graphTraverser: GraphTraversing, workspaceName: String) throws {

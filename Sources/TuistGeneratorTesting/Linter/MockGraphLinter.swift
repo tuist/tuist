@@ -1,5 +1,6 @@
 import Foundation
 import TuistCore
+import TuistGraph
 import TuistSupport
 @testable import TuistGenerator
 
@@ -16,5 +17,12 @@ public class MockGraphLinter: GraphLinting {
         invokedLintParameters = (graphTraverser, ())
         invokedLintParametersList.append((graphTraverser, ()))
         return stubbedLintResult
+    }
+
+    public func lintCodeCoverageMode(
+        _: CodeCoverageMode?,
+        graphTraverser _: GraphTraversing
+    ) -> [LintingIssue] {
+        []
     }
 }

@@ -6,6 +6,7 @@ import TuistSupport
 
 public protocol GraphLinting: AnyObject {
     func lint(graphTraverser: GraphTraversing) -> [LintingIssue]
+    func lintCodeCoverageMode(_ mode: CodeCoverageMode?, graphTraverser: GraphTraversing) -> [LintingIssue]
 }
 
 // swiftlint:disable type_body_length
@@ -46,6 +47,32 @@ public class GraphLinter: GraphLinting {
         issues.append(contentsOf: lintBundleIdentifiers(graphTraverser: graphTraverser))
 
         return issues
+    }
+
+    public func lintCodeCoverageMode(_ mode: CodeCoverageMode?, graphTraverser: GraphTraversing) -> [LintingIssue] {
+        switch mode {
+        case .none, .all: return []
+        case .relevant: return [] // TODO: Check if we have any relevant targets, if not, produce a warning
+        case let .targets(targets):
+            if targets.isEmpty {
+                return [LintingIssue(reason: "List of targets for code coverage is empty", severity: .warning)]
+            }
+
+            let nonExistingTargets = targets
+                .filter { target in
+                    graphTraverser.target(
+                        // We need project directory path, so we need to remove last component
+                        path: target.projectPath.removingLastComponent(),
+                        name: target.name
+                    ) == nil
+                }
+
+            guard !nonExistingTargets.isEmpty else { return [] }
+
+            return nonExistingTargets.map {
+                LintingIssue(reason: "Target '\($0.name)' at '\($0.projectPath)' doesn't exist", severity: .error)
+            }
+        }
     }
 
     // MARK: - Fileprivate
