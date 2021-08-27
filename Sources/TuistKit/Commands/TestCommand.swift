@@ -61,7 +61,7 @@ struct TestCommand: ParsableCommand {
 
     @Flag(
         name: .shortAndLong,
-        help: "Reinstall app (if any) when running runnable target tests"
+        help: "Uninstall app (if any) before running tests"
     )
     var reinstallApp = false
 
