@@ -80,6 +80,8 @@ final class TestService {
         skipUITests: Bool,
         resultBundlePath: AbsolutePath?
     ) throws {
+        let reinstallApp = true
+
         // Load config
         let manifestLoaderFactory = ManifestLoaderFactory()
         let manifestLoader = manifestLoaderFactory.createManifestLoader()
@@ -138,7 +140,8 @@ final class TestService {
                     configuration: configuration,
                     version: version,
                     deviceName: deviceName,
-                    resultBundlePath: resultBundlePath
+                    resultBundlePath: resultBundlePath,
+                    reinstallApp: reinstallApp
                 )
             }
         } else {
@@ -160,7 +163,8 @@ final class TestService {
                     configuration: configuration,
                     version: version,
                     deviceName: deviceName,
-                    resultBundlePath: resultBundlePath
+                    resultBundlePath: resultBundlePath,
+                    reinstallApp: reinstallApp
                 )
             }
 
@@ -195,7 +199,8 @@ final class TestService {
         configuration: String?,
         version: Version?,
         deviceName: String?,
-        resultBundlePath: AbsolutePath?
+        resultBundlePath: AbsolutePath?,
+        reinstallApp: Bool
     ) throws {
         logger.log(level: .notice, "Testing scheme \(scheme.name)", metadata: .section)
         guard let buildableTarget = buildGraphInspector.testableTarget(scheme: scheme, graphTraverser: graphTraverser) else {
@@ -209,6 +214,18 @@ final class TestService {
             version: version,
             deviceName: deviceName
         )
+
+        if reinstallApp, case let .device(udid) = destination,
+            let runnableTarget = buildGraphInspector.runnableTarget(
+                scheme: scheme,
+                graphTraverser: graphTraverser
+            )
+        {
+            try simulatorController.uninstallApp(
+                bundleId: runnableTarget.target.bundleId,
+                deviceUdid: udid
+            )
+        }
 
         _ = try xcodebuildController.test(
             .workspace(graphTraverser.workspace.xcWorkspacePath),

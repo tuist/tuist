@@ -194,7 +194,7 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         system.succeedCommand(uninstallCommand)
 
         // When
-        try subject.uninstallApp(bundleId: bundleId, device: deviceAndRuntime.device)
+        try subject.uninstallApp(bundleId: bundleId, deviceUdid: udid)
 
         // Then
         XCTAssertTrue(system.called(uninstallCommand))
