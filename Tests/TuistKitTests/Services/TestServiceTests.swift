@@ -332,7 +332,7 @@ private extension TestService {
         osVersion: String? = nil,
         skipUiTests: Bool = false,
         resultBundlePath: AbsolutePath? = nil,
-        skipCache: Bool = true
+        skipCache: Bool = false
     ) throws {
         try run(
             schemeName: schemeName,
