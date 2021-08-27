@@ -59,4 +59,4 @@ One of the benefits of using Tuist over other automation tools is that developer
 | `--configuration`      | `-C`  | `The configuration to be used when building the scheme.`            |                   | No       |
 | `--skip-ui-tests`      | n/a   | `When passed, it skips testing UI Tests targets.`                   | False             | No       |
 | `--result-bundle-path` | `-T`  | `Path where test result bundle will be saved`                       |                   | No       |
-| `--reinstall-app`      | `-r`  | `Uninstall app before running tests`                                | False             | No       |
+| `--reinstall-app`      | `-r`  | `Uninstall app (if any) before running tests`                       | False             | No       |
