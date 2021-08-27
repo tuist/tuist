@@ -318,6 +318,61 @@ final class TestServiceTests: TuistUnitTestCase {
             expectedResourceBundlePath
         )
     }
+
+    func test_run_reinstallsApp() throws {
+        // Given
+        var uninstalledBundleId: String?
+
+        let path: AbsolutePath = "/"
+        let scheme = Scheme.test(
+            buildAction: BuildAction.test(targets: [
+                TargetReference(projectPath: path, name: "App"),
+            ]),
+            testAction: TestAction.test(targets: [
+                TestableTarget(
+                    target: TargetReference(
+                        projectPath: path,
+                        name: "App"
+                    )
+                ),
+            ])
+        )
+        let target = Target.test(
+            name: "App",
+            product: .app,
+            bundleId: "io.tuist.App"
+        )
+        let project = Project.test(
+            path: path,
+            targets: [target],
+            schemes: [scheme]
+        )
+
+        generator.generateWithGraphStub = { path, _ in
+            (path, Graph.test(
+                projects: [path: project],
+                targets: [path: ["App": target]]
+            ))
+        }
+        simulatorController.uninstallAppStub = { bundleId, _ in
+            uninstalledBundleId = bundleId
+        }
+        buildGraphInspector.testableSchemesStub = { _ in
+            [scheme]
+        }
+        buildGraphInspector.projectSchemesStub = { _ in
+            [scheme]
+        }
+        xcodebuildController.testStub = { _, _, _, _, _, _, _ in
+            .just(.standardOutput(.init(raw: "success")))
+        }
+
+        // When
+        try subject.testRun(path: path, reinstallApp: true)
+
+        // Then
+        XCTAssertEqual(uninstalledBundleId, "io.tuist.App")
+    }
 }
 
 // MARK: - Helpers
