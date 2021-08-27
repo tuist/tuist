@@ -51,8 +51,7 @@ public class GraphLinter: GraphLinting {
 
     public func lintCodeCoverageMode(_ mode: CodeCoverageMode?, graphTraverser: GraphTraversing) -> [LintingIssue] {
         switch mode {
-        case .none, .all: return []
-        case .relevant: return [] // TODO: Check if we have any relevant targets, if not, produce a warning
+        case .none, .all, .relevant: return []
         case let .targets(targets):
             if targets.isEmpty {
                 return [LintingIssue(reason: "List of targets for code coverage is empty", severity: .warning)]

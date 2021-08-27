@@ -1204,4 +1204,126 @@ final class GraphLinterTests: TuistUnitTestCase {
         // Then
         XCTAssertEmpty(got)
     }
+
+    func test_lintCodeCoverage_none() {
+        // Given
+        let graphTraverser = GraphTraverser(graph: .test())
+
+        // When
+        let got = subject.lintCodeCoverageMode(nil, graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertEmpty(got)
+    }
+
+    func test_lintCodeCoverage_all() {
+        // Given
+        let graphTraverser = GraphTraverser(graph: .test())
+
+        // When
+        let got = subject.lintCodeCoverageMode(.all, graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertEmpty(got)
+    }
+
+    func test_lintCodeCoverage_relevant() {
+        // Given
+        let graphTraverser = GraphTraverser(graph: .test())
+
+        // When
+        let got = subject.lintCodeCoverageMode(.relevant, graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertEmpty(got)
+    }
+
+    func test_lintCodeCoverage_targets() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        let project = Project.test(
+            path: temporaryPath,
+            targets: [
+                Target.test(name: "TargetA"),
+                Target.test(name: "TargetB"),
+            ]
+        )
+        let graph = Graph.test(
+            projects: [temporaryPath.removingLastComponent(): project],
+            targets: [
+                temporaryPath.removingLastComponent(): [
+                    "TargetA": .test(),
+                    "TargetB": .test(),
+                ],
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.lintCodeCoverageMode(
+            .targets([.init(projectPath: project.path, name: "TargetA")]),
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        XCTAssertEmpty(got)
+    }
+
+    func test_lintCodeCoverage_targets_empty() {
+        // Given
+        let graphTraverser = GraphTraverser(graph: .test())
+
+        // When
+        let got = subject.lintCodeCoverageMode(.targets([]), graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertEqual(
+            got,
+            [
+                LintingIssue(
+                    reason: "List of targets for code coverage is empty",
+                    severity: .warning
+                ),
+            ]
+        )
+    }
+
+    func test_lintCodeCoverage_targets_nonExisting() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        let project = Project.test(
+            path: temporaryPath,
+            targets: [
+                Target.test(name: "TargetB"),
+                Target.test(name: "TargetC"),
+            ]
+        )
+        let graph = Graph.test(
+            projects: [temporaryPath.removingLastComponent(): project],
+            targets: [
+                temporaryPath.removingLastComponent(): [
+                    "TargetB": .test(),
+                    "TargetC": .test(),
+                ],
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.lintCodeCoverageMode(
+            .targets([.init(projectPath: project.path, name: "TargetA")]),
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        XCTAssertEqual(
+            got,
+            [
+                LintingIssue(
+                    reason: "Target 'TargetA' at '\(project.path)' doesn't exist",
+                    severity: .error
+                ),
+            ]
+        )
+    }
 }
