@@ -331,7 +331,8 @@ private extension TestService {
         deviceName: String? = nil,
         osVersion: String? = nil,
         skipUiTests: Bool = false,
-        resultBundlePath: AbsolutePath? = nil
+        resultBundlePath: AbsolutePath? = nil,
+        reinstallApp: Bool = false
     ) throws {
         try run(
             schemeName: schemeName,
@@ -341,7 +342,8 @@ private extension TestService {
             deviceName: deviceName,
             osVersion: osVersion,
             skipUITests: skipUiTests,
-            resultBundlePath: resultBundlePath
+            resultBundlePath: resultBundlePath,
+            reinstallApp: reinstallApp
         )
     }
 }

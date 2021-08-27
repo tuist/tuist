@@ -78,10 +78,9 @@ final class TestService {
         deviceName: String?,
         osVersion: String?,
         skipUITests: Bool,
-        resultBundlePath: AbsolutePath?
+        resultBundlePath: AbsolutePath?,
+        reinstallApp: Bool
     ) throws {
-        let reinstallApp = true
-
         // Load config
         let manifestLoaderFactory = ManifestLoaderFactory()
         let manifestLoader = manifestLoaderFactory.createManifestLoader()

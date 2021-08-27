@@ -59,6 +59,12 @@ struct TestCommand: ParsableCommand {
     )
     var resultBundlePath: String?
 
+    @Flag(
+        name: .shortAndLong,
+        help: "Reinstall app (if any) when running runnable target tests"
+    )
+    var reinstallApp = false
+
     func run() throws {
         let absolutePath: AbsolutePath
 
@@ -81,7 +87,8 @@ struct TestCommand: ParsableCommand {
                     $0,
                     relativeTo: FileHandler.shared.currentPath
                 )
-            }
+            },
+            reinstallApp: reinstallApp
         )
     }
 }
