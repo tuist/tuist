@@ -29,7 +29,6 @@ extension TuistGraph.ResourceFileElement {
                 .filter(includeFiles)
                 .filter { !excluded.contains($0) }
 
-
             if files.isEmpty {
                 if FileHandler.shared.isFolder(path) {
                     logger.warning("'\(path.pathString)' is a directory, try using: '\(path.pathString)/**' to list its files")
