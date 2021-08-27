@@ -185,6 +185,21 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         XCTAssertTrue(system.called(installCommand))
     }
 
+    func test_uninstallApp_should_uninstallAppOnSimulatorWithUdid() throws {
+        // Given
+        let deviceAndRuntime = createSystemStubs(devices: true, runtimes: true)
+        let bundleId = "io.tuist.app"
+        let udid = deviceAndRuntime.device.udid
+        let uninstallCommand = ["/usr/bin/xcrun", "simctl", "uninstall", udid, bundleId]
+        system.succeedCommand(uninstallCommand)
+
+        // When
+        try subject.uninstallApp(bundleId: bundleId, device: deviceAndRuntime.device)
+
+        // Then
+        XCTAssertTrue(system.called(uninstallCommand))
+    }
+
     func test_launchApp_should_bootSimulatorIfNotBooted() throws {
         // Given
         let deviceAndRuntime = createSystemStubs(devices: true, runtimes: true)
