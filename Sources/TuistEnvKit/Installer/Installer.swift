@@ -53,17 +53,14 @@ enum InstallerError: FatalError, Equatable {
 final class Installer: Installing {
     // MARK: - Attributes
 
-    let githubClient: GitHubClienting
     let buildCopier: BuildCopying
     let versionsController: VersionsControlling
 
     // MARK: - Init
 
-    init(githubClient: GitHubClienting = GitHubClient(),
-         buildCopier: BuildCopying = BuildCopier(),
+    init(buildCopier: BuildCopying = BuildCopier(),
          versionsController: VersionsControlling = VersionsController())
     {
-        self.githubClient = githubClient
         self.buildCopier = buildCopier
         self.versionsController = versionsController
     }
@@ -77,12 +74,8 @@ final class Installer: Installing {
     }
 
     func install(version: String, temporaryDirectory: AbsolutePath) throws {
-        let resource = GitHubRelease.release(repositoryFullName: Constants.githubSlug, version: version)
-        guard let release = try githubClient.dispatch(resource: resource).toBlocking().first?.object else { return }
-        guard let asset = release.assets.first(where: { $0.name == Constants.bundleName }) else { return }
-
         try installFromBundle(
-            bundleURL: asset.browserDownloadUrl,
+            bundleURL: URL(string: "https://github.com/tuist/tuist/releases/download/\(version)/tuist.zip")!,
             version: version,
             temporaryDirectory: temporaryDirectory
         )
