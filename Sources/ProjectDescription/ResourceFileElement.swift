@@ -39,15 +39,15 @@ public enum ResourceFileElement: Codable, Equatable {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let type = try container.decode(TypeName.self, forKey: .type)
-        let tags = try? container.decode([String].self, forKey: .tags)
+        let tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
         switch type {
         case .glob:
             let pattern = try container.decode(Path.self, forKey: .pattern)
-            let excluding = try container.decode([Path].self, forKey: .excluding)
-            self = .glob(pattern: pattern, excluding: excluding, tags: tags ?? [])
+            let excluding = try container.decodeIfPresent([Path].self, forKey: .excluding) ?? []
+            self = .glob(pattern: pattern, excluding: excluding, tags: tags)
         case .folderReference:
             let path = try container.decode(Path.self, forKey: .path)
-            self = .folderReference(path: path, tags: tags ?? [])
+            self = .folderReference(path: path, tags: tags)
         }
     }
 
