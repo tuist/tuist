@@ -200,7 +200,8 @@ public final class SimulatorController: SimulatorControlling {
 
     public func uninstallApp(bundleId: String, deviceUdid: String) throws {
         logger.debug("Uninstalling app \(bundleId) from simulator device with id \(deviceUdid)")
-        try System.shared.run(["/usr/bin/xcrun", "simctl", "uninstall", deviceUdid, bundleId])
+        let device = try devices().toBlocking().last()?.filter { $0.udid == deviceUdid }.first?.booted()
+        try System.shared.run(["/usr/bin/xcrun", "simctl", "uninstall", device?.udid ?? deviceUdid, bundleId])
     }
 
     public func launchApp(bundleId: String, device: SimulatorDevice, arguments: [String]) throws {
