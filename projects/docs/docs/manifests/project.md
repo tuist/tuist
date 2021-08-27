@@ -714,7 +714,7 @@ A `ResourceFileElement` can be one of the following options:
 
 | Case                                           | Description                                                                                                                                           |
 | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.glob(pattern: Path, tags: [String])`         | A file path (or glob pattern) to include and ODR tags list. For convenience, a string literal can be used as an alternate way to specify this option. |
+| `.glob(pattern: Path, excluding: [Path], tags: [String])`         | A file path (or glob pattern) to include, a list of file paths (or glob patterns) to exclude, and ODR tags list. For convenience, a string literal can be used as an alternate way to specify this option. |
 | `.folderReference(path: Path, tags: [String])` | A directory path to include as a folder reference and ODR tags list.                                                                                  |
 
 ### DefaultSettings

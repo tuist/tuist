@@ -80,4 +80,69 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertThrowsSpecific(try TuistGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths), error)
     }
+
+    func test_excluding() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let resourcesFolder = temporaryPath.appending(component: "Resources")
+        let includedResource = resourcesFolder.appending(component: "included.xib")
+        try fileHandler.createFolder(resourcesFolder)
+        try fileHandler.write("", path: includedResource, atomically: true)
+        try fileHandler.write("", path: resourcesFolder.appending(component: "excluded.xib"), atomically: true)
+        let manifest = ProjectDescription.ResourceFileElement.glob(pattern: "Resources/**", excluding: ["Resources/excluded.xib"])
+
+        // Then
+        XCTAssertEqual(
+            try TuistGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths),
+            [
+                .file(path: resourcesFolder, tags: []),
+                .file(path: includedResource, tags: []),
+            ]
+        )
+    }
+
+    func test_excluding_folder() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let resourcesFolder = temporaryPath.appending(component: "Resources")
+        let excludedResourcesFolder = resourcesFolder.appending(component: "Excluded")
+        let includedResource = resourcesFolder.appending(component: "included.xib")
+        try fileHandler.createFolder(resourcesFolder)
+        try fileHandler.write("", path: includedResource, atomically: true)
+        try fileHandler.write("", path: excludedResourcesFolder.appending(component: "excluded.xib"), atomically: true)
+        let manifest = ProjectDescription.ResourceFileElement.glob(pattern: "Resources/**", excluding: ["Resources/Excluded"])
+
+        // Then
+        XCTAssertEqual(
+            try TuistGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths),
+            [
+                .file(path: resourcesFolder, tags: []),
+                .file(path: includedResource, tags: []),
+            ]
+        )
+    }
+
+    func test_excluding_glob() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let resourcesFolder = temporaryPath.appending(component: "Resources")
+        let excludedResourcesFolder = resourcesFolder.appending(component: "Excluded")
+        let includedResource = resourcesFolder.appending(component: "included.xib")
+        try fileHandler.createFolder(resourcesFolder)
+        try fileHandler.write("", path: includedResource, atomically: true)
+        try fileHandler.write("", path: excludedResourcesFolder.appending(component: "excluded.xib"), atomically: true)
+        let manifest = ProjectDescription.ResourceFileElement.glob(pattern: "Resources/**", excluding: ["Resources/Excluded/**"])
+
+        // Then
+        XCTAssertEqual(
+            try TuistGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths),
+            [
+                .file(path: resourcesFolder, tags: []),
+                .file(path: includedResource, tags: []),
+            ]
+        )
+    }
 }
