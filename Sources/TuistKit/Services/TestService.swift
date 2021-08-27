@@ -214,16 +214,17 @@ final class TestService {
             deviceName: deviceName
         )
 
-        if reinstallApp, case let .device(udid) = destination,
-            let runnableTarget = buildGraphInspector.runnableTarget(
-                scheme: scheme,
-                graphTraverser: graphTraverser
-            )
-        {
-            try simulatorController.uninstallApp(
-                bundleId: runnableTarget.target.bundleId,
-                deviceUdid: udid
-            )
+        if reinstallApp, case let .device(udid) = destination {
+            let appTargets = scheme.buildAction?.targets
+                .compactMap { graphTraverser.target(path: $0.projectPath, name: $0.name) }
+                .filter { $0.target.product == .app }
+
+            try appTargets?.forEach { target in
+                try simulatorController.uninstallApp(
+                    bundleId: target.target.bundleId,
+                    deviceUdid: udid
+                )
+            }
         }
 
         _ = try xcodebuildController.test(
