@@ -44,6 +44,12 @@ public protocol SimulatorControlling {
     ///   - device: The simulator device to install the app on.
     func installApp(at path: AbsolutePath, device: SimulatorDevice) throws
 
+    /// Uninstalls app with given `bundleId` from given simulator.
+    /// - Parameters:
+    ///   - bundleId: Bundle identifier of app to be uninstalled.
+    ///   - device: The simulator device to uninstall the app from.
+    func uninstallApp(bundleId: String, device: SimulatorDevice) throws
+
     /// Opens the simulator application & launches app on the given simulator.
     /// - Parameters:
     ///   - bundleId: The bundle id of the app to launch.
@@ -190,6 +196,11 @@ public final class SimulatorController: SimulatorControlling {
         logger.debug("Installing app at \(path) on simulator device with id \(device.udid)")
         let device = try device.booted()
         try System.shared.run(["/usr/bin/xcrun", "simctl", "install", device.udid, path.pathString])
+    }
+
+    public func uninstallApp(bundleId: String, device: SimulatorDevice) throws {
+        logger.debug("Uninstalling app \(bundleId) from simulator device with id \(device.udid)")
+        try System.shared.run(["/usr/bin/xcrun", "simctl", "uninstall", device.udid, bundleId])
     }
 
     public func launchApp(bundleId: String, device: SimulatorDevice, arguments: [String]) throws {
