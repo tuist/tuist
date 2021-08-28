@@ -128,16 +128,14 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
                     FileHandler.shared.glob(path, glob: $0)
                 }
 
-            let projectsPaths = Set(FileHandler.shared.glob(path, glob: "**/\(Manifest.project.fileName(path))"))
-                .subtracting(excludedPaths)
+            let projectsPaths = FileHandler.shared.glob(path, glob: "**/\(Manifest.project.fileName(path))")
                 .map {
                     ProjectManifest(
                         manifest: Manifest.project,
                         path: $0
                     )
                 }
-            let workspacesPaths = Set(FileHandler.shared.glob(path, glob: "**/\(Manifest.workspace.fileName(path))"))
-                .subtracting(excludedPaths)
+            let workspacesPaths = FileHandler.shared.glob(path, glob: "**/\(Manifest.workspace.fileName(path))")
                 .map {
                     ProjectManifest(
                         manifest: Manifest.workspace,
@@ -145,7 +143,8 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
                     )
                 }
 
-            return projectsPaths + workspacesPaths
+            return (projectsPaths + workspacesPaths)
+                .filter { !excludedPaths.contains($0.path) }
         }
     }
 

@@ -52,10 +52,6 @@ final class EditService {
     ) throws {
         let path = self.path(path)
 
-        let pathsToExclude = [
-            "**/\(Constants.tuistDirectoryName)/\(Constants.DependenciesDirectory.name)/**",
-        ]
-
         if !permanent {
             try withTemporaryDirectory(removeTreeOnDeinit: true) { generationDirectory in
                 EditService.temporaryDirectory = generationDirectory
@@ -73,7 +69,6 @@ final class EditService {
                 let plugins = loadPlugins(at: path)
                 let workspacePath = try projectEditor.edit(
                     at: path,
-                    excluding: pathsToExclude,
                     in: generationDirectory,
                     onlyCurrentDirectory: onlyCurrentDirectory,
                     plugins: plugins
@@ -85,7 +80,6 @@ final class EditService {
             let plugins = loadPlugins(at: path)
             let workspacePath = try projectEditor.edit(
                 at: path,
-                excluding: pathsToExclude,
                 in: path,
                 onlyCurrentDirectory: onlyCurrentDirectory,
                 plugins: plugins

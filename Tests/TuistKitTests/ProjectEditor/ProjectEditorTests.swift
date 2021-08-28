@@ -122,7 +122,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         }
 
         // When
-        try _ = subject.edit(at: directory, excluding: [], in: directory, onlyCurrentDirectory: false, plugins: .test())
+        try _ = subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test())
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
@@ -160,7 +160,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         // Then
         XCTAssertThrowsSpecific(
             // When
-            try subject.edit(at: directory, excluding: [], in: directory, onlyCurrentDirectory: false, plugins: .test()), ProjectEditorError.noEditableFiles(directory)
+            try subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test()), ProjectEditorError.noEditableFiles(directory)
         )
     }
 
@@ -182,7 +182,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         }
 
         // When
-        try _ = subject.edit(at: directory, excluding: [], in: directory, onlyCurrentDirectory: false, plugins: .test())
+        try _ = subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test())
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
@@ -217,7 +217,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         }
 
         // When
-        try _ = subject.edit(at: directory, excluding: [], in: directory, onlyCurrentDirectory: false, plugins: .test())
+        try _ = subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test())
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
@@ -267,7 +267,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let plugins = Plugins.test(projectDescriptionHelpers: [
             .init(name: "LocalPlugin", path: pluginManifestPath, location: .local),
         ])
-        try _ = subject.edit(at: directory, excluding: [], in: directory, onlyCurrentDirectory: false, plugins: plugins)
+        try _ = subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: plugins)
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
@@ -315,7 +315,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
             .init(name: "LocalPlugin", path: pluginManifestPath, location: .local),
         ])
 
-        try _ = subject.edit(at: editingPath, excluding: [], in: editingPath, onlyCurrentDirectory: false, plugins: plugins)
+        try _ = subject.edit(at: editingPath, in: editingPath, onlyCurrentDirectory: false, plugins: plugins)
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
@@ -361,7 +361,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let plugins = Plugins.test(projectDescriptionHelpers: [
             .init(name: "RemotePlugin", path: AbsolutePath("/Some/Path/To/Plugin"), location: .remote),
         ])
-        try _ = subject.edit(at: directory, excluding: [], in: directory, onlyCurrentDirectory: false, plugins: plugins)
+        try _ = subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: plugins)
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
