@@ -100,24 +100,6 @@ Targets can add Swift package products as dependencies:
 .package(product: "LibraryA")
 ```
 
-### CocoaPods dependencies
-
-Targets can indicate that they have [CocoaPods](https://cocoapods.org) dependencies defined in a `Podfile`:
-
-```swift
-.cocoapods(path: ".") // Expects a Podfile in the directory of the target's project
-```
-
-Tuist looks up CocoaPods using Bundler. If it's not defined, it falls back to the system's CocoaPods. If CocoaPods can't be found in the environment, the installation of the dependencies will fail.
-
-:::note Repository update
-The underlying 'pod install' is executed with the `--update-repo` argument to ensure the local repository of pod specs is up to date.
-:::
-
-:::note Podfile validation
-Tuist does not parse the CocoaPods dependency graph nor runs any validation. It's the user responsibility ensure the right format of the 'Podfile'.
-:::
-
 ### XCFramework dependencies
 
 ```swift
