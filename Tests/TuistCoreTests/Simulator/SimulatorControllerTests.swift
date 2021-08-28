@@ -192,9 +192,11 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         let udid = deviceAndRuntime.device.udid
         let uninstallCommand = ["/usr/bin/xcrun", "simctl", "uninstall", udid, bundleId]
         system.succeedCommand(uninstallCommand)
+        let bootCommand = ["/usr/bin/xcrun", "simctl", "boot", udid]
+        system.succeedCommand(bootCommand)
 
         // When
-        try subject.uninstallApp(bundleId: bundleId, deviceUdid: udid)
+        try subject.uninstallApp(bundleId: bundleId, device: deviceAndRuntime.device)
 
         // Then
         XCTAssertTrue(system.called(uninstallCommand))

@@ -70,9 +70,9 @@ public final class MockSimulatorController: SimulatorControlling {
         try installAppStub?(path, device)
     }
 
-    public var uninstallAppStub: ((String, String) throws -> Void)?
-    public func uninstallApp(bundleId: String, deviceUdid: String) throws {
-        try uninstallAppStub?(bundleId, deviceUdid)
+    public var uninstallAppStub: ((String, SimulatorDevice) throws -> Void)?
+    public func uninstallApp(bundleId: String, device: SimulatorDevice) throws {
+        try uninstallAppStub?(bundleId, device)
     }
 
     public var launchAppStub: ((String, SimulatorDevice, [String]) throws -> Void)?

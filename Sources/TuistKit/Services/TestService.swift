@@ -214,7 +214,7 @@ final class TestService {
             deviceName: deviceName
         )
 
-        if reinstallApp, case let .device(udid) = destination {
+        if reinstallApp, let device = destination.1 {
             let appTargets = scheme.buildAction?.targets
                 .compactMap { graphTraverser.target(path: $0.projectPath, name: $0.name) }
                 .filter { $0.target.product == .app }
@@ -222,7 +222,7 @@ final class TestService {
             try appTargets?.forEach { target in
                 try simulatorController.uninstallApp(
                     bundleId: target.target.bundleId,
-                    deviceUdid: udid
+                    device: device
                 )
             }
         }
@@ -231,7 +231,7 @@ final class TestService {
             .workspace(graphTraverser.workspace.xcWorkspacePath),
             scheme: scheme.name,
             clean: clean,
-            destination: destination,
+            destination: destination.0,
             derivedDataPath: nil,
             resultBundlePath: resultBundlePath,
             arguments: buildGraphInspector.buildArguments(
@@ -252,7 +252,7 @@ final class TestService {
         graphTraverser: GraphTraversing,
         version: Version?,
         deviceName: String?
-    ) throws -> XcodeBuildDestination {
+    ) throws -> (XcodeBuildDestination, SimulatorDevice?) {
         switch target.platform {
         case .iOS, .tvOS, .watchOS:
             let minVersion: Version?
@@ -278,9 +278,9 @@ final class TestService {
             )
             .toBlocking()
             .single()
-            return .device(deviceAndRuntime.device.udid)
+            return (.device(deviceAndRuntime.device.udid), deviceAndRuntime.device)
         case .macOS:
-            return .mac
+            return (.mac, nil)
         }
     }
 }
