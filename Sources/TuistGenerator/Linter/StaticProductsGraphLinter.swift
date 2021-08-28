@@ -152,8 +152,6 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
             return target.target.product.isStatic
         case .sdk:
             return false
-        case .cocoapods:
-            return false
         }
     }
 

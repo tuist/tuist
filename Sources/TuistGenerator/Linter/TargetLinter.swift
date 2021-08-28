@@ -246,8 +246,6 @@ private extension TargetDependency {
             return "package"
         case .sdk:
             return "sdk"
-        case .cocoapods:
-            return "cocoapods"
         case .xcframework:
             return "xcframework"
         case .xctest:
@@ -271,8 +269,6 @@ private extension TargetDependency {
             return product
         case let .sdk(name, _):
             return name
-        case let .cocoapods(path):
-            return path.basename
         case .xctest:
             return "xctest"
         }

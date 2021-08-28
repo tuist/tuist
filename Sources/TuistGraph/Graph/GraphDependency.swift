@@ -43,9 +43,6 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
     /// A dependency that represents an SDK
     case sdk(name: String, path: AbsolutePath, status: SDKStatus, source: SDKSource)
 
-    /// A dependency that represents a pod installlation.
-    case cocoapods(path: AbsolutePath)
-
     public func hash(into hasher: inout Hasher) {
         switch self {
         case let .xcframework(path, _, _, _):
@@ -74,9 +71,6 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
             hasher.combine(path)
             hasher.combine(status)
             hasher.combine(source)
-        case let .cocoapods(path):
-            hasher.combine("pods")
-            hasher.combine(path)
         }
     }
 
@@ -89,7 +83,6 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         case .packageProduct: return false
         case .target: return true
         case .sdk: return false
-        case .cocoapods: return false
         }
     }
 
@@ -102,7 +95,6 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         case .packageProduct: return false
         case .target: return false
         case .sdk: return false
-        case .cocoapods: return false
         }
     }
 
@@ -135,8 +127,6 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
             return "target '\(name)'"
         case let .sdk(name, _, _, _):
             return "sdk '\(name)'"
-        case let .cocoapods(path):
-            return "cocoapods '\(path)'"
         }
     }
 
@@ -156,7 +146,6 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
         case packageProduct
         case target
         case sdk
-        case cocoapods
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -246,9 +235,6 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
                 status: status,
                 source: source
             )
-        case .cocoapods:
-            let path = try container.decode(AbsolutePath.self, forKey: .path)
-            self = .cocoapods(path: path)
         }
     }
 
@@ -295,9 +281,6 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
             try container.encode(path, forKey: .path)
             try container.encode(status, forKey: .status)
             try container.encode(source, forKey: .source)
-        case let .cocoapods(path):
-            try container.encode(Kind.cocoapods, forKey: .kind)
-            try container.encode(path, forKey: .path)
         }
     }
 }

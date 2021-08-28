@@ -13,7 +13,6 @@ final class GraphDependencyTests: TuistUnitTestCase {
         XCTAssertFalse(GraphDependency.testPackageProduct().isTarget)
         XCTAssertTrue(GraphDependency.testTarget().isTarget)
         XCTAssertFalse(GraphDependency.testSDK().isTarget)
-        XCTAssertFalse(GraphDependency.testCocoapods().isTarget)
     }
 
     func test_isPrecompiled() {
@@ -23,6 +22,5 @@ final class GraphDependencyTests: TuistUnitTestCase {
         XCTAssertFalse(GraphDependency.testPackageProduct().isPrecompiled)
         XCTAssertFalse(GraphDependency.testTarget().isPrecompiled)
         XCTAssertFalse(GraphDependency.testSDK().isPrecompiled)
-        XCTAssertFalse(GraphDependency.testCocoapods().isPrecompiled)
     }
 }

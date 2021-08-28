@@ -96,9 +96,6 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
             return try contentHasher.hash("package-\(product)")
         case let .sdk(name, status):
             return try contentHasher.hash("sdk-\(name)-\(status)")
-        case let .cocoapods(path):
-            let podsHash = try contentHasher.hash(path: path)
-            return try contentHasher.hash("cocoapods-\(podsHash)")
         case .xctest:
             return try contentHasher.hash("xctest")
         }
