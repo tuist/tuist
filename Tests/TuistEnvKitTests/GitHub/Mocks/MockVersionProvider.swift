@@ -7,7 +7,7 @@ import TuistSupport
 import TuistSupportTesting
 @testable import TuistEnvKit
 
-final class MockGitHubVersionController: GitHubVersionControlling {
+final class MockVersionProvider: VersionProviding {
     var invokedVersions = false
     var invokedVersionsCount = 0
     var stubbedVersionsResult: Result<[Version], Error>!

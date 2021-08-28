@@ -5,20 +5,19 @@ import TSCBasic
 import TSCUtility
 import TuistSupport
 
-protocol GitHubVersionControlling {
+protocol VersionProviding {
     /// Returns the list of versions available on GitHub by parsing the CHANGELOG.md file
     /// - Returns: A publisher to obtain the versions.
     func versions() -> AnyPublisher<[Version], Error>
 
-    /// Returns the latest available version by parsing the Constants.swift file.
+    /// Returns the latest available version
     /// - Returns: A publisher to obtain the latest available version.
     func latestVersion() -> AnyPublisher<Version, Error>
 }
 
-enum GitHubVersionControllerError: FatalError {
+enum VersionProviderError: FatalError {
     case dataDecodingError(url: Foundation.URL)
     case responseError(url: Foundation.URL, content: String, statusCode: Int)
-    case versionNotFoundInConstants
 
     var description: String {
         switch self {
@@ -29,8 +28,6 @@ enum GitHubVersionControllerError: FatalError {
             The request to \(url.absoluteString) return an unsuccessful response with status code \(statusCode) and error body:
             \(content)
             """
-        case .versionNotFoundInConstants:
-            return "We couldn't obtain the latest Tuist version from the Constants.swift file."
         }
     }
 
@@ -38,12 +35,11 @@ enum GitHubVersionControllerError: FatalError {
         switch self {
         case .dataDecodingError: return .bug
         case .responseError: return .bug
-        case .versionNotFoundInConstants: return .bug
         }
     }
 }
 
-class GitHubVersionController: GitHubVersionControlling {
+class VersionProvider: VersionProviding {
     let requestDispatcher: HTTPRequestDispatching
 
     init(requestDispatcher: HTTPRequestDispatching = HTTPRequestDispatcher()) {
@@ -64,15 +60,14 @@ class GitHubVersionController: GitHubVersionControlling {
     }
 
     func latestVersion() -> AnyPublisher<Version, Error> {
-        return requestDispatcher.dispatch(resource: constantsResource())
-            .flatMapLatest { (content, _) -> AnyPublisher<Version, Error> in
-                do {
-                    return AnyPublisher(value: try self.parseLatestVersionFromConstants(content))
-                } catch {
-                    return AnyPublisher(error: error)
-                }
-            }
-            .eraseToAnyPublisher()
+        return versions().map { versions -> Version in
+            versions.sorted().last!
+        }
+        .eraseToAnyPublisher()
+    }
+
+    func changelogResource() -> HTTPResource<String, Error> {
+        return resource(path: "/CHANGELOG.md")
     }
 
     // MARK: - Fileprivate
@@ -92,28 +87,6 @@ class GitHubVersionController: GitHubVersionControlling {
         return versions
     }
 
-    fileprivate func parseLatestVersionFromConstants(_ constants: String) throws -> Version {
-        let regex = try NSRegularExpression(pattern: "static\\slet\\sversion\\s=\\s\"([0-9]+\\.[0-9]+\\.[0-9]+)\"", options: [])
-        let constantsRange = NSRange(
-            constants.startIndex ..< constants.endIndex,
-            in: constants
-        )
-
-        guard let match = regex.firstMatch(in: constants, options: [], range: constantsRange) else {
-            throw GitHubVersionControllerError.versionNotFoundInConstants
-        }
-        let matchRange = match.range(at: 1)
-        return Version(stringLiteral: String(constants[Range(matchRange, in: constants)!]))
-    }
-
-    fileprivate func constantsResource() -> HTTPResource<String, Error> {
-        return resource(path: "/Sources/TuistSupport/Constants.swift")
-    }
-
-    fileprivate func changelogResource() -> HTTPResource<String, Error> {
-        return resource(path: "/CHANGELOG.md")
-    }
-
     fileprivate func resource(path: String) -> HTTPResource<String, Error> {
         return HTTPResource {
             var request = URLRequest(url: self.rawFileURL(path: path))
@@ -121,12 +94,12 @@ class GitHubVersionController: GitHubVersionControlling {
             return request
         } parse: { data, response in
             guard let content = String(data: data, encoding: .utf8) else {
-                throw GitHubVersionControllerError.dataDecodingError(url: response.url!)
+                throw VersionProviderError.dataDecodingError(url: response.url!)
             }
             return content
         } parseError: { errorData, response in
             let content = String(data: errorData, encoding: .utf8) ?? ""
-            return GitHubVersionControllerError.responseError(
+            return VersionProviderError.responseError(
                 url: response.url!,
                 content: content,
                 statusCode: response.statusCode

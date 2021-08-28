@@ -10,7 +10,6 @@ final class InstallerTests: TuistUnitTestCase {
     var versionsController: MockVersionsController!
     var subject: Installer!
     var tmpDir: TemporaryDirectory!
-    var githubClient: MockGitHubClient!
 
     override func setUp() {
         super.setUp()
