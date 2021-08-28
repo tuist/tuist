@@ -5,7 +5,7 @@ import TSCBasic
 public final class MockManifestFilesLocator: ManifestFilesLocating {
     public var locateManifestsArgs: [AbsolutePath] = []
     public var locateManifestsStub: [(Manifest, AbsolutePath)]?
-    public var locateProjectManifestsStub: ((AbsolutePath, Bool) -> [ManifestFilesLocator.ProjectManifest])?
+    public var locateProjectManifestsStub: ((AbsolutePath, [String], Bool) -> [ManifestFilesLocator.ProjectManifest])?
     public var locatePluginManifestsStub: [AbsolutePath]?
     public var locatePluginManifestsArgs: [AbsolutePath] = []
     public var locateConfigStub: AbsolutePath?
@@ -22,16 +22,21 @@ public final class MockManifestFilesLocator: ManifestFilesLocating {
         return locateManifestsStub ?? [(.project, at.appending(component: "Project.swift"))]
     }
 
-    public func locatePluginManifests(at: AbsolutePath, onlyCurrentDirectory _: Bool) -> [AbsolutePath] {
+    public func locatePluginManifests(
+        at: AbsolutePath,
+        excluding _: [String],
+        onlyCurrentDirectory _: Bool
+    ) -> [AbsolutePath] {
         locatePluginManifestsArgs.append(at)
         return locatePluginManifestsStub ?? [at.appending(component: "Plugin.swift")]
     }
 
     public func locateProjectManifests(
         at locatingPath: AbsolutePath,
+        excluding: [String],
         onlyCurrentDirectory: Bool
     ) -> [ManifestFilesLocator.ProjectManifest] {
-        return locateProjectManifestsStub?(locatingPath, onlyCurrentDirectory) ?? [
+        return locateProjectManifestsStub?(locatingPath, excluding, onlyCurrentDirectory) ?? [
             ManifestFilesLocator.ProjectManifest(
                 manifest: .project,
                 path: locatingPath.appending(component: "Project.swift")
