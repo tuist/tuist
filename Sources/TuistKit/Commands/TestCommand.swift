@@ -61,9 +61,9 @@ struct TestCommand: ParsableCommand {
 
     @Flag(
         name: .long,
-        help: "Skip Tuist cache and run all tests"
+        help: "Run all tests, do not skip tests for targets that haven't changed since last test run"
     )
-    var skipCache = false
+    var allTests = false
 
     func run() throws {
         let absolutePath: AbsolutePath
@@ -88,7 +88,7 @@ struct TestCommand: ParsableCommand {
                     relativeTo: FileHandler.shared.currentPath
                 )
             },
-            skipCache: skipCache
+            skipCache: allTests
         )
     }
 }
