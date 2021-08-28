@@ -102,7 +102,7 @@ final class ProjectEditor: ProjectEditing {
         let pathsToExclude = [
             "**/\(Constants.tuistDirectoryName)/\(Constants.DependenciesDirectory.name)/**",
         ]
-        
+
         let projectDescriptionPath = try resourceLocator.projectDescription()
         let projectManifests = manifestFilesLocator.locateProjectManifests(at: editingPath, excluding: pathsToExclude, onlyCurrentDirectory: onlyCurrentDirectory)
         let configPath = manifestFilesLocator.locateConfig(at: editingPath)
