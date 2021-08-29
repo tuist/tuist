@@ -20,8 +20,9 @@ let project = Project(name: "App",
                                  infoPlist: "Tests.plist",
                                  sources: "Tests/**",
                                  dependencies: [
+                                    .framework(path: "Prebuilt/prebuilt/PrebuiltStaticFramework.framework"),
                                     .project(target: "A", path: "Modules/A"),
                                     .project(target: "AppTestsSupport", path: "Modules/AppTestsSupport"),
-                                     .target(name: "App"),
+                                    .target(name: "App"),
                           ]),
 ])

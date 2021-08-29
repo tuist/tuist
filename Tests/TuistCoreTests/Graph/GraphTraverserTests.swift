@@ -2366,7 +2366,9 @@ final class GraphTraverserTests: TuistUnitTestCase {
             isCarthage: false
         )
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: target.name, path: project.path): Set(arrayLiteral: frameworkDependency),
+            .target(name: target.name, path: project.path): [
+                frameworkDependency,
+            ],
         ]
         let graph = Graph.test(
             projects: [project.path: project],
@@ -2381,6 +2383,42 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got, [
             GraphDependencyReference(frameworkDependency),
+        ])
+    }
+
+    func test_linkableFrameworks_when_staticFrameworkDependsOnPrecompiledStaticFramework() throws {
+        // Given
+        let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
+        let project = Project.test(targets: [staticFramework])
+
+        // Given: Value Graph
+        let precompiledStaticFramework = GraphDependency.testFramework(
+            path: "/test/StaticFramework.framework",
+            binaryPath: "/test/StaticFramework.framework/StaticFramework",
+            linking: .static
+        )
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: staticFramework.name, path: project.path): [
+                precompiledStaticFramework,
+            ],
+        ]
+        let graph = Graph.test(
+            projects: [
+                project.path: project,
+            ],
+            targets: [
+                project.path: [staticFramework.name: staticFramework],
+            ],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let results = try subject.linkableDependencies(path: project.path, name: staticFramework.name)
+
+        // Then
+        XCTAssertEqual(results.sorted(), [
+            GraphDependencyReference(precompiledStaticFramework),
         ])
     }
 
@@ -2482,6 +2520,143 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 productName: dynamicFramework.productNameWithExtension,
                 platformFilter: .ios
             ),
+        ])
+    }
+
+    func test_linkableFrameworks_when_precompiledStaticFrameworkLinkedByHostApp() throws {
+        // Given
+        let hostApp = Target.test(name: "App", product: .app)
+        let unitTests = Target.test(name: "AppTests", product: .unitTests)
+        let precompiledStaticFramework = GraphDependency.testFramework(
+            path: "/test/PrecompiledStaticFramework.framework",
+            binaryPath: "/test/PrecompiledStaticFramework.framework/PrecompiledStaticFramework",
+            linking: .static
+        )
+        let project = Project.test(targets: [hostApp, unitTests])
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: hostApp.name, path: project.path): [
+                precompiledStaticFramework,
+            ],
+            .target(name: unitTests.name, path: project.path): [
+                .target(name: hostApp.name, path: project.path),
+                precompiledStaticFramework,
+            ],
+        ]
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    hostApp.name: hostApp,
+                    unitTests.name: unitTests,
+                ],
+            ],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let results = try subject.linkableDependencies(path: project.path, name: unitTests.name)
+
+        // Then
+        XCTAssertEqual(results.sorted(), [])
+    }
+
+    func test_linkableFrameworks_when_transitivePrecompiledStaticFrameworkLinkedByHostApp() throws {
+        // Given
+        let hostApp = Target.test(name: "App", product: .app)
+        let unitTests = Target.test(name: "MyHostAppTests", product: .unitTests)
+        let staticFramework = Target.test(name: "MyStaticFramework", product: .staticFramework)
+        let precompiledStaticFramework = GraphDependency.testFramework(
+            path: "/test/PrecompiledStaticFramework.framework",
+            binaryPath: "/test/PrecompiledStaticFramework.framework/PrecompiledStaticFramework",
+            linking: .static
+        )
+        let project = Project.test(targets: [hostApp, unitTests])
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: hostApp.name, path: project.path): [
+                precompiledStaticFramework,
+            ],
+            .target(name: staticFramework.name, path: project.path): [
+                precompiledStaticFramework,
+            ],
+            .target(name: unitTests.name, path: project.path): [
+                .target(name: staticFramework.name, path: project.path),
+                .target(name: hostApp.name, path: project.path),
+            ],
+        ]
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    hostApp.name: hostApp,
+                    unitTests.name: unitTests,
+                    staticFramework.name: staticFramework,
+                ],
+            ],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let results = try subject.linkableDependencies(path: project.path, name: unitTests.name)
+
+        // Then
+        XCTAssertEqual(results.sorted(), [
+            .product(
+                target: staticFramework.name,
+                productName: staticFramework.productNameWithExtension,
+                platformFilter: .ios
+            ),
+        ])
+    }
+
+    func test_searchablePathDependencies_when_transitivePrecompiledStaticFrameworkLinkedByHostApp() throws {
+        // Given
+        let hostApp = Target.test(name: "App", product: .app)
+        let unitTests = Target.test(name: "MyHostAppTests", product: .unitTests)
+        let staticFramework = Target.test(name: "MyStaticFramework", product: .staticFramework)
+        let precompiledStaticFramework = GraphDependency.testFramework(
+            path: "/test/PrecompiledStaticFramework.framework",
+            binaryPath: "/test/PrecompiledStaticFramework.framework/PrecompiledStaticFramework",
+            linking: .static
+        )
+        let project = Project.test(targets: [hostApp, unitTests])
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: hostApp.name, path: project.path): [
+                precompiledStaticFramework,
+            ],
+            .target(name: staticFramework.name, path: project.path): [
+                precompiledStaticFramework,
+            ],
+            .target(name: unitTests.name, path: project.path): [
+                .target(name: staticFramework.name, path: project.path),
+                .target(name: hostApp.name, path: project.path),
+            ],
+        ]
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    hostApp.name: hostApp,
+                    unitTests.name: unitTests,
+                    staticFramework.name: staticFramework,
+                ],
+            ],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let results = try subject.searchablePathDependencies(path: project.path, name: unitTests.name)
+
+        // Then
+        XCTAssertEqual(results.sorted(), [
+            .product(
+                target: staticFramework.name,
+                productName: staticFramework.productNameWithExtension,
+                platformFilter: .ios
+            ),
+            GraphDependencyReference(precompiledStaticFramework),
         ])
     }
 

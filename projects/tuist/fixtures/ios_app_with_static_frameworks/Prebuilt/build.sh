@@ -1,6 +1,6 @@
 #!/bin/sh
 
-swift run tuist generate
+tuist generate
 
 WORKSPACE_NAME="Prebuilt"
 FRAMEWORK_NAME="PrebuiltStaticFramework"

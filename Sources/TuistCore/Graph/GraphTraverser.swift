@@ -313,8 +313,10 @@ public class GraphTraverser: GraphTraversing {
             let transitiveStaticTargets = self.transitiveStaticTargets(from: .target(name: name, path: path))
 
             // Exclude any static products linked in a host application
+            // however, for search paths it's fine to keep them included
             let hostApplicationStaticTargets: Set<GraphDependency>
-            if target.target.product == .unitTests,
+            if !isForSearchPath,
+                target.target.product == .unitTests,
                 let hostApp = hostApplication(path: path, name: name)
             {
                 hostApplicationStaticTargets = self.transitiveStaticTargets(from: .target(name: hostApp.target.name, path: hostApp.project.path))
@@ -345,8 +347,11 @@ public class GraphTraverser: GraphTraversing {
 
             references.formUnion(
                 allDependencies
-                    .filter { isForSearchPath || !hostApplicationStaticTargets.contains($0) }
-                    .compactMap(dependencyReference))
+                    .compactMap(dependencyReference)
+            )
+            references.subtract(
+                hostApplicationStaticTargets.compactMap(dependencyReference)
+            )
         }
 
         // Link dynamic libraries and frameworks
@@ -627,9 +632,10 @@ public class GraphTraverser: GraphTraversing {
 
     func isDependencyPrecompiledDynamicAndLinkable(dependency: GraphDependency) -> Bool {
         switch dependency {
-        case let .xcframework(_, _, _, linking): return linking == .dynamic
-        case let .framework(_, _, _, _, linking, _, _): return linking == .dynamic
-        case .library: return false
+        case let .xcframework(_, _, _, linking),
+             let .framework(_, _, _, _, linking, _, _),
+             let .library(path: _, publicHeaders: _, linking: linking, architectures: _, swiftModuleMap: _):
+            return linking == .dynamic
         case .bundle: return false
         case .packageProduct: return false
         case .target: return false
