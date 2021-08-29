@@ -237,7 +237,7 @@ Note: to re-create `Framework2.framework` run `ios_app_with_transitive_framework
 
 ## ios_app_with_incompatible_xcode
 
-An iOS app whose TuistConfig file requires an Xcode version that is not available in the system.
+An iOS app whose Config file requires an Xcode version that is not available in the system.
 
 ## ios_app_with_actions
 
