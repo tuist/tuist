@@ -12,21 +12,31 @@ extension Publisher {
         var cancellables: Set<AnyCancellable> = Set()
         var values: [Output] = []
         var error: Error?
+        let synchronizationQueue = DispatchQueue(label: "io.tuist.support.blocking-publisher")
 
         sink { completion in
             switch completion {
-            case let .failure(_error): error = _error
-            default: break
+            case let .failure(_error):
+                synchronizationQueue.async {
+                    error = _error
+                    semaphore.signal()
+                }
+            default:
+                synchronizationQueue.async {
+                    semaphore.signal()
+                }
             }
-            semaphore.signal()
         } receiveValue: { value in
-            values.append(value)
+            synchronizationQueue.async {
+                values.append(value)
+            }
         }
         .store(in: &cancellables)
 
         _ = semaphore.wait(timeout: timeout)
-        if let error = error { throw error }
-        return values
-        // swiftlint:enable identifier_name
+        return try synchronizationQueue.sync { () throws -> [Output] in
+            if let error = error { throw error }
+            return values
+        }
     }
 }
