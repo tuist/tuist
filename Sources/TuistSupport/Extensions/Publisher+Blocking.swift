@@ -1,6 +1,8 @@
 import Combine
 import Foundation
 
+var toBlockingCancellables: Set<AnyCancellable> = Set()
+
 extension Publisher {
     /// It blocks the current thread until the publisher finishes.
     /// - Parameter timeout: Timeout
@@ -9,7 +11,6 @@ extension Publisher {
     public func toBlocking(timeout: DispatchTime = .now() + .seconds(10)) throws -> [Output] {
         // swiftlint:disable identifier_name
         let semaphore = DispatchSemaphore(value: 0)
-        var cancellables: Set<AnyCancellable> = Set()
         var values: [Output] = []
         var error: Error?
         let synchronizationQueue = DispatchQueue(label: "io.tuist.support.blocking-publisher")
@@ -31,7 +32,7 @@ extension Publisher {
                 values.append(value)
             }
         }
-        .store(in: &cancellables)
+        .store(in: &toBlockingCancellables)
 
         _ = semaphore.wait(timeout: timeout)
         return try synchronizationQueue.sync { () throws -> [Output] in
