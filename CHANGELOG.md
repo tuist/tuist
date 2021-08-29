@@ -4,7 +4,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
-## 1.49.0 - Maresme
+## 1.49.0
 
 ### Added
 
