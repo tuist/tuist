@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TSCUtility
 @testable import TuistGraph
 
 public extension Config {
@@ -7,7 +8,7 @@ public extension Config {
         compatibleXcodeVersions: CompatibleXcodeVersions = .all,
         cloud: Cloud? = Cloud.test(),
         cache: Cache? = Cache.test(),
-        swiftVersion: String? = nil,
+        swiftVersion: Version? = nil,
         plugins: [PluginLocation] = [],
         generationOptions: [GenerationOption] = [],
         path: AbsolutePath? = nil

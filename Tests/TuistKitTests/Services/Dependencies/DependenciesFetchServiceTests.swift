@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TSCUtility
 import TuistCore
 import TuistGraph
 import TuistGraphTesting
@@ -65,7 +66,7 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
         )
         dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
 
-        let stubbedSwiftVersion = "5.3.0"
+        let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
         configLoader.loadConfigStub = { _ in Config.test(swiftVersion: stubbedSwiftVersion) }
 
         dependenciesController.fetchStub = { path, dependencies, swiftVersion in

@@ -28,5 +28,11 @@ public struct Cache: Equatable, Hashable {
         self.path = path
     }
 
-    public static let `default` = Cache(profiles: [Profile(name: "Development", configuration: "Debug")], path: nil)
+    public static let `default` = Cache(
+        profiles: [
+            Profile(name: "Development", configuration: "Debug"),
+            Profile(name: "Release", configuration: "Release"),
+        ],
+        path: nil
+    )
 }

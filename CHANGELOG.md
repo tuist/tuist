@@ -4,6 +4,52 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.49.1
+
+### Fixed
+
+- `tuistenv` failing to fetch the latest version from `CHANGELOG.md`
+
+## 1.49.0
+
+### Added
+
+- Add default `Release` caching profile [#3304](https://github.com/tuist/tuist/pull/3304) by [@danyf90](https://github.com/danyf90)
+- Add `--dependencies-only` parameter to `tuist cache warm` command [#3334](https://github.com/tuist/tuist/pull/3334) by [@danyf90](https://github.com/danyf90)
+
+### Fixed
+
+- Fix Dependency.swift binary path's with `path` instead of `url`. [#3269](https://github.com/tuist/tuist/pull/3269) by [@apps4everyone](https://github.com/apps4everyone)
+- Fix mapping of SPM linker flags [#3276](https://github.com/tuist/tuist/pull/3276) by [@danyf90](https://github.com/danyf90)
+- Fix adding `Carthage` dependencies to `Target` using `TargetDepedency.external` [#3300](https://github.com/tuist/tuist/pull/3300) by [@laxmorek](https://github.com/laxmorek)
+- Fix for missing transitive precompiled static frameworks [#3296](https://github.com/tuist/tuist/pull/3296) by [@kwridan](https://github.com/kwridan)
+- Fix unstable graph dependency reference sort [#3318](https://github.com/tuist/tuist/pull/3318) by [@kwridan](https://github.com/kwridan)
+- Fix source glob not following directory symlinks [#3312](https://github.com/tuist/tuist/pull/3312)  by [@LorDisturbia](https://github.com/LorDisturbia).
+- Fix for `./fourier bundle` command when `xcodeproj` or `xcworkspace` files are present [#3331](https://github.com/tuist/tuist/pull/3331) by [@danyf90](https://github.com/danyf90)
+- Fix for filtering logic for caching dependencies to include dependencies of filtered non-cacheable targets [#3333](https://github.com/tuist/tuist/pull/3333) by [@adellibovi](https://github.com/adellibovi)
+- Fix for importing Swift Package Manager binary targets from Dependency.swift [#3352](https://github.com/tuist/tuist/pull/3352) by [@danyf90](https://github.com/danyf90)
+- Fix for the `tuist edit` command when the `Tuist/Dependencies` directory contains "manifest-like" files (`Project.swift` or `Plugin.swift`). [#3359](https://github.com/tuist/tuist/pull/3359) by [@laxmorek](https://github.com/laxmorek)
+
+### Changed
+
+- Get the latest available version from GitHub releases instead of the Google Cloud Storage bucket [#3335](https://github.com/tuist/tuist/pull/3335) by [@pepibumur](https://github.com/pepibumur).
+- The `install` script has been updated to pull the `tuistenv` binary from the latest GitHub release's assets [#3336](https://github.com/tuist/tuist/pull/3336) by [@pepibumur](https://github.com/pepibumur).
+- Remove unneeded `BUILD_LIBRARY_FOR_DISTRIBUTION` setting when building `xcframework` for cache [#3344](https://github.com/tuist/tuist/pull/3344) by [@danyf90](https://github.com/danyf90).
+- Environment variables now support keys with and without `TUIST_` prefix [#3337](https://github.com/tuist/tuist/pull/3337) by [@wattson12](https://github.com/wattson12)
+
+## 1.48.1
+
+### Changed
+
+- The installation of Tuist versions pulls the binaries from the GitHub releases [#3255](https://github.com/tuist/tuist/pull/3255) by [@pepibumur](https://github.com/pepibumur).
+
+### Fixed
+
+- Fixed text settings docs [#3288](https://github.com/tuist/tuist/pull/3288) by [@DimaMishchenko](https://github.com/DimaMishchenko)
+- Fix .xcFramework breaking change [#3289](https://github.com/tuist/tuist/pull/3289) by [@kwridan](https://github.com/kwridan)
+
+## 1.48.0 - Packer
+
 ### Added
 
 - Support for `Swift Package Manager` in `Dependencies.swift` [#3072](https://github.com/tuist/tuist/pull/3072) by [@danyf90](https://github.com/danyf90)
@@ -11,10 +57,12 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Add support for localized intent definition files using `.strings`. [#3236](https://github.com/tuist/tuist/pull/3236) by [@dbarden](https://github.com/dbarden)
 - Add `TextSettings` configuration into `Project` [#3253](https://github.com/tuist/tuist/pull/3253) by [@DimaMishchenko](https://github.com/DimaMishchenko)
 - Add `language` option for `RunAction`, add `SchemeLanguage` [#3231](https://github.com/tuist/tuist/pull/3231) by [@zzzkk](https://github.com/zzzkk)
+- Include instructions to create an GitHub issue for unhandled errors [#3278](https://github.com/tuist/tuist/pull/3278) by [@pepibumur](https://github.com/pepibumur).
 
 ### Fixed
 
 - Build file of dependencies having the wrong platform filter in iOS targets with Catalyst enabled [#3152](https://github.com/tuist/tuist/pull/3152) by [@pepibumur](https://github.com/pepibumur) and [@sampettersson](https://github.com/sampettersson).
+
 
 ## 1.47.0 - Mirror
 

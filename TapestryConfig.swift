@@ -12,7 +12,6 @@ let config = TapestryConfig(
             .pre(tool: "swift", arguments: ["test"]),
             .pre(.docsUpdate),
             .post(tool: "./fourier", arguments: ["release", "tuist", "\(Argument.version)"]),
-            .post(tool: "./fourier", arguments: ["release", "scripts"]),
             .post(
                 .githubRelease(
                     owner: "tuist",

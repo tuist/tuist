@@ -29,7 +29,9 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         ])
 
         // When
-        let manifests = subject.locateProjectManifests(at: paths.first!, onlyCurrentDirectory: false)
+        let manifests = subject
+            .locateProjectManifests(at: paths.first!, excluding: [], onlyCurrentDirectory: false)
+            .sorted(by: { $0.path < $1.path })
 
         // Then
         XCTAssertEqual(
@@ -56,7 +58,9 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         ])
 
         // When
-        let manifests = subject.locateProjectManifests(at: paths.first!, onlyCurrentDirectory: false)
+        let manifests = subject
+            .locateProjectManifests(at: paths.first!, excluding: [], onlyCurrentDirectory: false)
+            .sorted(by: { $0.path < $1.path })
 
         // Then
         XCTAssertEqual(
@@ -83,7 +87,9 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         ])
 
         // When
-        let manifests = subject.locateProjectManifests(at: paths.first!.parentDirectory, onlyCurrentDirectory: true)
+        let manifests = subject
+            .locateProjectManifests(at: paths.first!.parentDirectory, excluding: [], onlyCurrentDirectory: true)
+            .sorted(by: { $0.path < $1.path })
 
         // Then
         XCTAssertEqual(
@@ -107,7 +113,83 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
 
         // When
         let manifests = subject
-            .locateProjectManifests(at: try temporaryPath(), onlyCurrentDirectory: false)
+            .locateProjectManifests(at: try temporaryPath(), excluding: [], onlyCurrentDirectory: false)
+            .sorted(by: { $0.path < $1.path })
+
+        // Then
+        XCTAssertEqual(
+            manifests,
+            [
+                ManifestFilesLocator.ProjectManifest(
+                    manifest: .project,
+                    path: paths[0]
+                ),
+                ManifestFilesLocator.ProjectManifest(
+                    manifest: .workspace,
+                    path: paths[1]
+                ),
+                ManifestFilesLocator.ProjectManifest(
+                    manifest: .project,
+                    path: paths[2]
+                ),
+            ]
+        )
+    }
+
+    func test_locateProjectManifests_excludes_paths() throws {
+        // Given
+        let paths = try createFiles([
+            "A/Project.swift",
+            "B/Workspace.swift",
+            "C/Project.swift",
+            "DirName/ExcludeMe/D/Project.swift",
+            "ExcludeMe/Workspace.swift",
+        ])
+        let excluding = [
+            "**/ExcludeMe/**",
+        ]
+
+        // When
+        let manifests = subject
+            .locateProjectManifests(at: try temporaryPath(), excluding: excluding, onlyCurrentDirectory: false)
+            .sorted(by: { $0.path < $1.path })
+
+        // Then
+        XCTAssertEqual(
+            manifests,
+            [
+                ManifestFilesLocator.ProjectManifest(
+                    manifest: .project,
+                    path: paths[0]
+                ),
+                ManifestFilesLocator.ProjectManifest(
+                    manifest: .workspace,
+                    path: paths[1]
+                ),
+                ManifestFilesLocator.ProjectManifest(
+                    manifest: .project,
+                    path: paths[2]
+                ),
+            ]
+        )
+    }
+
+    func test_locateProjectManifests_excludes_paths_when_fell_back_to_locatingPath_given_no_root_path() throws {
+        // Given
+        let paths = try createFiles([
+            "A/Project.swift",
+            "B/Workspace.swift",
+            "C/Project.swift",
+            "DirName/ExcludeMe/D/Project.swift",
+            "ExcludeMe/Workspace.swift",
+        ])
+        let excluding = [
+            "**/ExcludeMe/**",
+        ]
+
+        // When
+        let manifests = subject
+            .locateProjectManifests(at: try temporaryPath(), excluding: excluding, onlyCurrentDirectory: false)
             .sorted(by: { $0.path < $1.path })
 
         // Then
@@ -140,16 +222,24 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         ])
 
         // When
-        let manifests = subject.locatePluginManifests(
-            at: paths[0], // Plugin.swift
-            onlyCurrentDirectory: false
-        )
+        let manifests = subject
+            .locatePluginManifests(
+                at: paths[0], // Plugin.swift
+                excluding: [],
+                onlyCurrentDirectory: false
+            )
+            .sorted()
 
         // Then
-        XCTAssertEqual(manifests[0], paths[1]) // A/Plugin.swift
-        XCTAssertEqual(manifests[1], paths[3]) // B/C/Plugin.swift
-        XCTAssertEqual(manifests[2], paths[2]) // B/Plugin.swift
-        XCTAssertEqual(manifests[3], paths[0]) // Plugin.swift
+        XCTAssertEqual(
+            manifests,
+            [
+                paths[1], // A/Plugin.swift
+                paths[3], // B/C/Plugin.swift
+                paths[2], // B/Plugin.swift
+                paths[0], // Plugin.swift
+            ]
+        )
     }
 
     func test_locatePluginManifests_returns_only_plugin_in_cwdir_when_only_current_directory() throws {
@@ -164,6 +254,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         // When
         let manifests = subject.locatePluginManifests(
             at: paths[0].parentDirectory, // Plugin.swift's parent directory
+            excluding: [],
             onlyCurrentDirectory: true
         )
 
@@ -186,6 +277,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         // When
         let manifests = subject.locatePluginManifests(
             at: paths[1], // A/Helpers/Helper.swift
+            excluding: [],
             onlyCurrentDirectory: false
         )
 
@@ -201,14 +293,88 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         ])
 
         // When
-        let manifests = subject.locatePluginManifests(
-            at: try temporaryPath(),
-            onlyCurrentDirectory: false
-        )
+        let manifests = subject
+            .locatePluginManifests(
+                at: try temporaryPath(),
+                excluding: [],
+                onlyCurrentDirectory: false
+            )
+            .sorted()
 
         // Then
-        XCTAssertEqual(manifests[0], paths[0])
-        XCTAssertEqual(manifests[1], paths[1])
+        XCTAssertEqual(
+            manifests,
+            [
+                paths[0],
+                paths[1],
+            ]
+        )
+    }
+
+    func test_locatePluginManifests_excludes_paths() throws {
+        // Given
+        let paths = try createFiles([
+            "Plugin.swift",
+            "A/Plugin.swift",
+            "B/Plugin.swift",
+            "B/C/Plugin.swift",
+            "DirName/ExcludeMe/D/Plugin.swift",
+            "ExcludeMe/Plugin.swift",
+        ])
+        let excluding = [
+            "**/ExcludeMe/**",
+        ]
+
+        // When
+        let manifests = subject
+            .locatePluginManifests(
+                at: paths[0], // Plugin.swift
+                excluding: excluding,
+                onlyCurrentDirectory: false
+            )
+            .sorted()
+
+        // Then
+        XCTAssertEqual(
+            manifests,
+            [
+                paths[1], // A/Plugin.swift
+                paths[3], // B/C/Plugin.swift
+                paths[2], // B/Plugin.swift
+                paths[0], // Plugin.swift
+            ]
+        )
+    }
+
+    func test_locatePluginManifests_excludes_paths_when_fell_back_to_locatingPath_when_no_root_path() throws {
+        // Given
+        let paths = try createFiles([
+            "A/Plugin.swift",
+            "B/Plugin.swift",
+            "DirName/ExcludeMe/D/Plugin.swift",
+            "ExcludeMe/Plugin.swift",
+        ])
+        let excluding = [
+            "**/ExcludeMe/**",
+        ]
+
+        // When
+        let manifests = subject
+            .locatePluginManifests(
+                at: try temporaryPath(),
+                excluding: excluding,
+                onlyCurrentDirectory: false
+            )
+            .sorted()
+
+        // Then
+        XCTAssertEqual(
+            manifests,
+            [
+                paths[0],
+                paths[1],
+            ]
+        )
     }
 
     func test_locateConfig() throws {

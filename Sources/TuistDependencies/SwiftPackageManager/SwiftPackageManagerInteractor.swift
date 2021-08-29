@@ -1,5 +1,6 @@
 import ProjectDescription
 import TSCBasic
+import TSCUtility
 import TuistCore
 import TuistGraph
 import TuistSupport
@@ -47,7 +48,7 @@ public protocol SwiftPackageManagerInteracting {
         dependencies: TuistGraph.SwiftPackageManagerDependencies,
         platforms: Set<TuistGraph.Platform>,
         shouldUpdate: Bool,
-        swiftToolsVersion: String?
+        swiftToolsVersion: TSCUtility.Version?
     ) throws -> TuistCore.DependenciesGraph
 
     /// Removes all cached `Swift Package Manager` dependencies.
@@ -79,7 +80,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         dependencies: TuistGraph.SwiftPackageManagerDependencies,
         platforms: Set<TuistGraph.Platform>,
         shouldUpdate: Bool,
-        swiftToolsVersion: String?
+        swiftToolsVersion: TSCUtility.Version?
     ) throws -> TuistCore.DependenciesGraph {
         logger.info("Installing Swift Package Manager dependencies.", metadata: .subsection)
 
@@ -111,7 +112,8 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
                 at: pathsProvider.destinationBuildDirectory,
                 productTypes: dependencies.productTypes,
                 platforms: platforms,
-                deploymentTargets: dependencies.deploymentTargets
+                deploymentTargets: dependencies.deploymentTargets,
+                swiftToolsVersion: swiftToolsVersion
             )
         }
 
@@ -137,7 +139,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
     private func loadDependencies(
         pathsProvider: SwiftPackageManagerPathsProvider,
         dependencies: TuistGraph.SwiftPackageManagerDependencies,
-        swiftToolsVersion: String?
+        swiftToolsVersion: TSCUtility.Version?
     ) throws {
         // copy `.build` directory from previous run if exist
         if fileHandler.exists(pathsProvider.destinationBuildDirectory) {
@@ -160,7 +162,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         try fileHandler.write(dependencies.manifestValue(), path: packageManifestPath, atomically: true)
 
         // set `swift-tools-version` in `Package.swift`
-        try swiftPackageManagerController.setToolsVersion(at: pathsProvider.temporaryDirectoryPath, to: swiftToolsVersion)
+        try swiftPackageManagerController.setToolsVersion(at: pathsProvider.temporaryDirectoryPath, to: swiftToolsVersion?.description)
 
         // log
         let generatedManifestContent = try fileHandler.readTextFile(packageManifestPath)

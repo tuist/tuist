@@ -50,6 +50,9 @@ public extension TuistCore.DependenciesGraph {
             externalProjects: [
                 packageFolder: .init(
                     name: "test",
+                    settings: .init(base: [
+                        "GCC_C_LANGUAGE_STANDARD": "c99",
+                    ]),
                     targets: [
                         .init(
                             name: "Tuist",
@@ -73,14 +76,12 @@ public extension TuistCore.DependenciesGraph {
                                 .project(target: "ALibraryUtils", path: Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency")),
                             ],
                             settings: Self.spmSettings(with: [
-                                "HEADER_SEARCH_PATHS": .array(
-                                    ["$(SRCROOT)/customPath/cSearchPath", "$(SRCROOT)/customPath/cxxSearchPath"]
-                                ),
-                                "OTHER_CFLAGS": .array(["CUSTOM_C_FLAG"]),
-                                "OTHER_CPLUSPLUSFLAGS": .array(["CUSTOM_CXX_FLAG"]),
-                                "OTHER_SWIFT_FLAGS": .array(["CUSTOM_SWIFT_FLAG1", "CUSTOM_SWIFT_FLAG2"]),
-                                "GCC_PREPROCESSOR_DEFINITIONS": .array(["CXX_DEFINE=CXX_VALUE", "C_DEFINE=C_VALUE"]),
-                                "SWIFT_ACTIVE_COMPILATION_CONDITIONS": .array(["SWIFT_DEFINE"]),
+                                "HEADER_SEARCH_PATHS": ["$(SRCROOT)/customPath/cSearchPath", "$(SRCROOT)/customPath/cxxSearchPath"],
+                                "OTHER_CFLAGS": ["CUSTOM_C_FLAG"],
+                                "OTHER_CPLUSPLUSFLAGS": ["CUSTOM_CXX_FLAG"],
+                                "OTHER_SWIFT_FLAGS": ["CUSTOM_SWIFT_FLAG1", "CUSTOM_SWIFT_FLAG2"],
+                                "GCC_PREPROCESSOR_DEFINITIONS": ["CXX_DEFINE=CXX_VALUE", "C_DEFINE=C_VALUE"],
+                                "SWIFT_ACTIVE_COMPILATION_CONDITIONS": ["SWIFT_DEFINE"],
                             ])
                         ),
                         .init(
@@ -194,6 +195,7 @@ public extension TuistCore.DependenciesGraph {
             externalProjects: [
                 packageFolder: .init(
                     name: "Alamofire",
+                    settings: .init(base: ["SWIFT_VERSION": "5.0.0"]),
                     targets: [
                         .init(
                             name: "Alamofire",
@@ -234,6 +236,10 @@ public extension TuistCore.DependenciesGraph {
             externalProjects: [
                 packageFolder: .init(
                     name: "GoogleAppMeasurement",
+                    settings: .init(base: [
+                        "GCC_C_LANGUAGE_STANDARD": "c99",
+                        "CLANG_CXX_LANGUAGE_STANDARD": "gnu++14",
+                    ]),
                     targets: [
                         .init(
                             name: "GoogleAppMeasurementTarget",
@@ -451,6 +457,10 @@ extension DependenciesGraph {
 
         if case let .array(swiftFlags) = settingsDictionary["OTHER_SWIFT_FLAGS"] {
             settingsDictionary["OTHER_SWIFT_FLAGS"] = .array(["$(inherited)"] + swiftFlags)
+        }
+
+        if case let .array(linkerFlags) = settingsDictionary["OTHER_LDFLAGS"] {
+            settingsDictionary["OTHER_LDFLAGS"] = .array(["$(inherited)"] + linkerFlags)
         }
 
         return Settings(base: settingsDictionary)

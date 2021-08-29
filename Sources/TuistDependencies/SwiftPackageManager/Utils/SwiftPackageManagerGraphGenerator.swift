@@ -42,11 +42,13 @@ public protocol SwiftPackageManagerGraphGenerating {
     /// - Parameter productTypes: The custom `Product` types to be used for SPM targets.
     /// - Parameter platforms: The supported platforms.
     /// - Parameter deploymentTargets: The configured deployment targets.
+    /// - Parameter swiftToolsVersion: The version of Swift tools that will be used to generate dependencies.
     func generate(
         at path: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
         platforms: Set<TuistGraph.Platform>,
-        deploymentTargets: Set<TuistGraph.DeploymentTarget>
+        deploymentTargets: Set<TuistGraph.DeploymentTarget>,
+        swiftToolsVersion: TSCUtility.Version?
     ) throws -> TuistCore.DependenciesGraph
 }
 
@@ -67,14 +69,15 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         at path: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
         platforms: Set<TuistGraph.Platform>,
-        deploymentTargets: Set<TuistGraph.DeploymentTarget>
+        deploymentTargets: Set<TuistGraph.DeploymentTarget>,
+        swiftToolsVersion: TSCUtility.Version?
     ) throws -> TuistCore.DependenciesGraph {
         let artifactsFolder = path.appending(component: "artifacts")
         let checkoutsFolder = path.appending(component: "checkouts")
         let workspacePath = path.appending(component: "workspace-state.json")
 
         let workspaceState = try JSONDecoder().decode(SwiftPackageManagerWorkspaceState.self, from: try FileHandler.shared.readFile(workspacePath))
-        let packageInfos: [(name: String, folder: AbsolutePath, artifactsFolder: AbsolutePath, info: PackageInfo)]
+        let packageInfos: [(name: String, folder: AbsolutePath, info: PackageInfo)]
         packageInfos = try workspaceState.object.dependencies.map { dependency in
             let name = dependency.packageRef.name
             let packageFolder: AbsolutePath
@@ -94,7 +97,6 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             return (
                 name: name,
                 folder: packageFolder,
-                artifactsFolder: artifactsFolder.appending(component: name),
                 info: packageInfo
             )
         }
@@ -103,26 +105,17 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             packageInfo.info.products.forEach { result[$0.name] = packageInfo.name }
         }
 
-        let externalDependencies: [String: [ProjectDescription.TargetDependency]] = packageInfos.reduce(into: [:]) { result, packageInfo in
-            packageInfo.info.products.forEach { product in
-                result[product.name] = product.targets.map { .project(target: $0, path: Path(packageInfo.folder.pathString)) }
-            }
-        }
-
         let packageToProject = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.folder) })
         let packageInfoDictionary = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.info) })
-        let targetDependencyToFramework: [String: Path] = packageInfos.reduce(into: [:]) { result, packageInfo in
-            let artifactsFolder = artifactsFolder.appending(component: packageInfo.name)
-            packageInfo.info.targets.forEach { target in
-                guard target.type == .binary else { return }
-                result[target.name] = Path(artifactsFolder.appending(component: "\(target.name).xcframework").pathString)
-            }
-        }
-        let (targetToProducts, targetToResolvedDependencies) = try packageInfoMapper.preprocess(
+        let packageToFolder = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.folder) })
+
+        let (targetToProducts, targetToResolvedDependencies, externalDependencies) = try packageInfoMapper.preprocess(
             packageInfos: packageInfoDictionary,
             productToPackage: productToPackage,
-            targetDependencyToFramework: targetDependencyToFramework
+            packageToFolder: packageToFolder,
+            artifactsFolder: artifactsFolder
         )
+
         let externalProjects: [Path: ProjectDescription.Project] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             let manifest = try packageInfoMapper.map(
                 packageInfo: packageInfo.info,
@@ -135,7 +128,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
                 targetToProducts: targetToProducts,
                 targetToResolvedDependencies: targetToResolvedDependencies,
                 packageToProject: packageToProject,
-                productToPackage: productToPackage
+                swiftToolsVersion: swiftToolsVersion
             )
             result[Path(packageInfo.folder.pathString)] = manifest
         }

@@ -6,18 +6,15 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class EnvUpdaterTests: TuistUnitTestCase {
-    var googleCloudStorageClient: MockGoogleCloudStorageClient!
     var subject: EnvUpdater!
 
     override func setUp() {
         super.setUp()
 
-        googleCloudStorageClient = MockGoogleCloudStorageClient()
-        subject = EnvUpdater(googleCloudStorageClient: googleCloudStorageClient)
+        subject = EnvUpdater()
     }
 
     override func tearDown() {
-        googleCloudStorageClient = nil
         subject = nil
 
         super.tearDown()

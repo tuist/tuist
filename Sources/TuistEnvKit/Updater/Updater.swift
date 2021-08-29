@@ -10,21 +10,21 @@ final class Updater: Updating {
     // MARK: - Attributes
 
     let versionsController: VersionsControlling
-    let googleCloudStorageClient: GoogleCloudStorageClienting
     let installer: Installing
     let envUpdater: EnvUpdating
+    let versionProvider: VersionProviding
 
     // MARK: - Init
 
     init(versionsController: VersionsControlling = VersionsController(),
          installer: Installing = Installer(),
          envUpdater: EnvUpdating = EnvUpdater(),
-         googleCloudStorageClient: GoogleCloudStorageClienting = GoogleCloudStorageClient())
+         versionProvider: VersionProviding = VersionProvider())
     {
         self.versionsController = versionsController
         self.installer = installer
         self.envUpdater = envUpdater
-        self.googleCloudStorageClient = googleCloudStorageClient
+        self.versionProvider = versionProvider
     }
 
     // MARK: - Internal
@@ -34,8 +34,7 @@ final class Updater: Updating {
             logger.info("Updating tuistenv", metadata: .section)
             try? self.envUpdater.update()
         }
-
-        guard let highestRemoteVersion = try googleCloudStorageClient.latestVersion().toBlocking().first() else {
+        guard let highestRemoteVersion = try versionProvider.latestVersion().toBlocking().first else {
             logger.warning("No remote versions found")
             return
         }

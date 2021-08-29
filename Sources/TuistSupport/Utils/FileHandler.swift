@@ -265,6 +265,10 @@ public class FileHandler: FileHandling {
         try fileManager.contentsOfDirectory(atPath: path.pathString).map { AbsolutePath(path, $0) }
     }
 
+    public func createSymbolicLink(at path: AbsolutePath, destination: AbsolutePath) throws {
+        try fileManager.createSymbolicLink(atPath: path.pathString, withDestinationPath: destination.pathString)
+    }
+
     public func resolveSymlinks(_ path: AbsolutePath) -> AbsolutePath {
         TSCBasic.resolveSymlinks(path)
     }

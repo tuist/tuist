@@ -11,16 +11,7 @@ protocol EnvUpdating {
 }
 
 final class EnvUpdater: EnvUpdating {
-    /// Google Cloud Storage instance.
-    let googleCloudStorageClient: GoogleCloudStorageClienting
-
-    /// Initializes the env update with its attributes.
-    ///
-    /// - Parameters:
-    ///   - googleCloudStorageClient: Google Cloud Storage instance.
-    init(googleCloudStorageClient: GoogleCloudStorageClienting = GoogleCloudStorageClient()) {
-        self.googleCloudStorageClient = googleCloudStorageClient
-    }
+    init() {}
 
     /// Updates the local tuistenv installation.
     ///

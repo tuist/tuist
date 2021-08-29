@@ -28,7 +28,8 @@ Note that the Tuist Core Team – and all Tuist contributors – are open source
 - [@RomainBoulay](https://github.com/RomainBoulay)
 - [@laxmorek](https://github.com/laxmorek)
 - [@luispadron](https://github.com/luispadron)
-
+- [@danyf90](https://github.com/danyf90)
+- [@adellibovi](https://github.com/adellibovi)
 ## Adding new Core Team Members
 
 The process for adding new Core Team members is as follows:

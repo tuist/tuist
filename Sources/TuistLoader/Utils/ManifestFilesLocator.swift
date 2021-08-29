@@ -11,18 +11,22 @@ public protocol ManifestFilesLocating: AnyObject {
     /// It locates all plugin manifest files under the the root directory (as defined in `RootDirectoryLocator`).
     /// - Parameters:
     ///     - locatingPath: Directory for which the **plugin** manifest files will be obtained.
+    ///     - excluding: Relative glob patterns for excluded files.
     ///     - onlyCurrentDirectory: If true, search for plugin manifests only in the directory of `locatingPath`
     func locatePluginManifests(
         at locatingPath: AbsolutePath,
+        excluding: [String],
         onlyCurrentDirectory: Bool
     ) -> [AbsolutePath]
 
     /// It locates all project and workspace manifest files under the root directory (as defined in `RootDirectoryLocator`).
     /// - Parameters:
     ///     - locatingPath: Directory for which the **project** and **workspace** manifest files will be obtained.
+    ///     - excluding: Relative glob patterns for excluded files.
     ///     - onlyCurrentDirectory: If true, search for manifests only in the directory of `locatingPath`
     func locateProjectManifests(
         at locatingPath: AbsolutePath,
+        excluding: [String],
         onlyCurrentDirectory: Bool
     ) -> [ManifestFilesLocator.ProjectManifest]
 
@@ -57,6 +61,7 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
 
     public func locatePluginManifests(
         at locatingPath: AbsolutePath,
+        excluding: [String],
         onlyCurrentDirectory: Bool
     ) -> [AbsolutePath] {
         if onlyCurrentDirectory {
@@ -66,10 +71,17 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
             guard FileHandler.shared.exists(pluginPath) else { return [] }
             return [pluginPath]
         } else {
-            guard let rootPath = rootDirectoryLocator.locate(from: locatingPath) else {
-                return FileHandler.shared.glob(locatingPath, glob: "**/\(Manifest.plugin.fileName(locatingPath))")
-            }
-            return FileHandler.shared.glob(rootPath, glob: "**/\(Manifest.plugin.fileName(rootPath))")
+            let path = rootDirectoryLocator.locate(from: locatingPath) ?? locatingPath
+
+            let excludedPaths = excluding
+                .flatMap {
+                    FileHandler.shared.glob(path, glob: $0)
+                }
+
+            let pluginsPaths = Set(FileHandler.shared.glob(path, glob: "**/\(Manifest.plugin.fileName(path))"))
+                .subtracting(excludedPaths)
+
+            return Array(pluginsPaths)
         }
     }
 
@@ -89,6 +101,7 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
 
     public func locateProjectManifests(
         at locatingPath: AbsolutePath,
+        excluding: [String],
         onlyCurrentDirectory: Bool
     ) -> [ProjectManifest] {
         if onlyCurrentDirectory {
@@ -108,39 +121,30 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
             ]
             .filter { FileHandler.shared.exists($0.path) }
         } else {
-            guard let rootPath = rootDirectoryLocator.locate(from: locatingPath) else {
-                let projectsPaths = FileHandler.shared.glob(locatingPath, glob: "**/\(Manifest.project.fileName(locatingPath))")
-                    .map {
-                        ProjectManifest(
-                            manifest: Manifest.project,
-                            path: $0
-                        )
-                    }
-                let workspacesPaths = FileHandler.shared.glob(locatingPath, glob: "**/\(Manifest.workspace.fileName(locatingPath))")
-                    .map {
-                        ProjectManifest(
-                            manifest: Manifest.workspace,
-                            path: $0
-                        )
-                    }
-                return projectsPaths + workspacesPaths
-            }
+            let path = rootDirectoryLocator.locate(from: locatingPath) ?? locatingPath
 
-            let projectsPaths = FileHandler.shared.glob(rootPath, glob: "**/\(Manifest.project.fileName(rootPath))")
+            let excludedPaths = excluding
+                .flatMap {
+                    FileHandler.shared.glob(path, glob: $0)
+                }
+
+            let projectsPaths = FileHandler.shared.glob(path, glob: "**/\(Manifest.project.fileName(path))")
                 .map {
                     ProjectManifest(
                         manifest: Manifest.project,
                         path: $0
                     )
                 }
-            let workspacesPaths = FileHandler.shared.glob(rootPath, glob: "**/\(Manifest.workspace.fileName(rootPath))")
+            let workspacesPaths = FileHandler.shared.glob(path, glob: "**/\(Manifest.workspace.fileName(path))")
                 .map {
                     ProjectManifest(
                         manifest: Manifest.workspace,
                         path: $0
                     )
                 }
-            return projectsPaths + workspacesPaths
+
+            return (projectsPaths + workspacesPaths)
+                .filter { !excludedPaths.contains($0.path) }
         }
     }
 

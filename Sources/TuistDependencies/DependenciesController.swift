@@ -1,5 +1,6 @@
 import ProjectDescription
 import TSCBasic
+import TSCUtility
 import TuistCore
 import TuistGraph
 import TuistSupport
@@ -60,7 +61,7 @@ public protocol DependenciesControlling {
     func fetch(
         at path: AbsolutePath,
         dependencies: TuistGraph.Dependencies,
-        swiftVersion: String?
+        swiftVersion: TSCUtility.Version?
     ) throws -> TuistCore.DependenciesGraph
 
     /// Updates dependencies.
@@ -71,7 +72,7 @@ public protocol DependenciesControlling {
     func update(
         at path: AbsolutePath,
         dependencies: TuistGraph.Dependencies,
-        swiftVersion: String?
+        swiftVersion: TSCUtility.Version?
     ) throws -> TuistCore.DependenciesGraph
 
     /// Save dependencies graph.
@@ -107,7 +108,7 @@ public final class DependenciesController: DependenciesControlling {
     public func fetch(
         at path: AbsolutePath,
         dependencies: TuistGraph.Dependencies,
-        swiftVersion: String?
+        swiftVersion: TSCUtility.Version?
     ) throws -> TuistCore.DependenciesGraph {
         return try install(
             at: path,
@@ -120,7 +121,7 @@ public final class DependenciesController: DependenciesControlling {
     public func update(
         at path: AbsolutePath,
         dependencies: TuistGraph.Dependencies,
-        swiftVersion: String?
+        swiftVersion: TSCUtility.Version?
     ) throws -> TuistCore.DependenciesGraph {
         return try install(
             at: path,
@@ -147,7 +148,7 @@ public final class DependenciesController: DependenciesControlling {
         at path: AbsolutePath,
         dependencies: TuistGraph.Dependencies,
         shouldUpdate: Bool,
-        swiftVersion: String?
+        swiftVersion: TSCUtility.Version?
     ) throws -> TuistCore.DependenciesGraph {
         logger.warning(
             """
