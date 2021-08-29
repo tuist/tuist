@@ -1,7 +1,5 @@
 import Foundation
 
-public typealias TuistConfig = Config
-
 /// This model allows to configure Tuist.
 public struct Config: Codable, Equatable {
     /// Contains options related to the project generation.
