@@ -15,6 +15,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Removed
 
 - **Breaking** Support for deprecated `TuistConfig.swift` has been ended. Define your configuration using `Config.swift`. Check [documentation](https://docs.tuist.io/manifests/config) for details. [#3373](https://github.com/tuist/tuist/pull/3373) by [@laxmorek](https://github.com/laxmorek)
+- **Breaking** Support for deprecated `Template.swift` has been ended. Define your templates using any name that describes them (`name_of_template.swift`). Check [documentation](https://docs.tuist.io/commands/scaffold) for details. [#3373](https://github.com/tuist/tuist/pull/3373) by [@laxmorek](https://github.com/laxmorek)
 
 ## 1.49.2
 
