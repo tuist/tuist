@@ -35,6 +35,12 @@ extension Publisher {
         .store(in: &toBlockingCancellables)
 
         _ = semaphore.wait(timeout: timeout)
+
+        // By calling cancellables at this point we
+        // prevent ARC from releasing the set from memory
+        // and causing the publisher to be cancelled
+        cancellables.removeAll()
+
         return try synchronizationQueue.sync { () throws -> [Output] in
             if let error = error { throw error }
             return values
