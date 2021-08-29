@@ -298,10 +298,6 @@ An iOS app that has a dependency with a dependency with a framework for macOS.
 
 An iOS app where the development region is defined at the `Config` level.
 
-## app_with_old_config_name
-
-An iOS app where the configuration is defined following the deprecated naming `TuistConfig`.
-
 ## app_with_organization_name_config
 
 An iOS app where the organization name is defined at the `Config` level.
