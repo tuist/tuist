@@ -51,7 +51,7 @@ public final class CloudHTTPRequestAuthenticator: CloudHTTPRequestAuthenticating
         if ciChecker.isCI() {
             token = tokenFromEnvironment
         } else {
-            token = tokenFromEnvironment ?? try credentialsStore.read(serverURL: serverURL)?.token
+            token = try tokenFromEnvironment ?? credentialsStore.read(serverURL: serverURL)?.token
         }
 
         var request = request
