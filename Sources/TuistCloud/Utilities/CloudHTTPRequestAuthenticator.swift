@@ -46,11 +46,12 @@ public final class CloudHTTPRequestAuthenticator: CloudHTTPRequestAuthenticating
         urlComponents.queryItems = nil
         let serverURL = urlComponents.url!
 
+        let tokenFromEnvironment = environmentVariables()[Constants.EnvironmentVariables.cloudToken]
         let token: String?
         if ciChecker.isCI() {
-            token = environmentVariables()[Constants.EnvironmentVariables.cloudToken]
+            token = tokenFromEnvironment
         } else {
-            token = try credentialsStore.read(serverURL: serverURL)?.token
+            token = tokenFromEnvironment ?? try credentialsStore.read(serverURL: serverURL)?.token
         }
 
         var request = request
