@@ -1,7 +1,7 @@
 import Foundation
 
 /// A preset build configuration used for convenience
-public enum PresetBuildConfiguration: Codable {
+public enum PresetBuildConfiguration: Codable, Equatable {
     case debug
     case release
     case custom(String)
