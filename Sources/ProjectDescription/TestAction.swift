@@ -65,83 +65,30 @@ public struct TestAction: Equatable, Codable {
         self.region = region
     }
 
-    /// Initializes a new instance of a test action
+    /// Initializes a new instance of a test action using targets
     /// - Parameters:
-    ///   - targets: List of targets to be tested.
-    ///   - arguments: Arguments passed to the process running the tests.
-    ///   - configurationName: Name of the configuration that should be used for building the test targets.
-    ///   - coverage: True to collect the test coverage results.
-    ///   - codeCoverageTargets: List of targets for which Xcode will collect the coverage results.
+    ///   - targets: targets: List of targets to be tested.
+    ///   - configuration: Configuration that should be used for building the test targets.
     ///   - preActions: ist of actions to be executed before running the tests.
     ///   - postActions: List of actions to be executed after running the tests.
-    ///   - diagnosticsOptions: Diagnostics options.
-    ///   - language: Language (e.g. "pl").
-    ///   - region: Region (e.g. "PL").
-    public init(targets: [TestableTarget],
-                arguments: Arguments? = nil,
-                configurationName: String,
-                coverage: Bool = false,
-                codeCoverageTargets: [TargetReference] = [],
-                expandVariableFromTarget: TargetReference? = nil,
-                preActions: [ExecutionAction] = [],
-                postActions: [ExecutionAction] = [],
-                diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker],
-                language: String? = nil,
-                region: String? = nil)
+    public static func targets(_ targets: [TestableTarget],
+                               configuration: PresetBuildConfiguration = .debug,
+                               preActions: [ExecutionAction] = [],
+                               postActions: [ExecutionAction] = []) -> Self
     {
-        self.init(
-            testPlans: nil,
+        Self(
+            testPlans: [],
             targets: targets,
-            arguments: arguments,
-            configurationName: configurationName,
-            coverage: coverage,
-            codeCoverageTargets: codeCoverageTargets,
-            expandVariableFromTarget: expandVariableFromTarget,
+            arguments: nil,
+            configurationName: configuration.name,
+            coverage: false,
+            codeCoverageTargets: [],
+            expandVariableFromTarget: nil,
             preActions: preActions,
             postActions: postActions,
-            diagnosticsOptions: diagnosticsOptions,
-            language: language.flatMap(SchemeLanguage.init(stringLiteral:)),
-            region: region
-        )
-    }
-
-    /// Initializes a new instance of a test action
-    /// - Parameters:
-    ///   - targets: List of targets to be tested.
-    ///   - arguments: Arguments passed to the process running the tests.
-    ///   - config: Configuration that should be used for building the test targets.
-    ///   - coverage: True to collect the test coverage results.
-    ///   - codeCoverageTargets: List of targets for which Xcode will collect the coverage results.
-    ///   - preActions: ist of actions to be executed before running the tests.
-    ///   - postActions: List of actions to be executed after running the tests.
-    ///   - diagnosticsOptions: Diagnostics options.
-    ///   - language: Language (e.g. "pl").
-    ///   - region: Region (e.g. "PL").
-    public init(targets: [TestableTarget],
-                arguments: Arguments? = nil,
-                config: PresetBuildConfiguration = .debug,
-                coverage: Bool = false,
-                codeCoverageTargets: [TargetReference] = [],
-                expandVariableFromTarget: TargetReference? = nil,
-                preActions: [ExecutionAction] = [],
-                postActions: [ExecutionAction] = [],
-                diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker],
-                language: String? = nil,
-                region: String? = nil)
-    {
-        self.init(
-            testPlans: nil,
-            targets: targets,
-            arguments: arguments,
-            configurationName: config.name,
-            coverage: coverage,
-            codeCoverageTargets: codeCoverageTargets,
-            expandVariableFromTarget: expandVariableFromTarget,
-            preActions: preActions,
-            postActions: postActions,
-            diagnosticsOptions: diagnosticsOptions,
-            language: language.flatMap(SchemeLanguage.init(stringLiteral:)),
-            region: region
+            diagnosticsOptions: [.mainThreadChecker],
+            language: nil,
+            region: nil
         )
     }
 
