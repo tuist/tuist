@@ -17,6 +17,7 @@ final class InfoPlistTests: XCTestCase {
             "boolean": true,
             "dictionary": ["a": "b"],
             "array": ["a", "b"],
+            "real": 0.8,
         ])
         XCTAssertCodable(subject)
     }
