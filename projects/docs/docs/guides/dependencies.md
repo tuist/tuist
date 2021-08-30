@@ -100,6 +100,15 @@ Targets can add Swift package products as dependencies:
 .package(product: "LibraryA")
 ```
 
+### CocoaPods dependencies
+
+Tuist used to have a `.cocoapods(path: ".")` dependency that took care of running `pod install` after the generation of the project.
+However, it proved to be misleading and made users believe that integration issues due to bad configurations in `Podfile` were Tuist's fault.
+To make CocoaPods' integration more explicit,
+we removed the API in version 2.0.
+If you are using CocoaPods,
+we recommend wrapping the project generation in a script that runs the `pod install` command afterward.
+
 ### XCFramework dependencies
 
 ```swift
