@@ -147,54 +147,12 @@ public struct TestAction: Equatable, Codable {
 
     /// Initializes a new instance of a test action using test plans
     /// - Parameters:
-    ///   - testPlans: List of test plans. The first in the list will be the default plan.
-    ///   - config: Configuration that should be used for building the test targets.
-    ///   - preActions: ist of actions to be executed before running the tests.
-    ///   - postActions: List of actions to be executed after running the tests.
-    public static func testPlans(_ testPlans: Path...,
-                                 config: PresetBuildConfiguration = .debug,
-                                 preActions: [ExecutionAction] = [],
-                                 postActions: [ExecutionAction] = []) -> Self
-    {
-        Self.testPlans(testPlans, config: config, preActions: preActions, postActions: postActions)
-    }
-
-    /// Initializes a new instance of a test action using test plans
-    /// - Parameters:
-    ///   - testPlans: List of test plans. The first in the list will be the default plan.
-    ///   - config: Configuration that should be used for building the test targets.
-    ///   - preActions: ist of actions to be executed before running the tests.
-    ///   - postActions: List of actions to be executed after running the tests.
-    public static func testPlans(_ testPlans: Path...,
-                                 configurationName: String,
-                                 preActions: [ExecutionAction] = [],
-                                 postActions: [ExecutionAction] = []) -> Self
-    {
-        Self.testPlans(testPlans, configurationName: configurationName, preActions: preActions, postActions: postActions)
-    }
-
-    /// Initializes a new instance of a test action using test plans
-    /// - Parameters:
     ///   - testPlans: Array of test plans. The first in the array will be the default plan.
-    ///   - config: Configuration that should be used for building the test targets.
+    ///   - configuration: Configuration that should be used for building the test targets.
     ///   - preActions: ist of actions to be executed before running the tests.
     ///   - postActions: List of actions to be executed after running the tests.
     public static func testPlans(_ testPlans: [Path],
-                                 config: PresetBuildConfiguration = .debug,
-                                 preActions: [ExecutionAction] = [],
-                                 postActions: [ExecutionAction] = []) -> Self
-    {
-        Self.testPlans(testPlans, configurationName: config.name, preActions: preActions, postActions: postActions)
-    }
-
-    /// Initializes a new instance of a test action using test plans
-    /// - Parameters:
-    ///   - testPlans: Array of test plans. The first in the array will be the default plan.
-    ///   - config: Configuration that should be used for building the test targets.
-    ///   - preActions: ist of actions to be executed before running the tests.
-    ///   - postActions: List of actions to be executed after running the tests.
-    public static func testPlans(_ testPlans: [Path],
-                                 configurationName: String,
+                                 configuration: PresetBuildConfiguration = .debug,
                                  preActions: [ExecutionAction] = [],
                                  postActions: [ExecutionAction] = []) -> Self
     {
@@ -202,7 +160,7 @@ public struct TestAction: Equatable, Codable {
             testPlans: testPlans,
             targets: [],
             arguments: nil,
-            configurationName: configurationName,
+            configurationName: configuration.name,
             coverage: false,
             codeCoverageTargets: [],
             expandVariableFromTarget: nil,
