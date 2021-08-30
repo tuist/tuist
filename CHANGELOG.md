@@ -4,6 +4,12 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.49.2
+
+### Fixed
+
+- `tuistenv` failing to fetch the latest version from `CHANGELOG.md`
+
 ## 1.49.1
 
 ### Fixed
