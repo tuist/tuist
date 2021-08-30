@@ -11,6 +11,9 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
   - **Migration:** we recommend wrapping the the generation of projects in a script that runs `pod install` right after generating the project: `tuist generate && pod install`. Alternatively, you might consider adopting Swift Package Manager and using our built-in support for package dependencies through the `Dependencies.swift` manifes tfile.
 - **Breaking** Support for deprecated `TuistConfig.swift` has been ended. Define your configuration using `Config.swift`. Check [documentation](https://docs.tuist.io/manifests/config) for details. [#3373](https://github.com/tuist/tuist/pull/3373) by [@laxmorek](https://github.com/laxmorek)
 - **Breaking** Support for deprecated `Template.swift` has been ended. Define your templates using any name that describes them (`name_of_template.swift`). Check [documentation](https://docs.tuist.io/commands/scaffold) for details. [#3373](https://github.com/tuist/tuist/pull/3373) by [@laxmorek](https://github.com/laxmorek)
+- **Breaking** simplified `TestAction`'s methods for creating an instance.
+  - **Motivation:** there was some redundancy across all the methods to initialize a `TestAction`. To ease its usage, we've simplified all of them into a single method. It takes the test plans as an array of `Path`s and the configuration as an instance of `PresetBuildConfiguration`. We've also made the `init` constructor internal to have the flexibility to change the signature without introducing breaking changes.
+  - **Migration:** In those places where you are initializing a `TestAction`, update the code to use either the `.testActions` or the `.targets` methods.
 
 ## Next
 
