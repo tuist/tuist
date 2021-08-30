@@ -9,13 +9,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - **Breaking** `.cocoapods` target dependency
   - **Motivation:** `.cocoapods`'s API led users to believe their integration issues were Tuist's fault. Therefore we decided to remove it and make it an explicit action developers need to run after the generation of Xcode projects through Tuist.
   - **Migration:** we recommend wrapping the the generation of projects in a script that runs `pod install` right after generating the project: `tuist generate && pod install`. Alternatively, you might consider adopting Swift Package Manager and using our built-in support for package dependencies through the `Dependencies.swift` manifes tfile.
-
-## Next
-
-### Removed
-
 - **Breaking** Support for deprecated `TuistConfig.swift` has been ended. Define your configuration using `Config.swift`. Check [documentation](https://docs.tuist.io/manifests/config) for details. [#3373](https://github.com/tuist/tuist/pull/3373) by [@laxmorek](https://github.com/laxmorek)
 - **Breaking** Support for deprecated `Template.swift` has been ended. Define your templates using any name that describes them (`name_of_template.swift`). Check [documentation](https://docs.tuist.io/commands/scaffold) for details. [#3373](https://github.com/tuist/tuist/pull/3373) by [@laxmorek](https://github.com/laxmorek)
+
+## Next
 
 ## 1.49.2
 
