@@ -2,6 +2,14 @@
 
 Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
+## 2.0
+
+### Removed
+
+- **Breaking** `.cocoapods` target dependency
+  - **Motivation:** `.cocoapods`'s API led users to believe their integration issues were Tuist's fault. Therefore we decided to remove it and make it an explicit action developers need to run after the generation of Xcode projects through Tuist.
+  - **Migration:** we recommend wrapping the the generation of projects in a script that runs `pod install` right after generating the project: `tuist generate && pod install`. Alternatively, you might consider adopting Swift Package Manager and using our built-in support for package dependencies through the `Dependencies.swift` manifes tfile.
+
 ## Next
 
 ## 1.49.2

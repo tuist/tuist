@@ -89,18 +89,15 @@ public protocol DependenciesControlling {
 
 public final class DependenciesController: DependenciesControlling {
     private let carthageInteractor: CarthageInteracting
-    private let cocoaPodsInteractor: CocoaPodsInteracting
     private let swiftPackageManagerInteractor: SwiftPackageManagerInteracting
     private let dependenciesGraphController: DependenciesGraphControlling
 
     public init(
         carthageInteractor: CarthageInteracting = CarthageInteractor(),
-        cocoaPodsInteractor: CocoaPodsInteracting = CocoaPodsInteractor(),
         swiftPackageManagerInteractor: SwiftPackageManagerInteracting = SwiftPackageManagerInteractor(),
         dependenciesGraphController: DependenciesGraphControlling = DependenciesGraphController()
     ) {
         self.carthageInteractor = carthageInteractor
-        self.cocoaPodsInteractor = cocoaPodsInteractor
         self.swiftPackageManagerInteractor = swiftPackageManagerInteractor
         self.dependenciesGraphController = dependenciesGraphController
     }

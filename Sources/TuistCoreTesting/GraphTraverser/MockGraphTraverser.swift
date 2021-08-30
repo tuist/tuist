@@ -105,16 +105,6 @@ final class MockGraphTraverser: GraphTraversing {
         return stubbedRootTargetsResult
     }
 
-    var invokedCocoapodsPaths = false
-    var invokedCocoapodsPathsCount = 0
-    var stubbedCocoapodsPathsResult: Set<AbsolutePath>! = []
-
-    func cocoapodsPaths() -> Set<AbsolutePath> {
-        invokedCocoapodsPaths = true
-        invokedCocoapodsPathsCount += 1
-        return stubbedCocoapodsPathsResult
-    }
-
     var invokedRootProjects = false
     var invokedRootProjectsCount = 0
     var stubbedRootProjectsResult: Set<Project>! = []

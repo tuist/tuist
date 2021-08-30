@@ -235,10 +235,6 @@ Dependencies:
 
 Note: to re-create `Framework2.framework` run `ios_app_with_transitive_framework/Framework2/build.sh`
 
-## ios_app_with_pods
-
-An iOS application with CocoaPods dependencies
-
 ## ios_app_with_incompatible_xcode
 
 An iOS app whose TuistConfig file requires an Xcode version that is not available in the system.
