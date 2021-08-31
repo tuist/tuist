@@ -463,7 +463,7 @@ extension ResourceFileElements {
     fileprivate static func from(resources: [PackageInfo.Target.Resource], path: AbsolutePath, excluding: [String]) throws -> Self? {
         let resourcesPaths = resources.map { path.appending(RelativePath($0.path)) }
         guard !resourcesPaths.isEmpty else { return nil }
-        return try .init(
+        return .init(
             resources: resourcesPaths.map { absolutePath in
                 let absolutePathGlob = absolutePath.extension != nil ? absolutePath : absolutePath.appending(component: "**")
                 return .glob(pattern: Path(absolutePathGlob.pathString), excluding: excluding.map {
