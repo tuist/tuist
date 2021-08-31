@@ -111,8 +111,7 @@ public class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
         // We need to flatten the array into string to avoid expressions of `SETTING_KEY=["VALUE1", "VALUE2", ...]`
         // Xcode rather understands only expressions, such as `SETTING_KEY=VALUE1 VALUE2 ...`
         if let arrayValue = value as? [Any] {
-            // We cannot assume the given value is [String]. Use reduce(...) instead of joined(separator:)
-            flattened = arrayValue.reduce("", { $0.isEmpty ? "\($1)" : "\($0) \($1)" })
+            flattened = arrayValue.map { "\($0)" }.joined(separator: " ")
         } else {
             flattened = "\(value)"
         }
