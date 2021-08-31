@@ -289,6 +289,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             resources: [
                                 .init(rule: .copy, path: "Resource/Folder"),
                                 .init(rule: .process, path: "Another/Resource/Folder"),
+                                .init(rule: .process, path: "AnotherOne/Resource/Folder"),
+                            ],
+                            exclude: [
+                                "AnotherOne/Resource/**",
                             ]
                         ),
                     ],
@@ -307,8 +311,21 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         resources: [
-                            "/Package/Path/Sources/Target1/Resource/Folder/**",
-                            "/Package/Path/Sources/Target1/Another/Resource/Folder/**",
+                            .glob(
+                                pattern: "/Package/Path/Sources/Target1/Resource/Folder/**",
+                                excluding: ["/Package/Path/Sources/Target1/AnotherOne/Resource/**/**"],
+                                tags: []
+                            ),
+                            .glob(
+                                pattern: "/Package/Path/Sources/Target1/Another/Resource/Folder/**",
+                                excluding: ["/Package/Path/Sources/Target1/AnotherOne/Resource/**/**"],
+                                tags: []
+                            ),
+                            .glob(
+                                pattern: "/Package/Path/Sources/Target1/AnotherOne/Resource/Folder/**",
+                                excluding: ["/Package/Path/Sources/Target1/AnotherOne/Resource/**/**"],
+                                tags: []
+                            ),
                         ]
                     ),
                 ]
