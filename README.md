@@ -27,8 +27,8 @@ It's open source and written in Swift.
 
 ### Running script (Recommended)
 
-```bash
-bash <(curl -Ls https://install.tuist.io)
+```shell
+curl -Ls http://server/path/script.sh | bash
 ```
 
 ## Bootstrap your first project 🌀
