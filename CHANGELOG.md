@@ -25,6 +25,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Add default `Release` caching profile [#3304](https://github.com/tuist/tuist/pull/3304) by [@danyf90](https://github.com/danyf90)
 - Add `--dependencies-only` parameter to `tuist cache warm` command [#3334](https://github.com/tuist/tuist/pull/3334) by [@danyf90](https://github.com/danyf90)
+- Add support for `excluding` parameter to `ResourceFileElement` [#3363](https://github.com/tuist/tuist/pull/3363) by [@danyf90](https://github.com/danyf90)
 
 ### Fixed
 
