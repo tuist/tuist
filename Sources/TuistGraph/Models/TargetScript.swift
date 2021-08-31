@@ -14,7 +14,7 @@ public struct TargetScript: Equatable, Codable {
 
     /// Whether the script should be hashed for caching purposes.
     public let hashable: Bool
-    
+
     /// The path to the shell which shall execute this script.
     public let shellPath: String
 

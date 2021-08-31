@@ -90,7 +90,7 @@ public struct TargetAction: Equatable, Codable {
 
     /// Whether this action only runs on install builds (default is false)
     public let runForInstallBuildsOnly: Bool
-    
+
     /// The path to the shell which shall execute this script.
     public let shellPath: String
 

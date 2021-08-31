@@ -47,7 +47,7 @@ public struct TargetAction: Codable, Equatable {
 
     /// Whether this action only runs on install builds (default is false)
     public let runForInstallBuildsOnly: Bool
-    
+
     /// The path to the shell which shall execute this script.
     public let shellPath: String
 
@@ -116,7 +116,7 @@ public struct TargetAction: Codable, Equatable {
         basedOnDependencyAnalysis = try container.decodeIfPresent(Bool.self, forKey: .basedOnDependencyAnalysis)
         runForInstallBuildsOnly = try container.decodeIfPresent(Bool.self, forKey: .runForInstallBuildsOnly) ?? false
         shellPath = try container.decodeIfPresent(String.self, forKey: .shellPath) ?? "/bin/sh"
-        
+
         let arguments: [String] = try container.decodeIfPresent([String].self, forKey: .arguments) ?? []
         if let script = try container.decodeIfPresent(String.self, forKey: .script) {
             self.script = .embedded(script)

@@ -105,7 +105,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(buildPhase.files, [])
         XCTAssertTrue(buildPhase.showEnvVarsInLog)
     }
-    
+
     func test_generateScriptsWithCustomShell() throws {
         // Given
         let target = PBXNativeTarget(name: "Test")
@@ -983,7 +983,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let postBuildPhase = try XCTUnwrap(pbxTarget.buildPhases.last as? PBXShellScriptBuildPhase)
         XCTAssertEqual(postBuildPhase.shellPath, "/bin/zsh")
     }
-    
+
     func test_generateEmbedAppClipsBuildPhase() throws {
         // Given
         let app = Target.test(name: "App", product: .app)
