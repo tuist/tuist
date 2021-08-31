@@ -116,7 +116,7 @@ extension TuistGraph.Target {
         var resourcesWithoutPlaygrounds: [TuistGraph.ResourceFileElement] = []
         var playgrounds: Set<AbsolutePath> = []
 
-        var allResources = try (manifest.resources?.resources ?? []).flatMap { manifest -> [TuistGraph.ResourceFileElement] in
+        let allResources = try (manifest.resources?.resources ?? []).flatMap { manifest -> [TuistGraph.ResourceFileElement] in
             do {
                 return try TuistGraph.ResourceFileElement.from(
                     manifest: manifest,
@@ -126,25 +126,6 @@ extension TuistGraph.Target {
             } catch let GlobError.nonExistentDirectory(invalidGlob) {
                 invalidResourceGlobs.append(invalidGlob)
                 return []
-            }
-        }
-
-        // remove excluding
-        try manifest.resources?.excluding.forEach { path in
-            guard !path.pathString.contains("/**/") else {
-                throw TargetManifestMapperError.invalidResourcesGlob(
-                    targetName: manifest.name,
-                    invalidGlobs: [InvalidGlob(pattern: "/**/", nonExistentPath: AbsolutePath(path.pathString))]
-                )
-            }
-
-            if path.pathString.hasSuffix("/**") {
-                let exclude = path.pathString.dropSuffix("/**")
-                allResources.removeAll { element in
-                    element.path.upToLastNonGlob.dirname.contains(exclude)
-                }
-            } else {
-                allResources.remove(path: AbsolutePath(path.pathString))
             }
         }
 

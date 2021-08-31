@@ -466,12 +466,11 @@ extension ResourceFileElements {
         return try .init(
             resources: resourcesPaths.map { absolutePath in
                 let absolutePathGlob = absolutePath.extension != nil ? absolutePath : absolutePath.appending(component: "**")
-                return .glob(pattern: Path(absolutePathGlob.pathString))
-            },
-            excluding: excluding.map {
-                let excludePath = path.appending(RelativePath($0))
-                let excludeGlob = excludePath.extension != nil ? excludePath : excludePath.appending(component: "**")
-                return Path(excludeGlob.pathString)
+                return .glob(pattern: Path(absolutePathGlob.pathString), excluding: excluding.map {
+                    let excludePath = path.appending(RelativePath($0))
+                    let excludeGlob = excludePath.extension != nil ? excludePath : excludePath.appending(component: "**")
+                    return Path(excludeGlob.pathString)
+                })
             }
         )
     }

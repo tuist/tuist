@@ -7,16 +7,9 @@ import Foundation
 public struct ResourceFileElements: Codable, Equatable {
     /// List of resource file elements
     public let resources: [ResourceFileElement]
-    public let excluding: [Path]
 
     public init(resources: [ResourceFileElement]) {
         self.resources = resources
-        excluding = []
-    }
-
-    public init(resources: [ResourceFileElement], excluding _: [Path]) throws {
-        self.resources = resources
-        excluding = []
     }
 }
 
