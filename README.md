@@ -173,6 +173,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
   </tr>
   <tr>
     <td align="center"><a href="https://github.com/LorDisturbia"><img src="https://avatars.githubusercontent.com/u/12445776?v=4" width="100px;" alt=""/><br /><sub><b>Lorenzo</b></sub></a></td>
+    <td align="center"><a href="https://github.com/DarkoDamjanovic"><img src="https://avatars.githubusercontent.com/u/11902775?v=4" width="100px;" alt=""/><br /><sub><b>Darko Damjanovic</b></sub></a></td>
   </tr>
 </table>
 
