@@ -57,7 +57,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         XCTAssertEqual(result, .default)
     }
 
-    func test_loadConfig_loadTuistConfig() throws {
+    func test_loadConfig_loadConfig() throws {
         // Given
         let path: AbsolutePath = "/project/Tuist/Config.swift"
         stub(path: path, exists: true)
@@ -83,7 +83,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         ))
     }
 
-    func test_loadConfig_loadTuistConfigError() throws {
+    func test_loadConfig_loadConfigError() throws {
         // Given
         let path: AbsolutePath = "/project/Tuist/Config.swift"
         stub(path: path, exists: true)
@@ -93,7 +93,7 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         XCTAssertThrowsSpecific(try subject.loadConfig(path: path), TestError.testError)
     }
 
-    func test_loadConfig_loadTuistConfigInRootDirectory() throws {
+    func test_loadConfig_loadConfigInRootDirectory() throws {
         // Given
         stub(rootDirectory: "/project")
         let paths: [AbsolutePath] = [

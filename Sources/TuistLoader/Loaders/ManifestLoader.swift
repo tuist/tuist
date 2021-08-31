@@ -156,7 +156,7 @@ public class ManifestLoader: ManifestLoading {
     }
 
     public func loadProject(at path: AbsolutePath) throws -> ProjectDescription.Project {
-        return try loadManifest(.project, at: path)
+        try loadManifest(.project, at: path)
     }
 
     public func loadWorkspace(at path: AbsolutePath) throws -> ProjectDescription.Workspace {
@@ -237,18 +237,13 @@ public class ManifestLoader: ManifestLoading {
         _ manifest: Manifest,
         at path: AbsolutePath
     ) throws -> AbsolutePath {
-        var fileNames = [manifest.fileName(path)]
-        if let deprecatedFileName = manifest.deprecatedFileName {
-            fileNames.insert(deprecatedFileName, at: 0)
+        let manifestPath = path.appending(component: manifest.fileName(path))
+
+        guard FileHandler.shared.exists(manifestPath) else {
+            throw ManifestLoaderError.manifestNotFound(manifest, path)
         }
 
-        for fileName in fileNames {
-            let manifestPath = path.appending(component: fileName)
-            if !FileHandler.shared.exists(manifestPath) { continue }
-            return manifestPath
-        }
-
-        throw ManifestLoaderError.manifestNotFound(manifest, path)
+        return manifestPath
     }
 
     private func loadDataForManifest(

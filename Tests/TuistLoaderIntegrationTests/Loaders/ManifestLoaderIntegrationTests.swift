@@ -125,32 +125,6 @@ final class ManifestLoaderTests: TuistTestCase {
         XCTAssertEqual(customUp?.isMet, ["c"])
     }
 
-    func test_loadDeprecatedTemplate() throws {
-        // Given
-        let temporaryPath = try self.temporaryPath()
-        let content = """
-        import ProjectDescription
-
-        let template = Template(
-            description: "Template description",
-            items: []
-        )
-        """
-
-        let manifestPath = temporaryPath.appending(component: "Template.swift")
-        try content.write(
-            to: manifestPath.url,
-            atomically: true,
-            encoding: .utf8
-        )
-
-        // When
-        let got = try subject.loadTemplate(at: temporaryPath)
-
-        // Then
-        XCTAssertEqual(got.description, "Template description")
-    }
-
     func test_loadTemplate() throws {
         // Given
         let temporaryPath = try self.temporaryPath().appending(component: "folder")

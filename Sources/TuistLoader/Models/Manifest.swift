@@ -12,18 +12,6 @@ public enum Manifest: CaseIterable {
     case plugin
     case task
 
-    /// This was introduced to rename a file name without breaking existing projects.
-    public var deprecatedFileName: String? {
-        switch self {
-        case .config:
-            return "TuistConfig.swift"
-        case .template:
-            return "Template.swift"
-        default:
-            return nil
-        }
-    }
-
     /// - Parameters:
     ///     - path: Path to the folder that contains the manifest
     /// - Returns: File name of the `Manifest`
