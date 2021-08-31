@@ -79,7 +79,7 @@ public struct TargetAction: Codable, Equatable {
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
-    ///   - shellPath: The path to the shell which shall execute this script. Default is `bin/sh`.
+    ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     init(name: String,
          script: Script = .embedded(""),
          order: Order,
@@ -172,7 +172,7 @@ extension TargetAction {
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
-    ///   - shellPath: The path to the shell which shall execute this script. Default is `bin/sh`.
+    ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target action.
     public static func pre(tool: String,
                            arguments: String...,
@@ -211,7 +211,7 @@ extension TargetAction {
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
-    ///   - shellPath: The path to the shell which shall execute this script. Default is `bin/sh`.
+    ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target action.
     public static func pre(tool: String,
                            arguments: [String],
@@ -250,7 +250,7 @@ extension TargetAction {
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
-    ///   - shellPath: The path to the shell which shall execute this script. Default is `bin/sh`.
+    ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target action.
     public static func post(tool: String,
                             arguments: String...,
@@ -289,7 +289,7 @@ extension TargetAction {
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
-    ///   - shellPath: The path to the shell which shall execute this script. Default is `bin/sh`.
+    ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target action.
     public static func post(tool: String,
                             arguments: [String],
@@ -332,7 +332,7 @@ extension TargetAction {
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
-    ///   - shellPath: The path to the shell which shall execute this script. Default is `bin/sh`.
+    ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target action.
     public static func pre(path: Path,
                            arguments: String...,
@@ -371,7 +371,7 @@ extension TargetAction {
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
-    ///   - shellPath: The path to the shell which shall execute this script. Default is `bin/sh`.
+    ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target action.
     public static func pre(path: Path,
                            arguments: [String],
@@ -410,7 +410,7 @@ extension TargetAction {
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
-    ///   - shellPath: The path to the shell which shall execute this script. Default is `bin/sh`.
+    ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target action.
     public static func post(path: Path,
                             arguments: String...,
@@ -449,7 +449,7 @@ extension TargetAction {
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
-    ///   - shellPath: The path to the shell which shall execute this script. Default is `bin/sh`.
+    ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target action.
     public static func post(path: Path,
                             arguments: [String],
@@ -492,7 +492,7 @@ extension TargetAction {
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
-    ///   - shellPath: The path to the shell which shall execute this script. Default is `bin/sh`.
+    ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target action.
     public static func pre(script: String,
                            name: String,
@@ -530,7 +530,7 @@ extension TargetAction {
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
-    ///   - shellPath: The path to the shell which shall execute this script. Default is `bin/sh`.
+    ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     /// - Returns: Target action.
     public static func post(script: String,
                             name: String,
