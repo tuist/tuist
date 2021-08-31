@@ -17,7 +17,7 @@ let template = Template(
         nameAttribute,
         platformAttribute,
     ],
-    files: [
+    items: [
         .file(
             path: "Tuist/ProjectDescriptionHelpers/Project+Templates.swift",
             templatePath: templatePath("Project+Templates.stencil")
