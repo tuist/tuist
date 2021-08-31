@@ -292,7 +292,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 .init(rule: .process, path: "AnotherOne/Resource/Folder"),
                             ],
                             exclude: [
-                                "AnotherOne/Resource/**",
+                                "AnotherOne/Resource",
                             ]
                         ),
                     ],
@@ -310,20 +310,26 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 targets: [
                     .test(
                         "Target1",
+                        customSources: .init(globs: [
+                            .init(
+                                "/Package/Path/Sources/Target1/**",
+                                excluding: ["/Package/Path/Sources/Target1/AnotherOne/Resource/**"]
+                            )
+                        ]),
                         resources: [
                             .glob(
                                 pattern: "/Package/Path/Sources/Target1/Resource/Folder/**",
-                                excluding: ["/Package/Path/Sources/Target1/AnotherOne/Resource/**/**"],
+                                excluding: ["/Package/Path/Sources/Target1/AnotherOne/Resource/**"],
                                 tags: []
                             ),
                             .glob(
                                 pattern: "/Package/Path/Sources/Target1/Another/Resource/Folder/**",
-                                excluding: ["/Package/Path/Sources/Target1/AnotherOne/Resource/**/**"],
+                                excluding: ["/Package/Path/Sources/Target1/AnotherOne/Resource/**"],
                                 tags: []
                             ),
                             .glob(
                                 pattern: "/Package/Path/Sources/Target1/AnotherOne/Resource/Folder/**",
-                                excluding: ["/Package/Path/Sources/Target1/AnotherOne/Resource/**/**"],
+                                excluding: ["/Package/Path/Sources/Target1/AnotherOne/Resource/**"],
                                 tags: []
                             ),
                         ]

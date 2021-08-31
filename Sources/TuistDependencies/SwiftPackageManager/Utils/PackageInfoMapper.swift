@@ -284,7 +284,7 @@ extension ProjectDescription.Target {
             packageName: packageName
         )
         let sources = SourceFilesList.from(sources: target.sources, path: path, excluding: target.exclude)
-        let resources = try ResourceFileElements.from(resources: target.resources, path: path, excluding: target.exclude)
+        let resources = ResourceFileElements.from(resources: target.resources, path: path, excluding: target.exclude)
         let headers = try Headers.from(moduleMapType: moduleMap.type, publicHeadersPath: publicHeadersPath)
 
         let resolvedDependencies = targetToResolvedDependencies[target.name] ?? []
@@ -466,11 +466,14 @@ extension ResourceFileElements {
         return .init(
             resources: resourcesPaths.map { absolutePath in
                 let absolutePathGlob = absolutePath.extension != nil ? absolutePath : absolutePath.appending(component: "**")
-                return .glob(pattern: Path(absolutePathGlob.pathString), excluding: excluding.map {
-                    let excludePath = path.appending(RelativePath($0))
-                    let excludeGlob = excludePath.extension != nil ? excludePath : excludePath.appending(component: "**")
-                    return Path(excludeGlob.pathString)
-                })
+                return .glob(
+                    pattern: Path(absolutePathGlob.pathString),
+                    excluding: excluding.map {
+                        let excludePath = path.appending(RelativePath($0))
+                        let excludeGlob = excludePath.extension != nil ? excludePath : excludePath.appending(component: "**")
+                        return Path(excludeGlob.pathString)
+                    }
+                )
             }
         )
     }
