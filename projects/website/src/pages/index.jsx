@@ -579,7 +579,7 @@ const Contribute = () => {
             </div>
             <div className="ml-3 inline-flex">
               <Link
-                to="/docs/contribution/get-started/"
+                to="https://docs.tuist.io/contributors/get-started"
                 sx={{
                   color: 'background',
                   bg: lighten('secondary', 0.2),

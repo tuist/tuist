@@ -62,24 +62,7 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     }
 
     public func hash(into hasher: inout Hasher) {
-        switch self {
-        case let .library(path, _, _, _):
-            hasher.combine(path)
-        case let .bundle(path):
-            hasher.combine(path)
-        case let .framework(path, _, _, _, _, _, _, _):
-            hasher.combine(path)
-        case let .xcframework(path, _, _, _):
-            hasher.combine(path)
-        case let .product(target, productName, platformFilter):
-            hasher.combine(target)
-            hasher.combine(productName)
-            hasher.combine(platformFilter)
-        case let .sdk(path, status, source):
-            hasher.combine(path)
-            hasher.combine(status)
-            hasher.combine(source)
-        }
+        Synthesized(dependencyReference: self).hash(into: &hasher)
     }
 
     /// For dependencies that exists in the file system (precompiled frameworks & libraries),
@@ -98,41 +81,48 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     }
 
     public static func < (lhs: GraphDependencyReference, rhs: GraphDependencyReference) -> Bool {
-        switch (lhs, rhs) {
-        case let (.framework(lhsPath, _, _, _, _, _, _, _), .framework(rhsPath, _, _, _, _, _, _, _)):
-            return lhsPath < rhsPath
-        case let (.xcframework(lhsPath, _, _, _), .xcframework(rhsPath, _, _, _)):
-            return lhsPath < rhsPath
-        case let (.library(lhsPath, _, _, _), .library(rhsPath, _, _, _)):
-            return lhsPath < rhsPath
-        case let (.product(lhsTarget, lhsProductName, lhsPlatformFilter), .product(rhsTarget, rhsProductName, rhsPlatformFilter)):
-            return lhsTarget < rhsTarget ||
-                lhsProductName < rhsProductName ||
-                (lhsPlatformFilter != nil && rhsPlatformFilter != nil && (lhsPlatformFilter! < rhsPlatformFilter!))
-        case let (.sdk(lhsPath, _, _), .sdk(rhsPath, _, _)):
-            return lhsPath < rhsPath
-        case (.sdk, .framework):
-            return true
-        case (.sdk, .xcframework):
-            return true
-        case (.sdk, .product):
-            return true
-        case (.sdk, .library):
-            return true
-        case (.product, .framework):
-            return true
-        case (.product, .xcframework):
-            return true
-        case (.product, .library):
-            return true
-        case (.library, .framework):
-            return true
-        case (.library, .xcframework):
-            return true
-        case (.framework, .xcframework):
-            return true
-        default:
-            return false
+        Synthesized(dependencyReference: lhs) < Synthesized(dependencyReference: rhs)
+    }
+
+    // Private helper type to auto-synthesize the hashable & comparable implementations
+    // where only the required subset of properties are used.
+    private enum Synthesized: Comparable, Hashable {
+        case sdk(path: AbsolutePath)
+        case product(target: String, productName: String)
+        case productWithPlatformFilter(target: String, productName: String, platformFilter: BuildFilePlatformFilter)
+        case library(path: AbsolutePath)
+        case framework(path: AbsolutePath)
+        case xcframework(path: AbsolutePath)
+        case bundle(path: AbsolutePath)
+
+        init(dependencyReference: GraphDependencyReference) {
+            switch dependencyReference {
+            case .xcframework(path: let path, infoPlist: _, primaryBinaryPath: _, binaryPath: _):
+                self = .xcframework(path: path)
+            case .library(path: let path, linking: _, architectures: _, product: _):
+                self = .library(path: path)
+            case .framework(
+                path: let path,
+                binaryPath: _,
+                isCarthage: _,
+                dsymPath: _,
+                bcsymbolmapPaths: _,
+                linking: _,
+                architectures: _,
+                product: _
+            ):
+                self = .framework(path: path)
+            case let .bundle(path: path):
+                self = .bundle(path: path)
+            case let .product(target: target, productName: productName, platformFilter: platformFilter):
+                if let platformFilter = platformFilter {
+                    self = .productWithPlatformFilter(target: target, productName: productName, platformFilter: platformFilter)
+                } else {
+                    self = .product(target: target, productName: productName)
+                }
+            case .sdk(path: let path, status: _, source: _):
+                self = .sdk(path: path)
+            }
         }
     }
 }

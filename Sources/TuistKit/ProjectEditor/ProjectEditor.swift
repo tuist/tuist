@@ -30,8 +30,8 @@ protocol ProjectEditing: AnyObject {
     /// Generates an Xcode project to edit the Project defined in the given directory.
     /// - Parameters:
     ///   - editingPath: Directory whose project will be edited.
-    ///   - onlyCurrentDirectory: True if only the manifest in the current directory should be included.
     ///   - destinationDirectory: Directory in which the Xcode project will be generated.
+    ///   - onlyCurrentDirectory: True if only the manifest in the current directory should be included.
     ///   - plugins: The plugins to load as part of the edit project.
     /// - Returns: The path to the generated Xcode project.
     func edit(
@@ -99,8 +99,12 @@ final class ProjectEditor: ProjectEditing {
         onlyCurrentDirectory: Bool,
         plugins: Plugins
     ) throws -> AbsolutePath {
+        let pathsToExclude = [
+            "**/\(Constants.tuistDirectoryName)/\(Constants.DependenciesDirectory.name)/**",
+        ]
+
         let projectDescriptionPath = try resourceLocator.projectDescription()
-        let projectManifests = manifestFilesLocator.locateProjectManifests(at: editingPath, onlyCurrentDirectory: onlyCurrentDirectory)
+        let projectManifests = manifestFilesLocator.locateProjectManifests(at: editingPath, excluding: pathsToExclude, onlyCurrentDirectory: onlyCurrentDirectory)
         let configPath = manifestFilesLocator.locateConfig(at: editingPath)
         let cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories(config: nil)
         let projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(
@@ -120,6 +124,7 @@ final class ProjectEditor: ProjectEditing {
 
         let editablePluginManifests = locateEditablePluginManifests(
             at: editingPath,
+            excluding: pathsToExclude,
             plugins: plugins,
             onlyCurrentDirectory: onlyCurrentDirectory
         )
@@ -164,13 +169,14 @@ final class ProjectEditor: ProjectEditing {
     }
 
     /// - Returns: A list of plugin manifests which should be loaded as part of the project.
-    private func locateEditablePluginManifests(at path: AbsolutePath, plugins: Plugins, onlyCurrentDirectory: Bool) -> [EditablePluginManifest] {
+    private func locateEditablePluginManifests(at path: AbsolutePath, excluding: [String], plugins: Plugins, onlyCurrentDirectory: Bool) -> [EditablePluginManifest] {
         let loadedEditablePluginManifests = plugins.projectDescriptionHelpers
             .filter { $0.location == .local }
             .map { EditablePluginManifest(name: $0.name, path: $0.path.parentDirectory) }
 
         let localEditablePluginManifests = manifestFilesLocator.locatePluginManifests(
             at: path,
+            excluding: excluding,
             onlyCurrentDirectory: onlyCurrentDirectory
         )
         .map { EditablePluginManifest(name: $0.parentDirectory.basename, path: $0.parentDirectory) }

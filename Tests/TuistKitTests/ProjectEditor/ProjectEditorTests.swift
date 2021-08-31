@@ -106,7 +106,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
         resourceLocator.projectAutomationStub = { projectAutomationPath }
-        manifestFilesLocator.locateProjectManifestsStub = { _, _ in
+        manifestFilesLocator.locateProjectManifestsStub = { _, _, _ in
             manifests
         }
         manifestFilesLocator.locateConfigStub = configPath
@@ -147,7 +147,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         try FileHandler.shared.createFolder(helpersDirectory)
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
-        manifestFilesLocator.locateProjectManifestsStub = { _, _ in
+        manifestFilesLocator.locateProjectManifestsStub = { _, _, _ in
             []
         }
         manifestFilesLocator.locatePluginManifestsStub = []
@@ -254,7 +254,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let tuistPath = AbsolutePath(ProcessInfo.processInfo.arguments.first!)
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
-        manifestFilesLocator.locateProjectManifestsStub = { _, _ in
+        manifestFilesLocator.locateProjectManifestsStub = { _, _, _ in
             manifests
         }
         manifestFilesLocator.locatePluginManifestsStub = [pluginManifestPath]
@@ -301,7 +301,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let tuistPath = AbsolutePath(ProcessInfo.processInfo.arguments.first!)
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
-        manifestFilesLocator.locateProjectManifestsStub = { _, _ in
+        manifestFilesLocator.locateProjectManifestsStub = { _, _, _ in
             manifests
         }
         manifestFilesLocator.locatePluginManifestsStub = [pluginManifestPath]
@@ -344,7 +344,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let tuistPath = AbsolutePath(ProcessInfo.processInfo.arguments.first!)
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
-        manifestFilesLocator.locateProjectManifestsStub = { _, _ in
+        manifestFilesLocator.locateProjectManifestsStub = { _, _, _ in
             manifests
         }
         manifestFilesLocator.locatePluginManifestsStub = []

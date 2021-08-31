@@ -58,4 +58,18 @@ final class CloudHTTPRequestAuthenticatorTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got.allHTTPHeaderFields?["Authorization"], "Bearer \(token)")
     }
+
+    func test_authenticate_from_environment_when_not_CI() throws {
+        // Given
+        ciChecker.isCIStub = false
+        let token = "TOKEN"
+        environmentVariables[Constants.EnvironmentVariables.cloudToken] = token
+        let request = URLRequest(url: URL(string: "https://cloud.tuist.io/path")!)
+
+        // When
+        let got = try subject.authenticate(request: request)
+
+        // Then
+        XCTAssertEqual(got.allHTTPHeaderFields?["Authorization"], "Bearer \(token)")
+    }
 }

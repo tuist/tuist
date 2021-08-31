@@ -21,16 +21,22 @@ enum CacheProfileResolverError: FatalError, Equatable {
 }
 
 struct CacheProfileResolver {
-    public static let defaultCacheProfileFromTuist = TuistGraph.Cache.default.profiles[0]
-
     func resolveCacheProfile(
         named profileName: String?,
         from config: Config
     ) throws -> TuistGraph.Cache.Profile {
-        if
-            let name = profileName,
-            let profiles = config.cache?.profiles
+        let profiles: [Cache.Profile]
+        let fromConfig: Bool
+        if let cacheConfig = config.cache,
+            !cacheConfig.profiles.isEmpty
         {
+            fromConfig = true
+            profiles = cacheConfig.profiles
+        } else {
+            fromConfig = false
+            profiles = TuistGraph.Cache.default.profiles
+        }
+        if let name = profileName {
             guard let profile = profiles.first(where: { $0.name == name }) else {
                 // The name of the profile has not been found.
                 throw CacheProfileResolverError.missingProfile(name: name, availableProfiles: profiles.map(\.name))
@@ -40,26 +46,14 @@ struct CacheProfileResolver {
                 "Resolved cache profile '\(profile)'",
                 metadata: .section
             )
-            return profile // The profile selected from Config
+            return profile
         } else {
-            if let defaultProfile = config.cache?.profiles.first {
-                // The name of the profile was not passed &&
-                // the list of profiles in Config file exists.
-                logger.notice(
-                    "Resolved default cache profile '\(defaultProfile)' from project's configuration file",
-                    metadata: .section
-                )
-                return defaultProfile // The default profile selected from Config
-            } else {
-                // The name of the profile was not passed &&
-                // the list of profiles in Config file is empty.
-                let profile = CacheProfileResolver.defaultCacheProfileFromTuist
-                logger.notice(
-                    "Resolved cache profile '\(profile)' from Tuist's defaults",
-                    metadata: .section
-                )
-                return profile // The default profile selected from Tuist's defaults
-            }
+            let profile = profiles[0]
+            logger.notice(
+                "Resolved cache profile '\(profile)' from \(fromConfig ? "project's configuration file" : "Tuist's defaults")",
+                metadata: .section
+            )
+            return profile
         }
     }
 }

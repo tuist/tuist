@@ -10,18 +10,15 @@ final class InstallerTests: TuistUnitTestCase {
     var versionsController: MockVersionsController!
     var subject: Installer!
     var tmpDir: TemporaryDirectory!
-    var googleCloudStorageClient: MockGoogleCloudStorageClient!
 
     override func setUp() {
         super.setUp()
         buildCopier = MockBuildCopier()
         versionsController = try! MockVersionsController()
         tmpDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
-        googleCloudStorageClient = MockGoogleCloudStorageClient()
         subject = Installer(
             buildCopier: buildCopier,
-            versionsController: versionsController,
-            googleCloudStorageClient: googleCloudStorageClient
+            versionsController: versionsController
         )
     }
 
@@ -30,7 +27,6 @@ final class InstallerTests: TuistUnitTestCase {
         buildCopier = nil
         versionsController = nil
         tmpDir = nil
-        googleCloudStorageClient = nil
         subject = nil
     }
 
@@ -39,12 +35,7 @@ final class InstallerTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let downloadURL = URL(string: "https://test.com/tuist.zip")!
-
-        googleCloudStorageClient.tuistBundleURLStub = {
-            if $0 == version { return downloadURL }
-            else { return nil }
-        }
+        let downloadURL = URL(string: "https://github.com/tuist/tuist/releases/download/3.2.1/tuist.zip")!
 
         versionsController.installStub = { _, closure in
             try closure(temporaryPath)
@@ -85,12 +76,7 @@ final class InstallerTests: TuistUnitTestCase {
         let version = "3.2.1"
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let downloadURL = URL(string: "https://test.com/tuist.zip")!
-
-        googleCloudStorageClient.tuistBundleURLStub = {
-            if $0 == version { return downloadURL }
-            else { return nil }
-        }
+        let downloadURL = URL(string: "https://github.com/tuist/tuist/releases/download/3.2.1/tuist.zip")!
 
         versionsController.installStub = { _, closure in
             try closure(temporaryPath)
@@ -116,11 +102,7 @@ final class InstallerTests: TuistUnitTestCase {
         let version = "3.2.1"
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let downloadURL = URL(string: "https://test.com/tuist.zip")!
-        googleCloudStorageClient.tuistBundleURLStub = {
-            if $0 == version { return downloadURL }
-            else { return nil }
-        }
+        let downloadURL = URL(string: "https://github.com/tuist/tuist/releases/download/3.2.1/tuist.zip")!
 
         versionsController.installStub = { _, closure in
             try closure(temporaryPath)

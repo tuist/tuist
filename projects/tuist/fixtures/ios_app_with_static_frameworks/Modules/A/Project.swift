@@ -11,6 +11,7 @@ let project = Project(name: "A",
                                  dependencies: [
                                      .project(target: "B", path: "../B"),
                                      .project(target: "C", path: "../C"),
+                                     .framework(path: "../../Prebuilt/prebuilt/PrebuiltStaticFramework.framework")
                           ]),
                           Target(name: "ATests",
                                  platform: .iOS,

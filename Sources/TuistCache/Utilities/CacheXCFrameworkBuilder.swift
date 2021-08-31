@@ -25,28 +25,20 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
     /// Returns the type of artifact that the concrete builder processes
     public var cacheOutputType: CacheOutputType = .xcframework
 
-    public func build(projectTarget: XcodeBuildTarget,
-                      target: Target,
-                      configuration: String,
-                      into outputDirectory: AbsolutePath) throws
-    {
-        guard target.product.isFramework else {
-            throw CacheBinaryBuilderError.nonFrameworkTargetForXCFramework(target.name)
-        }
-        let scheme = target.name.spm_shellEscaped()
+    public func build(scheme: Scheme, projectTarget: XcodeBuildTarget, configuration: String, into outputDirectory: AbsolutePath) throws {
+        let platform = self.platform(scheme: scheme)
 
         // Create temporary directories
         return try FileHandler.shared.inTemporaryDirectory { temporaryDirectory in
-            logger.notice("Building .xcframework for \(target.name)...", metadata: .section)
 
             // Build for the simulator
             var simulatorArchivePath: AbsolutePath?
-            if target.platform.hasSimulators {
+            if platform.hasSimulators {
                 simulatorArchivePath = temporaryDirectory.appending(component: "simulator.xcarchive")
                 try simulatorBuild(
                     projectTarget: projectTarget,
-                    scheme: scheme,
-                    target: target,
+                    scheme: scheme.name,
+                    platform: platform,
                     configuration: configuration,
                     archivePath: simulatorArchivePath!
                 )
@@ -56,59 +48,58 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
             let deviceArchivePath = temporaryDirectory.appending(component: "device.xcarchive")
             try deviceBuild(
                 projectTarget: projectTarget,
-                scheme: scheme,
-                target: target,
+                scheme: scheme.name,
+                platform: platform,
                 configuration: configuration,
                 archivePath: deviceArchivePath
             )
 
-            // Build the xcframework
-            var frameworkpaths = [AbsolutePath]()
-            if let simulatorArchivePath = simulatorArchivePath {
-                frameworkpaths.append(frameworkPath(fromArchivePath: simulatorArchivePath, productName: target.productName))
-            }
-            frameworkpaths.append(frameworkPath(fromArchivePath: deviceArchivePath, productName: target.productName))
-            let xcframeworkPath = outputDirectory.appending(component: "\(target.productName).xcframework")
-            try buildXCFramework(frameworks: frameworkpaths, output: xcframeworkPath, target: target)
+            let productNames = deviceArchivePath
+                .appending(RelativePath("Products/Library/Frameworks/"))
+                .glob("*")
+                .map { $0.basenameWithoutExt }
 
-            try FileHandler.shared.move(from: xcframeworkPath, to: outputDirectory.appending(component: xcframeworkPath.basename))
+            // Build the xcframework
+            for productName in productNames {
+                var frameworkpaths = [AbsolutePath]()
+                if let simulatorArchivePath = simulatorArchivePath {
+                    frameworkpaths.append(frameworkPath(fromArchivePath: simulatorArchivePath, productName: productName))
+                }
+                frameworkpaths.append(frameworkPath(fromArchivePath: deviceArchivePath, productName: productName))
+                let xcframeworkPath = outputDirectory.appending(component: "\(productName).xcframework")
+                try buildXCFramework(frameworks: frameworkpaths, output: xcframeworkPath)
+
+                try FileHandler.shared.move(from: xcframeworkPath, to: outputDirectory.appending(component: xcframeworkPath.basename))
+            }
         }
     }
 
     // MARK: - Fileprivate
 
-    fileprivate func buildXCFramework(frameworks: [AbsolutePath], output: AbsolutePath, target: Target) throws {
+    fileprivate func buildXCFramework(frameworks: [AbsolutePath], output: AbsolutePath) throws {
         _ = try xcodeBuildController.createXCFramework(frameworks: frameworks, output: output)
-            .do(onSubscribed: {
-                logger.notice("Exporting xcframework for \(target.platform.caseValue)", metadata: .subsection)
-            })
             .toBlocking()
             .last()
     }
 
     fileprivate func deviceBuild(projectTarget: XcodeBuildTarget,
                                  scheme: String,
-                                 target: Target,
+                                 platform: Platform,
                                  configuration: String,
                                  archivePath: AbsolutePath) throws
     {
-        // Without the BUILD_LIBRARY_FOR_DISTRIBUTION argument xcodebuild doesn't generate the .swiftinterface file
         _ = try xcodeBuildController.archive(
             projectTarget,
             scheme: scheme,
             clean: false,
             archivePath: archivePath,
             arguments: [
-                .sdk(target.platform.xcodeDeviceSDK),
+                .sdk(platform.xcodeDeviceSDK),
                 .xcarg("SKIP_INSTALL", "NO"),
-                .xcarg("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES"),
                 .configuration(configuration),
             ]
         )
         .printFormattedOutput()
-        .do(onSubscribed: {
-            logger.notice("Building \(target.name) for device...", metadata: .subsection)
-        })
         .ignoreElements()
         .toBlocking()
         .last()
@@ -116,27 +107,22 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
 
     fileprivate func simulatorBuild(projectTarget: XcodeBuildTarget,
                                     scheme: String,
-                                    target: Target,
+                                    platform: Platform,
                                     configuration: String,
                                     archivePath: AbsolutePath) throws
     {
-        // Without the BUILD_LIBRARY_FOR_DISTRIBUTION argument xcodebuild doesn't generate the .swiftinterface file
         _ = try xcodeBuildController.archive(
             projectTarget,
             scheme: scheme,
             clean: false,
             archivePath: archivePath,
             arguments: [
-                .sdk(target.platform.xcodeSimulatorSDK!),
+                .sdk(platform.xcodeSimulatorSDK!),
                 .xcarg("SKIP_INSTALL", "NO"),
-                .xcarg("BUILD_LIBRARY_FOR_DISTRIBUTION", "YES"),
                 .configuration(configuration),
             ]
         )
         .printFormattedOutput()
-        .do(onSubscribed: {
-            logger.notice("Building \(target.name) for simulator...", metadata: .subsection)
-        })
         .ignoreElements()
         .toBlocking()
         .last()
