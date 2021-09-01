@@ -245,15 +245,15 @@ public class GraphTraverser: GraphTraversing {
     }
 
     public func searchablePathDependencies(path: AbsolutePath, name: String) throws -> Set<GraphDependencyReference> {
-        try linkableDependencies(path: path, name: name, isForSearchPath: true)
+        try linkableDependencies(path: path, name: name, shouldExcludeHostAppDependencies: false)
     }
 
     public func linkableDependencies(path: AbsolutePath, name: String) throws -> Set<GraphDependencyReference> {
-        try linkableDependencies(path: path, name: name, isForSearchPath: false)
+        try linkableDependencies(path: path, name: name, shouldExcludeHostAppDependencies: true)
     }
 
     // swiftlint:disable:next function_body_length
-    public func linkableDependencies(path: AbsolutePath, name: String, isForSearchPath: Bool) throws -> Set<GraphDependencyReference> {
+    public func linkableDependencies(path: AbsolutePath, name: String, shouldExcludeHostAppDependencies: Bool) throws -> Set<GraphDependencyReference> {
         guard let target = self.target(path: path, name: name) else { return Set() }
 
         var references = Set<GraphDependencyReference>()
@@ -315,10 +315,8 @@ public class GraphTraverser: GraphTraversing {
             // Exclude any static products linked in a host application
             // however, for search paths it's fine to keep them included
             let hostApplicationStaticTargets: Set<GraphDependency>
-            if !isForSearchPath,
-                target.target.product == .unitTests,
-                let hostApp = hostApplication(path: path, name: name)
-            {
+            if target.target.product == .unitTests && shouldExcludeHostAppDependencies,
+                let hostApp = hostApplication(path: path, name: name) {
                 hostApplicationStaticTargets = self.transitiveStaticDependencies(from: .target(name: hostApp.target.name, path: hostApp.project.path))
             } else {
                 hostApplicationStaticTargets = Set()
