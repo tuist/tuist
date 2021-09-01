@@ -121,7 +121,7 @@ final class SettingsToXCConfigExtractorIntegrationTests: TuistTestCase {
         ENABLE_TESTABILITY[config=Debug]=YES
         GCC_DYNAMIC_NO_PIC[config=Debug]=NO
         GCC_OPTIMIZATION_LEVEL[config=Debug]=0
-        GCC_PREPROCESSOR_DEFINITIONS[config=Debug]=["DEBUG=1", "$(inherited)"]
+        GCC_PREPROCESSOR_DEFINITIONS[config=Debug]=DEBUG=1 $(inherited)
         MTL_ENABLE_DEBUG_INFO[config=Debug]=INCLUDE_SOURCE
         MTL_ENABLE_DEBUG_INFO[config=Release]=NO
         ONLY_ACTIVE_ARCH[config=Debug]=YES
