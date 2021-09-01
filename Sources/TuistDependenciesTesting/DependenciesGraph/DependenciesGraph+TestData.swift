@@ -71,7 +71,7 @@ public extension TuistCore.DependenciesGraph {
                                 .glob(
                                     pattern: "\(packageFolder.pathString)/customPath/resources/**",
                                     excluding: [
-                                        "\(packageFolder.pathString)/customPath/excluded/sources/**"
+                                        "\(packageFolder.pathString)/customPath/excluded/sources/**",
                                     ], tags: []
                                 ),
                             ],

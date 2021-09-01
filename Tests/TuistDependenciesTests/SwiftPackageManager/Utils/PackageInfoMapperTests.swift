@@ -314,7 +314,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             .init(
                                 "/Package/Path/Sources/Target1/**",
                                 excluding: ["/Package/Path/Sources/Target1/AnotherOne/Resource/**"]
-                            )
+                            ),
                         ]),
                         resources: [
                             .glob(
