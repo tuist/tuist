@@ -132,7 +132,7 @@ public final class PluginService: PluginServicing {
         pluginPath: AbsolutePath,
         location: ProjectDescriptionHelpersPlugin.Location
     ) -> ProjectDescriptionHelpersPlugin? {
-        let helpersPath = pluginPath.appending(component: Constants.helpersDirectoryName)
+        let helpersPath = pluginPath.appending(component: Constants.projectDescriptionHelpersDirectoryName)
         guard fileHandler.exists(helpersPath) else { return nil }
         return ProjectDescriptionHelpersPlugin(name: name, path: helpersPath, location: location)
     }

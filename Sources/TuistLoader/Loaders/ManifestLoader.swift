@@ -119,7 +119,7 @@ public class ManifestLoader: ManifestLoading {
     private let decoder: JSONDecoder
     private var plugins: Plugins = .none
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
-    private let projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring
+    private let helpersBuilderFactory: HelpersBuilderFactoring
 
     // MARK: - Init
 
@@ -128,7 +128,7 @@ public class ManifestLoader: ManifestLoading {
             environment: Environment.shared,
             resourceLocator: ResourceLocator(),
             cacheDirectoryProviderFactory: CacheDirectoriesProviderFactory(),
-            projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactory(),
+            projectDescriptionHelpersBuilderFactory: HelpersBuilderFactory(),
             manifestFilesLocator: ManifestFilesLocator()
         )
     }
@@ -136,13 +136,13 @@ public class ManifestLoader: ManifestLoading {
     init(environment: Environmenting,
          resourceLocator: ResourceLocating,
          cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring,
-         projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring,
+         projectDescriptionHelpersBuilderFactory: HelpersBuilderFactoring,
          manifestFilesLocator: ManifestFilesLocating)
     {
         self.environment = environment
         self.resourceLocator = resourceLocator
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
-        self.projectDescriptionHelpersBuilderFactory = projectDescriptionHelpersBuilderFactory
+        self.helpersBuilderFactory = projectDescriptionHelpersBuilderFactory
         self.manifestFilesLocator = manifestFilesLocator
         decoder = JSONDecoder()
     }
@@ -294,11 +294,34 @@ public class ManifestLoader: ManifestLoading {
         at path: AbsolutePath
     ) throws -> [String] {
         let projectDescriptionPath = try resourceLocator.projectDescription()
-        let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
-        let frameworkName: String
+        let projectDescriptionSearchPaths = ModuleSearchPaths.paths(for: projectDescriptionPath)
+        
+        let projectAutomationPath = try resourceLocator.projectAutomation()
+        let projectAutomationSearchPaths = ModuleSearchPaths.paths(for: projectAutomationPath)
+        
+        var arguments = [
+            "/usr/bin/xcrun",
+            "swift",
+            "-suppress-warnings",
+        ]
+        
         switch manifest {
         case .task:
-            frameworkName = "ProjectAutomation"
+            arguments += [
+                "-I", projectAutomationSearchPaths.includeSearchPath.pathString,
+                "-L", projectAutomationSearchPaths.librarySearchPath.pathString,
+                "-F", projectAutomationSearchPaths.frameworkSearchPath.pathString,
+                "-lProjectAutomation",
+                "-framework", "ProjectAutomation",
+            ]
+            
+            let projectAutomationHelperArguments = try projectAutomationHelpersArguments(
+                manifest: manifest,
+                path: path,
+                projectAutomationSearchPaths: projectAutomationSearchPaths
+            )
+            
+            arguments.append(contentsOf: projectAutomationHelperArguments)
         case .config,
              .plugin,
              .dependencies,
@@ -307,54 +330,102 @@ public class ManifestLoader: ManifestLoading {
              .setup,
              .template,
              .workspace:
-            frameworkName = "ProjectDescription"
+            
+            arguments += [
+                "-I", projectDescriptionSearchPaths.includeSearchPath.pathString,
+                "-L", projectDescriptionSearchPaths.librarySearchPath.pathString,
+                "-F", projectDescriptionSearchPaths.frameworkSearchPath.pathString,
+                "-lProjectDescription",
+                "-framework", "ProjectDescription",
+            ]
+            
+            let projectDescriptionHelperArguments = try projectDescriptionHelpersArguments(
+                manifest: manifest,
+                path: path,
+                projectDescriptionSearchPaths: projectDescriptionSearchPaths
+            )
+            
+            arguments.append(contentsOf: projectDescriptionHelperArguments)
         }
-        var arguments = [
-            "/usr/bin/xcrun",
-            "swift",
-            "-suppress-warnings",
-            "-I", searchPaths.includeSearchPath.pathString,
-            "-L", searchPaths.librarySearchPath.pathString,
-            "-F", searchPaths.frameworkSearchPath.pathString,
-            "-l\(frameworkName)",
-            "-framework", frameworkName,
-        ]
-        let projectDescriptionHelpersCacheDirectory = try cacheDirectoryProviderFactory
-            .cacheDirectories(config: nil)
-            .projectDescriptionHelpersCacheDirectory
 
-        let projectDescriptionHelperArguments: [String] = try {
-            switch manifest {
-            case .config,
-                 .plugin,
-                 .task:
-                return []
-            case .dependencies,
-                 .galaxy,
-                 .project,
-                 .setup,
-                 .template,
-                 .workspace:
-                return try projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(
-                    cacheDirectory: projectDescriptionHelpersCacheDirectory
-                )
-                .build(
-                    at: path,
-                    projectDescriptionSearchPaths: searchPaths,
-                    projectDescriptionHelperPlugins: plugins.projectDescriptionHelpers
-                ).flatMap { [
-                    "-I", $0.path.parentDirectory.pathString,
-                    "-L", $0.path.parentDirectory.pathString,
-                    "-F", $0.path.parentDirectory.pathString,
-                    "-l\($0.name)",
-                ] }
-            }
-        }()
-
-        arguments.append(contentsOf: projectDescriptionHelperArguments)
         arguments.append(path.pathString)
 
         return arguments
+    }
+    
+    private func projectAutomationHelpersArguments(
+        manifest: Manifest,
+        path: AbsolutePath,
+        projectAutomationSearchPaths: ModuleSearchPaths
+    ) throws -> [String] {
+        switch manifest {
+        case .config,
+             .plugin,
+             .galaxy,
+             .project,
+             .setup,
+             .template,
+             .workspace,
+             .dependencies:
+            return []
+        case .task:
+            break
+        }
+        
+        let projectAutomationHelpersCacheDirectory = try cacheDirectoryProviderFactory
+            .cacheDirectories(config: nil)
+            .projectAutomationHelpersCacheDirectory
+        
+        return try helpersBuilderFactory.helpersBuilder(
+            cacheDirectory: projectAutomationHelpersCacheDirectory
+        )
+        .buildProjectAutomationHelpers(
+            at: path,
+            projectAutomationSearchPaths: projectAutomationSearchPaths
+        ).flatMap { [
+            "-I", $0.path.parentDirectory.pathString,
+            "-L", $0.path.parentDirectory.pathString,
+            "-F", $0.path.parentDirectory.pathString,
+            "-l\($0.name)",
+        ] }
+    }
+
+    private func projectDescriptionHelpersArguments(
+        manifest: Manifest,
+        path: AbsolutePath,
+        projectDescriptionSearchPaths: ModuleSearchPaths
+    ) throws -> [String] {
+        switch manifest {
+        case .config,
+             .plugin,
+             .task:
+            return []
+        case .dependencies,
+             .galaxy,
+             .project,
+             .setup,
+             .template,
+             .workspace:
+            break
+        }
+        
+        let projectDescriptionHelpersCacheDirectory = try cacheDirectoryProviderFactory
+            .cacheDirectories(config: nil)
+            .projectDescriptionHelpersCacheDirectory
+        
+        return try helpersBuilderFactory.helpersBuilder(
+            cacheDirectory: projectDescriptionHelpersCacheDirectory
+        )
+        .buildProjectDescriptionHelpers(
+            at: path,
+            projectDescriptionSearchPaths: projectDescriptionSearchPaths,
+            projectDescriptionHelperPlugins: plugins.projectDescriptionHelpers
+        ).flatMap { [
+            "-I", $0.path.parentDirectory.pathString,
+            "-L", $0.path.parentDirectory.pathString,
+            "-F", $0.path.parentDirectory.pathString,
+            "-l\($0.name)",
+        ] }
     }
 
     private func logUnexpectedImportErrorIfNeeded(in path: AbsolutePath, error: Error, manifest: Manifest) {
@@ -363,7 +434,7 @@ public class ManifestLoader: ManifestLoading {
             command == "swiftc",
             let errorMessage = String(data: standardError, encoding: .utf8) else { return }
 
-        let defaultHelpersName = ProjectDescriptionHelpersBuilder.defaultHelpersName
+        let defaultHelpersName = Constants.projectDescriptionHelpersDirectoryName
 
         if errorMessage.contains(defaultHelpersName) {
             logger.error("Cannot import \(defaultHelpersName) in \(manifest.fileName(path))")

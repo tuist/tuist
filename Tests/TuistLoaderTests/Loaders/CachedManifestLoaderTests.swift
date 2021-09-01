@@ -13,7 +13,7 @@ import XCTest
 final class CachedManifestLoaderTests: TuistUnitTestCase {
     private var cacheDirectory: AbsolutePath!
     private var manifestLoader = MockManifestLoader()
-    private var projectDescriptionHelpersHasher = MockProjectDescriptionHelpersHasher()
+    private var helpersHasher = MockHelpersHasher()
     private var helpersDirectoryLocator = MockHelpersDirectoryLocator()
     private var cacheDirectoriesProvider: MockCacheDirectoriesProvider!
     private var cacheDirectoriesProviderFactory: MockCacheDirectoriesProviderFactory!
@@ -66,10 +66,10 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
-
         subject = nil
         cacheDirectory = nil
+        
+        super.tearDown()
     }
 
     // MARK: - Tests
@@ -122,17 +122,35 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         XCTAssertEqual(result.name, "Modified")
     }
 
-    func test_load_helpersHashChanged() throws {
+    func test_load_projectDescriptionHelpersHashChanged() throws {
         // Given
         let path = try temporaryPath().appending(component: "App")
         let project = Project.test(name: "App")
         try stubProject(project, at: path)
-        try stubHelpers(withHash: "hash")
+        try stubProjectDescriptionHelpers(withHash: "hash")
 
         _ = try subject.loadProject(at: path)
 
         // When
-        try stubHelpers(withHash: "updatedHash")
+        try stubProjectDescriptionHelpers(withHash: "updatedHash")
+        subject = createSubject() // we need to re-create the subject as it internally caches hashes
+        _ = try subject.loadProject(at: path)
+
+        // Then
+        XCTAssertEqual(recordedLoadProjectCalls, 2)
+    }
+    
+    func test_load_projectAutomationHelpersHashChanged() throws {
+        // Given
+        let path = try temporaryPath().appending(component: "App")
+        let project = Project.test(name: "App")
+        try stubProject(project, at: path)
+        try stubProjectAutomationHelpers(withHash: "hash")
+
+        _ = try subject.loadProject(at: path)
+
+        // When
+        try stubProjectAutomationHelpers(withHash: "updatedHash")
         subject = createSubject() // we need to re-create the subject as it internally caches hashes
         _ = try subject.loadProject(at: path)
 
@@ -272,7 +290,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
     private func createSubject(tuistVersion: String = "1.0") -> CachedManifestLoader {
         CachedManifestLoader(
             manifestLoader: manifestLoader,
-            projectDescriptionHelpersHasher: projectDescriptionHelpersHasher,
+            helpersHasher: helpersHasher,
             helpersDirectoryLocator: helpersDirectoryLocator,
             fileHandler: fileHandler,
             environment: environment,
@@ -302,10 +320,18 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         configManifests[path] = manifest
     }
 
-    private func stubHelpers(withHash hash: String) throws {
+    private func stubProjectDescriptionHelpers(withHash hash: String) throws {
         let path = try temporaryPath().appending(components: "Tuist", "ProjectDescriptionHelpers")
-        helpersDirectoryLocator.locateStub = path
-        projectDescriptionHelpersHasher.stubHash = { _ in
+        helpersDirectoryLocator.locateProjectDescriptionHelpersStub = path
+        helpersHasher.stubHash = { _ in
+            hash
+        }
+    }
+    
+    private func stubProjectAutomationHelpers(withHash hash: String) throws {
+        let path = try temporaryPath().appending(components: "Tuist", "ProjectAutomationHelpers")
+        helpersDirectoryLocator.locateProjectAutomationHelpersStub = path
+        helpersHasher.stubHash = { _ in
             hash
         }
     }
@@ -323,7 +349,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
             .init(name: "TestPlugin", path: path, location: .local),
         ])
 
-        projectDescriptionHelpersHasher.stubHash = { _ in hash }
+        helpersHasher.stubHash = { _ in hash }
         try subject.register(plugins: plugins)
     }
 

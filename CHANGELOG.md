@@ -9,6 +9,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
+- `ProjectAutomationHelpers` for tasks [#3408](https://github.com/tuist/tuist/pull/3408) by [@fortmarek](https://github.com/fortmarek)
 - Allow to pass Cloud authentication token via TUIST_CLOUD_TOKEN even when not CI [#3380](https://github.com/tuist/tuist/pull/3380) by [@danyf90](https://github.com/danyf90)
 
 ### Fixed

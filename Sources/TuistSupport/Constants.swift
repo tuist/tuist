@@ -13,7 +13,8 @@ public enum Constants {
     public static let trueValues: [String] = ["1", "true", "TRUE", "yes", "YES"]
     public static let tuistDirectoryName: String = "Tuist"
 
-    public static let helpersDirectoryName: String = "ProjectDescriptionHelpers"
+    public static let projectDescriptionHelpersDirectoryName: String = "ProjectDescriptionHelpers"
+    public static let projectAutomationHelpersDirectoryName: String = "ProjectAutomationHelpers"
     public static let signingDirectoryName: String = "Signing"
     public static let tasksDirectoryName: String = "Tasks"
 

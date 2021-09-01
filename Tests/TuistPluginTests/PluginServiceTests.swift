@@ -65,14 +65,14 @@ final class PluginServiceTests: TuistTestCase {
         let config = mockConfig(plugins: [TuistGraph.PluginLocation.local(path: pluginPath.pathString)])
 
         try fileHandler.createFolder(
-            pluginPath.appending(component: Constants.helpersDirectoryName)
+            pluginPath.appending(component: Constants.projectDescriptionHelpersDirectoryName)
         )
 
         // When
         let plugins = try subject.loadPlugins(using: config)
 
         // Then
-        let expectedHelpersPath = pluginPath.appending(component: Constants.helpersDirectoryName)
+        let expectedHelpersPath = pluginPath.appending(component: Constants.projectDescriptionHelpersDirectoryName)
         let expectedPlugins = Plugins.test(projectDescriptionHelpers: [.init(name: pluginName, path: expectedHelpersPath, location: .local)])
         XCTAssertEqual(plugins, expectedPlugins)
     }
@@ -93,7 +93,7 @@ final class PluginServiceTests: TuistTestCase {
             ProjectDescription.Plugin(name: pluginName)
         }
 
-        try fileHandler.createFolder(cachedPluginPath.appending(component: Constants.helpersDirectoryName))
+        try fileHandler.createFolder(cachedPluginPath.appending(component: Constants.projectDescriptionHelpersDirectoryName))
 
         let config = mockConfig(plugins: [TuistGraph.PluginLocation.gitWithTag(url: pluginGitUrl, tag: pluginGitId)])
 
@@ -101,7 +101,7 @@ final class PluginServiceTests: TuistTestCase {
         let plugins = try subject.loadPlugins(using: config)
 
         // Then
-        let expectedHelpersPath = cachedPluginPath.appending(component: Constants.helpersDirectoryName)
+        let expectedHelpersPath = cachedPluginPath.appending(component: Constants.projectDescriptionHelpersDirectoryName)
         let expectedPlugins = Plugins.test(projectDescriptionHelpers: [.init(name: pluginName, path: expectedHelpersPath, location: .remote)])
         XCTAssertEqual(plugins, expectedPlugins)
     }

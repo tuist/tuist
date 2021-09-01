@@ -1,4 +1,5 @@
 import ProjectAutomation
+import ProjectAutomationHelpers
 import Foundation
 
 let task = Task(
@@ -8,9 +9,7 @@ let task = Task(
 ) { options in
     let fileName = options["file-name"] ?? "file"
     try "File created with a task".write(
-        to: URL(fileURLWithPath: "\(fileName).txt"),
-        atomically: true,
-        encoding: .utf8
+        to: "\(fileName).txt"
     )
     print("File created!")
 }

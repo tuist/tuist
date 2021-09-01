@@ -30,6 +30,10 @@ public final class MockCacheDirectoriesProvider: CacheDirectoriesProviding {
     public var projectDescriptionHelpersCacheDirectory: AbsolutePath {
         cacheDirectory.appending(component: "ProjectDescriptionHelpers")
     }
+    
+    public var projectAutomationHelpersCacheDirectory: AbsolutePath {
+        cacheDirectory.appending(component: "ProjectAutomationHelpers")
+    }
 
     public var manifestCacheDirectory: AbsolutePath {
         cacheDirectory.appending(component: "Manifests")

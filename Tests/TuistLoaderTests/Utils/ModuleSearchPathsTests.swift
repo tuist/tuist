@@ -5,7 +5,7 @@ import XCTest
 @testable import TuistLoader
 @testable import TuistSupportTesting
 
-final class ProjectDescriptionSearchPathsTests: TuistUnitTestCase {
+final class ModuleSearchPathsTests: TuistUnitTestCase {
     func test_paths_style() throws {
         // Given
         let libraryPaths: [AbsolutePath] = [
@@ -15,7 +15,7 @@ final class ProjectDescriptionSearchPathsTests: TuistUnitTestCase {
         ]
 
         // When
-        let searchPaths = libraryPaths.map { ProjectDescriptionSearchPaths.paths(for: $0) }
+        let searchPaths = libraryPaths.map { ModuleSearchPaths.paths(for: $0) }
 
         // Then
         XCTAssertEqual(searchPaths.map(\.style), [
@@ -34,7 +34,7 @@ final class ProjectDescriptionSearchPathsTests: TuistUnitTestCase {
         ]
 
         // When
-        let searchPaths = libraryPaths.map { ProjectDescriptionSearchPaths.paths(for: $0) }
+        let searchPaths = libraryPaths.map { ModuleSearchPaths.paths(for: $0) }
 
         // Then
         XCTAssertEqual(searchPaths.map(\.includeSearchPath), [
@@ -53,7 +53,7 @@ final class ProjectDescriptionSearchPathsTests: TuistUnitTestCase {
         ]
 
         // When
-        let searchPaths = libraryPaths.map { ProjectDescriptionSearchPaths.paths(for: $0) }
+        let searchPaths = libraryPaths.map { ModuleSearchPaths.paths(for: $0) }
 
         // Then
         XCTAssertEqual(searchPaths.map(\.librarySearchPath), [
@@ -72,7 +72,7 @@ final class ProjectDescriptionSearchPathsTests: TuistUnitTestCase {
         ]
 
         // When
-        let searchPaths = libraryPaths.map { ProjectDescriptionSearchPaths.paths(for: $0) }
+        let searchPaths = libraryPaths.map { ModuleSearchPaths.paths(for: $0) }
 
         // Then
         XCTAssertEqual(searchPaths.map(\.frameworkSearchPath), [

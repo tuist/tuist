@@ -1,11 +1,11 @@
 import Foundation
 import TSCBasic
 
-/// Project Description Paths
+/// Internal module paths
 ///
 /// A small utility that works out the various search paths needed
-/// for a given `ProjectDescription` library.
-public struct ProjectDescriptionSearchPaths {
+/// for a given tuist module (such as `ProjectDescription`).
+public struct ModuleSearchPaths {
     enum Style {
         /// `libProjectDescription.dylib` library built via Swift PM in the command line
         ///
@@ -35,7 +35,7 @@ public struct ProjectDescriptionSearchPaths {
         case swiftPackageInXcode
     }
 
-    /// Path to the `ProjectDescription` framework or library
+    /// Path to the tuist framework or library
     var path: AbsolutePath
 
     /// The search path style to use for the library
@@ -75,14 +75,14 @@ public struct ProjectDescriptionSearchPaths {
     }
 
     /// Creates the `ProjectDescription` search paths based on the library path specified
-    public static func paths(for libraryPath: AbsolutePath) -> ProjectDescriptionSearchPaths {
-        ProjectDescriptionSearchPaths(
+    public static func paths(for libraryPath: AbsolutePath) -> ModuleSearchPaths {
+        ModuleSearchPaths(
             path: libraryPath,
             style: pathStyle(for: libraryPath)
         )
     }
 
-    private static func pathStyle(for libraryPath: AbsolutePath) -> ProjectDescriptionSearchPaths.Style {
+    private static func pathStyle(for libraryPath: AbsolutePath) -> ModuleSearchPaths.Style {
         if libraryPath.extension == "framework" {
             if libraryPath.parentDirectory.components.last == "PackageFrameworks" {
                 return .swiftPackageInXcode

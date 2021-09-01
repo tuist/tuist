@@ -35,8 +35,8 @@ final class ProjectEditorTests: TuistUnitTestCase {
     private var helpersDirectoryLocator: MockHelpersDirectoryLocator!
     private var writer: MockXcodeProjWriter!
     private var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
-    private var projectDescriptionHelpersBuilder: MockProjectDescriptionHelpersBuilder!
-    private var projectDescriptionHelpersBuilderFactory: MockProjectDescriptionHelpersBuilderFactory!
+    private var helpersBuilder: MockHelpersBuilder!
+    private var helpersBuilderFactory: MockHelpersBuilderFactory!
     private var tasksLocator: MockTasksLocator!
     private var subject: ProjectEditor!
 
@@ -49,9 +49,10 @@ final class ProjectEditorTests: TuistUnitTestCase {
         helpersDirectoryLocator = MockHelpersDirectoryLocator()
         writer = MockXcodeProjWriter()
         templatesDirectoryLocator = MockTemplatesDirectoryLocator()
-        projectDescriptionHelpersBuilder = MockProjectDescriptionHelpersBuilder()
-        projectDescriptionHelpersBuilderFactory = MockProjectDescriptionHelpersBuilderFactory()
-        projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilderStub = { _ in self.projectDescriptionHelpersBuilder }
+        helpersBuilder = MockHelpersBuilder()
+        helpersBuilderFactory = MockHelpersBuilderFactory()
+        helpersBuilderFactory.projectDescriptionHelpersBuilderStub = { _ in self.helpersBuilder }
+        helpersBuilderFactory.projectAutomationHelpersBuilderStub = { _ in self.helpersBuilder }
         tasksLocator = MockTasksLocator()
 
         subject = ProjectEditor(
@@ -62,7 +63,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
             helpersDirectoryLocator: helpersDirectoryLocator,
             writer: writer,
             templatesDirectoryLocator: templatesDirectoryLocator,
-            projectDescriptionHelpersBuilderFactory: projectDescriptionHelpersBuilderFactory,
+            helpersBuilderFactory: helpersBuilderFactory,
             tasksLocator: tasksLocator
         )
     }
@@ -85,10 +86,13 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
         let projectAutomationPath = directory.appending(component: "ProjectAutomation.framework")
         let graph = Graph.test(name: "Edit")
-        let helpersDirectory = directory.appending(component: "ProjectDescriptionHelpers")
-        try FileHandler.shared.createFolder(helpersDirectory)
-        let helpers = ["A.swift", "B.swift"].map { helpersDirectory.appending(component: $0) }
-        try helpers.forEach { try FileHandler.shared.touch($0) }
+        let projectDescriptionHelpersDirectory = directory.appending(component: "ProjectAutomationHelpers")
+        let projectAutomationHelpersDirectory = directory.appending(component: "ProjectAutomationHelpers")
+        try FileHandler.shared.createFolder(projectAutomationHelpersDirectory)
+        let projectDescriptionHelpers = ["A.swift", "B.swift"].map { projectDescriptionHelpersDirectory.appending(component: $0) }
+        try projectDescriptionHelpers.forEach { try FileHandler.shared.touch($0) }
+        let projectAutomationHelpers = ["A.swift", "B.swift"].map { projectAutomationHelpersDirectory.appending(component: $0) }
+        try projectAutomationHelpers.forEach { try FileHandler.shared.touch($0) }
         let manifests = [
             ManifestFilesLocator.ProjectManifest(
                 manifest: .project,
@@ -112,7 +116,8 @@ final class ProjectEditorTests: TuistUnitTestCase {
         manifestFilesLocator.locateConfigStub = configPath
         manifestFilesLocator.locateDependenciesStub = dependenciesPath
         manifestFilesLocator.locateSetupStub = setupPath
-        helpersDirectoryLocator.locateStub = helpersDirectory
+        helpersDirectoryLocator.locateProjectDescriptionHelpersStub = projectDescriptionHelpersDirectory
+        helpersDirectoryLocator.locateProjectAutomationHelpersStub = projectAutomationHelpersDirectory
         tasksLocator.locateTasksStub = { _ in
             locateTasksPaths
         }
@@ -128,7 +133,8 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
         let mapArgs = projectEditorMapper.mapArgs.first
         XCTAssertEqual(mapArgs?.tuistPath, tuistPath)
-        XCTAssertEqual(mapArgs?.helpers, helpers)
+        XCTAssertEqual(mapArgs?.projectDescriptionHelpers, projectDescriptionHelpers)
+        XCTAssertEqual(mapArgs?.projectAutomationHelpers, projectAutomationHelpers)
         XCTAssertEqual(mapArgs?.sourceRootPath, directory)
         XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath)
         XCTAssertEqual(mapArgs?.projectAutomationPath, projectAutomationPath)
@@ -143,15 +149,15 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let directory = try temporaryPath()
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
         let graph = Graph.test(name: "Edit")
-        let helpersDirectory = directory.appending(component: "ProjectDescriptionHelpers")
-        try FileHandler.shared.createFolder(helpersDirectory)
+        let projectDescriptionHelpersDirectory = directory.appending(component: "ProjectDescriptionHelpers")
+        try FileHandler.shared.createFolder(projectDescriptionHelpersDirectory)
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
         manifestFilesLocator.locateProjectManifestsStub = { _, _, _ in
             []
         }
         manifestFilesLocator.locatePluginManifestsStub = []
-        helpersDirectoryLocator.locateStub = helpersDirectory
+        helpersDirectoryLocator.locateProjectDescriptionHelpersStub = projectDescriptionHelpersDirectory
         projectEditorMapper.mapStub = graph
         generator.generateWorkspaceStub = { _ in
             .test(xcworkspacePath: directory.appending(component: "Edit.xcworkspacepath"))
@@ -353,8 +359,8 @@ final class ProjectEditorTests: TuistUnitTestCase {
             .test(xcworkspacePath: directory.appending(component: "Edit.xcworkspacepath"))
         }
 
-        projectDescriptionHelpersBuilder.buildPluginsStub = { _, _, plugins in
-            plugins.map { ProjectDescriptionHelpersModule(name: $0.name, path: $0.path) }
+        helpersBuilder.buildPluginsStub = { _, _, plugins in
+            plugins.map { HelpersModule(name: $0.name, path: $0.path) }
         }
 
         // When
@@ -372,7 +378,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEmpty(try XCTUnwrap(mapArgs?.editablePluginManifests))
         XCTAssertEqual(
             mapArgs?.pluginProjectDescriptionHelpersModule,
-            [ProjectDescriptionHelpersModule(name: "RemotePlugin", path: AbsolutePath("/Some/Path/To/Plugin"))]
+            [HelpersModule(name: "RemotePlugin", path: AbsolutePath("/Some/Path/To/Plugin"))]
         )
     }
 }

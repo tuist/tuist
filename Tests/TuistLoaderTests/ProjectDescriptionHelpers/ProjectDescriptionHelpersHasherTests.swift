@@ -8,12 +8,12 @@ import XCTest
 @testable import TuistSupportTesting
 
 class ProjectDescriptionHelpersHasherTests: TuistUnitTestCase {
-    var subject: ProjectDescriptionHelpersHasher!
+    var subject: HelpersHasher!
 
     override func setUp() {
         super.setUp()
         system.swiftVersionStub = { "5.2" }
-        subject = ProjectDescriptionHelpersHasher(tuistVersion: "3.2.1")
+        subject = HelpersHasher(tuistVersion: "3.2.1")
     }
 
     override func tearDown() {

@@ -4,9 +4,16 @@ import TuistCore
 import TuistSupport
 
 public protocol HelpersDirectoryLocating {
-    /// Returns the path to the helpers directory if it exists.
+    /// Returns the path to the project description helpers directory if it exists.
     /// - Parameter at: Path from which we traverse the hierarchy to obtain the helpers directory.
-    func locate(at: AbsolutePath) -> AbsolutePath?
+    func locateProjectDescriptionHelpers(at: AbsolutePath) -> AbsolutePath?
+    
+    /// Returns the path to the project automation helpers directory if it exists
+    /// - Parameters:
+    ///     - at: Path from which we traverse the hieararchy to obtain the helpers directory
+    func locateProjectAutomationHelpers(
+        at: AbsolutePath
+    ) -> AbsolutePath?
 }
 
 public final class HelpersDirectoryLocator: HelpersDirectoryLocating {
@@ -26,11 +33,32 @@ public final class HelpersDirectoryLocator: HelpersDirectoryLocating {
 
     // MARK: - HelpersDirectoryLocating
 
-    public func locate(at: AbsolutePath) -> AbsolutePath? {
+    public func locateProjectDescriptionHelpers(at: AbsolutePath) -> AbsolutePath? {
+        locateHelpersDirectory(
+            at: at,
+            directoryName: Constants.projectDescriptionHelpersDirectoryName
+        )
+    }
+    
+    public func locateProjectAutomationHelpers(
+        at: AbsolutePath
+    ) -> AbsolutePath? {
+        locateHelpersDirectory(
+            at: at,
+            directoryName: Constants.projectAutomationHelpersDirectoryName
+        )
+    }
+    
+    // MARK: - Helpers
+    
+    private func locateHelpersDirectory(
+        at: AbsolutePath,
+        directoryName: String
+    ) -> AbsolutePath? {
         guard let rootDirectory = rootDirectoryLocator.locate(from: at) else { return nil }
         let helpersDirectory = rootDirectory
             .appending(component: Constants.tuistDirectoryName)
-            .appending(component: Constants.helpersDirectoryName)
+            .appending(component: directoryName)
         if !FileHandler.shared.exists(helpersDirectory) { return nil }
         return helpersDirectory
     }

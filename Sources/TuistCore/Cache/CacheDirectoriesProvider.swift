@@ -21,6 +21,9 @@ public protocol CacheDirectoriesProviding {
 
     /// Returns the directory where the project description helper modules are cached.
     var projectDescriptionHelpersCacheDirectory: AbsolutePath { get }
+    
+    /// Returns the directory where the project automation helper modules are cached.
+    var projectAutomationHelpersCacheDirectory: AbsolutePath { get }
 
     /// Returns the directory where the project description helper modules are cached.
     var manifestCacheDirectory: AbsolutePath { get }
@@ -58,6 +61,10 @@ public final class CacheDirectoriesProvider: CacheDirectoriesProviding {
         cacheDirectory.appending(component: "ProjectDescriptionHelpers")
     }
 
+    public var projectAutomationHelpersCacheDirectory: AbsolutePath {
+        cacheDirectory.appending(component: "ProjectAutomationHelpers")
+    }
+    
     public var manifestCacheDirectory: AbsolutePath {
         cacheDirectory.appending(component: "Manifests")
     }

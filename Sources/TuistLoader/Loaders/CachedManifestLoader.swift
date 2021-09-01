@@ -14,7 +14,7 @@ import TuistSupport
 ///
 public class CachedManifestLoader: ManifestLoading {
     private let manifestLoader: ManifestLoading
-    private let projectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing
+    private let helpersHasher: HelpersHashing
     private let helpersDirectoryLocator: HelpersDirectoryLocating
     private let fileHandler: FileHandling
     private let environment: Environmenting
@@ -30,7 +30,7 @@ public class CachedManifestLoader: ManifestLoading {
         let environment = TuistSupport.Environment.shared
         self.init(
             manifestLoader: manifestLoader,
-            projectDescriptionHelpersHasher: ProjectDescriptionHelpersHasher(),
+            helpersHasher: HelpersHasher(),
             helpersDirectoryLocator: HelpersDirectoryLocator(),
             fileHandler: FileHandler.shared,
             environment: environment,
@@ -40,7 +40,7 @@ public class CachedManifestLoader: ManifestLoading {
     }
 
     init(manifestLoader: ManifestLoading,
-         projectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing,
+         helpersHasher: HelpersHashing,
          helpersDirectoryLocator: HelpersDirectoryLocating,
          fileHandler: FileHandling,
          environment: Environmenting,
@@ -48,7 +48,7 @@ public class CachedManifestLoader: ManifestLoading {
          tuistVersion: String)
     {
         self.manifestLoader = manifestLoader
-        self.projectDescriptionHelpersHasher = projectDescriptionHelpersHasher
+        self.helpersHasher = helpersHasher
         self.helpersDirectoryLocator = helpersDirectoryLocator
         self.fileHandler = fileHandler
         self.environment = environment
@@ -161,12 +161,14 @@ public class CachedManifestLoader: ManifestLoading {
                                  manifest: Manifest) throws -> Hashes
     {
         let manifestHash = try calculateManifestHash(for: manifest, at: manifestPath)
-        let helpersHash = try calculateHelpersHash(at: path)
+        let projectDescriptionHelpersHash = try calculateProjectDescriptionHelpersHash(at: path)
+        let projectAutomationHelpersHash = try calculateProjectAutomationHelpersHash(at: path)
         let environmentHash = calculateEnvironmentHash()
 
         return Hashes(
             manifestHash: manifestHash,
-            helpersHash: helpersHash,
+            projectDescriptionHelpersHash: projectDescriptionHelpersHash,
+            projectAutomationHelpersHash: projectAutomationHelpersHash,
             pluginsHash: pluginsHashCache,
             environmentHash: environmentHash
         )
@@ -179,16 +181,28 @@ public class CachedManifestLoader: ManifestLoading {
         return hash
     }
 
-    private func calculateHelpersHash(at path: AbsolutePath) throws -> String? {
-        guard let helpersDirectory = helpersDirectoryLocator.locate(at: path) else {
+    private func calculateProjectDescriptionHelpersHash(at path: AbsolutePath) throws -> String? {
+        guard let helpersDirectory = helpersDirectoryLocator.locateProjectDescriptionHelpers(at: path) else {
             return nil
         }
 
+        return try calculateHelpersHash(helpersDirectory: helpersDirectory)
+    }
+    
+    private func calculateProjectAutomationHelpersHash(at path: AbsolutePath) throws -> String? {
+        guard let helpersDirectory = helpersDirectoryLocator.locateProjectAutomationHelpers(at: path) else {
+            return nil
+        }
+
+        return try calculateHelpersHash(helpersDirectory: helpersDirectory)
+    }
+    
+    private func calculateHelpersHash(helpersDirectory: AbsolutePath) throws -> String? {
         if let cached = helpersCache[helpersDirectory] {
             return cached
         }
 
-        let hash = try projectDescriptionHelpersHasher.hash(helpersDirectory: helpersDirectory)
+        let hash = try helpersHasher.hash(helpersDirectory: helpersDirectory)
         helpersCache[helpersDirectory] = hash
 
         return hash
@@ -196,7 +210,7 @@ public class CachedManifestLoader: ManifestLoading {
 
     private func calculatePluginsHash(for plugins: Plugins) throws -> String? {
         return try plugins.projectDescriptionHelpers
-            .map { try projectDescriptionHelpersHasher.hash(helpersDirectory: $0.path) }
+            .map { try helpersHasher.hash(helpersDirectory: $0.path) }
             .joined(separator: "-")
             .md5
     }
@@ -268,7 +282,8 @@ public class CachedManifestLoader: ManifestLoading {
 
 private struct Hashes: Equatable, Codable {
     var manifestHash: Data
-    var helpersHash: String?
+    var projectDescriptionHelpersHash: String?
+    var projectAutomationHelpersHash: String?
     var pluginsHash: String?
     var environmentHash: String?
 }

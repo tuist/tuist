@@ -16,8 +16,9 @@ protocol ProjectEditorMapping: AnyObject {
         dependenciesPath: AbsolutePath?,
         projectManifests: [AbsolutePath],
         editablePluginManifests: [EditablePluginManifest],
-        pluginProjectDescriptionHelpersModule: [ProjectDescriptionHelpersModule],
-        helpers: [AbsolutePath],
+        pluginProjectDescriptionHelpersModule: [HelpersModule],
+        projectDescriptionHelpers: [AbsolutePath],
+        projectAutomationHelpers: [AbsolutePath],
         templates: [AbsolutePath],
         tasks: [AbsolutePath],
         projectDescriptionPath: AbsolutePath,
@@ -38,8 +39,9 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         dependenciesPath: AbsolutePath?,
         projectManifests: [AbsolutePath],
         editablePluginManifests: [EditablePluginManifest],
-        pluginProjectDescriptionHelpersModule: [ProjectDescriptionHelpersModule],
-        helpers: [AbsolutePath],
+        pluginProjectDescriptionHelpersModule: [HelpersModule],
+        projectDescriptionHelpers: [AbsolutePath],
+        projectAutomationHelpers: [AbsolutePath],
         templates: [AbsolutePath],
         tasks: [AbsolutePath],
         projectDescriptionPath: AbsolutePath,
@@ -64,7 +66,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             sourceRootPath: sourceRootPath,
             destinationDirectory: destinationDirectory,
             tuistPath: tuistPath,
-            helpers: helpers,
+            projectDescriptionHelpers: projectDescriptionHelpers,
+            projectAutomationHelpers: projectAutomationHelpers,
             templates: templates,
             tasks: tasks,
             setupPath: setupPath,
@@ -133,14 +136,15 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         sourceRootPath: AbsolutePath,
         destinationDirectory: AbsolutePath,
         tuistPath: AbsolutePath,
-        helpers: [AbsolutePath],
+        projectDescriptionHelpers: [AbsolutePath],
+        projectAutomationHelpers: [AbsolutePath],
         templates: [AbsolutePath],
         tasks: [AbsolutePath],
         setupPath: AbsolutePath?,
         configPath: AbsolutePath?,
         dependenciesPath: AbsolutePath?,
         editablePluginTargets: [String],
-        pluginProjectDescriptionHelpersModule: [ProjectDescriptionHelpersModule]
+        pluginProjectDescriptionHelpersModule: [HelpersModule]
     ) -> Project? {
         guard !projectManifests.isEmpty else { return nil }
 
@@ -153,13 +157,23 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             defaultSettings: .recommended
         )
 
-        let helpersTarget: Target? = {
-            guard !helpers.isEmpty else { return nil }
+        let projectDescriptionHelpersTarget: Target? = {
+            guard !projectDescriptionHelpers.isEmpty else { return nil }
             return editorHelperTarget(
-                name: Constants.helpersDirectoryName,
+                name: Constants.projectDescriptionHelpersDirectoryName,
                 filesGroup: manifestsFilesGroup,
                 targetSettings: baseTargetSettings,
-                sourcePaths: helpers
+                sourcePaths: projectDescriptionHelpers
+            )
+        }()
+        
+        let projectAutomationHelpersTarget: Target? = {
+            guard !projectAutomationHelpers.isEmpty else { return nil }
+            return editorHelperTarget(
+                name: Constants.projectAutomationHelpersDirectoryName,
+                filesGroup: manifestsFilesGroup,
+                targetSettings: baseTargetSettings,
+                sourcePaths: projectAutomationHelpers
             )
         }()
 
@@ -223,7 +237,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         )
 
         let manifestsTargets = namedManifests(projectManifests).map { name, projectManifestSourcePath -> Target in
-            let helperDependencies = helpersTarget.map { [TargetDependency.target(name: $0.name)] } ?? []
+            let helperDependencies = projectDescriptionHelpersTarget.map { [TargetDependency.target(name: $0.name)] } ?? []
             let editablePluginTargets = editablePluginTargets.map { TargetDependency.target(name: $0) }
             let dependencies = helperDependencies + editablePluginTargets
 
@@ -237,7 +251,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         }
 
         let targets = [
-            helpersTarget,
+            projectDescriptionHelpersTarget,
+            projectAutomationHelpersTarget,
             templatesTarget,
             setupTarget,
             configTarget,
@@ -301,7 +316,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
 
         let pluginTargets = pluginManifests.map { manifest -> Target in
             let pluginManifest = manifest.path.appending(component: "Plugin.swift")
-            let pluginHelpersPath = manifest.path.appending(component: Constants.helpersDirectoryName)
+            let pluginHelpersPath = manifest.path.appending(component: Constants.projectDescriptionHelpersDirectoryName)
             let pluginTemplatesPath = manifest.path.appending(component: Constants.templatesDirectoryName)
             let pluginResourceTemplatesPath = manifest.path.appending(component: Constants.resourceSynthesizersDirectoryName)
             let sourcePaths = [pluginManifest] +

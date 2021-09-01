@@ -31,7 +31,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let setupPath = sourceRootPath.appending(component: "Setup.swift")
         let configPath = sourceRootPath.appending(components: Constants.tuistDirectoryName, "Config.swift")
         let dependenciesPath = sourceRootPath.appending(components: Constants.tuistDirectoryName, "Dependencies.swift")
-        let helperPaths = [sourceRootPath].map { $0.appending(component: "Project+Template.swift") }
+        let projectDescriptionHelpersPaths = [sourceRootPath].map { $0.appending(component: "Project+Template.swift") }
+        let projectAutomationHelpersPaths = [sourceRootPath].map { $0.appending(component: "Automation+Task.swift") }
         let templates = [sourceRootPath].map { $0.appending(component: "template") }
         let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
         let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
@@ -54,7 +55,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             projectManifests: projectManifestPaths,
             editablePluginManifests: [],
             pluginProjectDescriptionHelpersModule: [],
-            helpers: helperPaths,
+            projectDescriptionHelpers: projectDescriptionHelpersPaths,
+            projectAutomationHelpers: projectAutomationHelpersPaths,
             templates: templates,
             tasks: tasksPaths,
             projectDescriptionPath: projectDescriptionPath,
@@ -70,7 +72,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(graph.name, "TestManifests")
 
-        XCTAssertEqual(targets.count, 8)
+        XCTAssertEqual(targets.count, 9)
         XCTAssertEqual(project.targets.sorted { $0.name < $1.name }, targets)
 
         // Generated Manifests target
@@ -84,18 +86,31 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(manifestsTarget.filesGroup, projectsGroup)
         XCTAssertEqual(manifestsTarget.dependencies, [.target(name: "ProjectDescriptionHelpers")])
 
-        // Generated Helpers target
-        let helpersTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "ProjectDescriptionHelpers" }))
-        XCTAssertTrue(targets.contains(helpersTarget))
+        // Generated ProjectDescriptionHelpers target
+        let projectDescriptionHelpersTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "ProjectDescriptionHelpers" }))
+        XCTAssertTrue(targets.contains(projectDescriptionHelpersTarget))
 
-        XCTAssertEqual(helpersTarget.name, "ProjectDescriptionHelpers")
-        XCTAssertEqual(helpersTarget.platform, .macOS)
-        XCTAssertEqual(helpersTarget.product, .staticFramework)
-        XCTAssertEqual(helpersTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
-        XCTAssertEqual(helpersTarget.sources.map(\.path), helperPaths)
-        XCTAssertEqual(helpersTarget.filesGroup, projectsGroup)
-        XCTAssertEmpty(helpersTarget.dependencies)
+        XCTAssertEqual(projectDescriptionHelpersTarget.name, "ProjectDescriptionHelpers")
+        XCTAssertEqual(projectDescriptionHelpersTarget.platform, .macOS)
+        XCTAssertEqual(projectDescriptionHelpersTarget.product, .staticFramework)
+        XCTAssertEqual(projectDescriptionHelpersTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
+        XCTAssertEqual(projectDescriptionHelpersTarget.sources.map(\.path), projectDescriptionHelpersPaths)
+        XCTAssertEqual(projectDescriptionHelpersTarget.filesGroup, projectsGroup)
+        XCTAssertEmpty(projectDescriptionHelpersTarget.dependencies)
 
+        // Generated ProjectAutomationHelpers target
+
+        let projectAutomationHelpersTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "ProjectAutomationHelpers" }))
+        XCTAssertTrue(targets.contains(projectAutomationHelpersTarget))
+
+        XCTAssertEqual(projectAutomationHelpersTarget.name, "ProjectAutomationHelpers")
+        XCTAssertEqual(projectAutomationHelpersTarget.platform, .macOS)
+        XCTAssertEqual(projectAutomationHelpersTarget.product, .staticFramework)
+        XCTAssertEqual(projectAutomationHelpersTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
+        XCTAssertEqual(projectAutomationHelpersTarget.sources.map(\.path), projectAutomationHelpersPaths)
+        XCTAssertEqual(projectAutomationHelpersTarget.filesGroup, projectsGroup)
+        XCTAssertEmpty(projectAutomationHelpersTarget.dependencies)
+        
         // Generated Templates target
         let templatesTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "Templates" }))
         XCTAssertTrue(targets.contains(templatesTarget))
@@ -216,7 +231,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             projectManifests: projectManifestPaths,
             editablePluginManifests: [],
             pluginProjectDescriptionHelpersModule: [],
-            helpers: helperPaths,
+            projectDescriptionHelpers: helperPaths,
+            projectAutomationHelpers: [],
             templates: templates,
             tasks: [],
             projectDescriptionPath: projectDescriptionPath,
@@ -297,7 +313,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             projectManifests: projectManifestPaths,
             editablePluginManifests: [],
             pluginProjectDescriptionHelpersModule: [],
-            helpers: helperPaths,
+            projectDescriptionHelpers: helperPaths,
+            projectAutomationHelpers: [],
             templates: templates,
             tasks: [],
             projectDescriptionPath: projectDescriptionPath,
@@ -408,7 +425,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             projectManifests: [],
             editablePluginManifests: editablePluginManifests,
             pluginProjectDescriptionHelpersModule: [],
-            helpers: helperPaths,
+            projectDescriptionHelpers: helperPaths,
+            projectAutomationHelpers: [],
             templates: templates,
             tasks: [],
             projectDescriptionPath: projectDescriptionPath,
@@ -486,7 +504,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             projectManifests: [],
             editablePluginManifests: editablePluginManifests,
             pluginProjectDescriptionHelpersModule: [],
-            helpers: helperPaths,
+            projectDescriptionHelpers: helperPaths,
+            projectAutomationHelpers: [],
             templates: templates,
             tasks: [],
             projectDescriptionPath: projectDescriptionPath,
@@ -595,7 +614,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             projectManifests: [],
             editablePluginManifests: editablePluginManifests,
             pluginProjectDescriptionHelpersModule: [],
-            helpers: helperPaths,
+            projectDescriptionHelpers: helperPaths,
+            projectAutomationHelpers: [],
             templates: templates,
             tasks: [],
             projectDescriptionPath: projectDescriptionPath,
@@ -636,7 +656,8 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             projectManifests: projectManifestPaths,
             editablePluginManifests: [],
             pluginProjectDescriptionHelpersModule: [.init(name: "Plugin", path: pluginHelpersPath)],
-            helpers: helperPaths,
+            projectDescriptionHelpers: helperPaths,
+            projectAutomationHelpers: [],
             templates: templates,
             tasks: [],
             projectDescriptionPath: projectDescriptionPath,

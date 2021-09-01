@@ -41,3 +41,17 @@ The `Task` accepts two parameters - `options: [Option]` which defines the possib
 Then there is a parameter `task: ([String: String]) throws -> Void` which is a simple closure that is executed when the task is run.
 Note that the closure has input of `[String: String]` -
 this is a dictionary of options defined by the user where the key is the name of the option and value is the option's value.
+
+
+### ProjectAutomationHelpers
+
+Once you define multiple tasks, you will start seeing that some code could be reused between them. Therefore, tasks use a similar concept known from [ProjectDescriptionHelpers](/guides/helpers).
+
+ProjectAutomationHelpers are Swift files that get compiled into a framework, `ProjectAutomationHelpers`, that files defining tasks can import. All the files should be in `Tuist/ProjectAutomationHelpers`
+
+To import them into a task file, simply import the `ProjectAutomationHelpers` framework:
+```swift
+// MyTask.swift
+import ProjectAutomation
+import ProjectAutomationHelpers
+```

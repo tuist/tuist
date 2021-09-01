@@ -62,7 +62,7 @@ final class ProjectEditor: ProjectEditing {
     let templatesDirectoryLocator: TemplatesDirectoryLocating
 
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
-    private let projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring
+    private let helpersBuilderFactory: HelpersBuilderFactoring
     private let tasksLocator: TasksLocating
 
     /// Xcode Project writer
@@ -77,7 +77,7 @@ final class ProjectEditor: ProjectEditing {
         writer: XcodeProjWriting = XcodeProjWriter(),
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory(),
-        projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring = ProjectDescriptionHelpersBuilderFactory(),
+        helpersBuilderFactory: HelpersBuilderFactoring = HelpersBuilderFactory(),
         tasksLocator: TasksLocating = TasksLocator()
     ) {
         self.generator = generator
@@ -88,7 +88,7 @@ final class ProjectEditor: ProjectEditing {
         self.writer = writer
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
-        self.projectDescriptionHelpersBuilderFactory = projectDescriptionHelpersBuilderFactory
+        self.helpersBuilderFactory = helpersBuilderFactory
         self.tasksLocator = tasksLocator
     }
 
@@ -107,12 +107,17 @@ final class ProjectEditor: ProjectEditing {
         let projectManifests = manifestFilesLocator.locateProjectManifests(at: editingPath, excluding: pathsToExclude, onlyCurrentDirectory: onlyCurrentDirectory)
         let configPath = manifestFilesLocator.locateConfig(at: editingPath)
         let cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories(config: nil)
-        let projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(
-            cacheDirectory: cacheDirectory.projectDescriptionHelpersCacheDirectory)
+        let helpersBuilder = helpersBuilderFactory.helpersBuilder(
+            cacheDirectory: cacheDirectory.projectDescriptionHelpersCacheDirectory
+        )
         let dependenciesPath = manifestFilesLocator.locateDependencies(at: editingPath)
         let setupPath = manifestFilesLocator.locateSetup(at: editingPath)
 
-        let helpers = helpersDirectoryLocator.locate(at: editingPath).map {
+        let projectDescriptionHelpers = helpersDirectoryLocator.locateProjectDescriptionHelpers(at: editingPath).map {
+            FileHandler.shared.glob($0, glob: "**/*.swift")
+        } ?? []
+        
+        let projectAutomationHelpers = helpersDirectoryLocator.locateProjectAutomationHelpers(at: editingPath).map {
             FileHandler.shared.glob($0, glob: "**/*.swift")
         } ?? []
 
@@ -132,11 +137,11 @@ final class ProjectEditor: ProjectEditing {
             in: editingPath,
             projectDescriptionPath: projectDescriptionPath,
             plugins: plugins,
-            projectDescriptionHelpersBuilder: projectDescriptionHelpersBuilder
+            helpersBuilder: helpersBuilder
         )
 
         /// We error if the user tries to edit a project in a directory where there are no editable files.
-        if projectManifests.isEmpty, editablePluginManifests.isEmpty, helpers.isEmpty, templates.isEmpty {
+        if projectManifests.isEmpty, editablePluginManifests.isEmpty, projectDescriptionHelpers.isEmpty, templates.isEmpty {
             throw ProjectEditorError.noEditableFiles(editingPath)
         }
 
@@ -155,7 +160,8 @@ final class ProjectEditor: ProjectEditing {
             projectManifests: projectManifests.map(\.path),
             editablePluginManifests: editablePluginManifests,
             pluginProjectDescriptionHelpersModule: builtPluginHelperModules,
-            helpers: helpers,
+            projectDescriptionHelpers: projectDescriptionHelpers,
+            projectAutomationHelpers: projectAutomationHelpers,
             templates: templates,
             tasks: tasks,
             projectDescriptionPath: projectDescriptionPath,
@@ -189,12 +195,12 @@ final class ProjectEditor: ProjectEditing {
         in path: AbsolutePath,
         projectDescriptionPath: AbsolutePath,
         plugins: Plugins,
-        projectDescriptionHelpersBuilder: ProjectDescriptionHelpersBuilding
-    ) throws -> [ProjectDescriptionHelpersModule] {
+        helpersBuilder: HelpersBuilding
+    ) throws -> [HelpersModule] {
         let loadedPluginHelpers = plugins.projectDescriptionHelpers.filter { $0.location == .remote }
-        return try projectDescriptionHelpersBuilder.buildPlugins(
+        return try helpersBuilder.buildPlugins(
             at: path,
-            projectDescriptionSearchPaths: ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath),
+            projectDescriptionSearchPaths: ModuleSearchPaths.paths(for: projectDescriptionPath),
             projectDescriptionHelperPlugins: loadedPluginHelpers
         )
     }
