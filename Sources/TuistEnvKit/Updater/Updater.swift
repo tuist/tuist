@@ -12,19 +12,19 @@ final class Updater: Updating {
     let versionsController: VersionsControlling
     let installer: Installing
     let envUpdater: EnvUpdating
-    let githubClient: GitHubClienting
+    let versionProvider: VersionProviding
 
     // MARK: - Init
 
     init(versionsController: VersionsControlling = VersionsController(),
          installer: Installing = Installer(),
          envUpdater: EnvUpdating = EnvUpdater(),
-         githubClient: GitHubClienting = GitHubClient())
+         versionProvider: VersionProviding = VersionProvider())
     {
         self.versionsController = versionsController
         self.installer = installer
         self.envUpdater = envUpdater
-        self.githubClient = githubClient
+        self.versionProvider = versionProvider
     }
 
     // MARK: - Internal
@@ -34,8 +34,7 @@ final class Updater: Updating {
             logger.info("Updating tuistenv", metadata: .section)
             try? self.envUpdater.update()
         }
-        let resource = GitHubRelease.latest(repositoryFullName: Constants.githubSlug)
-        guard let highestRemoteVersion = try githubClient.dispatch(resource: resource).toBlocking().first?.object.tagName else {
+        guard let highestRemoteVersion = try versionProvider.latestVersion().toBlocking().first else {
             logger.warning("No remote versions found")
             return
         }

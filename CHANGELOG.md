@@ -4,10 +4,36 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Fixed
+- settings-to-xcconfig migration command produces correct string format. [#3260](https://github.com/tuist/tuist/3260) by [@saim80](https://github.com/saim80)
+
+### Added
+
+- Allow to pass Cloud authentication token via TUIST_CLOUD_TOKEN even when not CI [#3380](https://github.com/tuist/tuist/pull/3380) by [@danyf90](https://github.com/danyf90)
+
+### Fixed
+
+- Fix caching of manifests that use plugins [#3370](https://github.com/tuist/tuist/pull/3370) by [@luispadron](https://github.com/luispadron)
+
+## 1.49.2
+
+### Fixed
+
+- `tuistenv` failing to fetch the latest version from `CHANGELOG.md`
+
+## 1.49.1
+
+### Fixed
+
+- `tuistenv` failing to fetch the latest version from `CHANGELOG.md`
+
+## 1.49.0
+
 ### Added
 
 - Add default `Release` caching profile [#3304](https://github.com/tuist/tuist/pull/3304) by [@danyf90](https://github.com/danyf90)
 - Add `--dependencies-only` parameter to `tuist cache warm` command [#3334](https://github.com/tuist/tuist/pull/3334) by [@danyf90](https://github.com/danyf90)
+- Add support for `excluding` parameter to `ResourceFileElement` [#3363](https://github.com/tuist/tuist/pull/3363) by [@danyf90](https://github.com/danyf90)
 
 ### Fixed
 
@@ -20,6 +46,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Fix for `./fourier bundle` command when `xcodeproj` or `xcworkspace` files are present [#3331](https://github.com/tuist/tuist/pull/3331) by [@danyf90](https://github.com/danyf90)
 - Fix for filtering logic for caching dependencies to include dependencies of filtered non-cacheable targets [#3333](https://github.com/tuist/tuist/pull/3333) by [@adellibovi](https://github.com/adellibovi)
 - Fix for importing Swift Package Manager binary targets from Dependency.swift [#3352](https://github.com/tuist/tuist/pull/3352) by [@danyf90](https://github.com/danyf90)
+- Fix for the `tuist edit` command when the `Tuist/Dependencies` directory contains "manifest-like" files (`Project.swift` or `Plugin.swift`). [#3359](https://github.com/tuist/tuist/pull/3359) by [@laxmorek](https://github.com/laxmorek)
 
 ### Changed
 

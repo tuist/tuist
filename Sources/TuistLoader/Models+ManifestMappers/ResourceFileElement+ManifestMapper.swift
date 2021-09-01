@@ -15,11 +15,19 @@ extension TuistGraph.ResourceFileElement {
                      generatorPaths: GeneratorPaths,
                      includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }) throws -> [TuistGraph.ResourceFileElement]
     {
-        func globFiles(_ path: AbsolutePath) throws -> [AbsolutePath] {
+        func globFiles(_ path: AbsolutePath, excluding: [String]) throws -> [AbsolutePath] {
             if FileHandler.shared.exists(path), !FileHandler.shared.isFolder(path) { return [path] }
+
+            var excluded: Set<AbsolutePath> = []
+            excluding.forEach { path in
+                let absolute = AbsolutePath(path)
+                let globs = AbsolutePath(absolute.dirname).glob(absolute.basename)
+                excluded.formUnion(globs)
+            }
 
             let files = try FileHandler.shared.throwingGlob(AbsolutePath.root, glob: String(path.pathString.dropFirst()))
                 .filter(includeFiles)
+                .filter { !excluded.contains($0) }
 
             if files.isEmpty {
                 if FileHandler.shared.isFolder(path) {
@@ -50,10 +58,11 @@ extension TuistGraph.ResourceFileElement {
         }
 
         switch manifest {
-        case let .glob(pattern: pattern, tags: tags):
+        case let .glob(pattern, excluding, tags):
             let resolvedPath = try generatorPaths.resolve(path: pattern)
-            return try globFiles(resolvedPath).map { ResourceFileElement.file(path: $0, tags: tags) }
-        case let .folderReference(path: folderReferencePath, tags: tags):
+            let excluding: [String] = try excluding.compactMap { try generatorPaths.resolve(path: $0).pathString }
+            return try globFiles(resolvedPath, excluding: excluding).map { ResourceFileElement.file(path: $0, tags: tags) }
+        case let .folderReference(folderReferencePath, tags):
             let resolvedPath = try generatorPaths.resolve(path: folderReferencePath)
             return folderReferences(resolvedPath).map { ResourceFileElement.folderReference(path: $0, tags: tags) }
         }

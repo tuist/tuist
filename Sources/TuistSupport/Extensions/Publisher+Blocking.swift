@@ -9,24 +9,40 @@ extension Publisher {
     public func toBlocking(timeout: DispatchTime = .now() + .seconds(10)) throws -> [Output] {
         // swiftlint:disable identifier_name
         let semaphore = DispatchSemaphore(value: 0)
-        var cancellables: Set<AnyCancellable> = Set()
         var values: [Output] = []
         var error: Error?
+        var cancellables: Set<AnyCancellable> = Set()
+        let synchronizationQueue = DispatchQueue(label: "io.tuist.support.blocking-publisher")
 
         sink { completion in
             switch completion {
-            case let .failure(_error): error = _error
-            default: break
+            case let .failure(_error):
+                synchronizationQueue.async {
+                    error = _error
+                    semaphore.signal()
+                }
+            default:
+                synchronizationQueue.async {
+                    semaphore.signal()
+                }
             }
-            semaphore.signal()
         } receiveValue: { value in
-            values.append(value)
+            synchronizationQueue.async {
+                values.append(value)
+            }
         }
         .store(in: &cancellables)
 
         _ = semaphore.wait(timeout: timeout)
-        if let error = error { throw error }
-        return values
-        // swiftlint:enable identifier_name
+
+        // By calling cancellables at this point we
+        // prevent ARC from releasing the set from memory
+        // and causing the publisher to be cancelled
+        cancellables.removeAll()
+
+        return try synchronizationQueue.sync { () throws -> [Output] in
+            if let error = error { throw error }
+            return values
+        }
     }
 }

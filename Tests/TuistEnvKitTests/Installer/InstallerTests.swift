@@ -10,16 +10,13 @@ final class InstallerTests: TuistUnitTestCase {
     var versionsController: MockVersionsController!
     var subject: Installer!
     var tmpDir: TemporaryDirectory!
-    var githubClient: MockGitHubClient!
 
     override func setUp() {
         super.setUp()
         buildCopier = MockBuildCopier()
         versionsController = try! MockVersionsController()
         tmpDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
-        githubClient = MockGitHubClient()
         subject = Installer(
-            githubClient: githubClient,
             buildCopier: buildCopier,
             versionsController: versionsController
         )
@@ -30,7 +27,6 @@ final class InstallerTests: TuistUnitTestCase {
         buildCopier = nil
         versionsController = nil
         tmpDir = nil
-        githubClient = nil
         subject = nil
     }
 
@@ -39,15 +35,7 @@ final class InstallerTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let downloadURL = URL(string: "https://test.com/tuist.zip")!
-
-        let githubRelease = GitHubRelease.test(name: version, tagName: "3.2.1", assets: [
-            .test(name: "tuist.zip", browserDownloadUrl: downloadURL),
-        ])
-        githubClient.stub(
-            GitHubRelease.release(repositoryFullName: Constants.githubSlug, version: version),
-            result: .success(githubRelease)
-        )
+        let downloadURL = URL(string: "https://github.com/tuist/tuist/releases/download/3.2.1/tuist.zip")!
 
         versionsController.installStub = { _, closure in
             try closure(temporaryPath)
@@ -88,15 +76,7 @@ final class InstallerTests: TuistUnitTestCase {
         let version = "3.2.1"
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let downloadURL = URL(string: "https://test.com/tuist.zip")!
-
-        let githubRelease = GitHubRelease.test(name: version, tagName: "3.2.1", assets: [
-            .test(name: "tuist.zip", browserDownloadUrl: downloadURL),
-        ])
-        githubClient.stub(
-            GitHubRelease.release(repositoryFullName: Constants.githubSlug, version: version),
-            result: .success(githubRelease)
-        )
+        let downloadURL = URL(string: "https://github.com/tuist/tuist/releases/download/3.2.1/tuist.zip")!
 
         versionsController.installStub = { _, closure in
             try closure(temporaryPath)
@@ -122,14 +102,7 @@ final class InstallerTests: TuistUnitTestCase {
         let version = "3.2.1"
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let downloadURL = URL(string: "https://test.com/tuist.zip")!
-        let githubRelease = GitHubRelease.test(name: version, tagName: "3.2.1", assets: [
-            .test(name: "tuist.zip", browserDownloadUrl: downloadURL),
-        ])
-        githubClient.stub(
-            GitHubRelease.release(repositoryFullName: Constants.githubSlug, version: version),
-            result: .success(githubRelease)
-        )
+        let downloadURL = URL(string: "https://github.com/tuist/tuist/releases/download/3.2.1/tuist.zip")!
 
         versionsController.installStub = { _, closure in
             try closure(temporaryPath)

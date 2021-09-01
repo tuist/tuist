@@ -63,5 +63,5 @@ They should link to the pull request and mention the author or authors of the ch
 The pipelines are designed to bring an extra level of confidence and validate that the changes are right.
 A red CI blocks the merge of the pull request.
 
-**✅ Merging:** A pull request is ready to be merged once there are at least 2 approvals from [Tuist core members](/contributors/core-team.md).
+**✅ Merging:** A pull request is ready to be merged once there are at least 2 approvals from [Tuist core members](/contributors/core-team).
 When merging a pull request, prefer to use `Squash and merge` to keep the git history cleaner.
