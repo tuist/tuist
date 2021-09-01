@@ -5,7 +5,7 @@
 #     tags:
 #       - '*'
 # env:
-#   RUBY_VERSION: '3.0.1'
+#   RUBY_VERSION: '3.0.2'
 
 # jobs:
 #   release:

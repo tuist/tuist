@@ -7,6 +7,11 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Allow to pass Cloud authentication token via TUIST_CLOUD_TOKEN even when not CI [#3380](https://github.com/tuist/tuist/pull/3380) by [@danyf90](https://github.com/danyf90)
+
+### Changed
+
+- Updated the required Ruby version to 3.0.2 [#3387](https://github.com/tuist/tuist/pull/3387) by [@apps4everyone](https://github.com/apps4everyone)
+
 ## 1.49.2
 
 ### Fixed

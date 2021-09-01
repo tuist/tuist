@@ -16,7 +16,7 @@ on:
       - .github/workflows/release-dry-run.yml
 
 env:
-  RUBY_VERSION: '3.0.1'
+  RUBY_VERSION: '3.0.2'
   TUIST_STATS_OPT_OUT: true
 
 jobs:
