@@ -14,6 +14,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Fix caching of manifests that use plugins [#3370](https://github.com/tuist/tuist/pull/3370) by [@luispadron](https://github.com/luispadron)
+- Fix linking of transitive precompiled static frameworks for unit test with a host app [#3357](https://github.com/tuist/tuist/pull/3357) by [@adellibovi](https://github.com/adellibovi), [@kwridan](https://github.com/kwridan)
 
 ## 1.49.2
 
