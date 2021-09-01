@@ -48,7 +48,7 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
         let testAction = ProjectDescription.TestAction.test(
             targets: ["B"],
             arguments: arguments,
-            config: .debug,
+            configuration: .debug,
             coverage: true
         )
         let manifest = ProjectDescription.Scheme.test(

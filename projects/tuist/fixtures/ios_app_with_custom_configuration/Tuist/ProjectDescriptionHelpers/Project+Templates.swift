@@ -120,8 +120,8 @@ extension Scheme {
             buildAction: BuildAction(targets: [
                 main
             ]),
-            testAction: TestAction(
-                targets: [
+            testAction: TestAction.targets(
+                [
                     TestableTarget(target: test)
                 ],
                 configurationName: "debug"

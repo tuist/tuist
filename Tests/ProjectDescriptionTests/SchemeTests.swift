@@ -12,7 +12,6 @@ final class SchemeTests: XCTestCase {
         // Given
         let buildAction = [ExecutionAction(title: "Run Script", scriptText: "echo build_action", target: TargetReference(projectPath: nil, target: "target"))]
         let testAction = [ExecutionAction(title: "Run Script", scriptText: "echo test_action", target: TargetReference(projectPath: nil, target: "target"))]
-
         let subject = Scheme(
             name: "scheme",
             shared: true,
@@ -21,13 +20,13 @@ final class SchemeTests: XCTestCase {
                 preActions: buildAction,
                 postActions: buildAction
             ),
-            testAction: TestAction(
-                targets: [.init(target: .init(projectPath: nil, target: "target"))],
+            testAction: TestAction.targets(
+                [TestableTarget.init(target: .init(projectPath: nil, target: "target"))],
                 arguments: Arguments(
                     environment: ["test": "b"],
                     launchArguments: [LaunchArgument(name: "test", isEnabled: true)]
                 ),
-                config: .debug,
+                configuration: .debug,
                 coverage: true,
                 preActions: testAction,
                 postActions: testAction
@@ -54,7 +53,6 @@ final class SchemeTests: XCTestCase {
         // Given / When
         let buildAction = [ExecutionAction(title: "Run Script", scriptText: "echo build_action", target: .init(projectPath: nil, target: "target"))]
         let testAction = [ExecutionAction(title: "Run Script", scriptText: "echo test_action", target: .init(projectPath: nil, target: "target"))]
-
         let subject = Scheme(
             name: "scheme",
             shared: true,
@@ -63,13 +61,13 @@ final class SchemeTests: XCTestCase {
                 preActions: buildAction,
                 postActions: buildAction
             ),
-            testAction: TestAction(
-                targets: [.init(target: .init(projectPath: nil, target: "target"))],
+            testAction: TestAction.targets(
+                [.init(target: .init(projectPath: nil, target: "target"))],
                 arguments: Arguments(
                     environment: ["test": "b"],
                     launchArguments: [LaunchArgument(name: "test", isEnabled: true)]
                 ),
-                config: .debug,
+                configuration: .debug,
                 coverage: true,
                 preActions: testAction,
                 postActions: testAction

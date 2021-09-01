@@ -3,7 +3,7 @@ import ProjectDescription
 let customAppScheme = Scheme(name: "Workspace-App",
                              shared: true,
                              buildAction: BuildAction(targets: [.project(path: "App", target: "App")], preActions: []),
-                             testAction: TestAction(targets: [TestableTarget(target: .project(path: "App", target: "AppTests")),
+                             testAction: TestAction.targets([TestableTarget(target: .project(path: "App", target: "AppTests")),
                                                               TestableTarget(target: .project(path: "Frameworks/Framework1", target: "Framework1Tests")),
                                                               TestableTarget(target: .project(path: "Frameworks/Framework2", target: "Framework2Tests"))]),
                              runAction: RunAction(executable: .project(path: "App", target: "App")),
@@ -19,7 +19,7 @@ let customAppSchemeWithTestPlans = Scheme(name: "Workspace-App-With-TestPlans",
 let customFrameworkScheme = Scheme(name: "Workspace-Framework",
                                    shared: true,
                                    buildAction: BuildAction(targets: [.project(path: "Frameworks/Framework1", target: "Framework1")], preActions: []),
-                                   testAction: TestAction(targets: [TestableTarget(target: .project(path: "Frameworks/Framework1", target: "Framework1Tests"))]),
+                                   testAction: TestAction.targets([TestableTarget(target: .project(path: "Frameworks/Framework1", target: "Framework1Tests"))]),
                                    archiveAction: ArchiveAction(configurationName: "Debug", customArchiveName: "Something2"))
 
 let workspace = Workspace(name: "Workspace",

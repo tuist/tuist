@@ -141,13 +141,13 @@ extension BuildAction {
 extension TestAction {
     public static func test(targets: [TestableTarget] = [],
                             arguments: Arguments? = nil,
-                            config: PresetBuildConfiguration = .debug,
+                            configuration: PresetBuildConfiguration = .debug,
                             coverage: Bool = true) -> TestAction
     {
-        TestAction(
-            targets: targets,
+        TestAction.targets(
+            targets,
             arguments: arguments,
-            config: config,
+            configuration: configuration,
             coverage: coverage,
             preActions: [ExecutionAction.test()],
             postActions: [ExecutionAction.test()]
