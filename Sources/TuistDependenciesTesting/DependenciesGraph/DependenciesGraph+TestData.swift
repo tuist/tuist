@@ -68,7 +68,12 @@ public extension TuistCore.DependenciesGraph {
                                 ),
                             ],
                             resources: [
-                                "\(packageFolder.pathString)/customPath/resources/**",
+                                .glob(
+                                    pattern: "\(packageFolder.pathString)/customPath/resources/**",
+                                    excluding: [
+                                        "\(packageFolder.pathString)/customPath/excluded/sources/**"
+                                    ], tags: []
+                                ),
                             ],
                             dependencies: [
                                 .target(name: "TuistKit"),
