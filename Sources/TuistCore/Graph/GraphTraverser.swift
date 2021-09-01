@@ -319,7 +319,7 @@ public class GraphTraverser: GraphTraversing {
                 target.target.product == .unitTests,
                 let hostApp = hostApplication(path: path, name: name)
             {
-                hostApplicationStaticTargets = self.transitiveStaticTargets(from: .target(name: hostApp.target.name, path: hostApp.project.path))
+                hostApplicationStaticTargets = self.transitiveStaticDependencies(from: .target(name: hostApp.target.name, path: hostApp.project.path))
             } else {
                 hostApplicationStaticTargets = Set()
             }
@@ -548,6 +548,14 @@ public class GraphTraverser: GraphTraversing {
     func transitiveStaticTargets(from dependency: GraphDependency) -> Set<GraphDependency> {
         filterDependencies(
             from: dependency,
+            test: isDependencyStaticTarget,
+            skip: canDependencyLinkStaticProducts
+        )
+    }
+
+    func transitiveStaticDependencies(from dependency: GraphDependency) -> Set<GraphDependency> {
+        filterDependencies(
+            from: dependency,
             test: isDependencyStatic,
             skip: canDependencyLinkStaticProducts
         )
@@ -582,6 +590,21 @@ public class GraphTraverser: GraphTraversing {
         case .bundle: return false
         case .packageProduct: return false
         case .target: return false
+        case .sdk: return false
+        case .cocoapods: return false
+        }
+    }
+
+    func isDependencyStaticTarget(dependency: GraphDependency) -> Bool {
+        switch dependency {
+        case .xcframework: return false
+        case .framework: return false
+        case .library: return false
+        case .bundle: return false
+        case .packageProduct: return false
+        case let .target(name, path):
+            guard let target = self.target(path: path, name: name) else { return false }
+            return target.target.product.isStatic
         case .sdk: return false
         case .cocoapods: return false
         }
