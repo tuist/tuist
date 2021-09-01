@@ -72,7 +72,8 @@ public extension TuistCore.DependenciesGraph {
                                     pattern: "\(packageFolder.pathString)/customPath/resources/**",
                                     excluding: [
                                         "\(packageFolder.pathString)/customPath/excluded/sources/**",
-                                    ], tags: []
+                                    ],
+                                    tags: []
                                 ),
                             ],
                             dependencies: [
