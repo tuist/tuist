@@ -19,17 +19,6 @@ public struct Template: Codable, Equatable {
         dumpIfNeeded(self)
     }
 
-    @available(*, deprecated, message: "Use init with `items: [Item]` instead")
-    public init(description: String,
-                attributes: [Attribute] = [],
-                files: [Item] = [])
-    {
-        self.description = description
-        self.attributes = attributes
-        items = files
-        dumpIfNeeded(self)
-    }
-
     /// Enum containing information about how to generate item
     public enum Contents: Codable, Equatable {
         /// String Contents is defined in `name_of_template.swift` and contains a simple `String`

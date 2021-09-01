@@ -50,18 +50,10 @@ final class TargetDependencyTests: XCTestCase {
     func test_xcframework_codable() {
         // Given
         let subject: [TargetDependency] = [
-            .xcFramework(path: "/path/framework.xcframework"),
             .xcframework(path: "/path/framework.xcframework"),
         ]
 
         // Then
         XCTAssertCodable(subject)
-    }
-
-    func test_xcframework_migration() {
-        XCTAssertEqual(
-            TargetDependency.xcFramework(path: "/path/framework.xcframework"),
-            TargetDependency.xcframework(path: "/path/framework.xcframework")
-        )
     }
 }

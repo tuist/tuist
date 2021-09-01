@@ -13,7 +13,7 @@ let templateFour = Template(
         nameAttributeFour,
         platformAttributeFour
     ],
-    files: [
+    items: [
         .string(path: "\(nameAttributeFour)/custom.swift", contents: testContentsFour),
         .file(path: "\(nameAttributeFour)/generated.swift", templatePath: "platform_four.stencil"),
         .directory(path: "\(nameAttributeFour)",sourcePath: "sourceFolder")

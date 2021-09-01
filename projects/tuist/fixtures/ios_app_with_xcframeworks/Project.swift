@@ -13,8 +13,7 @@ let project = Project(name: "App",
                                        // "Resources/**"
                                ],
                                dependencies: [
-                                    // .xcFramework is deprecated, .xcframework (all lower case) is the repalcement
-                                    .xcFramework(path: "Frameworks/MyFramework/prebuilt/MyFramework.xcframework"),
+                                    .xcframework(path: "Frameworks/MyFramework/prebuilt/MyFramework.xcframework"),
                                     .xcframework(path: "Frameworks/MyStaticLibrary/prebuilt/MyStaticLibrary.xcframework")
                                 ]),
                         Target(name: "AppTests",

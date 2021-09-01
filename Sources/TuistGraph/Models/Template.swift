@@ -14,18 +14,6 @@ public struct Template: Equatable {
         self.items = items
     }
 
-    @available(*, deprecated, message: "Use init with `items: [Item]` instead")
-    public init(description: String,
-                attributes: [Attribute] = [],
-                files: [Item] = [])
-    {
-        self.init(
-            description: description,
-            attributes: attributes,
-            items: files
-        )
-    }
-
     public enum Attribute: Equatable {
         case required(String)
         case optional(String, default: String)
