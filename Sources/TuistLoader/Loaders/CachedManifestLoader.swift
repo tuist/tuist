@@ -23,9 +23,8 @@ public class CachedManifestLoader: ManifestLoading {
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
     @Atomic private var helpersCache: [AbsolutePath: String?] = [:]
-    @Atomic private var pluginsCache: [AbsolutePath: String?] = [:]
+    @Atomic private var pluginsHashCache: String?
     @Atomic private var cacheDirectory: AbsolutePath!
-    @Atomic private var plugins: Plugins?
 
     public convenience init(manifestLoader: ManifestLoading = ManifestLoader()) {
         let environment = TuistSupport.Environment.shared
@@ -106,9 +105,9 @@ public class CachedManifestLoader: ManifestLoading {
         manifestLoader.manifests(at: path)
     }
 
-    public func register(plugins: Plugins) {
-        self.plugins = plugins
-        manifestLoader.register(plugins: plugins)
+    public func register(plugins: Plugins) throws {
+        pluginsHashCache = try calculatePluginsHash(for: plugins)
+        try manifestLoader.register(plugins: plugins)
     }
 
     // MARK: - Private
@@ -163,13 +162,12 @@ public class CachedManifestLoader: ManifestLoading {
     {
         let manifestHash = try calculateManifestHash(for: manifest, at: manifestPath)
         let helpersHash = try calculateHelpersHash(at: path)
-        let pluginsHash = try calculatePluginsHash(at: path)
         let environmentHash = calculateEnvironmentHash()
 
         return Hashes(
             manifestHash: manifestHash,
             helpersHash: helpersHash,
-            pluginsHash: pluginsHash,
+            pluginsHash: pluginsHashCache,
             environmentHash: environmentHash
         )
     }
@@ -196,26 +194,11 @@ public class CachedManifestLoader: ManifestLoading {
         return hash
     }
 
-    private func calculatePluginsHash(at path: AbsolutePath) throws -> String? {
-        guard let plugins = plugins else {
-            return nil
-        }
-
-        if let cached = pluginsCache[path] {
-            return cached
-        }
-
-        let projectDescriptionHelpersHash = try plugins.projectDescriptionHelpers
+    private func calculatePluginsHash(for plugins: Plugins) throws -> String? {
+        return try plugins.projectDescriptionHelpers
             .map { try projectDescriptionHelpersHasher.hash(helpersDirectory: $0.path) }
             .joined(separator: "-")
             .md5
-
-        let pluginsHash = [
-            projectDescriptionHelpersHash,
-        ].joined(separator: "-").md5
-
-        pluginsCache[path] = pluginsHash
-        return pluginsHash
     }
 
     private func calculateEnvironmentHash() -> String? {

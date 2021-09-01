@@ -78,7 +78,7 @@ final class ManifestGraphLoader: ManifestGraphLoading {
     func loadPlugins(at path: AbsolutePath) throws -> Plugins {
         let config = try configLoader.loadConfig(path: path)
         let plugins = try pluginsService.loadPlugins(using: config)
-        manifestLoader.register(plugins: plugins)
+        try manifestLoader.register(plugins: plugins)
         return plugins
     }
 
