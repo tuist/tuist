@@ -22,10 +22,10 @@ public class CachedManifestLoader: ManifestLoading {
     private let tuistVersion: String
     private let decoder = JSONDecoder()
     private let encoder = JSONEncoder()
-    private var helpersCache: [AbsolutePath: String?] = [:]
-    private var pluginsCache: [AbsolutePath: String?] = [:]
-    private var cacheDirectory: AbsolutePath!
-    private var plugins: Plugins?
+    @Atomic private var helpersCache: [AbsolutePath: String?] = [:]
+    @Atomic private var pluginsCache: [AbsolutePath: String?] = [:]
+    @Atomic private var cacheDirectory: AbsolutePath!
+    @Atomic private var plugins: Plugins?
 
     public convenience init(manifestLoader: ManifestLoading = ManifestLoader()) {
         let environment = TuistSupport.Environment.shared
