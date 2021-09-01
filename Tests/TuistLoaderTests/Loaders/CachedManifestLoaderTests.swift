@@ -324,7 +324,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         ])
 
         projectDescriptionHelpersHasher.stubHash = { _ in hash }
-        subject.register(plugins: plugins)
+        try subject.register(plugins: plugins)
     }
 
     private func corruptFiles(at path: AbsolutePath) throws {
