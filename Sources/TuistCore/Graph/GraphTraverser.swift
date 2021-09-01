@@ -315,9 +315,10 @@ public class GraphTraverser: GraphTraversing {
             // Exclude any static products linked in a host application
             // however, for search paths it's fine to keep them included
             let hostApplicationStaticTargets: Set<GraphDependency>
-            if target.target.product == .unitTests && shouldExcludeHostAppDependencies,
-                let hostApp = hostApplication(path: path, name: name) {
-                hostApplicationStaticTargets = self.transitiveStaticDependencies(from: .target(name: hostApp.target.name, path: hostApp.project.path))
+            if target.target.product == .unitTests, shouldExcludeHostAppDependencies,
+                let hostApp = hostApplication(path: path, name: name)
+            {
+                hostApplicationStaticTargets = transitiveStaticDependencies(from: .target(name: hostApp.target.name, path: hostApp.project.path))
             } else {
                 hostApplicationStaticTargets = Set()
             }
@@ -594,18 +595,9 @@ public class GraphTraverser: GraphTraversing {
     }
 
     func isDependencyStaticTarget(dependency: GraphDependency) -> Bool {
-        switch dependency {
-        case .xcframework: return false
-        case .framework: return false
-        case .library: return false
-        case .bundle: return false
-        case .packageProduct: return false
-        case let .target(name, path):
-            guard let target = self.target(path: path, name: name) else { return false }
-            return target.target.product.isStatic
-        case .sdk: return false
-        case .cocoapods: return false
-        }
+        guard case let GraphDependency.target(name, path) = dependency,
+            let target = self.target(path: path, name: name) else { return false }
+        return target.target.product.isStatic
     }
 
     func isDependencyStatic(dependency: GraphDependency) -> Bool {

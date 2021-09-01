@@ -318,7 +318,7 @@ final class MockGraphTraverser: GraphTraversing {
         return stubbedLinkableDependenciesResult
     }
 
-    func searchablePathDependencies(path: AbsolutePath, name: String) throws -> Set<GraphDependencyReference> {
+    func searchablePathDependencies(path _: AbsolutePath, name _: String) throws -> Set<GraphDependencyReference> {
         fatalError()
     }
 
