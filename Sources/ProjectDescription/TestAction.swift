@@ -92,7 +92,7 @@ public struct TestAction: Equatable, Codable {
                                region: String? = nil) -> Self
     {
         Self(
-            testPlans: [],
+            testPlans: nil,
             targets: targets,
             arguments: arguments,
             configurationName: configuration.name,
