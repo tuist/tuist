@@ -111,7 +111,7 @@ class Generator: Generating {
 
         // Load Plugins
         let plugins = try pluginsService.loadPlugins(using: config)
-        manifestLoader.register(plugins: plugins)
+        try manifestLoader.register(plugins: plugins)
 
         // Load DependenciesGraph
         let dependenciesGraph = try dependenciesGraphController.load(at: path)
@@ -239,7 +239,7 @@ class Generator: Generating {
 
         // Load Plugins
         let plugins = try pluginsService.loadPlugins(using: config)
-        manifestLoader.register(plugins: plugins)
+        try manifestLoader.register(plugins: plugins)
 
         // Load DependenciesGraph
         let dependenciesGraph = try dependenciesGraphController.load(at: path)
@@ -301,7 +301,7 @@ class Generator: Generating {
 
         // Load Plugins
         let plugins = try pluginsService.loadPlugins(using: config)
-        manifestLoader.register(plugins: plugins)
+        try manifestLoader.register(plugins: plugins)
 
         // Load DependenciesGraph
         let dependenciesGraph = try dependenciesGraphController.load(at: path)
