@@ -21,7 +21,7 @@ final class SchemeTests: XCTestCase {
                 postActions: buildAction
             ),
             testAction: TestAction.targets(
-                [TestableTarget.init(target: .init(projectPath: nil, target: "target"))],
+                [TestableTarget(target: .init(projectPath: nil, target: "target"))],
                 arguments: Arguments(
                     environment: ["test": "b"],
                     launchArguments: [LaunchArgument(name: "test", isEnabled: true)]

@@ -4,40 +4,40 @@ import Foundation
 public struct TestAction: Equatable, Codable {
     /// List of test plans. The first in the list will be the default plan.
     public let testPlans: [Path]?
-    
+
     /// List of targets to be tested.
     public let targets: [TestableTarget]
-    
+
     /// Arguments passed to the process running the tests.
     public let arguments: Arguments?
-    
+
     /// Name of the configuration that should be used for building the test targets.
     public let configurationName: String
-    
+
     /// True to collect the test coverage results.
     public let coverage: Bool
-    
+
     /// List of targets for which Xcode will collect the coverage results.
     public let codeCoverageTargets: [TargetReference]
-    
+
     /// Set the target that will expand the variables for
     public let expandVariableFromTarget: TargetReference?
-    
+
     /// List of actions to be executed before running the tests.
     public let preActions: [ExecutionAction]
-    
+
     /// List of actions to be executed after running the tests.
     public let postActions: [ExecutionAction]
-    
+
     /// Language.
     public let language: SchemeLanguage?
-    
+
     /// Region.
     public let region: String?
-    
+
     /// Diagnostics options.
     public let diagnosticsOptions: [SchemeDiagnosticsOption]
-    
+
     private init(testPlans: [Path]?,
                  targets: [TestableTarget],
                  arguments: Arguments?,
@@ -64,7 +64,7 @@ public struct TestAction: Equatable, Codable {
         self.language = language
         self.region = region
     }
-    
+
     /// Initializes a test action using a list of targets.
     /// - Parameters:
     ///   - targets: List of targets to be tested.
@@ -87,7 +87,7 @@ public struct TestAction: Equatable, Codable {
                                expandVariableFromTarget: TargetReference? = nil,
                                preActions: [ExecutionAction] = [],
                                postActions: [ExecutionAction] = [],
-                               diagnosticsOptions: [SchemeDiagnosticsOption] = [],
+                               diagnosticsOptions _: [SchemeDiagnosticsOption] = [],
                                language: SchemeLanguage? = nil,
                                region: String? = nil) -> Self
     {
@@ -106,7 +106,7 @@ public struct TestAction: Equatable, Codable {
             region: region
         )
     }
-    
+
     /// Initializes a test action using a list of test plans.
     /// - Parameters:
     ///   - testPlans: List of test plans to run.
@@ -129,7 +129,7 @@ public struct TestAction: Equatable, Codable {
                                  expandVariableFromTarget: TargetReference? = nil,
                                  preActions: [ExecutionAction] = [],
                                  postActions: [ExecutionAction] = [],
-                                 diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker],
+                                 diagnosticsOptions _: [SchemeDiagnosticsOption] = [.mainThreadChecker],
                                  language: SchemeLanguage? = nil,
                                  region: String? = nil) -> Self
     {
