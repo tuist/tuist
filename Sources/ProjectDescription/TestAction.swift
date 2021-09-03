@@ -101,7 +101,7 @@ public struct TestAction: Equatable, Codable {
             expandVariableFromTarget: expandVariableFromTarget,
             preActions: preActions,
             postActions: postActions,
-            diagnosticsOptions: [.mainThreadChecker],
+            diagnosticsOptions: diagnosticsOptions,
             language: language,
             region: region
         )
