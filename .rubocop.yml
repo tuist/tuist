@@ -15,7 +15,7 @@ Lint/MissingSuper:
 
 AllCops:
   NewCops: enable
-  TargetRubyVersion: 2.5
+  TargetRubyVersion: 3.0.2
   DisplayCopNames: true
   DisplayStyleGuide: true
   Include:
