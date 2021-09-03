@@ -37,7 +37,6 @@ module.exports = {
         'commands/graph',
         'commands/up',
         'commands/migration',
-        'commands/documentation',
         'commands/secrets',
         'commands/clean',
         'commands/dependencies',
