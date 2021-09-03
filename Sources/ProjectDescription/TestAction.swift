@@ -87,7 +87,7 @@ public struct TestAction: Equatable, Codable {
                                expandVariableFromTarget: TargetReference? = nil,
                                preActions: [ExecutionAction] = [],
                                postActions: [ExecutionAction] = [],
-                               diagnosticsOptions _: [SchemeDiagnosticsOption] = [],
+                               diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker],
                                language: SchemeLanguage? = nil,
                                region: String? = nil) -> Self
     {
