@@ -15,7 +15,9 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - **Breaking** simplified `TestAction`'s methods for creating an instance.
   - **Motivation:** there was some redundancy across all the methods to initialize a `TestAction`. To ease its usage, we've simplified all of them into a single method. It takes the test plans as an array of `Path`s and the configuration as an instance of `PresetBuildConfiguration`. We've also made the `init` constructor internal to have the flexibility to change the signature without introducing breaking changes.
   - **Migration:** In those places where you are initializing a `TestAction`, update the code to use either the `.testActions` or the `.targets` methods.
-
+- **Breaking** removed the `tuist doc` command. [#3401](https://github.com/tuist/tuist/pull/3401) by [@pepibumur](https://github.com/pepibumur)
+  - **Motivation:** the command was barely used so we are removing it to reduce the maintenance burden and reduce the binary size.
+  - **Migration:** you can use Tuist tasks or [Fastlane](https://github.com/fastlane/fastlane) to run [swift-doc](https://github.com/SwiftDocOrg/swift-doc) and generate documentation from your generated projects.
 ## Next
 
 ### Fixed
