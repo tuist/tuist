@@ -4,13 +4,13 @@ let debugAction = ExecutionAction(scriptText: "echo Debug", target: "App")
 let debugScheme = Scheme(
     name: "App-Debug",
     shared: true,
-    buildAction: BuildAction(
+    buildAction: .buildAction(
         targets: ["App"], 
         preActions: [debugAction], 
         runPostActionsOnFailure: true
     ),
     testAction: TestAction.targets(["AppTests"]),
-    runAction: RunAction(
+    runAction: .runAction(
         executable: "App", 
         options: .options(simulatedLocation: .johannesburg)
     )
@@ -19,15 +19,15 @@ let debugScheme = Scheme(
 let releaseAction = ExecutionAction(scriptText: "echo Release", target: "App")
 let releaseScheme = Scheme(name: "App-Release",
                            shared: true,
-                           buildAction: BuildAction(targets: ["App"], preActions: [releaseAction]),
+                           buildAction: .buildAction(targets: ["App"], preActions: [releaseAction]),
                            testAction: TestAction.targets(["AppTests"]),
-                           runAction: RunAction(executable: "App", options: .options(simulatedLocation: .custom(gpxFile: "Resources/Grand Canyon.gpx"))))
+                           runAction: .runAction(executable: "App", options: .options(simulatedLocation: .custom(gpxFile: "Resources/Grand Canyon.gpx"))))
 
 let userScheme = Scheme(name: "App-Local",
                         shared: false,
-                        buildAction: BuildAction(targets: ["App"], preActions: [debugAction]),
+                        buildAction: .buildAction(targets: ["App"], preActions: [debugAction]),
                         testAction: TestAction.targets(["AppTests"]),
-                        runAction: RunAction(executable: "App"))
+                        runAction: .runAction(executable: "App"))
 
 let project = Project(name: "MainApp",
                       targets: [

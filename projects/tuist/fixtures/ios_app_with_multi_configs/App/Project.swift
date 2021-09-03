@@ -12,11 +12,11 @@ let settings = Settings(base: [
 
 let betaScheme = Scheme(name: "App-Beta",
                         shared: true,
-                        buildAction: BuildAction(targets: ["App"]),
-                        runAction: RunAction(configurationName: "Beta", executable: "App"),
-                        archiveAction: ArchiveAction(configurationName: "Beta"),
-                        profileAction: ProfileAction(configurationName: "Release", executable: "App"),
-                        analyzeAction: AnalyzeAction(configurationName: "Debug"))
+                        buildAction: .buildAction(targets: ["App"]),
+                        runAction: .runAction(configurationName: "Beta", executable: "App"),
+                        archiveAction: .archiveAction(configurationName: "Beta"),
+                        profileAction: .profileAction(configurationName: "Release", executable: "App"),
+                        analyzeAction: .analyzeAction(configurationName: "Debug"))
 
 let project = Project(name: "MainApp",
                       settings: settings,
