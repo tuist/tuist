@@ -27,7 +27,7 @@ env:
 jobs:
   build:
     name: Build with Xcode ${{ matrix.xcode }}
-    runs-on: macos-latest
+    runs-on: macOS-11
     strategy:
       matrix:
         xcode: ['12.5.1']
@@ -53,7 +53,7 @@ jobs:
           ./fourier build tuist all
   test:
     name: Test with Xcode ${{ matrix.xcode }}
-    runs-on: macos-latest
+    runs-on: macOS-11
     strategy:
       matrix:
         xcode: ['12.5.1']

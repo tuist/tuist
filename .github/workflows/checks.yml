@@ -27,7 +27,7 @@ env:
 jobs:
   format:
     name: Format code with Xcode ${{ matrix.xcode }}
-    runs-on: macos-latest
+    runs-on: macOS-11
     strategy:
       matrix:
         xcode: ['12.5.1']
@@ -52,7 +52,7 @@ jobs:
         run: ./fourier format swift
   lint:
     name: Lint code with Xcode ${{ matrix.xcode }}
-    runs-on: macos-latest
+    runs-on: macOS-11
     strategy:
       matrix:
         xcode: ['12.5.1']
@@ -79,7 +79,7 @@ jobs:
         run: ./fourier lint all
   lint_lockfiles:
     name: Lint lockfiles
-    runs-on: macos-latest
+    runs-on: macOS-11
     strategy:
       matrix:
         xcode: ['12.5.1']
