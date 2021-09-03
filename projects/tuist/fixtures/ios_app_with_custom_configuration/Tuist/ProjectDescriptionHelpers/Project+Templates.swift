@@ -124,7 +124,7 @@ extension Scheme {
                 [
                     TestableTarget(target: test)
                 ],
-                configurationName: "debug"
+                configuration: .custom("debug")
             ),
             runAction: RunAction(
                 configurationName: "debug",

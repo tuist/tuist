@@ -122,30 +122,23 @@ public struct TestAction: Equatable, Codable {
     ///   - region: The region to be used.
     /// - Returns: An initialized test action.
     public static func testPlans(_ testPlans: [Path],
-                                 arguments: Arguments? = nil,
                                  configuration: PresetBuildConfiguration = .debug,
-                                 coverage: Bool = false,
-                                 codeCoverageTargets: [TargetReference] = [],
-                                 expandVariableFromTarget: TargetReference? = nil,
                                  preActions: [ExecutionAction] = [],
-                                 postActions: [ExecutionAction] = [],
-                                 diagnosticsOptions _: [SchemeDiagnosticsOption] = [.mainThreadChecker],
-                                 language: SchemeLanguage? = nil,
-                                 region: String? = nil) -> Self
+                                 postActions: [ExecutionAction] = []) -> Self
     {
         Self(
             testPlans: testPlans,
             targets: [],
-            arguments: arguments,
+            arguments: nil,
             configurationName: configuration.name,
-            coverage: coverage,
-            codeCoverageTargets: codeCoverageTargets,
-            expandVariableFromTarget: expandVariableFromTarget,
+            coverage: false,
+            codeCoverageTargets: [],
+            expandVariableFromTarget: nil,
             preActions: preActions,
             postActions: postActions,
             diagnosticsOptions: [.mainThreadChecker],
-            language: language,
-            region: region
+            language: nil,
+            region: nil
         )
     }
 }
