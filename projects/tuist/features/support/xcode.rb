@@ -13,8 +13,7 @@ module Xcode
   def self.projects(workspace_path)
     workspace(workspace_path)
       .file_references
-      .filter { |f| f.path.include?(".xcodeproj") }
-      .map { |f| File.join(File.dirname(workspace_path), f.path) }
+      .filter_map { |f| File.join(File.dirname(workspace_path), f.path) if f.path.include?(".xcodeproj") }
       .map { |p| Xcodeproj::Project.open(p) }
   end
 
