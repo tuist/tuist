@@ -7,6 +7,11 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Allow to pass Cloud authentication token via TUIST_CLOUD_TOKEN even when not CI [#3380](https://github.com/tuist/tuist/pull/3380) by [@danyf90](https://github.com/danyf90)
+
+### Changed
+
+- **Breaking** Minimum supported Xcode version bumped to 12.4.
+
 ## 1.49.2
 
 ### Fixed

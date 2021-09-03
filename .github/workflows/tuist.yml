@@ -63,7 +63,7 @@ jobs:
     runs-on: macOS-latest
     strategy:
       matrix:
-        xcode: ['12.2', '12.4', '12.5.1'] # keep 12.2 to ensure backwards compatibility
+        xcode: ['12.4', '12.5.1', '13.0'] # keep 12.2 to ensure backwards compatibility
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
