@@ -136,7 +136,7 @@ extension TuistTestCase {
     {
         let targets = try manifest.targets.map { try TestableTarget.from(manifest: $0, generatorPaths: generatorPaths) }
         XCTAssertEqual(testAction.targets, targets, file: file, line: line)
-        XCTAssertTrue(testAction.configurationName == manifest.configurationName, file: file, line: line)
+        XCTAssertTrue(testAction.configurationName == manifest.configuration.rawValue, file: file, line: line)
         XCTAssertEqual(testAction.coverage, manifest.coverage, file: file, line: line)
         try optionalAssert(testAction.arguments, manifest.arguments) {
             assert(arguments: $0, matches: $1, file: file, line: line)
@@ -157,7 +157,7 @@ extension TuistTestCase {
             file: file,
             line: line
         )
-        XCTAssertTrue(runAction.configurationName == manifest.configurationName, file: file, line: line)
+        XCTAssertTrue(runAction.configurationName == manifest.configuration.rawValue, file: file, line: line)
         try optionalAssert(runAction.arguments, manifest.arguments) {
             self.assert(arguments: $0, matches: $1, file: file, line: line)
         }

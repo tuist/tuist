@@ -61,7 +61,7 @@ extension TuistGraph.TestAction {
             testPlans = nil
         }
 
-        let configurationName = manifest.configurationName
+        let configurationName = manifest.configuration.rawValue
         let preActions = try manifest.preActions.map { try TuistGraph.ExecutionAction.from(
             manifest: $0,
             generatorPaths: generatorPaths

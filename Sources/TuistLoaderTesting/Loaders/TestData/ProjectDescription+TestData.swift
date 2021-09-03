@@ -141,7 +141,7 @@ extension BuildAction {
 extension TestAction {
     public static func test(targets: [TestableTarget] = [],
                             arguments: Arguments? = nil,
-                            configuration: PresetBuildConfiguration = .debug,
+                            configuration: ConfigurationName = .debug,
                             coverage: Bool = true) -> TestAction
     {
         TestAction.targets(
@@ -156,12 +156,12 @@ extension TestAction {
 }
 
 extension RunAction {
-    public static func test(config: PresetBuildConfiguration = .debug,
+    public static func test(configuration: ConfigurationName = .debug,
                             executable: TargetReference? = nil,
                             arguments: Arguments? = nil) -> RunAction
     {
         RunAction(
-            config: config,
+            configuration: configuration,
             executable: executable,
             arguments: arguments
         )

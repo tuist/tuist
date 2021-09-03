@@ -3,7 +3,7 @@ import Foundation
 /// It represents the test action of a scheme.
 public struct RunAction: Equatable, Codable {
     /// Name of the configuration that should be used for building the runnable targets.
-    public let configurationName: String
+    public let configuration: ConfigurationName
 
     /// Executable that will be run.
     public let executable: TargetReference?
@@ -17,20 +17,13 @@ public struct RunAction: Equatable, Codable {
     /// Diagnostics options.
     public let diagnosticsOptions: [SchemeDiagnosticsOption]
 
-    /// Initializes a new instance of a run action.
-    /// - Parameters:
-    ///   - configurationName: Name of the configuration that should be used for building the runnable targets.
-    ///   - executable: Executable that will be run.
-    ///   - arguments: Arguments passed to the process running the app.
-    ///   - options: Run action options.
-    ///   - diagnosticsOptions: Diagnostics options.
-    public init(configurationName: String,
-                executable: TargetReference? = nil,
-                arguments: Arguments? = nil,
-                options: RunActionOptions = .options(),
-                diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker])
+    init(configuration: ConfigurationName,
+         executable: TargetReference? = nil,
+         arguments: Arguments? = nil,
+         options: RunActionOptions = .options(),
+         diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker])
     {
-        self.configurationName = configurationName
+        self.configuration = configuration
         self.executable = executable
         self.arguments = arguments
         self.options = options
@@ -39,19 +32,20 @@ public struct RunAction: Equatable, Codable {
 
     /// Initializes a new instance of a run action.
     /// - Parameters:
-    ///   - config: Configuration that should be used for building the test targets.
+    ///   - configuration: Name of the configuration that should be used for building the runnable targets.
     ///   - executable: Executable that will be run.
     ///   - arguments: Arguments passed to the process running the app.
     ///   - options: Run action options.
     ///   - diagnosticsOptions: Diagnostics options.
-    public init(config: PresetBuildConfiguration = .debug,
-                executable: TargetReference? = nil,
-                arguments: Arguments? = nil,
-                options: RunActionOptions = .options(),
-                diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker])
+    /// - Returns: Run action.
+    public static func runAction(configuration: ConfigurationName,
+                                 executable: TargetReference? = nil,
+                                 arguments: Arguments? = nil,
+                                 options: RunActionOptions = .options(),
+                                 diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker]) -> RunAction
     {
-        self.init(
-            configurationName: config.name,
+        return RunAction(
+            configuration: configuration,
             executable: executable,
             arguments: arguments,
             options: options,

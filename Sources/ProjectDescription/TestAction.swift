@@ -12,7 +12,7 @@ public struct TestAction: Equatable, Codable {
     public let arguments: Arguments?
 
     /// Name of the configuration that should be used for building the test targets.
-    public let configurationName: String
+    public let configuration: ConfigurationName
 
     /// True to collect the test coverage results.
     public let coverage: Bool
@@ -41,7 +41,7 @@ public struct TestAction: Equatable, Codable {
     private init(testPlans: [Path]?,
                  targets: [TestableTarget],
                  arguments: Arguments?,
-                 configurationName: String,
+                 configuration: ConfigurationName,
                  coverage: Bool,
                  codeCoverageTargets: [TargetReference],
                  expandVariableFromTarget: TargetReference?,
@@ -54,7 +54,7 @@ public struct TestAction: Equatable, Codable {
         self.testPlans = testPlans
         self.targets = targets
         self.arguments = arguments
-        self.configurationName = configurationName
+        self.configuration = configuration
         self.coverage = coverage
         self.preActions = preActions
         self.postActions = postActions
@@ -81,7 +81,7 @@ public struct TestAction: Equatable, Codable {
     /// - Returns: An initialized test action.
     public static func targets(_ targets: [TestableTarget],
                                arguments: Arguments? = nil,
-                               configuration: PresetBuildConfiguration = .debug,
+                               configuration: ConfigurationName = .debug,
                                coverage: Bool = false,
                                codeCoverageTargets: [TargetReference] = [],
                                expandVariableFromTarget: TargetReference? = nil,
@@ -95,7 +95,7 @@ public struct TestAction: Equatable, Codable {
             testPlans: nil,
             targets: targets,
             arguments: arguments,
-            configurationName: configuration.name,
+            configuration: configuration,
             coverage: coverage,
             codeCoverageTargets: codeCoverageTargets,
             expandVariableFromTarget: expandVariableFromTarget,
@@ -122,7 +122,7 @@ public struct TestAction: Equatable, Codable {
     ///   - region: The region to be used.
     /// - Returns: An initialized test action.
     public static func testPlans(_ testPlans: [Path],
-                                 configuration: PresetBuildConfiguration = .debug,
+                                 configuration: ConfigurationName = .debug,
                                  preActions: [ExecutionAction] = [],
                                  postActions: [ExecutionAction] = []) -> Self
     {
@@ -130,7 +130,7 @@ public struct TestAction: Equatable, Codable {
             testPlans: testPlans,
             targets: [],
             arguments: nil,
-            configurationName: configuration.name,
+            configuration: configuration,
             coverage: false,
             codeCoverageTargets: [],
             expandVariableFromTarget: nil,
