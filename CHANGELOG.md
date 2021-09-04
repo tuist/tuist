@@ -18,7 +18,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - **Breaking** removed the `tuist doc` command. [#3401](https://github.com/tuist/tuist/pull/3401) by [@pepibumur](https://github.com/pepibumur)
   - **Motivation:** the command was barely used so we are removing it to reduce the maintenance burden and reduce the binary size.
   - **Migration:** you can use Tuist tasks or [Fastlane](https://github.com/fastlane/fastlane) to run [swift-doc](https://github.com/SwiftDocOrg/swift-doc) and generate documentation from your generated projects.
-
 ## Next
 
 ### Changed
