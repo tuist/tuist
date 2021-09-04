@@ -111,40 +111,6 @@ let package = Package(
             dependencies: ["TuistCore", "TuistSupportTesting"]
         ),
         .target(
-            name: "TuistDoc",
-            dependencies: [
-                swiftToolsSupportDependency,
-                "TuistCore",
-                "TuistGraph",
-                "TuistSupport",
-                signalsDependency,
-                rxBlockingDependency,
-            ]
-        ),
-        .target(
-            name: "TuistDocTesting",
-            dependencies: [
-                "TuistDoc",
-                swiftToolsSupportDependency,
-                "TuistCore",
-                "TuistCoreTesting",
-                "TuistSupportTesting",
-            ]
-        ),
-        .testTarget(
-            name: "TuistDocTests",
-            dependencies: [
-                "TuistDoc",
-                "TuistDocTesting",
-                swiftToolsSupportDependency,
-                "TuistSupportTesting",
-                "TuistCore",
-                "TuistCoreTesting",
-                "TuistGraphTesting",
-                "TuistSupport",
-            ]
-        ),
-        .target(
             name: "TuistKit",
             dependencies: [
                 "XcodeProj",
@@ -166,7 +132,6 @@ let package = Package(
                 "TuistDependencies",
                 "TuistLinting",
                 "TuistCloud",
-                "TuistDoc",
                 "GraphViz",
                 "TuistMigration",
                 "TuistAsyncQueue",
@@ -196,7 +161,6 @@ let package = Package(
                 "TuistDependenciesTesting",
                 "TuistLintingTesting",
                 "TuistMigrationTesting",
-                "TuistDocTesting",
                 "TuistAsyncQueueTesting",
                 "TuistGraphTesting",
                 "TuistPlugin",
