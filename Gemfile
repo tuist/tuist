@@ -2,7 +2,7 @@
 
 source "https://rubygems.org"
 
-ruby "3.0.1"
+ruby "3.0.2"
 
 gem "cucumber", "~> 6.0"
 gem "rake", "~> 13.0"
