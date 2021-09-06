@@ -118,6 +118,12 @@ public protocol GraphTraversing {
     ///   - name: Target name.
     func linkableDependencies(path: AbsolutePath, name: String) throws -> Set<GraphDependencyReference>
 
+    /// Given a project directory and a target name, it returns the list of dependencies that need to be added to the searchable path from the target.
+    /// - Parameters:
+    ///   - path: Path to the directory that contains the project.
+    ///   - name: Target name.
+    func searchablePathDependencies(path: AbsolutePath, name: String) throws -> Set<GraphDependencyReference>
+
     /// Given a project directory and a target name, it returns a list of dependencies that need to be included in a copy files build phase
     ///
     /// - Parameters:

@@ -93,6 +93,7 @@ final class LinkGenerator: LinkGenerating {
     {
         let embeddableFrameworks = graphTraverser.embeddableFrameworks(path: path, name: target.name).sorted()
         let linkableModules = try graphTraverser.linkableDependencies(path: path, name: target.name).sorted()
+        let searchablePathModules = try graphTraverser.searchablePathDependencies(path: path, name: target.name).sorted()
 
         try setupSearchAndIncludePaths(
             target: target,
@@ -100,7 +101,7 @@ final class LinkGenerator: LinkGenerating {
             sourceRootPath: sourceRootPath,
             path: path,
             graphTraverser: graphTraverser,
-            linkableModules: linkableModules
+            linkableModules: searchablePathModules
         )
 
         try generateEmbedPhase(

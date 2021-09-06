@@ -12,6 +12,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Fix caching of manifests that use plugins [#3370](https://github.com/tuist/tuist/pull/3370) by [@luispadron](https://github.com/luispadron)
+- Fix linking of transitive precompiled static frameworks for unit test with a host app [#3357](https://github.com/tuist/tuist/pull/3357) by [@adellibovi](https://github.com/adellibovi), [@kwridan](https://github.com/kwridan)
 - settings-to-xcconfig migration command produces correct string format. [#3260](https://github.com/tuist/tuist/3260) by [@saim80](https://github.com/saim80)
 
 ## 1.49.2
