@@ -2390,8 +2390,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // Given
         let staticFramework = Target.test(name: "StaticFramework", product: .staticFramework)
         let project = Project.test(targets: [staticFramework])
-
-        // Given: Value Graph
         let precompiledStaticFramework = GraphDependency.testFramework(
             path: "/test/StaticFramework.framework",
             binaryPath: "/test/StaticFramework.framework/StaticFramework",
