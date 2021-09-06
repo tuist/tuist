@@ -10,7 +10,8 @@ public final class CacheDirectoriesProviderFactory: CacheDirectoriesProviderFact
     public init() {}
     public func cacheDirectories(config: Config?) throws -> CacheDirectoriesProviding {
         let provider = CacheDirectoriesProvider(config: config)
-        try provider.cacheDirectories.forEach { directory in
+        for category in CacheCategory.allCases {
+            let directory = provider.cacheDirectory(for: category)
             if !FileHandler.shared.exists(directory) {
                 try FileHandler.shared.createFolder(directory)
             }

@@ -87,7 +87,7 @@ final class TestService {
         let config = try configLoader.loadConfig(path: path)
         let cacheDirectoriesProvider = try cacheDirectoryProviderFactory.cacheDirectories(config: config)
 
-        let projectDirectory = cacheDirectoriesProvider.generatedAutomationProjectsDirectory
+        let projectDirectory = cacheDirectoriesProvider.cacheDirectory(for: .generatedAutomationProjects)
             .appending(component: "\(try contentHasher.hash(path.pathString))")
         if !FileHandler.shared.exists(projectDirectory) {
             try FileHandler.shared.createFolder(projectDirectory)
@@ -165,16 +165,16 @@ final class TestService {
             }
 
             if !FileHandler.shared.exists(
-                cacheDirectoriesProvider.testsCacheDirectory
+                cacheDirectoriesProvider.cacheDirectory(for: .tests)
             ) {
-                try FileHandler.shared.createFolder(cacheDirectoriesProvider.testsCacheDirectory)
+                try FileHandler.shared.createFolder(cacheDirectoriesProvider.cacheDirectory(for: .tests))
             }
 
             // Saving hashes from `testsCacheTemporaryDirectory` to `testsCacheDirectory` after all the tests have run successfully
             try FileHandler.shared
                 .contentsOfDirectory(testsCacheTemporaryDirectory.path)
                 .forEach { hashPath in
-                    let destination = cacheDirectoriesProvider.testsCacheDirectory.appending(component: hashPath.basename)
+                    let destination = cacheDirectoriesProvider.cacheDirectory(for: .tests).appending(component: hashPath.basename)
                     guard !FileHandler.shared.exists(destination) else { return }
                     try FileHandler.shared.move(
                         from: hashPath,
