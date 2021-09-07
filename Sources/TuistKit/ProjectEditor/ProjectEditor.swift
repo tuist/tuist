@@ -99,9 +99,12 @@ final class ProjectEditor: ProjectEditing {
         onlyCurrentDirectory: Bool,
         plugins: Plugins
     ) throws -> AbsolutePath {
+        let tuistIgnoreEntries =
+            (try? FileHandler.shared.readTextFile(editingPath.appending(component: ".tuistignore")).split(separator: "\n").map(String.init)) ?? []
+
         let pathsToExclude = [
             "**/\(Constants.tuistDirectoryName)/\(Constants.DependenciesDirectory.name)/**",
-        ]
+        ] + tuistIgnoreEntries
 
         let projectDescriptionPath = try resourceLocator.projectDescription()
         let projectManifests = manifestFilesLocator.locateProjectManifests(
