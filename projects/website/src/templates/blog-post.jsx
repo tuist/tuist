@@ -12,7 +12,6 @@ import SEO from '../components/SEO'
 import { NewsArticleJsonLd, BreadcrumbJsonLd } from 'gatsby-plugin-next-seo'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
-  faClock,
   faCalendarAlt,
   faUser,
 } from '@fortawesome/free-regular-svg-icons'
@@ -85,15 +84,6 @@ const Subtitle = ({ post, author }) => {
           src={author.avatar}
           sx={{ width: 14, height: 14, borderRadius: 7, ml: 2 }}
         />
-      </span>
-
-      <span sx={{ ml: [0, 4] }}>
-        <FontAwesomeIcon
-          sx={{ path: { fill: theme.colors.gray }, height: 15, width: 15 }}
-          icon={faClock}
-          size="sm"
-        />{' '}
-        {post.timeToRead} min read
       </span>
     </div>
   )
@@ -197,7 +187,6 @@ export const query = graphql`
         date
         path
       }
-      timeToRead
       frontmatter {
         title
         categories

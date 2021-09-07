@@ -2,7 +2,7 @@
 
 import { jsx, Styled } from 'theme-ui'
 import React from 'react'
-import { Global } from '@emotion/core'
+import { Global } from '@emotion/react'
 import 'focus-visible'
 import { darken } from '@theme-ui/color'
 

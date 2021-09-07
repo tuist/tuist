@@ -1,4 +1,3 @@
-const remarkSlug = require('remark-slug')
 const title = `Tuist - Xcode on steroids`
 const siteUrl = 'https://tuist.io'
 
@@ -181,18 +180,13 @@ module.exports = {
       resolve: `gatsby-plugin-mdx`,
       options: {
         extensions: ['.mdx', '.md'],
-        remarkPlugins: [remarkSlug],
         gatsbyRemarkPlugins: [
-          `gatsby-remark-embedder`,
-          `gatsby-remark-smartypants`,
-          `gatsby-remark-copy-linked-files`,
           {
             resolve: `gatsby-remark-images`,
             options: {
               maxWidth: 590,
             },
           },
-          'gatsby-remark-check-links',
         ],
       },
     },
