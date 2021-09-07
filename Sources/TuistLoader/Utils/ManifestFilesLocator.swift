@@ -73,16 +73,38 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
         } else {
             let path = rootDirectoryLocator.locate(from: locatingPath) ?? locatingPath
 
-            let excludedPaths = excluding
-                .flatMap {
-                    FileHandler.shared.glob(path, glob: $0)
+            let pluginsPaths = fetchTuistManifestsFilePaths(at: path)
+                .filter { $0.basename == Manifest.plugin.fileName(path) }
+                .filter { path in
+                    !excluding.contains { pattern in match(path, pattern: pattern) }
                 }
-
-            let pluginsPaths = Set(FileHandler.shared.glob(path, glob: "**/\(Manifest.plugin.fileName(path))"))
-                .subtracting(excludedPaths)
 
             return Array(pluginsPaths)
         }
+    }
+
+    private func match(_ path: AbsolutePath, pattern: String) -> Bool {
+        return fnmatch(pattern, path.pathString, 0) != FNM_NOMATCH
+    }
+
+    var cacheTuistManifestsFilePaths = [AbsolutePath: Set<AbsolutePath>]()
+
+    private func fetchTuistManifestsFilePaths(at path: AbsolutePath) -> Set<AbsolutePath> {
+        if let cachedTuistManifestsFilePaths = cacheTuistManifestsFilePaths[path] {
+            return cachedTuistManifestsFilePaths
+        }
+        let fileNamesCandidates: Set<String> = [
+            Manifest.project.fileName(path),
+            Manifest.workspace.fileName(path),
+            Manifest.plugin.fileName(path),
+        ]
+        let tuistManifestSignature = "import ProjectDescription"
+        let tuistManifestsFilePaths = FileHandler.shared.glob(path, glob: "**/*.swift")
+            .filter { fileNamesCandidates.contains($0.basename) }
+            .filter { (try? FileHandler.shared.readTextFile($0).contains(tuistManifestSignature)) ?? false }
+        let cachedTuistManifestsFilePaths = Set(tuistManifestsFilePaths)
+        cacheTuistManifestsFilePaths[path] = cachedTuistManifestsFilePaths
+        return cachedTuistManifestsFilePaths
     }
 
     /// Project manifest returned by `locateProjectManifests`
@@ -123,19 +145,20 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
         } else {
             let path = rootDirectoryLocator.locate(from: locatingPath) ?? locatingPath
 
-            let excludedPaths = excluding
-                .flatMap {
-                    FileHandler.shared.glob(path, glob: $0)
+            let manifestsFilePaths = fetchTuistManifestsFilePaths(at: path)
+                .filter { path in
+                    !excluding.contains { pattern in match(path, pattern: pattern) }
                 }
-
-            let projectsPaths = FileHandler.shared.glob(path, glob: "**/\(Manifest.project.fileName(path))")
+            let projectsPaths = manifestsFilePaths
+                .filter { $0.basename == Manifest.project.fileName(path) }
                 .map {
                     ProjectManifest(
                         manifest: Manifest.project,
                         path: $0
                     )
                 }
-            let workspacesPaths = FileHandler.shared.glob(path, glob: "**/\(Manifest.workspace.fileName(path))")
+            let workspacesPaths = manifestsFilePaths
+                .filter { $0.basename == Manifest.workspace.fileName(path) }
                 .map {
                     ProjectManifest(
                         manifest: Manifest.workspace,
@@ -144,7 +167,6 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
                 }
 
             return (projectsPaths + workspacesPaths)
-                .filter { !excludedPaths.contains($0.path) }
         }
     }
 

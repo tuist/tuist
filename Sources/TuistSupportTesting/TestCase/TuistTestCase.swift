@@ -130,13 +130,16 @@ open class TuistTestCase: XCTestCase {
     }
 
     @discardableResult
-    public func createFiles(_ files: [String]) throws -> [AbsolutePath] {
+    public func createFiles(_ files: [String], content: String? = nil) throws -> [AbsolutePath] {
         let temporaryPath = try self.temporaryPath()
         let fileHandler = FileHandler()
         let paths = files.map { temporaryPath.appending(RelativePath($0)) }
 
         try paths.forEach {
             try fileHandler.touch($0)
+            if let content = content {
+                try fileHandler.write(content, path: $0, atomically: true)
+            }
         }
         return paths
     }
