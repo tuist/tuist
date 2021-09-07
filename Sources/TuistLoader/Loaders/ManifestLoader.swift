@@ -316,7 +316,7 @@ public class ManifestLoader: ManifestLoading {
         ]
         let projectDescriptionHelpersCacheDirectory = try cacheDirectoryProviderFactory
             .cacheDirectories(config: nil)
-            .projectDescriptionHelpersCacheDirectory
+            .cacheDirectory(for: .projectDescriptionHelpers)
 
         let projectDescriptionHelperArguments: [String] = try {
             switch manifest {
