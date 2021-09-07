@@ -199,7 +199,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
             .single()
 
         // Then
-        let expectedPath = cacheDirectoriesProvider.buildCacheDirectory.appending(RelativePath("\(hash)/myFramework.xcframework"))
+        let expectedPath = cacheDirectoriesProvider.cacheDirectory(for: .builds).appending(RelativePath("\(hash)/myFramework.xcframework"))
         XCTAssertEqual(result, expectedPath)
     }
 
