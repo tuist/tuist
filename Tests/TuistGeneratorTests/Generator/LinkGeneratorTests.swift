@@ -1,14 +1,13 @@
 import Foundation
 import TSCBasic
 import TuistCore
-import TuistCoreTesting
 import TuistGraph
 import TuistGraphTesting
 import XcodeProj
 import XCTest
+@testable import TuistCoreTesting
 @testable import TuistGenerator
 @testable import TuistSupportTesting
-@testable import TuistCoreTesting
 
 final class LinkGeneratorPathTests: TuistUnitTestCase {
     func test_xcodeValue() {
@@ -558,7 +557,6 @@ final class LinkGeneratorTests: XCTestCase {
             fileElements: fileElements,
             path: path,
             graphTraverser: graphTraverser
-
         )
 
         let buildPhase = try pbxTarget.frameworksBuildPhase()
