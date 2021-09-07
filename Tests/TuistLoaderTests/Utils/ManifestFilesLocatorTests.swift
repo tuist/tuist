@@ -703,11 +703,32 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         )
     }
 
+    func test_locateProjectManifests_returns_all_manifest_containing_empty_files() throws {
+        // Given
+        let correctPaths = try createFiles([
+            "Module/Project.swift",
+        ], content: "")
+
+        // When
+        let correctManifest = subject
+            .locateProjectManifests(at: try temporaryPath(), excluding: [], onlyCurrentDirectory: false)
+            .first
+
+        // Then
+        XCTAssertEqual(
+            correctManifest,
+            ManifestFilesLocator.ProjectManifest(
+                manifest: .project,
+                path: correctPaths[0]
+            )
+        )
+    }
+
     func test_locateProjectManifests_returns_no_manifest_containing_no_manifest_signature() throws {
         // Given
         try createFiles([
             "Incorrect/Project.swift",
-        ])
+        ], content: "import AnythingElse")
 
         // When
 

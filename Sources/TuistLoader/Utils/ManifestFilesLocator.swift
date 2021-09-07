@@ -98,13 +98,19 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
             Manifest.workspace.fileName(path),
             Manifest.plugin.fileName(path),
         ]
-        let tuistManifestSignature = "import ProjectDescription"
         let tuistManifestsFilePaths = FileHandler.shared.glob(path, glob: "**/*.swift")
             .filter { fileNamesCandidates.contains($0.basename) }
-            .filter { (try? FileHandler.shared.readTextFile($0).contains(tuistManifestSignature)) ?? false }
+            .filter { hasValidManifestContent($0) }
         let cachedTuistManifestsFilePaths = Set(tuistManifestsFilePaths)
         cacheTuistManifestsFilePaths[path] = cachedTuistManifestsFilePaths
         return cachedTuistManifestsFilePaths
+    }
+
+    private func hasValidManifestContent(_ path: AbsolutePath) -> Bool {
+        guard let content = try? FileHandler.shared.readTextFile(path) else { return false }
+
+        let tuistManifestSignature = "import ProjectDescription"
+        return content.contains(tuistManifestSignature) || content.isEmpty
     }
 
     /// Project manifest returned by `locateProjectManifests`
