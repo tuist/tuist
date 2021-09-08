@@ -12,9 +12,7 @@ import moment from 'moment'
 import SEO from '../components/SEO'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
-  faClock,
   faCalendarAlt,
-  faUser,
 } from '@fortawesome/free-regular-svg-icons'
 
 const Post = ({ post, index }) => {
@@ -57,15 +55,6 @@ const Post = ({ post, index }) => {
               size="sm"
             />{' '}
             {post.fields.date}
-          </span>
-
-          <span sx={{ ml: [0, 4] }}>
-            <FontAwesomeIcon
-              sx={{ path: { fill: theme.colors.gray }, height: 15, width: 15 }}
-              icon={faClock}
-              size="sm"
-            />{' '}
-            {post.timeToRead} min read
           </span>
         </div>
       </header>
@@ -194,7 +183,6 @@ export const appsAtScaleList = graphql`
       edges {
         node {
           id
-          timeToRead
           fields {
             date
             slug

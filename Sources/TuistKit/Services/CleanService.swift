@@ -13,14 +13,16 @@ final class CleanService {
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
     }
 
-    func run() throws {
+    func run(categories: [CacheCategory]) throws {
         let path: AbsolutePath = FileHandler.shared.currentPath
         let manifestLoaderFactory = ManifestLoaderFactory()
         let manifestLoader = manifestLoaderFactory.createManifestLoader()
         let configLoader = ConfigLoader(manifestLoader: manifestLoader)
         let config = try configLoader.loadConfig(path: path)
+        let cacheDirectoryProvider = try cacheDirectoryProviderFactory.cacheDirectories(config: config)
 
-        try cacheDirectoryProviderFactory.cacheDirectories(config: config).cacheDirectories.forEach { directory in
+        for category in categories {
+            let directory = cacheDirectoryProvider.cacheDirectory(for: category)
             if FileHandler.shared.exists(directory) {
                 try FileHandler.shared.delete(directory)
                 logger.info("Successfully cleaned artifacts at path \(directory.pathString)", metadata: .success)

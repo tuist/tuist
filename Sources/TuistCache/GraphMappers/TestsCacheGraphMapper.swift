@@ -44,7 +44,7 @@ public final class TestsCacheGraphMapper: GraphMapping {
         let graphTraverser = GraphTraverser(graph: graph)
         let hashableTargets = self.hashableTargets(graphTraverser: graphTraverser)
         let hashes = try graphContentHasher.contentHashes(for: graph, filter: hashableTargets.contains)
-        let testsCacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories(config: config).testsCacheDirectory
+        let testsCacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories(config: config).cacheDirectory(for: .tests)
         var visitedNodes: [GraphTarget: Bool] = [:]
         var workspace = graph.workspace
         let mappedSchemes = try workspace.schemes
