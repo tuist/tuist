@@ -42,6 +42,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
         let swiftPackageManagerDirectory = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
+        let swiftPackageManagerBuildDirectory = swiftPackageManagerDirectory.appending(component: ".build")
 
         let dependencies = SwiftPackageManagerDependencies(
             [
@@ -52,17 +53,17 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         )
 
         swiftPackageManagerController.resolveStub = { path, printOutput in
-            XCTAssertEqual(path, try self.temporaryPath())
+            XCTAssertEqual(path, swiftPackageManagerDirectory)
             XCTAssertTrue(printOutput)
             try self.simulateSPMOutput(at: path)
         }
         swiftPackageManagerController.setToolsVersionStub = { path, version in
-            XCTAssertEqual(path, try self.temporaryPath())
+            XCTAssertEqual(path, swiftPackageManagerDirectory)
             XCTAssertNil(version) // swift-tools-version is not specified
         }
 
         swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms, deploymentTargets, swiftToolsVersion in
-            XCTAssertEqual(path, dependenciesDirectory.appending(component: "SwiftPackageManager"))
+            XCTAssertEqual(path, swiftPackageManagerBuildDirectory)
             XCTAssertEqual(platforms, [.iOS])
             XCTAssertEqual(deploymentTargets, [.iOS("13.0", [.iphone])])
             XCTAssertEqual(automaticProductType, [:])
@@ -97,6 +98,14 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         try XCTAssertDirectoryContentEqual(
             swiftPackageManagerDirectory,
             [
+                ".build",
+                "Package.swift",
+                "Package.resolved",
+            ]
+        )
+        try XCTAssertDirectoryContentEqual(
+            swiftPackageManagerBuildDirectory,
+            [
                 "manifest.db",
                 "workspace-state.json",
                 "artifacts",
@@ -119,6 +128,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
         let swiftPackageManagerDirectory = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
+        let swiftPackageManagerBuildDirectory = swiftPackageManagerDirectory.appending(component: ".build")
 
         let swiftToolsVersion = TSCUtility.Version(5, 3, 0)
         let dependencies = SwiftPackageManagerDependencies(
@@ -130,17 +140,17 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         )
 
         swiftPackageManagerController.resolveStub = { path, printOutput in
-            XCTAssertEqual(path, try self.temporaryPath())
+            XCTAssertEqual(path, swiftPackageManagerDirectory)
             XCTAssertTrue(printOutput)
             try self.simulateSPMOutput(at: path)
         }
         swiftPackageManagerController.setToolsVersionStub = { path, version in
-            XCTAssertEqual(path, try self.temporaryPath())
+            XCTAssertEqual(path, swiftPackageManagerDirectory)
             XCTAssertEqual(version, swiftToolsVersion.description) // version should be equal to the version that has been specified
         }
 
         swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms, deploymentTargets, swiftVersion in
-            XCTAssertEqual(path, dependenciesDirectory.appending(component: "SwiftPackageManager"))
+            XCTAssertEqual(path, swiftPackageManagerBuildDirectory)
             XCTAssertEqual(automaticProductType, [:])
             XCTAssertEqual(platforms, [.iOS])
             XCTAssertEqual(deploymentTargets, [.iOS("13.0", [.iphone])])
@@ -175,6 +185,14 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         try XCTAssertDirectoryContentEqual(
             swiftPackageManagerDirectory,
             [
+                ".build",
+                "Package.swift",
+                "Package.resolved",
+            ]
+        )
+        try XCTAssertDirectoryContentEqual(
+            swiftPackageManagerBuildDirectory,
+            [
                 "manifest.db",
                 "workspace-state.json",
                 "artifacts",
@@ -197,6 +215,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
         let swiftPackageManagerDirectory = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
+        let swiftPackageManagerBuildDirectory = swiftPackageManagerDirectory.appending(component: ".build")
 
         let dependencies = SwiftPackageManagerDependencies(
             [
@@ -207,17 +226,17 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         )
 
         swiftPackageManagerController.updateStub = { path, printOutput in
-            XCTAssertEqual(path, try self.temporaryPath())
+            XCTAssertEqual(path, swiftPackageManagerDirectory)
             XCTAssertTrue(printOutput)
             try self.simulateSPMOutput(at: path)
         }
         swiftPackageManagerController.setToolsVersionStub = { path, version in
-            XCTAssertEqual(path, try self.temporaryPath())
+            XCTAssertEqual(path, swiftPackageManagerDirectory)
             XCTAssertNil(version) // swift-tools-version is not specified
         }
 
         swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms, deploymentTargets, swiftToolsVersion in
-            XCTAssertEqual(path, dependenciesDirectory.appending(component: "SwiftPackageManager"))
+            XCTAssertEqual(path, swiftPackageManagerBuildDirectory)
             XCTAssertEqual(automaticProductType, [:])
             XCTAssertEqual(platforms, [.iOS])
             XCTAssertEqual(deploymentTargets, [.iOS("13.0", [.iphone])])
@@ -251,6 +270,14 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         )
         try XCTAssertDirectoryContentEqual(
             swiftPackageManagerDirectory,
+            [
+                ".build",
+                "Package.swift",
+                "Package.resolved",
+            ]
+        )
+        try XCTAssertDirectoryContentEqual(
+            swiftPackageManagerBuildDirectory,
             [
                 "manifest.db",
                 "workspace-state.json",

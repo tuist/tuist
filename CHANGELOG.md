@@ -15,6 +15,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Fix linking of transitive precompiled static frameworks for unit test with a host app [#3357](https://github.com/tuist/tuist/pull/3357) by [@adellibovi](https://github.com/adellibovi), [@kwridan](https://github.com/kwridan)
 - settings-to-xcconfig migration command produces correct string format. [#3260](https://github.com/tuist/tuist/3260) by [@saim80](https://github.com/saim80)
 
+### Changed
+
+- Improve `tuist dependencies fetch` and `tuist dependencies update` performances by performing the SwiftPackageManager resolution directly in the `Tuist/Dependencies` folder [#3417](https://github.com/tuist/tuist/pull/3417) by [@danyf90](https://github.com/danyf90).
+
 ## 1.49.2
 
 ### Fixed

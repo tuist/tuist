@@ -17,4 +17,7 @@ public enum CacheCategory: String, CaseIterable, RawRepresentable {
 
     /// The manifests cache
     case manifests
+
+    /// The local dependencies cache
+    case dependencies
 }
