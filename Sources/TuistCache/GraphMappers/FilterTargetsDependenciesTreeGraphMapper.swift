@@ -24,7 +24,7 @@ public final class FilterTargetsDependenciesTreeGraphMapper: GraphMapping {
                 }
             ))
         } else {
-            filteredTargets = []
+            filteredTargets = Set(graphTraverser.allTargets())
         }
 
         graphTraverser.allTargets().forEach { graphTarget in

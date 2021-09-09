@@ -8,6 +8,43 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class FilterTargetsDependenciesTreeGraphMapperTests: TuistUnitTestCase {
+    func test_map_when_included_targets_is_nil_no_targets_are_pruned() throws {
+        // Given
+        let targetNames = ["foo", "bar", "baz"].shuffled()
+        let aTarget = Target.test(name: targetNames[0])
+        let bTarget = Target.test(name: targetNames[1])
+        let cTarget = Target.test(name: targetNames[2])
+        let subject = FilterTargetsDependenciesTreeGraphMapper(includedTargets: nil)
+        let path = try temporaryPath()
+        let project = Project.test(path: path)
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [
+                path: [
+                    aTarget.name: aTarget,
+                    bTarget.name: bTarget,
+                    cTarget.name: cTarget,
+                ],
+            ],
+            dependencies: [
+                .target(name: bTarget.name, path: path): [
+                    .target(name: aTarget.name, path: path),
+                ],
+                .target(name: cTarget.name, path: path): [
+                    .target(name: bTarget.name, path: path),
+                ],
+            ]
+        )
+
+        // When
+        let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
+
+        let pruningTargets = gotGraph.targets[path]?.values.filter { $0.prune } ?? []
+        // Then
+        XCTAssertEmpty(gotSideEffects)
+        XCTAssertEmpty(pruningTargets.map { $0.name })
+    }
+
     func test_map_when_included_targets_is_empty_all_targets_are_pruned() throws {
         // Given
         let targetNames = ["foo", "bar", "baz"].shuffled()
@@ -44,8 +81,8 @@ final class FilterTargetsDependenciesTreeGraphMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertEmpty(gotSideEffects)
         XCTAssertEqual(
-            pruningTargets.map { $0.name },
-            expectingTargets.map { $0.name }
+            pruningTargets.map { $0.name }.sorted(),
+            expectingTargets.map { $0.name }.sorted()
         )
     }
 
@@ -85,8 +122,8 @@ final class FilterTargetsDependenciesTreeGraphMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertEmpty(gotSideEffects)
         XCTAssertEqual(
-            pruningTargets.map { $0.name },
-            expectingTargets.map { $0.name }
+            pruningTargets.map { $0.name }.sorted(),
+            expectingTargets.map { $0.name }.sorted()
         )
     }
 
@@ -126,8 +163,8 @@ final class FilterTargetsDependenciesTreeGraphMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertEmpty(gotSideEffects)
         XCTAssertEqual(
-            pruningTargets.map { $0.name },
-            expectingTargets.map { $0.name }
+            pruningTargets.map { $0.name }.sorted(),
+            expectingTargets.map { $0.name }.sorted()
         )
     }
 }
