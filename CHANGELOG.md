@@ -17,7 +17,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
-- Improve `tuist dependencies fetch` and `tuist dependencies update` performances by performing the SwiftPackageManager resolution directly in the `Tuist/Dependencies` folder [#3417](https://github.com/tuist/tuist/pull/3417) by [@danyf90](https://github.com/danyf90).
+- Improve `tuist dependencies fetch` and `tuist dependencies update` performances by performing the dependencies resolution directly in the `Tuist/Dependencies` folder [#3417](https://github.com/tuist/tuist/pull/3417) by [@danyf90](https://github.com/danyf90).
 
 ## 1.49.2
 

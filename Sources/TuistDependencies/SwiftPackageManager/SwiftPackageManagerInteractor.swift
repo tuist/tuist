@@ -173,6 +173,10 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
                 to: pathsProvider.destinationPackageResolvedPath
             )
         }
+
+        // remove temporary files
+        try? FileHandler.shared.delete(pathsProvider.temporaryPackageSwiftPath)
+        try? FileHandler.shared.delete(pathsProvider.temporaryPackageResolvedPath)
     }
 
     // MARK: - Helpers
