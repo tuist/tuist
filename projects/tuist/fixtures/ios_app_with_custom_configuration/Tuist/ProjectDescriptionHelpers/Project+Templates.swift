@@ -127,18 +127,18 @@ extension Scheme {
                 configuration: .custom("debug")
             ),
             runAction: .runAction(
-                configurationName: "debug",
+                configuration: "debug",
                 executable: main
             ),
             archiveAction: .archiveAction(
-                configurationName: "release"
+                configuration: "release"
             ),
             profileAction: .profileAction(
-                configurationName: "release",
+                configuration: "release",
                 executable: main
             ),
             analyzeAction: .analyzeAction(
-                configurationName: "debug"
+                configuration: "debug"
             )
         )
     }
