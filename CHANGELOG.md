@@ -8,6 +8,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Allow to pass Cloud authentication token via TUIST_CLOUD_TOKEN even when not CI [#3380](https://github.com/tuist/tuist/pull/3380) by [@danyf90](https://github.com/danyf90)
 - Support for cache categories argument in `tuist clean` command [#3407](https://github.com/tuist/tuist/pull/3407) by [@danyf90](https://github.com/danyf90)
+- Support for floating number (`real`) value for `InfoPlist` [#3377](https://github.com/tuist/tuist/pull/3377) by [@MarvinNazari](https://github.com/MarvinNazari)
 
 ### Fixed
 
