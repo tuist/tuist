@@ -71,14 +71,15 @@ public class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
 
         // Common build settings
         commonBuildSettings.forEach { setting in
-            commonBuildSettingsLines.append("\(setting)=\(buildConfigurations.first!.buildSettings[setting]!)")
+            let value = buildConfigurations.first!.buildSettings[setting]!
+            commonBuildSettingsLines.append("\(setting)=\(flattenedValue(from: value))")
         }
 
         // Per-configuration build settings
         buildConfigurations.forEach { configuration in
             configuration.buildSettings.forEach { key, value in
                 if commonBuildSettings.contains(key) { return }
-                buildSettingsLines.append("\(key)[config=\(configuration.name)]=\(value)")
+                buildSettingsLines.append("\(key)[config=\(configuration.name)]=\(flattenedValue(from: value))")
             }
         }
 
@@ -103,5 +104,18 @@ public class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
             }
             return project.buildConfigurationList.buildConfigurations
         }
+    }
+
+    private func flattenedValue(from value: Any) -> String {
+        var flattened: String
+        // We need to flatten the array into string to avoid expressions of `SETTING_KEY=["VALUE1", "VALUE2", ...]`
+        // Xcode rather understands only expressions, such as `SETTING_KEY=VALUE1 VALUE2 ...`
+        if let arrayValue = value as? [Any] {
+            flattened = arrayValue.map { "\($0)" }.joined(separator: " ")
+        } else {
+            flattened = "\(value)"
+        }
+
+        return flattened
     }
 }

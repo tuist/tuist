@@ -86,7 +86,7 @@ final class TestServiceTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(
             automationPath,
-            cacheDirectoriesProvider.generatedAutomationProjectsDirectory.appending(component: "test-hash")
+            cacheDirectoriesProvider.cacheDirectory(for: .generatedAutomationProjects).appending(component: "test-hash")
         )
     }
 
@@ -187,10 +187,10 @@ final class TestServiceTests: TuistUnitTestCase {
             ]
         )
         XCTAssertTrue(
-            fileHandler.exists(cacheDirectoriesProvider.testsCacheDirectory.appending(component: "A"))
+            fileHandler.exists(cacheDirectoriesProvider.cacheDirectory(for: .tests).appending(component: "A"))
         )
         XCTAssertTrue(
-            fileHandler.exists(cacheDirectoriesProvider.testsCacheDirectory.appending(component: "B"))
+            fileHandler.exists(cacheDirectoriesProvider.cacheDirectory(for: .tests).appending(component: "B"))
         )
     }
 
@@ -227,7 +227,7 @@ final class TestServiceTests: TuistUnitTestCase {
             ]
         )
         XCTAssertFalse(
-            fileHandler.exists(cacheDirectoriesProvider.testsCacheDirectory.appending(component: "A"))
+            fileHandler.exists(cacheDirectoriesProvider.cacheDirectory(for: .tests).appending(component: "A"))
         )
     }
 

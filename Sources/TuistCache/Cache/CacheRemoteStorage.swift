@@ -159,7 +159,7 @@ public final class CacheRemoteStorage: CacheStoring {
 
     private func unzip(downloadedArchive: AbsolutePath, hash: String) throws -> AbsolutePath {
         let zipPath = try FileHandler.shared.changeExtension(path: downloadedArchive, to: "zip")
-        let archiveDestination = cacheDirectoriesProvider.buildCacheDirectory.appending(component: hash)
+        let archiveDestination = cacheDirectoriesProvider.cacheDirectory(for: .builds).appending(component: hash)
         let fileUnarchiver = try fileArchiverFactory.makeFileUnarchiver(for: zipPath)
         let unarchivedDirectory = try fileUnarchiver.unzip()
         defer {

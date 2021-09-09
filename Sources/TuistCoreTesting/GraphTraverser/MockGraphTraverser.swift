@@ -318,6 +318,24 @@ final class MockGraphTraverser: GraphTraversing {
         return stubbedLinkableDependenciesResult
     }
 
+    var invokedSearchablePathDependencies = false
+    var invokedSearchablePathDependenciesCount = 0
+    var invokedSearchablePathDependenciesParameters: (path: AbsolutePath, name: String)?
+    var invokedSearchablePathDependenciesParametersList = [(path: AbsolutePath, name: String)]() // swiftlint:disable:this identifier_name
+    var stubbedSearchablePathDependenciesError: Error?
+    var stubbedSearchablePathDependenciesResult: Set<GraphDependencyReference>! = []
+
+    func searchablePathDependencies(path: AbsolutePath, name: String) throws -> Set<GraphDependencyReference> {
+        invokedSearchablePathDependencies = true
+        invokedSearchablePathDependenciesCount += 1
+        invokedSearchablePathDependenciesParameters = (path, name)
+        invokedSearchablePathDependenciesParametersList.append((path, name))
+        if let error = stubbedSearchablePathDependenciesError {
+            throw error
+        }
+        return stubbedSearchablePathDependenciesResult
+    }
+
     var invokedCopyProductDependencies = false
     var invokedCopyProductDependenciesCount = 0
     var invokedCopyProductDependenciesParameters: (path: AbsolutePath, name: String)?

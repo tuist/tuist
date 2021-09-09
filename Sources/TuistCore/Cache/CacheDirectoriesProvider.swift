@@ -4,26 +4,8 @@ import TuistGraph
 import TuistSupport
 
 public protocol CacheDirectoriesProviding {
-    /// Returns all the cache directories
-    var cacheDirectories: [AbsolutePath] { get }
-
-    /// Returns the directory where the plugin are cached.
-    var pluginCacheDirectory: AbsolutePath { get }
-
-    /// Returns the directory where the build artifacts are cached.
-    var buildCacheDirectory: AbsolutePath { get }
-
-    /// Returns the directory where hashes of modules that have been a part of successful test are cached
-    var testsCacheDirectory: AbsolutePath { get }
-
-    /// Returns the directory where the projects generated for automation tasks are generated to
-    var generatedAutomationProjectsDirectory: AbsolutePath { get }
-
-    /// Returns the directory where the project description helper modules are cached.
-    var projectDescriptionHelpersCacheDirectory: AbsolutePath { get }
-
-    /// Returns the directory where the project description helper modules are cached.
-    var manifestCacheDirectory: AbsolutePath { get }
+    /// Returns the cache directory for a cache category
+    func cacheDirectory(for category: CacheCategory) -> AbsolutePath
 }
 
 public final class CacheDirectoriesProvider: CacheDirectoriesProviding {
@@ -38,39 +20,26 @@ public final class CacheDirectoriesProvider: CacheDirectoriesProviding {
         }
     }
 
-    public var pluginCacheDirectory: AbsolutePath {
-        cacheDirectory.appending(component: "Plugins")
+    public func cacheDirectory(for category: CacheCategory) -> AbsolutePath {
+        cacheDirectory.appending(component: category.directoryName)
     }
+}
 
-    public var testsCacheDirectory: AbsolutePath {
-        cacheDirectory.appending(component: "TestsCache")
-    }
-
-    public var buildCacheDirectory: AbsolutePath {
-        cacheDirectory.appending(component: "BuildCache")
-    }
-
-    public var generatedAutomationProjectsDirectory: AbsolutePath {
-        cacheDirectory.appending(component: "Projects")
-    }
-
-    public var projectDescriptionHelpersCacheDirectory: AbsolutePath {
-        cacheDirectory.appending(component: "ProjectDescriptionHelpers")
-    }
-
-    public var manifestCacheDirectory: AbsolutePath {
-        cacheDirectory.appending(component: "Manifests")
-    }
-
-    public var cacheDirectories: [AbsolutePath] {
-        [
-            cacheDirectory,
-            pluginCacheDirectory,
-            buildCacheDirectory,
-            testsCacheDirectory,
-            generatedAutomationProjectsDirectory,
-            projectDescriptionHelpersCacheDirectory,
-            manifestCacheDirectory,
-        ]
+extension CacheCategory {
+    var directoryName: String {
+        switch self {
+        case .plugins:
+            return "Plugins"
+        case .builds:
+            return "BuildCache"
+        case .tests:
+            return "TestsCache"
+        case .generatedAutomationProjects:
+            return "Projects"
+        case .projectDescriptionHelpers:
+            return "ProjectDescriptionHelpers"
+        case .manifests:
+            return "Manifests"
+        }
     }
 }
