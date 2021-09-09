@@ -5,9 +5,9 @@ import TuistSupport
 
 /// `GenerateCacheableSchemesWorkspaceMapper` will generate additional schemes which include the targets to be cached
 final class GenerateCacheableSchemesWorkspaceMapper: WorkspaceMapping {
-    private let includedTargets: [Target]
+    private let includedTargets: Set<String>
 
-    init(includedTargets: [Target]) {
+    init(includedTargets: Set<String>) {
         self.includedTargets = includedTargets
     }
 
@@ -34,7 +34,7 @@ final class GenerateCacheableSchemesWorkspaceMapper: WorkspaceMapping {
             .projects
             .flatMap { project in project.targets.map { (project, $0) } }
             .filter { $0.1.platform == platform }
-            .filter { _, target in includedTargets.contains { $0.name == target.name } }
+            .filter { _, target in includedTargets.contains(target.name) }
 
         let bundleTargets = projectsWithTargets
             .filter { $0.1.product == .bundle }

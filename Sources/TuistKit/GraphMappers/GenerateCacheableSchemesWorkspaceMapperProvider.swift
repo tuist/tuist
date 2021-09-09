@@ -4,10 +4,10 @@ import TuistGraph
 
 class GenerateCacheableSchemesWorkspaceMapperProvider: WorkspaceMapperProviding { // swiftlint:disable:this type_name
     private let workspaceMapperProvider: WorkspaceMapperProviding
-    private let includedTargets: [Target]
+    private let includedTargets: Set<String>
 
     init(workspaceMapperProvider: WorkspaceMapperProviding,
-         includedTargets: [Target])
+         includedTargets: Set<String>)
     {
         self.workspaceMapperProvider = workspaceMapperProvider
         self.includedTargets = includedTargets

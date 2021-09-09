@@ -50,13 +50,9 @@ class CacheControllerGraphMapperProvider: GraphMapperProviding {
 
 protocol CacheControllerProjectGeneratorProviding {
     /// Returns an instance of the project generator that should be used to generate the projects for caching.
-    /// - Returns: An instance of the project generator.
-    func generator(includedTargets: Set<String>?) -> Generating
-
-    /// Returns an instance of the project generator that should be used to generate the projects for caching.
     /// - Parameter includedTargets: Targets to be filtered
     /// - Returns: An instance of the project generator.
-    func generator(includedTargets: [Target]) -> Generating
+    func generator(includedTargets: Set<String>?) -> Generating
 }
 
 /// A provider that returns the project generator that should be used by the cache controller.
@@ -73,27 +69,11 @@ class CacheControllerProjectGeneratorProvider: CacheControllerProjectGeneratorPr
         let workspaceMapperProvider = WorkspaceMapperProvider(projectMapperProvider: projectMapperProvider)
         let cacheWorkspaceMapperProvider = GenerateCacheableSchemesWorkspaceMapperProvider(
             workspaceMapperProvider: workspaceMapperProvider,
-            includedTargets: []
+            includedTargets: includedTargets ?? []
         )
         return Generator(
             projectMapperProvider: projectMapperProvider,
             graphMapperProvider: CacheControllerGraphMapperProvider(includedTargets: includedTargets),
-            workspaceMapperProvider: cacheWorkspaceMapperProvider,
-            manifestLoaderFactory: ManifestLoaderFactory()
-        )
-    }
-
-    func generator(includedTargets: [Target]) -> Generating {
-        let contentHasher = CacheContentHasher()
-        let projectMapperProvider = CacheControllerProjectMapperProvider(contentHasher: contentHasher)
-        let workspaceMapperProvider = WorkspaceMapperProvider(projectMapperProvider: projectMapperProvider)
-        let cacheWorkspaceMapperProvider = GenerateCacheableSchemesWorkspaceMapperProvider(
-            workspaceMapperProvider: workspaceMapperProvider,
-            includedTargets: includedTargets
-        )
-        return Generator(
-            projectMapperProvider: projectMapperProvider,
-            graphMapperProvider: CacheControllerGraphMapperProvider(includedTargets: Set(includedTargets.map { $0.name })),
             workspaceMapperProvider: cacheWorkspaceMapperProvider,
             manifestLoaderFactory: ManifestLoaderFactory()
         )
@@ -179,7 +159,7 @@ final class CacheController: CacheControlling {
 
         logger.notice("Filtering cacheable targets")
 
-        let updatedGenerator = projectGeneratorProvider.generator(includedTargets: hashesByTargetToBeCached.map { $0.0.target })
+        let updatedGenerator = projectGeneratorProvider.generator(includedTargets: Set(hashesByTargetToBeCached.map { $0.0.target.name }))
 
         let (projectPath, updatedGraph) = try updatedGenerator.generateWithGraph(path: path, projectOnly: false)
 
