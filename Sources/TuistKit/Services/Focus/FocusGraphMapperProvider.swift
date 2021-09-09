@@ -31,6 +31,8 @@ final class FocusGraphMapperProvider: GraphMapperProviding {
 
         // Cache
         var mappers: [GraphMapping] = []
+        mappers.append(FilterTargetsDependenciesTreeGraphMapper(includedTargets: cacheSources))
+        mappers.append(CacheTreeShakingGraphMapper())
         if cache {
             let cacheMapper = CacheMapper(
                 config: config,

@@ -28,10 +28,30 @@ class CacheControllerProjectMapperProvider: ProjectMapperProviding {
     }
 }
 
+class CacheControllerGraphMapperProvider: GraphMapperProviding {
+    private let includedTargets: Set<String>?
+    private let defaultProvider: GraphMapperProviding
+    init(includedTargets: Set<String>?,
+         defaultProvider: GraphMapperProviding = GraphMapperProvider())
+    {
+        self.includedTargets = includedTargets
+        self.defaultProvider = defaultProvider
+    }
+
+    func mapper(config: Config) -> GraphMapping {
+        let defaultMapper = defaultProvider.mapper(config: config)
+        return SequentialGraphMapper([
+            FilterTargetsDependenciesTreeGraphMapper(includedTargets: includedTargets),
+            CacheTreeShakingGraphMapper(),
+            defaultMapper,
+        ])
+    }
+}
+
 protocol CacheControllerProjectGeneratorProviding {
     /// Returns an instance of the project generator that should be used to generate the projects for caching.
     /// - Returns: An instance of the project generator.
-    func generator() -> Generating
+    func generator(includedTargets: Set<String>?) -> Generating
 
     /// Returns an instance of the project generator that should be used to generate the projects for caching.
     /// - Parameter includedTargets: Targets to be filtered
@@ -47,8 +67,20 @@ class CacheControllerProjectGeneratorProvider: CacheControllerProjectGeneratorPr
         self.contentHasher = contentHasher
     }
 
-    func generator() -> Generating {
-        return generator(includedTargets: [])
+    func generator(includedTargets: Set<String>?) -> Generating {
+        let contentHasher = CacheContentHasher()
+        let projectMapperProvider = CacheControllerProjectMapperProvider(contentHasher: contentHasher)
+        let workspaceMapperProvider = WorkspaceMapperProvider(projectMapperProvider: projectMapperProvider)
+        let cacheWorkspaceMapperProvider = GenerateCacheableSchemesWorkspaceMapperProvider(
+            workspaceMapperProvider: workspaceMapperProvider,
+            includedTargets: []
+        )
+        return Generator(
+            projectMapperProvider: projectMapperProvider,
+            graphMapperProvider: CacheControllerGraphMapperProvider(includedTargets: includedTargets),
+            workspaceMapperProvider: cacheWorkspaceMapperProvider,
+            manifestLoaderFactory: ManifestLoaderFactory()
+        )
     }
 
     func generator(includedTargets: [Target]) -> Generating {
@@ -61,7 +93,7 @@ class CacheControllerProjectGeneratorProvider: CacheControllerProjectGeneratorPr
         )
         return Generator(
             projectMapperProvider: projectMapperProvider,
-            graphMapperProvider: GraphMapperProvider(),
+            graphMapperProvider: CacheControllerGraphMapperProvider(includedTargets: Set(includedTargets.map { $0.name })),
             workspaceMapperProvider: cacheWorkspaceMapperProvider,
             manifestLoaderFactory: ManifestLoaderFactory()
         )
@@ -127,7 +159,8 @@ final class CacheController: CacheControlling {
     }
 
     func cache(path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile, includedTargets: [String], dependenciesOnly: Bool) throws {
-        let generator = projectGeneratorProvider.generator()
+        let generator = projectGeneratorProvider.generator(
+            includedTargets: includedTargets.isEmpty ? nil : Set(includedTargets))
         let (_, graph) = try generator.generateWithGraph(path: path, projectOnly: false)
 
         // Lint
@@ -225,7 +258,7 @@ final class CacheController: CacheControlling {
         let graphTraverser = GraphTraverser(graph: graph)
 
         return try topologicalSort(
-            Array(graphTraverser.allTargets().filter { includedTargets.isEmpty ? true : includedTargets.contains($0.target.name) }),
+            Array(graphTraverser.allTargets()),
             successors: {
                 Array(graphTraverser.directTargetDependencies(path: $0.path, name: $0.target.name))
             }
