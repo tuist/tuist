@@ -532,6 +532,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "MarvinNazari",
+      "name": "Marvin Nazari",
+      "avatar_url": "https://avatars.githubusercontent.com/u/926772?v=4",
+      "profile": "https://twitter.com/MarvinNazari",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
