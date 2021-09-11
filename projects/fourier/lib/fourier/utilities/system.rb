@@ -11,7 +11,8 @@ module Fourier
       def self.tuist(*args)
         Dir.chdir(Constants::TUIST_DIRECTORY) do
           self.system("swift", "build")
-          self.system("swift", "run", "tuist", *args)
+          @tuist = ".build/debug/tuist"
+          self.system(@tuist, *args)
         end
       end
 

@@ -11,7 +11,7 @@
 #   release:
 #     name: Release Tuist
 #     if: "!contains(github.event.head_commit.author.name, 'GitHub Action')"
-#     runs-on: macos-latest
+#     runs-on: macOS-11
 #     steps:
 #       - uses: actions/checkout@v2
 #         with:
