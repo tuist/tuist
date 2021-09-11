@@ -1,7 +1,9 @@
 # frozen_string_literal: true
 require "open3"
 Given(/tuist is available/) do
-  self.system("swift", "build", "--configuration", "release", "--product", "tuist", "--product", "tuistenv", "--product", "ProjectDescription", "--product", "ProjectAutomation")
+  if ENV["CI"].nil?
+    system("swift", "build", "-c", "release", "--product", "tuist", "--product", "tuistenv", "--product", "ProjectDescription", "--product", "ProjectAutomation")
+  end
   FileUtils.cp_r("projects/tuist/vendor", ".build/release/vendor")
   FileUtils.cp_r("Templates", ".build/release/Templates")
   @tuist = ".build/release/tuist"
