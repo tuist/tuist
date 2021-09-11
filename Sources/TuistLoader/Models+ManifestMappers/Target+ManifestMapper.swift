@@ -128,6 +128,7 @@ extension TuistGraph.Target {
                 return []
             }
         }
+
         allResources.forEach { fileElement in
             switch fileElement {
             case .folderReference: resourcesWithoutPlaygrounds.append(fileElement)
