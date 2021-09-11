@@ -1,26 +1,27 @@
 # frozen_string_literal: true
 require "xcodeproj"
 
+
 Then(/^tuist tests the scheme ([a-zA-Z\-]+) from the project$/) do |scheme|
-  system("swift", "run", "tuist", "test", scheme, "--path", @dir)
+  system(@tuist, "test", scheme, "--path", @dir)
 end
 
 Then(/^tuist tests the scheme ([a-zA-Z\-]+) and configuration ([a-zA-Z]+) from the project$/) do |scheme, configuration|
-  system("swift", "run", "tuist", "test", scheme, "--path", @dir, "--configuration", configuration)
+  system(@tuist, "test", scheme, "--path", @dir, "--configuration", configuration)
 end
 
 Then(/^tuist tests the project at (.+)$/) do |path|
-  system("swift", "run", "tuist", "test", "--path", File.join(@dir, path))
+  system(@tuist, "test", "--path", File.join(@dir, path))
 end
 
 Then(/^tuist tests the project$/) do
-  system("swift", "run", "tuist", "test", "--path", @dir)
+  system(@tuist, "test", "--path", @dir)
   @workspace_path = Dir.glob(File.join(@dir, "Automation", "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, "Automation", "*.xcodeproj")).first
 end
 
 Then(/^tuist tests and cleans the project$/) do
-  system("swift", "run", "tuist", "test", "--clean", "--path", @dir)
+  system(@tuist, "test", "--clean", "--path", @dir)
   @workspace_path = Dir.glob(File.join(@dir, "Automation", "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, "Automation", "*.xcodeproj")).first
 end
