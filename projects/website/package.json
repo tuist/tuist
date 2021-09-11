@@ -77,7 +77,7 @@
     "remark-slug": "^6.1.0",
     "semantic-ui-react": "^2.0.3",
     "slug": "^5.1.0",
-    "tailwindcss": "^2.2.14",
+    "tailwindcss": "^2.2.15",
     "theme-ui": "^0.10.0",
     "url-join": "^4.0.1"
   },
