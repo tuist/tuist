@@ -289,6 +289,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             resources: [
                                 .init(rule: .copy, path: "Resource/Folder"),
                                 .init(rule: .process, path: "Another/Resource/Folder"),
+                                .init(rule: .process, path: "AnotherOne/Resource/Folder"),
+                            ],
+                            exclude: [
+                                "AnotherOne/Resource",
                             ]
                         ),
                     ],
@@ -306,9 +310,28 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 targets: [
                     .test(
                         "Target1",
+                        customSources: .init(globs: [
+                            .init(
+                                "/Package/Path/Sources/Target1/**",
+                                excluding: ["/Package/Path/Sources/Target1/AnotherOne/Resource/**"]
+                            ),
+                        ]),
                         resources: [
-                            "/Package/Path/Sources/Target1/Resource/Folder/**",
-                            "/Package/Path/Sources/Target1/Another/Resource/Folder/**",
+                            .glob(
+                                pattern: "/Package/Path/Sources/Target1/Resource/Folder/**",
+                                excluding: ["/Package/Path/Sources/Target1/AnotherOne/Resource/**"],
+                                tags: []
+                            ),
+                            .glob(
+                                pattern: "/Package/Path/Sources/Target1/Another/Resource/Folder/**",
+                                excluding: ["/Package/Path/Sources/Target1/AnotherOne/Resource/**"],
+                                tags: []
+                            ),
+                            .glob(
+                                pattern: "/Package/Path/Sources/Target1/AnotherOne/Resource/Folder/**",
+                                excluding: ["/Package/Path/Sources/Target1/AnotherOne/Resource/**"],
+                                tags: []
+                            ),
                         ]
                     ),
                 ]
@@ -626,9 +649,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         "Target1",
                         basePath: basePath,
                         customSources: .init(globs: [basePath.appending(RelativePath("Package/Path/Custom/Path/Sources/Folder/**")).pathString]),
-                        resources: .init(resources: [
-                            .init(stringLiteral: basePath.appending(RelativePath("Package/Path/Custom/Path/Resource/Folder/**")).pathString),
-                        ]),
+                        resources: .init(
+                            resources: [
+                                .init(stringLiteral: basePath.appending(RelativePath("Package/Path/Custom/Path/Resource/Folder/**")).pathString),
+                            ]
+                        ),
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Custom/Path/Headers"],
                         ],
@@ -1701,6 +1726,7 @@ extension PackageInfo.Target {
         url: String? = nil,
         sources: [String]? = nil,
         resources: [PackageInfo.Target.Resource] = [],
+        exclude: [String] = [],
         dependencies: [PackageInfo.Target.Dependency] = [],
         publicHeadersPath: String? = nil,
         settings: [TargetBuildSettingDescription.Setting] = []
@@ -1711,7 +1737,7 @@ extension PackageInfo.Target {
             url: url,
             sources: sources,
             resources: resources,
-            exclude: [],
+            exclude: exclude,
             dependencies: dependencies,
             publicHeadersPath: publicHeadersPath,
             type: type,
