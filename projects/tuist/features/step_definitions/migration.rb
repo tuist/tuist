@@ -9,7 +9,7 @@ in ios_workspace_with_microfeature_architecture matches (.+)$}) do |framework, j
 
   assert(false, "Project #{fixture_path} not found") unless File.exist?(fixture_path)
 
-  out, _ = Open3.capture2("swift", "run", "tuist", "migration", "list-targets", "-p", fixture_path)
+  out, _ = Open3.capture2(@tuist, "migration", "list-targets", "-p", fixture_path)
 
   assert(out.include?(expected_json))
 end
