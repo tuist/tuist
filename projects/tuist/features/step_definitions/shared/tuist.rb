@@ -1,9 +1,11 @@
 # frozen_string_literal: true
 require "open3"
 Given(/tuist is available/) do
-  system("swift", "build")
-  @tuist = ".build/debug/tuist"
-  @tuistenv = ".build/debug/tuistenv"
+  self.system("swift", "build", "--configuration", "release", "--product", "tuist", "--product", "tuistenv", "--product", "ProjectDescription", "--product", "ProjectAutomation")
+  FileUtils.cp_r("projects/tuist/vendor", ".build/release/vendor")
+  FileUtils.cp_r("Templates", ".build/release/Templates")
+  @tuist = ".build/release/tuist"
+  @tuistenv = ".build/release/tuistenv"
 end
 
 Then(/^tuist generates the project$/) do
