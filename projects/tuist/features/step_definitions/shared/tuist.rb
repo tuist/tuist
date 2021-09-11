@@ -91,7 +91,7 @@ end
 
 Then(/tuist generate yields error "(.+)"/) do |error|
   expected_msg = error.gsub("${ARG_PATH}", @dir)
-  _, stderr, status = Open3.capture3("--skip-build", @tuist, "generate", "--path", @dir)
+  _, stderr, status = Open3.capture3(@tuist, "generate", "--path", @dir)
   actual_msg = stderr.strip
 
   error_message = <<~EOD
