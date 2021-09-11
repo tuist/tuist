@@ -27,10 +27,10 @@ env:
 jobs:
   unit_tests:
     name: Unit tests with Xcode ${{ matrix.xcode }}
-    runs-on: macos-latest
+    runs-on: macOS-11
     strategy:
       matrix:
-        xcode: ['12.4']
+        xcode: ['12.5.1']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -60,10 +60,10 @@ jobs:
           ./fourier test tuist unit
   release_build:
     name: Release build with Xcode ${{ matrix.xcode }}
-    runs-on: macOS-latest
+    runs-on: macOS-11
     strategy:
       matrix:
-        xcode: ['12.2', '12.4'] # keep 12.2 to ensure backwards compatibility
+        xcode: ['12.4', '12.5.1', '13.0'] # keep 12.4 to ensure backwards compatibility
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -80,10 +80,10 @@ jobs:
         run: swift build -c release --product tuistenv
   acceptance_tests:
     name: ${{ matrix.feature }} acceptance tests with Xcode ${{ matrix.xcode }}
-    runs-on: macos-latest
+    runs-on: macOS-11
     strategy:
       matrix:
-        xcode: ['12.4']
+        xcode: ['12.5.1']
         feature:
           [
             'build',
