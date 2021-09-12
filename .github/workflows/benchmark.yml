@@ -20,10 +20,10 @@ env:
 jobs:
   test:
     name: Build benchmarking tooling with Xcode ${{ matrix.xcode }}
-    runs-on: macOS-latest
+    runs-on: macOS-11
     strategy:
       matrix:
-        xcode: ['12.4']
+        xcode: ['12.5.1']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode

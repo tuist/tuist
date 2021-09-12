@@ -102,7 +102,7 @@ public protocol ManifestLoading {
 
     /// Registers plugins that will be used within the manifest loading process.
     /// - Parameter plugins: The plugins to register.
-    func register(plugins: Plugins)
+    func register(plugins: Plugins) throws
 }
 
 public class ManifestLoader: ManifestLoading {
@@ -211,7 +211,7 @@ public class ManifestLoader: ManifestLoading {
         try loadManifest(.plugin, at: path)
     }
 
-    public func register(plugins: Plugins) {
+    public func register(plugins: Plugins) throws {
         self.plugins = plugins
     }
 
@@ -321,7 +321,7 @@ public class ManifestLoader: ManifestLoading {
         ]
         let projectDescriptionHelpersCacheDirectory = try cacheDirectoryProviderFactory
             .cacheDirectories(config: nil)
-            .projectDescriptionHelpersCacheDirectory
+            .cacheDirectory(for: .projectDescriptionHelpers)
 
         let projectDescriptionHelperArguments: [String] = try {
             switch manifest {

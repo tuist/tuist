@@ -65,7 +65,7 @@ public final class PluginService: PluginServicing {
                 switch pluginLocation {
                 case let .gitWithSha(url, id),
                      let .gitWithTag(url, id):
-                    return try fetchGitPlugin(at: url, with: id, cacheDirectory: cacheDirectories.pluginCacheDirectory)
+                    return try fetchGitPlugin(at: url, with: id, cacheDirectory: cacheDirectories.cacheDirectory(for: .plugins))
                 case .local:
                     return nil
                 }

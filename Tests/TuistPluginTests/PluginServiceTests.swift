@@ -82,7 +82,7 @@ final class PluginServiceTests: TuistTestCase {
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitId = "1.0.0"
         let pluginFingerprint = "\(pluginGitUrl)-\(pluginGitId)".md5
-        let cachedPluginPath = cacheDirectoriesProvider.pluginCacheDirectory.appending(components: pluginFingerprint)
+        let cachedPluginPath = cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint)
         let pluginName = "TestPlugin"
 
         manifestLoader.loadConfigStub = { _ in
@@ -139,7 +139,7 @@ final class PluginServiceTests: TuistTestCase {
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitId = "1.0.0"
         let pluginFingerprint = "\(pluginGitUrl)-\(pluginGitId)".md5
-        let cachedPluginPath = cacheDirectoriesProvider.pluginCacheDirectory.appending(components: pluginFingerprint)
+        let cachedPluginPath = cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint)
         let pluginName = "TestPlugin"
         let resourceTemplatesPath = cachedPluginPath.appending(components: "ResourceSynthesizers")
 
@@ -199,7 +199,7 @@ final class PluginServiceTests: TuistTestCase {
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitId = "1.0.0"
         let pluginFingerprint = "\(pluginGitUrl)-\(pluginGitId)".md5
-        let cachedPluginPath = cacheDirectoriesProvider.pluginCacheDirectory.appending(components: pluginFingerprint)
+        let cachedPluginPath = cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint)
         let pluginName = "TestPlugin"
         let tasksPath = cachedPluginPath.appending(components: Constants.tasksDirectoryName)
 
@@ -261,7 +261,7 @@ final class PluginServiceTests: TuistTestCase {
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitId = "1.0.0"
         let pluginFingerprint = "\(pluginGitUrl)-\(pluginGitId)".md5
-        let cachedPluginPath = cacheDirectoriesProvider.pluginCacheDirectory.appending(components: pluginFingerprint)
+        let cachedPluginPath = cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint)
         let pluginName = "TestPlugin"
         let templatePath = cachedPluginPath.appending(components: "Templates", "custom")
         templatesDirectoryLocator.templatePluginDirectoriesStub = { _ in

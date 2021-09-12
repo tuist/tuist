@@ -244,8 +244,20 @@ public class GraphTraverser: GraphTraversing {
         return references
     }
 
-    // swiftlint:disable:next function_body_length
+    public func searchablePathDependencies(path: AbsolutePath, name: String) throws -> Set<GraphDependencyReference> {
+        try linkableDependencies(path: path, name: name, shouldExcludeHostAppDependencies: false)
+    }
+
     public func linkableDependencies(path: AbsolutePath, name: String) throws -> Set<GraphDependencyReference> {
+        try linkableDependencies(path: path, name: name, shouldExcludeHostAppDependencies: true)
+    }
+
+    // swiftlint:disable:next function_body_length
+    public func linkableDependencies(
+        path: AbsolutePath,
+        name: String,
+        shouldExcludeHostAppDependencies: Bool
+    ) throws -> Set<GraphDependencyReference> {
         guard let target = self.target(path: path, name: name) else { return Set() }
 
         var references = Set<GraphDependencyReference>()
@@ -302,18 +314,20 @@ public class GraphTraverser: GraphTraversing {
 
         // Static libraries and frameworks / Static libraries' dynamic libraries
         if target.target.canLinkStaticProducts() {
-            var transitiveStaticTargets = self.transitiveStaticTargets(from: .target(name: name, path: path))
+            let transitiveStaticTargets = self.transitiveStaticTargets(from: .target(name: name, path: path))
 
             // Exclude any static products linked in a host application
-            if target.target.product == .unitTests {
-                if let hostApp = hostApplication(path: path, name: name) {
-                    transitiveStaticTargets.subtract(
-                        self.transitiveStaticTargets(from: .target(name: hostApp.target.name, path: hostApp.project.path))
-                    )
-                }
+            // however, for search paths it's fine to keep them included
+            let hostApplicationStaticTargets: Set<GraphDependency>
+            if target.target.product == .unitTests, shouldExcludeHostAppDependencies,
+                let hostApp = hostApplication(path: path, name: name)
+            {
+                hostApplicationStaticTargets = transitiveStaticDependencies(from: .target(name: hostApp.target.name, path: hostApp.project.path))
+            } else {
+                hostApplicationStaticTargets = Set()
             }
 
-            let transitiveStaticTargetReferences = transitiveStaticTargets.compactMap(dependencyReference)
+            let transitiveStaticTargetReferences = transitiveStaticTargets
 
             // swiftlint:disable:next identifier_name
             let staticDependenciesDynamicLibrariesAndFrameworks = transitiveStaticTargets.flatMap { dependency in
@@ -321,7 +335,6 @@ public class GraphTraverser: GraphTraversing {
                     .lazy
                     .filter(\.isTarget)
                     .filter(isDependencyDynamicTarget)
-                    .compactMap(dependencyReference)
             }
 
             // swiftlint:disable:next identifier_name
@@ -329,13 +342,18 @@ public class GraphTraverser: GraphTraversing {
                 self.graph.dependencies[dependency, default: []]
                     .lazy
                     .filter(\.isPrecompiled)
-                    .compactMap(dependencyReference)
             }
 
+            let allDependencies = (transitiveStaticTargetReferences
+                + staticDependenciesDynamicLibrariesAndFrameworks
+                + staticDependenciesPrecompiledLibrariesAndFrameworks)
+
             references.formUnion(
-                transitiveStaticTargetReferences
-                    + staticDependenciesDynamicLibrariesAndFrameworks
-                    + staticDependenciesPrecompiledLibrariesAndFrameworks
+                allDependencies
+                    .compactMap(dependencyReference)
+            )
+            references.subtract(
+                hostApplicationStaticTargets.compactMap(dependencyReference)
             )
         }
 
@@ -538,6 +556,14 @@ public class GraphTraverser: GraphTraversing {
         )
     }
 
+    func transitiveStaticDependencies(from dependency: GraphDependency) -> Set<GraphDependency> {
+        filterDependencies(
+            from: dependency,
+            test: isDependencyStatic,
+            skip: canDependencyLinkStaticProducts
+        )
+    }
+
     func targetProductReference(target: GraphTarget) -> GraphDependencyReference {
         .product(
             target: target.target.name,
@@ -578,6 +604,22 @@ public class GraphTraverser: GraphTraversing {
         return target.target.product.isStatic
     }
 
+    func isDependencyStatic(dependency: GraphDependency) -> Bool {
+        switch dependency {
+        case let .xcframework(_, _, _, linking),
+             let .framework(_, _, _, _, linking, _, _),
+             let .library(_, _, linking, _, _):
+            return linking == .static
+        case .bundle: return false
+        case .packageProduct: return false
+        case let .target(name, path):
+            guard let target = self.target(path: path, name: name) else { return false }
+            return target.target.product.isStatic
+        case .sdk: return false
+        case .cocoapods: return false
+        }
+    }
+
     func isDependencyDynamicLibrary(dependency: GraphDependency) -> Bool {
         guard case let GraphDependency.target(name, path) = dependency,
             let target = self.target(path: path, name: name) else { return false }
@@ -607,9 +649,10 @@ public class GraphTraverser: GraphTraversing {
 
     func isDependencyPrecompiledDynamicAndLinkable(dependency: GraphDependency) -> Bool {
         switch dependency {
-        case let .xcframework(_, _, _, linking): return linking == .dynamic
-        case let .framework(_, _, _, _, linking, _, _): return linking == .dynamic
-        case .library: return false
+        case let .xcframework(_, _, _, linking),
+             let .framework(_, _, _, _, linking, _, _),
+             let .library(path: _, publicHeaders: _, linking: linking, architectures: _, swiftModuleMap: _):
+            return linking == .dynamic
         case .bundle: return false
         case .packageProduct: return false
         case .target: return false

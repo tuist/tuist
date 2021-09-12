@@ -19,10 +19,6 @@ import Devengo from '../../assets/devengo.svg'
 import FreeNow from '../../assets/freenow.svg'
 import Ackee from '../../assets/ackee.svg'
 import { lighten } from '@theme-ui/color'
-import Carousel from '@brainhubeu/react-carousel'
-import '@brainhubeu/react-carousel/lib/style.css'
-import { TwitterTweetEmbed } from 'react-twitter-embed'
-import { useResponsiveValue } from '@theme-ui/match-media'
 
 const PressableButton = posed.div({
   hoverable: true,

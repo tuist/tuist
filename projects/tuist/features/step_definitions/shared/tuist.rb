@@ -1,18 +1,25 @@
 # frozen_string_literal: true
 require "open3"
-
 Given(/tuist is available/) do
-  system("swift", "build", "--package-path", File.expand_path("../../../../..", __dir__))
+  # On CI we expect tuist to be built already by the previous job `release_build`, so we skip `swift build`
+  if ENV["CI"].nil?
+    system("swift", "build", "-c", "release", "--product", "tuist", "--product", "tuistenv", "--product", "ProjectDescription", "--product", "ProjectAutomation")
+  end
+  # `tuist` release build expect to have `vendor` and `Templates` in the same directory where the executable is
+  FileUtils.cp_r("projects/tuist/vendor", ".build/release/vendor")
+  FileUtils.cp_r("Templates", ".build/release/Templates")
+  @tuist = ".build/release/tuist"
+  @tuistenv = ".build/release/tuistenv"
 end
 
 Then(/^tuist generates the project$/) do
-  system("swift", "run", "tuist", "generate", "--path", @dir)
+  system(@tuist, "generate", "--path", @dir)
   @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
 end
 
 Then(/^tuist generates the project and outputs: (.+)$/) do |output|
-  out, err, status = Open3.capture3("swift", "run", "tuist", "generate", "--path", @dir)
+  out, err, status = Open3.capture3(@tuist, "generate", "--path", @dir)
   assert(status.success?, err)
   assert out.include?(output), "The output from Tuist generate doesn't include: #{output}"
   @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
@@ -21,76 +28,76 @@ end
 
 Then(/^tuist generates the project with environment variable (.+) and value (.+)$/) do |variable, value|
   ENV[variable] = value
-  system("swift", "run", "tuist", "generate", "--path", @dir)
+  system(@tuist, "generate", "--path", @dir)
   @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
   ENV[variable] = nil
 end
 
 Then(%r{^tuist generates the project at ([a-zA-Z]/+)$}) do |path|
-  system("swift", "run", "tuist", "generate", "--path", File.join(@dir, path))
+  system(@tuist, "generate", "--path", File.join(@dir, path))
   @workspace_path = Dir.glob(File.join(@dir, path, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
 end
 
 Then(/^tuist focuses the target ([a-zA-Z]+)$/) do |target|
-  system("swift", "run", "tuist", "focus", "--no-open", "--path", @dir, target)
+  system(@tuist, "focus", "--no-open", "--path", @dir, target)
   @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
 end
 
 Then(/^tuist focuses the target ([a-zA-Z]+) with ([a-zA-Z]+) profile$/) do |target, cache_profile|
-  system("swift", "run", "tuist", "focus", "--no-open", "--path", @dir, target, "--profile", cache_profile)
+  system(@tuist, "focus", "--no-open", "--path", @dir, target, "--profile", cache_profile)
   @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
 end
 
 Then(%r{^tuist focuses the target ([a-zA-Z]+) at ([a-zA-Z]/+)$}) do |target, path|
-  system("swift", "run", "tuist", "focus", "--no-open", "--path", File.join(@dir, path), target)
+  system(@tuist, "focus", "--no-open", "--path", File.join(@dir, path), target)
   @workspace_path = Dir.glob(File.join(@dir, path, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
 end
 
 Then(%r{^tuist focuses the targets ([a-zA-Z,]+) at ([a-zA-Z]/+)$}) do |targets, path|
-  system("swift", "run", "tuist", "focus", "--no-open", "--path", File.join(@dir, path), *targets.split(","))
+  system(@tuist, "focus", "--no-open", "--path", File.join(@dir, path), *targets.split(","))
   @workspace_path = Dir.glob(File.join(@dir, path, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
 end
 
 Then(/^tuist focuses the target ([a-zA-Z]+) using xcframeworks$/) do |target|
-  system("swift", "run", "tuist", "focus", "--no-open", "--path", @dir, target, "--xcframeworks")
+  system(@tuist, "focus", "--no-open", "--path", @dir, target, "--xcframeworks")
   @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
 end
 
 Then(%r{^tuist focuses the target ([a-zA-Z]+) at ([a-zA-Z]/+) using xcframeworks$}) do |target, path|
-  system("swift", "run", "tuist", "focus", "--no-open", "--path", File.join(@dir, path), target, "--xcframeworks")
+  system(@tuist, "focus", "--no-open", "--path", File.join(@dir, path), target, "--xcframeworks")
   @workspace_path = Dir.glob(File.join(@dir, path, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
 end
 
 Then(%r{^tuist focuses the targets ([a-zA-Z,]+) at ([a-zA-Z]/+) using xcframeworks$}) do |targets, path|
-  system("swift", "run", "tuist", "focus", "--no-open", "--path", File.join(@dir, path), *targets.split(","),
+  system(@tuist, "focus", "--no-open", "--path", File.join(@dir, path), *targets.split(","),
     "--xcframeworks")
   @workspace_path = Dir.glob(File.join(@dir, path, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
 end
 
 Then(/tuist edits the project/) do
-  system("swift", "run", "tuist", "edit", "--path", @dir, "--permanent")
+  system(@tuist, "edit", "--path", @dir, "--permanent")
   @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
 end
 
 Then(/tuist sets up the project/) do
-  system("swift", "run", "tuist", "up", "--path", @dir)
+  system(@tuist, "up", "--path", @dir)
   @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
 end
 
 Then(/tuist generate yields error "(.+)"/) do |error|
   expected_msg = error.gsub("${ARG_PATH}", @dir)
-  _, stderr, status = Open3.capture3("swift", "run", "--skip-build", "tuist", "generate", "--path", @dir)
+  _, stderr, status = Open3.capture3(@tuist, "generate", "--path", @dir)
   actual_msg = stderr.strip
 
   error_message = <<~EOD
@@ -109,5 +116,5 @@ Then(/tuistenv should succeed in installing the latest version/) do
   # Matches: let version = "3.2.1"
   version = File.read(constants_path).match(/let\sversion\s=\s\"(.+)\"/)[1].chomp
 
-  system("swift", "run", "tuistenv", "install", version)
+  system(@tuistenv, "install", version)
 end

@@ -29,7 +29,7 @@ public final class CacheLocalStorage: CacheStoring {
     // MARK: - Init
 
     public convenience init(cacheDirectoriesProvider: CacheDirectoriesProviding) {
-        self.init(cacheDirectory: cacheDirectoriesProvider.buildCacheDirectory)
+        self.init(cacheDirectory: cacheDirectoriesProvider.cacheDirectory(for: .builds))
     }
 
     init(cacheDirectory: AbsolutePath) {

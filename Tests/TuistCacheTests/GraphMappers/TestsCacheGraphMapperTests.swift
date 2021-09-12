@@ -152,10 +152,10 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
         }
 
         try fileHandler.touch(
-            cacheDirectoriesProvider.testsCacheDirectory.appending(component: "FrameworkA")
+            cacheDirectoriesProvider.cacheDirectory(for: .tests).appending(component: "FrameworkA")
         )
         try fileHandler.touch(
-            cacheDirectoriesProvider.testsCacheDirectory.appending(component: "UnitTestsA")
+            cacheDirectoriesProvider.cacheDirectory(for: .tests).appending(component: "UnitTestsA")
         )
 
         let expectedGraph = Graph.test(

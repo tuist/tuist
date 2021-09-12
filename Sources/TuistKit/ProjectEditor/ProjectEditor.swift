@@ -99,16 +99,23 @@ final class ProjectEditor: ProjectEditing {
         onlyCurrentDirectory: Bool,
         plugins: Plugins
     ) throws -> AbsolutePath {
+        let tuistIgnoreEntries =
+            (try? FileHandler.shared.readTextFile(editingPath.appending(component: ".tuistignore")).split(separator: "\n").map(String.init)) ?? []
+
         let pathsToExclude = [
             "**/\(Constants.tuistDirectoryName)/\(Constants.DependenciesDirectory.name)/**",
-        ]
+        ] + tuistIgnoreEntries
 
         let projectDescriptionPath = try resourceLocator.projectDescription()
-        let projectManifests = manifestFilesLocator.locateProjectManifests(at: editingPath, excluding: pathsToExclude, onlyCurrentDirectory: onlyCurrentDirectory)
+        let projectManifests = manifestFilesLocator.locateProjectManifests(
+            at: editingPath,
+            excluding: pathsToExclude,
+            onlyCurrentDirectory: onlyCurrentDirectory
+        )
         let configPath = manifestFilesLocator.locateConfig(at: editingPath)
         let cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories(config: nil)
         let projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(
-            cacheDirectory: cacheDirectory.projectDescriptionHelpersCacheDirectory)
+            cacheDirectory: cacheDirectory.cacheDirectory(for: .projectDescriptionHelpers))
         let dependenciesPath = manifestFilesLocator.locateDependencies(at: editingPath)
         let setupPath = manifestFilesLocator.locateSetup(at: editingPath)
 
@@ -169,7 +176,12 @@ final class ProjectEditor: ProjectEditing {
     }
 
     /// - Returns: A list of plugin manifests which should be loaded as part of the project.
-    private func locateEditablePluginManifests(at path: AbsolutePath, excluding: [String], plugins: Plugins, onlyCurrentDirectory: Bool) -> [EditablePluginManifest] {
+    private func locateEditablePluginManifests(
+        at path: AbsolutePath,
+        excluding: [String],
+        plugins: Plugins,
+        onlyCurrentDirectory: Bool
+    ) -> [EditablePluginManifest] {
         let loadedEditablePluginManifests = plugins.projectDescriptionHelpers
             .filter { $0.location == .local }
             .map { EditablePluginManifest(name: $0.name, path: $0.path.parentDirectory) }
