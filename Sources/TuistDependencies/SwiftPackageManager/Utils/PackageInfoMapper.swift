@@ -137,7 +137,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     // local binary
                     result[target.name] = Path(RelativePath(path).pathString)
                 } else {
-                    // remote binaries are checkedout by SPM in artifacts/<Package>/<Target>.xcframework
+                    // remote binaries are checked out by SPM in artifacts/<Package>/<Target>.xcframework
                     result[target.name] = Path(artifactsFolderForPackage.appending(component: "\(target.name).xcframework").pathString)
                 }
             }

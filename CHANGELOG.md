@@ -7,6 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Changed
 
 - **Breaking** Minimum supported Xcode version bumped to 12.4.
+- Improve speed of command `tuist edit` and improved automatic detection of editable manifests [#3416](https://github.com/tuist/tuist/pull/3416) by [@adellibovi](https://github.com/adellibovi).
 - Improve speed of `tuist focus` and `tuist cache warm` with a targets list (i.e. `tuist focus frameworkX` and `tuist cache warm frameworkX`) by avoiding calculating hashes for non dependent targets [#3423](https://github.com/tuist/tuist/pull/3423) by [@adellibovi](https://github.com/adellibovi).
 
 ### Fixed

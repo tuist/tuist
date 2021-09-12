@@ -1,9 +1,15 @@
 # frozen_string_literal: true
 require "open3"
 Given(/tuist is available/) do
-  system("swift", "build")
-  @tuist = ".build/debug/tuist"
-  @tuistenv = ".build/debug/tuistenv"
+  # On CI we expect tuist to be built already by the previous job `release_build`, so we skip `swift build`
+  if ENV["CI"].nil?
+    system("swift", "build", "-c", "release", "--product", "tuist", "--product", "tuistenv", "--product", "ProjectDescription", "--product", "ProjectAutomation")
+  end
+  # `tuist` release build expect to have `vendor` and `Templates` in the same directory where the executable is
+  FileUtils.cp_r("projects/tuist/vendor", ".build/release/vendor")
+  FileUtils.cp_r("Templates", ".build/release/Templates")
+  @tuist = ".build/release/tuist"
+  @tuistenv = ".build/release/tuistenv"
 end
 
 Then(/^tuist generates the project$/) do

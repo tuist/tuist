@@ -253,7 +253,11 @@ public class GraphTraverser: GraphTraversing {
     }
 
     // swiftlint:disable:next function_body_length
-    public func linkableDependencies(path: AbsolutePath, name: String, shouldExcludeHostAppDependencies: Bool) throws -> Set<GraphDependencyReference> {
+    public func linkableDependencies(
+        path: AbsolutePath,
+        name: String,
+        shouldExcludeHostAppDependencies: Bool
+    ) throws -> Set<GraphDependencyReference> {
         guard let target = self.target(path: path, name: name) else { return Set() }
 
         var references = Set<GraphDependencyReference>()
