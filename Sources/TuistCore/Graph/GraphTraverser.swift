@@ -598,7 +598,6 @@ public class GraphTraverser: GraphTraversing {
             guard let target = self.target(path: path, name: name) else { return false }
             return target.target.product.isStatic
         case .sdk: return false
-        case .cocoapods: return false
         }
     }
 
