@@ -103,11 +103,25 @@ final class ProjectEditorTests: TuistUnitTestCase {
             directory.appending(components: "Tuist", "Tasks", "TaskOne.swift"),
             directory.appending(components: "Tuist", "Tasks", "TaskTwo.swift"),
         ]
+        try FileHandler.shared.write(
+            """
+            B.swift
+            """,
+            path: directory.appending(component: ".tuistignore"),
+            atomically: true
+        )
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
         resourceLocator.projectAutomationStub = { projectAutomationPath }
-        manifestFilesLocator.locateProjectManifestsStub = { _, _, _ in
-            manifests
+        manifestFilesLocator.locateProjectManifestsStub = { _, excluding, _ in
+            XCTAssertEqual(
+                excluding,
+                [
+                    "**/Tuist/Dependencies/**",
+                    "B.swift",
+                ]
+            )
+            return manifests
         }
         manifestFilesLocator.locateConfigStub = configPath
         manifestFilesLocator.locateDependenciesStub = dependenciesPath
