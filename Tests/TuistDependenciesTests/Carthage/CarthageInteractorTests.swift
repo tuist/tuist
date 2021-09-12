@@ -93,7 +93,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         try XCTAssertDirectoryContentEqual(
             carthageDirectory,
             [
-                "Build"
+                "Build",
             ]
         )
         try XCTAssertDirectoryContentEqual(
@@ -200,7 +200,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         try XCTAssertDirectoryContentEqual(
             carthageDirectory,
             [
-                "Build"
+                "Build",
             ]
         )
         try XCTAssertDirectoryContentEqual(
