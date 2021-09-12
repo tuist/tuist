@@ -71,13 +71,19 @@ jobs:
       - uses: actions/cache@v2
         with:
           path: .build
-          key: ${{ runner.os }}-${{ matrix.xcode }}-spm-${{ hashFiles('**/Package.resolved') }}
+          key: ${{ runner.os }}-${{ matrix.xcode }}-spm-${{ hashFiles('**/Package.resolved') }}-git-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.xcode }}-spm-
+            ${{ runner.os }}-${{ matrix.xcode }}-spm-${{ hashFiles('**/Package.resolved') }}
+            ${{ runner.os }}-${{ matrix.xcode }}-spm
       - name: Build Tuist for release
         run: swift build -c release --product tuist
       - name: Build Tuistenv for release
         run: swift build -c release --product tuistenv
+      - name: Build ProjectDescription for release
+        run: swift build -c release --product ProjectDescription
+      - name: Build ProjectAutomation for release
+        run: swift build -c release --product ProjectAutomation
+
   acceptance_tests:
     name: ${{ matrix.feature }} acceptance tests with Xcode ${{ matrix.xcode }}
     runs-on: macOS-11
@@ -114,6 +120,7 @@ jobs:
           ]
     env:
       TUIST_GITHUB_API_TOKEN: ${{ secrets.GH_TOKEN }}
+    needs: release_build
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -122,9 +129,10 @@ jobs:
         name: 'Cache SPM dependencies'
         with:
           path: .build
-          key: ${{ runner.os }}-${{ matrix.xcode }}-spm-${{ hashFiles('**/Package.resolved') }}
+          key: ${{ runner.os }}-${{ matrix.xcode }}-spm-${{ hashFiles('**/Package.resolved') }}-git-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-spm-
+            ${{ runner.os }}-${{ matrix.xcode }}-spm-${{ hashFiles('**/Package.resolved') }}
+            ${{ runner.os }}-${{ matrix.xcode }}-spm
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ env.RUBY_VERSION }}
