@@ -148,7 +148,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
                 outputFileListPaths: action.outputFileListPaths.map { $0.relative(to: sourceRootPath).pathString }, // swiftlint:disable:this line_length
 
-                shellPath: "/bin/sh",
+                shellPath: action.shellPath,
                 shellScript: action.shellScript(sourceRootPath: sourceRootPath),
                 runOnlyForDeploymentPostprocessing: action.runForInstallBuildsOnly,
                 showEnvVarsInLog: action.showEnvVarsInLog
@@ -173,7 +173,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             let buildPhase = PBXShellScriptBuildPhase(
                 files: [],
                 name: script.name,
-                shellPath: "/bin/sh",
+                shellPath: script.shellPath,
                 shellScript: script.script,
                 showEnvVarsInLog: script.showEnvVarsInLog
             )

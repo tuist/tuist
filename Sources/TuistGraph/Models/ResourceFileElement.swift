@@ -31,6 +31,17 @@ public enum ResourceFileElement: Equatable, Hashable, Codable {
             return tags
         }
     }
+
+    public init(path: AbsolutePath) {
+        self = .file(path: path)
+    }
+}
+
+public extension Array where Element == TuistGraph.ResourceFileElement {
+    mutating func remove(path: AbsolutePath) {
+        guard let index = firstIndex(of: TuistGraph.ResourceFileElement(path: path)) else { return }
+        remove(at: index)
+    }
 }
 
 // MARK: - Codable

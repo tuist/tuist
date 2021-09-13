@@ -4,17 +4,23 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Changed
+
+- **Breaking** Minimum supported Xcode version bumped to 12.4.
+- Added custom shellPath to TargetAction and TargetScript to enable /bin/zsh as shell. [#3384](https://github.com/tuist/tuist/pull/3384) by [@DarkoDamjanovic](https://github.com/DarkoDamjanovic)
+- Allow to pass Cloud authentication token via TUIST_CLOUD_TOKEN even when not CI [#3380](https://github.com/tuist/tuist/pull/3380) by [@danyf90](https://github.com/danyf90)
+- Support for cache categories argument in `tuist clean` command [#3407](https://github.com/tuist/tuist/pull/3407) by [@danyf90](https://github.com/danyf90)
+- Support for floating number (`real`) value for `InfoPlist` [#3377](https://github.com/tuist/tuist/pull/3377) by [@MarvinNazari](https://github.com/MarvinNazari)
+- Improve speed of command `tuist edit` and improved automatic detection of editable manifests [#3416](https://github.com/tuist/tuist/pull/3416) by [@adellibovi](https://github.com/adellibovi).
+
+### Fixed
+- settings-to-xcconfig migration command produces correct string format. [#3260](https://github.com/tuist/tuist/3260) by [@saim80](https://github.com/saim80)
+- Fix caching of manifests that use plugins [#3370](https://github.com/tuist/tuist/pull/3370) by [@luispadron](https://github.com/luispadron)
+
 ### Added
 
 - Allow to pass Cloud authentication token via TUIST_CLOUD_TOKEN even when not CI [#3380](https://github.com/tuist/tuist/pull/3380) by [@danyf90](https://github.com/danyf90)
 - Support for cache categories argument in `tuist clean` command [#3407](https://github.com/tuist/tuist/pull/3407) by [@danyf90](https://github.com/danyf90)
-- Support for floating number (`real`) value for `InfoPlist` [#3377](https://github.com/tuist/tuist/pull/3377) by [@MarvinNazari](https://github.com/MarvinNazari)
-
-### Fixed
-
-- Fix caching of manifests that use plugins [#3370](https://github.com/tuist/tuist/pull/3370) by [@luispadron](https://github.com/luispadron)
-- Fix linking of transitive precompiled static frameworks for unit test with a host app [#3357](https://github.com/tuist/tuist/pull/3357) by [@adellibovi](https://github.com/adellibovi), [@kwridan](https://github.com/kwridan)
-- settings-to-xcconfig migration command produces correct string format. [#3260](https://github.com/tuist/tuist/3260) by [@saim80](https://github.com/saim80)
 
 ## 1.49.2
 
