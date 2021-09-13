@@ -15,8 +15,8 @@ final class GenerateCacheableSchemesWorkspaceMapperTests: XCTestCase {
         let targetC = Target.test(name: "C", platform: .macOS, product: .framework)
         let bundle = Target.test(name: "Bundle", platform: .tvOS, product: .bundle)
 
-        let includedTargets = [targetA, targetC, bundle]
-        let subject = GenerateCacheableSchemesWorkspaceMapper(includedTargets: includedTargets)
+        let includedTargets = [targetA, targetC, bundle].map(\.name)
+        let subject = GenerateCacheableSchemesWorkspaceMapper(includedTargets: Set(includedTargets))
         let projectA = Project.test(name: "A", targets: [targetA, bundle])
         let projectB = Project.test(name: "B", targets: [targetB, targetC])
         let workspace = Workspace.test()
@@ -45,7 +45,7 @@ final class GenerateCacheableSchemesWorkspaceMapperTests: XCTestCase {
         XCTAssertEqual(updatedWorkspace.workspace.schemes[4].buildAction?.targets.map(\.name), [
             "Bundle",
         ])
-        XCTAssertEqual(updatedWorkspace.workspace.schemes.flatMap { $0.buildAction?.targets ?? [] }.map(\.name), includedTargets.map(\.name))
+        XCTAssertEqual(updatedWorkspace.workspace.schemes.flatMap { $0.buildAction?.targets ?? [] }.map(\.name), includedTargets)
         XCTAssertTrue(sideEffects.isEmpty)
     }
 }
