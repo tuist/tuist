@@ -84,26 +84,21 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
     ) throws -> TuistCore.DependenciesGraph {
         logger.info("Installing Swift Package Manager dependencies.", metadata: .subsection)
 
-        // prepare paths
         let pathsProvider = SwiftPackageManagerPathsProvider(dependenciesDirectory: dependenciesDirectory)
 
-        // prepare for installation
         try loadDependencies(pathsProvider: pathsProvider, dependencies: dependencies, swiftToolsVersion: swiftToolsVersion)
 
-        // run `Swift Package Manager`
         if shouldUpdate {
             try swiftPackageManagerController.update(at: pathsProvider.destinationSwiftPackageManagerDirectory, printOutput: true)
         } else {
             try swiftPackageManagerController.resolve(at: pathsProvider.destinationSwiftPackageManagerDirectory, printOutput: true)
         }
 
-        // post installation
         try saveDependencies(
             pathsProvider: pathsProvider,
             hasRemoteDependencies: dependencies.packages.contains(where: \.isRemote)
         )
 
-        // generate dependencies graph
         let dependenciesGraph = try swiftPackageManagerGraphGenerator.generate(
             at: pathsProvider.destinationBuildDirectory,
             productTypes: dependencies.productTypes,
@@ -150,7 +145,6 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
             to: swiftToolsVersion?.description
         )
 
-        // log
         let generatedManifestContent = try fileHandler.readTextFile(packageManifestPath)
         logger.debug("Package.swift:", metadata: .subsection)
         logger.debug("\(generatedManifestContent)")
@@ -158,7 +152,6 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
 
     /// Saves lockfile resolved dependencies in `Tuist/Dependencies` directory.
     private func saveDependencies(pathsProvider: SwiftPackageManagerPathsProvider, hasRemoteDependencies: Bool) throws {
-        // validation
         guard !hasRemoteDependencies || fileHandler.exists(pathsProvider.temporaryPackageResolvedPath) else {
             throw SwiftPackageManagerInteractorError.packageResolvedNotFound
         }
@@ -167,7 +160,6 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         }
 
         if fileHandler.exists(pathsProvider.temporaryPackageResolvedPath) {
-            // save `Package.resolved`
             try copy(
                 from: pathsProvider.temporaryPackageResolvedPath,
                 to: pathsProvider.destinationPackageResolvedPath

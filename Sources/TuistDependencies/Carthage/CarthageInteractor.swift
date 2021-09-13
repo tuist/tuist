@@ -86,18 +86,14 @@ public final class CarthageInteractor: CarthageInteracting {
     ) throws -> TuistCore.DependenciesGraph {
         logger.info("Installing Carthage dependencies.", metadata: .subsection)
 
-        // check availability of `carthage`
         guard carthageController.canUseSystemCarthage() else {
             throw CarthageInteractorError.carthageNotFound
         }
 
-        // prepare paths
         let pathsProvider = CarthagePathsProvider(dependenciesDirectory: dependenciesDirectory)
 
-        // prepare for installation
         try loadDependencies(pathsProvider: pathsProvider, dependencies: dependencies)
 
-        // run `Carthage`
         if shouldUpdate {
             try carthageController.update(
                 at: pathsProvider.dependenciesDirectory,
@@ -112,10 +108,8 @@ public final class CarthageInteractor: CarthageInteracting {
             )
         }
 
-        // post installation
         try saveDependencies(pathsProvider: pathsProvider)
 
-        // generate dependencies graph
         let dependenciesGraph = try carthageGraphGenerator
             .generate(at: pathsProvider.destinationCarthageBuildDirectory)
 
@@ -153,14 +147,12 @@ public final class CarthageInteractor: CarthageInteracting {
         try FileHandler.shared.createFolder(cartfilePath.removingLastComponent())
         try FileHandler.shared.write(cartfileContent, path: cartfilePath, atomically: true)
 
-        // log
         logger.debug("Cartfile:", metadata: .subsection)
         logger.debug("\(cartfileContent)")
     }
 
     /// Saves lockfile resolved dependencies in `Tuist/Dependencies` directory.
     private func saveDependencies(pathsProvider: CarthagePathsProvider) throws {
-        // validation
         guard FileHandler.shared.exists(pathsProvider.temporaryCartfileResolvedPath) else {
             throw CarthageInteractorError.cartfileResolvedNotFound
         }
@@ -168,7 +160,6 @@ public final class CarthageInteractor: CarthageInteracting {
             throw CarthageInteractorError.buildDirectoryNotFound
         }
 
-        // save `Cartfile.resolved`
         try copy(
             from: pathsProvider.temporaryCartfileResolvedPath,
             to: pathsProvider.destinationCartfileResolvedPath
