@@ -3,9 +3,9 @@ import TSCBasic
 import TuistCore
 import TuistGraph
 
-/// `FilterTargetsDependenciesTreeGraphMapper` is used to filter out some targets and their dependencies
+/// `FilterTargetsDependenciesTreeGraphMapper` is used to filter out some targets and their dependencies and tests targets.
 public final class FilterTargetsDependenciesTreeGraphMapper: GraphMapping {
-    /// The targets name to be kept as non prunable with their respective dependencies
+    /// The targets name to be kept as non prunable with their respective dependencies and tests targets
     private let includedTargets: Set<String>?
 
     public init(includedTargets: Set<String>?) {
@@ -17,8 +17,12 @@ public final class FilterTargetsDependenciesTreeGraphMapper: GraphMapping {
         var graph = graph
         let filteredTargets: Set<GraphTarget>
         if let includedTargets = includedTargets {
+            let userSpecifiedSourceTargets = graphTraverser.allTargets().filter { includedTargets.contains($0.target.name) }
+            let userSpecifiedSourceTestTargets = userSpecifiedSourceTargets.flatMap {
+                graphTraverser.testTargetsDependingOn(path: $0.path, name: $0.target.name)
+            }
             filteredTargets = Set(try topologicalSort(
-                Array(graphTraverser.allTargets().filter { includedTargets.contains($0.target.name) }),
+                Array(userSpecifiedSourceTargets + userSpecifiedSourceTestTargets),
                 successors: {
                     Array(graphTraverser.directTargetDependencies(path: $0.path, name: $0.target.name))
                 }
