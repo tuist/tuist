@@ -28,7 +28,6 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Given
         let sourceRootPath = try temporaryPath()
         let projectManifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }
-        let setupPath = sourceRootPath.appending(component: "Setup.swift")
         let configPath = sourceRootPath.appending(components: Constants.tuistDirectoryName, "Config.swift")
         let dependenciesPath = sourceRootPath.appending(components: Constants.tuistDirectoryName, "Dependencies.swift")
         let helperPaths = [sourceRootPath].map { $0.appending(component: "Project+Template.swift") }
@@ -48,7 +47,6 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             tuistPath: tuistPath,
             sourceRootPath: sourceRootPath,
             destinationDirectory: sourceRootPath,
-            setupPath: setupPath,
             configPath: configPath,
             dependenciesPath: dependenciesPath,
             projectManifests: projectManifestPaths,
@@ -107,18 +105,6 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(templatesTarget.sources.map(\.path), templates)
         XCTAssertEqual(templatesTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(templatesTarget.dependencies)
-
-        // Generated Setup target
-        let setupTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "Setup" }))
-        XCTAssertTrue(targets.contains(setupTarget))
-
-        XCTAssertEqual(setupTarget.name, "Setup")
-        XCTAssertEqual(setupTarget.platform, .macOS)
-        XCTAssertEqual(setupTarget.product, .staticFramework)
-        XCTAssertEqual(setupTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
-        XCTAssertEqual(setupTarget.sources.map(\.path), [setupPath])
-        XCTAssertEqual(setupTarget.filesGroup, projectsGroup)
-        XCTAssertEmpty(setupTarget.dependencies)
 
         // Generated Config target
         let configTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "Config" }))
@@ -210,7 +196,6 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             tuistPath: tuistPath,
             sourceRootPath: sourceRootPath,
             destinationDirectory: sourceRootPath,
-            setupPath: nil,
             configPath: nil,
             dependenciesPath: nil,
             projectManifests: projectManifestPaths,
@@ -271,7 +256,6 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
     func test_tuist_edit_with_more_than_one_manifest() throws {
         // Given
         let sourceRootPath = try temporaryPath()
-        let setupPath = sourceRootPath.appending(component: "Setup.swift")
         let configPath = sourceRootPath.appending(components: Constants.tuistDirectoryName, "Config.swift")
         let dependenciesPath = sourceRootPath.appending(components: Constants.tuistDirectoryName, "Dependencies.swift")
         let otherProjectPath = "Module"
@@ -291,7 +275,6 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             tuistPath: tuistPath,
             sourceRootPath: sourceRootPath,
             destinationDirectory: sourceRootPath,
-            setupPath: setupPath,
             configPath: configPath,
             dependenciesPath: dependenciesPath,
             projectManifests: projectManifestPaths,
@@ -335,17 +318,6 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(manifestTwoTarget.sources.map(\.path), [try XCTUnwrap(projectManifestPaths.first)])
         XCTAssertEqual(manifestTwoTarget.filesGroup, .group(name: projectName))
         XCTAssertEmpty(manifestTwoTarget.dependencies)
-
-        // Generated Setup target
-        let setupTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "Setup" }))
-
-        XCTAssertEqual(setupTarget.name, "Setup")
-        XCTAssertEqual(setupTarget.platform, .macOS)
-        XCTAssertEqual(setupTarget.product, .staticFramework)
-        XCTAssertEqual(setupTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
-        XCTAssertEqual(setupTarget.sources.map(\.path), [setupPath])
-        XCTAssertEqual(setupTarget.filesGroup, .group(name: projectName))
-        XCTAssertEmpty(setupTarget.dependencies)
 
         // Generated Config target
         let configTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "Config" }))
@@ -402,7 +374,6 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             tuistPath: tuistPath,
             sourceRootPath: sourceRootPath,
             destinationDirectory: sourceRootPath,
-            setupPath: nil,
             configPath: nil,
             dependenciesPath: nil,
             projectManifests: [],
@@ -480,7 +451,6 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             tuistPath: tuistPath,
             sourceRootPath: sourceRootPath,
             destinationDirectory: sourceRootPath,
-            setupPath: nil,
             configPath: nil,
             dependenciesPath: nil,
             projectManifests: [],
@@ -589,7 +559,6 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             tuistPath: tuistPath,
             sourceRootPath: sourceRootPath,
             destinationDirectory: sourceRootPath,
-            setupPath: nil,
             configPath: nil,
             dependenciesPath: nil,
             projectManifests: [],
@@ -630,7 +599,6 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             tuistPath: tuistPath,
             sourceRootPath: sourceRootPath,
             destinationDirectory: sourceRootPath,
-            setupPath: nil,
             configPath: nil,
             dependenciesPath: nil,
             projectManifests: projectManifestPaths,

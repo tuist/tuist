@@ -29,7 +29,6 @@ public struct TuistCommand: ParsableCommand {
                 ScaffoldCommand.self,
                 SigningCommand.self,
                 TestCommand.self,
-                UpCommand.self,
                 VersionCommand.self,
             ]
         )

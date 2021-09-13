@@ -11,7 +11,6 @@ protocol ProjectEditorMapping: AnyObject {
         tuistPath: AbsolutePath,
         sourceRootPath: AbsolutePath,
         destinationDirectory: AbsolutePath,
-        setupPath: AbsolutePath?,
         configPath: AbsolutePath?,
         dependenciesPath: AbsolutePath?,
         projectManifests: [AbsolutePath],
@@ -33,7 +32,6 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         tuistPath: AbsolutePath,
         sourceRootPath: AbsolutePath,
         destinationDirectory: AbsolutePath,
-        setupPath: AbsolutePath?,
         configPath: AbsolutePath?,
         dependenciesPath: AbsolutePath?,
         projectManifests: [AbsolutePath],
@@ -67,7 +65,6 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             helpers: helpers,
             templates: templates,
             tasks: tasks,
-            setupPath: setupPath,
             configPath: configPath,
             dependenciesPath: dependenciesPath,
             editablePluginTargets: editablePluginManifests.map(\.name),
@@ -136,7 +133,6 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
         tasks: [AbsolutePath],
-        setupPath: AbsolutePath?,
         configPath: AbsolutePath?,
         dependenciesPath: AbsolutePath?,
         editablePluginTargets: [String],
@@ -186,16 +182,6 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             )
         }
 
-        let setupTarget: Target? = {
-            guard let setupPath = setupPath else { return nil }
-            return editorHelperTarget(
-                name: "Setup",
-                filesGroup: manifestsFilesGroup,
-                targetSettings: baseTargetSettings,
-                sourcePaths: [setupPath]
-            )
-        }()
-
         let configTarget: Target? = {
             guard let configPath = configPath else { return nil }
             return editorHelperTarget(
@@ -239,7 +225,6 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         let targets = [
             helpersTarget,
             templatesTarget,
-            setupTarget,
             configTarget,
             dependenciesTarget,
         ]

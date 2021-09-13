@@ -114,7 +114,6 @@ jobs:
             'run',
             'scaffold',
             'test',
-            'up',
             'graph',
             'tasks',
           ]

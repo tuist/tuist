@@ -77,10 +77,6 @@ public class CachedManifestLoader: ManifestLoading {
         }
     }
 
-    public func loadSetup(at path: AbsolutePath) throws -> SetupActions {
-        try manifestLoader.loadSetup(at: path)
-    }
-
     public func loadTemplate(at path: AbsolutePath) throws -> Template {
         try load(manifest: .template, at: path) {
             try manifestLoader.loadTemplate(at: path)

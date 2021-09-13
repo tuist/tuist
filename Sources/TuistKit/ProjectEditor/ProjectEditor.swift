@@ -117,7 +117,6 @@ final class ProjectEditor: ProjectEditing {
         let projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(
             cacheDirectory: cacheDirectory.cacheDirectory(for: .projectDescriptionHelpers))
         let dependenciesPath = manifestFilesLocator.locateDependencies(at: editingPath)
-        let setupPath = manifestFilesLocator.locateSetup(at: editingPath)
 
         let helpers = helpersDirectoryLocator.locate(at: editingPath).map {
             FileHandler.shared.glob($0, glob: "**/*.swift")
@@ -156,7 +155,6 @@ final class ProjectEditor: ProjectEditing {
             tuistPath: tuistPath,
             sourceRootPath: editingPath,
             destinationDirectory: destinationDirectory,
-            setupPath: setupPath,
             configPath: configPath,
             dependenciesPath: dependenciesPath,
             projectManifests: projectManifests.map(\.path),

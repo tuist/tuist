@@ -97,34 +97,6 @@ final class ManifestLoaderTests: TuistTestCase {
         XCTAssertEqual(got.name, "tuist")
     }
 
-    func test_loadSetup() throws {
-        // Given
-        let temporaryPath = try self.temporaryPath()
-        let content = """
-        import ProjectDescription
-        let setup = Setup([
-                        .custom(name: "hello", meet: ["a", "b"], isMet: ["c"])
-                    ])
-        """
-
-        let manifestPath = temporaryPath.appending(component: Manifest.setup.fileName(temporaryPath))
-        try content.write(
-            to: manifestPath.url,
-            atomically: true,
-            encoding: .utf8
-        )
-
-        // When
-        let got = try subject.loadSetup(at: temporaryPath)
-
-        // Then
-        let customUp = got.actions.first as? UpCustom
-        XCTAssertEqual(got.actions.count, 1)
-        XCTAssertEqual(customUp?.name, "hello")
-        XCTAssertEqual(customUp?.meet, ["a", "b"])
-        XCTAssertEqual(customUp?.isMet, ["c"])
-    }
-
     func test_loadTemplate() throws {
         // Given
         let temporaryPath = try self.temporaryPath().appending(component: "folder")
@@ -188,7 +160,6 @@ final class ManifestLoaderTests: TuistTestCase {
         let temporaryPath = try self.temporaryPath()
         try fileHandler.touch(temporaryPath.appending(component: "Project.swift"))
         try fileHandler.touch(temporaryPath.appending(component: "Workspace.swift"))
-        try fileHandler.touch(temporaryPath.appending(component: "Setup.swift"))
         try fileHandler.touch(temporaryPath.appending(component: "Config.swift"))
 
         // When
@@ -197,7 +168,6 @@ final class ManifestLoaderTests: TuistTestCase {
         // Then
         XCTAssertTrue(got.contains(.project))
         XCTAssertTrue(got.contains(.workspace))
-        XCTAssertTrue(got.contains(.setup))
         XCTAssertTrue(got.contains(.config))
     }
 }
