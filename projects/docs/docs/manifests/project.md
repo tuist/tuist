@@ -294,6 +294,7 @@ It represents the values of the InfoPlist file dictionary. The reason this type 
 | ---------------------------------------- | --------------------------------- |
 | `.string(String)`                        | It represents a string value.     |
 | `.integer(Int)`                          | It represents an integer value.   |
+| `.real(Double)`                          | It represents a floating value.   |
 | `.boolean(Bool)`                         | It represents a boolean value.    |
 | `.dictionary([String: InfoPlist.Value])` | It represents a dictionary value. |
 | `.array([InfoPlist.Value])`              | It represents an array value.     |

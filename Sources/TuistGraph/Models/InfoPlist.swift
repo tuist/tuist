@@ -5,6 +5,7 @@ public enum InfoPlist: Equatable, Codable {
     public indirect enum Value: Equatable, Codable {
         case string(String)
         case integer(Int)
+        case real(Double)
         case boolean(Bool)
         case dictionary([String: Value])
         case array([Value])
@@ -21,6 +22,8 @@ public enum InfoPlist: Equatable, Codable {
                 return integer
             case let .string(string):
                 return string
+            case let .real(double):
+                return double
             }
         }
 
@@ -29,6 +32,8 @@ public enum InfoPlist: Equatable, Codable {
             case let (.string(lhsValue), .string(rhsValue)):
                 return lhsValue == rhsValue
             case let (.integer(lhsValue), .integer(rhsValue)):
+                return lhsValue == rhsValue
+            case let (.real(lhsValue), .real(rhsValue)):
                 return lhsValue == rhsValue
             case let (.boolean(lhsValue), .boolean(rhsValue)):
                 return lhsValue == rhsValue
@@ -149,6 +154,14 @@ extension InfoPlist.Value: ExpressibleByIntegerLiteral {
     }
 }
 
+// MARK: - InfoPlist.Value - ExpressibleByIntegerLiteral
+
+extension InfoPlist.Value: ExpressibleByFloatLiteral {
+    public init(floatLiteral value: Double) {
+        self = .real(value)
+    }
+}
+
 // MARK: - InfoPlist.Value - ExpressibleByBooleanLiteral
 
 extension InfoPlist.Value: ExpressibleByBooleanLiteral {
@@ -179,6 +192,7 @@ extension InfoPlist.Value {
     private enum Kind: String, Codable {
         case string
         case integer
+        case real
         case boolean
         case dictionary
         case array
@@ -187,6 +201,7 @@ extension InfoPlist.Value {
     private enum CodingKeys: String, CodingKey {
         case kind
         case string
+        case real
         case integer
         case boolean
         case dictionary
@@ -203,6 +218,9 @@ extension InfoPlist.Value {
         case .integer:
             let integer = try container.decode(Int.self, forKey: .integer)
             self = .integer(integer)
+        case .real:
+            let double = try container.decode(Double.self, forKey: .real)
+            self = .real(double)
         case .boolean:
             let boolean = try container.decode(Bool.self, forKey: .boolean)
             self = .boolean(boolean)
@@ -224,6 +242,9 @@ extension InfoPlist.Value {
         case let .integer(integer):
             try container.encode(Kind.integer, forKey: .kind)
             try container.encode(integer, forKey: .integer)
+        case let .real(double):
+            try container.encode(Kind.real, forKey: .kind)
+            try container.encode(double, forKey: .real)
         case let .boolean(boolean):
             try container.encode(Kind.boolean, forKey: .kind)
             try container.encode(boolean, forKey: .boolean)
