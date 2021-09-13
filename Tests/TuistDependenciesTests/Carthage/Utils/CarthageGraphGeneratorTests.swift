@@ -2,6 +2,7 @@ import ProjectDescription
 import TSCBasic
 import TSCUtility
 import TuistCore
+import TuistGraph
 import TuistSupport
 import XCTest
 
@@ -37,7 +38,7 @@ final class CarthageGraphGeneratorTests: TuistUnitTestCase {
         try fileHandler.write(CarthageVersionFile.testAlamofireJson, path: alamofireVersionFilePath, atomically: true)
 
         // When
-        let got = try subject.generate(at: path)
+        let got = try subject.generate(at: path, for: [.iOS])
 
         // Then
         let expected = DependenciesGraph(
