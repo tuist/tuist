@@ -310,7 +310,7 @@ final class MockGraphTraverser: GraphTraversing {
 
     var invokedSearchablePathDependencies = false
     var invokedSearchablePathDependenciesCount = 0
-    var invokedSearchablePathDependenciesParameters: (path: AbsolutePath, name: String)?
+    var invokedSearchablePathDependenciesParameters: (path: AbsolutePath, name: String)? // swiftlint:disable:this identifier_name
     var invokedSearchablePathDependenciesParametersList = [(path: AbsolutePath, name: String)]() // swiftlint:disable:this identifier_name
     var stubbedSearchablePathDependenciesError: Error?
     var stubbedSearchablePathDependenciesResult: Set<GraphDependencyReference>! = []

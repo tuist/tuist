@@ -18,10 +18,13 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - **Breaking** removed the `tuist doc` command. [#3401](https://github.com/tuist/tuist/pull/3401) by [@pepibumur](https://github.com/pepibumur)
   - **Motivation:** the command was barely used so we are removing it to reduce the maintenance burden and reduce the binary size.
   - **Migration:** you can use Tuist tasks or [Fastlane](https://github.com/fastlane/fastlane) to run [swift-doc](https://github.com/SwiftDocOrg/swift-doc) and generate documentation from your generated projects.
+
 ## Next
 
 ### Changed
 
+- Added custom shellPath to TargetAction and TargetScript to enable /bin/zsh as shell. [#3384](https://github.com/tuist/tuist/pull/3384) by [@DarkoDamjanovic](https://github.com/DarkoDamjanovic)
+- Allow to pass Cloud authentication token via TUIST_CLOUD_TOKEN even when not CI [#3380](https://github.com/tuist/tuist/pull/3380) by [@danyf90](https://github.com/danyf90)
 - **Breaking** Minimum supported Xcode version bumped to 12.4.
 - Improve speed of command `tuist edit` and improved automatic detection of editable manifests [#3416](https://github.com/tuist/tuist/pull/3416) by [@adellibovi](https://github.com/adellibovi).
 

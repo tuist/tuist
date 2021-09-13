@@ -91,6 +91,9 @@ public struct TargetAction: Equatable, Codable {
     /// Whether this action only runs on install builds (default is false)
     public let runForInstallBuildsOnly: Bool
 
+    /// The path to the shell which shall execute this script.
+    public let shellPath: String
+
     /// Initializes a new target action with its attributes using a script at the given path to be executed.
     ///
     /// - Parameters:
@@ -105,6 +108,7 @@ public struct TargetAction: Equatable, Codable {
     ///   - showEnvVarsInLog: Show environment variables in the logs
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
+    ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     public init(name: String,
                 order: Order,
                 script: Script = .embedded(""),
@@ -114,7 +118,8 @@ public struct TargetAction: Equatable, Codable {
                 outputFileListPaths: [AbsolutePath] = [],
                 showEnvVarsInLog: Bool = true,
                 basedOnDependencyAnalysis: Bool? = nil,
-                runForInstallBuildsOnly: Bool = false)
+                runForInstallBuildsOnly: Bool = false,
+                shellPath: String = "/bin/sh")
     {
         self.name = name
         self.order = order
@@ -126,6 +131,7 @@ public struct TargetAction: Equatable, Codable {
         self.showEnvVarsInLog = showEnvVarsInLog
         self.basedOnDependencyAnalysis = basedOnDependencyAnalysis
         self.runForInstallBuildsOnly = runForInstallBuildsOnly
+        self.shellPath = shellPath
     }
 }
 
