@@ -10,7 +10,7 @@ final class MockCacheControllerProjectGeneratorProvider: CacheControllerProjectG
     var invokedGeneratorTargetsToFilterCount = 0
     var stubbedGeneratorTargetsToFilterResult: Generating!
 
-    func generator() -> Generating {
+    func generator(includedTargets _: Set<String>?) -> Generating {
         invokedGenerator = true
         invokedGeneratorCount += 1
         return stubbedGeneratorResult
