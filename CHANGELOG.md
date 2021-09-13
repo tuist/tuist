@@ -6,9 +6,11 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
+- **Breaking** Minimum supported Xcode version bumped to 12.4.
 - Added custom shellPath to TargetAction and TargetScript to enable /bin/zsh as shell. [#3384](https://github.com/tuist/tuist/pull/3384) by [@DarkoDamjanovic](https://github.com/DarkoDamjanovic)
 - Allow to pass Cloud authentication token via TUIST_CLOUD_TOKEN even when not CI [#3380](https://github.com/tuist/tuist/pull/3380) by [@danyf90](https://github.com/danyf90)
-- **Breaking** Minimum supported Xcode version bumped to 12.4.
+- Support for cache categories argument in `tuist clean` command [#3407](https://github.com/tuist/tuist/pull/3407) by [@danyf90](https://github.com/danyf90)
+- Support for floating number (`real`) value for `InfoPlist` [#3377](https://github.com/tuist/tuist/pull/3377) by [@MarvinNazari](https://github.com/MarvinNazari)
 - Improve speed of command `tuist edit` and improved automatic detection of editable manifests [#3416](https://github.com/tuist/tuist/pull/3416) by [@adellibovi](https://github.com/adellibovi).
 - Improve speed of command `tuist dependencies fetch` and `tuist dependencies update` by performing the dependencies resolution directly in the `Tuist/Dependencies` folder [#3417](https://github.com/tuist/tuist/pull/3417) by [@danyf90](https://github.com/danyf90).
 

@@ -4,6 +4,7 @@ public enum InfoPlist: Codable, Equatable {
     public indirect enum Value: Codable, Equatable {
         case string(String)
         case integer(Int)
+        case real(Double)
         case boolean(Bool)
         case dictionary([String: Value])
         case array([Value])
@@ -14,6 +15,9 @@ public enum InfoPlist: Codable, Equatable {
                 var container = encoder.singleValueContainer()
                 try container.encode(value)
             case let .integer(value):
+                var container = encoder.singleValueContainer()
+                try container.encode(value)
+            case let .real(value):
                 var container = encoder.singleValueContainer()
                 try container.encode(value)
             case let .boolean(value):
@@ -36,6 +40,9 @@ public enum InfoPlist: Codable, Equatable {
                 } else if let value: Int = try? singleValueContainer.decode(Int.self) {
                     self = .integer(value)
                     return
+                } else if let value: Double = try? singleValueContainer.decode(Double.self) {
+                    self = .real(value)
+                    return
                 } else if let value: Bool = try? singleValueContainer.decode(Bool.self) {
                     self = .boolean(value)
                     return
@@ -57,6 +64,8 @@ public enum InfoPlist: Codable, Equatable {
             case let (.string(lhsValue), .string(rhsValue)):
                 return lhsValue == rhsValue
             case let (.integer(lhsValue), .integer(rhsValue)):
+                return lhsValue == rhsValue
+            case let (.real(lhsValue), .real(rhsValue)):
                 return lhsValue == rhsValue
             case let (.boolean(lhsValue), .boolean(rhsValue)):
                 return lhsValue == rhsValue
@@ -177,6 +186,14 @@ extension InfoPlist.Value: ExpressibleByStringInterpolation {
 extension InfoPlist.Value: ExpressibleByIntegerLiteral {
     public init(integerLiteral value: Int) {
         self = .integer(value)
+    }
+}
+
+// MARK: - InfoPlist.Value - ExpressibleByFloatLiteral
+
+extension InfoPlist.Value: ExpressibleByFloatLiteral {
+    public init(floatLiteral value: Double) {
+        self = .real(value)
     }
 }
 
