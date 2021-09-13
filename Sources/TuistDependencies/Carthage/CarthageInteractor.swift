@@ -150,6 +150,7 @@ public final class CarthageInteractor: CarthageInteracting {
         // create `Cartfile`
         let cartfileContent = dependencies.cartfileValue()
         let cartfilePath = pathsProvider.temporaryCartfilePath
+        try FileHandler.shared.createFolder(cartfilePath.removingLastComponent())
         try FileHandler.shared.write(cartfileContent, path: cartfilePath, atomically: true)
 
         // log
