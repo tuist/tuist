@@ -13,6 +13,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Support for floating number (`real`) value for `InfoPlist` [#3377](https://github.com/tuist/tuist/pull/3377) by [@MarvinNazari](https://github.com/MarvinNazari)
 - Improve speed of command `tuist edit` and improved automatic detection of editable manifests [#3416](https://github.com/tuist/tuist/pull/3416) by [@adellibovi](https://github.com/adellibovi).
 - Improve speed of `tuist focus` and `tuist cache warm` with a targets list (i.e. `tuist focus frameworkX` and `tuist cache warm frameworkX`) by avoiding calculating hashes for non dependent targets [#3423](https://github.com/tuist/tuist/pull/3423) by [@adellibovi](https://github.com/adellibovi).
+- Improve speed of command `tuist generate` by updating Xcodeproj [#3444](https://github.com/tuist/tuist/pull/3444) by [@adellibovi](https://github.com/adellibovi).
 
 ### Fixed
 - settings-to-xcconfig migration command produces correct string format. [#3260](https://github.com/tuist/tuist/3260) by [@saim80](https://github.com/saim80)
