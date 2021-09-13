@@ -106,6 +106,26 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertTrue(buildPhase.showEnvVarsInLog)
     }
 
+    func test_generateScriptsWithCustomShell() throws {
+        // Given
+        let target = PBXNativeTarget(name: "Test")
+        let pbxproj = PBXProj()
+        pbxproj.add(object: target)
+        let targetScript = TargetScript(name: "Test", script: "Script", showEnvVarsInLog: true, hashable: false, shellPath: "/bin/zsh")
+        let targetScripts = [targetScript]
+
+        // When
+        subject.generateScripts(
+            targetScripts,
+            pbxTarget: target,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let buildPhase = try XCTUnwrap(target.buildPhases.first as? PBXShellScriptBuildPhase)
+        XCTAssertEqual(buildPhase.shellPath, "/bin/zsh")
+    }
+
     func test_generateSourcesBuildPhase_throws_when_theFileReferenceIsMissing() {
         let path = AbsolutePath("/test/file.swift")
         let target = PBXNativeTarget(name: "Test")
@@ -901,6 +921,67 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertFalse(postBuildPhase.showEnvVarsInLog)
         XCTAssertTrue(postBuildPhase.alwaysOutOfDate)
         XCTAssertTrue(postBuildPhase.runOnlyForDeploymentPostprocessing)
+    }
+
+    func test_generateTarget_action_custom_shell() throws {
+        // Given
+        system.swiftVersionStub = { "5.2" }
+        let fileElements = ProjectFileElements([:])
+        let graph = Graph.test()
+        let graphTraverser = GraphTraverser(graph: graph)
+        let path = AbsolutePath("/test")
+        let pbxproj = PBXProj()
+        let pbxProject = createPbxProject(pbxproj: pbxproj)
+        let target = Target.test(
+            sources: [],
+            resources: [],
+            actions: [
+                TargetAction(
+                    name: "post",
+                    order: .post,
+                    script: .scriptPath(path.appending(component: "script.sh"), args: ["arg"]),
+                    showEnvVarsInLog: false,
+                    basedOnDependencyAnalysis: false,
+                    runForInstallBuildsOnly: true,
+                    shellPath: "/bin/zsh" // testing custom shell
+                ),
+                TargetAction(
+                    name: "pre",
+                    order: .pre,
+                    script: .scriptPath(path.appending(component: "script.sh"), args: ["arg"]) // leaving default shell
+                ),
+            ]
+        )
+        let project = Project.test(path: path, sourceRootPath: path, xcodeProjPath: path.appending(component: "Project.xcodeproj"), targets: [target])
+        let groups = ProjectGroups.generate(
+            project: project,
+            pbxproj: pbxproj
+        )
+        try fileElements.generateProjectFiles(
+            project: project,
+            graphTraverser: graphTraverser,
+            groups: groups,
+            pbxproj: pbxproj
+        )
+
+        // When
+        let pbxTarget = try TargetGenerator().generateTarget(
+            target: target,
+            project: project,
+            pbxproj: pbxproj,
+            pbxProject: pbxProject,
+            projectSettings: Settings.test(),
+            fileElements: fileElements,
+            path: path,
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        let preBuildPhase = try XCTUnwrap(pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase)
+        XCTAssertEqual(preBuildPhase.shellPath, "/bin/sh")
+
+        let postBuildPhase = try XCTUnwrap(pbxTarget.buildPhases.last as? PBXShellScriptBuildPhase)
+        XCTAssertEqual(postBuildPhase.shellPath, "/bin/zsh")
     }
 
     func test_generateEmbedAppClipsBuildPhase() throws {

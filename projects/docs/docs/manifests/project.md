@@ -294,6 +294,7 @@ It represents the values of the InfoPlist file dictionary. The reason this type 
 | ---------------------------------------- | --------------------------------- |
 | `.string(String)`                        | It represents a string value.     |
 | `.integer(Int)`                          | It represents an integer value.   |
+| `.real(Double)`                          | It represents a floating value.   |
 | `.boolean(Bool)`                         | It represents a boolean value.    |
 | `.dictionary([String: InfoPlist.Value])` | It represents a dictionary value. |
 | `.array([InfoPlist.Value])`              | It represents an array value.     |
@@ -308,17 +309,23 @@ Target actions, represented as target script build phases, are useful to define 
 
 | Case                                                                                                                                                                                         | Description                                                                                                                                                       |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.pre(tool: String, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool, runForInstallBuildsOnly: Bool)`  | Action executed before the target-specific build phases where tool is the name of the tool to be executed.                                                        |
-| `.pre(path: Path, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool, runForInstallBuildsOnly: Bool)`    | Action executed before the target-specific build phases where path is the path to the tool to be executed.                                                        |
-| `.pre(script: String, name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool, runForInstallBuildsOnly: Bool)`                      | Action executed before the target-specific build phases where script is an embedded script to run. It is advised to keep embedded scripts as small as possible.                              |
-| `.post(tool: String, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool, runForInstallBuildsOnly: Bool)` | Action executed after all the target-specific build phases where tool is the name of the tool to be executed.                                                     |
-| `.post(path: Path, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool, runForInstallBuildsOnly: Bool)`   | Action executed after all the target-specific build phases where path is the path to the tool to be executed.                                                     |
-| `.post(script: String, name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool, runForInstallBuildsOnly: Bool)`                     | Action executed after all the target-specific build phases where script is an embedded script to run. It is advised to keep embedded scripts as small as possible |
+| `.pre(tool: String, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool, runForInstallBuildsOnly: Bool, shellPath: String)`  | Action executed before the target-specific build phases where tool is the name of the tool to be executed.                                                        |
+| `.pre(path: Path, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool, runForInstallBuildsOnly: Bool, shellPath: String)`    | Action executed before the target-specific build phases where path is the path to the tool to be executed.                                                        |
+| `.pre(script: String, name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool, runForInstallBuildsOnly: Bool, shellPath: String)`                      | Action executed before the target-specific build phases where script is an embedded script to run. It is advised to keep embedded scripts as small as possible.                              |
+| `.post(tool: String, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool, runForInstallBuildsOnly: Bool, shellPath: String)` | Action executed after all the target-specific build phases where tool is the name of the tool to be executed.                                                     |
+| `.post(path: Path, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool, runForInstallBuildsOnly: Bool, shellPath: String)`   | Action executed after all the target-specific build phases where path is the path to the tool to be executed.                                                     |
+| `.post(script: String, name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool, runForInstallBuildsOnly: Bool, shellPath: String)`                     | Action executed after all the target-specific build phases where script is an embedded script to run. It is advised to keep embedded scripts as small as possible |
 
 The following example shows the definition of an action that runs the `my_custom_script.sh` passing the argument `"hello"`:
 
 ```swift
 .pre(path: "my_custom_script.sh", arguments: ["hello"], name: "My Custom Script Phase")
+```
+
+The following example shows the definition of an action that runs the `my_custom_script.sh` passing the argument `"hello"` on the `/bin/zsh` shell (default is `/bin/sh`):
+
+```swift
+.pre(path: "my_custom_script.sh", arguments: ["hello"], name: "My Custom Script Phase", shellPath: "/bin/zsh")
 ```
 
 The following example shows the definition of an action that runs the `my_custom_script.sh` defining input and output files:
