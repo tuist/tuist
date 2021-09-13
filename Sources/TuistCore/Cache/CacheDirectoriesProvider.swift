@@ -21,21 +21,25 @@ public final class CacheDirectoriesProvider: CacheDirectoriesProviding {
     }
 
     public func cacheDirectory(for category: CacheCategory) -> AbsolutePath {
-        switch category {
+        cacheDirectory.appending(component: category.directoryName)
+    }
+}
+
+extension CacheCategory {
+    var directoryName: String {
+        switch self {
         case .plugins:
-            return cacheDirectory.appending(component: "Plugins")
+            return "Plugins"
         case .builds:
-            return cacheDirectory.appending(component: "BuildCache")
+            return "BuildCache"
         case .tests:
-            return cacheDirectory.appending(component: "TestsCache")
+            return "TestsCache"
         case .generatedAutomationProjects:
-            return cacheDirectory.appending(component: "Projects")
+            return "Projects"
         case .projectDescriptionHelpers:
-            return cacheDirectory.appending(component: "ProjectDescriptionHelpers")
+            return "ProjectDescriptionHelpers"
         case .manifests:
-            return cacheDirectory.appending(component: "Manifests")
-        case .dependencies:
-            return FileHandler.shared.currentPath.appending(RelativePath("Tuist/Dependencies"))
+            return "Manifests"
         }
     }
 }

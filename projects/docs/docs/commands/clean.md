@@ -26,5 +26,4 @@ The list of supported categories is:
  - generatedAutomationProjects: the automation projects cache
  - projectDescriptionHelpers: the project description helpers cache
  - manifests: the manifests cache
- - dependencies: the local dependencies cache
  
