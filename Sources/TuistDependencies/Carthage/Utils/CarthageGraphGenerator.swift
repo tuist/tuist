@@ -41,7 +41,7 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
                 pathString += Constants.DependenciesDirectory.name
                 pathString += "/"
                 pathString += Constants.DependenciesDirectory.carthageDirectoryName
-                pathString += "/"
+                pathString += "/Build/"
                 pathString += xcFrameworkName
 
                 return [.xcframework(path: Path(pathString))]
