@@ -17,7 +17,6 @@ Given(/tuist is available/) do
         project_root
       )
     end
-
   end
 
   # `tuist` release build expect to have `vendor` and `Templates` in the same directory where the executable is

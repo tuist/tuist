@@ -10,6 +10,7 @@ struct DependenciesCommand: ParsableCommand {
             subcommands: [
                 DependenciesFetchCommand.self,
                 DependenciesUpdateCommand.self,
+                DependenciesCleanCommand.self,
             ]
         )
     }

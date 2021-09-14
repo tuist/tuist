@@ -37,7 +37,7 @@ extension SwiftPackageManagerDependencies {
         let package = Package(
             name: "PackageName",
             dependencies: [
-                \(packages.map { $0.manifestValue + "," }.joined(separator: "\n\t"))
+                \(packages.map { $0.manifestValue + "," }.joined(separator: "\n        "))
             ]
         )
         """

@@ -37,6 +37,8 @@ extension TuistGraph.InfoPlist.Value {
             return .boolean(value)
         case let .integer(value):
             return .integer(value)
+        case let .real(value):
+            return .real(value)
         case let .array(value):
             return .array(value.map { TuistGraph.InfoPlist.Value.from(manifest: $0) })
         case let .dictionary(value):
