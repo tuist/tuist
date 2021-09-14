@@ -168,7 +168,8 @@ extension TuistGraph.Target {
         let allSources = try TuistGraph.Target.sources(targetName: targetName, sources: manifest.sources?.globs.map { glob in
             let globPath = try generatorPaths.resolve(path: glob.glob).pathString
             let excluding: [String] = try glob.excluding.compactMap { try generatorPaths.resolve(path: $0).pathString }
-            return TuistGraph.SourceFileGlob(glob: globPath, excluding: excluding, compilerFlags: glob.compilerFlags)
+            let mappedCodeGen = TuistGraph.FileCodeGen.from(manifest: glob.codeGen)
+            return TuistGraph.SourceFileGlob(glob: globPath, excluding: excluding, compilerFlags: glob.compilerFlags, codeGen: mappedCodeGen)
         } ?? [])
 
         allSources.forEach { sourceFile in

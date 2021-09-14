@@ -14,7 +14,13 @@ final class TargetTests: XCTestCase {
             bundleId: "bundle_id",
             deploymentTarget: .iOS(targetVersion: "13.1", devices: [.iphone, .ipad]),
             infoPlist: "info.plist",
-            sources: "sources/*",
+            sources: [
+                "sources/*",
+                SourceFileGlob("Intents/Public.intentdefinition", codeGen: .public),
+                SourceFileGlob("Intents/Private.intentdefinition", codeGen: .private),
+                SourceFileGlob("Intents/Project.intentdefinition", codeGen: .project),
+                SourceFileGlob("Intents/Disabled.intentdefinition", codeGen: .disabled)
+            ],
             resources: "resources/*",
             headers: Headers(
                 public: "public/*",
@@ -56,7 +62,13 @@ final class TargetTests: XCTestCase {
             productName: "product_name",
             bundleId: "bundle_id",
             infoPlist: "info.plist",
-            sources: SourceFilesList(globs: ["sources/*"]),
+            sources: SourceFilesList(globs: [
+                "sources/*",
+                SourceFileGlob("Intents/Public.intentdefinition", codeGen: .public),
+                SourceFileGlob("Intents/Private.intentdefinition", codeGen: .private),
+                SourceFileGlob("Intents/Project.intentdefinition", codeGen: .project),
+                SourceFileGlob("Intents/Disabled.intentdefinition", codeGen: .disabled)
+            ]),
             resources: ["resources/*",
                         .glob(pattern: "file.type", tags: ["tag"]),
                         .folderReference(path: "resource/", tags: ["tag"])],
