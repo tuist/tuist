@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.50.0 - Nature
+
 ### Changed
 
 - **Breaking** Minimum supported Xcode version bumped to 12.4.
