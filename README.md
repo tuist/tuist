@@ -44,8 +44,8 @@ tuist build # Builds your project
 ## Companies using Tuist
 
 <div align="center">
-  <img src="/assets/companies/TV2_Logo.svg" width="50"/>
-  <img src="/assets/companies/Depop Logo.svg" width="50"/>
+  <img src="assets/companies/TV2_Logo.svg" width="20"/>
+  <img src="assets/companies/Depop Logo.svg" style="width: 100px; margin-left: 20px;"/>
 </div>
 
 ## Documentation 📝
