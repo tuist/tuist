@@ -43,6 +43,8 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
         let carthageDirectory = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
+        let carthageBuildDirectory = carthageDirectory
+            .appending(component: "Build")
 
         let platforms: Set<Platform> = [.iOS, .watchOS, .macOS, .tvOS]
         let stubbedDependencies = CarthageDependencies(
@@ -52,14 +54,14 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         )
 
         carthageController.bootstrapStub = { arg0, arg1, arg2 in
-            XCTAssertEqual(arg0, try self.temporaryPath())
+            XCTAssertEqual(arg0, dependenciesDirectory)
             XCTAssertEqual(arg1, platforms)
             XCTAssertTrue(arg2)
 
             try self.simulateCarthageOutput(at: arg0)
         }
         carthageGraphGenerator.generateStub = { arg0 in
-            XCTAssertEqual(arg0, try self.temporaryPath().appending(components: "Carthage", "Build"))
+            XCTAssertEqual(arg0, carthageDirectory.appending(component: "Build"))
             return .test()
         }
 
@@ -91,6 +93,12 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         try XCTAssertDirectoryContentEqual(
             carthageDirectory,
             [
+                "Build",
+            ]
+        )
+        try XCTAssertDirectoryContentEqual(
+            carthageBuildDirectory,
+            [
                 "iOS",
                 "Mac",
                 "watchOS",
@@ -98,7 +106,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             ]
         )
         try XCTAssertDirectoryContentEqual(
-            carthageDirectory.appending(component: "iOS"),
+            carthageBuildDirectory.appending(component: "iOS"),
             [
                 "Moya.framework",
                 "ReactiveMoya.framework",
@@ -106,7 +114,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             ]
         )
         try XCTAssertDirectoryContentEqual(
-            carthageDirectory.appending(component: "Mac"),
+            carthageBuildDirectory.appending(component: "Mac"),
             [
                 "Moya.framework",
                 "ReactiveMoya.framework",
@@ -114,7 +122,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             ]
         )
         try XCTAssertDirectoryContentEqual(
-            carthageDirectory.appending(component: "watchOS"),
+            carthageBuildDirectory.appending(component: "watchOS"),
             [
                 "Moya.framework",
                 "ReactiveMoya.framework",
@@ -122,7 +130,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             ]
         )
         try XCTAssertDirectoryContentEqual(
-            carthageDirectory.appending(component: "tvOS"),
+            carthageBuildDirectory.appending(component: "tvOS"),
             [
                 "Moya.framework",
                 "ReactiveMoya.framework",
@@ -142,6 +150,8 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
         let carthageDirectory = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
+        let carthageBuildDirectory = carthageDirectory
+            .appending(component: "Build")
 
         let platforms: Set<Platform> = [.iOS, .watchOS, .macOS, .tvOS]
         let stubbedDependencies = CarthageDependencies(
@@ -151,14 +161,14 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         )
 
         carthageController.updateStub = { arg0, arg1, arg2 in
-            XCTAssertEqual(arg0, try self.temporaryPath())
+            XCTAssertEqual(arg0, dependenciesDirectory)
             XCTAssertEqual(arg1, platforms)
             XCTAssertTrue(arg2)
 
             try self.simulateCarthageOutput(at: arg0)
         }
         carthageGraphGenerator.generateStub = { arg0 in
-            XCTAssertEqual(arg0, try self.temporaryPath().appending(components: "Carthage", "Build"))
+            XCTAssertEqual(arg0, carthageDirectory.appending(component: "Build"))
             return .test()
         }
 
@@ -190,6 +200,12 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         try XCTAssertDirectoryContentEqual(
             carthageDirectory,
             [
+                "Build",
+            ]
+        )
+        try XCTAssertDirectoryContentEqual(
+            carthageBuildDirectory,
+            [
                 "iOS",
                 "Mac",
                 "watchOS",
@@ -197,7 +213,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             ]
         )
         try XCTAssertDirectoryContentEqual(
-            carthageDirectory.appending(component: "iOS"),
+            carthageBuildDirectory.appending(component: "iOS"),
             [
                 "Moya.framework",
                 "ReactiveMoya.framework",
@@ -205,7 +221,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             ]
         )
         try XCTAssertDirectoryContentEqual(
-            carthageDirectory.appending(component: "Mac"),
+            carthageBuildDirectory.appending(component: "Mac"),
             [
                 "Moya.framework",
                 "ReactiveMoya.framework",
@@ -213,7 +229,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             ]
         )
         try XCTAssertDirectoryContentEqual(
-            carthageDirectory.appending(component: "watchOS"),
+            carthageBuildDirectory.appending(component: "watchOS"),
             [
                 "Moya.framework",
                 "ReactiveMoya.framework",
@@ -221,7 +237,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             ]
         )
         try XCTAssertDirectoryContentEqual(
-            carthageDirectory.appending(component: "tvOS"),
+            carthageBuildDirectory.appending(component: "tvOS"),
             [
                 "Moya.framework",
                 "ReactiveMoya.framework",

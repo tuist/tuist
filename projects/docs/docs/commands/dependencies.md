@@ -35,3 +35,15 @@ tuist dependencies update
 | Argument | Short | Description                                                                                          | Default           | Required |
 | -------- | ----- | ---------------------------------------------------------------------------------------------------- | ----------------- | -------- |
 | `--path` | `-p`  | The path to the directory that contains the workspace or project whose dependencies will be updated. | Current directory | No       |
+
+#### Cleaning
+
+Dependencies can be cleaned by running the following command:
+
+```bash
+tuist dependencies clean
+```
+
+| Argument | Short | Description                                                                                          | Default           | Required |
+| -------- | ----- | ---------------------------------------------------------------------------------------------------- | ----------------- | -------- |
+| `--path` | `-p`  | The path to the directory that contains the workspace or project whose dependencies will be cleaned. | Current directory | No       |

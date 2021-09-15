@@ -96,29 +96,29 @@ final class Carthage: Carthaging {
         }
 
         var outdated: [String] = []
-        let carfileResolved = try FileHandler.shared.readTextFile(cartfileResolvedPath)
-        let carfileResolvedNSString = carfileResolved as NSString
+        let cartfileResolved = try FileHandler.shared.readTextFile(cartfileResolvedPath)
+        let cartfileResolvedNSString = cartfileResolved as NSString
         let jsonDecoder = JSONDecoder()
 
         try Carthage.resolvedLineRegex.matches(
-            in: carfileResolved,
+            in: cartfileResolved,
             options: [],
             range: NSRange(
                 location: 0,
-                length: carfileResolved.count
+                length: cartfileResolved.count
             )
         ).forEach { match in
             let dependencyNameRange = match.range(at: 2)
-            var dependencyName = String(carfileResolvedNSString.substring(with: dependencyNameRange).split(separator: "/").last!)
+            var dependencyName = String(cartfileResolvedNSString.substring(with: dependencyNameRange).split(separator: "/").last!)
 
             let dependencyTypeRange = match.range(at: 1)
-            let dependencyType = DependencyType(rawValue: carfileResolvedNSString.substring(with: dependencyTypeRange))
+            let dependencyType = DependencyType(rawValue: cartfileResolvedNSString.substring(with: dependencyTypeRange))
             if dependencyType == .binary {
                 dependencyName = (dependencyName as NSString).deletingPathExtension
             }
 
             let dependencyRevisionRange = match.range(at: 3)
-            let dependencyRevision = carfileResolvedNSString.substring(with: dependencyRevisionRange)
+            let dependencyRevision = cartfileResolvedNSString.substring(with: dependencyRevisionRange)
 
             let dependencyVersionFilePath = path.appending(RelativePath("Carthage/Build/.\(dependencyName).version"))
 
