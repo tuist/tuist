@@ -14,13 +14,7 @@ final class TargetTests: XCTestCase {
             bundleId: "bundle_id",
             deploymentTarget: .iOS(targetVersion: "13.1", devices: [.iphone, .ipad]),
             infoPlist: "info.plist",
-            sources: [
-                "sources/*",
-                SourceFileGlob("Intents/Public.intentdefinition", codeGen: .public),
-                SourceFileGlob("Intents/Private.intentdefinition", codeGen: .private),
-                SourceFileGlob("Intents/Project.intentdefinition", codeGen: .project),
-                SourceFileGlob("Intents/Disabled.intentdefinition", codeGen: .disabled)
-            ],
+            sources: "sources/*",
             resources: "resources/*",
             headers: Headers(
                 public: "public/*",

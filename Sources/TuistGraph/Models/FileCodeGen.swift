@@ -1,10 +1,3 @@
-//
-//  FileCodeGen.swift
-//  FileCodeGen
-//
-//  Created by Mahadevaiah, Pavan | Pavan | ECMPD on 2021/09/14.
-//
-
 import Foundation
 
 /// FileCodeGen: Soure file code generation attribues
@@ -14,7 +7,7 @@ import Foundation
 /// - `project`:  project codegen attribute  `settings = {ATTRIBUTES = (project_codegen, )}`
 /// - `disabled`:  disabled codegen attribute  `settings = {ATTRIBUTES = (no_codegen, )}`
 ///
-public enum FileCodeGen: Codable, Equatable {
+public enum FileCodeGen: String, Codable, Equatable {
     case `public`
     case `private`
     case project

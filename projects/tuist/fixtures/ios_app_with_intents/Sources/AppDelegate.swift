@@ -1,4 +1,5 @@
 import UIKit
+import Intents
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -15,10 +16,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         viewController.view.backgroundColor = .white
         window?.rootViewController = viewController
         window?.makeKeyAndVisible()
-
-        let model = MyModel()
-        model.save()
-        model.load()
+        
+        let demoIntent = SiriDemoIntent()
+        print("your demoIntent", demoIntent)
 
         return true
     }

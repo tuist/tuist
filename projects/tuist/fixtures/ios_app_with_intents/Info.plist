@@ -22,6 +22,10 @@
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright ©. All rights reserved.</string>
+	<key>NSUserActivityTypes</key>
+	<array>
+		<string>SiriDemoIntent</string>
+	</array>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
 		<string>armv7</string>
