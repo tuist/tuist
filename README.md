@@ -44,7 +44,7 @@ tuist build # Builds your project
 ## Companies using Tuist
 
 <div align="center">
-  <img src="/assets/companies/TV2_Logo.svg" width="100"/>
+  <img src="/assets/companies/TV2_Logo.svg" width="50"/>
 </div>
 
 ## Documentation 📝
