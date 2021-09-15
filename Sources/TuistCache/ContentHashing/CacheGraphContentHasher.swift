@@ -60,7 +60,8 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
             additionalStrings: [
                 cacheProfileContentHasher.hash(cacheProfile: cacheProfile),
                 cacheOutputType.description,
-                xcodeBuildController.version().toBlocking().single().value
+                xcodeBuildController.version().toBlocking().single().value,
+                Constants.version,
             ]
         )
     }
