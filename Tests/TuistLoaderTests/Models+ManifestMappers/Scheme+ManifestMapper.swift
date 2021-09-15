@@ -41,7 +41,7 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
 
         let buildAction = ProjectDescription.BuildAction.test(targets: ["A", "B"])
         let runActions = ProjectDescription.RunAction.test(
-            config: .release,
+            configuration: .release,
             executable: "A",
             arguments: arguments
         )

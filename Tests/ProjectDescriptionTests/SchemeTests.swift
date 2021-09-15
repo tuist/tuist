@@ -32,7 +32,7 @@ final class SchemeTests: XCTestCase {
                 postActions: testAction
             ),
             runAction: RunAction(
-                config: .debug,
+                configuration: .debug,
                 executable: .init(projectPath: nil, target: "executable"),
                 arguments: Arguments(
                     environment: ["run": "b"],
@@ -73,7 +73,7 @@ final class SchemeTests: XCTestCase {
                 postActions: testAction
             ),
             runAction: RunAction(
-                config: .release,
+                configuration: .release,
                 executable: .init(projectPath: nil, target: "executable"),
                 arguments: Arguments(
                     environment: ["run": "b"],
@@ -83,7 +83,7 @@ final class SchemeTests: XCTestCase {
         )
 
         // Then
-        XCTAssertEqual(subject.runAction?.configurationName, "Release")
-        XCTAssertEqual(subject.testAction?.configurationName, "Debug")
+        XCTAssertEqual(subject.runAction?.configuration.rawValue, "Release")
+        XCTAssertEqual(subject.testAction?.configuration.rawValue, "Debug")
     }
 }

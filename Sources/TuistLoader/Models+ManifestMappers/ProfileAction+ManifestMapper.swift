@@ -7,7 +7,7 @@ extension TuistGraph.ProfileAction {
     static func from(manifest: ProjectDescription.ProfileAction,
                      generatorPaths: GeneratorPaths) throws -> TuistGraph.ProfileAction
     {
-        let configurationName = manifest.configurationName
+        let configurationName = manifest.configuration.rawValue
         let arguments = manifest.arguments.map { TuistGraph.Arguments.from(manifest: $0) }
 
         var executableResolved: TuistGraph.TargetReference?

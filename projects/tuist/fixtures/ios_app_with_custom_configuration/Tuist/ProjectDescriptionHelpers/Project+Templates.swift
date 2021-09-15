@@ -117,28 +117,28 @@ extension Scheme {
         return Scheme(
             name: name,
             shared: true,
-            buildAction: BuildAction(targets: [
+            buildAction: .buildAction(targets: [
                 main
             ]),
-            testAction: TestAction.targets(
+            testAction: .targets(
                 [
                     TestableTarget(target: test)
                 ],
-                configuration: .custom("debug")
+                configuration: "debug"
             ),
-            runAction: RunAction(
-                configurationName: "debug",
+            runAction: .runAction(
+                configuration: "debug",
                 executable: main
             ),
-            archiveAction: ArchiveAction(
-                configurationName: "release"
+            archiveAction: .archiveAction(
+                configuration: "release"
             ),
-            profileAction: ProfileAction(
-                configurationName: "release",
+            profileAction: .profileAction(
+                configuration: "release",
                 executable: main
             ),
-            analyzeAction: AnalyzeAction(
-                configurationName: "debug"
+            analyzeAction: .analyzeAction(
+                configuration: "debug"
             )
         )
     }
