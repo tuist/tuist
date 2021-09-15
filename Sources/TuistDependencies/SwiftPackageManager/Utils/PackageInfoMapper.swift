@@ -308,7 +308,7 @@ extension ProjectDescription.Target {
         )
 
         return ProjectDescription.Target(
-            name: target.name.replacingOccurrences(of: ".", with: "_").replacingOccurrences(of: "-", with: "_"),
+            name: target.name.replacingOccurrences(of: ".", with: "_"),
             platform: platform,
             product: product,
             bundleId: target.name.replacingOccurrences(of: "_", with: "-"),
@@ -893,7 +893,7 @@ extension PackageInfoMapper {
             if let framework = targetDependencyToFramework[name] {
                 return .xcframework(path: framework)
             } else {
-                return .target(name: name.replacingOccurrences(of: ".", with: "_").replacingOccurrences(of: "-", with: "_"))
+                return .target(name: name.replacingOccurrences(of: ".", with: "_"))
             }
         }
 

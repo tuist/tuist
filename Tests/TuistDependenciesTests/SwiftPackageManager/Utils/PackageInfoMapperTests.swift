@@ -170,7 +170,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 name: "Package",
                 targets: [
                     .test(
-                        "com_example_target_1",
+                        "com_example_target-1",
                         customBundleID: "com.example.target-1",
                         customSources: .init(globs: [AbsolutePath("/").appending(RelativePath("Package/Path/Sources/com.example.target-1/**")).pathString])
                     ),
