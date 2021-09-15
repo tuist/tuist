@@ -6,11 +6,7 @@ import TuistGraph
 import TuistSupport
 
 extension TuistGraph.FileCodeGen {
-    static func from(manifest: ProjectDescription.FileCodeGen?) -> TuistGraph.FileCodeGen? {
-        guard let manifest = manifest else {
-            return nil
-        }
-        
+    static func from(manifest: ProjectDescription.FileCodeGen) -> TuistGraph.FileCodeGen {                
         switch manifest {
         case .public:
             return .public
