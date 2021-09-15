@@ -44,8 +44,24 @@ tuist build # Builds your project
 ## Companies using Tuist
 
 <div align="center">
-  <img src="assets/companies/TV2_Logo.svg" width="20"/>
-  <img src="assets/companies/Depop Logo.svg" style="width: 100px; margin-left: 20px;"/>
+  <a href="https://getyourguide.com" target="_blank">
+    <img src="assets/companies/TV2_Logo.svg" style="width: 20px;"/>
+  </a>
+  <a href="https://www.depop.com/" target="_blank">
+      <img src="assets/companies/Depop Logo.svg" style="width: 100px; margin-left: 20px;"/>
+  </a>
+  <a href="https://bendingspoons.com/" target="_blank">
+    <img src="assets/companies/Bending Spoons - Logo, black.svg" style="width: 50px; margin-left: 20px;"/>
+  </a>
+  <a href="https://globekeeper.com/" target="_blank">
+    <img src="assets/companies/globekeeper.png" style="width: 130px; margin-left: 20px;"/>
+  </a>
+  <a href="https://getyourguide.com" target="_blank">
+    <img src="assets/companies/GetYourGuide.svg" style="width: 40px; margin-left: 20px;"/>
+  </a>
+  <a href="https://emplate.it/" target="_blank">
+    <img src="assets/companies/emplate_logo_full_black.svg" style="width: 120px; margin-left: 20px;"/>
+  </a>
 </div>
 
 ## Documentation 📝
