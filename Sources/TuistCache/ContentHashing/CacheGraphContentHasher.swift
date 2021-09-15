@@ -21,26 +21,31 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
     private let graphContentHasher: GraphContentHashing
     private let cacheProfileContentHasher: CacheProfileContentHashing
     private let contentHasher: ContentHashing
+    private let xcodeBuildController: XcodeBuildControlling
     private static let cachableProducts: Set<Product> = [.framework, .staticFramework, .bundle]
 
     public convenience init(
-        contentHasher: ContentHashing = ContentHasher()
+        contentHasher: ContentHashing = ContentHasher(),
+        xcodeBuildController: XcodeBuildControlling
     ) {
         self.init(
             graphContentHasher: GraphContentHasher(contentHasher: contentHasher),
             cacheProfileContentHasher: CacheProfileContentHasher(contentHasher: contentHasher),
-            contentHasher: contentHasher
+            contentHasher: contentHasher,
+            xcodeBuildController: xcodeBuildController
         )
     }
 
     public init(
         graphContentHasher: GraphContentHashing,
         cacheProfileContentHasher: CacheProfileContentHashing,
-        contentHasher: ContentHashing
+        contentHasher: ContentHashing,
+        xcodeBuildController: XcodeBuildControlling
     ) {
         self.graphContentHasher = graphContentHasher
         self.cacheProfileContentHasher = cacheProfileContentHasher
         self.contentHasher = contentHasher
+        self.xcodeBuildController = xcodeBuildController
     }
 
     public func contentHashes(
@@ -55,6 +60,7 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
             additionalStrings: [
                 cacheProfileContentHasher.hash(cacheProfile: cacheProfile),
                 cacheOutputType.description,
+                xcodeBuildController.version().toBlocking().single().value
             ]
         )
     }

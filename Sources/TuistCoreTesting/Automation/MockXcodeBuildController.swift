@@ -67,4 +67,13 @@ final class MockXcodeBuildController: XcodeBuildControlling {
             return Single.error(TestError("\(String(describing: MockXcodeBuildController.self)) received an unexpected call to showBuildSettings"))
         }
     }
+
+    var versionStub: (() -> Observable<SystemEvent<String>>)?
+    func version() -> Observable<SystemEvent<String>> {
+        if let versionStub = versionStub {
+            return versionStub()
+        } else {
+            return Observable.error(TestError("\(String(describing: MockXcodeBuildController.self)) received an unexpected call to version"))
+        }
+    }
 }

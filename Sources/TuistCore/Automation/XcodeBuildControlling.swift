@@ -65,4 +65,7 @@ public protocol XcodeBuildControlling {
     func showBuildSettings(_ target: XcodeBuildTarget,
                            scheme: String,
                            configuration: String) -> Single<[String: XcodeBuildSettings]>
+
+    /// Gets the xcodebuild version
+    func version() -> Observable<SystemEvent<String>>
 }

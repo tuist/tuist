@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Fixed
+
+- Add xcodebuild version to target hash computation. [#3455](https://github.com/tuist/tuist/3455) by [@danyf90](https://github.com/danyf90)
+
 ## 1.50.0 - Nature
 
 ### Changed

@@ -53,16 +53,18 @@ public final class CacheMapper: GraphMapping {
 
     // MARK: - Init
 
-    public convenience init(config: Config,
-                            cacheStorageProvider: CacheStorageProviding,
-                            sources: Set<String>,
-                            cacheProfile: TuistGraph.Cache.Profile,
-                            cacheOutputType: CacheOutputType)
-    {
+    public convenience init(
+        config: Config,
+        cacheStorageProvider: CacheStorageProviding,
+        sources: Set<String>,
+        cacheProfile: TuistGraph.Cache.Profile,
+        cacheOutputType: CacheOutputType,
+        xcodeBuildController: XcodeBuildControlling
+    ) {
         self.init(
             config: config,
             cache: Cache(storageProvider: cacheStorageProvider),
-            cacheGraphContentHasher: CacheGraphContentHasher(),
+            cacheGraphContentHasher: CacheGraphContentHasher(xcodeBuildController: xcodeBuildController),
             sources: sources,
             cacheProfile: cacheProfile,
             cacheOutputType: cacheOutputType

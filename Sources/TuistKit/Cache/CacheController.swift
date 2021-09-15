@@ -118,7 +118,7 @@ final class CacheController: CacheControlling {
             artifactBuilder: artifactBuilder,
             bundleArtifactBuilder: bundleArtifactBuilder,
             projectGeneratorProvider: CacheControllerProjectGeneratorProvider(contentHasher: contentHasher),
-            cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
+            cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher, xcodeBuildController: XcodeBuildController()),
             cacheGraphLinter: CacheGraphLinter()
         )
     }

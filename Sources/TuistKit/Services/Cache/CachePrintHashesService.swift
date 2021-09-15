@@ -17,7 +17,7 @@ final class CachePrintHashesService {
     convenience init(contentHasher: ContentHashing = CacheContentHasher()) {
         self.init(
             generator: Generator(contentHasher: contentHasher),
-            cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
+            cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher, xcodeBuildController: XcodeBuildController()),
             clock: WallClock(),
             configLoader: ConfigLoader(manifestLoader: ManifestLoader())
         )
