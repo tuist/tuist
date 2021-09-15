@@ -45,6 +45,7 @@ tuist build # Builds your project
 
 <div align="center">
   <img src="/assets/companies/TV2_Logo.svg" width="50"/>
+  <img src="/assets/companies/Depop Logo.svg" width="50"/>
 </div>
 
 ## Documentation 📝
