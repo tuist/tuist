@@ -38,7 +38,7 @@ public struct RunAction: Equatable, Codable {
     ///   - options: Run action options.
     ///   - diagnosticsOptions: Diagnostics options.
     /// - Returns: Run action.
-    public static func runAction(configuration: ConfigurationName,
+    public static func runAction(configuration: ConfigurationName = .debug,
                                  executable: TargetReference? = nil,
                                  arguments: Arguments? = nil,
                                  options: RunActionOptions = .options(),
