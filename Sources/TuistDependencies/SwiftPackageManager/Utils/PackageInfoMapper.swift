@@ -244,6 +244,10 @@ public final class PackageInfoMapper: PackageInfoMapping {
             resourceSynthesizers: []
         )
     }
+
+    fileprivate class func sanitize(targetName: String) -> String {
+        targetName.replacingOccurrences(of: ".", with: "_")
+    }
 }
 
 extension ProjectDescription.Target {
@@ -308,7 +312,7 @@ extension ProjectDescription.Target {
         )
 
         return ProjectDescription.Target(
-            name: target.name.replacingOccurrences(of: ".", with: "_"),
+            name: PackageInfoMapper.sanitize(targetName: target.name),
             platform: platform,
             product: product,
             bundleId: target.name.replacingOccurrences(of: "_", with: "-"),
@@ -893,7 +897,7 @@ extension PackageInfoMapper {
             if let framework = targetDependencyToFramework[name] {
                 return .xcframework(path: framework)
             } else {
-                return .target(name: name.replacingOccurrences(of: ".", with: "_"))
+                return .target(name: PackageInfoMapper.sanitize(targetName: name))
             }
         }
 
