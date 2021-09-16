@@ -4,6 +4,14 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Changed
+
+- Improve output of `tuist cache warm` command. [#3460](https://github.com/tuist/tuist/pull/3460) by [@danyf90](https://github.com/danyf90).
+
+### Fixed
+
+- Add support for SPM dependencies with `.` and `-` in the target name. [#3449](https://github.com/tuist/tuist/3449) by [@moritzsternemann](https://github.com/moritzsternemann)
+
 ## 1.50.0 - Nature
 
 ### Changed
@@ -15,9 +23,9 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Improve speed of `tuist generate` by updating Xcodeproj [#3444](https://github.com/tuist/tuist/pull/3444) by [@adellibovi](https://github.com/adellibovi).
 
 ### Fixed
+
 - settings-to-xcconfig migration command produces correct string format. [#3260](https://github.com/tuist/tuist/3260) by [@saim80](https://github.com/saim80)
 - Fix caching of manifests that use plugins [#3370](https://github.com/tuist/tuist/pull/3370) by [@luispadron](https://github.com/luispadron)
-- Add support for SPM dependencies with `.` and `-` in the target name. [#3449](https://github.com/tuist/tuist/3449) by [@moritzsternemann](https://github.com/moritzsternemann)
 
 ### Added
 
