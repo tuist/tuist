@@ -237,24 +237,44 @@ final class CacheController: CacheControlling {
 
         let graphTraverser = GraphTraverser(graph: graph)
 
-        return try topologicalSort(
+        let graph = try topologicalSort(
             Array(graphTraverser.allTargets()),
             successors: {
                 Array(graphTraverser.directTargetDependencies(path: $0.path, name: $0.target.name))
             }
         )
-        .filter { target in
-            guard let hash = hashesByCacheableTarget[target] else { return false }
-            let cacheExists = try cache.exists(hash: hash).toBlocking().first() ?? false
-            if cacheExists {
-                logger.pretty("The target \(.bold(.raw(target.target.name))) with hash \(.bold(.raw(hash))) and type \(cacheOutputType.description) is already in the cache. Skipping...")
+
+        var targetCacheExists = [String: Bool]()
+        let group = DispatchGroup()
+
+        for target in graph {
+            group.enter()
+
+            DispatchQueue.global().async {
+                defer { group.leave() }
+
+                guard let hash = hashesByCacheableTarget[target] else {
+                    return
+                }
+
+                let cacheExists = try? self.cache.exists(hash: hash).toBlocking().first() ?? false
+                targetCacheExists[hash] = cacheExists
             }
-            return !cacheExists
         }
-        .filter {
-            return !dependenciesOnly || !includedTargets.contains($0.target.name)
-        }
-        .reversed()
-        .map { ($0, hashesByCacheableTarget[$0]!) }
+
+        group.wait()
+
+
+        return graph
+            .filter { target in
+                guard let hash = hashesByCacheableTarget[target] else { return false }
+                guard let exists = targetCacheExists[hash] else { return false }
+                return !exists
+            }
+            .filter {
+                return !dependenciesOnly || !includedTargets.contains($0.target.name)
+            }
+            .reversed()
+            .map { ($0, hashesByCacheableTarget[$0]!) }
     }
 }
