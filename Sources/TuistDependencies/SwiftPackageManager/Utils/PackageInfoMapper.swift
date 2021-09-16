@@ -244,6 +244,10 @@ public final class PackageInfoMapper: PackageInfoMapping {
             resourceSynthesizers: []
         )
     }
+
+    fileprivate class func sanitize(targetName: String) -> String {
+        targetName.replacingOccurrences(of: ".", with: "_")
+    }
 }
 
 extension ProjectDescription.Target {
@@ -308,7 +312,7 @@ extension ProjectDescription.Target {
         )
 
         return ProjectDescription.Target(
-            name: target.name,
+            name: PackageInfoMapper.sanitize(targetName: target.name),
             platform: platform,
             product: product,
             bundleId: target.name.replacingOccurrences(of: "_", with: "-"),
@@ -438,16 +442,21 @@ extension SourceFilesList {
     fileprivate static func from(sources: [String]?, path: AbsolutePath, excluding: [String]) -> Self? {
         let sourcesPaths: [AbsolutePath]
         if let customSources = sources {
-            sourcesPaths = customSources.map { path.appending(RelativePath($0)) }
+            sourcesPaths = customSources.map { source in
+                let absolutePath = path.appending(RelativePath(source))
+                if absolutePath.extension == nil {
+                    return absolutePath.appending(component: "**")
+                }
+                return absolutePath
+            }
         } else {
-            sourcesPaths = [path]
+            sourcesPaths = [path.appending(component: "**")]
         }
         guard !sourcesPaths.isEmpty else { return nil }
         return .init(
             globs: sourcesPaths.map { absolutePath -> ProjectDescription.SourceFileGlob in
-                let glob = absolutePath.extension != nil ? absolutePath : absolutePath.appending(component: "**")
-                return .init(
-                    Path(glob.pathString),
+                .init(
+                    Path(absolutePath.pathString),
                     excluding: excluding.map {
                         let excludePath = path.appending(RelativePath($0))
                         let excludeGlob = excludePath.extension != nil ? excludePath : excludePath.appending(component: "**")
@@ -888,7 +897,7 @@ extension PackageInfoMapper {
             if let framework = targetDependencyToFramework[name] {
                 return .xcframework(path: framework)
             } else {
-                return .target(name: name)
+                return .target(name: PackageInfoMapper.sanitize(targetName: name))
             }
         }
 

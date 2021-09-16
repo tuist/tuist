@@ -41,25 +41,34 @@ tuist build # Builds your project
 
 [Check out](https://docs.tuist.io) the project "Get Started" guide to learn more about Tuist and all its features.
 
-## Repository structure
+## Companies using Tuist
 
-The repository is a monorepo with multiple projects:
-
-- [Tuist CLI project](https://github.com/tuist/tuist)
-- [Main Website](projects/website)
-- [Benchmarking tool](projects/tuistbench)
-- [Fixture generator](projects/fixturegen)
-- [Documentation website](projects/docs)
+<div align="center">
+  <a href="https://getyourguide.com" target="_blank">
+    <img src="assets/companies/TV2_Logo.svg" style="width: 20px;"/>
+  </a>
+  <a href="https://www.depop.com/" target="_blank">
+      <img src="assets/companies/Depop Logo.svg" style="width: 100px; margin-left: 20px;"/>
+  </a>
+  <a href="https://bendingspoons.com/" target="_blank">
+    <img src="assets/companies/Bending Spoons - Logo, black.svg" style="width: 50px; margin-left: 20px;"/>
+  </a>
+  <a href="https://globekeeper.com/" target="_blank">
+    <img src="assets/companies/globekeeper.png" style="width: 130px; margin-left: 20px;"/>
+  </a>
+  <a href="https://getyourguide.com" target="_blank">
+    <img src="assets/companies/GetYourGuide.svg" style="width: 40px; margin-left: 20px;"/>
+  </a>
+  <a href="https://emplate.it/" target="_blank">
+    <img src="assets/companies/emplate_logo_full_black.svg" style="width: 120px; margin-left: 20px;"/>
+  </a>
+</div>
 
 ## Documentation 📝
 
 Do you want to know more about what Tuist can offer you? Or perhaps want to contribute to the project and you need a starting point? You can check out the [project documentation](https://docs.tuist.io/tutorial/get-started/).
 
 ## Supported by great companies
-
-MacStadium supports this project by providing Mac mini hardware that we can use for running performance tests.
-
-<img width="200" src="assets/MacStadium.png"/>
 
 1Password supports this project by providing a team account to store sensitive like access tokens and passwords:
 

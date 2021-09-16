@@ -146,6 +146,39 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
+    func testMap_whenNameContainsDotOrDash_mapsToUnderscodeInTargetName() throws {
+        let project = try subject.map(
+            package: "Package",
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "com.example.product-1", type: .library(.automatic), targets: ["com.example.target-1"]),
+                    ],
+                    targets: [
+                        .test(name: "com.example.target-1"),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ]
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test(
+                        "com_example_target-1",
+                        customBundleID: "com.example.target-1",
+                        customSources: .init(globs: [AbsolutePath("/").appending(RelativePath("Package/Path/Sources/com.example.target-1/**")).pathString])
+                    ),
+                ]
+            )
+        )
+    }
+
     func testMap_whenTargetNotInProduct_ignoresIt() throws {
         let project = try subject.map(
             package: "Package",
