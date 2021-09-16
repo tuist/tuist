@@ -68,7 +68,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(graph.name, "TestManifests")
 
-        XCTAssertEqual(targets.count, 8)
+        XCTAssertEqual(targets.count, 7)
         XCTAssertEqual(project.targets.sorted { $0.name < $1.name }, targets)
 
         // Generated Manifests target
@@ -295,7 +295,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
 
         // Then
 
-        XCTAssertEqual(targets.count, 5)
+        XCTAssertEqual(targets.count, 4)
         XCTAssertEmpty(targets.flatMap(\.dependencies))
 
         // Generated Manifests target
