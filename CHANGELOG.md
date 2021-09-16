@@ -8,6 +8,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Improve output of `tuist cache warm` command. [#3460](https://github.com/tuist/tuist/pull/3460) by [@danyf90](https://github.com/danyf90).
 - Improve performance of `tuist cache` avoiding to hit remote cache if not needed. [#3461](https://github.com/tuist/tuist/pull/3461) by [@danyf90](https://github.com/danyf90).
+- Improve performance of `tuist cache warm` and `tusit focus` avoiding to compute hashes of targets not going to be cached. [#3464](https://github.com/tuist/tuist/pull/3464) by [@danyf90](https://github.com/danyf90).
 
 ### Fixed
 

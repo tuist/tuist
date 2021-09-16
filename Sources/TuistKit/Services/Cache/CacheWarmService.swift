@@ -13,7 +13,7 @@ final class CacheWarmService {
         configLoader = ConfigLoader(manifestLoader: ManifestLoader())
     }
 
-    func run(path: String?, profile: String?, xcframeworks: Bool, targets: [String], dependenciesOnly: Bool) throws {
+    func run(path: String?, profile: String?, xcframeworks: Bool, targets: Set<String>, dependenciesOnly: Bool) throws {
         let path = self.path(path)
         let config = try configLoader.loadConfig(path: path)
         let cache = Cache(storageProvider: CacheStorageProvider(config: config))

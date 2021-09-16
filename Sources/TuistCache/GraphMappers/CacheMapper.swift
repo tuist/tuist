@@ -121,7 +121,8 @@ public final class CacheMapper: GraphMapping {
                 let hashes = try self.cacheGraphContentHasher.contentHashes(
                     for: graph,
                     cacheProfile: self.cacheProfile,
-                    cacheOutputType: self.cacheOutputType
+                    cacheOutputType: self.cacheOutputType,
+                    excludedTargets: self.sources
                 )
                 observer(.success(hashes))
             } catch {
