@@ -25,27 +25,23 @@ public final class Cache: CacheStoring {
 
     public func exists(hash: String) -> Single<Bool> {
         /// It calls exists sequentially until one of the storages returns true.
-        return storages.map { $0.exists(hash: hash) }.reduce(Single.just(false)) { (result, next) -> Single<Bool> in
+        return storages.reduce(Single.just(false)) { (result, next) -> Single<Bool> in
             result.flatMap { exists in
-                if exists {
-                    return Single.just(exists)
-                } else {
-                    return next
-                }
+                guard !exists else { return result }
+                return next.exists(hash: hash)
             }.catchError { (_) -> Single<Bool> in
-                next
+                next.exists(hash: hash)
             }
         }
     }
 
     public func fetch(hash: String) -> Single<AbsolutePath> {
         return storages
-            .map { $0.fetch(hash: hash) }
             .reduce(nil) { (result, next) -> Single<AbsolutePath> in
                 if let result = result {
-                    return result.catchError { _ in next }
+                    return result.catchError { _ in next.fetch(hash: hash) }
                 } else {
-                    return next
+                    return next.fetch(hash: hash)
                 }
             }!
     }
