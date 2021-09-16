@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+
+- Add more helpful output when `./fourier swift format` command fails. [#3451](https://github.com/tuist/tuist/pull/3451) by [@hisaac](https://github.com/hisaac)
+
 ## 1.50.0 - Nature
 
 ### Changed
@@ -27,7 +31,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Add `tuist dependencies clean` command [#3417](https://github.com/tuist/tuist/pull/3417) by [@danyf90](https://github.com/danyf90).
 - Support for floating number (`real`) value for `InfoPlist` [#3377](https://github.com/tuist/tuist/pull/3377) by [@MarvinNazari](https://github.com/MarvinNazari)
 - Support for `shellPath` parameter in `TargetAction` and `TargetScript` to enable `/bin/zsh` as shell. [#3384](https://github.com/tuist/tuist/pull/3384) by [@DarkoDamjanovic](https://github.com/DarkoDamjanovic)
-- Add more helpful output when `./fourier swift format` command fails. [#3451](https://github.com/tuist/tuist/pull/3451) by [@hisaac](https://github.com/hisaac)
 
 ## 1.49.2
 
