@@ -55,27 +55,13 @@ public enum SettingValue: ExpressibleByStringInterpolation, ExpressibleByArrayLi
 
 // MARK: - Configuration
 
-public struct Configuration: Equatable, Codable {
-    public let settings: SettingsDictionary
-    public let xcconfig: Path?
-
-    public init(settings: SettingsDictionary = [:], xcconfig: Path? = nil) {
-        self.settings = settings
-        self.xcconfig = xcconfig
-    }
-
-    public static func settings(_ settings: SettingsDictionary, xcconfig: Path? = nil) -> Configuration {
-        Configuration(settings: settings, xcconfig: xcconfig)
-    }
-}
-
 /// A custom configuration allows declaring a named build configuration along with its settings.
 ///
 /// Additionally, a custom configuration specifies the configuration variant (debug or release)
 /// to help Tuist select the most appropriate default settings.
 ///
 /// - seealso: Configuration
-public struct CustomConfiguration: Equatable, Codable {
+public struct Configuration: Equatable, Codable {
     public enum Variant: String, Codable {
         case debug
         case release
@@ -83,38 +69,42 @@ public struct CustomConfiguration: Equatable, Codable {
 
     public let name: String
     public let variant: Variant
-    public let configuration: Configuration?
+    public let settings: SettingsDictionary
+    public let xcconfig: Path?
 
-    init(name: String, variant: Variant, configuration: Configuration? = nil) {
+    init(name: String, variant: Variant, settings: SettingsDictionary, xcconfig: Path?) {
         self.name = name
         self.variant = variant
-        self.configuration = configuration
+        self.settings = settings
+        self.xcconfig = xcconfig
     }
-}
-
-public extension CustomConfiguration {
-    /// Creates a custom debug configuration
+    
+    /// Creates a debug configuration
     ///
     /// - Parameters:
     ///   - name: The name of the configuration to use
     ///   - settings: The base build settings to apply
     ///   - xcconfig: The xcconfig file to associate with this configuration
     /// - Returns: A debug `CustomConfiguration`
-    static func debug(name: String, settings: SettingsDictionary = [:], xcconfig: Path? = nil) -> CustomConfiguration {
-        let configuration = Configuration(settings: settings, xcconfig: xcconfig)
-        return CustomConfiguration(name: name, variant: .debug, configuration: configuration)
+    public static func debug(name: String, settings: SettingsDictionary = [:], xcconfig: Path? = nil) -> Configuration {
+        return Configuration(name: name,
+                             variant: .debug,
+                             settings: settings,
+                             xcconfig: xcconfig)
     }
-
-    /// Creates a custom release configuration
+    
+    /// Creates a release configuration
     ///
     /// - Parameters:
     ///   - name: The name of the configuration to use
     ///   - settings: The base build settings to apply
     ///   - xcconfig: The xcconfig file to associate with this configuration
     /// - Returns: A release `CustomConfiguration`
-    static func release(name: String, settings: SettingsDictionary = [:], xcconfig: Path? = nil) -> CustomConfiguration {
-        let configuration = Configuration(settings: settings, xcconfig: xcconfig)
-        return CustomConfiguration(name: name, variant: .release, configuration: configuration)
+    public static func release(name: String, settings: SettingsDictionary = [:], xcconfig: Path? = nil) -> Configuration {
+        return Configuration(name: name,
+                             variant: .release,
+                             settings: settings,
+                             xcconfig: xcconfig)
     }
 }
 
@@ -190,36 +180,19 @@ extension DefaultSettings {
 
 public struct Settings: Equatable, Codable {
     public let base: SettingsDictionary
-    public let configurations: [CustomConfiguration]
+    public let configurations: [Configuration]
     public let defaultSettings: DefaultSettings
 
-    /// Creates settings with the default `Debug` and `Release` configurations.
-    ///
-    /// - Parameters:
-    ///   - base: Base build settings to use
-    ///   - debug: The debug configuration
-    ///   - release: The release configuration
-    ///   - defaultSettings: The default settings to apply during generation
-    ///
-    /// - Note: To specify additional custom configurations, you can use the
-    ///         alternate initializer `init(base:configurations:defaultSettings:)`.
-    ///
-    /// - seealso: Configuration
-    /// - seealso: DefaultSettings
-    public init(base: SettingsDictionary = [:],
-                debug: Configuration? = nil,
-                release: Configuration? = nil,
-                defaultSettings: DefaultSettings = .recommended)
+    init(base: SettingsDictionary,
+         configurations: [Configuration],
+         defaultSettings: DefaultSettings)
     {
-        configurations = [
-            CustomConfiguration(name: "Debug", variant: .debug, configuration: debug),
-            CustomConfiguration(name: "Release", variant: .release, configuration: release),
-        ]
         self.base = base
+        self.configurations = configurations
         self.defaultSettings = defaultSettings
     }
-
-    /// Creates settings with any number of custom configurations.
+    
+    /// Creates settings with any number of configurations.
     ///
     /// - Parameters:
     ///   - base: Base build settings to use
@@ -232,12 +205,11 @@ public struct Settings: Equatable, Codable {
     ///
     /// - seealso: CustomConfiguration
     /// - seealso: DefaultSettings
-    public init(base: SettingsDictionary = [:],
-                configurations: [CustomConfiguration],
-                defaultSettings: DefaultSettings = .recommended)
-    {
-        self.base = base
-        self.configurations = configurations
-        self.defaultSettings = defaultSettings
+    public static func settings(base: SettingsDictionary = [:],
+                                configurations: [Configuration],
+                                defaultSettings: DefaultSettings = .recommended) -> Settings {
+        return Settings(base: base,
+                        configurations: configurations,
+                        defaultSettings: defaultSettings)
     }
 }
