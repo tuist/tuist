@@ -35,7 +35,6 @@ module.exports = {
         'commands/scaffold',
         'commands/linting',
         'commands/graph',
-        'commands/up',
         'commands/migration',
         'commands/secrets',
         'commands/clean',

@@ -26,6 +26,9 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - **Breaking** removed `PresetBuildConfiguration` in favour of `ConfigurationName`. [#3400](https://github.com/tuist/tuist/pull/3400) by [@pepibumur](https://github.com/pepibumur):
   - **Motivation:** Making the configuration a type gives the developers the flexibility to provide their list of configurations through extensions. For example, `ConfigurationName.beta`.
   - **Migration:** Scheme actions are now initialized passing a `configuration` argument of type `ConfigurationName`. Note that it conforms `ExpressibleByStringLiteral` so you can initialize it with a string literal.
+- **Breaking** removed the `tuist up` command in favour of a sidecar CLI tool, [`tuist-up`](https://github.com/tuist/tuist-up) that can be installed independently.
+  - **Motivation:** provisioning environments for working with Xcode projects was outside of the scope of the project. Moreover, it added up to our triaging and maintenace work because errors that bubbled up from underlying commands made people think that they were Tuist bugs.
+  - **Migration:** as suggested [here](https://github.com/tuist/tuist-up), turn your `Setup.swift` into a `up.toml` and use `tuist-up` instead.
 
 ## Next
 

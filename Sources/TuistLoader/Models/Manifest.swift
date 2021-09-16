@@ -5,9 +5,7 @@ public enum Manifest: CaseIterable {
     case project
     case workspace
     case config
-    case setup
     case template
-    case galaxy
     case dependencies
     case plugin
     case task
@@ -23,12 +21,8 @@ public enum Manifest: CaseIterable {
             return "Workspace.swift"
         case .config:
             return "Config.swift"
-        case .setup:
-            return "Setup.swift"
         case .template:
             return "\(path.basenameWithoutExt).swift"
-        case .galaxy:
-            return "Galaxy.swift"
         case .dependencies:
             return "Dependencies.swift"
         case .plugin:

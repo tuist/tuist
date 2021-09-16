@@ -75,10 +75,6 @@ public protocol ManifestLoading {
     /// - Parameter path: Path to the directory that contains the Workspace.swift
     func loadWorkspace(at path: AbsolutePath) throws -> ProjectDescription.Workspace
 
-    /// Loads the Setup.swift in the given directory.
-    /// - Parameter path: Path to the directory that contains the Setup.swift.
-    func loadSetup(at path: AbsolutePath) throws -> SetupActions
-
     /// Loads the name_of_template.swift in the given directory.
     /// - Parameter path: Path to the directory that contains the name_of_template.swift
     func loadTemplate(at path: AbsolutePath) throws -> ProjectDescription.Template
@@ -165,30 +161,6 @@ public class ManifestLoader: ManifestLoading {
 
     public func loadTemplate(at path: AbsolutePath) throws -> ProjectDescription.Template {
         try loadManifest(.template, at: path)
-    }
-
-    public func loadSetup(at path: AbsolutePath) throws -> SetupActions {
-        let setupPath = path.appending(component: Manifest.setup.fileName(path))
-        guard FileHandler.shared.exists(setupPath) else {
-            throw ManifestLoaderError.manifestNotFound(.setup, path)
-        }
-        let setup = try loadDataForManifest(.setup, at: setupPath)
-        let setupJson = try JSON(data: setup)
-        let requiresJson: [JSON] = try setupJson.get("requires")
-        let requires = try requiresJson.compactMap {
-            try UpRequired.with(
-                dictionary: $0,
-                projectPath: path
-            )
-        }
-        let actionsJson: [JSON] = try setupJson.get("actions")
-        let actions = try actionsJson.compactMap {
-            try Up.with(
-                dictionary: $0,
-                projectPath: path
-            )
-        }
-        return SetupActions(actions: actions, requires: requires)
     }
 
     public func loadDependencies(at path: AbsolutePath) throws -> ProjectDescription.Dependencies {
@@ -297,9 +269,7 @@ public class ManifestLoader: ManifestLoading {
         case .config,
              .plugin,
              .dependencies,
-             .galaxy,
              .project,
-             .setup,
              .template,
              .workspace:
             frameworkName = "ProjectDescription"
@@ -325,9 +295,7 @@ public class ManifestLoader: ManifestLoading {
                  .task:
                 return []
             case .dependencies,
-                 .galaxy,
                  .project,
-                 .setup,
                  .template,
                  .workspace:
                 return try projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(
