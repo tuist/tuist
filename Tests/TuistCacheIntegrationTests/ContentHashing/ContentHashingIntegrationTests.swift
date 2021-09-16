@@ -47,7 +47,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         }
         let mockXcodeBuildController = MockXcodeBuildController()
         mockXcodeBuildController.versionStub = {
-            return Observable.just(.standardOutput("Xcode 13.0\nBuild version 13A233"))
+            Observable.just(.standardOutput("Xcode 13.0\nBuild version 13A233"))
         }
         subject = CacheGraphContentHasher(contentHasher: CacheContentHasher(), xcodeBuildController: mockXcodeBuildController)
     }
