@@ -4,14 +4,16 @@ import Foundation
 public struct SourceFileGlob: Equatable {
     /// Glob pattern to unfold all the source files.
     public var glob: String
+
     /// Glob pattern used for filtering out files
     public var excluding: [String]
+
     /// Compiler flags.
     public var compilerFlags: String?
-    
+
     /// Source file code generation attribute
     public let codeGen: FileCodeGen?
-    
+
     /// Initializes the source file glob.
     /// - Parameters:
     ///   - glob: Glob pattern to unfold all the source files.
