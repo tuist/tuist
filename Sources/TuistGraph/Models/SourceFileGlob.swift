@@ -2,7 +2,6 @@ import Foundation
 
 /// A type that represents a list of source files defined by a glob.
 public struct SourceFileGlob: Equatable {
-    
     /// Glob pattern to unfold all the source files.
     public var glob: String
     /// Glob pattern used for filtering out files
