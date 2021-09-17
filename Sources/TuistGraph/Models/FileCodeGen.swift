@@ -8,8 +8,8 @@ import Foundation
 /// - `disabled`:  disabled codegen attribute  `settings = {ATTRIBUTES = (no_codegen, )}`
 ///
 public enum FileCodeGen: String, Codable, Equatable {
-    case `public`
-    case `private`
-    case project
-    case disabled
+    case `public` = "codegen"
+    case `private` = "private_codegen"
+    case project = "project_codegen"
+    case disabled = "no_codegen"
 }
