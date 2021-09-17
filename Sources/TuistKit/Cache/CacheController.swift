@@ -260,9 +260,6 @@ final class CacheController: CacheControlling {
             }
             return !cacheExists
         }
-        .filter {
-            return !dependenciesOnly || !includedTargets.contains($0.target.name)
-        }
         .reversed()
         .map { ($0, hashesByCacheableTarget[$0]!) }
     }

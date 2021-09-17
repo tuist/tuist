@@ -71,7 +71,7 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
         let name = target.target.name
 
         return CacheGraphContentHasher.cachableProducts.contains(product) &&
-            !graphTraverser.dependsOnXCTest(path: target.path, name: name) &&
-            !excludedTargets.contains(name)
+            !excludedTargets.contains(name) &&
+            !graphTraverser.dependsOnXCTest(path: target.path, name: name)
     }
 }
