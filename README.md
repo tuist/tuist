@@ -65,6 +65,9 @@ tuist build # Builds your project
   <a href="https://hh.ru/" target="_blank">
     <img src="assets/companies/hh mono.svg" style="width: 40px; margin-left: 30px;"/>
   </a>
+  <a href="https://www.trendyol.com/" target="_blank">
+    <img src="assets/companies/Trendyol_online.png" style="width: 120px; margin-left: 30px;"/>
+  </a>
 </div>
 
 ## Documentation 📝
