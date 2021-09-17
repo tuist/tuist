@@ -68,6 +68,9 @@ tuist build # Builds your project
   <a href="https://www.trendyol.com/" target="_blank">
     <img src="assets/companies/Trendyol_online.png" style="width: 120px; margin-left: 30px;"/>
   </a>
+  <a href="https://angrynerds.co" target="_blank">
+    <img src="assets/companies/angry_nerds_logo_black.svg" style="width: 110px; margin-left: 30px;"/>
+  </a>
 </div>
 
 ## Documentation 📝
