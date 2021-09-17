@@ -44,7 +44,7 @@ tuist build # Builds your project
 ## Companies using Tuist
 
 <div align="center">
-  <a href="https://getyourguide.com" target="_blank">
+  <a href="https://play.tv2.no/" target="_blank">
     <img src="assets/companies/TV2_Logo.svg" style="width: 20px;"/>
   </a>
   <a href="https://www.depop.com/" target="_blank">
