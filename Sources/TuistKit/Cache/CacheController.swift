@@ -244,26 +244,16 @@ final class CacheController: CacheControlling {
             }
         )
 
-        var targetCacheExists = [String: Bool]()
-        let group = DispatchGroup()
-
-        for target in graph {
-            group.enter()
-
-            DispatchQueue.global().async {
-                defer { group.leave() }
-
-                guard let hash = hashesByCacheableTarget[target] else {
-                    return
-                }
-
-                let cacheExists = try? self.cache.exists(hash: hash).toBlocking().first() ?? false
-                targetCacheExists[hash] = cacheExists
+        let targetCacheExistsTuples = graph.map(context: .concurrent) { target -> (String, Bool)? in
+            guard let hash = hashesByCacheableTarget[target] else {
+                return nil
             }
+
+            let cacheExists = try? self.cache.exists(hash: hash).toBlocking().first()
+            return (hash, cacheExists ?? false)
         }
 
-        group.wait()
-
+        let targetCacheExists = [String: Bool](uniqueKeysWithValues: targetCacheExistsTuples.compactMap { $0 })
 
         return graph
             .filter { target in
