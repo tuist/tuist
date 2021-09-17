@@ -68,8 +68,8 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         }
     }
 
-    var versionStub: (() -> Observable<SystemEvent<String>>)?
-    func version() -> Observable<SystemEvent<String>> {
+    var versionStub: (() -> Observable<String>)?
+    func version() -> Observable<String> {
         if let versionStub = versionStub {
             return versionStub()
         } else {

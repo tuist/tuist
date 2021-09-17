@@ -47,7 +47,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         }
         let mockXcodeBuildController = MockXcodeBuildController()
         mockXcodeBuildController.versionStub = {
-            Observable.just(.standardOutput("Xcode 13.0\nBuild version 13A233"))
+            Observable.just("Apple Swift version 5.4.2 (swiftlang-1205.0.28.2 clang-1205.0.19.57)")
         }
         subject = CacheGraphContentHasher(contentHasher: CacheContentHasher(), xcodeBuildController: mockXcodeBuildController)
     }
@@ -151,8 +151,8 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         let contentHash = try subject.contentHashes(for: graph, cacheProfile: cacheProfile, cacheOutputType: .framework)
 
         // Then
-        XCTAssertEqual(contentHash[framework1], "d4026bac88782006839da34af14085c8")
-        XCTAssertEqual(contentHash[framework2], "4cad43985c37606d801eada14514a11f")
+        XCTAssertEqual(contentHash[framework1], "a5e395a562b5d4e2bdb6ce6a469db7eb")
+        XCTAssertEqual(contentHash[framework2], "7e77a69f0f74395479655fe57c2a0ad3")
     }
 
     func test_contentHashes_hashChangesWithCacheOutputType() throws {

@@ -10,8 +10,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Fixed
 
-- Add xcodebuild version to target hash computation. [#3455](https://github.com/tuist/tuist/3455) by [@danyf90](https://github.com/danyf90)
-- Add tuist version to target hash computation. [#3455](https://github.com/tuist/tuist/3455) by [@danyf90](https://github.com/danyf90)
+- Add swift version to the target hash computation. [#3455](https://github.com/tuist/tuist/3455) by [@danyf90](https://github.com/danyf90)
+- Add tuist version to the target hash computation. [#3455](https://github.com/tuist/tuist/3455) by [@danyf90](https://github.com/danyf90)
 
 ## 1.50.0 - Nature
 

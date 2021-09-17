@@ -67,5 +67,5 @@ public protocol XcodeBuildControlling {
                            configuration: String) -> Single<[String: XcodeBuildSettings]>
 
     /// Gets the xcodebuild version
-    func version() -> Observable<SystemEvent<String>>
+    func version() -> Observable<String>
 }
