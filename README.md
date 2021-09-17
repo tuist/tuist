@@ -43,7 +43,7 @@ tuist build # Builds your project
 
 ## Companies using Tuist
 
-<div align="center">
+<div align="center"; padding: 25px;>
   <a href="https://play.tv2.no/" target="_blank">
     <img src="assets/companies/TV2_Logo.svg" style="width: 20px;"/>
   </a>
