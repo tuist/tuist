@@ -6,7 +6,6 @@ public struct SourceFileGlob: Equatable {
     public var glob: String
     /// Glob pattern used for filtering out files
     public var excluding: [String]
-    
     /// Compiler flags.
     public var compilerFlags: String?
     
