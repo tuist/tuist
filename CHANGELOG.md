@@ -6,7 +6,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## 1.50.0 - Nature
 
-- Improve speed of `tuist cache warm` by parallelizing the target cache checks [#3462](https://github.com/tuist/tuist/pull/3462) by [@bolismauro](https://github.com/bolismauro)
+- Improve speed of `tuist cache warm` when using remote cache by parallelizing the target cache checks [#3462](https://github.com/tuist/tuist/pull/3462) by [@bolismauro](https://github.com/bolismauro)
 
 ### Changed
 
