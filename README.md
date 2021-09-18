@@ -71,6 +71,9 @@ tuist build # Builds your project
   <a href="https://angrynerds.co" target="_blank">
     <img src="assets/companies/angry_nerds_logo_black.svg" style="width: 110px;" hspace="8"/>
   </a>
+  <a href="https://www.compass.com/" target="_blank">
+    <img src="assets/companies/Compass Black Logo.png" style="width: 110px;" hspace="8"/>
+  </a>
 </div>
 
 ## Documentation 📝
