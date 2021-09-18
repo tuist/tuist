@@ -74,6 +74,9 @@ tuist build # Builds your project
   <a href="https://www.compass.com/" target="_blank">
     <img src="assets/companies/Compass Black Logo.png" style="width: 110px;" hspace="8"/>
   </a>
+  <a href="https://www.wefox.com" target="_blank">
+    <img src="assets/companies/Wefox_2021.png" style="width: 110px;" hspace="8"/>
+  </a>
 </div>
 
 ## Documentation 📝
