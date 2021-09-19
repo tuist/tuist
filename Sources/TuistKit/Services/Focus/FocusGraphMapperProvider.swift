@@ -1,5 +1,4 @@
 import Foundation
-import TuistAutomation
 import TuistCache
 import TuistCore
 import TuistGraph
@@ -40,8 +39,7 @@ final class FocusGraphMapperProvider: GraphMapperProviding {
                 cacheStorageProvider: CacheStorageProvider(config: config),
                 sources: cacheSources,
                 cacheProfile: cacheProfile,
-                cacheOutputType: cacheOutputType,
-                xcodeBuildController: XcodeBuildController()
+                cacheOutputType: cacheOutputType
             )
             mappers.append(cacheMapper)
             mappers.append(CacheTreeShakingGraphMapper())

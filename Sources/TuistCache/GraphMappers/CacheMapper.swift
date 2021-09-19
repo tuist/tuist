@@ -58,13 +58,12 @@ public final class CacheMapper: GraphMapping {
         cacheStorageProvider: CacheStorageProviding,
         sources: Set<String>,
         cacheProfile: TuistGraph.Cache.Profile,
-        cacheOutputType: CacheOutputType,
-        xcodeBuildController: XcodeBuildControlling
+        cacheOutputType: CacheOutputType
     ) {
         self.init(
             config: config,
             cache: Cache(storageProvider: cacheStorageProvider),
-            cacheGraphContentHasher: CacheGraphContentHasher(xcodeBuildController: xcodeBuildController),
+            cacheGraphContentHasher: CacheGraphContentHasher(),
             sources: sources,
             cacheProfile: cacheProfile,
             cacheOutputType: cacheOutputType

@@ -2,16 +2,16 @@ import Foundation
 import RxSwift
 import TSCBasic
 import TuistCore
+import TuistCoreTesting
 import TuistGraph
 import TuistSupport
 import XCTest
 
 @testable import TuistCache
 @testable import TuistCore
-@testable import TuistCoreTesting
 @testable import TuistSupportTesting
 
-final class ContentHashingIntegrationTests: TuistTestCase {
+final class ContentHashingIntegrationTests: TuistUnitTestCase {
     var subject: CacheGraphContentHasher!
     var temporaryDirectoryPath: String!
     var source1: SourceFile!
@@ -45,11 +45,8 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         } catch {
             XCTFail("Error while creating files for stub project")
         }
-        let mockXcodeBuildController = MockXcodeBuildController()
-        mockXcodeBuildController.versionStub = {
-            Observable.just("Apple Swift version 5.4.2 (swiftlang-1205.0.28.2 clang-1205.0.19.57)")
-        }
-        subject = CacheGraphContentHasher(contentHasher: CacheContentHasher(), xcodeBuildController: mockXcodeBuildController)
+        system.swiftVersionStub = { "5.4.0" }
+        subject = CacheGraphContentHasher(contentHasher: CacheContentHasher())
     }
 
     override func tearDown() {
@@ -151,8 +148,8 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         let contentHash = try subject.contentHashes(for: graph, cacheProfile: cacheProfile, cacheOutputType: .framework)
 
         // Then
-        XCTAssertEqual(contentHash[framework1], "a5e395a562b5d4e2bdb6ce6a469db7eb")
-        XCTAssertEqual(contentHash[framework2], "7e77a69f0f74395479655fe57c2a0ad3")
+        XCTAssertEqual(contentHash[framework1], "f9cfe0d4d9bff3de27aa95e2ee76de45")
+        XCTAssertEqual(contentHash[framework2], "b45fb54122d06bc991c1919517d77be3")
     }
 
     func test_contentHashes_hashChangesWithCacheOutputType() throws {
