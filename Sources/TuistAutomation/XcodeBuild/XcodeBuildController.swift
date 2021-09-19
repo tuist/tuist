@@ -213,9 +213,11 @@ public final class XcodeBuildController: XcodeBuildControlling {
             .asSingle()
     }
 
-    public func version() -> Observable<SystemEvent<String>> {
-        let command = ["/usr/bin/xcrun", "xcodebuild", "-version"]
+    public func version() -> Observable<String> {
+        let command = ["/usr/bin/xcrun", "swift", "--version"]
         return System.shared.observable(command).mapToString()
+            .filter { $0.value.starts(with: "Apple Swift version") }
+            .map { String($0.value.split(separator: "\n")[0]) }
     }
 
     fileprivate func run(command: [String], isVerbose: Bool) -> Observable<SystemEvent<XcodeBuildOutput>> {

@@ -36,4 +36,8 @@ final class XcodeBuildControllerIntegrationTests: TuistTestCase {
         let buildSettings = try XCTUnwrap(got["iOS"])
         XCTAssertEqual(buildSettings.productName, "iOS")
     }
+
+    func test_version_doesnt_error() throws {
+        XCTAssertTrue(try subject.version().toBlocking().single().starts(with: "Apple Swift version"))
+    }
 }
