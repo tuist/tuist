@@ -38,6 +38,6 @@ final class XcodeBuildControllerIntegrationTests: TuistTestCase {
     }
 
     func test_version_doesnt_error() throws {
-        XCTAssertTrue(try subject.version().toBlocking().single().starts(with: "Apple Swift version"))
+        XCTAssertTrue(try subject.version().toBlocking().single().contains("Apple Swift version"))
     }
 }
