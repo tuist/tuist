@@ -184,6 +184,7 @@ It represents a glob pattern that refers to source files and the compiler flags 
 | `glob`          | Glob pattern to the source files.                                            | [`Path`](#path)   | Yes      |         |
 | `excluding`     | Glob patterns for source files that will be excluded.                        | [`[Path]`](#path) | No       | `[]`    |
 | `compilerFlags` | The compiler flags to be set to the source files in the sources build phase. | `String`          | No       |         |
+| `codeGen`       | The source file attribute to be set in the build phase.                      | [`FileCodeGen`](#FileCodeGen)|   No      |       |
 
 ### Copy Files Action
 
@@ -814,3 +815,15 @@ Tuist automatically performs several template transformations for you
 :::note ExpressibleByStringInterpolation
 File header template can be initialized with a plain string, it is equivalent to using `.string(...)`
 :::
+
+### FileCodeGen
+
+The `FileCodeGen` enum represents the possible source file attributes for soruce code generation
+`NOTE`: This is only applicable to a subset of file tyes (e.g. intent definitions and ML models)
+
+| Case      | Description                           |
+| --------- | ------------------------------------- |
+| `public ` | Public codegen(`codegen`)             |
+| `private` | Private codegen(`private_codegen`).   |
+| `project` | Project codegen(`project_codegen`).   |
+| `disabled`| No codegen(`no_codegen`).             |
