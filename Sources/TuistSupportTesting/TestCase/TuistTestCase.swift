@@ -98,8 +98,8 @@ open class TuistTestCase: XCTestCase {
         }
     }
 
-    public var fileHandler: MockFileHandler!
     public var environment: MockEnvironment!
+    public var fileHandler: MockFileHandler!
 
     override open func setUp() {
         super.setUp()
