@@ -1,8 +1,8 @@
 import Foundation
 import RxSwift
 import TSCBasic
-import TuistGraph
 import TuistCache
+import TuistGraph
 import XCTest
 
 @testable import TuistCacheTesting
