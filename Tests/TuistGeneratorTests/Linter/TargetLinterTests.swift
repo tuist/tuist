@@ -305,4 +305,27 @@ final class TargetLinterTests: TuistUnitTestCase {
             severity: .error
         ))
     }
+    
+    func test_lint_when_target_has_valid_codegen_sources() throws {
+        // Given
+        let target = Target.empty(
+            name: "MyTarget",
+            sources: [
+                SourceFile(path: "/project/Source.swift"),
+                SourceFile(path: "/project/Invalid.swift", codeGen: .project),
+                SourceFile(path: "/project/Unspecified.intentdefinition"),
+                SourceFile(path: "/project/Valid.intentdefinition", codeGen: .private),
+                SourceFile(path: "/project/Valid.mlmodel", codeGen: .disabled),
+            ]
+        )
+
+        // When
+        let got = subject.lint(target: target)
+
+        // Then
+        XCTContainsLintingIssue(got, .init(
+            reason: "Target '\(target.name)' has a source file at path \(target.sources[1].path) with unsupported `codeGen` attributes. Only intentdefinition and mlmodel are known to support this.",
+            severity: .warning
+        ))
+    }
 }

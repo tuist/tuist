@@ -80,7 +80,7 @@ extension Target {
                     }
                     return false
                 }
-                .forEach { sourceFiles[$0] = SourceFile(path: $0, compilerFlags: source.compilerFlags) }
+                .forEach { sourceFiles[$0] = SourceFile(path: $0, compilerFlags: source.compilerFlags, codeGen: source.codeGen) }
         }
 
         if !invalidGlobs.isEmpty {
