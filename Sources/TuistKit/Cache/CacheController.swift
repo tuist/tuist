@@ -244,32 +244,20 @@ final class CacheController: CacheControlling {
             }
         )
 
-        let targetCacheExistsTuples = graph.compactMap(context: .concurrent) { target -> (String, Bool)? in
-            guard let hash = hashesByCacheableTarget[target] else {
+        return graph.compactMap(context: .concurrent) { target -> (GraphTarget, String)? in
+            guard
+                let hash = hashesByCacheableTarget[target],
+                let cacheExists = try? self.cache.exists(hash: hash).toBlocking().first(),
+                // cache already exists, no need to build
+                !cacheExists,
+                // includedTargets targets should not be cached if dependenciesOnly is true
+                !dependenciesOnly || !includedTargets.contains(target.target.name)
+            else {
                 return nil
             }
 
-            let cacheExists = try? self.cache.exists(hash: hash).toBlocking().first()
-            return (hash, cacheExists ?? false)
+            return (target, hash)
         }
-
-        let targetCacheExists = [String: Bool](uniqueKeysWithValues: targetCacheExistsTuples)
-
-        return graph
-            .filter { target in
-                guard
-                    let hash = hashesByCacheableTarget[target],
-                    let exists = targetCacheExists[hash]
-                else {
-                    return false
-                }
-
-                return !exists
-            }
-            .filter {
-                return !dependenciesOnly || !includedTargets.contains($0.target.name)
-            }
-            .reversed()
-            .map { ($0, hashesByCacheableTarget[$0]!) }
+        .reversed()
     }
 }
