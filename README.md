@@ -77,6 +77,9 @@ tuist build # Builds your project
   <a href="https://www.wefox.com" target="_blank">
     <img src="assets/companies/Wefox_2021.png" style="width: 110px;" hspace="8"/>
   </a>
+  <a href="https://www.hedvig.com/" target="_blank">
+    <img src="assets/companies/Hedvig.svg" style="width: 110px;" hspace="8"/>
+  </a>
 </div>
 
 ## Documentation 📝
