@@ -35,6 +35,7 @@ class TargetLinter: TargetLinting {
         issues.append(contentsOf: lintDeploymentTarget(target: target))
         issues.append(contentsOf: settingsLinter.lint(target: target))
         issues.append(contentsOf: lintDuplicateDependency(target: target))
+        issues.append(contentsOf: lintValidSourceFileCodeGenAttributes(target: target))
         issues.append(contentsOf: validateCoreDataModelsExist(target: target))
         issues.append(contentsOf: validateCoreDataModelVersionsExist(target: target))
         target.actions.forEach { action in
@@ -227,6 +228,23 @@ class TargetLinter: TargetLinting {
         let duplicates = seen.enumerated().filter { $0.element.value > 1 }
         return duplicates.map {
             .init(reason: "Target '\(target.name)' has duplicate \($0.element.key.typeName) dependency specified: '\($0.element.key.name)'", severity: .warning)
+        }
+    }
+    
+    private func lintValidSourceFileCodeGenAttributes(target: Target) -> [LintingIssue] {
+        let knownSupportedExtensions = [
+            "intentdefinition",
+            "mlmodel",
+        ]
+        let unsupportedSourceFileAttributes = target.sources.filter {
+            $0.codeGen != nil && !knownSupportedExtensions.contains($0.path.extension ?? "")
+        }
+
+        return unsupportedSourceFileAttributes.map {
+            .init(
+                reason: "Target '\(target.name)' has a source file at path \($0.path) with unsupported `codeGen` attributes. Only \(knownSupportedExtensions.listed()) are known to support this.",
+                severity: .warning
+            )
         }
     }
 }
