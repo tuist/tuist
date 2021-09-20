@@ -4,6 +4,9 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Changed
+- Improve speed of `tuist cache warm` when using remote cache by parallelizing the target cache checks [#3462](https://github.com/tuist/tuist/pull/3462) by [@bolismauro](https://github.com/bolismauro)
+
 ### Added
 
 - Add support for `SourceFilesList.codeGen` property. [#3448](https://github.com/tuist/tuist/pull/3448) by [@pavm035](https://github.com/pavm035)
@@ -15,8 +18,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Add tuist version to the target hash computation. [#3455](https://github.com/tuist/tuist/3455) by [@danyf90](https://github.com/danyf90)
 
 ## 1.50.0 - Nature
-
-- Improve speed of `tuist cache warm` when using remote cache by parallelizing the target cache checks [#3462](https://github.com/tuist/tuist/pull/3462) by [@bolismauro](https://github.com/bolismauro)
 
 ### Changed
 
