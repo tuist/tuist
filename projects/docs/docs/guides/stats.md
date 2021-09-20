@@ -14,7 +14,7 @@ The implementation is open source, mainly in the [TuistAnalytics](https://github
 If you are thinking about adding another event, please remember that we would like to keep tracking minimal and unobtrusive.
 
 The data is collected on a server implemented in the [Tuist repository](https://github.com/tuist/stats) and published on the
-[Tuist Stats website](https://stats.tuist.io/).
+[Tuist Stats website](https://backbone.tuist.io/).
 
 Users can opt out from Tuist stats setting the following environment variable:
 
