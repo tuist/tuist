@@ -27,9 +27,9 @@ final class SchemeTests: XCTestCase {
                     launchArguments: [LaunchArgument(name: "test", isEnabled: true)]
                 ),
                 configuration: .debug,
-                coverage: true,
                 preActions: testAction,
-                postActions: testAction
+                postActions: testAction,
+                options: .options(coverage: true)
             ),
             runAction: RunAction(
                 configuration: .debug,
@@ -68,9 +68,9 @@ final class SchemeTests: XCTestCase {
                     launchArguments: [LaunchArgument(name: "test", isEnabled: true)]
                 ),
                 configuration: .debug,
-                coverage: true,
                 preActions: testAction,
-                postActions: testAction
+                postActions: testAction,
+                options: .options(coverage: true)
             ),
             runAction: RunAction(
                 configuration: .release,

@@ -148,9 +148,9 @@ extension TestAction {
             targets,
             arguments: arguments,
             configuration: configuration,
-            coverage: coverage,
             preActions: [ExecutionAction.test()],
-            postActions: [ExecutionAction.test()]
+            postActions: [ExecutionAction.test()],
+            options: .options(coverage: true)
         )
     }
 }
