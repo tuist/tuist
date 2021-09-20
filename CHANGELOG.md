@@ -8,6 +8,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Add more helpful output when `./fourier swift format` command fails. [#3451](https://github.com/tuist/tuist/pull/3451) by [@hisaac](https://github.com/hisaac)
 
+### Changed
+
+- Rename internal configuration environment variables to start with `TUISTCONFIG_` instead of `TUIST_` and ignore them when calculating manifests hashes. The old ones are still read if first ones are not found, but they will be removed in 2.0 [#3478](https://github.com/tuist/tuist/3478) by [@danyf90](https://github.com/danyf90)
+
 ### Fixed
 
 - Add swift version to the target hash computation. [#3455](https://github.com/tuist/tuist/3455) by [@danyf90](https://github.com/danyf90)
@@ -75,7 +79,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Get the latest available version from GitHub releases instead of the Google Cloud Storage bucket [#3335](https://github.com/tuist/tuist/pull/3335) by [@pepibumur](https://github.com/pepibumur).
 - The `install` script has been updated to pull the `tuistenv` binary from the latest GitHub release's assets [#3336](https://github.com/tuist/tuist/pull/3336) by [@pepibumur](https://github.com/pepibumur).
 - Remove unneeded `BUILD_LIBRARY_FOR_DISTRIBUTION` setting when building `xcframework` for cache [#3344](https://github.com/tuist/tuist/pull/3344) by [@danyf90](https://github.com/danyf90).
-- Environment variables now support keys with and without `TUIST_` prefix [#3337](https://github.com/tuist/tuist/pull/3337) by [@wattson12](https://github.com/wattson12)
 
 ## 1.48.1
 

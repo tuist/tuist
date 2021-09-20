@@ -18,7 +18,8 @@ If you want to pass multiple environment variables just separate them with a spa
 TUIST_APP_NAME=MyApp TUIST_APP_LOCALE=pl tuist focus
 ```
 
-Variables can be accessed using the `Environment` type. Variables accessed via the `Environment` type can be in the format `TUIST_XYZ` or `XYZ`. The following example works for either of the `TUIST_APP_NAME` or `APP_NAME` variables:
+Variables can be accessed using the `Environment` type. Any variables following the convention `TUIST_XXX` defined in the environment or passed to Tuist when running commands will be accessible using the `Environment` type.
+The following example shows how we access the `TUIST_APP_NAME` variable:
 
 ```swift
 func appName() -> String {

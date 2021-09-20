@@ -16,11 +16,11 @@ public struct LoggingConfig {
 
 extension LoggingConfig {
     public static var `default`: LoggingConfig {
-        let environment = ProcessInfo.processInfo.environment
+        let env = ProcessInfo.processInfo.environment
 
-        let osLog = environment["TUIST_OS_LOG"] != nil
-        let detailed = environment["TUIST_DETAILED_LOG"] != nil
-        let verbose = environment[Constants.EnvironmentVariables.verbose] != nil
+        let osLog = (env[Constants.EnvironmentVariables.osLog] ?? env[Constants.EnvironmentVariables.deprecatedOsLog]) != nil
+        let detailed = (env[Constants.EnvironmentVariables.detailedLog] ?? env[Constants.EnvironmentVariables.deprecatedDetailedLog]) != nil
+        let verbose = (env[Constants.EnvironmentVariables.verbose] ?? env[Constants.EnvironmentVariables.deprecatedVerbose]) != nil
 
         if osLog {
             return .init(loggerType: .osLog, verbose: verbose)

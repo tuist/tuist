@@ -60,17 +60,31 @@ public enum Constants {
     /// These variables are not supposed to be used by end users
     /// But only eg. for acceptance tests and other cases needed internally
     public enum EnvironmentVariables {
-        public static let verbose = "TUIST_VERBOSE"
-        public static let colouredOutput = "TUIST_COLOURED_OUTPUT"
-        public static let versionsDirectory = "TUIST_VERSIONS_DIRECTORY"
+        public static let verbose = "TUISTCONFIG_VERBOSE"
+        public static let colouredOutput = "TUISTCONFIG_COLOURED_OUTPUT"
+        public static let versionsDirectory = "TUISTCONFIG_VERSIONS_DIRECTORY"
         @available(*, deprecated, message: "This is used only for acceptance tests, see https://github.com/tuist/tuist/issues/2777")
-        public static let forceConfigCacheDirectory = "TUIST_FORCE_CONFIG_CACHE_DIRECTORY"
-        public static let automationPath = "TUIST_AUTOMATION_PATH"
-        public static let queueDirectory = "TUIST_QUEUE_DIRECTORY"
-        public static let cloudToken = "TUIST_CLOUD_TOKEN"
-        public static let cacheManifests = "TUIST_CACHE_MANIFESTS"
-        public static let statsOptOut = "TUIST_STATS_OPT_OUT"
-        public static let githubAPIToken = "TUIST_GITHUB_API_TOKEN"
+        public static let forceConfigCacheDirectory = "TUISTCONFIG_FORCE_CONFIG_CACHE_DIRECTORY"
+        public static let automationPath = "TUISTCONFIG_AUTOMATION_PATH"
+        public static let queueDirectory = "TUISTCONFIG_QUEUE_DIRECTORY"
+        public static let cloudToken = "TUISTCONFIG_CLOUD_TOKEN"
+        public static let cacheManifests = "TUISTCONFIG_CACHE_MANIFESTS"
+        public static let statsOptOut = "TUISTCONFIG_STATS_OPT_OUT"
+        public static let githubAPIToken = "TUISTCONFIG_GITHUB_API_TOKEN"
+        public static let detailedLog = "TUISTCONFIG_DETAILED_LOG"
+        public static let osLog = "TUISTCONFIG_OS_LOG"
+
+        public static let deprecatedVerbose = "TUIST_VERBOSE"
+        public static let deprecatedColouredOutput = "TUIST_COLOURED_OUTPUT"
+        public static let deprecatedVersionsDirectory = "TUIST_VERSIONS_DIRECTORY"
+        public static let deprecatedAutomationPath = "TUIST_AUTOMATION_PATH"
+        public static let deprecatedQueueDirectory = "TUIST_QUEUE_DIRECTORY"
+        public static let deprecatedCloudToken = "TUIST_CLOUD_TOKEN"
+        public static let deprecatedCacheManifests = "TUIST_CACHE_MANIFESTS"
+        public static let deprecatedStatsOptOut = "TUIST_STATS_OPT_OUT"
+        public static let deprecatedGithubAPIToken = "TUIST_GITHUB_API_TOKEN"
+        public static let deprecatedDetailedLog = "TUIST_DETAILED_LOG"
+        public static let deprecatedOsLog = "TUIST_OS_LOG"
     }
 
     public enum GoogleCloud {

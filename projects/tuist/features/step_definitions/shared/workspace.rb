@@ -7,8 +7,8 @@ And(/I have a working directory/) do
   @dir = Dir.mktmpdir
   @cache_dir = Dir.mktmpdir
   @derived_data_path = Dir.mktmpdir
-  ENV["TUIST_FORCE_CONFIG_CACHE_DIRECTORY"] = @cache_dir
-  ENV["TUIST_AUTOMATION_PATH"] = File.join(@dir, "Automation")
+  ENV["TUISTCONFIG_FORCE_CONFIG_CACHE_DIRECTORY"] = @cache_dir
+  ENV["TUISTCONFIG_AUTOMATION_PATH"] = File.join(@dir, "Automation")
 end
 
 After do |_scenario|

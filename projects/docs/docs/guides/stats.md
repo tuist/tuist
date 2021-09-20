@@ -19,5 +19,5 @@ The data is collected on a server implemented in the [Tuist repository](https://
 Users can opt out from Tuist stats setting the following environment variable:
 
 ```
-TUIST_STATS_OPT_OUT=1
+TUISTCONFIG_STATS_OPT_OUT=1
 ```
