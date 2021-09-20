@@ -7,15 +7,20 @@ public class CloudClient: CloudClienting {
     // MARK: - Attributes
 
     let cloudHTTPRequestAuthenticator: CloudHTTPRequestAuthenticating
-    let requestDispatcher: HTTPRequestDispatching
+
+    // Use session without redirect to prevent redirects to be wrongly interpreted as successful responses.
+    // For example, the `CacheRemoteStorage.exists` method would return true if the request is not authenticated and redirect is allowed.
+    private var noRedirectDelegate: NoRedirectDelegate?
+    lazy var requestDispatcher: HTTPRequestDispatching = {
+        noRedirectDelegate = NoRedirectDelegate()
+        return HTTPRequestDispatcher(session: URLSession(configuration: .default, delegate: noRedirectDelegate, delegateQueue: nil))
+    }()
 
     // MARK: - Init
 
-    public init(cloudHTTPRequestAuthenticator: CloudHTTPRequestAuthenticating = CloudHTTPRequestAuthenticator(),
-                requestDispatcher: HTTPRequestDispatching = HTTPRequestDispatcher())
+    public init(cloudHTTPRequestAuthenticator: CloudHTTPRequestAuthenticating = CloudHTTPRequestAuthenticator())
     {
         self.cloudHTTPRequestAuthenticator = cloudHTTPRequestAuthenticator
-        self.requestDispatcher = requestDispatcher
     }
 
     // MARK: - Public
@@ -40,5 +45,18 @@ public class CloudClient: CloudClienting {
             request.allHTTPHeaderFields?["Content-Type"] = "application/json;"
             return try self.cloudHTTPRequestAuthenticator.authenticate(request: request)
         }
+    }
+}
+
+private class NoRedirectDelegate: NSObject, URLSessionDelegate, URLSessionTaskDelegate {
+    public func urlSession(
+        _: URLSession,
+        task _: URLSessionTask,
+        willPerformHTTPRedirection _: HTTPURLResponse,
+        newRequest _: URLRequest,
+        completionHandler: @escaping (URLRequest?) -> Swift.Void
+    ) {
+        // disable redirect
+        completionHandler(nil)
     }
 }
