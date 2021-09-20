@@ -244,7 +244,7 @@ final class CacheController: CacheControlling {
             }
         )
 
-        let targetCacheExistsTuples = graph.map(context: .concurrent) { target -> (String, Bool)? in
+        let targetCacheExistsTuples = graph.compactMap(context: .concurrent) { target -> (String, Bool)? in
             guard let hash = hashesByCacheableTarget[target] else {
                 return nil
             }
@@ -253,12 +253,17 @@ final class CacheController: CacheControlling {
             return (hash, cacheExists ?? false)
         }
 
-        let targetCacheExists = [String: Bool](uniqueKeysWithValues: targetCacheExistsTuples.compactMap { $0 })
+        let targetCacheExists = [String: Bool](uniqueKeysWithValues: targetCacheExistsTuples)
 
         return graph
             .filter { target in
-                guard let hash = hashesByCacheableTarget[target] else { return false }
-                guard let exists = targetCacheExists[hash] else { return false }
+                guard
+                    let hash = hashesByCacheableTarget[target],
+                    let exists = targetCacheExists[hash]
+                else {
+                    return false
+                }
+
                 return !exists
             }
             .filter {
