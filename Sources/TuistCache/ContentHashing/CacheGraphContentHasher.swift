@@ -55,6 +55,8 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
             additionalStrings: [
                 cacheProfileContentHasher.hash(cacheProfile: cacheProfile),
                 cacheOutputType.description,
+                System.shared.swiftVersion(),
+                Constants.version,
             ]
         )
     }
