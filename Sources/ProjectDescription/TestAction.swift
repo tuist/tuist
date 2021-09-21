@@ -14,12 +14,6 @@ public struct TestAction: Equatable, Codable {
     /// Name of the configuration that should be used for building the test targets.
     public let configuration: ConfigurationName
 
-    /// True to collect the test coverage results.
-    public let coverage: Bool
-
-    /// List of targets for which Xcode will collect the coverage results.
-    public let codeCoverageTargets: [TargetReference]
-
     /// Set the target that will expand the variables for
     public let expandVariableFromTarget: TargetReference?
 
@@ -28,12 +22,9 @@ public struct TestAction: Equatable, Codable {
 
     /// List of actions to be executed after running the tests.
     public let postActions: [ExecutionAction]
-
-    /// Language.
-    public let language: SchemeLanguage?
-
-    /// Region.
-    public let region: String?
+    
+    /// Options.
+    public let options: TestActionOptions
 
     /// Diagnostics options.
     public let diagnosticsOptions: [SchemeDiagnosticsOption]
@@ -42,27 +33,21 @@ public struct TestAction: Equatable, Codable {
                  targets: [TestableTarget],
                  arguments: Arguments?,
                  configuration: ConfigurationName,
-                 coverage: Bool,
-                 codeCoverageTargets: [TargetReference],
                  expandVariableFromTarget: TargetReference?,
                  preActions: [ExecutionAction],
                  postActions: [ExecutionAction],
-                 diagnosticsOptions: [SchemeDiagnosticsOption],
-                 language: SchemeLanguage?,
-                 region: String?)
+                 options: TestActionOptions,
+                 diagnosticsOptions: [SchemeDiagnosticsOption])
     {
         self.testPlans = testPlans
         self.targets = targets
         self.arguments = arguments
         self.configuration = configuration
-        self.coverage = coverage
         self.preActions = preActions
         self.postActions = postActions
-        self.codeCoverageTargets = codeCoverageTargets
         self.expandVariableFromTarget = expandVariableFromTarget
+        self.options = options
         self.diagnosticsOptions = diagnosticsOptions
-        self.language = language
-        self.region = region
     }
 
     /// Initializes a test action using a list of targets.
@@ -70,56 +55,40 @@ public struct TestAction: Equatable, Codable {
     ///   - targets: List of targets to be tested.
     ///   - arguments: Arguments passed when running the tests.
     ///   - configuration: Configuration to be used.
-    ///   - coverage: Whether test coverage should be collected.
-    ///   - codeCoverageTargets: The targets the test coverage should be collected from.
     ///   - expandVariableFromTarget: A target that will be used to expand the variables defined inside Environment Variables definition
     ///   - preActions: Actions to execute before running the tests.
     ///   - postActions: Actions to execute after running the tests.
+    ///   - options: Test options.
     ///   - diagnosticsOptions: Diagnostics options.
-    ///   - language: The language to be used.
-    ///   - region: The region to be used.
     /// - Returns: An initialized test action.
     public static func targets(_ targets: [TestableTarget],
                                arguments: Arguments? = nil,
                                configuration: ConfigurationName = .debug,
-                               coverage: Bool = false,
-                               codeCoverageTargets: [TargetReference] = [],
                                expandVariableFromTarget: TargetReference? = nil,
                                preActions: [ExecutionAction] = [],
                                postActions: [ExecutionAction] = [],
-                               diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker],
-                               language: SchemeLanguage? = nil,
-                               region: String? = nil) -> Self
+                               options: TestActionOptions = .options(),
+                               diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker]) -> Self
     {
         Self(
             testPlans: nil,
             targets: targets,
             arguments: arguments,
             configuration: configuration,
-            coverage: coverage,
-            codeCoverageTargets: codeCoverageTargets,
             expandVariableFromTarget: expandVariableFromTarget,
             preActions: preActions,
             postActions: postActions,
-            diagnosticsOptions: diagnosticsOptions,
-            language: language,
-            region: region
+            options: options,
+            diagnosticsOptions: diagnosticsOptions
         )
     }
 
     /// Initializes a test action using a list of test plans.
     /// - Parameters:
     ///   - testPlans: List of test plans to run.
-    ///   - arguments: Arguments passed when running the tests.
     ///   - configuration: Configuration to be used.
-    ///   - coverage: Whether test coverage should be collected.
-    ///   - codeCoverageTargets: The targets the test coverage should be collected from.
-    ///   - expandVariableFromTarget: A target that will be used to expand the variables defined inside Environment Variables definition
     ///   - preActions: Actions to execute before running the tests.
     ///   - postActions: Actions to execute after running the tests.
-    ///   - diagnosticsOptions: Diagnostics options.
-    ///   - language: The language to be used.
-    ///   - region: The region to be used.
     /// - Returns: An initialized test action.
     public static func testPlans(_ testPlans: [Path],
                                  configuration: ConfigurationName = .debug,
@@ -131,14 +100,11 @@ public struct TestAction: Equatable, Codable {
             targets: [],
             arguments: nil,
             configuration: configuration,
-            coverage: false,
-            codeCoverageTargets: [],
             expandVariableFromTarget: nil,
             preActions: preActions,
             postActions: postActions,
-            diagnosticsOptions: [.mainThreadChecker],
-            language: nil,
-            region: nil
+            options: .options(),
+            diagnosticsOptions: []
         )
     }
 }
