@@ -30,6 +30,14 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
   - **Motivation:** provisioning environments for working with Xcode projects was outside of the scope of the project. Moreover, it added up to our triaging and maintenace work because errors that bubbled up from underlying commands made people think that they were Tuist bugs.
   - **Migration:** as suggested [here](https://github.com/tuist/tuist-up), turn your `Setup.swift` into a `up.toml` and use `tuist-up` instead.
 
+- **Breaking** Scheme `TestAction` options have been consolidated together under a new type `TestActionOptions`.
+  - **Motivation:** This makes the API consistent with some of the other Scheme actions as well as how it appears in the Scheme editor.
+  - **Migration:** Use `TestAction.targets(options: .options(language:region:codeCoverage:codeCoverageTargets))`
+    - `TestAction.language` > `TestActionOptions.language`
+    - `TestAction.region` > `TestActionOptions.region`
+    - `TestAction.codeCoverage` > `TestActionOptions.codeCoverage`
+    - `TestAction.codeCoverageTargets` > `TestActionOptions.codeCoverageTargets`
+
 ## Next
 
 ### Added
