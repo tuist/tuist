@@ -22,7 +22,7 @@ concurrency:
 
 env:
   RUBY_VERSION: '3.0.1'
-  TUIST_STATS_OPT_OUT: true
+  TUIST_CONFIG_STATS_OPT_OUT: true
 
 jobs:
   build:

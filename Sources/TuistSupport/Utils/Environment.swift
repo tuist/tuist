@@ -21,6 +21,9 @@ public protocol Environmenting: AnyObject {
     /// Returns all the environment variables that are specific to Tuist (prefixed with TUIST_)
     var tuistVariables: [String: String] { get }
 
+    /// Returns all the environment variables that are specific to Tuist configuration (prefixed with TUIST_CONFIG_)
+    var tuistConfigVariables: [String: String] { get }
+
     /// Returns all the environment variables that can be included during the manifest loading process
     var manifestLoadingVariables: [String: String] { get }
 
@@ -100,14 +103,18 @@ public class Environment: Environmenting {
     }
 
     public var isStatsEnabled: Bool {
-        guard let variable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.statsOptOut] else { return true }
+        guard let variable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.statsOptOut] ??
+            ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.deprecatedStatsOptOut]
+        else { return true }
         let userOptedOut = Constants.trueValues.contains(variable)
         return !userOptedOut
     }
 
     /// Returns the directory where all the versions are.
     public var versionsDirectory: AbsolutePath {
-        if let envVariable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.versionsDirectory] {
+        if let envVariable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.versionsDirectory] ??
+            ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.deprecatedVersionsDirectory]
+        {
             return AbsolutePath(envVariable)
         } else {
             return directory.appending(component: "Versions")
@@ -115,11 +122,15 @@ public class Environment: Environmenting {
     }
 
     public var automationPath: AbsolutePath? {
-        ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.automationPath].map { AbsolutePath($0) }
+        (ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.automationPath] ??
+            ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.deprecatedAutomationPath])
+            .map { AbsolutePath($0) }
     }
 
     public var queueDirectory: AbsolutePath {
-        if let envVariable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.queueDirectory] {
+        if let envVariable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.queueDirectory] ??
+            ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.deprecatedQueueDirectory]
+        {
             return AbsolutePath(envVariable)
         } else {
             return directory.appending(component: Constants.AsyncQueue.directoryName)
@@ -128,7 +139,12 @@ public class Environment: Environmenting {
 
     /// Returns all the environment variables that are specific to Tuist (prefixed with TUIST_)
     public var tuistVariables: [String: String] {
-        ProcessInfo.processInfo.environment.filter { $0.key.hasPrefix("TUIST_") }
+        ProcessInfo.processInfo.environment.filter { $0.key.hasPrefix("TUIST_") }.filter { !$0.key.hasPrefix("TUIST_CONFIG_") }
+    }
+
+    /// Returns all the environment variables that are specific to Tuist config (prefixed with TUIST_CONFIG_)
+    public var tuistConfigVariables: [String: String] {
+        ProcessInfo.processInfo.environment.filter { $0.key.hasPrefix("TUIST_CONFIG_") }
     }
 
     public var manifestLoadingVariables: [String: String] {
@@ -151,9 +167,9 @@ public class Environment: Environmenting {
     /// Return true if the the coloured output is forced through an environment variable.
     fileprivate var isColouredOutputEnvironmentTrue: Bool {
         let environment = ProcessInfo.processInfo.environment
-        return !environment
-            .filter { $0.key == Constants.EnvironmentVariables.colouredOutput }
-            .filter { Constants.trueValues.contains($0.value) }
-            .isEmpty
+        let coloredOutput = environment[Constants.EnvironmentVariables.colouredOutput] ??
+            environment[Constants.EnvironmentVariables.deprecatedColouredOutput]
+
+        return coloredOutput.flatMap { Constants.trueValues.contains($0) } ?? false
     }
 }
