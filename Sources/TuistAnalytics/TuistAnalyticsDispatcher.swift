@@ -2,7 +2,7 @@ import Foundation
 import TuistAsyncQueue
 import TuistCore
 
-/// `TuistAnalyticsTagger` is responsible to send analytics events that gets stored and reported at https://stats.tuist.io/
+/// `TuistAnalyticsTagger` is responsible to send analytics events that gets stored and reported at https://backbone.tuist.io/
 public struct TuistAnalyticsDispatcher: AsyncQueueDispatching {
     public static let dispatcherId = "TuistAnalytics"
 
@@ -27,7 +27,7 @@ public struct TuistAnalyticsDispatcher: AsyncQueueDispatching {
     }
 
     private func send(commandEvent: CommandEvent, completion: @escaping (Data?, URLResponse?, Error?) -> Void) throws {
-        var request = URLRequest(url: URL(string: "https://stats.tuist.io/command_events.json")!)
+        var request = URLRequest(url: URL(string: "https://backbone.tuist.io/command_events.json")!)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 

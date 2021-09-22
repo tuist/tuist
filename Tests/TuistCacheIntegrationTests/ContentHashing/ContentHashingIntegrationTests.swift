@@ -1,4 +1,5 @@
 import Foundation
+import RxSwift
 import TSCBasic
 import TuistCore
 import TuistCoreTesting
@@ -10,7 +11,7 @@ import XCTest
 @testable import TuistCore
 @testable import TuistSupportTesting
 
-final class ContentHashingIntegrationTests: TuistTestCase {
+final class ContentHashingIntegrationTests: TuistUnitTestCase {
     var subject: CacheGraphContentHasher!
     var temporaryDirectoryPath: String!
     var source1: SourceFile!
@@ -44,6 +45,7 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         } catch {
             XCTFail("Error while creating files for stub project")
         }
+        system.swiftVersionStub = { "5.4.0" }
         subject = CacheGraphContentHasher(contentHasher: CacheContentHasher())
     }
 
@@ -146,8 +148,8 @@ final class ContentHashingIntegrationTests: TuistTestCase {
         let contentHash = try subject.contentHashes(for: graph, cacheProfile: cacheProfile, cacheOutputType: .framework)
 
         // Then
-        XCTAssertEqual(contentHash[framework1], "5b1073381e4136d10d15ac767f8cc2cb")
-        XCTAssertEqual(contentHash[framework2], "2e261ee6310a4f02ee6f1830e79df77f")
+        XCTAssertEqual(contentHash[framework1], "f9cfe0d4d9bff3de27aa95e2ee76de45")
+        XCTAssertEqual(contentHash[framework2], "b45fb54122d06bc991c1919517d77be3")
     }
 
     func test_contentHashes_hashChangesWithCacheOutputType() throws {

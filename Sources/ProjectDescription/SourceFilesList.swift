@@ -10,6 +10,9 @@ public struct SourceFileGlob: ExpressibleByStringInterpolation, Codable, Equatab
 
     /// Compiler flags.
     public let compilerFlags: String?
+    
+    /// Source file code generation attribute
+    public let codeGen: FileCodeGen?
 
     /// Initializes a SourceFileGlob instance.
     ///
@@ -17,15 +20,23 @@ public struct SourceFileGlob: ExpressibleByStringInterpolation, Codable, Equatab
     ///   - glob: Relative glob pattern.
     ///   - excluding: Relative glob patterns for excluded files.
     ///   - compilerFlags: Compiler flags.
-    public init(_ glob: Path, excluding: [Path] = [], compilerFlags: String? = nil) {
+    ///   - codegen: Source file code generation attribute
+    public init(_ glob: Path,
+                excluding: [Path] = [],
+                compilerFlags: String? = nil,
+                codeGen: FileCodeGen? = nil) {
         self.glob = glob
         self.excluding = excluding
         self.compilerFlags = compilerFlags
+        self.codeGen = codeGen
     }
 
-    public init(_ glob: Path, excluding: Path?, compilerFlags: String? = nil) {
+    public init(_ glob: Path,
+                excluding: Path?,
+                compilerFlags: String? = nil,
+                codeGen: FileCodeGen? = nil) {
         let paths: [Path] = excluding.flatMap { [$0] } ?? []
-        self.init(glob, excluding: paths, compilerFlags: compilerFlags)
+        self.init(glob, excluding: paths, compilerFlags: compilerFlags, codeGen: codeGen)
     }
 
     public init(stringLiteral value: String) {

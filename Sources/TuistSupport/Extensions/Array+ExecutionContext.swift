@@ -127,7 +127,7 @@ extension Array {
                 }
             }
         }
-        return try result.value.map { try $0!.get() }
+        return try result.value.compactMap { try $0?.get() }
     }
 
     private func concurrentForEach(_ perform: (Element) throws -> Void) rethrows {

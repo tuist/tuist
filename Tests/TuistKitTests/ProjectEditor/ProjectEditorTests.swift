@@ -103,8 +103,10 @@ final class ProjectEditorTests: TuistUnitTestCase {
             directory.appending(components: "Tuist", "Tasks", "TaskOne.swift"),
             directory.appending(components: "Tuist", "Tasks", "TaskTwo.swift"),
         ]
+        try FileHandler.shared.createFolder(directory.appending(component: "a folder"))
         try FileHandler.shared.write(
             """
+            a folder
             B.swift
             """,
             path: directory.appending(component: ".tuistignore"),
@@ -118,7 +120,8 @@ final class ProjectEditorTests: TuistUnitTestCase {
                 excluding,
                 [
                     "**/Tuist/Dependencies/**",
-                    "B.swift",
+                    "\(directory.pathString)/a folder/**",
+                    "\(directory.pathString)/B.swift",
                 ]
             )
             return manifests
