@@ -63,7 +63,6 @@ public enum Constants {
         public static let verbose = "TUIST_CONFIG_VERBOSE"
         public static let colouredOutput = "TUIST_CONFIG_COLOURED_OUTPUT"
         public static let versionsDirectory = "TUIST_CONFIG_VERSIONS_DIRECTORY"
-        @available(*, deprecated, message: "This is used only for acceptance tests, see https://github.com/tuist/tuist/issues/2777")
         public static let forceConfigCacheDirectory = "TUIST_CONFIG_FORCE_CONFIG_CACHE_DIRECTORY"
         public static let automationPath = "TUIST_CONFIG_AUTOMATION_PATH"
         public static let queueDirectory = "TUIST_CONFIG_QUEUE_DIRECTORY"
