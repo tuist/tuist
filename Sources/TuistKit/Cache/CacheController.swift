@@ -139,8 +139,7 @@ final class CacheController: CacheControlling {
     }
 
     func cache(path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile, includedTargets: [String], dependenciesOnly: Bool) throws {
-        let generator = projectGeneratorProvider.generator(
-            includedTargets: includedTargets.isEmpty ? nil : Set(includedTargets))
+        let generator = projectGeneratorProvider.generator(includedTargets: includedTargets.isEmpty ? nil : Set(includedTargets))
         let (_, graph) = try generator.generateWithGraph(path: path, projectOnly: false)
 
         // Lint
@@ -156,6 +155,13 @@ final class CacheController: CacheControlling {
             includedTargets: includedTargets,
             dependenciesOnly: dependenciesOnly
         )
+
+        guard !hashesByTargetToBeCached.isEmpty else {
+            logger.notice("All cacheable targets are already cached")
+            return
+        }
+
+        logger.notice("Targets to be cached: \(hashesByTargetToBeCached.map(\.0.target.name).sorted().joined(separator: ", "))")
 
         logger.notice("Filtering cacheable targets")
 
