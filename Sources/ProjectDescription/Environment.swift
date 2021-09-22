@@ -13,7 +13,7 @@ public struct Environment {
 
     static func value(for key: String, environment: [String: String] = ProcessInfo.processInfo.environment) -> Value? {
         let formattedName = key.camelCaseToSnakeCase().uppercased()
-        guard let value = environment["TUIST_\(formattedName)"] ?? environment[formattedName] else { return nil }
+        guard let value = environment["TUIST_\(formattedName)"] else { return nil }
         let trueValues = ["1", "true", "TRUE", "yes", "YES"]
         let falseValues = ["0", "false", "FALSE", "no", "NO"]
         if trueValues.contains(value) {

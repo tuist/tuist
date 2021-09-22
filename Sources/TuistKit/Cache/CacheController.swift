@@ -87,7 +87,7 @@ protocol CacheControlling {
     ///   - cacheProfile: The caching profile.
     ///   - includedTargets: If present, a list of the targets and their dependencies to cache.
     ///   - dependenciesOnly: If true, the targets passed in the `targets` parameter are not cached, but only their dependencies
-    func cache(path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile, includedTargets: [String], dependenciesOnly: Bool) throws
+    func cache(path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile, includedTargets: Set<String>, dependenciesOnly: Bool) throws
 }
 
 final class CacheController: CacheControlling {
@@ -138,7 +138,7 @@ final class CacheController: CacheControlling {
         self.cacheGraphLinter = cacheGraphLinter
     }
 
-    func cache(path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile, includedTargets: [String], dependenciesOnly: Bool) throws {
+    func cache(path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile, includedTargets: Set<String>, dependenciesOnly: Bool) throws {
         let generator = projectGeneratorProvider.generator(includedTargets: includedTargets.isEmpty ? nil : Set(includedTargets))
         let (_, graph) = try generator.generateWithGraph(path: path, projectOnly: false)
 
@@ -232,13 +232,16 @@ final class CacheController: CacheControlling {
         for graph: Graph,
         cacheProfile: TuistGraph.Cache.Profile,
         cacheOutputType: CacheOutputType,
-        includedTargets: [String],
+        includedTargets: Set<String>,
         dependenciesOnly: Bool
     ) throws -> [(GraphTarget, String)] {
+        // When `dependenciesOnly` is true, there is no need to compute `includedTargets` hashes
+        let excludedTargets = dependenciesOnly ? includedTargets : []
         let hashesByCacheableTarget = try cacheGraphContentHasher.contentHashes(
             for: graph,
             cacheProfile: cacheProfile,
-            cacheOutputType: cacheOutputType
+            cacheOutputType: cacheOutputType,
+            excludedTargets: excludedTargets
         )
 
         let graphTraverser = GraphTraverser(graph: graph)
@@ -255,9 +258,7 @@ final class CacheController: CacheControlling {
                 let hash = hashesByCacheableTarget[target],
                 let cacheExists = try? self.cache.exists(hash: hash).toBlocking().first(),
                 // cache already exists, no need to build
-                !cacheExists,
-                // includedTargets targets should not be cached if dependenciesOnly is true
-                !dependenciesOnly || !includedTargets.contains(target.target.name)
+                !cacheExists
             else {
                 return nil
             }

@@ -119,7 +119,7 @@ final class CacheMapperTests: TuistUnitTestCase {
             bGraphTarget: bHash,
             appGraphTarget: appHash,
         ]
-        cacheGraphContentHasher.contentHashesStub = { _, _, _ in
+        cacheGraphContentHasher.contentHashesStub = { _, _, _, _ in
             contentHashes
         }
 
@@ -188,7 +188,7 @@ final class CacheMapperTests: TuistUnitTestCase {
             appGraphTarget: appHash,
         ]
         let error = TestError("error downloading C")
-        cacheGraphContentHasher.contentHashesStub = { _, _, _ in
+        cacheGraphContentHasher.contentHashesStub = { _, _, _, _ in
             contentHashes
         }
 
@@ -255,7 +255,7 @@ final class CacheMapperTests: TuistUnitTestCase {
 
         var invokedCacheOutputType: CacheOutputType?
         var invokedCacheProfile: TuistGraph.Cache.Profile?
-        cacheGraphContentHasher.contentHashesStub = { _, cacheProfile, cacheOutputType in
+        cacheGraphContentHasher.contentHashesStub = { _, cacheProfile, cacheOutputType, _ in
             invokedCacheOutputType = cacheOutputType
             invokedCacheProfile = cacheProfile
             return [:]
