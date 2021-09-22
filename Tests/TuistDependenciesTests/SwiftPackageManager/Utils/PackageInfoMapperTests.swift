@@ -146,7 +146,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenNameContainsDotOrDash_mapsToUnderscodeInTargetName() throws {
+    func testMap_whenNameContainsDot_mapsToUnderscodeInTargetName() throws {
         let project = try subject.map(
             package: "Package",
             packageInfos: [
@@ -176,6 +176,56 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     ),
                 ]
             )
+        )
+    }
+
+    func testPreprocess_whenDependencyNameContainsDot_mapsToUnderscoreInTargetName() throws {
+        let (_, resolvedDependencies, _) = try subject.preprocess(
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target_1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target_1",
+                            dependencies: [
+                                .product(name: "com.example.dep-1", package: "com.example.dep-1", condition: nil),
+                            ]
+                        ),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+                "com.example.dep-1": .init(
+                    products: [
+                        .init(name: "com.example.dep-1", type: .library(.automatic), targets: ["com.example.dep-1"]),
+                    ],
+                    targets: [
+                        .test(name: "com.example.dep-1"),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            productToPackage: [:],
+            packageToFolder: [
+                "Package": "/Package",
+                "com.example.dep-1": "/com.example.dep-1",
+            ],
+            artifactsFolder: .init("/Artifacts/")
+        )
+
+        XCTAssertEqual(
+            resolvedDependencies,
+            [
+                "Target_1": [.externalTargets(package: "com.example.dep-1", targets: ["com_example_dep-1"])],
+                "com.example.dep-1": [],
+            ]
         )
     }
 
