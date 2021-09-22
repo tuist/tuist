@@ -1,0 +1,58 @@
+---
+layout: post
+title: Releasing Tuist 2.0
+categories: ['Tuist', '2.0', 'Xcode', 'Swift', "Project generation"]
+excerpt: 
+author: pepibumur
+---
+
+After over [5 thousand commits](https://github.com/tuist/tuist/commits) from [120 contributors](https://github.com/tuist/tuist/graphs/contributors) and over three years after we landed the first commit on the project,
+I'm thrilled to share with all of you that we released the second major of the project, Tuist 2.0.
+
+As you might know,
+projects that follow [semantic versioning](https://semver.org/) use major versions to flag breaking changes in the release.
+From the user standpoint, that can be seen as unfavorable because the migration is usually manual.
+However,
+breaking changes are often necessary to continue to improve the developer experience (DX). 
+In this new major iteration of Tuist,
+we're achieving that **by moving away from poor API designs**, 
+replacing some of them with **more straightforward and convenient APIs**,
+and **pruning features** that were distant from the direction of the project.
+
+Because the release already provides release notes and migration guidelines,
+I'll get a bit philosophical in the paragraphs that follow to tell you more about what's coming in our path to Tuist 3.0.
+Let's dive right in.
+
+## Evolving our plugins architecture
+
+[Plugins](https://docs.tuist.io/plugins/using-plugins) were born with to allow developers share primitives of Tuist projects.
+In particular, they can share [project description helpers](https://docs.tuist.io/guides/helpers) and [tasks](https://docs.tuist.io/commands/task).
+Turning Tuist into an extensible **platform** was in hindsight a great idea,
+but the approach we took failed to acknowledge that developers would want to depend on Swift packages from their plugins.
+Extending our solution to support that would lead us to build a dependency manager,
+and as you can imagine,
+that's not not a good idea considering there are other package managers we can build upon.
+Therefore we'll overhaul our plugins architecture to piggy back on the Swift Package Manager's work.
+We are still fleshing out the details,
+but without spoiling you too much,
+plugins would be represented by Swift Packages that follow a convention defined by Tuist.
+For example,
+a task would become an executable in a Swift Package that follows the naming convention `tuist-{name}`.
+Thanks to that developers can add transitive dependencies to their plugins,
+and we can leverage the Swift Package Manager CLI to export the plugins in a distributable format.
+
+```bash
+tuist plugin init # Creates a Swift Packagefollowing the plugin convetions
+tuist plugin build # Builds the lugin using the "swift" CLI
+tuist plugin test # Tests the plugin using the "swift" CLI
+tuist plugin archive # Creates an pre-compiled archive to install the plugin
+```
+
+Not only third-party developers will build for the platform, 
+but we'll use it too for extracting some of the current commands that are more suitable to be opted into.
+We can't wait to see what developers will build upon this new plugins architecture.
+
+## Caching improvements
+
+## Cloud
+
