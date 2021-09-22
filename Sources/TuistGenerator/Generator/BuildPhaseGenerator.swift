@@ -220,6 +220,16 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                     "COMPILER_FLAGS": compilerFlags,
                 ]
             }
+            
+            /// Source file ATTRIBUTES
+            /// example: `settings = {ATTRIBUTES = (codegen, )`}
+            if let codegen = buildFile.codeGen {
+                var settingsCopy = settings ?? [:]
+                var attributes = settingsCopy["ATTRIBUTES"] as? [String] ?? []
+                attributes.append(codegen.rawValue)
+                settingsCopy["ATTRIBUTES"] = attributes
+                settings = settingsCopy
+            }
 
             if buildFilesCache.contains(element.path) == false {
                 let pbxBuildFile = PBXBuildFile(file: element.element, settings: settings)

@@ -139,8 +139,7 @@ final class CacheController: CacheControlling {
     }
 
     func cache(path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile, includedTargets: [String], dependenciesOnly: Bool) throws {
-        let generator = projectGeneratorProvider.generator(
-            includedTargets: includedTargets.isEmpty ? nil : Set(includedTargets))
+        let generator = projectGeneratorProvider.generator(includedTargets: includedTargets.isEmpty ? nil : Set(includedTargets))
         let (_, graph) = try generator.generateWithGraph(path: path, projectOnly: false)
 
         // Lint
@@ -156,6 +155,13 @@ final class CacheController: CacheControlling {
             includedTargets: includedTargets,
             dependenciesOnly: dependenciesOnly
         )
+
+        guard !hashesByTargetToBeCached.isEmpty else {
+            logger.notice("All cacheable targets are already cached")
+            return
+        }
+
+        logger.notice("Targets to be cached: \(hashesByTargetToBeCached.map(\.0.target.name).sorted().joined(separator: ", "))")
 
         logger.notice("Filtering cacheable targets")
 
@@ -237,24 +243,27 @@ final class CacheController: CacheControlling {
 
         let graphTraverser = GraphTraverser(graph: graph)
 
-        return try topologicalSort(
+        let graph = try topologicalSort(
             Array(graphTraverser.allTargets()),
             successors: {
                 Array(graphTraverser.directTargetDependencies(path: $0.path, name: $0.target.name))
             }
         )
-        .filter { target in
-            guard let hash = hashesByCacheableTarget[target] else { return false }
-            let cacheExists = try cache.exists(hash: hash).toBlocking().first() ?? false
-            if cacheExists {
-                logger.pretty("The target \(.bold(.raw(target.target.name))) with hash \(.bold(.raw(hash))) and type \(cacheOutputType.description) is already in the cache. Skipping...")
+
+        return graph.compactMap(context: .concurrent) { target -> (GraphTarget, String)? in
+            guard
+                let hash = hashesByCacheableTarget[target],
+                let cacheExists = try? self.cache.exists(hash: hash).toBlocking().first(),
+                // cache already exists, no need to build
+                !cacheExists,
+                // includedTargets targets should not be cached if dependenciesOnly is true
+                !dependenciesOnly || !includedTargets.contains(target.target.name)
+            else {
+                return nil
             }
-            return !cacheExists
-        }
-        .filter {
-            return !dependenciesOnly || !includedTargets.contains($0.target.name)
+
+            return (target, hash)
         }
         .reversed()
-        .map { ($0, hashesByCacheableTarget[$0]!) }
     }
 }

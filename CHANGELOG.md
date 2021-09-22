@@ -4,8 +4,16 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Changed
+
+- Improve output of `tuist cache warm` command. [#3460](https://github.com/tuist/tuist/pull/3460) by [@danyf90](https://github.com/danyf90).
+- Improve performance of `tuist cache` avoiding to hit remote cache if not needed. [#3461](https://github.com/tuist/tuist/pull/3461) by [@danyf90](https://github.com/danyf90).
+- Improve speed of `tuist cache warm` when using remote cache by parallelizing the target cache checks [#3462](https://github.com/tuist/tuist/pull/3462) by [@bolismauro](https://github.com/bolismauro)
+- Improve output of `tuist cache warm` command. [#3460](https://github.com/tuist/tuist/pull/3460) by [@danyf90](https://github.com/danyf90).
+
 ### Added
 
+- Add support for `SourceFilesList.codeGen` property. [#3448](https://github.com/tuist/tuist/pull/3448) by [@pavm035](https://github.com/pavm035)
 - Add more helpful output when `./fourier swift format` command fails. [#3451](https://github.com/tuist/tuist/pull/3451) by [@hisaac](https://github.com/hisaac)
 
 ### Changed
@@ -14,8 +22,11 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Fixed
 
+- Add support for SPM dependencies with `.` and `-` in the target name. [#3449](https://github.com/tuist/tuist/3449) by [@moritzsternemann](https://github.com/moritzsternemann)
 - Add swift version to the target hash computation. [#3455](https://github.com/tuist/tuist/3455) by [@danyf90](https://github.com/danyf90)
 - Add tuist version to the target hash computation. [#3455](https://github.com/tuist/tuist/3455) by [@danyf90](https://github.com/danyf90)
+- Fix unauthenticated cache exists responses interpreted as existing build artifact. [#3480](https://github.com/tuist/tuist/3480) by [@danyf90](https://github.com/danyf90)
+- Fix `.tuistignore` not matching relative paths correctly [#3456](https://github.com/tuist/tuist/pull/3456) by [@danyf90](https://github.com/danyf90)
 
 ## 1.50.0 - Nature
 
@@ -31,7 +42,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - settings-to-xcconfig migration command produces correct string format. [#3260](https://github.com/tuist/tuist/3260) by [@saim80](https://github.com/saim80)
 - Fix caching of manifests that use plugins [#3370](https://github.com/tuist/tuist/pull/3370) by [@luispadron](https://github.com/luispadron)
-- Add support for SPM dependencies with `.` and `-` in the target name. [#3449](https://github.com/tuist/tuist/3449) by [@moritzsternemann](https://github.com/moritzsternemann)
 
 ### Added
 
