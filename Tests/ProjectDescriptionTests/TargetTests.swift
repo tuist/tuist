@@ -31,16 +31,10 @@ final class TargetTests: XCTestCase {
                 .project(target: "target", path: "path"),
                 .target(name: "name"),
             ],
-            settings: Settings(
+            settings: .settings(
                 base: ["a": .string("b")],
-                debug: Configuration(
-                    settings: ["a": .string("b")],
-                    xcconfig: "config"
-                ),
-                release: Configuration(
-                    settings: ["a": .string("b")],
-                    xcconfig: "config"
-                )
+                debug: ["a": .string("b")],
+                release: ["a": .string("b")]
             ),
             coreDataModels: [CoreDataModel("pat", currentVersion: "version")],
             environment: ["a": "b"]
@@ -61,7 +55,7 @@ final class TargetTests: XCTestCase {
                 SourceFileGlob("Intents/Public.intentdefinition", codeGen: .public),
                 SourceFileGlob("Intents/Private.intentdefinition", codeGen: .private),
                 SourceFileGlob("Intents/Project.intentdefinition", codeGen: .project),
-                SourceFileGlob("Intents/Disabled.intentdefinition", codeGen: .disabled)
+                SourceFileGlob("Intents/Disabled.intentdefinition", codeGen: .disabled),
             ]),
             resources: ["resources/*",
                         .glob(pattern: "file.type", tags: ["tag"]),
@@ -81,16 +75,13 @@ final class TargetTests: XCTestCase {
                 .project(target: "target", path: "path"),
                 .target(name: "name"),
             ],
-            settings: Settings(
+            settings: .settings(
                 base: ["a": .string("b")],
-                debug: Configuration(
-                    settings: ["a": .string("b")],
-                    xcconfig: "config"
-                ),
-                release: Configuration(
-                    settings: ["a": .string("b")],
-                    xcconfig: "config"
-                )
+                configurations: [
+                    .debug(name: .debug, settings: ["a": .string("debug")], xcconfig: "debug.xcconfig"),
+                    .debug(name: "Beta", settings: ["a": .string("beta")], xcconfig: "beta.xcconfig"),
+                    .debug(name: .release, settings: ["a": .string("release")], xcconfig: "debug.xcconfig"),
+                ]
             ),
             coreDataModels: [CoreDataModel("pat", currentVersion: "version")],
             environment: ["a": "b"]

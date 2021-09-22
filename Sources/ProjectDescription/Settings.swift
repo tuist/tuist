@@ -67,18 +67,18 @@ public struct Configuration: Equatable, Codable {
         case release
     }
 
-    public let name: String
+    public let name: ConfigurationName
     public let variant: Variant
     public let settings: SettingsDictionary
     public let xcconfig: Path?
 
-    init(name: String, variant: Variant, settings: SettingsDictionary, xcconfig: Path?) {
+    init(name: ConfigurationName, variant: Variant, settings: SettingsDictionary, xcconfig: Path?) {
         self.name = name
         self.variant = variant
         self.settings = settings
         self.xcconfig = xcconfig
     }
-    
+
     /// Creates a debug configuration
     ///
     /// - Parameters:
@@ -86,13 +86,15 @@ public struct Configuration: Equatable, Codable {
     ///   - settings: The base build settings to apply
     ///   - xcconfig: The xcconfig file to associate with this configuration
     /// - Returns: A debug `CustomConfiguration`
-    public static func debug(name: String, settings: SettingsDictionary = [:], xcconfig: Path? = nil) -> Configuration {
-        return Configuration(name: name,
-                             variant: .debug,
-                             settings: settings,
-                             xcconfig: xcconfig)
+    public static func debug(name: ConfigurationName, settings: SettingsDictionary = [:], xcconfig: Path? = nil) -> Configuration {
+        return Configuration(
+            name: name,
+            variant: .debug,
+            settings: settings,
+            xcconfig: xcconfig
+        )
     }
-    
+
     /// Creates a release configuration
     ///
     /// - Parameters:
@@ -100,11 +102,13 @@ public struct Configuration: Equatable, Codable {
     ///   - settings: The base build settings to apply
     ///   - xcconfig: The xcconfig file to associate with this configuration
     /// - Returns: A release `CustomConfiguration`
-    public static func release(name: String, settings: SettingsDictionary = [:], xcconfig: Path? = nil) -> Configuration {
-        return Configuration(name: name,
-                             variant: .release,
-                             settings: settings,
-                             xcconfig: xcconfig)
+    public static func release(name: ConfigurationName, settings: SettingsDictionary = [:], xcconfig: Path? = nil) -> Configuration {
+        return Configuration(
+            name: name,
+            variant: .release,
+            settings: settings,
+            xcconfig: xcconfig
+        )
     }
 }
 
@@ -183,15 +187,45 @@ public struct Settings: Equatable, Codable {
     public let configurations: [Configuration]
     public let defaultSettings: DefaultSettings
 
-    init(base: SettingsDictionary,
-         configurations: [Configuration],
-         defaultSettings: DefaultSettings)
-    {
+    init(
+        base: SettingsDictionary,
+        configurations: [Configuration],
+        defaultSettings: DefaultSettings
+    ) {
         self.base = base
         self.configurations = configurations
         self.defaultSettings = defaultSettings
     }
-    
+
+    /// Creates settings with default.configurations `Debug` and `Release`
+    ///
+    /// - Parameters:
+    ///   - base: The base build settings to use
+    ///   - debug: The debug configuration build settings to use
+    ///   - release: The release configuration build settings to use
+    ///   - defaultSettings: The default settings to apply during generation
+    ///
+    /// - Note: To specify custom configurations (e.g. `Debug`, `Beta` & `Release`) or to specify xcconfigs, you can use the alternate static method
+    ///         `.settings(base:configurations:defaultSettings:)`
+    ///
+    /// - seealso: Configuration
+    /// - seealso: DefaultSettings
+    public static func settings(
+        base: SettingsDictionary = [:],
+        debug: SettingsDictionary = [:],
+        release: SettingsDictionary = [:],
+        defaultSettings: DefaultSettings = .recommended
+    ) -> Settings {
+        return Settings(
+            base: base,
+            configurations: [
+                .debug(name: .debug, settings: debug, xcconfig: nil),
+                .release(name: .release, settings: release, xcconfig: nil),
+            ],
+            defaultSettings: defaultSettings
+        )
+    }
+
     /// Creates settings with any number of configurations.
     ///
     /// - Parameters:
@@ -199,17 +233,21 @@ public struct Settings: Equatable, Codable {
     ///   - configurations: A list of custom configurations to use
     ///   - defaultSettings: The default settings to apply during generation
     ///
-    /// - Note: Configurations shouldn't be empty, please use the alternate initializer
-    ///         `init(base:debug:release:defaultSettings:)` to leverage the default configurations
+    /// - Note: Configurations shouldn't be empty, please use the alternate static method
+    ///         `.settings(base:debug:release:defaultSettings:)` to leverage the default configurations
     ///          if you don't have any custom configurations.
     ///
-    /// - seealso: CustomConfiguration
+    /// - seealso: Configuration
     /// - seealso: DefaultSettings
-    public static func settings(base: SettingsDictionary = [:],
-                                configurations: [Configuration],
-                                defaultSettings: DefaultSettings = .recommended) -> Settings {
-        return Settings(base: base,
-                        configurations: configurations,
-                        defaultSettings: defaultSettings)
+    public static func settings(
+        base: SettingsDictionary = [:],
+        configurations: [Configuration],
+        defaultSettings: DefaultSettings = .recommended
+    ) -> Settings {
+        return Settings(
+            base: base,
+            configurations: configurations,
+            defaultSettings: defaultSettings
+        )
     }
 }

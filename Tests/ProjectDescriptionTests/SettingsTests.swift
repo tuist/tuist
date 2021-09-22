@@ -10,18 +10,22 @@ final class SettingsTests: XCTestCase {
 
     func test_codable_release_debug() throws {
         // Given
-        let debug = Configuration(
+        let debug: Configuration = .debug(
+            name: .debug,
             settings: ["debug": .string("debug")],
             xcconfig: "/path/debug.xcconfig"
         )
-        let release = Configuration(
+        let release: Configuration = .release(
+            name: .release,
             settings: ["release": .string("release")],
             xcconfig: "/path/release"
         )
-        let subject = Settings(
+        let subject: Settings = .settings(
             base: ["base": .string("base")],
-            debug: debug,
-            release: release
+            configurations: [
+                debug,
+                release,
+            ]
         )
 
         // When
@@ -48,13 +52,13 @@ final class SettingsTests: XCTestCase {
 
     func test_codable_multi_configs() throws {
         // Given
-        let configurations: [CustomConfiguration] = [
-            .debug(name: "Debug"),
+        let configurations: [Configuration] = [
+            .debug(name: .debug),
             .debug(name: "CustomDebug", settings: ["CUSTOM_FLAG": .string("Debug")], xcconfig: "debug.xcconfig"),
-            .release(name: "Release"),
+            .release(name: .release),
             .release(name: "CustomRelease", settings: ["CUSTOM_FLAG": .string("Release")], xcconfig: "release.xcconfig"),
         ]
-        let subject = Settings(
+        let subject: Settings = .settings(
             base: ["base": .string("base")],
             configurations: configurations
         )
