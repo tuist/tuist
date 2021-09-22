@@ -115,7 +115,7 @@ final class CacheControllerTests: TuistUnitTestCase {
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
-        cacheGraphContentHasher.contentHashesStub = { _, _, _ in
+        cacheGraphContentHasher.contentHashesStub = { _, _, _, _ in
             nodeWithHashes
         }
         artifactBuilder.stubbedCacheOutputType = .xcframework
@@ -191,7 +191,7 @@ final class CacheControllerTests: TuistUnitTestCase {
             XCTFail("Updated generator should not be invoked")
             return (xcworkspacePath, graph)
         }
-        cacheGraphContentHasher.contentHashesStub = { _, _, _ in
+        cacheGraphContentHasher.contentHashesStub = { _, _, _, _ in
             nodeWithHashes
         }
         artifactBuilder.stubbedCacheOutputType = .xcframework
@@ -257,7 +257,7 @@ final class CacheControllerTests: TuistUnitTestCase {
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
-        cacheGraphContentHasher.contentHashesStub = { _, _, _ in
+        cacheGraphContentHasher.contentHashesStub = { _, _, _, _ in
             filteredNodeWithHashes
         }
         artifactBuilder.stubbedCacheOutputType = .xcframework
@@ -306,11 +306,13 @@ final class CacheControllerTests: TuistUnitTestCase {
         )
 
         let nodeWithHashes = [
-            aGraphTarget: "\(aTarget.name)_HASH",
-            bGraphTarget: "\(bTarget.name)_HASH",
             cGraphTarget: "\(cTarget.name)_HASH",
         ]
-        cacheGraphContentHasher.contentHashesStub = { _, _, _ in nodeWithHashes }
+        cacheGraphContentHasher.contentHashesStub = { _, _, _, excludedTargets in
+            // a and b should be excluded due to dependenciesOnly flag
+            XCTAssertEqual(excludedTargets, [aTarget.name, bTarget.name])
+            return nodeWithHashes
+        }
 
         artifactBuilder.stubbedCacheOutputType = .xcframework
 
@@ -352,7 +354,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         let nodeWithHashes = [
             bGraphTarget: "\(bTarget.name)_HASH",
         ]
-        cacheGraphContentHasher.contentHashesStub = { _, _, _ in
+        cacheGraphContentHasher.contentHashesStub = { _, _, _, _ in
             nodeWithHashes
         }
 

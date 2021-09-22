@@ -10,10 +10,12 @@ public protocol CacheGraphContentHashing {
     ///     - graph: Graph to hash
     ///     - cacheProfile: Cache profile currently being used
     ///     - cacheOutputType: Output type of cache -> makes a different hash for a different output type
+    ///     - excludedTargets: Targets to be excluded from hashes calculation
     func contentHashes(
         for graph: Graph,
         cacheProfile: TuistGraph.Cache.Profile,
-        cacheOutputType: CacheOutputType
+        cacheOutputType: CacheOutputType,
+        excludedTargets: Set<String>
     ) throws -> [GraphTarget: String]
 }
 
@@ -46,12 +48,13 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
     public func contentHashes(
         for graph: Graph,
         cacheProfile: TuistGraph.Cache.Profile,
-        cacheOutputType: CacheOutputType
+        cacheOutputType: CacheOutputType,
+        excludedTargets: Set<String>
     ) throws -> [GraphTarget: String] {
         let graphTraverser = GraphTraverser(graph: graph)
         return try graphContentHasher.contentHashes(
             for: graph,
-            filter: { filterHashTarget($0, graphTraverser: graphTraverser) },
+            filter: { filterHashTarget($0, graphTraverser: graphTraverser, excludedTargets: excludedTargets) },
             additionalStrings: [
                 cacheProfileContentHasher.hash(cacheProfile: cacheProfile),
                 cacheOutputType.description,
@@ -63,15 +66,14 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
 
     private func filterHashTarget(
         _ target: GraphTarget,
-        graphTraverser: GraphTraversing
+        graphTraverser: GraphTraversing,
+        excludedTargets: Set<String>
     ) -> Bool {
         let product = target.target.product
-        let isCachableProduct = CacheGraphContentHasher.cachableProducts.contains(product)
-        let noXCTestDependency = !graphTraverser.dependsOnXCTest(
-            path: target.path,
-            name: target.target.name
-        )
+        let name = target.target.name
 
-        return isCachableProduct && noXCTestDependency
+        return CacheGraphContentHasher.cachableProducts.contains(product) &&
+            !excludedTargets.contains(name) &&
+            !graphTraverser.dependsOnXCTest(path: target.path, name: name)
     }
 }

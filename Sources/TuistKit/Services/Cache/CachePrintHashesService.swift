@@ -45,7 +45,8 @@ final class CachePrintHashesService {
         let hashes = try cacheGraphContentHasher.contentHashes(
             for: graph,
             cacheProfile: cacheProfile,
-            cacheOutputType: cacheOutputType
+            cacheOutputType: cacheOutputType,
+            excludedTargets: []
         )
         let duration = timer.stop()
         let time = String(format: "%.3f", duration)

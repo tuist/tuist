@@ -27,7 +27,7 @@ struct CacheWarmCommand: ParsableCommand {
             path: options.path,
             profile: options.profile,
             xcframeworks: options.xcframeworks,
-            targets: targets,
+            targets: Set(targets),
             dependenciesOnly: dependenciesOnly
         )
     }
