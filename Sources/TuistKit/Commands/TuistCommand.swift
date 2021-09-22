@@ -44,19 +44,30 @@ public struct TuistCommand: ParsableCommand {
 
     public static func main(_ arguments: [String]? = nil) -> Never {
         let errorHandler = ErrorHandler()
-        var command: ParsableCommand
+        let executeCommand: () throws -> ()
         do {
             let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
-            if processedArguments.first == ScaffoldCommand.configuration.commandName {
-                try ScaffoldCommand.preprocess(processedArguments)
+            if Self.configuration.subcommands
+                .map({ $0._commandName })
+                .contains(processedArguments.first ?? "") {
+                if processedArguments.first == ScaffoldCommand.configuration.commandName {
+                    try ScaffoldCommand.preprocess(processedArguments)
+                }
+                if processedArguments.first == InitCommand.configuration.commandName {
+                    try InitCommand.preprocess(processedArguments)
+                }
+                if processedArguments.first == ExecCommand.configuration.commandName {
+                    try ExecCommand.preprocess(processedArguments)
+                }
+                let command = try parseAsRoot(processedArguments)
+                executeCommand = { try execute(command) }
+            } else {
+                executeCommand = {
+                    var customCommandArguments = processedArguments
+                    customCommandArguments[0] = "tuist-\(customCommandArguments[0])"
+                    try System.shared.runAndPrint(customCommandArguments)
+                }
             }
-            if processedArguments.first == InitCommand.configuration.commandName {
-                try InitCommand.preprocess(processedArguments)
-            }
-            if processedArguments.first == ExecCommand.configuration.commandName {
-                try ExecCommand.preprocess(processedArguments)
-            }
-            command = try parseAsRoot(processedArguments)
         } catch {
             let exitCode = self.exitCode(for: error).rawValue
             if exitCode == 0 {
@@ -67,7 +78,7 @@ public struct TuistCommand: ParsableCommand {
             _exit(exitCode)
         }
         do {
-            try execute(command)
+            try executeCommand()
             TuistProcess.shared.asyncExit()
         } catch let error as FatalError {
             errorHandler.fatal(error: error)
