@@ -47,6 +47,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let sources: [SourceFile] = [
             SourceFile(path: "/test/file1.swift", compilerFlags: "flag"),
             SourceFile(path: "/test/file2.swift"),
+            SourceFile(path: "/test/file3.swift", codeGen: .public),
+            SourceFile(path: "/test/file4.swift", codeGen: .private),
+            SourceFile(path: "/test/file5.swift", codeGen: .project),
+            SourceFile(path: "/test/file6.swift", codeGen: .disabled),
         ]
 
         let fileElements = createFileElements(for: sources.map(\.path))
@@ -70,6 +74,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertEqual(buildFilesNames, [
             "file1.swift",
             "file2.swift",
+            "file3.swift",
+            "file4.swift",
+            "file5.swift",
+            "file6.swift"
         ])
 
         let buildFilesSettings = buildFiles.map {
@@ -78,7 +86,20 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
         XCTAssertEqual(buildFilesSettings, [
             ["COMPILER_FLAGS": "flag"],
+            nil, nil, nil, nil, nil
+        ])
+        
+        
+        let fileCodegenSettings = buildFiles.map {
+            $0.settings as? [String: [String]]
+        }
+        XCTAssertEqual(fileCodegenSettings, [
             nil,
+            nil,
+            ["ATTRIBUTES": ["codegen"]],
+            ["ATTRIBUTES": ["private_codegen"]],
+            ["ATTRIBUTES": ["project_codegen"]],
+            ["ATTRIBUTES": ["no_codegen"]]
         ])
     }
 

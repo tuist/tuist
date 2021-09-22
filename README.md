@@ -44,23 +44,41 @@ tuist build # Builds your project
 ## Companies using Tuist
 
 <div align="center">
-  <a href="https://getyourguide.com" target="_blank">
-    <img src="assets/companies/TV2_Logo.svg" style="width: 20px;"/>
+  <a href="https://play.tv2.no/" target="_blank">
+    <img src="assets/companies/TV2_Logo.svg" style="width: 20px" hspace="8"/>
   </a>
   <a href="https://www.depop.com/" target="_blank">
-      <img src="assets/companies/Depop Logo.svg" style="width: 100px; margin-left: 20px;"/>
+      <img src="assets/companies/Depop Logo.svg" style="width: 100px;" hspace="8"/>
   </a>
   <a href="https://bendingspoons.com/" target="_blank">
-    <img src="assets/companies/Bending Spoons - Logo, black.svg" style="width: 50px; margin-left: 20px;"/>
+    <img src="assets/companies/Bending Spoons - Logo, black.svg" style="width: 50px;" hspace="8"/>
   </a>
   <a href="https://globekeeper.com/" target="_blank">
-    <img src="assets/companies/globekeeper.png" style="width: 130px; margin-left: 20px;"/>
+    <img src="assets/companies/globekeeper.png" style="width: 130px;" hspace="8"/>
   </a>
   <a href="https://getyourguide.com" target="_blank">
-    <img src="assets/companies/GetYourGuide.svg" style="width: 40px; margin-left: 20px;"/>
+    <img src="assets/companies/GetYourGuide.svg" style="width: 40px;" hspace="8"/>
   </a>
   <a href="https://emplate.it/" target="_blank">
-    <img src="assets/companies/emplate_logo_full_black.svg" style="width: 120px; margin-left: 20px;"/>
+    <img src="assets/companies/emplate_logo_full_black.svg" style="width: 120px;" hspace="8"/>
+  </a>
+  <a href="https://hh.ru/" target="_blank">
+    <img src="assets/companies/hh mono.svg" style="width: 40px;" hspace="8/>
+  </a>
+  <a href="https://www.trendyol.com/" target="_blank">
+    <img src="assets/companies/Trendyol_online.png" style="width: 120px;" hspace="8"/>
+  </a>
+  <a href="https://angrynerds.co" target="_blank">
+    <img src="assets/companies/angry_nerds_logo_black.svg" style="width: 110px;" hspace="8"/>
+  </a>
+  <a href="https://www.compass.com/" target="_blank">
+    <img src="assets/companies/Compass Black Logo.png" style="width: 110px;" hspace="8"/>
+  </a>
+  <a href="https://www.wefox.com" target="_blank">
+    <img src="assets/companies/Wefox_2021.png" style="width: 110px;" hspace="8"/>
+  </a>
+  <a href="https://www.hedvig.com/" target="_blank">
+    <img src="assets/companies/Hedvig.svg" style="width: 110px;" hspace="8"/>
   </a>
 </div>
 

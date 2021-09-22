@@ -99,8 +99,19 @@ final class ProjectEditor: ProjectEditing {
         onlyCurrentDirectory: Bool,
         plugins: Plugins
     ) throws -> AbsolutePath {
-        let tuistIgnoreEntries =
-            (try? FileHandler.shared.readTextFile(editingPath.appending(component: ".tuistignore")).split(separator: "\n").map(String.init)) ?? []
+        let tuistIgnoreContent = (try? FileHandler.shared.readTextFile(editingPath.appending(component: ".tuistignore"))) ?? ""
+        let tuistIgnoreEntries = tuistIgnoreContent
+            .split(separator: "\n")
+            .map(String.init)
+            .map { entry -> String in
+                guard !entry.starts(with: "**") else { return entry }
+                let path = editingPath.appending(RelativePath(entry))
+                if FileHandler.shared.isFolder(path) {
+                    return path.appending(component: "**").pathString
+                } else {
+                    return path.pathString
+                }
+            }
 
         let pathsToExclude = [
             "**/\(Constants.tuistDirectoryName)/\(Constants.DependenciesDirectory.name)/**",

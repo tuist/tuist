@@ -53,12 +53,13 @@ public final class CacheMapper: GraphMapping {
 
     // MARK: - Init
 
-    public convenience init(config: Config,
-                            cacheStorageProvider: CacheStorageProviding,
-                            sources: Set<String>,
-                            cacheProfile: TuistGraph.Cache.Profile,
-                            cacheOutputType: CacheOutputType)
-    {
+    public convenience init(
+        config: Config,
+        cacheStorageProvider: CacheStorageProviding,
+        sources: Set<String>,
+        cacheProfile: TuistGraph.Cache.Profile,
+        cacheOutputType: CacheOutputType
+    ) {
         self.init(
             config: config,
             cache: Cache(storageProvider: cacheStorageProvider),
