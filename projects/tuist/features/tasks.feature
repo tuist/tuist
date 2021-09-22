@@ -13,4 +13,7 @@ Feature: Run tasks
     And I have a working directory
     Then I copy the fixture app_with_plugins into the working directory
     Then tuist runs a task create-file
-    Then content of a file named file.txt should be equal to File created with a plugin
+    Then content of a file named plugin-file.txt should be equal to File created with a plugin
+    Then tuist-create-file is added to PATH
+    Then tuist runs create-file
+    Then content of a file named create-file.txt should be equal to run_from_task
