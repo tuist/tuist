@@ -55,7 +55,7 @@ public class GitEnvironment: GitEnvironmenting {
 
     public func githubAuthentication() -> AnyPublisher<GitHubAuthentication?, Error> {
         let env = environment()
-        if let environmentToken = env[Constants.EnvironmentVariables.githubAPIToken] ?? env[Constants.EnvironmentVariables.deprecatedGithubAPIToken] {
+        if let environmentToken = env[Constants.EnvironmentVariables.githubAPIToken] {
             return .init(value: .token(environmentToken))
         } else {
             return githubCredentials().map { (credentials: GithubCredentials?) -> GitHubAuthentication? in

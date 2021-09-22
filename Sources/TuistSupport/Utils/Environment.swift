@@ -103,18 +103,14 @@ public class Environment: Environmenting {
     }
 
     public var isStatsEnabled: Bool {
-        guard let variable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.statsOptOut] ??
-            ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.deprecatedStatsOptOut]
-        else { return true }
+        guard let variable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.statsOptOut] else { return true }
         let userOptedOut = Constants.trueValues.contains(variable)
         return !userOptedOut
     }
 
     /// Returns the directory where all the versions are.
     public var versionsDirectory: AbsolutePath {
-        if let envVariable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.versionsDirectory] ??
-            ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.deprecatedVersionsDirectory]
-        {
+        if let envVariable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.versionsDirectory] {
             return AbsolutePath(envVariable)
         } else {
             return directory.appending(component: "Versions")
@@ -122,15 +118,11 @@ public class Environment: Environmenting {
     }
 
     public var automationPath: AbsolutePath? {
-        (ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.automationPath] ??
-            ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.deprecatedAutomationPath])
-            .map { AbsolutePath($0) }
+        ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.automationPath].map { AbsolutePath($0) }
     }
 
     public var queueDirectory: AbsolutePath {
-        if let envVariable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.queueDirectory] ??
-            ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.deprecatedQueueDirectory]
-        {
+        if let envVariable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.queueDirectory] {
             return AbsolutePath(envVariable)
         } else {
             return directory.appending(component: Constants.AsyncQueue.directoryName)
