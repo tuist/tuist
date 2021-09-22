@@ -54,5 +54,66 @@ We can't wait to see what developers will build upon this new plugins architectu
 
 ## Caching improvements
 
+Improving build times remains as one of the most concerning areas when scaling up Xcode projects.
+Luckily,
+our internal graph representation of projects positioned us to provide a solution for that without the complexity and maintenance introducing a new build system like [Bazel](https://bazel.build/) entails.
+The idea is simple,
+the project is represented by a graph with targets as nodes,
+some of which can be replaced with their binary counterpart at generation time.
+The binaries are identified with a fingerprint that changes if the target or any of its dependencies changes.
+Sounds trivial, but it has a set of challenges.
+
+One of the challenges we are going through is getting a **deterministic and accurate fingerprint**.
+It's challenging because Xcode projects support bringing implicitness to the build process.
+For instance,
+a script build phase could affect the built artifact of the target without the Tuist's fingerprinting logic being aware of it.
+We can't detect implicitness,
+but we can provide APIs to make the implicitness explicit to the fingerprinting logic.
+Detecting sources of implicitness will require a close collaboration with developers.
+
+Another challenge is **generating a valid graph with binaries after the mutation.**
+The scenarios that we used as a reference are very ideal and in most cases, distant from the reality.
+There are many different flavors of Xcode projects out there that the mutation logic needs to handle gracefully.
+If our mutation logic doesn't support them, 
+developers might end up getting a project that doesn't compile,
+or even worse,
+they won't get a project at all.
+
+When we adventured ourselves into the caching land we knew it was not going to be easy.
+Our goal towards 3.0 is to continue to work with developers to make caching **accessible and bulletproof**.
+
+## Third-party dependencies
+
+
+
 ## Cloud
 
+For months,
+I've been pondering the idea of providing some workflows that require a server-side component:
+
+- Share the local app running in your simulator with someone else.
+- Get a dashboard with project and build insights.
+- Compare insights against a baseline (e.g. `main` branch) and post a report on a GitHub PR.
+- Coordinate the process of releasing apps to App Store.
+
+Moreover, the idea of providing an open-source web app paired nicely with finding a model to financially sustain the project to avoind falling into the same trap as projects like [Babel](https://babeljs.io/). Many companies depend on it, and they struggle to financially support people to work on it full-time. 
+
+Therefore, towards Tuist 3.0, we'll build an open-source AGPL-3.0-licensed web-app, **Tuist Cloud**, 
+and provide hosting as a service. 
+Since it'll be open-source and the contract between the client and the server will be documented,
+users will have the the flexibility to bring their own implementation.
+We won't fight against that,
+but we are hopeful developers will acknowledge the importance of keeping the project alive, and would opt for the path of paying for the service.
+
+The organization will remain as a non-profit organization on [Open Collective](https://opencollective.com/tuistapp), 
+and the revenue will be oriented towards having people working on Tuist and Tuist Pro part or full-time.
+
+If you've been wanting to learn web development, Ruby, and Rails, let us know and we'll be happy to pair with you on building new features for the project.
+
+## Closing words
+
+Tuist 2.0 wouldn't have been possible without the continuous dedication of core maintainers, contributors, and users of the project.
+They are the ones pushing the project beyond their limits and bringing new ideas to the table.
+When I started the project back in 2018, I wouldn't have imagined there'd be many of us on this boat solving such exciting challenges on top of a format like Xcode projects' that is closed to extensibility.
+
+**Tuist is here to stay ** because you've proven us there's a need for this tool in the industry.
