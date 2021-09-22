@@ -210,10 +210,10 @@
       },
       {
         "package": "SwiftGen",
-        "repositoryURL": "https://github.com/fortmarek/SwiftGen",
+        "repositoryURL": "https://github.com/hisaac/SwiftGen",
         "state": {
-          "branch": "stable",
-          "revision": "5514d331d8ff1273b5c88747d646edcb63e13d69",
+          "branch": "add-symbolset-support",
+          "revision": "0d8d974dadbed1b6baa9c0752be9c70ff48239df",
           "version": null
         }
       },
