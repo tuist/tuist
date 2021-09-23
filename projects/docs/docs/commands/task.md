@@ -13,4 +13,4 @@ We try to fix that by introducing a concept of "Tasks" where you can define cust
 
 ### Defining a task
 
-You can prepend any executable with `tuist-` and add it to your `PATH`. If you for example add `tuist-my-command` to your `PATH`, you will be able to run `tuist my-command` and `my-command` will automatically be executed.
+You can prepend any executable with `tuist-` and add it to your `PATH`. If you for example add `tuist-my-command` to your `PATH`, you will be able to run `tuist my-command` and `tuist-my-command` will automatically be executed.
