@@ -11,7 +11,7 @@ Tuist is a command line tool \(CLI\) that aims to facilitate the generation, mai
 The first thing that we need to do to get started is installing the tool. To do so, you can run the following commands in your terminal:
 
 ```bash
-bash <(curl -Ls https://install.tuist.io)
+curl -Ls https://install.tuist.io | bash
 ```
 
 The process is relatively fast because we are actually not installing the tool. We are installing `tuistenv` \(which gets renamed to `tuist`\) when you install it.
