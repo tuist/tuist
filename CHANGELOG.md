@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 1.51.0 - Switch
+
 ### Changed
 
 - Improve performance of `tuist cache` avoiding to hit remote cache if not needed. [#3461](https://github.com/tuist/tuist/pull/3461) by [@danyf90](https://github.com/danyf90).
