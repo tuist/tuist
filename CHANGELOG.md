@@ -4,6 +4,9 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Fixed
+
+- Installation failing when intermediate files are present in `/tmp/` [#3502](https://github.com/tuist/tuist/pull/3502) by [@pepibumur](https://github.com/pepibumur).
 ## 1.51.0 - Switch
 
 ### Changed
