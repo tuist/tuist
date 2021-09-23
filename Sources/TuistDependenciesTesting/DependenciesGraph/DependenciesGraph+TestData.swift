@@ -50,7 +50,7 @@ public extension TuistCore.DependenciesGraph {
             externalProjects: [
                 packageFolder: .init(
                     name: "test",
-                    settings: .init(base: [
+                    settings: .settings(base: [
                         "GCC_C_LANGUAGE_STANDARD": "c99",
                     ]),
                     targets: [
@@ -201,7 +201,7 @@ public extension TuistCore.DependenciesGraph {
             externalProjects: [
                 packageFolder: .init(
                     name: "Alamofire",
-                    settings: .init(base: ["SWIFT_VERSION": "5.0.0"]),
+                    settings: .settings(base: ["SWIFT_VERSION": "5.0.0"]),
                     targets: [
                         .init(
                             name: "Alamofire",
@@ -242,7 +242,7 @@ public extension TuistCore.DependenciesGraph {
             externalProjects: [
                 packageFolder: .init(
                     name: "GoogleAppMeasurement",
-                    settings: .init(base: [
+                    settings: .settings(base: [
                         "GCC_C_LANGUAGE_STANDARD": "c99",
                         "CLANG_CXX_LANGUAGE_STANDARD": "gnu++14",
                     ]),
@@ -469,6 +469,6 @@ extension DependenciesGraph {
             settingsDictionary["OTHER_LDFLAGS"] = .array(["$(inherited)"] + linkerFlags)
         }
 
-        return Settings(base: settingsDictionary)
+        return .settings(base: settingsDictionary)
     }
 }

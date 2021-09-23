@@ -142,7 +142,7 @@ extension TestAction {
     public static func test(targets: [TestableTarget] = [],
                             arguments: Arguments? = nil,
                             configuration: ConfigurationName = .debug,
-                            coverage: Bool = true) -> TestAction
+                            coverage _: Bool = true) -> TestAction
     {
         TestAction.targets(
             targets,

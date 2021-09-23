@@ -230,7 +230,7 @@ class TargetLinter: TargetLinting {
             .init(reason: "Target '\(target.name)' has duplicate \($0.element.key.typeName) dependency specified: '\($0.element.key.name)'", severity: .warning)
         }
     }
-    
+
     private func lintValidSourceFileCodeGenAttributes(target: Target) -> [LintingIssue] {
         let knownSupportedExtensions = [
             "intentdefinition",
