@@ -62,36 +62,22 @@ class CacheGraphMutator: CacheGraphMutating {
         var visitedPrecompiledArtifactPaths: [GraphTarget: VisitedArtifact?] = [:]
         var loadedPrecompiledDependencies: [AbsolutePath: GraphDependency] = [:]
         let userSpecifiedSourceTargets = graphTraverser.allTargets().filter { sources.contains($0.target.name) }
-        let userSpecifiedSourceTestTargets = userSpecifiedSourceTargets.flatMap {
-            graphTraverser.testTargetsDependingOn(path: $0.path, name: $0.target.name)
-        }
-        var sourceTargets: Set<GraphTarget> = Set(userSpecifiedSourceTargets)
-
-        userSpecifiedSourceTargets.forEach { target in
-            let dependency = GraphDependency.target(name: target.target.name, path: target.path)
-
-            visitBundleTargets(
-                for: dependency,
-                graphTraverser: graphTraverser,
-                visitedPrecompiledArtifactPaths: &visitedPrecompiledArtifactPaths
-            )
-        }
+        var sourceTargets = Set(userSpecifiedSourceTargets)
 
         /// New graph dependencies
         var graphDependencies: [GraphDependency: Set<GraphDependency>] = [:]
-        try (userSpecifiedSourceTargets + userSpecifiedSourceTestTargets)
-            .forEach {
-                try visit(
-                    target: $0,
-                    graph: graph,
-                    graphDependencies: &graphDependencies,
-                    precompiledArtifacts: precompiledArtifacts,
-                    sources: sources,
-                    sourceTargets: &sourceTargets,
-                    visitedPrecompiledArtifactPaths: &visitedPrecompiledArtifactPaths,
-                    loadedPrecompiledNodes: &loadedPrecompiledDependencies
-                )
-            }
+        try userSpecifiedSourceTargets.forEach {
+            try visit(
+                target: $0,
+                graph: graph,
+                graphDependencies: &graphDependencies,
+                precompiledArtifacts: precompiledArtifacts,
+                sources: sources,
+                sourceTargets: &sourceTargets,
+                visitedPrecompiledArtifactPaths: &visitedPrecompiledArtifactPaths,
+                loadedPrecompiledNodes: &loadedPrecompiledDependencies
+            )
+        }
 
         mapPrebuiltFrameworks(
             graphDependencies: &graphDependencies,
@@ -124,9 +110,7 @@ class CacheGraphMutator: CacheGraphMutating {
     ) throws {
         sourceTargets.formUnion([target])
         let targetDependency: GraphDependency = .target(name: target.target.name, path: target.path)
-        graphDependencies[
-            targetDependency
-        ] = try mapDependencies(
+        graphDependencies[targetDependency] = try mapDependencies(
             graph.dependencies[targetDependency, default: Set()],
             graph: graph,
             graphDependencies: &graphDependencies,
