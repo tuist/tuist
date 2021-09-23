@@ -8,7 +8,11 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - **Breaking** made constructors from scheme action models internal and exposed static methods for initializing them instead. For example, `TestAction.init(..)` becomes `TestAction.testAction(...)`. [#3400](https://github.com/tuist/tuist/pull/3400) by [@pepibumur](https://github.com/pepibumur):
   - **Motivation:**: Using static initializers gives us the flexibility to introduce improvements without breaking the API.
-  - **Migration:** Update all the action initializers to use the static methods instead. The name of the static method matches the name of the class but starting with a lowercase.  
+  - **Migration:** Update all the action initializers to use the static methods instead. The name of the static method matches the name of the class but starting with a lowercase.
+- **Breaking** `tuist focus` no longer includes automatically related tests and bundle targets as sources. [#3501](https://github.com/tuist/tuist/pull/3501) by [@danyf90](https://github.com/danyf90).
+  - **Motivation:** the behavior might cause to include unwanted targets in some scenario
+  - **Migration:** if you need to include tests and bundle targets as sources, specify them as arguments of the `tuist focus` command
+
 ### Removed
 
 - **Breaking** `.cocoapods` target dependency
