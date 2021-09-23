@@ -3,7 +3,7 @@
     "pins": [
       {
         "package": "AEXML",
-        "repositoryURL": "https://github.com/tadija/AEXML",
+        "repositoryURL": "https://github.com/tadija/AEXML.git",
         "state": {
           "branch": null,
           "revision": "38f7d00b23ecd891e1ee656fa6aeebd6ba04ecc3",
@@ -222,8 +222,8 @@
         "repositoryURL": "https://github.com/tuist/XcodeProj.git",
         "state": {
           "branch": null,
-          "revision": "8e83191dba8bcbfc0be4d7c48bf1e02e7fedc88c",
-          "version": "8.2.0"
+          "revision": "56af16e4237215b447f8ab72c737c494a3a20c97",
+          "version": "8.3.0"
         }
       },
       {
