@@ -24,6 +24,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Changed
 
 - Rename internal configuration environment variables to start with `TUIST_CONFIG_` instead of `TUIST_` and ignore them when calculating manifests hashes. The old ones are still read if first ones are not found, but they will be removed in 2.0 [#3479](https://github.com/tuist/tuist/3479) by [@danyf90](https://github.com/danyf90)
+- Fix compilation on Xcode 13 by updating Xcodeproj [#3499](https://github.com/tuist/tuist/pull/3499) by [@danyf90](https://github.com/danyf90).
 
 ### Fixed
 
