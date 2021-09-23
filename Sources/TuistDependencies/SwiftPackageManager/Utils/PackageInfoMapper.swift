@@ -907,7 +907,7 @@ extension PackageInfoMapper {
             packageInfos: [String: PackageInfo]
         ) throws -> Self {
             guard
-                let targets = packageInfos[package]?.products.first(where: { $0.name == product })?.targets
+                let targets = packageInfos[package]?.products.first(where: { $0.name == product })?.targets.map(PackageInfoMapper.sanitize(targetName:))
             else {
                 throw PackageInfoMapperError.unknownProductDependency(product, package)
             }
