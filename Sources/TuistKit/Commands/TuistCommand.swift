@@ -47,9 +47,10 @@ public struct TuistCommand: ParsableCommand {
         let executeCommand: () throws -> ()
         do {
             let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
+            let commandName = processedArguments.first ?? ""
             if Self.configuration.subcommands
                 .map({ $0._commandName })
-                .contains(processedArguments.first ?? "") {
+                .contains(processedArguments.first ?? "") || !System.shared.commandExists(commandName) {
                 if processedArguments.first == ScaffoldCommand.configuration.commandName {
                     try ScaffoldCommand.preprocess(processedArguments)
                 }
@@ -63,9 +64,7 @@ public struct TuistCommand: ParsableCommand {
                 executeCommand = { try execute(command) }
             } else {
                 executeCommand = {
-                    var customCommandArguments = processedArguments
-                    customCommandArguments[0] = "tuist-\(customCommandArguments[0])"
-                    try System.shared.runAndPrint(customCommandArguments)
+                    try TuistService().run(processedArguments)
                 }
             }
         } catch {
