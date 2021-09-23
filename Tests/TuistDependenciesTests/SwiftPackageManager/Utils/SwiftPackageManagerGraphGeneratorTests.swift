@@ -105,7 +105,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
         )
     }
 
-    func test_generate_test() throws {
+    func test_generate_test_local_path() throws {
         let testPath = AbsolutePath("/tmp/localPackage")
         try checkGenerated(
             workspaceDependenciesJSON: """
@@ -115,6 +115,57 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
                   "kind": "local",
                   "name": "test",
                   "path": "\(testPath.pathString)"
+                },
+                "subpath": "test"
+              },
+              {
+                "packageRef": {
+                  "kind": "remote",
+                  "name": "a-dependency"
+                },
+                "subpath": "ADependency"
+              },
+              {
+                "packageRef": {
+                  "kind": "remote",
+                  "name": "another-dependency"
+                },
+                "subpath": "another-dependency"
+              }
+            ]
+            """,
+            loadPackageInfoStub: { packagePath in
+                switch packagePath {
+                case testPath:
+                    return PackageInfo.test
+                case self.checkoutsPath.appending(component: "ADependency"):
+                    return PackageInfo.aDependency
+                case self.checkoutsPath.appending(component: "another-dependency"):
+                    return PackageInfo.anotherDependency
+                default:
+                    XCTFail("Unexpected path: \(self.path)")
+                    return .test
+                }
+            },
+            deploymentTargets: [
+                .iOS("13.0", [.iphone, .ipad]),
+            ],
+            dependenciesGraph: DependenciesGraph.test(spmFolder: spmFolder, packageFolder: Path(testPath.pathString))
+                .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder))
+                .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder))
+        )
+    }
+
+    func test_generate_test_local_location() throws {
+        let testPath = AbsolutePath("/tmp/localPackage")
+        try checkGenerated(
+            workspaceDependenciesJSON: """
+            [
+              {
+                "packageRef": {
+                  "kind": "local",
+                  "name": "test",
+                  "location": "\(testPath.pathString)"
                 },
                 "subpath": "test"
               },

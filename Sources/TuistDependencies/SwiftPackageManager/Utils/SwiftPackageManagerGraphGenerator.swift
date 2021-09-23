@@ -85,7 +85,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             case "remote":
                 packageFolder = checkoutsFolder.appending(component: dependency.subpath)
             case "local":
-                guard let path = dependency.packageRef.path else {
+                guard let path = dependency.packageRef.path ?? dependency.packageRef.location else {
                     throw SwiftPackageManagerGraphGeneratorError.missingPathInLocalSwiftPackage(name)
                 }
                 packageFolder = AbsolutePath(path)
