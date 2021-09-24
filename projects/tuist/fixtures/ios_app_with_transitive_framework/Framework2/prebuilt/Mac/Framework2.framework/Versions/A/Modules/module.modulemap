@@ -1,4 +1,0 @@
-framework module Framework2 {
-  header "Framework2-Swift.h"
-  requires objc
-}
