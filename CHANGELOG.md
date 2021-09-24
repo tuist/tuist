@@ -10,7 +10,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Make cache hashes of SwiftPackageManager dependencies with modulemap independent from the absolute path of the project [#3505](https://github.com/tuist/tuist/pull/3505) by [@danyf90](https://github.com/danyf90).
 - Fix SwiftPackageManager dependencies mapping on Xcode 13 [#3507](https://github.com/tuist/tuist/pull/3507) by [@danyf90](https://github.com/danyf90)
 
-
 ## 1.51.0 - Switch
 
 ### Changed
