@@ -418,7 +418,7 @@ extension DependenciesGraph {
 
     static func spmSettings(
         with customSettings: SettingsDictionary = [:],
-        moduleMap: AbsolutePath? = nil
+        moduleMap: String? = nil
     ) -> Settings {
         let defaultSpmSettings: SettingsDictionary = [
             "ALWAYS_SEARCH_USER_PATHS": "YES",
@@ -434,7 +434,7 @@ extension DependenciesGraph {
         var settingsDictionary = customSettings.merging(defaultSpmSettings, uniquingKeysWith: { custom, _ in custom })
 
         if let moduleMap = moduleMap {
-            settingsDictionary["MODULEMAP_FILE"] = .string(moduleMap.pathString)
+            settingsDictionary["MODULEMAP_FILE"] = .string(moduleMap)
         }
 
         if case let .array(headerSearchPaths) = settingsDictionary["HEADER_SEARCH_PATHS"] {

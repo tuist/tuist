@@ -464,7 +464,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Target1/include"],
                         ],
-                        moduleMap: moduleMapPath
+                        moduleMap: "$(SRCROOT)/Sources/Target1/include/module.modulemap"
                     ),
                 ]
             )
@@ -575,7 +575,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 "$(SRCROOT)/Sources/Dependency2/include",
                             ],
                         ],
-                        moduleMap: target1ModuleMapPath
+                        moduleMap: "$(SRCROOT)/Sources/Target1/include/module.modulemap"
                     ),
                     .test(
                         "Dependency1",
@@ -587,7 +587,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 "$(SRCROOT)/Sources/Dependency2/include",
                             ],
                         ],
-                        moduleMap: dependency1ModuleMapPath
+                        moduleMap: "$(SRCROOT)/Sources/Dependency1/include/module.modulemap"
                     ),
                     .test(
                         "Dependency2",
@@ -595,7 +595,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Dependency2/include"],
                         ],
-                        moduleMap: dependency2ModuleMapPath
+                        moduleMap: "$(SRCROOT)/Sources/Dependency2/include/module.modulemap"
                     ),
                 ]
             )
@@ -683,7 +683,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 "$(SRCROOT)/../../Package3/Path/Sources/Dependency2/include",
                             ],
                         ],
-                        moduleMap: target1ModuleMapPath
+                        moduleMap: "$(SRCROOT)/Sources/Target1/include/module.modulemap"
                     ),
                 ]
             )
@@ -693,7 +693,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     func testMap_whenCustomPath() throws {
         let basePath = try temporaryPath()
         let headersPath = basePath.appending(RelativePath("Package/Path/Custom/Path/Headers"))
-        let headerPath = headersPath.appending(component: "module.modulemap")
+        let headerPath = headersPath.appending(component: "module.h")
         let moduleMapPath = headersPath.appending(component: "module.modulemap")
         try fileHandler.createFolder(headersPath)
         try fileHandler.write("", path: headerPath, atomically: true)
@@ -740,7 +740,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Custom/Path/Headers"],
                         ],
-                        moduleMap: moduleMapPath
+                        moduleMap: "$(SRCROOT)/Custom/Path/Headers/module.modulemap"
                     ),
                 ]
             )
@@ -792,7 +792,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Dependency1/include"],
                         ],
-                        moduleMap: dependencyHeadersPath.appending(RelativePath("Dependency1.modulemap"))
+                        moduleMap: "$(SRCROOT)/Sources/Dependency1/include/Dependency1.modulemap"
                     ),
                 ]
             )
@@ -1857,7 +1857,7 @@ extension ProjectDescription.Target {
         headers: ProjectDescription.Headers? = nil,
         dependencies: [ProjectDescription.TargetDependency] = [],
         customSettings: ProjectDescription.SettingsDictionary = [:],
-        moduleMap: AbsolutePath? = nil
+        moduleMap: String? = nil
     ) -> Self {
         return .init(
             name: name,

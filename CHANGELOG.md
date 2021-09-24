@@ -9,6 +9,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Installation failing when intermediate files are present in `/tmp/` [#3502](https://github.com/tuist/tuist/pull/3502) by [@pepibumur](https://github.com/pepibumur)
 - Fix compilation on Xcode 13 by updating Xcodeproj [#3499](https://github.com/tuist/tuist/pull/3499) by [@danyf90](https://github.com/danyf90)
 - Fix SwiftPackageManager dependencies mapping on Xcode 13 [#3499](https://github.com/tuist/tuist/pull/3499) by [@danyf90](https://github.com/danyf90)
+- Installation failing when intermediate files are present in `/tmp/` [#3502](https://github.com/tuist/tuist/pull/3502) by [@pepibumur](https://github.com/pepibumur).
+- Make cache hashes of SwiftPackageManager dependencies with modulemap independent from the absolute path of the project [#3505](https://github.com/tuist/tuist/pull/3505) by [@danyf90](https://github.com/danyf90).
 
 ### Changed
 
