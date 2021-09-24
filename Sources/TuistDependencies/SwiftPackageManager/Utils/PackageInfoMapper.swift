@@ -634,7 +634,7 @@ extension ProjectDescription.Settings {
         ]
 
         if let moduleMapPath = moduleMap.path {
-            settingsDictionary["MODULEMAP_FILE"] = .string(moduleMapPath.pathString)
+          settingsDictionary["MODULEMAP_FILE"] = .string("$(SRCROOT)/\(moduleMapPath.relative(to: packageFolder))")
         }
 
         if !headerSearchPaths.isEmpty {
