@@ -13,7 +13,7 @@ let project = Project(name: "App",
                                      /* Target dependencies can be defined here */
                                      /* .framework(path: "framework") */
                                  ],
-                                 settings: Settings(base: ["CODE_SIGN_IDENTITY": "",
+                                 settings: .settings(base: ["CODE_SIGN_IDENTITY": "",
                                                            "CODE_SIGNING_REQUIRED": "NO"])),
                           Target(name: "AppTests",
                                  platform: .iOS,
@@ -24,6 +24,6 @@ let project = Project(name: "App",
                                  dependencies: [
                                      .target(name: "App"),
                                  ],
-                                 settings: Settings(base: ["CODE_SIGN_IDENTITY": "",
+                                 settings: .settings(base: ["CODE_SIGN_IDENTITY": "",
                                                            "CODE_SIGNING_REQUIRED": "NO"])),
 ])

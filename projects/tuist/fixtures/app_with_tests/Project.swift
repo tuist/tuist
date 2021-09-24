@@ -51,7 +51,7 @@ let project = Project(
             deploymentTarget: .macOS(targetVersion: "10.15"),
             infoPlist: .default,
             sources: "Targets/MacFramework/Sources/**",
-            settings: Settings(
+            settings: .settings(
                 base: [
                     "CODE_SIGN_IDENTITY": "",
                     "CODE_SIGNING_REQUIRED": "NO"
@@ -69,7 +69,7 @@ let project = Project(
             dependencies: [
                 .target(name: "MacFramework"),
             ],
-            settings: Settings(
+            settings: .settings(
                 base: [
                     "CODE_SIGN_IDENTITY": "",
                     "CODE_SIGNING_REQUIRED": "NO"

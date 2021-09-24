@@ -15,7 +15,7 @@ let project = Project(name: "MyStaticFramework",
                                dependencies: [
                                     /* Target dependencies can be defined here */
                                     // .framework(path: "Frameworks/MyStaticFramework.framework")
-                                ], settings: Settings(base: [
+                                ], settings: .settings(base: [
                                         "BUILD_LIBRARY_FOR_DISTRIBUTION" : "YES"
                                 ]))
                       ])

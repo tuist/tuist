@@ -11,7 +11,7 @@ let project = Project(name: "App",
                                  dependencies: [
                                    .target(name: "Framework")
                                  ],
-                                 settings: Settings(base: ["CODE_SIGN_IDENTITY": "",
+                                 settings: .settings(base: ["CODE_SIGN_IDENTITY": "",
                                                            "CODE_SIGNING_REQUIRED": "NO"])),
                           Target(name: "Framework",
                                  platform: .iOS,
@@ -19,6 +19,6 @@ let project = Project(name: "App",
                                  bundleId: "io.tuist.Framework",
                                  infoPlist: "Framework.plist",
                                  sources: "Framework/**",
-                                 settings: Settings(base: ["CODE_SIGN_IDENTITY": "",
+                                 settings: .settings(base: ["CODE_SIGN_IDENTITY": "",
                                                            "CODE_SIGNING_REQUIRED": "NO"]))
 ])

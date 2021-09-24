@@ -7,7 +7,7 @@ func target(name: String) -> Target {
                     bundleId: "io.tuist.\(name)",
                     infoPlist: .file(path: .relativeToManifest("Info.plist")),
                     sources: .paths([.relativeToManifest("Sources/**")]),
-                    settings: Settings(base: ["CODE_SIGN_IDENTITY": "", "CODE_SIGNING_REQUIRED": "NO"]))
+                    settings: .settings(base: ["CODE_SIGN_IDENTITY": "", "CODE_SIGNING_REQUIRED": "NO"]))
 }
 
 let project = Project(name: "App",

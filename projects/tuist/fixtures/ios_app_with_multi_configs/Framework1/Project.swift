@@ -1,14 +1,15 @@
 import ProjectDescription
 
-let configurations: [CustomConfiguration] = [
-    .debug(name: "Debug", xcconfig: "../ConfigurationFiles/Debug.xcconfig"),
-    .release(name: "Beta", xcconfig: "../ConfigurationFiles/Beta.xcconfig"),
-    .release(name: "Release", xcconfig: "../ConfigurationFiles/Release.xcconfig"),
-]
-
-let settings = Settings(base: [
-    "PROJECT_BASE": "PROJECT_BASE",
-], configurations: configurations)
+let settings: Settings = .settings(
+    base: [
+        "PROJECT_BASE": "PROJECT_BASE",
+    ], 
+    configurations: [
+        .debug(name: "Debug", xcconfig: "../ConfigurationFiles/Debug.xcconfig"),
+        .release(name: "Beta", xcconfig: "../ConfigurationFiles/Beta.xcconfig"),
+        .release(name: "Release", xcconfig: "../ConfigurationFiles/Release.xcconfig"),
+    ]
+)
 
 let project = Project(name: "Framework1",
                       settings: settings,

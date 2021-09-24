@@ -1,20 +1,22 @@
 import ProjectDescription
 
-let configurations: [CustomConfiguration] = [
-    .debug(name: "Debug", xcconfig: "../ConfigurationFiles/Debug.xcconfig"),
-    .release(name: "Beta", xcconfig: "../ConfigurationFiles/Beta.xcconfig"),
-    .release(name: "Release", xcconfig: "../ConfigurationFiles/Release.xcconfig"),
-]
-
-let settings = Settings(configurations: configurations)
+let settings: Settings = .settings(
+    configurations: [
+        .debug(name: "Debug", xcconfig: "../ConfigurationFiles/Debug.xcconfig"),
+        .release(name: "Beta", xcconfig: "../ConfigurationFiles/Beta.xcconfig"),
+        .release(name: "Release", xcconfig: "../ConfigurationFiles/Release.xcconfig"),
+    ]
+)
 
 // Targets can override select configurations if needed
-let targetSettings = Settings(base: [
-                                    "TARGET_BASE": "TARGET_BASE",
-                                ], 
-                              configurations: [
+let targetSettings: Settings = .settings(
+    base: [
+        "TARGET_BASE": "TARGET_BASE",
+    ], 
+    configurations: [
        .release(name: "Beta", xcconfig: "../ConfigurationFiles/Target.Beta.xcconfig"),
-])
+    ]
+)
 
 let project = Project(name: "Framework2",
                       settings: settings,
