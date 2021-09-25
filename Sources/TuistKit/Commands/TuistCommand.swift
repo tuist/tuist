@@ -51,7 +51,7 @@ public struct TuistCommand: ParsableCommand {
             let isTuistCommand = Self.configuration.subcommands
                 .map({ $0._commandName })
                 .contains(processedArguments.first ?? "")
-            if isTuistCommand || !System.shared.commandExists(commandName) {
+            if isTuistCommand || !System.shared.commandExists("tuist-" + commandName) {
                 if processedArguments.first == ScaffoldCommand.configuration.commandName {
                     try ScaffoldCommand.preprocess(processedArguments)
                 }
