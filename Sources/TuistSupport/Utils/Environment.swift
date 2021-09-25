@@ -159,9 +159,7 @@ public class Environment: Environmenting {
     /// Return true if the the coloured output is forced through an environment variable.
     fileprivate var isColouredOutputEnvironmentTrue: Bool {
         let environment = ProcessInfo.processInfo.environment
-        let coloredOutput = environment[Constants.EnvironmentVariables.colouredOutput] ??
-            environment[Constants.EnvironmentVariables.deprecatedColouredOutput]
-
+        let coloredOutput = environment[Constants.EnvironmentVariables.colouredOutput]
         return coloredOutput.flatMap { Constants.trueValues.contains($0) } ?? false
     }
 }

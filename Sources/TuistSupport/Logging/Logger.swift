@@ -18,9 +18,9 @@ extension LoggingConfig {
     public static var `default`: LoggingConfig {
         let env = ProcessInfo.processInfo.environment
 
-        let osLog = (env[Constants.EnvironmentVariables.osLog] != nil
-        let detailed = (env[Constants.EnvironmentVariables.detailedLog] != nil
-        let verbose = (env[Constants.EnvironmentVariables.verbose] != nil
+        let osLog = env[Constants.EnvironmentVariables.osLog] != nil
+        let detailed = env[Constants.EnvironmentVariables.detailedLog] != nil
+        let verbose = env[Constants.EnvironmentVariables.verbose] != nil
 
         if osLog {
             return .init(loggerType: .osLog, verbose: verbose)
