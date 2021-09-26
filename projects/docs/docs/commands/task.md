@@ -1,7 +1,7 @@
 ---
 title: Run tasks
 slug: '/commands/task'
-description: 'Learn how to to automate arbitrary tasks with tuist Swift.'
+description: 'Learn how to to automate arbitrary tasks with tuist in Swift.'
 ---
 
 ### Context
@@ -13,31 +13,4 @@ We try to fix that by introducing a concept of "Tasks" where you can define cust
 
 ### Defining a task
 
-To define a task, you can run `tuist edit` and then create a file `NameOfCommand.swift` in `Tuist/Tasks` directory.
-Afterwards, you will need to define the task's options (if there are any) and the code that should be executed when the task is run.
-Below you can find an example of the `CreateFile` task:
-
-```swift
-import ProjectAutomation
-import Foundation
-
-let task = Task(
-    options: [
-         .option("file-name"),
-    ]
-) { options in
-    let fileName = options["file-name"] ?? "file"
-    try "File created with a task".write(
-        to: URL(fileURLWithPath: "\(fileName).txt"),
-        atomically: true,
-        encoding: .utf8
-    )
-    print("File created!")
-}
-```
-
-If you added this file to `Tuist/Tasks/CreateFile.swift`, you can run it by `tuist exec create-file --file-name MyFileName`.
-The `Task` accepts two parameters - `options: [Option]` which defines the possible options of the task.
-Then there is a parameter `task: ([String: String]) throws -> Void` which is a simple closure that is executed when the task is run.
-Note that the closure has input of `[String: String]` -
-this is a dictionary of options defined by the user where the key is the name of the option and value is the option's value.
+You can prepend any executable with `tuist-` and add it to your `PATH`. If you for example add `tuist-my-command` to your `PATH`, you will be able to run `tuist my-command` and `tuist-my-command` will automatically be executed.
