@@ -1,0 +1,3 @@
+#!/bin/sh
+
+echo "run_from_task" | tr -d "\n" > "$1"/create-file.txt
