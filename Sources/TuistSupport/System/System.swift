@@ -684,6 +684,15 @@ public final class System: Systeming {
 }
 
 extension Systeming {
+    public func commandExists(_ name: String) -> Bool {
+        do {
+            _ = try which(name)
+            return true
+        } catch {
+            return false
+        }
+    }
+    
     public func publisher(_ arguments: [String], pipedToArguments: [String]) -> AnyPublisher<SystemEvent<Data>, Error> {
         AnyPublisher.create { (subscriber) -> Cancellable in
             let disposable = self.observable(arguments, pipedToArguments: pipedToArguments).subscribe { event in
