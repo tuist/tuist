@@ -634,7 +634,7 @@ extension ProjectDescription.Settings {
         ]
 
         if let moduleMapPath = moduleMap.path {
-          settingsDictionary["MODULEMAP_FILE"] = .string("$(SRCROOT)/\(moduleMapPath.relative(to: packageFolder))")
+            settingsDictionary["MODULEMAP_FILE"] = .string("$(SRCROOT)/\(moduleMapPath.relative(to: packageFolder))")
         }
 
         if !headerSearchPaths.isEmpty {
@@ -906,11 +906,10 @@ extension PackageInfoMapper {
             product: String,
             packageInfos: [String: PackageInfo]
         ) throws -> Self {
-            guard
-                let targets = packageInfos[package]?.products.first(where: { $0.name == product })?.targets.map(PackageInfoMapper.sanitize(targetName:))
-            else {
+            guard let product = packageInfos[package]?.products.first(where: { $0.name == product }) else {
                 throw PackageInfoMapperError.unknownProductDependency(product, package)
             }
+            let targets = product.targets.map(PackageInfoMapper.sanitize(targetName:))
             return .externalTargets(package: package, targets: targets)
         }
     }

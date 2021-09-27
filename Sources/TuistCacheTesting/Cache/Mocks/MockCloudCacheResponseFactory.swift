@@ -12,7 +12,7 @@ public class MockCloudCacheResourceFactory: CloudCacheResourceFactorying {
 
     public var invokedExistsResource = false
     public var invokedExistsResourceCount = 0
-    public var invokedExistsResourceParameters: (name: String, hash: String, Void)?
+    public var invokedExistsResourceParameters: (name: String, hash: String, Void)? // swiftlint:disable:this large_tuple
     public var invokedExistsResourceParametersList = [(name: String, hash: String, Void)]()
     public var stubbedExistsResourceError: Error?
     public var stubbedExistsResourceResult: CloudExistsResource = HTTPResource(
@@ -34,7 +34,7 @@ public class MockCloudCacheResourceFactory: CloudCacheResourceFactorying {
 
     public var invokedFetchResource = false
     public var invokedFetchResourceCount = 0
-    public var invokedFetchResourceParameters: (name: String, hash: String, Void)?
+    public var invokedFetchResourceParameters: (name: String, hash: String, Void)? // swiftlint:disable:this large_tuple
     public var invokedFetchResourceParametersList = [(name: String, hash: String, Void)]()
     public var stubbedFetchResourceError: Error?
     public var stubbedFetchResourceResult: CloudCacheResource = HTTPResource(
@@ -56,7 +56,7 @@ public class MockCloudCacheResourceFactory: CloudCacheResourceFactorying {
 
     public var invokedStoreResource = false
     public var invokedStoreResourceCount = 0
-    public var invokedStoreResourceParameters: (name: String, hash: String, contentMD5: String)?
+    public var invokedStoreResourceParameters: (name: String, hash: String, contentMD5: String)? // swiftlint:disable:this large_tuple
     public var invokedStoreResourceParametersList = [(name: String, hash: String, contentMD5: String)]()
     public var stubbedStoreResourceError: Error?
     public var stubbedStoreResourceResult: CloudCacheResource = HTTPResource(
@@ -78,7 +78,7 @@ public class MockCloudCacheResourceFactory: CloudCacheResourceFactorying {
 
     public var invokedVerifyUploadResource = false
     public var invokedVerifyUploadResourceCount = 0
-    public var invokedVerifyUploadResourceParameters: (name: String, hash: String, contentMD5: String)?
+    public var invokedVerifyUploadResourceParameters: (name: String, hash: String, contentMD5: String)? // swiftlint:disable:this large_tuple
     // swiftlint:disable:next identifier_name
     public var invokedVerifyUploadResourceParametersList = [(name: String, hash: String, contentMD5: String)]()
     public var stubbedVerifyUploadResourceError: Error?

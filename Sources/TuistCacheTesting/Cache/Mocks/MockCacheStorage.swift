@@ -9,7 +9,7 @@ public final class MockCacheStorage: CacheStoring {
 
     public init() {}
 
-    public func exists(name: String,  hash: String) -> Single<Bool> {
+    public func exists(name: String, hash: String) -> Single<Bool> {
         do {
             if let existsStub = existsStub {
                 return Single.just(try existsStub(name, hash))

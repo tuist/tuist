@@ -20,7 +20,7 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
         graphContentHasher = MockGraphContentHasher()
         contentHasher = MockContentHasher()
         system.swiftVersionStub = {
-            return "5.4.2"
+            "5.4.2"
         }
         subject = CacheGraphContentHasher(
             graphContentHasher: graphContentHasher,

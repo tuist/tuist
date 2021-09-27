@@ -61,7 +61,7 @@ final class TargetTests: XCTestCase {
                 SourceFileGlob("Intents/Public.intentdefinition", codeGen: .public),
                 SourceFileGlob("Intents/Private.intentdefinition", codeGen: .private),
                 SourceFileGlob("Intents/Project.intentdefinition", codeGen: .project),
-                SourceFileGlob("Intents/Disabled.intentdefinition", codeGen: .disabled)
+                SourceFileGlob("Intents/Disabled.intentdefinition", codeGen: .disabled),
             ]),
             resources: ["resources/*",
                         .glob(pattern: "file.type", tags: ["tag"]),
