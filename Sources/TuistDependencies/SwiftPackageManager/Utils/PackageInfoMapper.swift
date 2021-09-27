@@ -906,10 +906,10 @@ extension PackageInfoMapper {
             product: String,
             packageInfos: [String: PackageInfo]
         ) throws -> Self {
-            guard let product = packageInfos[package]?.products.first(where: { $0.name == product }) else {
+            guard let packageProduct = packageInfos[package]?.products.first(where: { $0.name == product }) else {
                 throw PackageInfoMapperError.unknownProductDependency(product, package)
             }
-            let targets = product.targets.map(PackageInfoMapper.sanitize(targetName:))
+            let targets = packageProduct.targets.map(PackageInfoMapper.sanitize(targetName:))
             return .externalTargets(package: package, targets: targets)
         }
     }
