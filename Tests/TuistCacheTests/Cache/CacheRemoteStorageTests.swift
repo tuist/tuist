@@ -72,7 +72,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         cloudClient.mock(error: CloudHEADResponseError())
 
         // When
-        let result = subject.exists(hash: "acho tio")
+        let result = subject.exists(name: "targetName", hash: "acho tio")
             .toBlocking()
             .materialize()
 
@@ -94,7 +94,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         cloudClient.mock(object: cloudResponse, response: httpResponse)
 
         // When
-        let result = try subject.exists(hash: "acho tio")
+        let result = try subject.exists(name: "targetName", hash: "acho tio")
             .toBlocking()
             .single()
 
@@ -109,7 +109,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         cloudClient.mock(object: cloudResponse, response: httpResponse)
 
         // When
-        let result = try subject.exists(hash: "acho tio")
+        let result = try subject.exists(name: "targetName", hash: "acho tio")
             .toBlocking()
             .single()
 
@@ -124,7 +124,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         cloudClient.mock(object: cloudResponse, response: httpResponse)
 
         // When
-        let result = try subject.exists(hash: "acho tio")
+        let result = try subject.exists(name: "targetName", hash: "acho tio")
             .toBlocking()
             .single()
 
@@ -140,7 +140,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         cloudClient.mock(error: expectedError)
 
         // When
-        let result = subject.fetch(hash: "acho tio")
+        let result = subject.fetch(name: "targetName", hash: "acho tio")
             .toBlocking()
             .materialize()
 
@@ -167,7 +167,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         fileUnarchiver.stubbedUnzipResult = paths.first
 
         // When
-        let result = subject.fetch(hash: hash)
+        let result = subject.fetch(name: "targetName", hash: hash)
             .toBlocking()
             .materialize()
 
@@ -194,7 +194,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         fileUnarchiver.stubbedUnzipResult = paths.first?.parentDirectory
 
         // When
-        let result = try subject.fetch(hash: hash)
+        let result = try subject.fetch(name: "targetName", hash: hash)
             .toBlocking()
             .single()
 
@@ -216,7 +216,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         fileUnarchiver.stubbedUnzipResult = paths.first!.parentDirectory
 
         // When
-        _ = try subject.fetch(hash: hash)
+        _ = try subject.fetch(name: "targetName", hash: hash)
             .toBlocking()
             .single()
 
@@ -237,7 +237,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         let hash = "foo_bar"
 
         // When
-        _ = try subject.fetch(hash: hash)
+        _ = try subject.fetch(name: "targetName", hash: hash)
             .toBlocking()
             .single()
 
@@ -253,7 +253,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         cloudClient.mock(error: expectedError)
 
         // When
-        let result = subject.store(hash: "acho tio", paths: [.root])
+        let result = subject.store(name: "targetName", hash: "acho tio", paths: [.root])
             .toBlocking()
             .materialize()
 
@@ -273,7 +273,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         configureCloudClientForSuccessfulUpload()
 
         // When
-        _ = subject.store(hash: "foo_bar", paths: [.root])
+        _ = subject.store(name: "targetName", hash: "foo_bar", paths: [.root])
             .toBlocking()
             .materialize()
 
@@ -291,7 +291,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         configureCloudClientForSuccessfulUpload()
 
         // When
-        _ = subject.store(hash: hash, paths: [.root])
+        _ = subject.store(name: "targetName", hash: hash, paths: [.root])
             .toBlocking()
             .materialize()
 
@@ -310,7 +310,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         fileArchiver.stubbedZipResult = zipPath
 
         // When
-        _ = subject.store(hash: hash, paths: [.root])
+        _ = subject.store(name: "targetName", hash: hash, paths: [.root])
             .toBlocking()
             .materialize()
 
@@ -328,7 +328,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         cloudClient.mock(error: expectedError)
 
         // When
-        _ = subject.store(hash: "acho tio", paths: [.root])
+        _ = subject.store(name: "targetName", hash: "acho tio", paths: [.root])
             .toBlocking()
             .materialize()
 
@@ -342,7 +342,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         fileClient.stubbedUploadResult = Single.error(TestError("Error uploading file"))
 
         // When
-        _ = subject.store(hash: "acho tio", paths: [.root])
+        _ = subject.store(name: "targetName", hash: "acho tio", paths: [.root])
             .toBlocking()
             .materialize()
 
@@ -356,7 +356,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         fileClient.stubbedUploadResult = Single.error(TestError("Error uploading file"))
 
         // When
-        _ = subject.store(hash: "acho tio", paths: [.root])
+        _ = subject.store(name: "targetName", hash: "acho tio", paths: [.root])
             .toBlocking()
             .materialize()
 
@@ -369,7 +369,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         configureCloudClientForSuccessfulUploadAndFailedVerify()
 
         // When
-        _ = subject.store(hash: "verify fails hash", paths: [.root])
+        _ = subject.store(name: "targetName", hash: "verify fails hash", paths: [.root])
             .toBlocking()
             .materialize()
 

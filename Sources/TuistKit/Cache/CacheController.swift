@@ -221,6 +221,7 @@ final class CacheController: CacheControlling {
 
                 let productNameWithExtension = target.target.productName
                 _ = try cache.store(
+                    name: target.target.name,
                     hash: hash,
                     paths: FileHandler.shared.glob(outputDirectory.appending(component: suffix), glob: "\(productNameWithExtension).*")
                 ).toBlocking().last()
@@ -257,7 +258,7 @@ final class CacheController: CacheControlling {
             guard
                 let hash = hashesByCacheableTarget[target],
                 // if cache already exists, no need to build
-                try !self.cache.exists(hash: hash).toBlocking().single()
+                try !self.cache.exists(name: target.target.name, hash: hash).toBlocking().single()
             else {
                 return nil
             }

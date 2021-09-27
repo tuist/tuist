@@ -10,7 +10,7 @@ public class CloudClient: CloudClienting {
 
     // Use session without redirect to prevent redirects to be wrongly interpreted as successful responses.
     // For example, the `CacheRemoteStorage.exists` method would return true if the request is not authenticated and redirect is allowed.
-    private var noRedirectDelegate: NoRedirectDelegate?
+    private var noRedirectDelegate: NoRedirectDelegate? // swiftlint:disable:this weak_delegate
     lazy var requestDispatcher: HTTPRequestDispatching = {
         noRedirectDelegate = NoRedirectDelegate()
         return HTTPRequestDispatcher(session: URLSession(configuration: .default, delegate: noRedirectDelegate, delegateQueue: nil))
@@ -18,8 +18,7 @@ public class CloudClient: CloudClienting {
 
     // MARK: - Init
 
-    public init(cloudHTTPRequestAuthenticator: CloudHTTPRequestAuthenticating = CloudHTTPRequestAuthenticator())
-    {
+    public init(cloudHTTPRequestAuthenticator: CloudHTTPRequestAuthenticating = CloudHTTPRequestAuthenticator()) {
         self.cloudHTTPRequestAuthenticator = cloudHTTPRequestAuthenticator
     }
 

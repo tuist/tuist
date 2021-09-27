@@ -194,7 +194,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         artifactBuilder.stubbedCacheOutputType = .xcframework
 
         let remoteCacheError = TestError("remote cache error")
-        cache.existsStub = { _ in throw remoteCacheError }
+        cache.existsStub = { _, _ in throw remoteCacheError }
         // When / Then
         XCTAssertThrowsSpecific(
             try subject.cache(path: path, cacheProfile: .test(configuration: "Debug"), includedTargets: [], dependenciesOnly: false),
@@ -239,7 +239,7 @@ final class CacheControllerTests: TuistUnitTestCase {
             ]
         )
 
-        cache.existsStub = { _ in
+        cache.existsStub = { _, _ in
             true
         }
         manifestLoader.manifestsAtStub = { _ in

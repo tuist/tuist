@@ -305,7 +305,7 @@ final class TargetLinterTests: TuistUnitTestCase {
             severity: .error
         ))
     }
-    
+
     func test_lint_when_target_has_valid_codegen_sources() throws {
         // Given
         let target = Target.empty(

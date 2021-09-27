@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+
+- Add `name` parameter to remote cache API calls. [#3516](https://github.com/tuist/tuist/pull/3516) by [@danyf90](https://github.com/danyf90)
+
 ### Fixed
 
 - Installation failing when intermediate files are present in `/tmp/` [#3502](https://github.com/tuist/tuist/pull/3502) by [@pepibumur](https://github.com/pepibumur).
