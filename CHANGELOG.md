@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### 1.51.1
+
 ### Added
 
 - Add `name` parameter to remote cache API calls. [#3516](https://github.com/tuist/tuist/pull/3516) by [@danyf90](https://github.com/danyf90)
