@@ -22,7 +22,7 @@ public struct TestAction: Equatable, Codable {
 
     /// List of actions to be executed after running the tests.
     public let postActions: [ExecutionAction]
-    
+
     /// Options.
     public let options: TestActionOptions
 

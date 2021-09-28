@@ -1,6 +1,6 @@
 import ProjectDescription
 
-let settings = Settings(base: [
+let settings: Settings = .settings(base: [
     "PROJECT_BASE": "PROJECT_BASE",
 ])
 
@@ -14,9 +14,9 @@ let project = Project(name: "SignApp",
                                infoPlist: "Info.plist",
                                sources: "App/**",
                                dependencies: [],
-                               settings: Settings(configurations: [
-                                .debug(name: "Debug", xcconfig: "ConfigurationFiles/Debug.xcconfig"),
-                                .release(name: "Release", xcconfig: "ConfigurationFiles/Release.xcconfig")
+                               settings: .settings(configurations: [
+                                   .debug(name: "Debug", xcconfig: "ConfigurationFiles/Debug.xcconfig"),
+                                   .release(name: "Release", xcconfig: "ConfigurationFiles/Release.xcconfig")
                                ])
                         ),
                         Target(name: "AppA",
@@ -26,8 +26,8 @@ let project = Project(name: "SignApp",
                                infoPlist: "Info.plist",
                                sources: "App/**",
                                dependencies: [],
-                               settings: Settings(configurations: [
-                                .debug(name: "Debug", settings: ["PRODUCT_BUNDLE_IDENTIFIER": .string("io.tuist.test.appA")])
+                               settings: .settings(configurations: [
+                                   .debug(name: "Debug", settings: ["PRODUCT_BUNDLE_IDENTIFIER": .string("io.tuist.test.appA")])
                                ])),
                         Target(name: "AppB",
                                platform: .iOS,
@@ -36,8 +36,8 @@ let project = Project(name: "SignApp",
                                infoPlist: "Info.plist",
                                sources: "App/**",
                                dependencies: [],
-                               settings: Settings(configurations: [
-                                .debug(name: "Debug", settings: ["PRODUCT_BUNDLE_IDENTIFIER": .string("io.tuist.test.appB")])
+                               settings: .settings(configurations: [
+                                   .debug(name: "Debug", settings: ["PRODUCT_BUNDLE_IDENTIFIER": .string("io.tuist.test.appB")])
                                ]))
                       ]
 )

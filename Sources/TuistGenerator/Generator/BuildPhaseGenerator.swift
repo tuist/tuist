@@ -220,7 +220,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                     "COMPILER_FLAGS": compilerFlags,
                 ]
             }
-            
+
             /// Source file ATTRIBUTES
             /// example: `settings = {ATTRIBUTES = (codegen, )`}
             if let codegen = buildFile.codeGen {

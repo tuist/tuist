@@ -14,7 +14,7 @@ func target(name: String) -> Target {
 		                    files: ["Templates/**"]
 		                ),
 		            ],
-                    settings: Settings(base: ["CODE_SIGN_IDENTITY": "", "CODE_SIGNING_REQUIRED": "NO"]))
+                    settings: .settings(base: ["CODE_SIGN_IDENTITY": "", "CODE_SIGNING_REQUIRED": "NO"]))
 }
 
 let project = Project(name: "App",

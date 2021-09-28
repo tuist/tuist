@@ -10,7 +10,7 @@ let project = Project(
             bundleId: "io.tuist.app",
             infoPlist: .file(path: .relativeToManifest("Info.plist")),
             sources: "App/**",
-            settings: Settings(
+            settings: .settings(
                 base: [
                     "CODE_SIGN_IDENTITY": "",
                     "CODE_SIGNING_REQUIRED": "NO"

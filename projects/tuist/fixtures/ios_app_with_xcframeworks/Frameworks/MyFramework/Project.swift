@@ -15,7 +15,7 @@ let project = Project(name: "MyFramework",
                                dependencies: [
                                     /* Target dependencies can be defined here */
                                     // .framework(path: "Frameworks/MyFramework.framework")
-                                ], settings: Settings(base: [
+                                ], settings: .settings(base: [
                                         "BUILD_LIBRARY_FOR_DISTRIBUTION" : "YES"
                                 ])),
                         Target(name: "MyFrameworkTests",

@@ -14,14 +14,15 @@ public struct SourceFile: ExpressibleByStringLiteral, Equatable, Codable {
     /// This is intended to be used by the mappers that generate files through side effects.
     /// This attribute is used by the content hasher used by the caching functionality.
     public var contentHash: String?
-    
+
     /// Source file code generation attribute
     public let codeGen: FileCodeGen?
 
     public init(path: AbsolutePath,
                 compilerFlags: String? = nil,
                 contentHash: String? = nil,
-                codeGen: FileCodeGen? = nil) {
+                codeGen: FileCodeGen? = nil)
+    {
         self.path = path
         self.compilerFlags = compilerFlags
         self.contentHash = contentHash

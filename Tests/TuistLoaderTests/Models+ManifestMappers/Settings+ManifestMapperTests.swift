@@ -14,9 +14,23 @@ final class SettingsManifestMapperTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try self.temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
-        let debug = ProjectDescription.Configuration(settings: ["Debug": .string("Debug")], xcconfig: "debug.xcconfig")
-        let release = ProjectDescription.Configuration(settings: ["Release": .string("Release")], xcconfig: "release.xcconfig")
-        let manifest = ProjectDescription.Settings(base: ["base": .string("base")], debug: debug, release: release)
+        let debug: ProjectDescription.Configuration = .debug(
+            name: .debug,
+            settings: ["Debug": .string("Debug")],
+            xcconfig: "debug.xcconfig"
+        )
+        let release: ProjectDescription.Configuration = .release(
+            name: .release,
+            settings: ["Release": .string("Release")],
+            xcconfig: "release.xcconfig"
+        )
+        let manifest: ProjectDescription.Settings = .settings(
+            base: ["base": .string("base")],
+            configurations: [
+                debug,
+                release,
+            ]
+        )
 
         // When
         let model = try TuistGraph.Settings.from(manifest: manifest, generatorPaths: generatorPaths)

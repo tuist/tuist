@@ -44,6 +44,58 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
   - **Motivation:**: They have been replaced by the corresponding `TUIST_CONFIG_*` variables instead.
   - **Migration:** Use the corresponding `TUIST_CONFIG_*` variables instead.
 
+- **Breaking** `Settings` is now publicly initialized via a new static method `.settings()`.
+  - **Motivation:** Using static initializers gives us the flexibility to introduce improvements without breaking the API.
+  - **Migration:** Replace `settings: Settings(base: ["setting": "value"])` with `settings: .settings(base: ["setting": "value"])`
+
+- **Breaking** `CustomConfiguration` has been merged with `Configuration`.
+  - **Motivation:** Simplify the API and reduce confusion between `Configuration` and `CustomConfiguration`.
+  - **Migration:** Replace `let configurations: [CustomConfiguration] = [ ... ]` with `let configurations: [Configuration] = [ ... ]`.
+
+- **Breaking** Specifying custom build settings files for default configurations via `Settings(base:debug:release:)` has changed.
+  - **Motivation:** To support the `CustomConfiguration` API simplification.
+  - **Migration:** 
+    Replace 
+
+    ```swift
+    let settings = Settings(
+        debug: Configuration(settings: ["setting": "debug"]), 
+        release: Configuration(settings: ["setting": "release"])
+    )
+    ```
+
+    with:
+
+    ```swift
+    let settings: Settings = .settings(
+        debug: ["setting": "debug"], 
+        release: ["setting": "release"]
+    )
+    ```
+
+- **Breaking** Specifying xcconfig files for default configurations via `Settings(base:debug:release:)` has changed.
+  - **Motivation:** To support the `CustomConfiguration` API simplification.
+  - **Migration:** 
+    Replace 
+
+    ```swift
+    let settings = Settings(
+        debug: Configuration(xcconfig: "configs/debug.xcconfig"), 
+        release: Configuration(xcconfig: "configs/release.xcconfig")
+    )
+    ```
+
+    with:
+
+    ```swift
+    let settings: Settings = .settings(
+        configurations: [
+          .debug(name: .debug, xcconfig: "configs/debug.xcconfig"),
+          .release(name: .release, xcconfig: "configs/release.xcconfig"),
+        ]
+    )
+    ```
+
 ## Next
 
 ### Changed

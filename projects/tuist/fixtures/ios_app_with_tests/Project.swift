@@ -34,7 +34,7 @@ let project = Project(
             dependencies: [
                 .target(name: "AppCore")
             ],
-            settings: Settings(base: ["CODE_SIGN_IDENTITY": "",
+            settings: .settings(base: ["CODE_SIGN_IDENTITY": "",
                                       "CODE_SIGNING_REQUIRED": "NO"])
         ),
         Target(
@@ -47,7 +47,7 @@ let project = Project(
             dependencies: [
                 .target(name: "App"),
             ],
-            settings: Settings(base: ["CODE_SIGN_IDENTITY": "",
+            settings: .settings(base: ["CODE_SIGN_IDENTITY": "",
                                       "CODE_SIGNING_REQUIRED": "NO"])
         ),
         Target(
@@ -58,7 +58,7 @@ let project = Project(
             deploymentTarget: .macOS(targetVersion: "10.15"),
             infoPlist: .file(path: .relativeToManifest("Info.plist")),
             sources: .paths([.relativeToManifest("MacFramework/Sources/**")]),
-            settings: Settings(base: ["CODE_SIGN_IDENTITY": "",
+            settings: .settings(base: ["CODE_SIGN_IDENTITY": "",
                                       "CODE_SIGNING_REQUIRED": "NO"])
         ),
         Target(
@@ -72,7 +72,7 @@ let project = Project(
             dependencies: [
                 .target(name: "MacFramework"),
             ],
-            settings: Settings(base: ["CODE_SIGN_IDENTITY": "",
+            settings: .settings(base: ["CODE_SIGN_IDENTITY": "",
                                       "CODE_SIGNING_REQUIRED": "NO"])
         ),
         Target(
@@ -97,7 +97,7 @@ let project = Project(
                 /* Target dependencies can be defined here */
                 /* .framework(path: "framework") */
             ],
-            settings: Settings(base: ["CODE_SIGN_IDENTITY": "",
+            settings: .settings(base: ["CODE_SIGN_IDENTITY": "",
                                       "CODE_SIGNING_REQUIRED": "NO"])
         ),
         Target(

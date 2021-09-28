@@ -145,7 +145,7 @@ extension Scheme {
 }
 
 extension Settings {
-    public static let `default` = Settings(
+    public static let `default`: Settings = .settings(
         base: [:],
         configurations: [
             .debug(

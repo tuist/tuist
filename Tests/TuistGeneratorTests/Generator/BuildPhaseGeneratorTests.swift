@@ -77,7 +77,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             "file3.swift",
             "file4.swift",
             "file5.swift",
-            "file6.swift"
+            "file6.swift",
         ])
 
         let buildFilesSettings = buildFiles.map {
@@ -86,10 +86,9 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
         XCTAssertEqual(buildFilesSettings, [
             ["COMPILER_FLAGS": "flag"],
-            nil, nil, nil, nil, nil
+            nil, nil, nil, nil, nil,
         ])
-        
-        
+
         let fileCodegenSettings = buildFiles.map {
             $0.settings as? [String: [String]]
         }
@@ -99,7 +98,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             ["ATTRIBUTES": ["codegen"]],
             ["ATTRIBUTES": ["private_codegen"]],
             ["ATTRIBUTES": ["project_codegen"]],
-            ["ATTRIBUTES": ["no_codegen"]]
+            ["ATTRIBUTES": ["no_codegen"]],
         ])
     }
 

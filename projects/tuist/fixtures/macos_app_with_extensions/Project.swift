@@ -35,7 +35,7 @@ let project = Project(
             ]),
             sources: "Workflow/Sources/**",
             resources: "Workflow/Resources/**",
-            settings: Settings(configurations: [
+            settings: .settings(configurations: [
                 .debug(name: "Debug", settings:  workflowExtensionSettings, xcconfig: nil),
                 .release(name: "Release", settings: workflowExtensionSettings, xcconfig: nil),
             ])
