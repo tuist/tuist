@@ -40,7 +40,11 @@ cp -r \
 
 mkdir -p prebuilt/Mac/Framework2.framework
 cp \
-    "$MAC_OS_DIR/Framework2.framework/Info.plist" \
+    "$MAC_OS_DIR/Framework2.framework/Framework2" \
+    "$(pwd)/prebuilt/Mac/Framework2.framework/Framework2"
+
+cp \
+    "$MAC_OS_DIR/Framework2.framework/Resources/Info.plist" \
     "$(pwd)/prebuilt/Mac/Framework2.framework/Info.plist"
 
 mkdir -p prebuilt/Mac/Framework2.framework/Headers
