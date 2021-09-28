@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Changed
+
+- Update SwiftGen to support generating custom SF Symbols (a.k.a. `symbolset`). [#3521](https://github.com/tuist/tuist/pull/3521) by [@hisaac](https://github.com/hisaac)
+
 ### 1.51.1
 
 ### Added
