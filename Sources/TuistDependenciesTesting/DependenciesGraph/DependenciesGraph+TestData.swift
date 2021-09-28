@@ -76,37 +76,37 @@ public extension TuistCore.DependenciesGraph {
                                     tags: []
                                 ),
                                 .glob(
-                                    pattern: "\(packageFolder.pathString)/customPath/**/.xib",
+                                    pattern: "\(packageFolder.pathString)/customPath/**/*.xib",
                                     excluding: [
                                         "\(packageFolder.pathString)/customPath/excluded/sources/**"
                                     ]
                                 ),
                                 .glob(
-                                    pattern: "\(packageFolder.pathString)/customPath/**/.storyboard",
+                                    pattern: "\(packageFolder.pathString)/customPath/**/*.storyboard",
                                     excluding: [
                                         "\(packageFolder.pathString)/customPath/excluded/sources/**"
                                     ]
                                 ),
                                 .glob(
-                                    pattern: "\(packageFolder.pathString)/customPath/**/.xcdatamodeld",
+                                    pattern: "\(packageFolder.pathString)/customPath/**/*.xcdatamodeld",
                                     excluding: [
                                         "\(packageFolder.pathString)/customPath/excluded/sources/**"
                                     ]
                                 ),
                                 .glob(
-                                    pattern: "\(packageFolder.pathString)/customPath/**/.xcmappingmodel",
+                                    pattern: "\(packageFolder.pathString)/customPath/**/*.xcmappingmodel",
                                     excluding: [
                                         "\(packageFolder.pathString)/customPath/excluded/sources/**"
                                     ]
                                 ),
                                 .glob(
-                                    pattern: "\(packageFolder.pathString)/customPath/**/.xcassets",
+                                    pattern: "\(packageFolder.pathString)/customPath/**/*.xcassets",
                                     excluding: [
                                         "\(packageFolder.pathString)/customPath/excluded/sources/**"
                                     ]
                                 ),
                                 .glob(
-                                    pattern: "\(packageFolder.pathString)/customPath/**/.lproj",
+                                    pattern: "\(packageFolder.pathString)/customPath/**/*.lproj",
                                     excluding: [
                                         "\(packageFolder.pathString)/customPath/excluded/sources/**"
                                     ]
