@@ -483,8 +483,7 @@ extension SourceFilesList {
 extension ResourceFileElements {
     fileprivate static func from(resources: [PackageInfo.Target.Resource], path: AbsolutePath, excluding: [String]) -> Self? {
         var resourcesPaths = resources.map { path.appending(RelativePath($0.path)) }
-        resourcesPaths.append(contentsOf: defaultResources(from: path))
-        guard !resourcesPaths.isEmpty else { return nil }
+        resourcesPaths.append(contentsOf: defaultResourcePaths(from: path))
         return .init(
             resources: resourcesPaths.map { absolutePath in
                 let absolutePathGlob = absolutePath.extension != nil ? absolutePath : absolutePath.appending(component: "**")
@@ -500,22 +499,12 @@ extension ResourceFileElements {
         )
     }
 
-    private static let defaultResourceFileExtensions = ["xib", "storyboard", "xcdatamodeld", "xcmappingmodel", "xcassets", "lproj"]
+    static let defaultSpmResourceFileExtensions = ["xib", "storyboard", "xcdatamodeld", "xcmappingmodel", "xcassets", "lproj"]
 
-    private static func defaultResources(from path: AbsolutePath) -> [AbsolutePath] {
-        let files = FileHandler.shared.filesAndDirectoriesContained(in: path) ?? []
-        var defaultFiles: [AbsolutePath] = []
-        for file in files {
-            if let fileExtension = file.extension, defaultResourceFileExtensions.contains(fileExtension) {
-                defaultFiles.append(file)
-            }
-
-            if FileHandler.shared.isFolder(file) {
-                defaultFiles.append(contentsOf: defaultResources(from: file))
-            }
+    private static func defaultResourcePaths(from path: AbsolutePath) -> [AbsolutePath] {
+        ResourceFileElements.defaultSpmResourceFileExtensions.map { fileExtension -> AbsolutePath in
+            path.appending(components: ["**", "*.\(fileExtension)"])
         }
-
-        return defaultFiles
     }
 }
 

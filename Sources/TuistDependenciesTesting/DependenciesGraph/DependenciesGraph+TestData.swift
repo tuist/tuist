@@ -75,6 +75,42 @@ public extension TuistCore.DependenciesGraph {
                                     ],
                                     tags: []
                                 ),
+                                .glob(
+                                    pattern: "\(packageFolder.pathString)/customPath/**/.xib",
+                                    excluding: [
+                                        "\(packageFolder.pathString)/customPath/excluded/sources/**"
+                                    ]
+                                ),
+                                .glob(
+                                    pattern: "\(packageFolder.pathString)/customPath/**/.storyboard",
+                                    excluding: [
+                                        "\(packageFolder.pathString)/customPath/excluded/sources/**"
+                                    ]
+                                ),
+                                .glob(
+                                    pattern: "\(packageFolder.pathString)/customPath/**/.xcdatamodeld",
+                                    excluding: [
+                                        "\(packageFolder.pathString)/customPath/excluded/sources/**"
+                                    ]
+                                ),
+                                .glob(
+                                    pattern: "\(packageFolder.pathString)/customPath/**/.xcmappingmodel",
+                                    excluding: [
+                                        "\(packageFolder.pathString)/customPath/excluded/sources/**"
+                                    ]
+                                ),
+                                .glob(
+                                    pattern: "\(packageFolder.pathString)/customPath/**/.xcassets",
+                                    excluding: [
+                                        "\(packageFolder.pathString)/customPath/excluded/sources/**"
+                                    ]
+                                ),
+                                .glob(
+                                    pattern: "\(packageFolder.pathString)/customPath/**/.lproj",
+                                    excluding: [
+                                        "\(packageFolder.pathString)/customPath/excluded/sources/**"
+                                    ]
+                                )
                             ],
                             dependencies: [
                                 .target(name: "TuistKit"),
@@ -99,6 +135,14 @@ public extension TuistCore.DependenciesGraph {
                             infoPlist: .default,
                             sources: [
                                 "\(packageFolder.pathString)/Sources/TuistKit/**",
+                            ],
+                            resources: [
+                                "\(packageFolder.pathString)/Sources/TuistKit/**/*.xib",
+                                "\(packageFolder.pathString)/Sources/TuistKit/**/*.storyboard",
+                                "\(packageFolder.pathString)/Sources/TuistKit/**/*.xcdatamodeld",
+                                "\(packageFolder.pathString)/Sources/TuistKit/**/*.xcmappingmodel",
+                                "\(packageFolder.pathString)/Sources/TuistKit/**/*.xcassets",
+                                "\(packageFolder.pathString)/Sources/TuistKit/**/*.lproj",
                             ],
                             dependencies: [
                                 .project(target: "AnotherLibrary", path: Self.packageFolder(spmFolder: spmFolder, packageName: "another-dependency")),
@@ -135,6 +179,14 @@ public extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/Sources/ALibrary/**",
                             ],
+                            resources: [
+                                "\(packageFolder.pathString)/Sources/ALibrary/**/*.xib",
+                                "\(packageFolder.pathString)/Sources/ALibrary/**/*.storyboard",
+                                "\(packageFolder.pathString)/Sources/ALibrary/**/*.xcdatamodeld",
+                                "\(packageFolder.pathString)/Sources/ALibrary/**/*.xcmappingmodel",
+                                "\(packageFolder.pathString)/Sources/ALibrary/**/*.xcassets",
+                                "\(packageFolder.pathString)/Sources/ALibrary/**/*.lproj",
+                            ],
                             dependencies: [
                                 .target(name: "ALibraryUtils"),
                             ],
@@ -149,6 +201,14 @@ public extension TuistCore.DependenciesGraph {
                             infoPlist: .default,
                             sources: [
                                 "\(packageFolder.pathString)/Sources/ALibraryUtils/**",
+                            ],
+                            resources: [
+                                "\(packageFolder.pathString)/Sources/ALibraryUtils/**/*.xib",
+                                "\(packageFolder.pathString)/Sources/ALibraryUtils/**/*.storyboard",
+                                "\(packageFolder.pathString)/Sources/ALibraryUtils/**/*.xcdatamodeld",
+                                "\(packageFolder.pathString)/Sources/ALibraryUtils/**/*.xcmappingmodel",
+                                "\(packageFolder.pathString)/Sources/ALibraryUtils/**/*.xcassets",
+                                "\(packageFolder.pathString)/Sources/ALibraryUtils/**/*.lproj",
                             ],
                             settings: Self.spmSettings()
                         ),
@@ -181,6 +241,14 @@ public extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/Sources/AnotherLibrary/**",
                             ],
+                            resources: [
+                                "\(packageFolder.pathString)/Sources/AnotherLibrary/**/*.xib",
+                                "\(packageFolder.pathString)/Sources/AnotherLibrary/**/*.storyboard",
+                                "\(packageFolder.pathString)/Sources/AnotherLibrary/**/*.xcdatamodeld",
+                                "\(packageFolder.pathString)/Sources/AnotherLibrary/**/*.xcmappingmodel",
+                                "\(packageFolder.pathString)/Sources/AnotherLibrary/**/*.xcassets",
+                                "\(packageFolder.pathString)/Sources/AnotherLibrary/**/*.lproj",
+                            ],
                             settings: Self.spmSettings()
                         ),
                     ],
@@ -212,6 +280,14 @@ public extension TuistCore.DependenciesGraph {
                             infoPlist: .default,
                             sources: [
                                 "\(packageFolder.pathString)/Source/**",
+                            ],
+                            resources: [
+                                "\(packageFolder.pathString)/Source/**/*.xib",
+                                "\(packageFolder.pathString)/Source/**/*.storyboard",
+                                "\(packageFolder.pathString)/Source/**/*.xcdatamodeld",
+                                "\(packageFolder.pathString)/Source/**/*.xcmappingmodel",
+                                "\(packageFolder.pathString)/Source/**/*.xcassets",
+                                "\(packageFolder.pathString)/Source/**/*.lproj",
                             ],
                             dependencies: [
                                 .sdk(name: "CFNetwork.framework", status: .required),
@@ -257,6 +333,14 @@ public extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/GoogleAppMeasurementWrapper/**",
                             ],
+                            resources: [
+                                "\(packageFolder.pathString)/GoogleAppMeasurementWrapper/**/*.xib",
+                                "\(packageFolder.pathString)/GoogleAppMeasurementWrapper/**/*.storyboard",
+                                "\(packageFolder.pathString)/GoogleAppMeasurementWrapper/**/*.xcdatamodeld",
+                                "\(packageFolder.pathString)/GoogleAppMeasurementWrapper/**/*.xcmappingmodel",
+                                "\(packageFolder.pathString)/GoogleAppMeasurementWrapper/**/*.xcassets",
+                                "\(packageFolder.pathString)/GoogleAppMeasurementWrapper/**/*.lproj",
+                            ],              
                             dependencies: [
                                 .xcframework(path: "\(artifactsFolder.pathString)/GoogleAppMeasurement.xcframework"),
                                 .project(
@@ -283,6 +367,14 @@ public extension TuistCore.DependenciesGraph {
                             infoPlist: .default,
                             sources: [
                                 "\(packageFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupportWrapper/**",
+                            ],
+                            resources: [
+                                "\(packageFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupportWrapper/**/*.xib",
+                                "\(packageFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupportWrapper/**/*.storyboard",
+                                "\(packageFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupportWrapper/**/*.xcdatamodeld",
+                                "\(packageFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupportWrapper/**/*.xcmappingmodel",
+                                "\(packageFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupportWrapper/**/*.xcassets",
+                                "\(packageFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupportWrapper/**/*.lproj",
                             ],
                             dependencies: [
                                 .xcframework(path: "\(artifactsFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupport.xcframework"),
@@ -332,6 +424,14 @@ public extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/Sources/GULAppDelegateSwizzler/**",
                             ],
+                            resources: [
+                                "\(packageFolder.pathString)/Sources/GULAppDelegateSwizzler/**/*.xib",
+                                "\(packageFolder.pathString)/Sources/GULAppDelegateSwizzler/**/*.storyboard",
+                                "\(packageFolder.pathString)/Sources/GULAppDelegateSwizzler/**/*.xcdatamodeld",
+                                "\(packageFolder.pathString)/Sources/GULAppDelegateSwizzler/**/*.xcmappingmodel",
+                                "\(packageFolder.pathString)/Sources/GULAppDelegateSwizzler/**/*.xcassets",
+                                "\(packageFolder.pathString)/Sources/GULAppDelegateSwizzler/**/*.lproj",
+                            ],
                             settings: Self.spmSettings()
                         ),
                         .init(
@@ -343,6 +443,14 @@ public extension TuistCore.DependenciesGraph {
                             infoPlist: .default,
                             sources: [
                                 "\(packageFolder.pathString)/Sources/GULMethodSwizzler/**",
+                            ],
+                            resources: [
+                                "\(packageFolder.pathString)/Sources/GULMethodSwizzler/**/*.xib",
+                                "\(packageFolder.pathString)/Sources/GULMethodSwizzler/**/*.storyboard",
+                                "\(packageFolder.pathString)/Sources/GULMethodSwizzler/**/*.xcdatamodeld",
+                                "\(packageFolder.pathString)/Sources/GULMethodSwizzler/**/*.xcmappingmodel",
+                                "\(packageFolder.pathString)/Sources/GULMethodSwizzler/**/*.xcassets",
+                                "\(packageFolder.pathString)/Sources/GULMethodSwizzler/**/*.lproj",
                             ],
                             settings: Self.spmSettings()
                         ),
@@ -356,6 +464,14 @@ public extension TuistCore.DependenciesGraph {
                             sources: [
                                 "\(packageFolder.pathString)/Sources/GULNSData/**",
                             ],
+                            resources: [
+                                "\(packageFolder.pathString)/Sources/GULNSData/**/*.xib",
+                                "\(packageFolder.pathString)/Sources/GULNSData/**/*.storyboard",
+                                "\(packageFolder.pathString)/Sources/GULNSData/**/*.xcdatamodeld",
+                                "\(packageFolder.pathString)/Sources/GULNSData/**/*.xcmappingmodel",
+                                "\(packageFolder.pathString)/Sources/GULNSData/**/*.xcassets",
+                                "\(packageFolder.pathString)/Sources/GULNSData/**/*.lproj",
+                            ],
                             settings: Self.spmSettings()
                         ),
                         .init(
@@ -367,6 +483,14 @@ public extension TuistCore.DependenciesGraph {
                             infoPlist: .default,
                             sources: [
                                 "\(packageFolder.pathString)/Sources/GULNetwork/**",
+                            ],
+                            resources: [
+                                "\(packageFolder.pathString)/Sources/GULNetwork/**/*.xib",
+                                "\(packageFolder.pathString)/Sources/GULNetwork/**/*.storyboard",
+                                "\(packageFolder.pathString)/Sources/GULNetwork/**/*.xcdatamodeld",
+                                "\(packageFolder.pathString)/Sources/GULNetwork/**/*.xcmappingmodel",
+                                "\(packageFolder.pathString)/Sources/GULNetwork/**/*.xcassets",
+                                "\(packageFolder.pathString)/Sources/GULNetwork/**/*.lproj",
                             ],
                             settings: Self.spmSettings()
                         ),
@@ -396,6 +520,14 @@ public extension TuistCore.DependenciesGraph {
                             infoPlist: .default,
                             sources: [
                                 "\(packageFolder.pathString)/Sources/nanopb/**",
+                            ],
+                            resources: [
+                                "\(packageFolder.pathString)/Sources/nanopb/**/*.xib",
+                                "\(packageFolder.pathString)/Sources/nanopb/**/*.storyboard",
+                                "\(packageFolder.pathString)/Sources/nanopb/**/*.xcdatamodeld",
+                                "\(packageFolder.pathString)/Sources/nanopb/**/*.xcmappingmodel",
+                                "\(packageFolder.pathString)/Sources/nanopb/**/*.xcassets",
+                                "\(packageFolder.pathString)/Sources/nanopb/**/*.lproj",
                             ],
                             settings: Self.spmSettings()
                         ),
