@@ -12,28 +12,31 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Fixed
 
-- Installation failing when intermediate files are present in `/tmp/` [#3502](https://github.com/tuist/tuist/pull/3502) by [@pepibumur](https://github.com/pepibumur).
+- Installation failing when intermediate files are present in `/tmp/` [#3502](https://github.com/tuist/tuist/pull/3502) by [@pepibumur](https://github.com/pepibumur)
+- Fix SwiftPackageManager dependencies mapping on Xcode 13 [#3499](https://github.com/tuist/tuist/pull/3499) by [@danyf90](https://github.com/danyf90)
 - Make cache hashes of SwiftPackageManager dependencies with modulemap independent from the absolute path of the project [#3505](https://github.com/tuist/tuist/pull/3505) by [@danyf90](https://github.com/danyf90).
 - Fix SwiftPackageManager dependencies mapping on Xcode 13 [#3507](https://github.com/tuist/tuist/pull/3507) by [@danyf90](https://github.com/danyf90)
+- Fix compilation on Xcode 13 by updating Xcodeproj [#3499](https://github.com/tuist/tuist/pull/3499) by [@danyf90](https://github.com/danyf90)
 - Make `cache warm` fail if remote cache existence check throws [#3508](https://github.com/tuist/tuist/pull/3508) by [@danyf90](https://github.com/danyf90)
+
+### Changed
+
+- **Breaking** Minimum supported Xcode version for contributors bumped to 12.4. [#3499](https://github.com/tuist/tuist/pull/3499) by [@danyf90](https://github.com/danyf90)
 
 ## 1.51.0 - Switch
 
 ### Changed
 
-- Improve performance of `tuist cache` avoiding to hit remote cache if not needed. [#3461](https://github.com/tuist/tuist/pull/3461) by [@danyf90](https://github.com/danyf90).
-- Improve performance of `tuist cache warm` and `tusit focus` avoiding to compute hashes of targets not going to be cached. [#3464](https://github.com/tuist/tuist/pull/3464) by [@danyf90](https://github.com/danyf90).
+- Improve performance of `tuist cache` avoiding to hit remote cache if not needed. [#3461](https://github.com/tuist/tuist/pull/3461) by [@danyf90](https://github.com/danyf90)
+- Improve performance of `tuist cache warm` and `tusit focus` avoiding to compute hashes of targets not going to be cached. [#3464](https://github.com/tuist/tuist/pull/3464) by [@danyf90](https://github.com/danyf90)
 - Improve performance of `tuist cache warm` when using remote cache by parallelizing the target cache checks [#3462](https://github.com/tuist/tuist/pull/3462) by [@bolismauro](https://github.com/bolismauro)
-- Improve output of `tuist cache warm` command. [#3460](https://github.com/tuist/tuist/pull/3460) by [@danyf90](https://github.com/danyf90).
+- Improve output of `tuist cache warm` command. [#3460](https://github.com/tuist/tuist/pull/3460) by [@danyf90](https://github.com/danyf90)
+- Rename internal configuration environment variables to start with `TUIST_CONFIG_` instead of `TUIST_` and ignore them when calculating manifests hashes. The old ones are still read if first ones are not found, but they will be removed in 2.0 [#3479](https://github.com/tuist/tuist/3479) by [@danyf90](https://github.com/danyf90)
 
 ### Added
 
 - Add support for `SourceFilesList.codeGen` property. [#3448](https://github.com/tuist/tuist/pull/3448) by [@pavm035](https://github.com/pavm035)
 - Add more helpful output when `./fourier swift format` command fails. [#3451](https://github.com/tuist/tuist/pull/3451) by [@hisaac](https://github.com/hisaac)
-
-### Changed
-
-- Rename internal configuration environment variables to start with `TUIST_CONFIG_` instead of `TUIST_` and ignore them when calculating manifests hashes. The old ones are still read if first ones are not found, but they will be removed in 2.0 [#3479](https://github.com/tuist/tuist/3479) by [@danyf90](https://github.com/danyf90)
 
 ### Fixed
 
@@ -47,7 +50,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
-- **Breaking** Minimum supported Xcode version bumped to 12.4.
+- **Breaking** Minimum supported Xcode version for contributors bumped to 12.4.
 - Improve speed of `tuist edit` and improved automatic detection of editable manifests [#3416](https://github.com/tuist/tuist/pull/3416) by [@adellibovi](https://github.com/adellibovi).
 - Improve speed of `tuist dependencies fetch` and `tuist dependencies update` by performing the dependencies resolution directly in the `Tuist/Dependencies` folder [#3417](https://github.com/tuist/tuist/pull/3417) by [@danyf90](https://github.com/danyf90).
 - Improve speed of `tuist focus` and `tuist cache warm` with a targets list (i.e. `tuist focus frameworkX` and `tuist cache warm frameworkX`) by avoiding calculating hashes for non dependent targets [#3423](https://github.com/tuist/tuist/pull/3423) by [@adellibovi](https://github.com/adellibovi).
