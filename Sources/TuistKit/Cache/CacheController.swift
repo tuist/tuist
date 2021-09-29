@@ -221,6 +221,7 @@ final class CacheController: CacheControlling {
 
                 let productNameWithExtension = target.target.productName
                 _ = try cache.store(
+                    name: target.target.name,
                     hash: hash,
                     paths: FileHandler.shared.glob(outputDirectory.appending(component: suffix), glob: "\(productNameWithExtension).*")
                 ).toBlocking().last()
@@ -253,12 +254,11 @@ final class CacheController: CacheControlling {
             }
         )
 
-        return graph.compactMap(context: .concurrent) { target -> (GraphTarget, String)? in
+        return try graph.compactMap(context: .concurrent) { target throws -> (GraphTarget, String)? in
             guard
                 let hash = hashesByCacheableTarget[target],
-                let cacheExists = try? self.cache.exists(hash: hash).toBlocking().first(),
-                // cache already exists, no need to build
-                !cacheExists
+                // if cache already exists, no need to build
+                try !self.cache.exists(name: target.target.name, hash: hash).toBlocking().single()
             else {
                 return nil
             }

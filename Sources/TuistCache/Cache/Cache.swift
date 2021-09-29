@@ -23,30 +23,30 @@ public final class Cache: CacheStoring {
 
     // MARK: - CacheStoring
 
-    public func exists(hash: String) -> Single<Bool> {
+    public func exists(name: String, hash: String) -> Single<Bool> {
         /// It calls exists sequentially until one of the storages returns true.
         return storages.reduce(Single.just(false)) { (result, next) -> Single<Bool> in
             result.flatMap { exists in
                 guard !exists else { return result }
-                return next.exists(hash: hash)
+                return next.exists(name: name, hash: hash)
             }.catchError { (_) -> Single<Bool> in
-                next.exists(hash: hash)
+                next.exists(name: name, hash: hash)
             }
         }
     }
 
-    public func fetch(hash: String) -> Single<AbsolutePath> {
+    public func fetch(name: String, hash: String) -> Single<AbsolutePath> {
         return storages
             .reduce(nil) { (result, next) -> Single<AbsolutePath> in
                 if let result = result {
-                    return result.catchError { _ in next.fetch(hash: hash) }
+                    return result.catchError { _ in next.fetch(name: name, hash: hash) }
                 } else {
-                    return next.fetch(hash: hash)
+                    return next.fetch(name: name, hash: hash)
                 }
             }!
     }
 
-    public func store(hash: String, paths: [AbsolutePath]) -> Completable {
-        return Completable.zip(storages.map { $0.store(hash: hash, paths: paths) })
+    public func store(name: String, hash: String, paths: [AbsolutePath]) -> Completable {
+        return Completable.zip(storages.map { $0.store(name: name, hash: hash, paths: paths) })
     }
 }

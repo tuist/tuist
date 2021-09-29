@@ -26,6 +26,8 @@ warn() {
 LATEST_VERSION=$(curl --silent "https://raw.githubusercontent.com/tuist/tuist/main/Sources/TuistSupport/Constants.swift" | grep 'version =' | sed -E 's/.*"([^"]+)".*/\1/')
 
 ohai "Downloading tuistenv..."
+[ -f /tmp/tuistenv.zip ] && rm /tmp/tuistenv.zip
+[ -f /tmp/tuistenv ] && rm /tmp/tuistenv
 curl -LSs --output /tmp/tuistenv.zip https://github.com/tuist/tuist/releases/download/${LATEST_VERSION}/tuistenv.zip
 ohai "Unzipping tuistenv..."
 unzip -o /tmp/tuistenv.zip -d /tmp/tuistenv > /dev/null

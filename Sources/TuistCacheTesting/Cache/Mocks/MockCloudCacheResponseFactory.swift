@@ -12,8 +12,8 @@ public class MockCloudCacheResourceFactory: CloudCacheResourceFactorying {
 
     public var invokedExistsResource = false
     public var invokedExistsResourceCount = 0
-    public var invokedExistsResourceParameters: (hash: String, Void)?
-    public var invokedExistsResourceParametersList = [(hash: String, Void)]()
+    public var invokedExistsResourceParameters: (name: String, hash: String, Void)? // swiftlint:disable:this large_tuple
+    public var invokedExistsResourceParametersList = [(name: String, hash: String, Void)]()
     public var stubbedExistsResourceError: Error?
     public var stubbedExistsResourceResult: CloudExistsResource = HTTPResource(
         request: { URLRequest.test() },
@@ -21,11 +21,11 @@ public class MockCloudCacheResourceFactory: CloudCacheResourceFactorying {
         parseError: { _, _ in CloudHEADResponseError() }
     )
 
-    public func existsResource(hash: String) throws -> HTTPResource<CloudResponse<CloudHEADResponse>, CloudHEADResponseError> {
+    public func existsResource(name: String, hash: String) throws -> HTTPResource<CloudResponse<CloudHEADResponse>, CloudHEADResponseError> {
         invokedExistsResource = true
         invokedExistsResourceCount += 1
-        invokedExistsResourceParameters = (hash, ())
-        invokedExistsResourceParametersList.append((hash, ()))
+        invokedExistsResourceParameters = (name, hash, ())
+        invokedExistsResourceParametersList.append((name, hash, ()))
         if let error = stubbedExistsResourceError {
             throw error
         }
@@ -34,8 +34,8 @@ public class MockCloudCacheResourceFactory: CloudCacheResourceFactorying {
 
     public var invokedFetchResource = false
     public var invokedFetchResourceCount = 0
-    public var invokedFetchResourceParameters: (hash: String, Void)?
-    public var invokedFetchResourceParametersList = [(hash: String, Void)]()
+    public var invokedFetchResourceParameters: (name: String, hash: String, Void)? // swiftlint:disable:this large_tuple
+    public var invokedFetchResourceParametersList = [(name: String, hash: String, Void)]()
     public var stubbedFetchResourceError: Error?
     public var stubbedFetchResourceResult: CloudCacheResource = HTTPResource(
         request: { URLRequest.test() },
@@ -43,11 +43,11 @@ public class MockCloudCacheResourceFactory: CloudCacheResourceFactorying {
         parseError: { _, _ in CloudResponseError.test() }
     )
 
-    public func fetchResource(hash: String) throws -> CloudCacheResource {
+    public func fetchResource(name: String, hash: String) throws -> CloudCacheResource {
         invokedFetchResource = true
         invokedFetchResourceCount += 1
-        invokedFetchResourceParameters = (hash, ())
-        invokedFetchResourceParametersList.append((hash, ()))
+        invokedFetchResourceParameters = (name, hash, ())
+        invokedFetchResourceParametersList.append((name, hash, ()))
         if let error = stubbedFetchResourceError {
             throw error
         }
@@ -56,8 +56,8 @@ public class MockCloudCacheResourceFactory: CloudCacheResourceFactorying {
 
     public var invokedStoreResource = false
     public var invokedStoreResourceCount = 0
-    public var invokedStoreResourceParameters: (hash: String, contentMD5: String)?
-    public var invokedStoreResourceParametersList = [(hash: String, contentMD5: String)]()
+    public var invokedStoreResourceParameters: (name: String, hash: String, contentMD5: String)? // swiftlint:disable:this large_tuple
+    public var invokedStoreResourceParametersList = [(name: String, hash: String, contentMD5: String)]()
     public var stubbedStoreResourceError: Error?
     public var stubbedStoreResourceResult: CloudCacheResource = HTTPResource(
         request: { URLRequest.test() },
@@ -65,11 +65,11 @@ public class MockCloudCacheResourceFactory: CloudCacheResourceFactorying {
         parseError: { _, _ in CloudResponseError.test() }
     )
 
-    public func storeResource(hash: String, contentMD5: String) throws -> CloudCacheResource {
+    public func storeResource(name: String, hash: String, contentMD5: String) throws -> CloudCacheResource {
         invokedStoreResource = true
         invokedStoreResourceCount += 1
-        invokedStoreResourceParameters = (hash, contentMD5)
-        invokedStoreResourceParametersList.append((hash, contentMD5))
+        invokedStoreResourceParameters = (name, hash, contentMD5)
+        invokedStoreResourceParametersList.append((name, hash, contentMD5))
         if let error = stubbedStoreResourceError {
             throw error
         }
@@ -78,8 +78,9 @@ public class MockCloudCacheResourceFactory: CloudCacheResourceFactorying {
 
     public var invokedVerifyUploadResource = false
     public var invokedVerifyUploadResourceCount = 0
-    public var invokedVerifyUploadResourceParameters: (hash: String, contentMD5: String)?
-    public var invokedVerifyUploadResourceParametersList = [(hash: String, contentMD5: String)]() // swiftlint:disable:this identifier_name
+    public var invokedVerifyUploadResourceParameters: (name: String, hash: String, contentMD5: String)? // swiftlint:disable:this large_tuple
+    // swiftlint:disable:next identifier_name
+    public var invokedVerifyUploadResourceParametersList = [(name: String, hash: String, contentMD5: String)]()
     public var stubbedVerifyUploadResourceError: Error?
     public var stubbedVerifyUploadResourceResult: CloudVerifyUploadResource = HTTPResource(
         request: { URLRequest.test() },
@@ -87,11 +88,11 @@ public class MockCloudCacheResourceFactory: CloudCacheResourceFactorying {
         parseError: { _, _ in CloudResponseError.test() }
     )
 
-    public func verifyUploadResource(hash: String, contentMD5: String) throws -> CloudVerifyUploadResource {
+    public func verifyUploadResource(name: String, hash: String, contentMD5: String) throws -> CloudVerifyUploadResource {
         invokedVerifyUploadResource = true
         invokedVerifyUploadResourceCount += 1
-        invokedVerifyUploadResourceParameters = (hash, contentMD5)
-        invokedVerifyUploadResourceParametersList.append((hash, contentMD5))
+        invokedVerifyUploadResourceParameters = (name, hash, contentMD5)
+        invokedVerifyUploadResourceParametersList.append((name, hash, contentMD5))
         if let error = stubbedVerifyUploadResourceError {
             throw error
         }

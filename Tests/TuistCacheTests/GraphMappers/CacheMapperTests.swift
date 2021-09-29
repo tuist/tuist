@@ -123,16 +123,31 @@ final class CacheMapperTests: TuistUnitTestCase {
             contentHashes
         }
 
-        cache.existsStub = { hash in
-            if hash == bHash { return true }
-            if hash == cHash { return true }
-            return false
+        cache.existsStub = { name, hash in
+            switch hash {
+            case bHash:
+                XCTAssertEqual(name, "B")
+                return true
+            case cHash:
+                XCTAssertEqual(name, "C")
+                return true
+            default:
+                return false
+            }
         }
 
-        cache.fetchStub = { hash in
-            if hash == bHash { return bXCFrameworkPath }
-            if hash == cHash { return cXCFrameworkPath }
-            else { fatalError("unexpected call to fetch") }
+        cache.fetchStub = { name, hash in
+            switch hash {
+            case bHash:
+                XCTAssertEqual(name, "B")
+                return bXCFrameworkPath
+            case cHash:
+                XCTAssertEqual(name, "C")
+                return cXCFrameworkPath
+            default:
+                XCTFail("Unexpected call to fetch")
+                return "/"
+            }
         }
         cacheGraphMutator.stubbedMapResult = outputGraph
 
@@ -192,16 +207,31 @@ final class CacheMapperTests: TuistUnitTestCase {
             contentHashes
         }
 
-        cache.existsStub = { hash in
-            if hash == bHash { return true }
-            if hash == cHash { return true }
-            return false
+        cache.existsStub = { name, hash in
+            switch hash {
+            case bHash:
+                XCTAssertEqual(name, "B")
+                return true
+            case cHash:
+                XCTAssertEqual(name, "C")
+                return true
+            default:
+                return false
+            }
         }
 
-        cache.fetchStub = { hash in
-            if hash == bHash { return bXCFrameworkPath }
-            if hash == cHash { throw error }
-            else { fatalError("unexpected call to fetch") }
+        cache.fetchStub = { name, hash in
+            switch hash {
+            case bHash:
+                XCTAssertEqual(name, "B")
+                return bXCFrameworkPath
+            case cHash:
+                XCTAssertEqual(name, "C")
+                throw error
+            default:
+                XCTFail("Unexpected call to fetch")
+                return "/"
+            }
         }
         cacheGraphMutator.stubbedMapResult = outputGraph
 

@@ -59,10 +59,10 @@ public final class CacheRemoteStorage: CacheStoring {
 
     // MARK: - CacheStoring
 
-    public func exists(hash: String) -> Single<Bool> {
+    public func exists(name: String, hash: String) -> Single<Bool> {
         do {
             let successRange = 200 ..< 300
-            let resource = try cloudCacheResourceFactory.existsResource(hash: hash)
+            let resource = try cloudCacheResourceFactory.existsResource(name: name, hash: hash)
             return cloudClient.request(resource)
                 .flatMap { _, response in
                     .just(successRange.contains(response.statusCode))
@@ -79,9 +79,9 @@ public final class CacheRemoteStorage: CacheStoring {
         }
     }
 
-    public func fetch(hash: String) -> Single<AbsolutePath> {
+    public func fetch(name: String, hash: String) -> Single<AbsolutePath> {
         do {
-            let resource = try cloudCacheResourceFactory.fetchResource(hash: hash)
+            let resource = try cloudCacheResourceFactory.fetchResource(name: name, hash: hash)
             return cloudClient
                 .request(resource)
                 .map(\.object.data.url)
@@ -102,12 +102,13 @@ public final class CacheRemoteStorage: CacheStoring {
         }
     }
 
-    public func store(hash: String, paths: [AbsolutePath]) -> Completable {
+    public func store(name: String, hash: String, paths: [AbsolutePath]) -> Completable {
         do {
             let archiver = try fileArchiverFactory.makeFileArchiver(for: paths)
             let destinationZipPath = try archiver.zip(name: hash)
             let md5 = try FileHandler.shared.urlSafeBase64MD5(path: destinationZipPath)
             let storeResource = try cloudCacheResourceFactory.storeResource(
+                name: name,
                 hash: hash,
                 contentMD5: md5
             )
@@ -119,7 +120,7 @@ public final class CacheRemoteStorage: CacheStoring {
                     let deleteCompletable = self.deleteZipArchiveCompletable(archiver: archiver)
                     return self.fileClient.upload(file: destinationZipPath, hash: hash, to: url)
                         .flatMapCompletable { _ in
-                            self.verify(hash: hash, contentMD5: md5)
+                            self.verify(name: name, hash: hash, contentMD5: md5)
                         }
                         .catchError {
                             deleteCompletable.concat(.error($0))
@@ -132,9 +133,10 @@ public final class CacheRemoteStorage: CacheStoring {
 
     // MARK: - Private
 
-    private func verify(hash: String, contentMD5: String) -> Completable {
+    private func verify(name: String, hash: String, contentMD5: String) -> Completable {
         do {
             let verifyUploadResource = try cloudCacheResourceFactory.verifyUploadResource(
+                name: name,
                 hash: hash,
                 contentMD5: contentMD5
             )

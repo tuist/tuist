@@ -32,7 +32,7 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         try FileHandler.shared.createFolder(xcframeworkPath)
 
         // When
-        let got = try subject.exists(hash: hash).toBlocking().first()
+        let got = try subject.exists(name: "ignored", hash: hash).toBlocking().first()
 
         // Then
         XCTAssertTrue(got == true)
@@ -42,7 +42,7 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         // When
         let hash = "abcde"
 
-        let got = try subject.exists(hash: hash).toBlocking().first()
+        let got = try subject.exists(name: "ignored", hash: hash).toBlocking().first()
 
         // Then
         XCTAssertTrue(got == false)
@@ -58,7 +58,7 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         try FileHandler.shared.createFolder(xcframeworkPath)
 
         // When
-        let got = try subject.fetch(hash: hash).toBlocking().first()
+        let got = try subject.fetch(name: "ignored", hash: hash).toBlocking().first()
 
         // Then
         XCTAssertTrue(got == xcframeworkPath)
@@ -68,7 +68,7 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         let hash = "abcde"
 
         XCTAssertThrowsSpecific(
-            try subject.fetch(hash: hash).toBlocking().first(),
+            try subject.fetch(name: "ignored", hash: hash).toBlocking().first(),
             CacheLocalStorageError.compiledArtifactNotFound(hash: hash)
         )
     }
@@ -81,7 +81,7 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         try FileHandler.shared.createFolder(xcframeworkPath)
 
         // When
-        _ = try subject.store(hash: hash, paths: [xcframeworkPath]).toBlocking().first()
+        _ = try subject.store(name: "ignored", hash: hash, paths: [xcframeworkPath]).toBlocking().first()
 
         // Then
         XCTAssertTrue(FileHandler.shared.exists(cacheDirectory.appending(RelativePath("\(hash)/framework.xcframework"))))
