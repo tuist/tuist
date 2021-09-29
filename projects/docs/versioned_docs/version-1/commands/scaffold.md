@@ -12,7 +12,7 @@ With `tuist scaffold` you generate files, you can generate files from a template
 - Create a new feature that follows a given architecture: `tuist scaffold viper --name MyFeature`.
 - Create new projects: `tuist scaffold feature-project --name Home`
 
-Tuist is not opinionated about the content of your templates, and what you use them for. They are only required to be in a specific directory.
+Tuist is not opinionated about the content of your templates, and what you use them for. They are only required to be in a specific directory, with a `Template.swift` manifest file that describes it.
 
 ### Defining a template
 
@@ -29,7 +29,7 @@ let template = Template(
         nameAttribute,
         .optional("platform", default: "ios"),
     ],
-    items: [
+    files: [
         .string(
             path: "Project.swift",
             contents: "My template contents of name \(nameAttribute)"

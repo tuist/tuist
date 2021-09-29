@@ -40,7 +40,7 @@ let project = Project(
             name: "App-Debug",
             shared: true,
             buildAction: BuildAction(targets: ["App"]),
-            testAction: TestAction.targets(["AppTests"]),
+            testAction: TestAction(targets: ["AppTests"]),
             runAction: RunAction(executable: "App")
         ),
         Scheme(

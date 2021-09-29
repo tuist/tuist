@@ -21,18 +21,18 @@ let workspace = Workspace(
         Scheme(
             name: "Workspace-App",
             shared: true,
-            buildAction: .buildAction(
+            buildAction: BuildAction(
                 targets: [.project(path: "App", target: "App")],
                 preActions: []
             ),
-            testAction: .testAction(
+            testAction: TestAction(
                 targets: [TestableTarget(target: .project(path: "App", target: "AppTests"))]
             ),
-            runAction: .runAction(
+            runAction: RunAction(
                 executable: .project(path: "App", target: "App")
             ),
-            archiveAction: .archiveAction(
-                configuration: "Debug",
+            archiveAction: ArchiveAction(
+                configurationName: "Debug",
                 customArchiveName: "Something2"
             )
         )

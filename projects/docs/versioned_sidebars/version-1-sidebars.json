@@ -106,7 +106,15 @@
         },
         {
           "type": "doc",
+          "id": "version-1/commands/up"
+        },
+        {
+          "type": "doc",
           "id": "version-1/commands/migration"
+        },
+        {
+          "type": "doc",
+          "id": "version-1/commands/documentation"
         },
         {
           "type": "doc",

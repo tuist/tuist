@@ -36,7 +36,6 @@ module.exports = {
         'commands/linting',
         'commands/graph',
         'commands/migration',
-        'commands/secrets',
         'commands/clean',
         'commands/dependencies',
       ],
