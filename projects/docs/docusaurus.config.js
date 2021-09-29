@@ -34,6 +34,10 @@ module.exports = {
       },
       items: [
         {
+          type: "docsVersionDropdown",
+          position: 'right'
+        },
+        {
           href: 'https://github.com/tuist/tuist',
           label: 'GitHub',
           position: 'right',
@@ -93,6 +97,15 @@ module.exports = {
           sidebarPath: require.resolve('./sidebars.js'),
           editUrl: 'https://github.com/tuist/tuist/blob/main/projects/docs/',
           remarkPlugins: [remarkEmoji, remarkExternalLinks],
+          lastVersion: "current",
+          versions: {
+            current: {
+              label: "2.x"
+            },
+            "1": {
+              label: "1.x"
+            }
+          }
         },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),
