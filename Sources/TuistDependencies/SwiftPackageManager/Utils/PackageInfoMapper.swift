@@ -482,8 +482,10 @@ extension SourceFilesList {
 
 extension ResourceFileElements {
     fileprivate static func from(resources: [PackageInfo.Target.Resource], path: AbsolutePath, excluding: [String]) -> Self? {
-        var resourcesPaths = resources.map { path.appending(RelativePath($0.path)) }
-        resourcesPaths.append(contentsOf: defaultResourcePaths(from: path))
+        let customResourcesPaths  = resources
+            .map { path.appending(RelativePath($0.path)) }
+        let resourcesPaths = customResourcesPaths + defaultResourcePaths(from: path)
+
         return .init(
             resources: resourcesPaths.map { absolutePath in
                 let absolutePathGlob = absolutePath.extension != nil ? absolutePath : absolutePath.appending(component: "**")
@@ -499,7 +501,7 @@ extension ResourceFileElements {
         )
     }
 
-    static let defaultSpmResourceFileExtensions = ["xib", "storyboard", "xcdatamodeld", "xcmappingmodel", "xcassets", "lproj"]
+    private static let defaultSpmResourceFileExtensions = ["xib", "storyboard", "xcdatamodeld", "xcmappingmodel", "xcassets", "lproj"]
 
     private static func defaultResourcePaths(from path: AbsolutePath) -> [AbsolutePath] {
         ResourceFileElements.defaultSpmResourceFileExtensions.map { fileExtension -> AbsolutePath in

@@ -841,11 +841,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         "Target1",
                         basePath: basePath,
                         customSources: .init(globs: [basePath.appending(RelativePath("Package/Path/Custom/Path/Sources/Folder/**")).pathString]),
-                        resources: .init(
-                            resources: [
-                                .init(stringLiteral: basePath.appending(RelativePath("Package/Path/Custom/Path/Resource/Folder/**")).pathString),
-                            ]
-                        ),
+                        resources: [
+                            .init(stringLiteral: basePath.appending(RelativePath("Package/Path/Custom/Path/Resource/Folder/**")).pathString),
+                        ],
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Custom/Path/Headers"],
                         ],
@@ -2142,7 +2140,7 @@ extension ProjectDescription.Target {
         customBundleID: String? = nil,
         deploymentTarget: ProjectDescription.DeploymentTarget? = nil,
         customSources: SourceFilesList? = nil,
-        resources: ResourceFileElements? = nil,
+        resources: [ProjectDescription.ResourceFileElement] = [],
         headers: ProjectDescription.Headers? = nil,
         dependencies: [ProjectDescription.TargetDependency] = [],
         customSettings: ProjectDescription.SettingsDictionary = [:],
@@ -2167,13 +2165,6 @@ extension ProjectDescription.Target {
                 )
             }
 
-        let targetResources: ResourceFileElements
-        if let resources = resources {
-            targetResources = ResourceFileElements(resources: resources.resources + defaultResources)
-        } else {
-            targetResources = ResourceFileElements(resources: defaultResources)
-        }
-
         return .init(
             name: name,
             platform: platform,
@@ -2182,7 +2173,7 @@ extension ProjectDescription.Target {
             deploymentTarget: deploymentTarget,
             infoPlist: .default,
             sources: customSources ?? .init(globs: [basePath.appending(RelativePath("Package/Path/Sources/\(name)/**")).pathString]),
-            resources: targetResources,
+            resources: ResourceFileElements(resources: resources + defaultResources),
             headers: headers,
             dependencies: dependencies,
             settings: DependenciesGraph.spmSettings(with: customSettings, moduleMap: moduleMap)
