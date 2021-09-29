@@ -142,7 +142,7 @@ extension TestAction {
     public static func test(targets: [TestableTarget] = [],
                             arguments: Arguments? = nil,
                             configuration: ConfigurationName = .debug,
-                            coverage _: Bool = true) -> TestAction
+                            coverage: Bool = true) -> TestAction
     {
         TestAction.targets(
             targets,
@@ -150,7 +150,7 @@ extension TestAction {
             configuration: configuration,
             preActions: [ExecutionAction.test()],
             postActions: [ExecutionAction.test()],
-            options: .options(coverage: true)
+            options: .options(coverage: coverage)
         )
     }
 }
