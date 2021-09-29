@@ -102,7 +102,9 @@ the resolution of dependencies sometimes fails at launch time,
 and it gets invalidated after deleting the derivd data directory.
 
 `Dependencies.swift` offered a standard solution across Carthage and Package dependencies
-and integrated dependencies into the projects' graphs to allow users to leverage existing Tuist like binary caching.
+and integrated dependencies into the projects' graphs to allow users to leverage Tuist features.
+One of those features is `tuist cache`,
+which allows developers to cache their Swift Packages as binaries.
 In the current state,
 users can declare and integrate Carthage and Package dependencies,
 but there seem to be some package scenarios that are not well merged into the graphs.
