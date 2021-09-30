@@ -49,6 +49,7 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
             return (type: .none, path: nil)
         }
 
+        let sanitizedModuleName = moduleName.replacingOccurrences(of: "-", with: "_")
         let generatedModuleMapContent: String
         switch moduleMapType {
         case .none, .header, .custom:
@@ -56,7 +57,7 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
         case .nestedHeader:
             generatedModuleMapContent =
                 """
-                module \(moduleName) {
+                module \(sanitizedModuleName) {
                     umbrella header "\(nestedUmbrellaHeaderPath.pathString)"
                     export *
                 }
@@ -65,7 +66,7 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
         case .directory:
             generatedModuleMapContent =
                 """
-                module \(moduleName) {
+                module \(sanitizedModuleName) {
                     umbrella "\(publicHeadersPath.pathString)"
                     export *
                 }
