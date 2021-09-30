@@ -698,7 +698,7 @@ extension Systeming {
             return false
         }
     }
-    
+
     public func publisher(_ arguments: [String], pipedToArguments: [String]) -> AnyPublisher<SystemEvent<Data>, Error> {
         AnyPublisher.create { subscriber -> Cancellable in
             let disposable = self.observable(arguments, pipedToArguments: pipedToArguments).subscribe { event in
