@@ -3,9 +3,6 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 import XCTest
-
-@testable import TuistDependencies
-@testable import TuistDependenciesTesting
 @testable import TuistSupportTesting
 
 final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
@@ -148,5 +145,50 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(packageInfo, PackageInfo.googleAppMeasurement)
+    }
+
+    func test_buildFatReleaseBinary() throws {
+        // Given
+        let packagePath = try temporaryPath()
+        let product = "my-product"
+        let buildPath = try temporaryPath()
+        let outputPath = try temporaryPath()
+
+        system.succeedCommand(
+            "swift", "build",
+            "--configuration", "release",
+            "--disable-sandbox",
+            "--package-path", packagePath.pathString,
+            "--product", product,
+            "--build-path", buildPath.pathString,
+            "--triple", "arm64-apple-macosx"
+        )
+        system.succeedCommand(
+            "swift", "build",
+            "--configuration", "release",
+            "--disable-sandbox",
+            "--package-path", packagePath.pathString,
+            "--product", product,
+            "--build-path", buildPath.pathString,
+            "--triple", "x86_64-apple-macosx"
+        )
+
+        system.succeedCommand(
+            "lipo", "-create", "-output", outputPath.appending(component: product).pathString,
+            buildPath.appending(components: "arm64-apple-macosx", "release", product).pathString,
+            buildPath.appending(components: "x86_64-apple-macosx", "release", product).pathString
+        )
+
+        // When
+        try subject.buildFatReleaseBinary(
+            packagePath: packagePath,
+            product: product,
+            buildPath: buildPath,
+            outputPath: outputPath
+        )
+
+        // Then
+        // Assert that `outputPath` was created
+        XCTAssertTrue(fileHandler.isFolder(outputPath))
     }
 }
