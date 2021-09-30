@@ -54,6 +54,10 @@ final class WorkspaceMapperProvider: WorkspaceMapperProviding {
             )
         }
 
+        mappers.append(
+            ModuleMapMapper()
+        )
+
         return mappers
     }
 }
