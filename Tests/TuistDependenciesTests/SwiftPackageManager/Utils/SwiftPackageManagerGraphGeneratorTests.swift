@@ -3,6 +3,7 @@ import TSCBasic
 import TuistCore
 import TuistDependencies
 import TuistGraph
+import TuistSupport
 import XCTest
 @testable import TuistDependenciesTesting
 @testable import TuistLoaderTesting

@@ -1,11 +1,30 @@
 import TSCBasic
+import TSCUtility
 import TuistGraph
-@testable import TuistDependencies
+@testable import TuistSupport
 
 // MARK: - Test package
 
 extension PackageInfo {
-    static var testJSON: String {
+    public static func test(
+        products: [Product] = [],
+        targets: [Target] = [],
+        platforms: [Platform] = [],
+        cLanguageStandard: String? = nil,
+        cxxLanguageStandard: String? = nil,
+        swiftLanguageVersions: [TSCUtility.Version]? = nil
+    ) -> Self {
+        .init(
+            products: products,
+            targets: targets,
+            platforms: platforms,
+            cLanguageStandard: cLanguageStandard,
+            cxxLanguageStandard: cxxLanguageStandard,
+            swiftLanguageVersions: swiftLanguageVersions
+        )
+    }
+
+    public static var testJSON: String {
         """
         {
           "cLanguageStandard" : "c99",
@@ -272,7 +291,7 @@ extension PackageInfo {
         """
     }
 
-    static var test: PackageInfo {
+    public static var test: PackageInfo {
         return .init(
             products: [
                 .init(name: "Tuist", type: .library(.static), targets: ["Tuist"]),
@@ -367,7 +386,7 @@ extension PackageInfo {
         )
     }
 
-    static var aDependency: PackageInfo {
+    public static var aDependency: PackageInfo {
         return .init(
             products: [
                 .init(name: "ALibrary", type: .library(.automatic), targets: ["ALibrary", "ALibraryUtils"]),
@@ -444,7 +463,7 @@ extension PackageInfo {
 // MARK: - Alamofire package
 
 extension PackageInfo {
-    static var alamofireJSON: String {
+    public static var alamofireJSON: String {
         """
         {
           "cLanguageStandard" : null,
@@ -565,7 +584,7 @@ extension PackageInfo {
         """
     }
 
-    static var alamofire: PackageInfo {
+    public static var alamofire: PackageInfo {
         return .init(
             products: [
                 .init(name: "Alamofire", type: .library(.automatic), targets: ["Alamofire"]),
@@ -913,7 +932,7 @@ extension PackageInfo {
         """
     }
 
-    static var googleAppMeasurement: PackageInfo {
+    public static var googleAppMeasurement: PackageInfo {
         return .init(
             products: [
                 .init(
@@ -1054,7 +1073,7 @@ extension PackageInfo {
         )
     }
 
-    static var googleUtilities: PackageInfo {
+    public static var googleUtilities: PackageInfo {
         return .init(
             products: [
                 .init(name: "GULAppDelegateSwizzler", type: .library(.automatic), targets: ["GULAppDelegateSwizzler"]),
@@ -1125,7 +1144,7 @@ extension PackageInfo {
         )
     }
 
-    static var nanopb: PackageInfo {
+    public static var nanopb: PackageInfo {
         return .init(
             products: [
                 .init(name: "nanopb", type: .library(.automatic), targets: ["nanopb"]),
