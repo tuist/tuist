@@ -97,8 +97,8 @@ public final class SwiftPackageManagerController: SwiftPackageManagerControlling
             "--triple",
         ]
         
-        let arm64Target = "arm64-apple-macos"
-        let x64Target = "x86_64-apple-macos"
+        let arm64Target = "arm64-apple-macosx"
+        let x64Target = "x86_64-apple-macosx"
         try System.shared.run(
             buildCommand + [
                 arm64Target,
@@ -116,8 +116,8 @@ public final class SwiftPackageManagerController: SwiftPackageManagerControlling
         
         try System.shared.run(
             "lipo", "-create", "-output", outputPath.appending(component: product).pathString,
-            buildPath.appending(components: arm64Target).pathString,
-            buildPath.appending(components: x64Target).pathString
+            buildPath.appending(components: arm64Target, "release", product).pathString,
+            buildPath.appending(components: x64Target, "release", product).pathString
         )
     }
 

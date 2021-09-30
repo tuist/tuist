@@ -6,21 +6,23 @@ import TuistLoader
 final class PluginsArchiveService {
     private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let manifestLoader: ManifestLoading
+    private let fileArchiverFactory: FileArchivingFactorying
     
     init(
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
-        manifestLoader: ManifestLoading = ManifestLoader()
+        manifestLoader: ManifestLoading = ManifestLoader(),
+        fileArchiverFactory: FileArchivingFactorying = FileArchivingFactory()
     ) {
         self.swiftPackageManagerController = swiftPackageManagerController
         self.manifestLoader = manifestLoader
+        self.fileArchiverFactory = fileArchiverFactory
     }
     
     func run() throws {
         // TODO: Pass path
         let path = FileHandler.shared.currentPath
-        let tasksPath = path.appending(component: "Tasks")
         
-        let packageInfo = try swiftPackageManagerController.loadPackageInfo(at: tasksPath)
+        let packageInfo = try swiftPackageManagerController.loadPackageInfo(at: path)
         let executableProducts = packageInfo.products
             .filter {
                 switch $0.type {
@@ -32,40 +34,31 @@ final class PluginsArchiveService {
             }
             .map(\.name)
         
-        try executableProducts
-            .forEach { product in
-                // TODO: Move to a component
-                // TODO: M1 support (take a look at `swift_package_manager.rb` in fourier)
-                try System.shared.run(
-                    "swift",
-                    "build",
-                    "--package-path",
-                    tasksPath.pathString,
-                    "--configuration",
-                    "release",
-                    "--product",
-                    product
+        let plugin = try manifestLoader.loadPlugin(at: path)
+       
+        try FileHandler.shared.inTemporaryDirectory { temporaryDirectory in
+            let artifactsPath = temporaryDirectory.appending(component: "artifacts")
+            try executableProducts
+                .filter { $0.hasPrefix("tuist-") }
+                .forEach { product in
+                try swiftPackageManagerController.buildFatReleaseBinary(
+                    packagePath: path,
+                    product: product,
+                    buildPath: temporaryDirectory.appending(component: "build"),
+                    outputPath: artifactsPath
                 )
             }
-        
-        let executables = executableProducts.map {
-            tasksPath.appending(components: ".build", "release", $0)
+            let archiver = try fileArchiverFactory.makeFileArchiver(
+                for: executableProducts
+                    .map(artifactsPath.appending)
+            )
+            let zipName = "\(plugin.name).tuist-plugin.zip"
+            let zipPath = try archiver.zip(name: zipName)
+            try FileHandler.shared.copy(
+                from: zipPath,
+                to: path.appending(component: zipName)
+            )
         }
-        .map(\.pathString)
-        
-        let plugin = try manifestLoader.loadPlugin(at: path)
-        
-        let buildPath = path.appending(component: "build")
-        if !FileHandler.shared.exists(buildPath) {
-            try FileHandler.shared.createFolder(buildPath)
-        }
-        try System.shared.run(
-            [
-                "/usr/bin/zip",
-                buildPath.appending(component: "\(plugin.name).tuist-plugin.zip").pathString
-            ]
-            + executables
-        )
     }
 }
 
