@@ -1,7 +1,5 @@
 import Foundation
 import TSCBasic
-import TuistGraph
-import TuistSupport
 
 /// Protocol that defines an interface to interact with the Swift Package Manager.
 public protocol SwiftPackageManagerControlling {
@@ -25,6 +23,19 @@ public protocol SwiftPackageManagerControlling {
     /// Loads the information from the package.
     /// - Parameter path: Directory where the `Package.swift` is defined.
     func loadPackageInfo(at path: AbsolutePath) throws -> PackageInfo
+
+    /// Builds a release binary containing release binaries compatible with arm64 and x86.
+    /// - Parameters:
+    ///     - packagePath: Directory where the `Package.swift` is defined.
+    ///     - product: Name of the product to be built.
+    ///     - buildPath: Directory where the intermediary build products should be saved.
+    ///     - outputPath: Directory where the fat binaries should be saved to.
+    func buildFatReleaseBinary(
+        packagePath: AbsolutePath,
+        product: String,
+        buildPath: AbsolutePath,
+        outputPath: AbsolutePath
+    ) throws
 }
 
 public final class SwiftPackageManagerController: SwiftPackageManagerControlling {
@@ -68,6 +79,46 @@ public final class SwiftPackageManagerController: SwiftPackageManagerControlling
         let decoder = JSONDecoder()
 
         return try decoder.decode(PackageInfo.self, from: data)
+    }
+
+    public func buildFatReleaseBinary(
+        packagePath: AbsolutePath,
+        product: String,
+        buildPath: AbsolutePath,
+        outputPath: AbsolutePath
+    ) throws {
+        let buildCommand: [String] = [
+            "swift", "build",
+            "--configuration", "release",
+            "--disable-sandbox",
+            "--package-path", packagePath.pathString,
+            "--product", product,
+            "--build-path", buildPath.pathString,
+            "--triple",
+        ]
+
+        let arm64Target = "arm64-apple-macosx"
+        let x64Target = "x86_64-apple-macosx"
+        try System.shared.run(
+            buildCommand + [
+                arm64Target,
+            ]
+        )
+        try System.shared.run(
+            buildCommand + [
+                x64Target,
+            ]
+        )
+
+        if !FileHandler.shared.exists(outputPath) {
+            try FileHandler.shared.createFolder(outputPath)
+        }
+
+        try System.shared.run(
+            "lipo", "-create", "-output", outputPath.appending(component: product).pathString,
+            buildPath.appending(components: arm64Target, "release", product).pathString,
+            buildPath.appending(components: x64Target, "release", product).pathString
+        )
     }
 
     // MARK: - Helpers
