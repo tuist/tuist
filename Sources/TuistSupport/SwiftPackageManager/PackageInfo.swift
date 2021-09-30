@@ -45,7 +45,7 @@ public struct PackageInfo: Hashable {
     // /// Whether kind of package this manifest is from.
     // let packageKind: PackageReference.Kind
 
-    init(
+    public init(
         products: [Product],
         targets: [Target],
         platforms: [Platform],
@@ -69,6 +69,16 @@ extension PackageInfo {
         public let platformName: String
         public let version: String
         public let options: [String]
+        
+        public init(
+            platformName: String,
+            version: String,
+            options: [String]
+        ) {
+            self.platformName = platformName
+            self.version = version
+            self.options = options
+        }
     }
 }
 
@@ -78,6 +88,14 @@ extension PackageInfo {
     public struct PackageConditionDescription: Decodable, Hashable {
         public let platformNames: [String]
         public let config: String?
+        
+        public init(
+            platformNames: [String],
+            config: String?
+        ) {
+            self.platformNames = platformNames
+            self.config = config
+        }
     }
 }
 
@@ -96,6 +114,16 @@ extension PackageInfo {
         /// This is never empty, and is only the targets which are required to be in
         /// the product, but not necessarily their transitive dependencies.
         public let targets: [String]
+        
+        public init(
+            name: String,
+            type: Product.ProductType,
+            targets: [String]
+        ) {
+            self.name = name
+            self.type = type
+            self.targets = targets
+        }
     }
 }
 
@@ -163,6 +191,32 @@ extension PackageInfo {
 
         /// The binary target checksum.
         public let checksum: String?
+        
+        public init(
+            name: String,
+            path: String?,
+            url: String?,
+            sources: [String]?,
+            resources: [Resource],
+            exclude: [String],
+            dependencies: [Dependency],
+            publicHeadersPath: String?,
+            type: TargetType,
+            settings: [TargetBuildSettingDescription.Setting],
+            checksum: String?
+        ) {
+            self.name = name
+            self.path = path
+            self.url = url
+            self.sources = sources
+            self.resources = resources
+            self.exclude = exclude
+            self.dependencies = dependencies
+            self.publicHeadersPath = publicHeadersPath
+            self.type = type
+            self.settings = settings
+            self.checksum = checksum
+        }
     }
 }
 
@@ -205,7 +259,7 @@ extension PackageInfo.Target {
         /// The explicit localization of the resource.
         public let localization: Localization?
 
-        init(rule: Rule, path: String, localization: Localization? = nil) {
+        public init(rule: Rule, path: String, localization: Localization? = nil) {
             self.rule = rule
             self.path = path
             self.localization = localization
@@ -264,6 +318,18 @@ extension PackageInfo.Target {
             /// This is kind of like an "untyped" value since the length
             /// of the array will depend on the setting type.
             public let value: [String]
+            
+            public init(
+                tool: Tool,
+                name: SettingName,
+                condition: PackageInfo.PackageConditionDescription?,
+                value: [String]
+            ) {
+                self.tool = tool
+                self.name = name
+                self.condition = condition
+                self.value = value
+            }
         }
     }
 }

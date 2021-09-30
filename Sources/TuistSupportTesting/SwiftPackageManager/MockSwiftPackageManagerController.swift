@@ -1,7 +1,5 @@
 import TSCBasic
-import TuistGraph
-
-@testable import TuistDependencies
+@testable import TuistSupport
 
 public final class MockSwiftPackageManagerController: SwiftPackageManagerControlling {
     public init() {}
@@ -37,5 +35,22 @@ public final class MockSwiftPackageManagerController: SwiftPackageManagerControl
         invokedLoadPackageInfo = true
         return try loadPackageInfoStub?(path)
             ?? .init(products: [], targets: [], platforms: [], cLanguageStandard: nil, cxxLanguageStandard: nil, swiftLanguageVersions: nil)
+    }
+    
+    var invokedBuildFatReleaseBinary = false
+    var loadBuildFatReleaseBinaryStub: ((AbsolutePath, String, AbsolutePath, AbsolutePath) throws -> Void)?
+    public func buildFatReleaseBinary(
+        packagePath: AbsolutePath,
+        product: String,
+        buildPath: AbsolutePath,
+        outputPath: AbsolutePath
+    ) throws {
+        invokedBuildFatReleaseBinary = true
+        try loadBuildFatReleaseBinaryStub?(
+            packagePath,
+            product,
+            buildPath,
+            outputPath
+        )
     }
 }

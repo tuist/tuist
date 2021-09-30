@@ -1,6 +1,5 @@
 import Foundation
 import TSCBasic
-import TuistGraph
 
 /// Protocol that defines an interface to interact with the Swift Package Manager.
 public protocol SwiftPackageManagerControlling {

@@ -1,6 +1,6 @@
 import TSCBasic
 import TuistGraph
-@testable import TuistDependencies
+@testable import TuistSupport
 
 // MARK: - Test package
 
