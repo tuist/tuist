@@ -1,6 +1,6 @@
-import XCTest
 import TuistSupport
 import TuistSupportTesting
+import XCTest
 
 @testable import TuistKit
 
@@ -16,7 +16,7 @@ final class TuistServiceTests: TuistUnitTestCase {
         subject = nil
         super.tearDown()
     }
-    
+
     func test_run() throws {
         system.succeedCommand("tuist-my-command", "argument-one")
         XCTAssertNoThrow(
