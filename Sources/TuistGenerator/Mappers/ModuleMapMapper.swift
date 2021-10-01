@@ -10,6 +10,11 @@ public final class ModuleMapMapper: WorkspaceMapping {
     private static let modulemapFileSetting = "MODULEMAP_FILE"
     private static let otherSwiftFlagsSetting = "OTHER_SWIFT_FLAGS"
 
+    private struct TargetID: Hashable {
+        let projectPath: AbsolutePath
+        let targetName: String
+    }
+
     public init() {}
 
     public func map(workspace: WorkspaceWithProjects) throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
@@ -21,45 +26,39 @@ public final class ModuleMapMapper: WorkspaceMapping {
         }
 
         var mappedWorkspace = workspace
-        for p in 0 ..< workspace.projects.count {
-            var mappedProject = workspace.projects[p]
-            for t in 0 ..< mappedProject.targets.count {
-                var mappedTarget = mappedProject.targets[t]
+        for projectIndex in 0 ..< workspace.projects.count {
+            var mappedProject = workspace.projects[projectIndex]
+            for targetIndex in 0 ..< mappedProject.targets.count {
+                var mappedTarget = mappedProject.targets[targetIndex]
                 let targetID = TargetID(projectPath: mappedProject.path, targetName: mappedTarget.name)
                 var mappedSettingsDictionary = mappedTarget.settings?.base ?? [:]
-                guard mappedSettingsDictionary[Self.modulemapFileSetting] != nil || targetToModuleMaps[targetID] != nil else { continue }
+                let hasModuleMap = mappedSettingsDictionary[Self.modulemapFileSetting] != nil
+                guard hasModuleMap || targetToModuleMaps[targetID] != nil else { continue }
 
-                if mappedSettingsDictionary[Self.modulemapFileSetting] != nil {
+                if hasModuleMap {
                     mappedSettingsDictionary[Self.modulemapFileSetting] = nil
                 }
 
-                if let dependenciesModuleMaps = targetToModuleMaps[targetID] {
-                    var mappedSwiftCompilerFlags: [String]
-                    switch mappedSettingsDictionary[Self.otherSwiftFlagsSetting, default: .array(["$(inherited)"])] {
-                    case .array(let values):
-                        mappedSwiftCompilerFlags = values
-                    case .string(let value):
-                        mappedSwiftCompilerFlags = value.split(separator: " ").map(String.init)
-                    }
-
-                    for moduleMap in dependenciesModuleMaps.sorted() {
-                        mappedSwiftCompilerFlags.append(contentsOf: [
-                            "-Xcc",
-                            "-fmodule-map-file=$(SRCROOT)/\(moduleMap.relative(to: mappedProject.path))"
-                        ])
-                    }
-                    mappedSettingsDictionary[Self.otherSwiftFlagsSetting] = .array(mappedSwiftCompilerFlags)
+                if let updatedOtherSwiftFlags = Self.updatedOtherSwiftFlags(
+                    targetID: targetID,
+                    oldOtherSwiftFlags: mappedSettingsDictionary[Self.otherSwiftFlagsSetting],
+                    targetToModuleMaps: targetToModuleMaps
+                ) {
+                    mappedSettingsDictionary[Self.otherSwiftFlagsSetting] = updatedOtherSwiftFlags
                 }
 
                 mappedTarget.settings = (mappedTarget.settings ?? .default).with(base: mappedSettingsDictionary)
-                mappedProject.targets[t] = mappedTarget
+                mappedProject.targets[targetIndex] = mappedTarget
             }
-            mappedWorkspace.projects[p] = mappedProject
+            mappedWorkspace.projects[projectIndex] = mappedProject
         }
         return (mappedWorkspace, [])
     }
 
-    fileprivate static func dependenciesModuleMaps(
+    /// Calculates the set of module maps to be linked to a given target and populates the `targetToModuleMaps` dictionary.
+    /// Each target must link the module map of its direct and indirect dependencies.
+    /// The `targetToModuleMaps` is also used as cache to avoid recomputing the set for already computed targets.
+    private static func dependenciesModuleMaps(
         workspace: WorkspaceWithProjects,
         project: Project,
         target: Target,
@@ -116,8 +115,28 @@ public final class ModuleMapMapper: WorkspaceMapping {
         }
     }
 
-    fileprivate struct TargetID: Hashable {
-        let projectPath: AbsolutePath
-        let targetName: String
+    private static func updatedOtherSwiftFlags(
+        targetID: TargetID,
+        oldOtherSwiftFlags: SettingsDictionary.Value?,
+        targetToModuleMaps: [TargetID: Set<AbsolutePath>]
+    ) -> SettingsDictionary.Value? {
+        guard let dependenciesModuleMaps = targetToModuleMaps[targetID] else { return nil }
+
+        var mappedSwiftCompilerFlags: [String]
+        switch oldOtherSwiftFlags ?? .array(["$(inherited)"]) {
+        case .array(let values):
+            mappedSwiftCompilerFlags = values
+        case .string(let value):
+            mappedSwiftCompilerFlags = value.split(separator: " ").map(String.init)
+        }
+
+        for moduleMap in dependenciesModuleMaps.sorted() {
+            mappedSwiftCompilerFlags.append(contentsOf: [
+                "-Xcc",
+                "-fmodule-map-file=$(SRCROOT)/\(moduleMap.relative(to: targetID.projectPath))"
+            ])
+        }
+
+        return .array(mappedSwiftCompilerFlags)
     }
 }
