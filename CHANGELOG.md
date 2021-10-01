@@ -101,6 +101,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Changed
 
 - Update SwiftGen to support generating custom SF Symbols (a.k.a. `symbolset`). [#3521](https://github.com/tuist/tuist/pull/3521) by [@hisaac](https://github.com/hisaac)
+- Improve performance of `tuist dependencies fetch` for SwiftPackageManager by loading Package.swift information in parallel. [#3529](https://github.com/tuist/tuist/pull/3529) by [@danyf90](https://github.com/danyf90)
 
 ### 1.51.1
 
