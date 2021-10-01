@@ -8,6 +8,7 @@ import TSCBasic
 /// the modulemap could contain absolute paths.
 public final class ModuleMapMapper: WorkspaceMapping {
     private static let modulemapFileSetting = "MODULEMAP_FILE"
+    private static let otherCFlagsSetting = "OTHER_CFLAGS"
     private static let otherSwiftFlagsSetting = "OTHER_SWIFT_FLAGS"
 
     private struct TargetID: Hashable {
@@ -45,6 +46,14 @@ public final class ModuleMapMapper: WorkspaceMapping {
                     targetToModuleMaps: targetToModuleMaps
                 ) {
                     mappedSettingsDictionary[Self.otherSwiftFlagsSetting] = updatedOtherSwiftFlags
+                }
+
+                if let updatedOtherCFlags = Self.updatedOtherCFlags(
+                    targetID: targetID,
+                    oldOtherCFlags: mappedSettingsDictionary[Self.otherCFlagsSetting],
+                    targetToModuleMaps: targetToModuleMaps
+                ) {
+                    mappedSettingsDictionary[Self.otherCFlagsSetting] = updatedOtherCFlags
                 }
 
                 mappedTarget.settings = (mappedTarget.settings ?? .default).with(base: mappedSettingsDictionary)
@@ -122,21 +131,43 @@ public final class ModuleMapMapper: WorkspaceMapping {
     ) -> SettingsDictionary.Value? {
         guard let dependenciesModuleMaps = targetToModuleMaps[targetID] else { return nil }
 
-        var mappedSwiftCompilerFlags: [String]
+        var mappedOtherSwiftFlags: [String]
         switch oldOtherSwiftFlags ?? .array(["$(inherited)"]) {
         case .array(let values):
-            mappedSwiftCompilerFlags = values
+            mappedOtherSwiftFlags = values
         case .string(let value):
-            mappedSwiftCompilerFlags = value.split(separator: " ").map(String.init)
+            mappedOtherSwiftFlags = value.split(separator: " ").map(String.init)
         }
 
         for moduleMap in dependenciesModuleMaps.sorted() {
-            mappedSwiftCompilerFlags.append(contentsOf: [
+            mappedOtherSwiftFlags.append(contentsOf: [
                 "-Xcc",
                 "-fmodule-map-file=$(SRCROOT)/\(moduleMap.relative(to: targetID.projectPath))"
             ])
         }
 
-        return .array(mappedSwiftCompilerFlags)
+        return .array(mappedOtherSwiftFlags)
+    }
+
+    private static func updatedOtherCFlags(
+        targetID: TargetID,
+        oldOtherCFlags: SettingsDictionary.Value?,
+        targetToModuleMaps: [TargetID: Set<AbsolutePath>]
+    ) -> SettingsDictionary.Value? {
+        guard let dependenciesModuleMaps = targetToModuleMaps[targetID] else { return nil }
+
+        var mappedOtherCFlags: [String]
+        switch oldOtherCFlags ?? .array(["$(inherited)"]) {
+        case .array(let values):
+            mappedOtherCFlags = values
+        case .string(let value):
+            mappedOtherCFlags = value.split(separator: " ").map(String.init)
+        }
+
+        for moduleMap in dependenciesModuleMaps.sorted() {
+            mappedOtherCFlags.append("-fmodule-map-file=$(SRCROOT)/\(moduleMap.relative(to: targetID.projectPath))")
+        }
+
+        return .array(mappedOtherCFlags)
     }
 }
