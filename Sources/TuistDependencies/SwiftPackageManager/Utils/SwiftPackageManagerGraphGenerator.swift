@@ -78,7 +78,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
 
         let workspaceState = try JSONDecoder().decode(SwiftPackageManagerWorkspaceState.self, from: try FileHandler.shared.readFile(workspacePath))
         let packageInfos: [(name: String, folder: AbsolutePath, info: PackageInfo)]
-        packageInfos = try workspaceState.object.dependencies.map { dependency in
+        packageInfos = try workspaceState.object.dependencies.map(context: .concurrent) { dependency in
             let name = dependency.packageRef.name
             let packageFolder: AbsolutePath
             switch dependency.packageRef.kind {
