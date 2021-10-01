@@ -15,7 +15,7 @@ public final class TargetContentHasher: TargetContentHashing {
     private let contentHasher: ContentHashing
     private let coreDataModelsContentHasher: CoreDataModelsContentHashing
     private let sourceFilesContentHasher: SourceFilesContentHashing
-    private let targetActionsContentHasher: TargetActionsContentHashing
+    private let targetScriptsContentHasher: TargetScriptsContentHashing
     private let resourcesContentHasher: ResourcesContentHashing
     private let copyFilesContentHasher: CopyFilesContentHashing
     private let headersContentHasher: HeadersContentHashing
@@ -30,7 +30,7 @@ public final class TargetContentHasher: TargetContentHashing {
         self.init(
             contentHasher: contentHasher,
             sourceFilesContentHasher: SourceFilesContentHasher(contentHasher: contentHasher),
-            targetActionsContentHasher: TargetActionsContentHasher(contentHasher: contentHasher),
+            targetScriptsContentHasher: TargetScriptsContentHasher(contentHasher: contentHasher),
             coreDataModelsContentHasher: CoreDataModelsContentHasher(contentHasher: contentHasher),
             resourcesContentHasher: ResourcesContentHasher(contentHasher: contentHasher),
             copyFilesContentHasher: CopyFilesContentHasher(contentHasher: contentHasher),
@@ -45,7 +45,7 @@ public final class TargetContentHasher: TargetContentHashing {
     public init(
         contentHasher: ContentHashing,
         sourceFilesContentHasher: SourceFilesContentHashing,
-        targetActionsContentHasher: TargetActionsContentHashing,
+        targetScriptsContentHasher: TargetScriptsContentHashing,
         coreDataModelsContentHasher: CoreDataModelsContentHashing,
         resourcesContentHasher: ResourcesContentHashing,
         copyFilesContentHasher: CopyFilesContentHashing,
@@ -58,7 +58,7 @@ public final class TargetContentHasher: TargetContentHashing {
         self.contentHasher = contentHasher
         self.sourceFilesContentHasher = sourceFilesContentHasher
         self.coreDataModelsContentHasher = coreDataModelsContentHasher
-        self.targetActionsContentHasher = targetActionsContentHasher
+        self.targetScriptsContentHasher = targetScriptsContentHasher
         self.resourcesContentHasher = resourcesContentHasher
         self.copyFilesContentHasher = copyFilesContentHasher
         self.headersContentHasher = headersContentHasher
@@ -83,7 +83,7 @@ public final class TargetContentHasher: TargetContentHashing {
         let resourcesHash = try resourcesContentHasher.hash(resources: graphTarget.target.resources)
         let copyFilesHash = try copyFilesContentHasher.hash(copyFiles: graphTarget.target.copyFiles)
         let coreDataModelHash = try coreDataModelsContentHasher.hash(coreDataModels: graphTarget.target.coreDataModels)
-        let targetActionsHash = try targetActionsContentHasher.hash(targetActions: graphTarget.target.actions)
+        let targetScriptsHash = try targetScriptsContentHasher.hash(targetScripts: graphTarget.target.scripts)
         let dependenciesHash = try dependenciesContentHasher.hash(graphTarget: graphTarget, hashedTargets: &hashedTargets)
         let environmentHash = try contentHasher.hash(graphTarget.target.environment)
         var stringsToHash = [
@@ -97,7 +97,7 @@ public final class TargetContentHasher: TargetContentHashing {
             resourcesHash,
             copyFilesHash,
             coreDataModelHash,
-            targetActionsHash,
+            targetScriptsHash,
             environmentHash,
         ]
         if let headers = graphTarget.target.headers {

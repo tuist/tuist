@@ -81,8 +81,8 @@ final class TargetLinterTests: TuistUnitTestCase {
     }
 
     func test_lint_when_target_no_source_files_but_has_actions() {
-        let target = Target.test(sources: [], actions: [
-            TargetAction(name: "Test script", order: .post, script: .embedded("echo 'This is a test'")),
+        let target = Target.test(sources: [], scripts: [
+            TargetScript(name: "Test script", order: .post, script: .embedded("echo 'This is a test'")),
         ])
         let got = subject.lint(target: target)
 

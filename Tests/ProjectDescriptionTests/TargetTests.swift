@@ -22,8 +22,8 @@ final class TargetTests: XCTestCase {
                 project: "project/*"
             ),
             entitlements: "entitlement",
-            actions: [
-                TargetAction.post(path: "path", arguments: ["arg"], name: "name"),
+            scripts: [
+                TargetScript.post(path: "path", arguments: ["arg"], name: "name"),
             ],
             dependencies: [
                 .framework(path: "path"),
@@ -66,8 +66,8 @@ final class TargetTests: XCTestCase {
                 project: ["project/*"]
             ),
             entitlements: "entitlement",
-            actions: [
-                TargetAction.post(path: "path", arguments: ["arg"], name: "name"),
+            scripts: [
+                TargetScript.post(path: "path", arguments: ["arg"], name: "name"),
             ],
             dependencies: [
                 .framework(path: "path"),

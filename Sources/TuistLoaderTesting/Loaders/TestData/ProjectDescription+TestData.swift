@@ -63,7 +63,7 @@ extension Target {
                             resources: ResourceFileElements = "Resources/**",
                             headers: Headers? = nil,
                             entitlements: Path? = Path("app.entitlements"),
-                            actions: [TargetAction] = [],
+                            scripts: [TargetScript] = [],
                             dependencies: [TargetDependency] = [],
                             settings: Settings? = nil,
                             coreDataModels: [CoreDataModel] = [],
@@ -80,7 +80,7 @@ extension Target {
             resources: resources,
             headers: headers,
             entitlements: entitlements,
-            actions: actions,
+            scripts: scripts,
             dependencies: dependencies,
             settings: settings,
             coreDataModels: coreDataModels,
@@ -89,7 +89,7 @@ extension Target {
     }
 }
 
-extension TargetAction {
+extension TargetScript {
     public static func test(name: String = "Action",
                             tool: String = "",
                             order: Order = .pre,
@@ -97,9 +97,9 @@ extension TargetAction {
                             inputPaths: [Path] = [],
                             inputFileListPaths: [Path] = [],
                             outputPaths: [Path] = [],
-                            outputFileListPaths: [Path] = []) -> TargetAction
+                            outputFileListPaths: [Path] = []) -> TargetScript
     {
-        TargetAction(
+        TargetScript(
             name: name,
             script: .tool(tool, arguments),
             order: order,

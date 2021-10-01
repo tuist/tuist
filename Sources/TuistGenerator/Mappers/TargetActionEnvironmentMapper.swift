@@ -12,12 +12,12 @@ public final class TargetActionEnvironmentMapper: TargetMapping {
 
     public func map(target: Target) throws -> (Target, [SideEffectDescriptor]) {
         var target = target
-        let actions: [TargetAction] = target.actions.map {
-            var action = $0
-            action.showEnvVarsInLog = showEnvVarsInLog
-            return action
+        let scripts: [TargetScript] = target.scripts.map {
+            var script = $0
+            script.showEnvVarsInLog = showEnvVarsInLog
+            return script
         }
-        target.actions = actions
+        target.scripts = scripts
         return (target, [SideEffectDescriptor]())
     }
 }

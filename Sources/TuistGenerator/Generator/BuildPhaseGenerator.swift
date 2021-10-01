@@ -46,7 +46,7 @@ protocol BuildPhaseGenerating: AnyObject {
     ///   - pbxproj: PBXProj instance.
     ///   - sourceRootPath: Path to the directory that will contain the generated project.
     /// - Throws: An error if the script phase can't be generated.
-    func generateActions(actions: [TargetAction],
+    func generateScripts(_ scripts: [TargetScript],
                          pbxTarget: PBXTarget,
                          pbxproj: PBXProj,
                          sourceRootPath: AbsolutePath) throws
@@ -117,8 +117,8 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             pbxproj: pbxproj
         )
 
-        generateScripts(
-            target.scripts,
+        generateRawScriptBuildPhases(
+            target.rawScriptBuildPhases,
             pbxTarget: pbxTarget,
             pbxproj: pbxproj
         )
@@ -133,27 +133,27 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         )
     }
 
-    func generateActions(actions: [TargetAction],
+    func generateScripts(_ scripts: [TargetScript],
                          pbxTarget: PBXTarget,
                          pbxproj: PBXProj,
                          sourceRootPath: AbsolutePath) throws
     {
-        try actions.forEach { action in
+        try scripts.forEach { script in
             let buildPhase = try PBXShellScriptBuildPhase(
                 files: [],
-                name: action.name,
-                inputPaths: action.inputPaths.map { $0.relative(to: sourceRootPath).pathString },
-                outputPaths: action.outputPaths.map { $0.relative(to: sourceRootPath).pathString },
-                inputFileListPaths: action.inputFileListPaths.map { $0.relative(to: sourceRootPath).pathString }, // swiftlint:disable:this line_length
+                name: script.name,
+                inputPaths: script.inputPaths.map { $0.relative(to: sourceRootPath).pathString },
+                outputPaths: script.outputPaths.map { $0.relative(to: sourceRootPath).pathString },
+                inputFileListPaths: script.inputFileListPaths.map { $0.relative(to: sourceRootPath).pathString }, // swiftlint:disable:this line_length
 
-                outputFileListPaths: action.outputFileListPaths.map { $0.relative(to: sourceRootPath).pathString }, // swiftlint:disable:this line_length
+                outputFileListPaths: script.outputFileListPaths.map { $0.relative(to: sourceRootPath).pathString }, // swiftlint:disable:this line_length
 
-                shellPath: action.shellPath,
-                shellScript: action.shellScript(sourceRootPath: sourceRootPath),
-                runOnlyForDeploymentPostprocessing: action.runForInstallBuildsOnly,
-                showEnvVarsInLog: action.showEnvVarsInLog
+                shellPath: script.shellPath,
+                shellScript: script.shellScript(sourceRootPath: sourceRootPath),
+                runOnlyForDeploymentPostprocessing: script.runForInstallBuildsOnly,
+                showEnvVarsInLog: script.showEnvVarsInLog
             )
-            if let basedOnDependencyAnalysis = action.basedOnDependencyAnalysis {
+            if let basedOnDependencyAnalysis = script.basedOnDependencyAnalysis {
                 // Force the script to run in all incremental builds, if we
                 // are NOT running it based on dependency analysis. Otherwise
                 // leave it at the default value.
@@ -165,11 +165,11 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         }
     }
 
-    func generateScripts(_ scripts: [TargetScript],
-                         pbxTarget: PBXTarget,
-                         pbxproj: PBXProj)
+    func generateRawScriptBuildPhases(_ rawScriptBuildPhases: [RawScriptBuildPhase],
+                                      pbxTarget: PBXTarget,
+                                      pbxproj: PBXProj)
     {
-        scripts.forEach { script in
+        rawScriptBuildPhases.forEach { script in
             let buildPhase = PBXShellScriptBuildPhase(
                 files: [],
                 name: script.name,

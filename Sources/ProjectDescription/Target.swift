@@ -47,8 +47,8 @@ public struct Target: Codable, Equatable {
     /// Headers.
     public let headers: Headers?
 
-    /// Target actions.
-    public let actions: [TargetAction]
+    /// Target scripts.
+    public let scripts: [TargetScript]
 
     /// CoreData models.
     public let coreDataModels: [CoreDataModel]
@@ -74,7 +74,7 @@ public struct Target: Codable, Equatable {
         case copyFiles
         case headers
         case coreDataModels = "core_data_models"
-        case actions
+        case scripts
         case environment
         case launchArguments
         case deploymentTarget
@@ -93,7 +93,7 @@ public struct Target: Codable, Equatable {
     ///   - copyFiles: copy files phases.
     ///   - headers: headers.
     ///   - entitlements: relative path to the entitlements file.
-    ///   - actions: target actions.
+    ///   - scripts: target scripts.
     ///   - dependencies: target dependencies.
     ///   - settings: target settings.
     ///   - coreDataModels: CoreData models.
@@ -111,7 +111,7 @@ public struct Target: Codable, Equatable {
                 copyFiles: [CopyFilesAction]? = nil,
                 headers: Headers? = nil,
                 entitlements: Path? = nil,
-                actions: [TargetAction] = [],
+                scripts: [TargetScript] = [],
                 dependencies: [TargetDependency] = [],
                 settings: Settings? = nil,
                 coreDataModels: [CoreDataModel] = [],
@@ -131,7 +131,7 @@ public struct Target: Codable, Equatable {
         self.resources = resources
         self.copyFiles = copyFiles
         self.headers = headers
-        self.actions = actions
+        self.scripts = scripts
         self.coreDataModels = coreDataModels
         self.environment = environment
         self.launchArguments = launchArguments

@@ -66,8 +66,8 @@ extension TuistGraph.Target {
             try TuistGraph.CoreDataModel.from(manifest: $0, generatorPaths: generatorPaths)
         }
 
-        let actions = try manifest.actions.map {
-            try TuistGraph.TargetAction.from(manifest: $0, generatorPaths: generatorPaths)
+        let scripts = try manifest.scripts.map {
+            try TuistGraph.TargetScript.from(manifest: $0, generatorPaths: generatorPaths)
         }
 
         let environment = manifest.environment
@@ -90,7 +90,7 @@ extension TuistGraph.Target {
             copyFiles: copyFiles,
             headers: headers,
             coreDataModels: coreDataModels,
-            actions: actions,
+            scripts: scripts,
             environment: environment,
             launchArguments: launchArguments,
             filesGroup: .group(name: "Project"),

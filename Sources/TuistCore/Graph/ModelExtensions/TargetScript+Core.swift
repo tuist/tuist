@@ -3,7 +3,7 @@ import TSCBasic
 import TuistGraph
 import TuistSupport
 
-extension TargetAction {
+extension TargetScript {
     /// Returns the shell script that should be used in the target build phase.
     ///
     /// - Parameters:

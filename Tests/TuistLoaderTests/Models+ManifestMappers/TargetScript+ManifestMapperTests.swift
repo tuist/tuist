@@ -9,19 +9,19 @@ import XCTest
 @testable import TuistLoader
 @testable import TuistSupportTesting
 
-final class TargetActionManifestMapperTests: TuistUnitTestCase {
+final class TargetScriptManifestMapperTests: TuistUnitTestCase {
     func test_from() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
-        let manifest = ProjectDescription.TargetAction.test(
+        let manifest = ProjectDescription.TargetScript.test(
             name: "MyScript",
             tool: "my_tool",
             order: .pre,
             arguments: ["arg1", "arg2"]
         )
         // When
-        let model = try TuistGraph.TargetAction.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try TuistGraph.TargetScript.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(model.name, "MyScript")
@@ -33,7 +33,7 @@ final class TargetActionManifestMapperTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try self.temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
-        let manifest = ProjectDescription.TargetAction.test(
+        let manifest = ProjectDescription.TargetScript.test(
             name: "MyScript",
             tool: "my_tool",
             order: .pre,
@@ -44,7 +44,7 @@ final class TargetActionManifestMapperTests: TuistUnitTestCase {
             outputFileListPaths: ["$(SRCROOT)/foo/bar/**/*.swift"]
         )
         // When
-        let model = try TuistGraph.TargetAction.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try TuistGraph.TargetScript.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(model.name, "MyScript")

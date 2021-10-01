@@ -148,8 +148,8 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         let contentHash = try subject.contentHashes(for: graph, cacheProfile: cacheProfile, cacheOutputType: .framework, excludedTargets: [])
 
         // Then
-        XCTAssertEqual(contentHash[framework1], "a7dc3ed1c35e5f08a69d93b07c979ffe")
-        XCTAssertEqual(contentHash[framework2], "324b4e4ec028fa01d1abc88098f3b064")
+        XCTAssertEqual(contentHash[framework1], "fca52faf5970f3a1e46ac601a26e26e3")
+        XCTAssertEqual(contentHash[framework2], "cf30fd30ebe1a7b18a06ee6401b1cd98")
     }
 
     func test_contentHashes_hashChangesWithCacheOutputType() throws {
@@ -423,7 +423,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         sources: [SourceFile] = [],
         resources: [ResourceFileElement] = [],
         coreDataModels: [CoreDataModel] = [],
-        targetActions: [TargetAction] = []
+        targetScripts: [TargetScript] = []
     ) -> GraphTarget {
         GraphTarget.test(
             path: project.path,
@@ -434,7 +434,7 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
                 sources: sources,
                 resources: resources,
                 coreDataModels: coreDataModels,
-                actions: targetActions
+                scripts: targetScripts
             ),
             project: project
         )

@@ -3,26 +3,26 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
-/// Protocol that defines the interface of a linter for target actions.
-protocol TargetActionLinting {
+/// Protocol that defines the interface of a linter for target scripts.
+protocol TargetScriptLinting {
     /// Lints a target aciton.
     ///
     /// - Parameter action: Action to be linted.
     /// - Returns: Found linting issues.
-    func lint(_ action: TargetAction) -> [LintingIssue]
+    func lint(_ script: TargetScript) -> [LintingIssue]
 }
 
-class TargetActionLinter: TargetActionLinting {
-    func lint(_ action: TargetAction) -> [LintingIssue] {
+class TargetScriptLinter: TargetScriptLinting {
+    func lint(_ script: TargetScript) -> [LintingIssue] {
         var issues: [LintingIssue] = []
-        issues.append(contentsOf: lintEmbeddedScriptNotEmpty(action))
-        issues.append(contentsOf: lintToolExistence(action))
-        issues.append(contentsOf: lintPathExistence(action))
+        issues.append(contentsOf: lintEmbeddedScriptNotEmpty(script))
+        issues.append(contentsOf: lintToolExistence(script))
+        issues.append(contentsOf: lintPathExistence(script))
         return issues
     }
 
-    private func lintEmbeddedScriptNotEmpty(_ action: TargetAction) -> [LintingIssue] {
-        guard let script = action.embeddedScript,
+    private func lintEmbeddedScriptNotEmpty(_ script: TargetScript) -> [LintingIssue] {
+        guard let script = script.embeddedScript,
             script.isEmpty
         else { return [] }
 
@@ -35,28 +35,28 @@ class TargetActionLinter: TargetActionLinting {
     ///
     /// - Parameter action: Action to be linted.
     /// - Returns: Found linting issues.
-    private func lintToolExistence(_ action: TargetAction) -> [LintingIssue] {
+    private func lintToolExistence(_ script: TargetScript) -> [LintingIssue] {
         guard
-            let tool = action.tool
+            let tool = script.tool
         else { return [] }
         do {
             _ = try System.shared.which(tool)
             return []
         } catch {
             return [LintingIssue(
-                reason: "The action tool '\(tool)' was not found in the environment",
+                reason: "The script tool '\(tool)' was not found in the environment",
                 severity: .error
             )]
         }
     }
 
-    private func lintPathExistence(_ action: TargetAction) -> [LintingIssue] {
+    private func lintPathExistence(_ script: TargetScript) -> [LintingIssue] {
         guard
-            let path = action.path,
+            let path = script.path,
             !FileHandler.shared.exists(path)
         else { return [] }
         return [LintingIssue(
-            reason: "The action path \(path.pathString) doesn't exist",
+            reason: "The script path \(path.pathString) doesn't exist",
             severity: .error
         )]
     }

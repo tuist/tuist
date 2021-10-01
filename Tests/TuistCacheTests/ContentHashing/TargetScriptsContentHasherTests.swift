@@ -9,15 +9,15 @@ import XCTest
 @testable import TuistCache
 @testable import TuistSupportTesting
 
-final class TargetActionsContentHasherTests: TuistUnitTestCase {
-    private var subject: TargetActionsContentHasher!
+final class TargetScriptsContentHasherTests: TuistUnitTestCase {
+    private var subject: TargetScriptsContentHasher!
     private var mockContentHasher: MockContentHasher!
     private var temporaryDirectory: TemporaryDirectory!
 
     override func setUp() {
         super.setUp()
         mockContentHasher = MockContentHasher()
-        subject = TargetActionsContentHasher(contentHasher: mockContentHasher)
+        subject = TargetScriptsContentHasher(contentHasher: mockContentHasher)
         do {
             temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         } catch {
@@ -33,16 +33,16 @@ final class TargetActionsContentHasherTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    private func makeTargetAction(name: String = "1",
-                                  order: TargetAction.Order = .pre,
+    private func makeTargetScript(name: String = "1",
+                                  order: TargetScript.Order = .pre,
                                   tool: String = "tool1",
                                   arguments: [String] = ["arg1", "arg2"],
                                   inputPaths: [AbsolutePath] = [AbsolutePath("/inputPaths1")],
                                   inputFileListPaths: [AbsolutePath] = [AbsolutePath("/inputFileListPaths1")],
                                   outputPaths: [AbsolutePath] = [AbsolutePath("/outputPaths1")],
-                                  outputFileListPaths: [AbsolutePath] = [AbsolutePath("/outputFileListPaths1")]) -> TargetAction
+                                  outputFileListPaths: [AbsolutePath] = [AbsolutePath("/outputFileListPaths1")]) -> TargetScript
     {
-        TargetAction(
+        TargetScript(
             name: name,
             order: order,
             script: .tool(tool, arguments),
@@ -65,10 +65,10 @@ final class TargetActionsContentHasherTests: TuistUnitTestCase {
         mockContentHasher.stubHashForPath[AbsolutePath("/inputFileListPaths1")] = inputFileListPaths1
         mockContentHasher.stubHashForPath[AbsolutePath("/outputPaths1")] = outputPaths1
         mockContentHasher.stubHashForPath[AbsolutePath("/outputFileListPaths1")] = outputFileListPaths1
-        let targetAction = makeTargetAction()
+        let targetScript = makeTargetScript()
 
         // When
-        _ = try subject.hash(targetActions: [targetAction])
+        _ = try subject.hash(targetScripts: [targetScript])
 
         // Then
         let expected = [inputPaths1Hash,
@@ -93,10 +93,10 @@ final class TargetActionsContentHasherTests: TuistUnitTestCase {
         mockContentHasher.stubHashForPath[AbsolutePath("/inputFileListPaths1")] = inputFileListPaths1
         mockContentHasher.stubHashForPath[AbsolutePath("/outputPaths1")] = outputPaths1
         mockContentHasher.stubHashForPath[AbsolutePath("/outputFileListPaths1")] = outputFileListPaths1
-        let targetAction = makeTargetAction()
+        let targetScript = makeTargetScript()
 
         // When
-        _ = try subject.hash(targetActions: [targetAction])
+        _ = try subject.hash(targetScripts: [targetScript])
 
         // Then
         let expected = [
@@ -123,7 +123,7 @@ final class TargetActionsContentHasherTests: TuistUnitTestCase {
         mockContentHasher.stubHashForPath[AbsolutePath("/inputFileListPaths2")] = inputFileListPaths2
         mockContentHasher.stubHashForPath[AbsolutePath("/outputPaths2")] = outputPaths2
         mockContentHasher.stubHashForPath[AbsolutePath("/outputFileListPaths2")] = outputFileListPaths2
-        let targetAction = makeTargetAction(
+        let targetScript = makeTargetScript(
             name: "2",
             order: .post,
             tool: "tool2",
@@ -134,7 +134,7 @@ final class TargetActionsContentHasherTests: TuistUnitTestCase {
         )
 
         // When
-        _ = try subject.hash(targetActions: [targetAction])
+        _ = try subject.hash(targetScripts: [targetScript])
 
         // Then
         let expected = [inputPaths2Hash,

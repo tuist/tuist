@@ -73,8 +73,8 @@ final class TargetGenerator: TargetGenerating {
         pbxProject.targets.append(pbxTarget)
 
         /// Pre actions
-        try buildPhaseGenerator.generateActions(
-            actions: target.actions.preActions,
+        try buildPhaseGenerator.generateScripts(
+            target.scripts.preScripts,
             pbxTarget: pbxTarget,
             pbxproj: pbxproj,
             sourceRootPath: project.sourceRootPath
@@ -114,8 +114,8 @@ final class TargetGenerator: TargetGenerating {
         )
 
         /// Post actions
-        try buildPhaseGenerator.generateActions(
-            actions: target.actions.postActions,
+        try buildPhaseGenerator.generateScripts(
+            target.scripts.postScripts,
             pbxTarget: pbxTarget,
             pbxproj: pbxproj,
             sourceRootPath: project.sourceRootPath

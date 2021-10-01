@@ -1,7 +1,7 @@
 import Foundation
 
-public struct TargetAction: Codable, Equatable {
-    /// Order when the action gets executed.
+public struct TargetScript: Codable, Equatable {
+    /// Order when the script gets executed.
     ///
     /// - pre: Before the sources and resources build phase.
     /// - post: After the sources and resources build phase.
@@ -10,7 +10,7 @@ public struct TargetAction: Codable, Equatable {
         case post
     }
 
-    /// Specifies how to execute the target action
+    /// Specifies how to execute the target script
     ///
     /// - tool: Executes the tool with the given arguments. Tuist will look up the tool on the environment's PATH.
     /// - scriptPath: Executes the file at the path with the given arguments.
@@ -24,10 +24,10 @@ public struct TargetAction: Codable, Equatable {
     /// Name of the build phase when the project gets generated.
     public let name: String
 
-    /// The action that is to be executed
+    /// The script that is to be executed
     public let script: Script
 
-    /// Target action order.
+    /// Target script order.
     public let order: Order
 
     /// List of input file paths
@@ -45,7 +45,7 @@ public struct TargetAction: Codable, Equatable {
     /// Whether to skip running this script in incremental builds, if nothing has changed
     public let basedOnDependencyAnalysis: Bool?
 
-    /// Whether this action only runs on install builds (default is false)
+    /// Whether this script only runs on install builds (default is false)
     public let runForInstallBuildsOnly: Bool
 
     /// The path to the shell which shall execute this script.
@@ -67,7 +67,7 @@ public struct TargetAction: Codable, Equatable {
         case shellPath
     }
 
-    /// Initializes the target action with its attributes.
+    /// Initializes the target script with its attributes.
     ///
     /// - Parameters:
     ///   - name: Name of the build phase when the project gets generated.
@@ -78,7 +78,7 @@ public struct TargetAction: Codable, Equatable {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
-    ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
+    ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     init(name: String,
          script: Script = .embedded(""),
@@ -155,172 +155,10 @@ public struct TargetAction: Codable, Equatable {
             try container.encode(args, forKey: .arguments)
         }
     }
-}
 
-// MARK: Tools init
+    // MARK: - Path init
 
-extension TargetAction {
-    /// Returns a target action that gets executed before the sources and resources build phase.
-    ///
-    /// - Parameters:
-    ///   - tool: Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
-    ///   - arguments: Arguments that to be passed.
-    ///   - name: Name of the build phase when the project gets generated.
-    ///   - inputPaths: List of input file paths.
-    ///   - inputFileListPaths: List of input filelist paths.
-    ///   - outputPaths: List of output file paths.
-    ///   - outputFileListPaths: List of output filelist paths.
-    ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
-    ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
-    ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    /// - Returns: Target action.
-    public static func pre(tool: String,
-                           arguments: String...,
-                           name: String,
-                           inputPaths: [Path] = [],
-                           inputFileListPaths: [Path] = [],
-                           outputPaths: [Path] = [],
-                           outputFileListPaths: [Path] = [],
-                           basedOnDependencyAnalysis: Bool? = nil,
-                           runForInstallBuildsOnly: Bool = false,
-                           shellPath: String = "/bin/sh") -> TargetAction
-    {
-        TargetAction(
-            name: name,
-            script: .tool(tool, arguments),
-            order: .pre,
-            inputPaths: inputPaths,
-            inputFileListPaths: inputFileListPaths,
-            outputPaths: outputPaths,
-            outputFileListPaths: outputFileListPaths,
-            basedOnDependencyAnalysis: basedOnDependencyAnalysis,
-            runForInstallBuildsOnly: runForInstallBuildsOnly,
-            shellPath: shellPath
-        )
-    }
-
-    /// Returns a target action that gets executed before the sources and resources build phase.
-    ///
-    /// - Parameters:
-    ///   - tool: Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
-    ///   - arguments: Arguments that to be passed.
-    ///   - name: Name of the build phase when the project gets generated.
-    ///   - inputPaths: List of input file paths.
-    ///   - inputFileListPaths: List of input filelist paths.
-    ///   - outputPaths: List of output file paths.
-    ///   - outputFileListPaths: List of output filelist paths.
-    ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
-    ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
-    ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    /// - Returns: Target action.
-    public static func pre(tool: String,
-                           arguments: [String],
-                           name: String,
-                           inputPaths: [Path] = [],
-                           inputFileListPaths: [Path] = [],
-                           outputPaths: [Path] = [],
-                           outputFileListPaths: [Path] = [],
-                           basedOnDependencyAnalysis: Bool? = nil,
-                           runForInstallBuildsOnly: Bool = false,
-                           shellPath: String = "/bin/sh") -> TargetAction
-    {
-        TargetAction(
-            name: name,
-            script: .tool(tool, arguments),
-            order: .pre,
-            inputPaths: inputPaths,
-            inputFileListPaths: inputFileListPaths,
-            outputPaths: outputPaths,
-            outputFileListPaths: outputFileListPaths,
-            basedOnDependencyAnalysis: basedOnDependencyAnalysis,
-            runForInstallBuildsOnly: runForInstallBuildsOnly,
-            shellPath: shellPath
-        )
-    }
-
-    /// Returns a target action that gets executed after the sources and resources build phase.
-    ///
-    /// - Parameters:
-    ///   - tool: Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
-    ///   - arguments: Arguments that to be passed.
-    ///   - name: Name of the build phase when the project gets generated.
-    ///   - inputPaths: List of input file paths.
-    ///   - inputFileListPaths: List of input filelist paths.
-    ///   - outputPaths: List of output file paths.
-    ///   - outputFileListPaths: List of output filelist paths.
-    ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
-    ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
-    ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    /// - Returns: Target action.
-    public static func post(tool: String,
-                            arguments: String...,
-                            name: String,
-                            inputPaths: [Path] = [],
-                            inputFileListPaths: [Path] = [],
-                            outputPaths: [Path] = [],
-                            outputFileListPaths: [Path] = [],
-                            basedOnDependencyAnalysis: Bool? = nil,
-                            runForInstallBuildsOnly: Bool = false,
-                            shellPath: String = "/bin/sh") -> TargetAction
-    {
-        TargetAction(
-            name: name,
-            script: .tool(tool, arguments),
-            order: .post,
-            inputPaths: inputPaths,
-            inputFileListPaths: inputFileListPaths,
-            outputPaths: outputPaths,
-            outputFileListPaths: outputFileListPaths,
-            basedOnDependencyAnalysis: basedOnDependencyAnalysis,
-            runForInstallBuildsOnly: runForInstallBuildsOnly,
-            shellPath: shellPath
-        )
-    }
-
-    /// Returns a target action that gets executed after the sources and resources build phase.
-    ///
-    /// - Parameters:
-    ///   - tool: Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
-    ///   - arguments: Arguments that to be passed.
-    ///   - name: Name of the build phase when the project gets generated.
-    ///   - inputPaths: List of input file paths.
-    ///   - inputFileListPaths: List of input filelist paths.
-    ///   - outputPaths: List of output file paths.
-    ///   - outputFileListPaths: List of output filelist paths.
-    ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
-    ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
-    ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    /// - Returns: Target action.
-    public static func post(tool: String,
-                            arguments: [String],
-                            name: String,
-                            inputPaths: [Path] = [],
-                            inputFileListPaths: [Path] = [],
-                            outputPaths: [Path] = [],
-                            outputFileListPaths: [Path] = [],
-                            basedOnDependencyAnalysis: Bool? = nil,
-                            runForInstallBuildsOnly: Bool = false,
-                            shellPath: String = "/bin/sh") -> TargetAction
-    {
-        TargetAction(
-            name: name,
-            script: .tool(tool, arguments),
-            order: .post,
-            inputPaths: inputPaths,
-            inputFileListPaths: inputFileListPaths,
-            outputPaths: outputPaths,
-            outputFileListPaths: outputFileListPaths,
-            basedOnDependencyAnalysis: basedOnDependencyAnalysis,
-            runForInstallBuildsOnly: runForInstallBuildsOnly,
-            shellPath: shellPath
-        )
-    }
-}
-
-// MARK: Path init
-
-extension TargetAction {
-    /// Returns a target action that gets executed before the sources and resources build phase.
+    /// Returns a target script that gets executed before the sources and resources build phase.
     ///
     /// - Parameters:
     ///   - path: Path to the script to execute.
@@ -331,9 +169,9 @@ extension TargetAction {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
-    ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
+    ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    /// - Returns: Target action.
+    /// - Returns: Target script.
     public static func pre(path: Path,
                            arguments: String...,
                            name: String,
@@ -343,9 +181,9 @@ extension TargetAction {
                            outputFileListPaths: [Path] = [],
                            basedOnDependencyAnalysis: Bool? = nil,
                            runForInstallBuildsOnly: Bool = false,
-                           shellPath: String = "/bin/sh") -> TargetAction
+                           shellPath: String = "/bin/sh") -> TargetScript
     {
-        TargetAction(
+        TargetScript(
             name: name,
             script: .scriptPath(path, args: arguments),
             order: .pre,
@@ -359,7 +197,7 @@ extension TargetAction {
         )
     }
 
-    /// Returns a target action that gets executed before the sources and resources build phase.
+    /// Returns a target script that gets executed before the sources and resources build phase.
     ///
     /// - Parameters:
     ///   - path: Path to the script to execute.
@@ -370,9 +208,9 @@ extension TargetAction {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
-    ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
+    ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    /// - Returns: Target action.
+    /// - Returns: Target script.
     public static func pre(path: Path,
                            arguments: [String],
                            name: String,
@@ -382,9 +220,9 @@ extension TargetAction {
                            outputFileListPaths: [Path] = [],
                            basedOnDependencyAnalysis: Bool? = nil,
                            runForInstallBuildsOnly: Bool = false,
-                           shellPath: String = "/bin/sh") -> TargetAction
+                           shellPath: String = "/bin/sh") -> TargetScript
     {
-        TargetAction(
+        TargetScript(
             name: name,
             script: .scriptPath(path, args: arguments),
             order: .pre,
@@ -398,7 +236,7 @@ extension TargetAction {
         )
     }
 
-    /// Returns a target action that gets executed after the sources and resources build phase.
+    /// Returns a target script that gets executed after the sources and resources build phase.
     ///
     /// - Parameters:
     ///   - path: Path to the script to execute.
@@ -409,9 +247,9 @@ extension TargetAction {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
-    ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
+    ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    /// - Returns: Target action.
+    /// - Returns: Target script.
     public static func post(path: Path,
                             arguments: String...,
                             name: String,
@@ -421,9 +259,9 @@ extension TargetAction {
                             outputFileListPaths: [Path] = [],
                             basedOnDependencyAnalysis: Bool? = nil,
                             runForInstallBuildsOnly: Bool = false,
-                            shellPath: String = "/bin/sh") -> TargetAction
+                            shellPath: String = "/bin/sh") -> TargetScript
     {
-        TargetAction(
+        TargetScript(
             name: name,
             script: .scriptPath(path, args: arguments),
             order: .post,
@@ -437,7 +275,7 @@ extension TargetAction {
         )
     }
 
-    /// Returns a target action that gets executed after the sources and resources build phase.
+    /// Returns a target script that gets executed after the sources and resources build phase.
     ///
     /// - Parameters:
     ///   - path: Path to the script to execute.
@@ -448,9 +286,9 @@ extension TargetAction {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
-    ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
+    ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    /// - Returns: Target action.
+    /// - Returns: Target script.
     public static func post(path: Path,
                             arguments: [String],
                             name: String,
@@ -460,9 +298,9 @@ extension TargetAction {
                             outputFileListPaths: [Path] = [],
                             basedOnDependencyAnalysis: Bool? = nil,
                             runForInstallBuildsOnly: Bool = false,
-                            shellPath: String = "/bin/sh") -> TargetAction
+                            shellPath: String = "/bin/sh") -> TargetScript
     {
-        TargetAction(
+        TargetScript(
             name: name,
             script: .scriptPath(path, args: arguments),
             order: .post,
@@ -475,12 +313,168 @@ extension TargetAction {
             shellPath: shellPath
         )
     }
-}
 
-// MARK: Embedded script init
+    // MARK: - Tools init
 
-extension TargetAction {
-    /// Returns a target action that gets executed before the sources and resources build phase.
+    /// Returns a target script that gets executed before the sources and resources build phase.
+    ///
+    /// - Parameters:
+    ///   - tool: Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
+    ///   - arguments: Arguments that to be passed.
+    ///   - name: Name of the build phase when the project gets generated.
+    ///   - inputPaths: List of input file paths.
+    ///   - inputFileListPaths: List of input filelist paths.
+    ///   - outputPaths: List of output file paths.
+    ///   - outputFileListPaths: List of output filelist paths.
+    ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
+    ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
+    ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
+    /// - Returns: Target script.
+    public static func pre(tool: String,
+                           arguments: String...,
+                           name: String,
+                           inputPaths: [Path] = [],
+                           inputFileListPaths: [Path] = [],
+                           outputPaths: [Path] = [],
+                           outputFileListPaths: [Path] = [],
+                           basedOnDependencyAnalysis: Bool? = nil,
+                           runForInstallBuildsOnly: Bool = false,
+                           shellPath: String = "/bin/sh") -> TargetScript
+    {
+        TargetScript(
+            name: name,
+            script: .tool(tool, arguments),
+            order: .pre,
+            inputPaths: inputPaths,
+            inputFileListPaths: inputFileListPaths,
+            outputPaths: outputPaths,
+            outputFileListPaths: outputFileListPaths,
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+            runForInstallBuildsOnly: runForInstallBuildsOnly,
+            shellPath: shellPath
+        )
+    }
+
+    /// Returns a target script that gets executed before the sources and resources build phase.
+    ///
+    /// - Parameters:
+    ///   - tool: Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
+    ///   - arguments: Arguments that to be passed.
+    ///   - name: Name of the build phase when the project gets generated.
+    ///   - inputPaths: List of input file paths.
+    ///   - inputFileListPaths: List of input filelist paths.
+    ///   - outputPaths: List of output file paths.
+    ///   - outputFileListPaths: List of output filelist paths.
+    ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
+    ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
+    ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
+    /// - Returns: Target script.
+    public static func pre(tool: String,
+                           arguments: [String],
+                           name: String,
+                           inputPaths: [Path] = [],
+                           inputFileListPaths: [Path] = [],
+                           outputPaths: [Path] = [],
+                           outputFileListPaths: [Path] = [],
+                           basedOnDependencyAnalysis: Bool? = nil,
+                           runForInstallBuildsOnly: Bool = false,
+                           shellPath: String = "/bin/sh") -> TargetScript
+    {
+        TargetScript(
+            name: name,
+            script: .tool(tool, arguments),
+            order: .pre,
+            inputPaths: inputPaths,
+            inputFileListPaths: inputFileListPaths,
+            outputPaths: outputPaths,
+            outputFileListPaths: outputFileListPaths,
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+            runForInstallBuildsOnly: runForInstallBuildsOnly,
+            shellPath: shellPath
+        )
+    }
+
+    /// Returns a target script that gets executed after the sources and resources build phase.
+    ///
+    /// - Parameters:
+    ///   - tool: Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
+    ///   - arguments: Arguments that to be passed.
+    ///   - name: Name of the build phase when the project gets generated.
+    ///   - inputPaths: List of input file paths.
+    ///   - inputFileListPaths: List of input filelist paths.
+    ///   - outputPaths: List of output file paths.
+    ///   - outputFileListPaths: List of output filelist paths.
+    ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
+    ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
+    ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
+    /// - Returns: Target script.
+    public static func post(tool: String,
+                            arguments: String...,
+                            name: String,
+                            inputPaths: [Path] = [],
+                            inputFileListPaths: [Path] = [],
+                            outputPaths: [Path] = [],
+                            outputFileListPaths: [Path] = [],
+                            basedOnDependencyAnalysis: Bool? = nil,
+                            runForInstallBuildsOnly: Bool = false,
+                            shellPath: String = "/bin/sh") -> TargetScript
+    {
+        TargetScript(
+            name: name,
+            script: .tool(tool, arguments),
+            order: .post,
+            inputPaths: inputPaths,
+            inputFileListPaths: inputFileListPaths,
+            outputPaths: outputPaths,
+            outputFileListPaths: outputFileListPaths,
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+            runForInstallBuildsOnly: runForInstallBuildsOnly,
+            shellPath: shellPath
+        )
+    }
+
+    /// Returns a target script that gets executed after the sources and resources build phase.
+    ///
+    /// - Parameters:
+    ///   - tool: Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
+    ///   - arguments: Arguments that to be passed.
+    ///   - name: Name of the build phase when the project gets generated.
+    ///   - inputPaths: List of input file paths.
+    ///   - inputFileListPaths: List of input filelist paths.
+    ///   - outputPaths: List of output file paths.
+    ///   - outputFileListPaths: List of output filelist paths.
+    ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
+    ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
+    ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
+    /// - Returns: Target script.
+    public static func post(tool: String,
+                            arguments: [String],
+                            name: String,
+                            inputPaths: [Path] = [],
+                            inputFileListPaths: [Path] = [],
+                            outputPaths: [Path] = [],
+                            outputFileListPaths: [Path] = [],
+                            basedOnDependencyAnalysis: Bool? = nil,
+                            runForInstallBuildsOnly: Bool = false,
+                            shellPath: String = "/bin/sh") -> TargetScript
+    {
+        TargetScript(
+            name: name,
+            script: .tool(tool, arguments),
+            order: .post,
+            inputPaths: inputPaths,
+            inputFileListPaths: inputFileListPaths,
+            outputPaths: outputPaths,
+            outputFileListPaths: outputFileListPaths,
+            basedOnDependencyAnalysis: basedOnDependencyAnalysis,
+            runForInstallBuildsOnly: runForInstallBuildsOnly,
+            shellPath: shellPath
+        )
+    }
+
+    // MARK: Embedded script init
+
+    /// Returns a target script that gets executed before the sources and resources build phase.
     ///
     /// - Parameters:
     ///   - script: The text of the script to run. This should be kept small.
@@ -491,9 +485,9 @@ extension TargetAction {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
-    ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
+    ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    /// - Returns: Target action.
+    /// - Returns: Target script.
     public static func pre(script: String,
                            name: String,
                            inputPaths: [Path] = [],
@@ -502,9 +496,9 @@ extension TargetAction {
                            outputFileListPaths: [Path] = [],
                            basedOnDependencyAnalysis: Bool? = nil,
                            runForInstallBuildsOnly: Bool = false,
-                           shellPath: String = "/bin/sh") -> TargetAction
+                           shellPath: String = "/bin/sh") -> TargetScript
     {
-        TargetAction(
+        TargetScript(
             name: name,
             script: .embedded(script),
             order: .pre,
@@ -518,7 +512,7 @@ extension TargetAction {
         )
     }
 
-    /// Returns a target action that gets executed after the sources and resources build phase.
+    /// Returns a target script that gets executed after the sources and resources build phase.
     ///
     /// - Parameters:
     ///   - path: Path to the script to execute.
@@ -529,9 +523,9 @@ extension TargetAction {
     ///   - outputPaths: List of output file paths.
     ///   - outputFileListPaths: List of output filelist paths.
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
-    ///   - runForInstallBuildsOnly: Whether this action only runs on install builds (default is false)
+    ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    /// - Returns: Target action.
+    /// - Returns: Target script.
     public static func post(script: String,
                             name: String,
                             inputPaths: [Path] = [],
@@ -540,9 +534,9 @@ extension TargetAction {
                             outputFileListPaths: [Path] = [],
                             basedOnDependencyAnalysis: Bool? = nil,
                             runForInstallBuildsOnly: Bool = false,
-                            shellPath: String = "/bin/sh") -> TargetAction
+                            shellPath: String = "/bin/sh") -> TargetScript
     {
-        TargetAction(
+        TargetScript(
             name: name,
             script: .embedded(script),
             order: .post,

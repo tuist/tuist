@@ -275,7 +275,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         // Then
 
         XCTAssertSettings(got, containsAll: projectEssentialDebugSettings)
-        XCTAssertEqual(got.count, 48)
+        XCTAssertEqual(got.count, 49)
     }
 
     func testProjectSettings_whenRecommendedRelease() throws {
@@ -296,7 +296,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
 
         // Then
         XCTAssertSettings(got, containsAll: projectEssentialReleaseSettings)
-        XCTAssertEqual(got.count, 45)
+        XCTAssertEqual(got.count, 46)
     }
 
     func testProjectSettings_whenNoneDebug() throws {

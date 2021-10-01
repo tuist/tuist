@@ -11,15 +11,15 @@ class TargetLinter: TargetLinting {
     // MARK: - Attributes
 
     private let settingsLinter: SettingsLinting
-    private let targetActionLinter: TargetActionLinting
+    private let targetScriptLinter: TargetScriptLinting
 
     // MARK: - Init
 
     init(settingsLinter: SettingsLinting = SettingsLinter(),
-         targetActionLinter: TargetActionLinting = TargetActionLinter())
+         targetScriptLinter: TargetScriptLinting = TargetScriptLinter())
     {
         self.settingsLinter = settingsLinter
-        self.targetActionLinter = targetActionLinter
+        self.targetScriptLinter = targetScriptLinter
     }
 
     // MARK: - TargetLinting
@@ -38,8 +38,8 @@ class TargetLinter: TargetLinting {
         issues.append(contentsOf: lintValidSourceFileCodeGenAttributes(target: target))
         issues.append(contentsOf: validateCoreDataModelsExist(target: target))
         issues.append(contentsOf: validateCoreDataModelVersionsExist(target: target))
-        target.actions.forEach { action in
-            issues.append(contentsOf: targetActionLinter.lint(action))
+        target.scripts.forEach { script in
+            issues.append(contentsOf: targetScriptLinter.lint(script))
         }
         return issues
     }
@@ -86,9 +86,9 @@ class TargetLinter: TargetLinting {
 
         let hasNoSources = supportsSources && sources.isEmpty
         let hasNoDependencies = target.dependencies.isEmpty
-        let hasNoActions = target.actions.isEmpty
+        let hasNoScripts = target.scripts.isEmpty
 
-        if hasNoSources, hasNoDependencies, hasNoActions {
+        if hasNoSources, hasNoDependencies, hasNoScripts {
             return [LintingIssue(reason: "The target \(target.name) doesn't contain source files.", severity: .warning)]
         } else if !supportsSources, !sources.isEmpty {
             return [LintingIssue(reason: "Target \(target.name) cannot contain sources. \(target.platform) \(target.product) targets don't support source files", severity: .error)]

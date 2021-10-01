@@ -5,14 +5,14 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
-extension TuistGraph.TargetAction {
+extension TuistGraph.TargetScript {
     /// Maps a ProjectDescription.TargetAction instance into a TuistGraph.TargetAction model.
     /// - Parameters:
     ///   - manifest: Manifest representation of target action.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.TargetAction, generatorPaths: GeneratorPaths) throws -> TuistGraph.TargetAction {
+    static func from(manifest: ProjectDescription.TargetScript, generatorPaths: GeneratorPaths) throws -> TuistGraph.TargetScript {
         let name = manifest.name
-        let order = TuistGraph.TargetAction.Order.from(manifest: manifest.order)
+        let order = TuistGraph.TargetScript.Order.from(manifest: manifest.order)
         let inputPaths = try absolutePaths(for: manifest.inputPaths, generatorPaths: generatorPaths)
         let inputFileListPaths = try absolutePaths(for: manifest.inputFileListPaths, generatorPaths: generatorPaths)
         let outputPaths = try absolutePaths(for: manifest.outputPaths, generatorPaths: generatorPaths)
@@ -21,7 +21,7 @@ extension TuistGraph.TargetAction {
         let runForInstallBuildsOnly = manifest.runForInstallBuildsOnly
         let shellPath = manifest.shellPath
 
-        let script: TuistGraph.TargetAction.Script
+        let script: TuistGraph.TargetScript.Script
         switch manifest.script {
         case let .embedded(text):
             script = .embedded(text)
@@ -34,7 +34,7 @@ extension TuistGraph.TargetAction {
             script = .tool(tool, arguments)
         }
 
-        return TargetAction(
+        return TargetScript(
             name: name,
             order: order,
             script: script,
@@ -61,12 +61,12 @@ extension TuistGraph.TargetAction {
     }
 }
 
-extension TuistGraph.TargetAction.Order {
+extension TuistGraph.TargetScript.Order {
     /// Maps a ProjectDescription.TargetAction.Order instance into a TuistGraph.TargetAction.Order model.
     /// - Parameters:
     ///   - manifest: Manifest representation of target action order.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.TargetAction.Order) -> TuistGraph.TargetAction.Order {
+    static func from(manifest: ProjectDescription.TargetScript.Order) -> TuistGraph.TargetScript.Order {
         switch manifest {
         case .pre:
             return .pre

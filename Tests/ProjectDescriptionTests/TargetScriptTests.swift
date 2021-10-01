@@ -4,14 +4,14 @@ import XCTest
 
 @testable import ProjectDescription
 
-final class TargetActionTests: XCTestCase {
+final class TargetScriptTests: XCTestCase {
     func test_toJSON_whenPath() {
-        let subject = TargetAction.post(path: "path", arguments: ["arg"], name: "name")
+        let subject = TargetScript.post(path: "path", arguments: ["arg"], name: "name")
         XCTAssertCodable(subject)
     }
 
     func test_toJSON_whenTool() {
-        let subject = TargetAction.post(tool: "tool", arguments: ["arg"], name: "name")
+        let subject = TargetScript.post(tool: "tool", arguments: ["arg"], name: "name")
         XCTAssertCodable(subject)
     }
 
@@ -22,7 +22,7 @@ final class TargetActionTests: XCTestCase {
         echo "$wd"
         """
 
-        let subject = TargetAction.pre(script: script, name: "name")
+        let subject = TargetScript.pre(script: script, name: "name")
         XCTAssertEqual(subject.script, .embedded(script))
     }
 
@@ -33,7 +33,7 @@ final class TargetActionTests: XCTestCase {
         echo "$wd"
         """
 
-        let subject = TargetAction.pre(script: script, name: "name")
+        let subject = TargetScript.pre(script: script, name: "name")
         XCTAssertCodable(subject)
     }
 }
