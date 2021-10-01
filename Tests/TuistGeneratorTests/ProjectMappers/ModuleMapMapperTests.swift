@@ -29,6 +29,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         let targetA = Target.test(
             name: "A",
             settings: .test(base: [
+                "OTHER_CFLAGS": ["Other"],
                 "OTHER_SWIFT_FLAGS": "Other",
             ]),
             dependencies: [
@@ -83,6 +84,11 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         let mappedTargetA = Target.test(
             name: "A",
             settings: .test(base: [
+                "OTHER_CFLAGS": .array([
+                    "Other",
+                    "-fmodule-map-file=$(SRCROOT)/../B/B1/B1.module",
+                    "-fmodule-map-file=$(SRCROOT)/../B/B2/B2.module",
+                ]),
                 "OTHER_SWIFT_FLAGS": .array([
                     "Other",
                     "-Xcc",
@@ -106,6 +112,7 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
         let mappedTargetB1 = Target.test(
             name: "B1",
             settings: .test(base: [
+                "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-map-file=$(SRCROOT)/B2/B2.module"]),
                 "OTHER_SWIFT_FLAGS": .array(["$(inherited)", "-Xcc", "-fmodule-map-file=$(SRCROOT)/B2/B2.module"]),
             ]),
             dependencies: [
