@@ -95,7 +95,20 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
         ]
     )
     ```
+- **Breaking** Rename target `actions` to `scripts` to align with Xcode's terminology [#3374](https://github.com/tuist/tuist/pull/3374) by [@pepibumur](https://github.com/pepibumur)
+  - **Motivation** To align with Xcode's terminology used for the build phase counterpart, `scripts`.
+  - **Migration**
+    Replace
 
+    ```swift
+    let target = Target(actions: [.post(tool: "/bin/echo", arguments: ["rocks"], name: "tuist")])
+    ```
+
+    with
+
+    ```swift
+    let target = Target(scripts: [.post(tool: "/bin/echo", arguments: ["rocks"], name: "tuist")])
+    ```
 ## Next
 
 ### Changed
