@@ -18,8 +18,11 @@ public final class FilterTargetsDependenciesTreeGraphMapper: GraphMapping {
         let filteredTargets: Set<GraphTarget>
         if let includedTargets = includedTargets {
             let userSpecifiedSourceTargets = graphTraverser.allTargets().filter { includedTargets.contains($0.target.name) }
+            let userSpecifiedSourceTestTargets = userSpecifiedSourceTargets.flatMap {
+                graphTraverser.testTargetsDependingOn(path: $0.path, name: $0.target.name)
+            }
             filteredTargets = Set(try topologicalSort(
-                Array(userSpecifiedSourceTargets),
+                Array(userSpecifiedSourceTargets + userSpecifiedSourceTestTargets),
                 successors: {
                     Array(graphTraverser.directTargetDependencies(path: $0.path, name: $0.target.name))
                 }
