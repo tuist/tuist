@@ -41,7 +41,7 @@ protocol BuildPhaseGenerating: AnyObject {
     /// Generates target actions
     ///
     /// - Parameters:
-    ///   - actions: Actions to be generated as script build phases.
+    ///   - scripts: Scripts to be generated as script build phases.
     ///   - pbxTarget: PBXTarget from the Xcode project.
     ///   - pbxproj: PBXProj instance.
     ///   - sourceRootPath: Path to the directory that will contain the generated project.

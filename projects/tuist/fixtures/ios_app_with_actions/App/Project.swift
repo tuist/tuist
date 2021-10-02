@@ -8,7 +8,7 @@ let project = Project(name: "App",
                                bundleId: "io.tuist.app",
                                infoPlist: "Info.plist",
                                sources: ["Sources/**"],
-                               actions: [
+                               scripts: [
                                 // Note there are acceptance tests verifying the first `pre` and last `post` action
                                 // additions not part of the acceptance test should be added in-between
 

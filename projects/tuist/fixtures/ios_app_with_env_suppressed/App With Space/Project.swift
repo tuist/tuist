@@ -8,7 +8,7 @@ let project = Project(name: "AppWithSpace",
                                bundleId: "io.tuist.app-with-space",
                                infoPlist: "Info.plist",
                                sources: ["Sources/**"],
-                               actions: [
+                               scripts: [
                                 .pre(path: "script.sh", name: "Run script")
                               ]),
                       ])
