@@ -39,15 +39,15 @@ let project = Project(
         Scheme(
             name: "App-Debug",
             shared: true,
-            buildAction: BuildAction(targets: ["App"]),
-            testAction: TestAction.targets(["AppTests"]),
-            runAction: RunAction(executable: "App")
+            buildAction: .buildAction(targets: ["App"]),
+            testAction: .targets(["AppTests"]),
+            runAction: .runAction(executable: "App")
         ),
         Scheme(
             name: "App-Release",
             shared: true,
-            buildAction: BuildAction(targets: ["App"]),
-            runAction: RunAction(executable: "App")
+            buildAction: .buildAction(targets: ["App"]),
+            runAction: .runAction(executable: "App")
         )
     ],
     additionalFiles: [
@@ -139,7 +139,7 @@ Each target in the list of project targets can be initialized with the following
 | `copyFiles`        | Copy files actions allow defining copy files build phases.                                                                            | [`[CopyFilesAction]`](#copy-files-action)       | No       |                  |
 | `headers`          | The target headers.                                                                                                                   | [`Headers`](#headers)                           | No       |                  |
 | `entitlements`     | Path to the entitlement file.                                                                                                         | [`Path`](#path)                                 | No       |                  |
-| `actions`          | Target actions allow defining extra script build phases.                                                                              | [`[TargetAction]`](#target-action)              | No       | `[]`             |
+| `scripts`          | Target scripts allow defining extra script build phases.                                                                              | [`[TargetScript]`](#target-script)              | No       | `[]`             |
 | `dependencies`     | List of target dependencies.                                                                                                          | [`[TargetDependency]` ](/guides/dependencies)   | No       | `[]`             |
 | `sources`          | Source files that are compiled by the target. Any playgrounds matched by the globs used in this property will be automatically added. | [`SourceFilesList`](#source-file-list)          | Yes      |                  |
 | `settings`         | Target build settings and configuration files.                                                                                        | [`Settings`](#settings)                         | No       |                  |
@@ -304,57 +304,62 @@ It represents the values of the InfoPlist file dictionary. The reason this type 
 `InfoPlist.Value` conforms to the `ExpressiveByLiteral` protocols and therefore, it can be initialized with an instance of the primitive type that they encapsulate.
 :::
 
-### Target Action
+### Target Scripts
 
-Target actions, represented as target script build phases, are useful to define actions to be executed before of after the build process of a target.
+Target scripts, represented as target script build phases in the generated Xcode projects, are useful to define actions to be executed before of after the build process of a target.
 
 | Case                                                                                                                                                                                         | Description                                                                                                                                                       |
 | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.pre(tool: String, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool, runForInstallBuildsOnly: Bool, shellPath: String)`  | Action executed before the target-specific build phases where tool is the name of the tool to be executed.                                                        |
-| `.pre(path: Path, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool, runForInstallBuildsOnly: Bool, shellPath: String)`    | Action executed before the target-specific build phases where path is the path to the tool to be executed.                                                        |
-| `.pre(script: String, name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool, runForInstallBuildsOnly: Bool, shellPath: String)`                      | Action executed before the target-specific build phases where script is an embedded script to run. It is advised to keep embedded scripts as small as possible.                              |
-| `.post(tool: String, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool, runForInstallBuildsOnly: Bool, shellPath: String)` | Action executed after all the target-specific build phases where tool is the name of the tool to be executed.                                                     |
-| `.post(path: Path, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool, runForInstallBuildsOnly: Bool, shellPath: String)`   | Action executed after all the target-specific build phases where path is the path to the tool to be executed.                                                     |
-| `.post(script: String, name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool, runForInstallBuildsOnly: Bool, shellPath: String)`                     | Action executed after all the target-specific build phases where script is an embedded script to run. It is advised to keep embedded scripts as small as possible |
+| `.pre(tool: String, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool, runForInstallBuildsOnly: Bool, shellPath: String)`  | Script executed before the target-specific build phases where tool is the name of the tool to be executed.                                                        |
+| `.pre(path: Path, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool, runForInstallBuildsOnly: Bool, shellPath: String)`    | Script executed before the target-specific build phases where path is the path to the tool to be executed.                                                        |
+| `.pre(script: String, name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool, runForInstallBuildsOnly: Bool, shellPath: String)`                      | Script executed before the target-specific build phases where script is an embedded script to run. It is advised to keep embedded scripts as small as possible.                              |
+| `.post(tool: String, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool, runForInstallBuildsOnly: Bool, shellPath: String)` | Script executed after all the target-specific build phases where tool is the name of the tool to be executed.                                                     |
+| `.post(path: Path, arguments: String..., name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool, runForInstallBuildsOnly: Bool, shellPath: String)`   | Script executed after all the target-specific build phases where path is the path to the tool to be executed.                                                     |
+| `.post(script: String, name: String, inputPaths: [Path], inputFileListPaths: [Path], outputPaths: [Path], outputFileListPaths: [Path], basedOnDependencyAnalysis: Bool, runForInstallBuildsOnly: Bool, shellPath: String)`                     | Script executed after all the target-specific build phases where script is an embedded script to run. It is advised to keep embedded scripts as small as possible |
 
-The following example shows the definition of an action that runs the `my_custom_script.sh` passing the argument `"hello"`:
+The following example shows the definition of an script that runs the `my_custom_script.sh` passing the argument `"hello"`:
 
 ```swift
 .pre(path: "my_custom_script.sh", arguments: ["hello"], name: "My Custom Script Phase")
 ```
 
-The following example shows the definition of an action that runs the `my_custom_script.sh` passing the argument `"hello"` on the `/bin/zsh` shell (default is `/bin/sh`):
+The following example shows the definition of an script that runs the `my_custom_script.sh` passing the argument `"hello"` on the `/bin/zsh` shell (default is `/bin/sh`):
 
 ```swift
 .pre(path: "my_custom_script.sh", arguments: ["hello"], name: "My Custom Script Phase", shellPath: "/bin/zsh")
 ```
 
-The following example shows the definition of an action that runs the `my_custom_script.sh` defining input and output files:
+The following example shows the definition of an script that runs the `my_custom_script.sh` defining input and output files:
 
 ```swift
 .pre(path: "my_custom_script.sh", name: "My Custom Script Phase", inputFileListPaths: [ "Data/Cars.raw.json", "Data/Drivers.raw.json" ], outputFileListPaths: [ "Data/Cars.swift", "Data/Drivers.swift" ])
 ```
 
-The following example shows the definition of an action that runs the `my_custom_script.sh` on all incremental builds, regardless of whether or not something has changed:
+The following example shows the definition of an script that runs the `my_custom_script.sh` on all incremental builds, regardless of whether or not something has changed:
 
 ```swift
 .pre(path: "my_custom_script.sh", name: "My Custom Script Phase", basedOnDependencyAnalysis: false)
 ```
 
-The following example shows the definition of an action that runs the `my_custom_script.sh` only for install builds:
+The following example shows the definition of an script that runs the `my_custom_script.sh` only for install builds:
 
 ```swift
 .pre(path: "my_custom_script.sh", name: "My Custom Script Phase", runForInstallBuildsOnly: true)
 ```
 
-### Preset Build Configuration
+### Configuration name
 
-It represents the default build configurations available:
+`ConfigurationName` is a wrapper around `String` to type the project or workspace configurations. The type provides the `.debug` and `.release` static variables for the `Debug` and `Release` configuration respectively, and we recommend adding new configurations using a extension:
 
-| Case       | Description                                                             |
-| ---------- | ----------------------------------------------------------------------- |
-| `.debug`   | Debug build configuration, traditionally used during local development. |
-| `.release` | Release build configuration.                                            |
+```swift
+import ProjectDescription
+
+extension ConfigurationName {
+  static var beta: ConfigurationName {
+      ConfigurationName("Beta")
+  }
+}
+```
 
 ### Scheme
 
@@ -389,7 +394,7 @@ Take in count that `ArchiveAction`, `ProfileAction` and `AnalyzeAction` when are
 
 #### Build Action
 
-It represents the scheme action that builds targets:
+It represents the scheme action that builds targets. It's initialized with the `.buildAction` static method and the following attributes can be passed:
 
 | Property                  | Description                                                            | Type                                     | Required | Default |
 | ------------------------- | ---------------------------------------------------------------------- | ---------------------------------------- | -------- | ------- |
@@ -400,60 +405,56 @@ It represents the scheme action that builds targets:
 
 #### Run action
 
-It represents the scheme action that runs the built products on the supported platforms:
+It represents the scheme action that runs the built products on the supported platforms. It's initialized with the `.runAction` static method and the following attributes can be passed:
 
 | Property             | Description                                                        | Type                                                      | Required | Default                |
 | -------------------- | ------------------------------------------------------------------ | --------------------------------------------------------- | -------- | ---------------------- |
-| `config`             | Indicates the build configuration the product should run with.     | [`PresetBuildConfiguration`](#preset-build-configuration) | No       | `.debug`               |
+| `configuration`             | Indicates the build configuration the product should run with.     | [`ConfigurationName`](#configuration-name) | No       | `.debug`               |
 | `executable`         | The name of the executable or target to run.                       | [`TargetReference`](#target-reference)                    | No       |                        |
 | `arguments`          | Command line arguments passed on launch and environment variables. | [`Arguments`](#arguments)                                 | No       |                        |
 | `options`            | List of options to set to the action.                              | [`RunActionOptions`](#run-action-options)                 | No       | `.options()`           |
 | `diagnosticsOptions` | List of diagnostics options to set to the action.                  | [`[SchemeDiagnosticsOption]`](#scheme-diagnostics-option) | No       | `[.mainThreadChecker]` |
 
-Alternatively, when leveraging custom configurations, the configuration name can be explicitly specified:
-
-| Property            | Description                                                    | Type     | Required | Default |
-| ------------------- | -------------------------------------------------------------- | -------- | -------- | ------- |
-| `configurationName` | Indicates the build configuration the product should run with. | `String` | Yes      |         |
-
 #### Test Action
 
-You can create a test action with either a set of test targets or test plans.
+You can create a test action with either a set of test targets or test plans using the `.targets` or `.testPlans` static methods respectively. 
 
-:::note Test Plans
-Test plans do not support all properties (those are part of the plan itself). Use the `testPlans` factory method instead of the initializer to create a test action using test plans instead of test targets (details below).
-:::
+When initializing it with a **set of targets**, the attributes you can pass to those methods are documented below:
+
 
 | Property                   | Description                                                                                                            | Type                                                      | Required | Default                |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | -------- | ---------------------- |
 | `targets`                  | A list of testable targets, that are targets which are defined in the project with testable information.               | [`[TestableTarget]`](#testable-target)                    | Yes      | `[]`                   |
 | `arguments`                | Command line arguments passed on launch and environment variables.                                                     | [`Arguments`](#arguments)                                 | No       |                        |
-| `buildConfiguration`       | Build configuration to run the test with.                                                                              | [`PresetBuildConfiguration`](#preset-build-configuration) | No       | `.debug`               |
-| `coverage`                 | Whether the scheme should or not gather the test coverage data.                                                        | `Bool`                                                    | No       | `false`                |
-| `codeCoverageTargets`      | A list of targets you want to gather the test coverage data for them, which are defined in the project.                | [`[TargetReference]`](#target-reference)                  | No       | `[]`                   |
+| `configuration`       | Build configuration to run the test with.                                                                              | [`ConfigurationName`](#configuration-name) | No       | `.debug`               |
 | `expandVariableFromTarget` | A target that will be used to expand the variables defined inside Environment Variables definition (e.g. $SOURCE_ROOT) | [`TargetReference`](#target-reference)                    | No       |                        |
 | `preActions`               | A list of actions that are executed before starting the tests-run process.                                             | [`[ExecutionAction]`](#execution-action)                  | No       | `[]`                   |
 | `postActions`              | A list of actions that are executed after the tests-run process.                                                       | [`[ExecutionAction]`](#execution-action)                  | No       | `[]`                   |
+| `options` | List of options to set to the action. | [`TestActionOptions`](#test-action-options) | No | `.options()` |
 | `diagnosticsOptions`       | List of diagnostics options to set to the action.                                                                      | [`[SchemeDiagnosticsOption]`](#scheme-diagnostics-option) | Yes      | `[.mainThreadChecker]` |
-| `language`                 | Language used to run the tests.                                                                                        | [`SchemeLanguage`](#scheme-language)                      | No       |                        |
-| `region`                   | Region used to run the tests.                                                                                          | `String`                                                  | No       |                        |
 
-Alternatively, when leveraging custom configurations, the configuration name can be explicitly specified:
+When initializing it with a **test plans**, the attributes you can pass to those methods are documented below:
 
-| Property            | Description                                             | Type     | Required | Default |
-| ------------------- | ------------------------------------------------------- | -------- | -------- | ------- |
-| `configurationName` | Indicates the build configuration to run the test with. | `String` | No       |         |
-
-When using test plans:
-
-| Property  | Description                      | Type              | Required | Default |
-| --------- | -------------------------------- | ----------------- | -------- | ------- |
+| Property                   | Description                                                                                                            | Type                                                      | Required | Default                |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | -------- | ---------------------- |
 | `default` | Path to a xctestplan file.       | [`Path`](#path)   | No       |         |
 | `other`   | Paths to other xctestplan files. | [`[Path]`](#path) | No       | `[]`    |
 
 :::note Launch Arguments & Environment
 By default the Test & Profile actions will inherit the Run action's Launch & Environment when not explicitly specified.
 :::
+
+##### Test Action Options
+
+The type `TestActionOptions` represents a set of options to set to configure a test action. The `.options()` static method returns the default options:
+
+| Property                    | Description                                                                                                                          | Type                                       | Required | Default |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------ | -------- | ------- |
+| `region`                   | Region used to run the tests.                                                                                          | `String`                                                  | No       |                        |
+| `language`                 | Language used to run the tests.                                                                                        | [`SchemeLanguage`](#scheme-language)                      | No       |                        |
+| `coverage`                 | Whether the scheme should or not gather the test coverage data.                                                        | `Bool`                                                    | No       | `false`                |
+| `codeCoverageTargets`      | A list of targets you want to gather the test coverage data for them, which are defined in the project.                | [`[TargetReference]`](#target-reference)                  | No       | `[]`                   |
+
 
 #### Execution Action
 
@@ -541,6 +542,9 @@ Diagnostics options represent the configurable diagnostics-related settings in t
 
 #### Archive Action
 
+It represents the scheme action to archive targets' products. It's initialized with the `.archiveAction` static method and the following attributes can be passed:
+
+
 | Property                   | Description                                                              | Type                                     | Required | Default |
 | -------------------------- | ------------------------------------------------------------------------ | ---------------------------------------- | -------- | ------- |
 | `configurationName`        | Indicates the build configuration to run the archive with.               | `String`                                 | Yes      |         |
@@ -551,19 +555,13 @@ Diagnostics options represent the configurable diagnostics-related settings in t
 
 #### Profile action
 
-It represents the scheme action that profiles the built products on the supported platforms:
+It represents the scheme action that profiles the built products on the supported platforms. It's initialized with the `.profileAction` static method and the following attributes can be passed:
 
 | Property     | Description                                                            | Type                                                      | Required | Default    |
 | ------------ | ---------------------------------------------------------------------- | --------------------------------------------------------- | -------- | ---------- |
-| `config`     | Indicates the build configuration the product should be profiled with. | [`PresetBuildConfiguration`](#preset-build-configuration) | No       | `.release` |
+| `configuration`     | Indicates the build configuration the product should be profiled with. | [`ConfigurationName`](#configuration-name) | No       | `.release` |
 | `executable` | The name of the executable or target to profile.                       | [`TargetReference`](#target-reference)                    | No       |            |
 | `arguments`  | Command line arguments passed on launch and environment variables.     | [`Arguments`](#arguments)                                 | No       |            |
-
-Alternatively, when leveraging custom configurations, the configuration name can be explicitly specified:
-
-| Property            | Description                                                            | Type     | Required | Default |
-| ------------------- | ---------------------------------------------------------------------- | -------- | -------- | ------- |
-| `configurationName` | Indicates the build configuration the product should be profiled with. | `String` | No       |         |
 
 :::note Launch Arguments & Environment
 By default the Test & Profile actions will inherit the Run action's Launch & Environment when not explicitly specified.
@@ -571,21 +569,15 @@ By default the Test & Profile actions will inherit the Run action's Launch & Env
 
 #### Analyze action
 
-It represents the scheme action that analyzes the built products:
+It represents the scheme action that analyzes the built products. It's initialized with the `.analyzeAction` static method and the following attributes can be passed:
 
 | Property | Description                                                            | Type                                                      | Required | Default  |
 | -------- | ---------------------------------------------------------------------- | --------------------------------------------------------- | -------- | -------- |
-| `config` | Indicates the build configuration the product should be analyzed with. | [`PresetBuildConfiguration`](#preset-build-configuration) | No       | `.debug` |
-
-Alternatively, when leveraging custom configurations, the configuration name can be explicitly specified:
-
-| Property            | Description                                                            | Type     | Required | Default |
-| ------------------- | ---------------------------------------------------------------------- | -------- | -------- | ------- |
-| `configurationName` | Indicates the build configuration the product should be analyzed with. | `String` | Yes      |         |
+| `configuration` | Indicates the build configuration the product should be analyzed with. | [`ConfigurationName`](#configuration-name) | No       | `.debug` |
 
 ### Settings
 
-A `Settings` object contains an optional dictionary with build settings and relative path to an `.xcconfig` file. It is initialized with the following attributes:
+A `Settings` object contains an optional dictionary with build settings and relative path to an `.xcconfig` file. It is initialized with the `.settings` static method passing the following attributes:
 
 | Property          | Description                                                                      | Type                                        | Required | Default        |
 | ----------------- | -------------------------------------------------------------------------------- | ------------------------------------------- | -------- | -------------- |
@@ -599,11 +591,11 @@ To specify multiple configurations beyond the default Debug and Release configur
 | Property          | Description                                                                      | Type                                             | Required | Default        |
 | ----------------- | -------------------------------------------------------------------------------- | ------------------------------------------------ | -------- | -------------- |
 | `base`            | A dictionary with build settings that are inherited from all the configurations. | [`SettingsDictionary`](#settingsdictionary)      | No       | `[:]`          |
-| `configurations`  | A list of custom configurations.                                                 | [`[CustomConfiguration]`](#custom-configuration) | Yes      |                |
+| `configurations`  | A list of configurations.                                                 | [`[Configuration]`](#configuration) | Yes      |                |
 | `defaultSettings` | An enum specifying the set of default settings.                                  | [`DefaultSettings`](#defaultsettings)            | No       | `.recommended` |
 
-:::note Custom Configurations
-The list of custom configurations should have unique names and can't be empty. Please use the alternate settings initializer to leverage the default Debug & Release configurations.
+:::note Configurations
+The list of configurations should have unique names and can't be empty. Please use the alternate settings initializer to leverage the default Debug & Release configurations.
 :::
 
 #### SettingsDictionary
@@ -662,25 +654,17 @@ public extension SettingsDictionary {
 
 ### Configuration
 
-A `Configuration` object describes the build settings and the `.xcconfig` file of a project or target. It is initialized with the following attributes:
+A `Configuration` object describes the build settings and the `.xcconfig` file of a project or target. It is initialized with either the `.debug` or `.release` static method passing the following attributes:
 
 | Property   | Description                                    | Type                                        | Required | Default |
 | ---------- | ---------------------------------------------- | ------------------------------------------- | -------- | ------- |
-| `Settings` | A dictionary that contains the build settings. | [`SettingsDictionary`](#settingsdictionary) | No       | `[:]`   |
-| `Path`     | The path to the xcconfig file.                 | [`Path`](#path)                             | No       |         |
+| `name` | The name of the configuration. | [`ConfigurationName`](#configuration-name) | Yes | |
+| `settings` | A dictionary that contains the build settings. | [`SettingsDictionary`](#settingsdictionary) | No       | `[:]`   |
+| `xcconfig`     | The path to the xcconfig file.                 | [`Path`](#path)                             | No       |         |
 
-### Custom Configuration
-
-A `CustomConfiguration` allows specifying a named build configuration.
-
-This is similar to `Configuration`, however allows specifying a custom name (e.g. "Beta") and configuration variant (`.debug` or `.release`) to help Tuist select the most appropriate default build settings.
-
-For example, a `.debug` configuration would get `SWIFT_OPTIMIZATION_LEVEL = -Onone` whereas a `.release` would get `SWIFT_OPTIMIZATION_LEVEL = -Owholemodule`.
-
-| Case                                                                    | Description                     |
-| ----------------------------------------------------------------------- | ------------------------------- |
-| `.debug(name: String, settings: SettingsDictionary, xcconfig: Path?)`   | A custom debug configuration.   |
-| `.release(name: String, settings: SettingsDictionary, xcconfig: Path?)` | A custom release configuration. |
+:::note Default build settings
+Depending on the variant, debug or release, there are some build settings et by default. For example, `.debug` configuration would get `SWIFT_OPTIMIZATION_LEVEL = -Onone` whereas a `.release` would get `SWIFT_OPTIMIZATION_LEVEL = -Owholemodule`. Those can be overriden through the `settings` attribute.
+:::
 
 #### SettingValue
 
@@ -731,8 +715,8 @@ A `DefaultSettings` can be one of the following options:
 
 | Case                                   | Description                                                                                                                                                                                                                                                           |
 | -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.recommended(excluding: Set<String>)` | Recommended settings including warning flags to help you catch some of the bugs at the early stage of development. If you need to override certain settings in a `CustomConfiguration` it's possible to add those keys to `excluding`.                                |
-| `.essential(excluding: Set<String>)`   | A minimal set of settings to make the project compile without any additional settings for example `'PRODUCT_NAME'` or `'TARGETED_DEVICE_FAMILY'`. If you need to override certain settings in a `CustomConfiguration` it's possible to add those keys to `excluding`. |
+| `.recommended(excluding: Set<String>)` | Recommended settings including warning flags to help you catch some of the bugs at the early stage of development. If you need to override certain settings in a `Configuration` it's possible to add those keys to `excluding`.                                |
+| `.essential(excluding: Set<String>)`   | A minimal set of settings to make the project compile without any additional settings for example `'PRODUCT_NAME'` or `'TARGETED_DEVICE_FAMILY'`. If you need to override certain settings in a `Configuration` it's possible to add those keys to `excluding`. |
 | `.none`                                | Tuist won't generate any build settings for the target or project.                                                                                                                                                                                                    |
 
 :::note Essential Settings

@@ -25,8 +25,8 @@ let workspace = Workspace(
                 targets: [.project(path: "App", target: "App")],
                 preActions: []
             ),
-            testAction: .testAction(
-                targets: [TestableTarget(target: .project(path: "App", target: "AppTests"))]
+            testAction: .targets(
+                [TestableTarget(target: .project(path: "App", target: "AppTests"))]
             ),
             runAction: .runAction(
                 executable: .project(path: "App", target: "App")
