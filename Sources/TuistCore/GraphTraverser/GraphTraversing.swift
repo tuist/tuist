@@ -39,9 +39,6 @@ public protocol GraphTraversing {
     /// Returns all the targets of the project.
     func allTargets() -> Set<GraphTarget>
 
-    /// Returns the paths to directories containing a Podfile
-    func cocoapodsPaths() -> Set<AbsolutePath>
-
     /// Returns the project from which the graph has been loaded.
     func rootProjects() -> Set<Project>
 

@@ -14,7 +14,6 @@ public enum TargetDependency: Equatable, Hashable, Codable {
     case library(path: AbsolutePath, publicHeaders: AbsolutePath, swiftModuleMap: AbsolutePath?)
     case package(product: String)
     case sdk(name: String, status: SDKStatus)
-    case cocoapods(path: AbsolutePath)
     case xctest
 }
 
@@ -29,7 +28,6 @@ extension TargetDependency {
         case library
         case package
         case sdk
-        case cocoapods
         case xctest
     }
 
@@ -73,9 +71,6 @@ extension TargetDependency {
             let name = try container.decode(String.self, forKey: .name)
             let status = try container.decode(SDKStatus.self, forKey: .status)
             self = .sdk(name: name, status: status)
-        case .cocoapods:
-            let path = try container.decode(AbsolutePath.self, forKey: .path)
-            self = .cocoapods(path: path)
         case .xctest:
             self = .xctest
         }
@@ -109,9 +104,6 @@ extension TargetDependency {
             try container.encode(Kind.sdk, forKey: .kind)
             try container.encode(name, forKey: .name)
             try container.encode(status, forKey: .status)
-        case let .cocoapods(path):
-            try container.encode(Kind.cocoapods, forKey: .kind)
-            try container.encode(path, forKey: .path)
         case .xctest:
             try container.encode(Kind.xctest, forKey: .kind)
         }

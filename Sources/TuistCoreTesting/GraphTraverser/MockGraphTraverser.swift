@@ -105,16 +105,6 @@ final class MockGraphTraverser: GraphTraversing {
         return stubbedRootTargetsResult
     }
 
-    var invokedCocoapodsPaths = false
-    var invokedCocoapodsPathsCount = 0
-    var stubbedCocoapodsPathsResult: Set<AbsolutePath>! = []
-
-    func cocoapodsPaths() -> Set<AbsolutePath> {
-        invokedCocoapodsPaths = true
-        invokedCocoapodsPathsCount += 1
-        return stubbedCocoapodsPathsResult
-    }
-
     var invokedRootProjects = false
     var invokedRootProjectsCount = 0
     var stubbedRootProjectsResult: Set<Project>! = []
@@ -187,6 +177,20 @@ final class MockGraphTraverser: GraphTraversing {
         return stubbedTargetsAtResult
     }
 
+    var invokedTestTargetsDependingOn = false
+    var invokedTestTargetsDependingOnCount = 0
+    var invokedTestTargetsDependingOnParameters: (path: AbsolutePath, name: String)?
+    var invokedTestTargetsDependingOnParametersList = [(path: AbsolutePath, name: String)]() // swiftlint:disable:this identifier_name
+    var stubbedTestTargetsDependingOnResult: Set<GraphTarget>! = []
+
+    func testTargetsDependingOn(path: AbsolutePath, name: String) -> Set<GraphTarget> {
+        invokedTestTargetsDependingOn = true
+        invokedTestTargetsDependingOnCount += 1
+        invokedTestTargetsDependingOnParameters = (path, name)
+        invokedTestTargetsDependingOnParametersList.append((path, name))
+        return stubbedTestTargetsDependingOnResult
+    }
+
     var invokedDirectLocalTargetDependencies = false
 
     var invokedDirectLocalTargetDependenciesCount = 0 // swiftlint:disable:this identifier_name
@@ -242,20 +246,6 @@ final class MockGraphTraverser: GraphTraversing {
         invokedResourceBundleDependenciesParameters = (path, name)
         invokedResourceBundleDependenciesParametersList.append((path, name))
         return stubbedResourceBundleDependenciesResult
-    }
-
-    var invokedTestTargetsDependingOn = false
-    var invokedTestTargetsDependingOnCount = 0
-    var invokedTestTargetsDependingOnParameters: (path: AbsolutePath, name: String)?
-    var invokedTestTargetsDependingOnParametersList = [(path: AbsolutePath, name: String)]() // swiftlint:disable:this identifier_name
-    var stubbedTestTargetsDependingOnResult: Set<GraphTarget>! = []
-
-    func testTargetsDependingOn(path: AbsolutePath, name: String) -> Set<GraphTarget> {
-        invokedTestTargetsDependingOn = true
-        invokedTestTargetsDependingOnCount += 1
-        invokedTestTargetsDependingOnParameters = (path, name)
-        invokedTestTargetsDependingOnParametersList.append((path, name))
-        return stubbedTestTargetsDependingOnResult
     }
 
     var invokedDirectStaticDependencies = false

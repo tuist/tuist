@@ -41,13 +41,13 @@ final class TargetGeneratorTests: XCTestCase {
         let target = Target.test(
             name: "MyFramework",
             product: .framework,
-            actions: [
-                TargetAction(
+            scripts: [
+                TargetScript(
                     name: "pre",
                     order: .pre,
                     script: .tool("echo", ["pre1", "pre2"])
                 ),
-                TargetAction(
+                TargetScript(
                     name: "post",
                     order: .post,
                     script: .tool("echo", ["post1", "post2"]),
@@ -153,13 +153,13 @@ final class TargetGeneratorTests: XCTestCase {
         let target = Target.test(
             sources: [],
             resources: [],
-            actions: [
-                TargetAction(
+            scripts: [
+                TargetScript(
                     name: "post",
                     order: .post,
                     script: .scriptPath(path.appending(component: "script.sh"), args: ["arg"])
                 ),
-                TargetAction(
+                TargetScript(
                     name: "pre",
                     order: .pre,
                     script: .scriptPath(path.appending(component: "script.sh"), args: ["arg"])

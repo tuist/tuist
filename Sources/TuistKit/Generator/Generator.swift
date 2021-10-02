@@ -27,7 +27,6 @@ class Generator: Generating {
     private let environmentLinter: EnvironmentLinting = EnvironmentLinter()
     private let generator: DescriptorGenerating = DescriptorGenerator()
     private let writer: XcodeProjWriting = XcodeProjWriter()
-    private let cocoapodsInteractor: TuistGenerator.CocoaPodsInteracting = TuistGenerator.CocoaPodsInteractor()
     private let swiftPackageManagerInteractor: TuistGenerator.SwiftPackageManagerInteracting = TuistGenerator.SwiftPackageManagerInteractor()
     private let signingInteractor: SigningInteracting = SigningInteractor()
     private let sideEffectDescriptorExecutor: SideEffectDescriptorExecuting
@@ -232,7 +231,6 @@ class Generator: Generating {
 
         try signingInteractor.install(graphTraverser: graphTraverser)
         try swiftPackageManagerInteractor.install(graphTraverser: graphTraverser, workspaceName: workspaceName, config: config)
-        try cocoapodsInteractor.install(graphTraverser: graphTraverser)
     }
 
     // swiftlint:disable:next large_tuple

@@ -12,7 +12,7 @@ extension TuistGraph.RunAction {
     static func from(manifest: ProjectDescription.RunAction,
                      generatorPaths: GeneratorPaths) throws -> TuistGraph.RunAction
     {
-        let configurationName = manifest.configurationName
+        let configurationName = manifest.configuration.rawValue
         let arguments = manifest.arguments.map { TuistGraph.Arguments.from(manifest: $0) }
 
         var executableResolved: TuistGraph.TargetReference?

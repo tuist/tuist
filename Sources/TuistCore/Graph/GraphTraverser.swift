@@ -54,21 +54,6 @@ public class GraphTraverser: GraphTraversing {
         projects.values.flatMap(\.schemes) + graph.workspace.schemes
     }
 
-    public func cocoapodsPaths() -> Set<AbsolutePath> {
-        dependencies.reduce(into: Set<AbsolutePath>()) { acc, next in
-            let fromDependency = next.key
-            let toDependencies = next.value
-            if case let GraphDependency.cocoapods(path) = fromDependency {
-                acc.insert(path)
-            }
-            toDependencies.forEach { toDependency in
-                if case let GraphDependency.cocoapods(path) = toDependency {
-                    acc.insert(path)
-                }
-            }
-        }
-    }
-
     public func precompiledFrameworksPaths() -> Set<AbsolutePath> {
         let dependencies = graph.dependencies.reduce(into: Set<GraphDependency>()) { acc, next in
             acc.formUnion([next.key])
@@ -434,7 +419,6 @@ public class GraphTraverser: GraphTraversing {
             case .packageProduct: return nil
             case .target: return nil
             case .sdk: return nil
-            case .cocoapods: return nil
             }
         }
         .map(\.parentDirectory)
@@ -581,7 +565,6 @@ public class GraphTraverser: GraphTraversing {
         case .packageProduct: return false
         case .target: return false
         case .sdk: return false
-        case .cocoapods: return false
         }
     }
 
@@ -594,7 +577,6 @@ public class GraphTraverser: GraphTraversing {
         case .packageProduct: return false
         case .target: return false
         case .sdk: return false
-        case .cocoapods: return false
         }
     }
 
@@ -616,7 +598,6 @@ public class GraphTraverser: GraphTraversing {
             guard let target = self.target(path: path, name: name) else { return false }
             return target.target.product.isStatic
         case .sdk: return false
-        case .cocoapods: return false
         }
     }
 
@@ -643,7 +624,6 @@ public class GraphTraverser: GraphTraversing {
             guard let target = self.target(path: path, name: name) else { return false }
             return target.target.product.isDynamic
         case .sdk: return false
-        case .cocoapods: return false
         }
     }
 
@@ -657,7 +637,6 @@ public class GraphTraverser: GraphTraversing {
         case .packageProduct: return false
         case .target: return false
         case .sdk: return false
-        case .cocoapods: return false
         }
     }
 
@@ -690,8 +669,6 @@ public class GraphTraverser: GraphTraversing {
 
     func dependencyReference(dependency: GraphDependency) -> GraphDependencyReference? {
         switch dependency {
-        case .cocoapods:
-            return nil
         case let .framework(path, binaryPath, dsymPath, bcsymbolmapPaths, linking, architectures, isCarthage):
             return .framework(
                 path: path,

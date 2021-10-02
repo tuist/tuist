@@ -11,12 +11,6 @@ Scenario: The project is an iOS application with watch app (ios_app_with_watchap
     Then the product 'App.app' with destination 'Debug-iphonesimulator' does not contain headers
     Then the product 'WatchApp.app' with destination 'Debug-watchsimulator' does not contain headers
 
-Scenario: The project is an iOS application with a deprecated configuration name (app_with_old_config_name)
-    Given that tuist is available
-    And I have a working directory
-    Then I copy the fixture app_with_old_config_name into the working directory
-    Then tuist generates the project
-
 Scenario: The project contains an invalid manifest and tuist should surface compilation issues (invalid_manifest)
     Given that tuist is available
     And I have a working directory

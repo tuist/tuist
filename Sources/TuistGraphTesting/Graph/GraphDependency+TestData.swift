@@ -4,10 +4,6 @@ import TSCBasic
 @testable import TuistGraph
 
 public extension GraphDependency {
-    static func testCocoapods(path: AbsolutePath = .root) -> GraphDependency {
-        GraphDependency.cocoapods(path: path)
-    }
-
     static func testFramework(path: AbsolutePath = AbsolutePath.root.appending(component: "Test.framework"),
                               binaryPath: AbsolutePath = AbsolutePath.root.appending(RelativePath("Test.framework/Test")),
                               dsymPath: AbsolutePath? = nil,

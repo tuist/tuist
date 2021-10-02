@@ -17,12 +17,12 @@ public final class CacheGraphLinter: CacheGraphLinting {
     public func lint(graph: Graph) {
         let graphTraverser = GraphTraverser(graph: graph)
         let targets = graphTraverser.allTargets()
-        let targetsWithActions = targets.filter { $0.target.actions.count != 0 }
-        if !targetsWithActions.isEmpty {
+        let targetsWithScripts = targets.filter { $0.target.scripts.count != 0 }
+        if !targetsWithScripts.isEmpty {
             let message: Logger.Message = """
-            The following targets contain actions that might introduce non-cacheable side-effects: \(targetsWithActions.map(\.target.name).joined(separator: ", ")).
+            The following targets contain scripts that might introduce non-cacheable side-effects: \(targetsWithScripts.map(\.target.name).joined(separator: ", ")).
             Note that a side-effect is an action that affects the target built products based on a given input (e.g. Xcode build variable).
-            These warnings can be ignored when the actions do not have side effects. Please report eventual use cases to the community forum \(Constants.communityURL).
+            These warnings can be ignored when the scripts do not have side effects. Please report eventual use cases to the community forum \(Constants.communityURL).
             """
             logger.warning(message)
         }

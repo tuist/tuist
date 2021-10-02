@@ -65,8 +65,6 @@ extension GraphDependency {
         switch self {
         case .sdk:
             return .init(fillColorName: .violet, shape: .rectangle)
-        case .cocoapods:
-            return .init(fillColorName: .red2, textColorName: .white)
         case .framework:
             return .init(fillColorName: .darkgoldenrod3, shape: .trapezium)
         case .library:

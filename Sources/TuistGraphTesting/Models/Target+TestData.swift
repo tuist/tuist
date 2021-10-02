@@ -19,11 +19,11 @@ public extension Target {
                      copyFiles: [CopyFilesAction] = [],
                      coreDataModels: [CoreDataModel] = [],
                      headers: Headers? = nil,
-                     actions: [TargetAction] = [],
+                     scripts: [TargetScript] = [],
                      environment: [String: String] = [:],
                      filesGroup: ProjectGroup = .group(name: "Project"),
                      dependencies: [TargetDependency] = [],
-                     scripts: [TargetScript] = [],
+                     rawScriptBuildPhases: [RawScriptBuildPhase] = [],
                      launchArguments: [LaunchArgument] = [],
                      playgrounds: [AbsolutePath] = [],
                      prune: Bool = false) -> Target
@@ -43,12 +43,12 @@ public extension Target {
             copyFiles: copyFiles,
             headers: headers,
             coreDataModels: coreDataModels,
-            actions: actions,
+            scripts: scripts,
             environment: environment,
             launchArguments: launchArguments,
             filesGroup: filesGroup,
             dependencies: dependencies,
-            scripts: scripts,
+            rawScriptBuildPhases: rawScriptBuildPhases,
             playgrounds: playgrounds,
             prune: prune
         )
@@ -69,11 +69,11 @@ public extension Target {
                       copyFiles: [CopyFilesAction] = [],
                       coreDataModels: [CoreDataModel] = [],
                       headers: Headers? = nil,
-                      actions: [TargetAction] = [],
+                      scripts: [TargetScript] = [],
                       environment: [String: String] = [:],
                       filesGroup: ProjectGroup = .group(name: "Project"),
                       dependencies: [TargetDependency] = [],
-                      scripts: [TargetScript] = []) -> Target
+                      rawScriptBuildPhases: [RawScriptBuildPhase] = []) -> Target
     {
         Target(
             name: name,
@@ -90,11 +90,11 @@ public extension Target {
             copyFiles: copyFiles,
             headers: headers,
             coreDataModels: coreDataModels,
-            actions: actions,
+            scripts: scripts,
             environment: environment,
             filesGroup: filesGroup,
             dependencies: dependencies,
-            scripts: scripts
+            rawScriptBuildPhases: rawScriptBuildPhases
         )
     }
 }

@@ -54,5 +54,5 @@ let project = Project(name: "Project",
                                     .sdk(name: "CloudKit.framework", status: .optional),
                                     .sdk(name: "libsqlite3.tbd"),
                                     .xctest
-                            ], settings: Settings(base: ["ENABLE_BITCODE": "NO"])),
+                            ], settings: .settings(base: ["ENABLE_BITCODE": "NO"])),
 ])

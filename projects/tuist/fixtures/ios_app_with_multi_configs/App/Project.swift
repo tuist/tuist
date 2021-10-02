@@ -1,22 +1,23 @@
 import ProjectDescription
 
-let configurations: [CustomConfiguration] = [
-    .debug(name: "Debug", xcconfig: "../ConfigurationFiles/Debug.xcconfig"),
-    .release(name: "Beta", xcconfig: "../ConfigurationFiles/Beta.xcconfig"),
-    .release(name: "Release", xcconfig: "../ConfigurationFiles/Release.xcconfig"),
-]
-
-let settings = Settings(base: [
-    "PROJECT_BASE": "PROJECT_BASE",
-], configurations: configurations)
+let settings: Settings = .settings(
+    base: [
+        "PROJECT_BASE": "PROJECT_BASE",
+    ], 
+    configurations: [
+        .debug(name: "Debug", xcconfig: "../ConfigurationFiles/Debug.xcconfig"),
+        .release(name: "Beta", xcconfig: "../ConfigurationFiles/Beta.xcconfig"),
+        .release(name: "Release", xcconfig: "../ConfigurationFiles/Release.xcconfig"),
+    ]
+)
 
 let betaScheme = Scheme(name: "App-Beta",
                         shared: true,
-                        buildAction: BuildAction(targets: ["App"]),
-                        runAction: RunAction(configurationName: "Beta", executable: "App"),
-                        archiveAction: ArchiveAction(configurationName: "Beta"),
-                        profileAction: ProfileAction(configurationName: "Release", executable: "App"),
-                        analyzeAction: AnalyzeAction(configurationName: "Debug"))
+                        buildAction: .buildAction(targets: ["App"]),
+                        runAction: .runAction(configuration: "Beta", executable: "App"),
+                        archiveAction: .archiveAction(configuration: "Beta"),
+                        profileAction: .profileAction(configuration: "Release", executable: "App"),
+                        analyzeAction: .analyzeAction(configuration: "Debug"))
 
 let project = Project(name: "MainApp",
                       settings: settings,

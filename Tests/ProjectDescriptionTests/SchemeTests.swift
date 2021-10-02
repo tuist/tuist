@@ -12,7 +12,6 @@ final class SchemeTests: XCTestCase {
         // Given
         let buildAction = [ExecutionAction(title: "Run Script", scriptText: "echo build_action", target: TargetReference(projectPath: nil, target: "target"))]
         let testAction = [ExecutionAction(title: "Run Script", scriptText: "echo test_action", target: TargetReference(projectPath: nil, target: "target"))]
-
         let subject = Scheme(
             name: "scheme",
             shared: true,
@@ -21,19 +20,19 @@ final class SchemeTests: XCTestCase {
                 preActions: buildAction,
                 postActions: buildAction
             ),
-            testAction: TestAction(
-                targets: [.init(target: .init(projectPath: nil, target: "target"))],
+            testAction: TestAction.targets(
+                [TestableTarget(target: .init(projectPath: nil, target: "target"))],
                 arguments: Arguments(
                     environment: ["test": "b"],
                     launchArguments: [LaunchArgument(name: "test", isEnabled: true)]
                 ),
-                config: .debug,
-                coverage: true,
+                configuration: .debug,
                 preActions: testAction,
-                postActions: testAction
+                postActions: testAction,
+                options: .options(coverage: true)
             ),
             runAction: RunAction(
-                config: .debug,
+                configuration: .debug,
                 executable: .init(projectPath: nil, target: "executable"),
                 arguments: Arguments(
                     environment: ["run": "b"],
@@ -54,7 +53,6 @@ final class SchemeTests: XCTestCase {
         // Given / When
         let buildAction = [ExecutionAction(title: "Run Script", scriptText: "echo build_action", target: .init(projectPath: nil, target: "target"))]
         let testAction = [ExecutionAction(title: "Run Script", scriptText: "echo test_action", target: .init(projectPath: nil, target: "target"))]
-
         let subject = Scheme(
             name: "scheme",
             shared: true,
@@ -63,19 +61,19 @@ final class SchemeTests: XCTestCase {
                 preActions: buildAction,
                 postActions: buildAction
             ),
-            testAction: TestAction(
-                targets: [.init(target: .init(projectPath: nil, target: "target"))],
+            testAction: TestAction.targets(
+                [.init(target: .init(projectPath: nil, target: "target"))],
                 arguments: Arguments(
                     environment: ["test": "b"],
                     launchArguments: [LaunchArgument(name: "test", isEnabled: true)]
                 ),
-                config: .debug,
-                coverage: true,
+                configuration: .debug,
                 preActions: testAction,
-                postActions: testAction
+                postActions: testAction,
+                options: .options(coverage: true)
             ),
             runAction: RunAction(
-                config: .release,
+                configuration: .release,
                 executable: .init(projectPath: nil, target: "executable"),
                 arguments: Arguments(
                     environment: ["run": "b"],
@@ -85,7 +83,7 @@ final class SchemeTests: XCTestCase {
         )
 
         // Then
-        XCTAssertEqual(subject.runAction?.configurationName, "Release")
-        XCTAssertEqual(subject.testAction?.configurationName, "Debug")
+        XCTAssertEqual(subject.runAction?.configuration.rawValue, "Release")
+        XCTAssertEqual(subject.testAction?.configuration.rawValue, "Debug")
     }
 }

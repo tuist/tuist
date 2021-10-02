@@ -96,7 +96,6 @@ final class ProjectEditorTests: TuistUnitTestCase {
             ),
         ]
         let tuistPath = AbsolutePath(ProcessInfo.processInfo.arguments.first!)
-        let setupPath = directory.appending(components: "Setup.swift")
         let configPath = directory.appending(components: "Tuist", "Config.swift")
         let dependenciesPath = directory.appending(components: "Tuist", "Dependencies.swif")
         let locateTasksPaths = [
@@ -128,7 +127,6 @@ final class ProjectEditorTests: TuistUnitTestCase {
         }
         manifestFilesLocator.locateConfigStub = configPath
         manifestFilesLocator.locateDependenciesStub = dependenciesPath
-        manifestFilesLocator.locateSetupStub = setupPath
         helpersDirectoryLocator.locateStub = helpersDirectory
         tasksLocator.locateTasksStub = { _ in
             locateTasksPaths
@@ -150,7 +148,6 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath)
         XCTAssertEqual(mapArgs?.projectAutomationPath, projectAutomationPath)
         XCTAssertEqual(mapArgs?.configPath, configPath)
-        XCTAssertEqual(mapArgs?.setupPath, setupPath)
         XCTAssertEqual(mapArgs?.dependenciesPath, dependenciesPath)
         XCTAssertEqual(mapArgs?.tasks, locateTasksPaths)
     }

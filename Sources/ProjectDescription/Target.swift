@@ -47,8 +47,8 @@ public struct Target: Codable, Equatable {
     /// Headers.
     public let headers: Headers?
 
-    /// Target actions.
-    public let actions: [TargetAction]
+    /// Target scripts.
+    public let scripts: [TargetScript]
 
     /// CoreData models.
     public let coreDataModels: [CoreDataModel]
@@ -74,7 +74,7 @@ public struct Target: Codable, Equatable {
         case copyFiles
         case headers
         case coreDataModels = "core_data_models"
-        case actions
+        case scripts
         case environment
         case launchArguments
         case deploymentTarget
@@ -93,66 +93,7 @@ public struct Target: Codable, Equatable {
     ///   - copyFiles: copy files phases.
     ///   - headers: headers.
     ///   - entitlements: relative path to the entitlements file.
-    ///   - actions: target actions.
-    ///   - dependencies: target dependencies.
-    ///   - settings: target settings.
-    ///   - coreDataModels: CoreData models.
-    ///   - environment: Environment variables to be exposed to the target.
-    ///   - launchArguments: Launch arguments that are passwd to target.
-    @available(*, deprecated, message: "Use init with `launchArguments: [LaunchArgument]` instead")
-    public init(name: String,
-                platform: Platform,
-                product: Product,
-                productName: String? = nil,
-                bundleId: String,
-                deploymentTarget: DeploymentTarget? = nil,
-                infoPlist: InfoPlist,
-                sources: SourceFilesList? = nil,
-                resources: ResourceFileElements? = nil,
-                copyFiles: [CopyFilesAction]? = nil,
-                headers: Headers? = nil,
-                entitlements: Path? = nil,
-                actions: [TargetAction] = [],
-                dependencies: [TargetDependency] = [],
-                settings: Settings? = nil,
-                coreDataModels: [CoreDataModel] = [],
-                environment: [String: String] = [:],
-                launchArguments: [String: Bool])
-    {
-        self.name = name
-        self.platform = platform
-        self.bundleId = bundleId
-        self.productName = productName
-        self.product = product
-        self.infoPlist = infoPlist
-        self.entitlements = entitlements
-        self.dependencies = dependencies
-        self.settings = settings
-        self.sources = sources
-        self.resources = resources
-        self.copyFiles = copyFiles
-        self.headers = headers
-        self.actions = actions
-        self.coreDataModels = coreDataModels
-        self.environment = environment
-        self.launchArguments = .init(launchArguments: launchArguments)
-        self.deploymentTarget = deploymentTarget
-    }
-
-    /// Initializes the target.
-    ///
-    /// - Parameters:
-    ///   - name: target name.
-    ///   - platform: product platform.
-    ///   - product: product type.
-    ///   - bundleId: bundle identifier.
-    ///   - infoPlist: relative path to the Info.plist file.
-    ///   - sources: relative paths to the sources directory.
-    ///   - resources: relative paths to the resources directory.
-    ///   - copyFiles: copy files phases.
-    ///   - headers: headers.
-    ///   - entitlements: relative path to the entitlements file.
-    ///   - actions: target actions.
+    ///   - scripts: target scripts.
     ///   - dependencies: target dependencies.
     ///   - settings: target settings.
     ///   - coreDataModels: CoreData models.
@@ -170,7 +111,7 @@ public struct Target: Codable, Equatable {
                 copyFiles: [CopyFilesAction]? = nil,
                 headers: Headers? = nil,
                 entitlements: Path? = nil,
-                actions: [TargetAction] = [],
+                scripts: [TargetScript] = [],
                 dependencies: [TargetDependency] = [],
                 settings: Settings? = nil,
                 coreDataModels: [CoreDataModel] = [],
@@ -190,7 +131,7 @@ public struct Target: Codable, Equatable {
         self.resources = resources
         self.copyFiles = copyFiles
         self.headers = headers
-        self.actions = actions
+        self.scripts = scripts
         self.coreDataModels = coreDataModels
         self.environment = environment
         self.launchArguments = launchArguments

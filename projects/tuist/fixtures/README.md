@@ -235,13 +235,9 @@ Dependencies:
 
 Note: to re-create `Framework2.framework` run `ios_app_with_transitive_framework/Framework2/build.sh`
 
-## ios_app_with_pods
-
-An iOS application with CocoaPods dependencies
-
 ## ios_app_with_incompatible_xcode
 
-An iOS app whose TuistConfig file requires an Xcode version that is not available in the system.
+An iOS app whose Config file requires an Xcode version that is not available in the system.
 
 ## ios_app_with_actions
 
@@ -301,10 +297,6 @@ An iOS app that has a dependency with a dependency with a framework for macOS.
 ## app_with_development_region_config
 
 An iOS app where the development region is defined at the `Config` level.
-
-## app_with_old_config_name
-
-An iOS app where the configuration is defined following the deprecated naming `TuistConfig`.
 
 ## app_with_organization_name_config
 

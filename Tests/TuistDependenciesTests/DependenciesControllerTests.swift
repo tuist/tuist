@@ -14,7 +14,6 @@ final class DependenciesControllerTests: TuistUnitTestCase {
     private var subject: DependenciesController!
 
     private var carthageInteractor: MockCarthageInteractor!
-    private var cocoaPodsInteractor: MockCocoaPodsInteractor!
     private var swiftPackageManagerInteractor: MockSwiftPackageManagerInteractor!
     private var dependenciesGraphController: MockDependenciesGraphController!
 
@@ -22,13 +21,11 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         super.setUp()
 
         carthageInteractor = MockCarthageInteractor()
-        cocoaPodsInteractor = MockCocoaPodsInteractor()
         swiftPackageManagerInteractor = MockSwiftPackageManagerInteractor()
         dependenciesGraphController = MockDependenciesGraphController()
 
         subject = DependenciesController(
             carthageInteractor: carthageInteractor,
-            cocoaPodsInteractor: cocoaPodsInteractor,
             swiftPackageManagerInteractor: swiftPackageManagerInteractor,
             dependenciesGraphController: dependenciesGraphController
         )
@@ -38,7 +35,6 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         subject = nil
 
         carthageInteractor = nil
-        cocoaPodsInteractor = nil
         swiftPackageManagerInteractor = nil
 
         super.tearDown()
@@ -88,9 +84,6 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertTrue(swiftPackageManagerInteractor.invokedClean)
         XCTAssertFalse(swiftPackageManagerInteractor.invokedInstall)
-
-        XCTAssertFalse(cocoaPodsInteractor.invokedClean)
-        XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
     }
 
     func test_fetch_swiftPackageManger() throws {
@@ -136,9 +129,6 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertTrue(carthageInteractor.invokedClean)
         XCTAssertFalse(carthageInteractor.invokedInstall)
-
-        XCTAssertFalse(cocoaPodsInteractor.invokedClean)
-        XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
     }
 
     func test_fetch_carthage_swiftPackageManger() throws {
@@ -209,9 +199,6 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertTrue(swiftPackageManagerInteractor.invokedInstall)
         XCTAssertFalse(swiftPackageManagerInteractor.invokedClean)
-
-        XCTAssertFalse(cocoaPodsInteractor.invokedClean)
-        XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
     }
 
     func test_fetch_carthage_swiftPackageManger_throws_when_duplicatedDependency() throws {
@@ -264,9 +251,6 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertTrue(swiftPackageManagerInteractor.invokedInstall)
         XCTAssertFalse(swiftPackageManagerInteractor.invokedClean)
-
-        XCTAssertFalse(cocoaPodsInteractor.invokedClean)
-        XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
     }
 
     func test_fetch_throws_when_noPlatforms() throws {
@@ -306,9 +290,6 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertFalse(swiftPackageManagerInteractor.invokedInstall)
         XCTAssertTrue(swiftPackageManagerInteractor.invokedClean)
-
-        XCTAssertFalse(cocoaPodsInteractor.invokedClean)
-        XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
     }
 
     // MARK: - Update
@@ -353,9 +334,6 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertTrue(swiftPackageManagerInteractor.invokedClean)
         XCTAssertFalse(swiftPackageManagerInteractor.invokedInstall)
-
-        XCTAssertFalse(cocoaPodsInteractor.invokedClean)
-        XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
     }
 
     func test_update_swiftPackageManger() throws {
@@ -400,9 +378,6 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertTrue(carthageInteractor.invokedClean)
         XCTAssertFalse(carthageInteractor.invokedInstall)
-
-        XCTAssertFalse(cocoaPodsInteractor.invokedClean)
-        XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
     }
 
     func test_update_carthage_swiftPackageManger() throws {
@@ -462,9 +437,6 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertFalse(swiftPackageManagerInteractor.invokedClean)
         XCTAssertTrue(swiftPackageManagerInteractor.invokedInstall)
-
-        XCTAssertFalse(cocoaPodsInteractor.invokedClean)
-        XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
     }
 
     func test_update_throws_when_noPlatforms() throws {
@@ -504,9 +476,6 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         XCTAssertFalse(swiftPackageManagerInteractor.invokedInstall)
         XCTAssertTrue(swiftPackageManagerInteractor.invokedClean)
-
-        XCTAssertFalse(cocoaPodsInteractor.invokedClean)
-        XCTAssertFalse(cocoaPodsInteractor.invokedInstall)
     }
 
     func test_save() throws {

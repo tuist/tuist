@@ -22,8 +22,8 @@ final class TargetTests: XCTestCase {
                 project: "project/*"
             ),
             entitlements: "entitlement",
-            actions: [
-                TargetAction.post(path: "path", arguments: ["arg"], name: "name"),
+            scripts: [
+                TargetScript.post(path: "path", arguments: ["arg"], name: "name"),
             ],
             dependencies: [
                 .framework(path: "path"),
@@ -31,16 +31,10 @@ final class TargetTests: XCTestCase {
                 .project(target: "target", path: "path"),
                 .target(name: "name"),
             ],
-            settings: Settings(
+            settings: .settings(
                 base: ["a": .string("b")],
-                debug: Configuration(
-                    settings: ["a": .string("b")],
-                    xcconfig: "config"
-                ),
-                release: Configuration(
-                    settings: ["a": .string("b")],
-                    xcconfig: "config"
-                )
+                debug: ["a": .string("b")],
+                release: ["a": .string("b")]
             ),
             coreDataModels: [CoreDataModel("pat", currentVersion: "version")],
             environment: ["a": "b"]
@@ -72,8 +66,8 @@ final class TargetTests: XCTestCase {
                 project: ["project/*"]
             ),
             entitlements: "entitlement",
-            actions: [
-                TargetAction.post(path: "path", arguments: ["arg"], name: "name"),
+            scripts: [
+                TargetScript.post(path: "path", arguments: ["arg"], name: "name"),
             ],
             dependencies: [
                 .framework(path: "path"),
@@ -81,16 +75,13 @@ final class TargetTests: XCTestCase {
                 .project(target: "target", path: "path"),
                 .target(name: "name"),
             ],
-            settings: Settings(
+            settings: .settings(
                 base: ["a": .string("b")],
-                debug: Configuration(
-                    settings: ["a": .string("b")],
-                    xcconfig: "config"
-                ),
-                release: Configuration(
-                    settings: ["a": .string("b")],
-                    xcconfig: "config"
-                )
+                configurations: [
+                    .debug(name: .debug, settings: ["a": .string("debug")], xcconfig: "debug.xcconfig"),
+                    .debug(name: "Beta", settings: ["a": .string("beta")], xcconfig: "beta.xcconfig"),
+                    .debug(name: .release, settings: ["a": .string("release")], xcconfig: "debug.xcconfig"),
+                ]
             ),
             coreDataModels: [CoreDataModel("pat", currentVersion: "version")],
             environment: ["a": "b"]

@@ -77,10 +77,6 @@ public class CachedManifestLoader: ManifestLoading {
         }
     }
 
-    public func loadSetup(at path: AbsolutePath) throws -> SetupActions {
-        try manifestLoader.loadSetup(at: path)
-    }
-
     public func loadTemplate(at path: AbsolutePath) throws -> Template {
         try load(manifest: .template, at: path) {
             try manifestLoader.loadTemplate(at: path)
@@ -116,7 +112,9 @@ public class CachedManifestLoader: ManifestLoading {
         if cacheDirectory == nil {
             cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories(config: nil).cacheDirectory(for: .manifests)
         }
-        guard let manifestPath = findManifestPath(for: manifest, at: path) else {
+
+        let manifestPath = path.appending(component: manifest.fileName(path))
+        guard fileHandler.exists(manifestPath) else {
             throw ManifestLoaderError.manifestNotFound(manifest, path)
         }
 
@@ -149,11 +147,6 @@ public class CachedManifestLoader: ManifestLoading {
         )
 
         return loadedManifest
-    }
-
-    private func findManifestPath(for manifest: Manifest, at path: AbsolutePath) -> AbsolutePath? {
-        let manifestFileNames = [manifest.fileName(path), manifest.deprecatedFileName]
-        return manifestFileNames.compactMap { $0 }.map { path.appending(component: $0) }.first(where: { fileHandler.exists($0) })
     }
 
     private func calculateHashes(path: AbsolutePath,

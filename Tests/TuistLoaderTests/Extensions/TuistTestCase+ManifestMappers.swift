@@ -19,7 +19,7 @@ extension TuistTestCase {
         XCTAssertEqual(settings.base.count, manifest.base.count, file: file, line: line)
 
         let sortedConfigurations = settings.configurations.sorted { (l, r) -> Bool in l.key.name < r.key.name }
-        let sortedManifestConfigurations = manifest.configurations.sorted(by: { $0.name < $1.name })
+        let sortedManifestConfigurations = manifest.configurations.sorted(by: { $0.name.rawValue < $1.name.rawValue })
         for (configuration, manifestConfiguration) in zip(sortedConfigurations, sortedManifestConfigurations) {
             XCTAssertBuildConfigurationMatchesManifest(configuration: configuration, matches: manifestConfiguration, at: path, generatorPaths: generatorPaths, file: file, line: line)
         }
@@ -46,7 +46,7 @@ extension TuistTestCase {
     }
 
     func XCTAssertBuildConfigurationMatchesManifest(configuration: (TuistGraph.BuildConfiguration, TuistGraph.Configuration?),
-                                                    matches manifest: ProjectDescription.CustomConfiguration,
+                                                    matches manifest: ProjectDescription.Configuration,
                                                     at _: AbsolutePath,
                                                     generatorPaths: GeneratorPaths,
                                                     file: StaticString = #file,
@@ -55,13 +55,13 @@ extension TuistTestCase {
         XCTAssertTrue(configuration.0 == manifest, file: file, line: line)
         XCTAssertEqual(
             configuration.1?.settings.count,
-            manifest.configuration?.settings.count,
+            manifest.settings.count,
             file: file,
             line: line
         )
         XCTAssertEqual(
             configuration.1?.xcconfig,
-            try manifest.configuration?.xcconfig.map { try generatorPaths.resolve(path: $0) },
+            try manifest.xcconfig.map { try generatorPaths.resolve(path: $0) },
             file: file,
             line: line
         )
@@ -136,8 +136,8 @@ extension TuistTestCase {
     {
         let targets = try manifest.targets.map { try TestableTarget.from(manifest: $0, generatorPaths: generatorPaths) }
         XCTAssertEqual(testAction.targets, targets, file: file, line: line)
-        XCTAssertTrue(testAction.configurationName == manifest.configurationName, file: file, line: line)
-        XCTAssertEqual(testAction.coverage, manifest.coverage, file: file, line: line)
+        XCTAssertTrue(testAction.configurationName == manifest.configuration.rawValue, file: file, line: line)
+        XCTAssertEqual(testAction.coverage, manifest.options.coverage, file: file, line: line)
         try optionalAssert(testAction.arguments, manifest.arguments) {
             assert(arguments: $0, matches: $1, file: file, line: line)
         }
@@ -157,7 +157,7 @@ extension TuistTestCase {
             file: file,
             line: line
         )
-        XCTAssertTrue(runAction.configurationName == manifest.configurationName, file: file, line: line)
+        XCTAssertTrue(runAction.configurationName == manifest.configuration.rawValue, file: file, line: line)
         try optionalAssert(runAction.arguments, manifest.arguments) {
             self.assert(arguments: $0, matches: $1, file: file, line: line)
         }
@@ -221,11 +221,11 @@ private func == (_ lhs: TuistGraph.Product,
 }
 
 private func == (_ lhs: BuildConfiguration,
-                 _ rhs: CustomConfiguration) -> Bool
+                 _ rhs: ProjectDescription.Configuration) -> Bool
 {
-    let map: [BuildConfiguration.Variant: CustomConfiguration.Variant] = [
+    let map: [BuildConfiguration.Variant: ProjectDescription.Configuration.Variant] = [
         .debug: .debug,
         .release: .release,
     ]
-    return map[lhs.variant] == rhs.variant && lhs.name == rhs.name
+    return map[lhs.variant] == rhs.variant && lhs.name == rhs.name.rawValue
 }

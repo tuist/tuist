@@ -41,14 +41,14 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
 
         let buildAction = ProjectDescription.BuildAction.test(targets: ["A", "B"])
         let runActions = ProjectDescription.RunAction.test(
-            config: .release,
+            configuration: .release,
             executable: "A",
             arguments: arguments
         )
         let testAction = ProjectDescription.TestAction.test(
             targets: ["B"],
             arguments: arguments,
-            config: .debug,
+            configuration: .debug,
             coverage: true
         )
         let manifest = ProjectDescription.Scheme.test(

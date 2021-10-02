@@ -35,35 +35,31 @@ public final class ConfigLoader: ConfigLoading {
             return cached
         }
 
-        // If the Config.swift file exists in the root Tuist/ directory, we load it from there
-        if let rootDirectoryPath = rootDirectoryLocator.locate(from: path) {
-            let configPath = rootDirectoryPath.appending(RelativePath("\(Constants.tuistDirectoryName)/\(Manifest.config.fileName(path))"))
-
-            if fileHandler.exists(configPath) {
-                let manifest = try manifestLoader.loadConfig(at: configPath.parentDirectory)
-                let config = try TuistGraph.Config.from(manifest: manifest, at: configPath)
-                cachedConfigs[path] = config
-                return config
-            }
-        }
-
-        // We first try to load the deprecated file. If it doesn't exist, we load the new file name.
-        let fileNames = [Manifest.config]
-            .flatMap { [$0.deprecatedFileName, $0.fileName(path)] }
-            .compactMap { $0 }
-
-        for fileName in fileNames {
-            guard let configPath = fileHandler.locateDirectoryTraversingParents(from: path, path: fileName) else {
-                continue
-            }
-            let manifest = try manifestLoader.loadConfig(at: configPath.parentDirectory)
-            let config = try TuistGraph.Config.from(manifest: manifest, at: configPath)
+        guard let configPath = locateConfigPath(at: path) else {
+            let config = TuistGraph.Config.default
             cachedConfigs[path] = config
             return config
         }
 
-        let config = TuistGraph.Config.default
+        let manifest = try manifestLoader.loadConfig(at: configPath.parentDirectory)
+        let config = try TuistGraph.Config.from(manifest: manifest, at: configPath)
         cachedConfigs[path] = config
         return config
+    }
+
+    // MARK: - Helpers
+
+    private func locateConfigPath(at path: AbsolutePath) -> AbsolutePath? {
+        // If the Config.swift file exists in the root Tuist/ directory, we load it from there
+        if let rootDirectoryPath = rootDirectoryLocator.locate(from: path) {
+            let configPath = rootDirectoryPath
+                .appending(RelativePath("\(Constants.tuistDirectoryName)/\(Manifest.config.fileName(path))"))
+            if fileHandler.exists(configPath) {
+                return configPath
+            }
+        }
+
+        // Otherwise we try to traverse up the directories to find it
+        return fileHandler.locateDirectoryTraversingParents(from: path, path: Manifest.config.fileName(path))
     }
 }

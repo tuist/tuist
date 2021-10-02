@@ -55,12 +55,6 @@ public enum TargetDependency: Codable, Equatable {
     ///   - status: The dependency status (optional dependencies are weakly linked)
     case sdk(name: String, status: SDKStatus)
 
-    /// Dependency on CocoaPods pods.
-    ///
-    /// - Parameters:
-    ///     - path: Path to the directory that contains the Podfile.
-    case cocoapods(path: Path)
-
     /// Dependency on a xcframework
     ///
     /// - Parameters:
@@ -84,15 +78,6 @@ public enum TargetDependency: Codable, Equatable {
         .sdk(name: name, status: .required)
     }
 
-    /// Dependency on a xcframework
-    ///
-    /// - Parameters:
-    ///   - path: Relative path to the xcframework
-    @available(*, deprecated, message: "Use `.xcframework(path:)` (all lower case) instead")
-    public static func xcFramework(path: Path) -> TargetDependency {
-        .xcframework(path: path)
-    }
-
     public var typeName: String {
         switch self {
         case .target:
@@ -107,8 +92,6 @@ public enum TargetDependency: Codable, Equatable {
             return "package"
         case .sdk:
             return "sdk"
-        case .cocoapods:
-            return "cocoapods"
         case .xcframework:
             return "xcframework"
         case .xctest:
@@ -181,9 +164,6 @@ extension TargetDependency {
                 status: try container.decode(SDKStatus.self, forKey: .status)
             )
 
-        case "cocoapods":
-            self = .cocoapods(path: try container.decode(Path.self, forKey: .path))
-
         case "xctest":
             self = .xctest
 
@@ -217,8 +197,6 @@ extension TargetDependency {
         case let .sdk(name, status):
             try container.encode(name, forKey: .name)
             try container.encode(status, forKey: .status)
-        case let .cocoapods(path):
-            try container.encode(path, forKey: .path)
         case let .xcframework(path):
             try container.encode(path, forKey: .path)
         case .xctest:

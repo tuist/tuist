@@ -28,7 +28,8 @@ final class ConfigurationManifestMapperTests: TuistUnitTestCase {
         let xcconfigPath = temporaryPath.appending(component: "Config.xcconfig")
         let settings: [String: ProjectDescription.SettingValue] = ["A": "B"]
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
-        let manifest = ProjectDescription.Configuration(
+        let manifest: ProjectDescription.Configuration = .debug(
+            name: .debug,
             settings: settings,
             xcconfig: Path(xcconfigPath.pathString)
         )

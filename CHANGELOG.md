@@ -4,6 +4,114 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 2.0 - Ikigai
+
+### Changed
+
+- **Breaking** made constructors from scheme action models internal and exposed static methods for initializing them instead. For example, `TestAction.init(..)` becomes `TestAction.testAction(...)`. [#3400](https://github.com/tuist/tuist/pull/3400) by [@pepibumur](https://github.com/pepibumur):
+  - **Motivation:**: Using static initializers gives us the flexibility to introduce improvements without breaking the API.
+  - **Migration:** Update all the action initializers to use the static methods instead. The name of the static method matches the name of the class but starting with a lowercase.
+- **Breaking** `tuist focus` no longer includes automatically related tests and bundle targets as sources. [#3501](https://github.com/tuist/tuist/pull/3501) by [@danyf90](https://github.com/danyf90).
+  - **Motivation:** the behavior might cause to include unwanted targets in some scenario
+  - **Migration:** if you need to include tests and bundle targets as sources, specify them as arguments of the `tuist focus` command
+
+### Removed
+
+- **Breaking** `.cocoapods` target dependency
+  - **Motivation:** `.cocoapods`'s API led users to believe their integration issues were Tuist's fault. Therefore we decided to remove it and make it an explicit action developers need to run after the generation of Xcode projects through Tuist.
+  - **Migration:** we recommend wrapping the the generation of projects in a script that runs `pod install` right after generating the project: `tuist generate && pod install`. Alternatively, you might consider adopting Swift Package Manager and using our built-in support for package dependencies through the `Dependencies.swift` manifes tfile.
+- **Breaking** Support for deprecated `TuistConfig.swift` has been ended. Define your configuration using `Config.swift`. Check [documentation](https://docs.tuist.io/manifests/config) for details. [#3373](https://github.com/tuist/tuist/pull/3373) by [@laxmorek](https://github.com/laxmorek)
+- **Breaking** Support for deprecated `Template.swift` has been ended. Define your templates using any name that describes them (`name_of_template.swift`). Check [documentation](https://docs.tuist.io/commands/scaffold) for details. [#3373](https://github.com/tuist/tuist/pull/3373) by [@laxmorek](https://github.com/laxmorek)
+  - **Migration:** we recommend wrapping the generation of projects in a script that runs `pod install` right after generating the project: `tuist generate && pod install`. Alternatively, you might consider adopting Swift Package Manager and using our built-in support for package dependencies through the `Dependencies.swift` manifest file.
+- **Breaking** simplified `TestAction`'s methods for creating an instance. [#3375](https://github.com/tuist/tuist/pull/3375) by [@pepibumur](https://github.com/pepibumur):
+  - **Motivation:** there was some redundancy across all the methods to initialize a `TestAction`. To ease its usage, we've simplified all of them into a single method. It takes the test plans as an array of `Path`s and the configuration as an instance of `PresetBuildConfiguration`. We've also made the `init` constructor internal to have the flexibility to change the signature without introducing breaking changes.
+  - **Migration:** In those places where you are initializing a `TestAction`, update the code to use either the `.testActions` or the `.targets` methods.
+- **Breaking** removed the `tuist doc` command. [#3401](https://github.com/tuist/tuist/pull/3401) by [@pepibumur](https://github.com/pepibumur)
+  - **Motivation:** the command was barely used so we are removing it to reduce the maintenance burden and reduce the binary size.
+  - **Migration:** you can use Tuist tasks or [Fastlane](https://github.com/fastlane/fastlane) to run [swift-doc](https://github.com/SwiftDocOrg/swift-doc) and generate documentation from your generated projects.
+- **Breaking** removed `PresetBuildConfiguration` in favour of `ConfigurationName`. [#3400](https://github.com/tuist/tuist/pull/3400) by [@pepibumur](https://github.com/pepibumur):
+  - **Motivation:** Making the configuration a type gives the developers the flexibility to provide their list of configurations through extensions. For example, `ConfigurationName.beta`.
+  - **Migration:** Scheme actions are now initialized passing a `configuration` argument of type `ConfigurationName`. Note that it conforms `ExpressibleByStringLiteral` so you can initialize it with a string literal.
+- **Breaking** removed the `tuist up` command in favour of a sidecar CLI tool, [`tuist-up`](https://github.com/tuist/tuist-up) that can be installed independently.
+  - **Motivation:** provisioning environments for working with Xcode projects was outside of the scope of the project. Moreover, it added up to our triaging and maintenace work because errors that bubbled up from underlying commands made people think that they were Tuist bugs.
+  - **Migration:** as suggested [here](https://github.com/tuist/tuist-up), turn your `Setup.swift` into a `up.toml` and use `tuist-up` instead.
+- **Breaking** Scheme `TestAction` options have been consolidated together under a new type `TestActionOptions`.
+  - **Motivation:** This makes the API consistent with some of the other Scheme actions as well as how it appears in the Scheme editor.
+  - **Migration:** Use `TestAction.targets(options: .options(language:region:codeCoverage:codeCoverageTargets))`
+    - `TestAction.language` > `TestActionOptions.language`
+    - `TestAction.region` > `TestActionOptions.region`
+    - `TestAction.codeCoverage` > `TestActionOptions.codeCoverage`
+    - `TestAction.codeCoverageTargets` > `TestActionOptions.codeCoverageTargets`
+- **Breaking** removed deprecated `TUIST_*` configuration variables. [#3493](https://github.com/tuist/tuist/pull/3493) by [@danyf90](https://github.com/danyf90).
+  - **Motivation:**: They have been replaced by the corresponding `TUIST_CONFIG_*` variables instead.
+  - **Migration:** Use the corresponding `TUIST_CONFIG_*` variables instead.
+
+- **Breaking** `Settings` is now publicly initialized via a new static method `.settings()`.
+  - **Motivation:** Using static initializers gives us the flexibility to introduce improvements without breaking the API.
+  - **Migration:** Replace `settings: Settings(base: ["setting": "value"])` with `settings: .settings(base: ["setting": "value"])`
+
+- **Breaking** `CustomConfiguration` has been merged with `Configuration`.
+  - **Motivation:** Simplify the API and reduce confusion between `Configuration` and `CustomConfiguration`.
+  - **Migration:** Replace `let configurations: [CustomConfiguration] = [ ... ]` with `let configurations: [Configuration] = [ ... ]`.
+
+- **Breaking** Specifying custom build settings files for default configurations via `Settings(base:debug:release:)` has changed.
+  - **Motivation:** To support the `CustomConfiguration` API simplification.
+  - **Migration:** 
+    Replace 
+
+    ```swift
+    let settings = Settings(
+        debug: Configuration(settings: ["setting": "debug"]), 
+        release: Configuration(settings: ["setting": "release"])
+    )
+    ```
+
+    with:
+
+    ```swift
+    let settings: Settings = .settings(
+        debug: ["setting": "debug"], 
+        release: ["setting": "release"]
+    )
+    ```
+
+- **Breaking** Specifying xcconfig files for default configurations via `Settings(base:debug:release:)` has changed.
+  - **Motivation:** To support the `CustomConfiguration` API simplification.
+  - **Migration:** 
+    Replace 
+
+    ```swift
+    let settings = Settings(
+        debug: Configuration(xcconfig: "configs/debug.xcconfig"), 
+        release: Configuration(xcconfig: "configs/release.xcconfig")
+    )
+    ```
+
+    with:
+
+    ```swift
+    let settings: Settings = .settings(
+        configurations: [
+          .debug(name: .debug, xcconfig: "configs/debug.xcconfig"),
+          .release(name: .release, xcconfig: "configs/release.xcconfig"),
+        ]
+    )
+    ```
+- **Breaking** Rename target `actions` to `scripts` to align with Xcode's terminology [#3374](https://github.com/tuist/tuist/pull/3374) by [@pepibumur](https://github.com/pepibumur)
+  - **Motivation** To align with Xcode's terminology used for the build phase counterpart, `scripts`.
+  - **Migration**
+    Replace
+
+    ```swift
+    let target = Target(actions: [.post(tool: "/bin/echo", arguments: ["rocks"], name: "tuist")])
+    ```
+
+    with
+
+    ```swift
+    let target = Target(scripts: [.post(tool: "/bin/echo", arguments: ["rocks"], name: "tuist")])
+    ```
+
 ## 1.52.0 - Pelae
 
 ### Changed

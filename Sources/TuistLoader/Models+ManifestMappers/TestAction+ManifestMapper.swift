@@ -39,8 +39,8 @@ extension TuistGraph.TestAction {
         } else {
             targets = try manifest.targets.map { try TuistGraph.TestableTarget.from(manifest: $0, generatorPaths: generatorPaths) }
             arguments = manifest.arguments.map { TuistGraph.Arguments.from(manifest: $0) }
-            coverage = manifest.coverage
-            codeCoverageTargets = try manifest.codeCoverageTargets.map {
+            coverage = manifest.options.coverage
+            codeCoverageTargets = try manifest.options.codeCoverageTargets.map {
                 TuistGraph.TargetReference(
                     projectPath: try generatorPaths.resolveSchemeActionProjectPath($0.projectPath),
                     name: $0.targetName
@@ -54,14 +54,14 @@ extension TuistGraph.TestAction {
             }
 
             diagnosticsOptions = Set(manifest.diagnosticsOptions.map { TuistGraph.SchemeDiagnosticsOption.from(manifest: $0) })
-            language = manifest.language
-            region = manifest.region
+            language = manifest.options.language
+            region = manifest.options.region
 
             // not used when using targets
             testPlans = nil
         }
 
-        let configurationName = manifest.configurationName
+        let configurationName = manifest.configuration.rawValue
         let preActions = try manifest.preActions.map { try TuistGraph.ExecutionAction.from(
             manifest: $0,
             generatorPaths: generatorPaths

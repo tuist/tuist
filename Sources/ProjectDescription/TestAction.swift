@@ -12,13 +12,7 @@ public struct TestAction: Equatable, Codable {
     public let arguments: Arguments?
 
     /// Name of the configuration that should be used for building the test targets.
-    public let configurationName: String
-
-    /// True to collect the test coverage results.
-    public let coverage: Bool
-
-    /// List of targets for which Xcode will collect the coverage results.
-    public let codeCoverageTargets: [TargetReference]
+    public let configuration: ConfigurationName
 
     /// Set the target that will expand the variables for
     public let expandVariableFromTarget: TargetReference?
@@ -29,11 +23,8 @@ public struct TestAction: Equatable, Codable {
     /// List of actions to be executed after running the tests.
     public let postActions: [ExecutionAction]
 
-    /// Language.
-    public let language: SchemeLanguage?
-
-    /// Region.
-    public let region: String?
+    /// Options.
+    public let options: TestActionOptions
 
     /// Diagnostics options.
     public let diagnosticsOptions: [SchemeDiagnosticsOption]
@@ -41,160 +32,66 @@ public struct TestAction: Equatable, Codable {
     private init(testPlans: [Path]?,
                  targets: [TestableTarget],
                  arguments: Arguments?,
-                 configurationName: String,
-                 coverage: Bool,
-                 codeCoverageTargets: [TargetReference],
+                 configuration: ConfigurationName,
                  expandVariableFromTarget: TargetReference?,
                  preActions: [ExecutionAction],
                  postActions: [ExecutionAction],
-                 diagnosticsOptions: [SchemeDiagnosticsOption],
-                 language: SchemeLanguage?,
-                 region: String?)
+                 options: TestActionOptions,
+                 diagnosticsOptions: [SchemeDiagnosticsOption])
     {
         self.testPlans = testPlans
         self.targets = targets
         self.arguments = arguments
-        self.configurationName = configurationName
-        self.coverage = coverage
+        self.configuration = configuration
         self.preActions = preActions
         self.postActions = postActions
-        self.codeCoverageTargets = codeCoverageTargets
         self.expandVariableFromTarget = expandVariableFromTarget
+        self.options = options
         self.diagnosticsOptions = diagnosticsOptions
-        self.language = language
-        self.region = region
     }
 
-    /// Initializes a new instance of a test action
+    /// Initializes a test action using a list of targets.
     /// - Parameters:
     ///   - targets: List of targets to be tested.
-    ///   - arguments: Arguments passed to the process running the tests.
-    ///   - configurationName: Name of the configuration that should be used for building the test targets.
-    ///   - coverage: True to collect the test coverage results.
-    ///   - codeCoverageTargets: List of targets for which Xcode will collect the coverage results.
-    ///   - preActions: ist of actions to be executed before running the tests.
-    ///   - postActions: List of actions to be executed after running the tests.
+    ///   - arguments: Arguments passed when running the tests.
+    ///   - configuration: Configuration to be used.
+    ///   - expandVariableFromTarget: A target that will be used to expand the variables defined inside Environment Variables definition
+    ///   - preActions: Actions to execute before running the tests.
+    ///   - postActions: Actions to execute after running the tests.
+    ///   - options: Test options.
     ///   - diagnosticsOptions: Diagnostics options.
-    ///   - language: Language (e.g. "pl").
-    ///   - region: Region (e.g. "PL").
-    public init(targets: [TestableTarget],
-                arguments: Arguments? = nil,
-                configurationName: String,
-                coverage: Bool = false,
-                codeCoverageTargets: [TargetReference] = [],
-                expandVariableFromTarget: TargetReference? = nil,
-                preActions: [ExecutionAction] = [],
-                postActions: [ExecutionAction] = [],
-                diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker],
-                language: String? = nil,
-                region: String? = nil)
+    /// - Returns: An initialized test action.
+    public static func targets(_ targets: [TestableTarget],
+                               arguments: Arguments? = nil,
+                               configuration: ConfigurationName = .debug,
+                               expandVariableFromTarget: TargetReference? = nil,
+                               preActions: [ExecutionAction] = [],
+                               postActions: [ExecutionAction] = [],
+                               options: TestActionOptions = .options(),
+                               diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker]) -> Self
     {
-        self.init(
+        Self(
             testPlans: nil,
             targets: targets,
             arguments: arguments,
-            configurationName: configurationName,
-            coverage: coverage,
-            codeCoverageTargets: codeCoverageTargets,
+            configuration: configuration,
             expandVariableFromTarget: expandVariableFromTarget,
             preActions: preActions,
             postActions: postActions,
-            diagnosticsOptions: diagnosticsOptions,
-            language: language.flatMap(SchemeLanguage.init(stringLiteral:)),
-            region: region
+            options: options,
+            diagnosticsOptions: diagnosticsOptions
         )
     }
 
-    /// Initializes a new instance of a test action
+    /// Initializes a test action using a list of test plans.
     /// - Parameters:
-    ///   - targets: List of targets to be tested.
-    ///   - arguments: Arguments passed to the process running the tests.
-    ///   - config: Configuration that should be used for building the test targets.
-    ///   - coverage: True to collect the test coverage results.
-    ///   - codeCoverageTargets: List of targets for which Xcode will collect the coverage results.
-    ///   - preActions: ist of actions to be executed before running the tests.
-    ///   - postActions: List of actions to be executed after running the tests.
-    ///   - diagnosticsOptions: Diagnostics options.
-    ///   - language: Language (e.g. "pl").
-    ///   - region: Region (e.g. "PL").
-    public init(targets: [TestableTarget],
-                arguments: Arguments? = nil,
-                config: PresetBuildConfiguration = .debug,
-                coverage: Bool = false,
-                codeCoverageTargets: [TargetReference] = [],
-                expandVariableFromTarget: TargetReference? = nil,
-                preActions: [ExecutionAction] = [],
-                postActions: [ExecutionAction] = [],
-                diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker],
-                language: String? = nil,
-                region: String? = nil)
-    {
-        self.init(
-            testPlans: nil,
-            targets: targets,
-            arguments: arguments,
-            configurationName: config.name,
-            coverage: coverage,
-            codeCoverageTargets: codeCoverageTargets,
-            expandVariableFromTarget: expandVariableFromTarget,
-            preActions: preActions,
-            postActions: postActions,
-            diagnosticsOptions: diagnosticsOptions,
-            language: language.flatMap(SchemeLanguage.init(stringLiteral:)),
-            region: region
-        )
-    }
-
-    /// Initializes a new instance of a test action using test plans
-    /// - Parameters:
-    ///   - testPlans: List of test plans. The first in the list will be the default plan.
-    ///   - config: Configuration that should be used for building the test targets.
-    ///   - preActions: ist of actions to be executed before running the tests.
-    ///   - postActions: List of actions to be executed after running the tests.
-    public static func testPlans(_ testPlans: Path...,
-                                 config: PresetBuildConfiguration = .debug,
-                                 preActions: [ExecutionAction] = [],
-                                 postActions: [ExecutionAction] = []) -> Self
-    {
-        Self.testPlans(testPlans, config: config, preActions: preActions, postActions: postActions)
-    }
-
-    /// Initializes a new instance of a test action using test plans
-    /// - Parameters:
-    ///   - testPlans: List of test plans. The first in the list will be the default plan.
-    ///   - config: Configuration that should be used for building the test targets.
-    ///   - preActions: ist of actions to be executed before running the tests.
-    ///   - postActions: List of actions to be executed after running the tests.
-    public static func testPlans(_ testPlans: Path...,
-                                 configurationName: String,
-                                 preActions: [ExecutionAction] = [],
-                                 postActions: [ExecutionAction] = []) -> Self
-    {
-        Self.testPlans(testPlans, configurationName: configurationName, preActions: preActions, postActions: postActions)
-    }
-
-    /// Initializes a new instance of a test action using test plans
-    /// - Parameters:
-    ///   - testPlans: Array of test plans. The first in the array will be the default plan.
-    ///   - config: Configuration that should be used for building the test targets.
-    ///   - preActions: ist of actions to be executed before running the tests.
-    ///   - postActions: List of actions to be executed after running the tests.
+    ///   - testPlans: List of test plans to run.
+    ///   - configuration: Configuration to be used.
+    ///   - preActions: Actions to execute before running the tests.
+    ///   - postActions: Actions to execute after running the tests.
+    /// - Returns: An initialized test action.
     public static func testPlans(_ testPlans: [Path],
-                                 config: PresetBuildConfiguration = .debug,
-                                 preActions: [ExecutionAction] = [],
-                                 postActions: [ExecutionAction] = []) -> Self
-    {
-        Self.testPlans(testPlans, configurationName: config.name, preActions: preActions, postActions: postActions)
-    }
-
-    /// Initializes a new instance of a test action using test plans
-    /// - Parameters:
-    ///   - testPlans: Array of test plans. The first in the array will be the default plan.
-    ///   - config: Configuration that should be used for building the test targets.
-    ///   - preActions: ist of actions to be executed before running the tests.
-    ///   - postActions: List of actions to be executed after running the tests.
-    public static func testPlans(_ testPlans: [Path],
-                                 configurationName: String,
+                                 configuration: ConfigurationName = .debug,
                                  preActions: [ExecutionAction] = [],
                                  postActions: [ExecutionAction] = []) -> Self
     {
@@ -202,15 +99,12 @@ public struct TestAction: Equatable, Codable {
             testPlans: testPlans,
             targets: [],
             arguments: nil,
-            configurationName: configurationName,
-            coverage: false,
-            codeCoverageTargets: [],
+            configuration: configuration,
             expandVariableFromTarget: nil,
             preActions: preActions,
             postActions: postActions,
-            diagnosticsOptions: [.mainThreadChecker],
-            language: nil,
-            region: nil
+            options: .options(),
+            diagnosticsOptions: []
         )
     }
 }

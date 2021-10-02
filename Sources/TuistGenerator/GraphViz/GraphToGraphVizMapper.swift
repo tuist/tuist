@@ -84,7 +84,7 @@ private extension GraphDependency {
         switch self {
         case .target:
             return false
-        case .framework, .xcframework, .library, .bundle, .packageProduct, .sdk, .cocoapods:
+        case .framework, .xcframework, .library, .bundle, .packageProduct, .sdk:
             return true
         }
     }
@@ -129,8 +129,6 @@ private extension GraphDependency {
             source: _
         ):
             return String(name.split(separator: ".").first ?? "")
-        case .cocoapods:
-            return "CocoaPods"
         }
     }
 }

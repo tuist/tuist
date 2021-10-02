@@ -107,11 +107,11 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let target = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
         pbxproj.add(object: target)
-        let targetScript = TargetScript(name: "Test", script: "Script", showEnvVarsInLog: true, hashable: false)
+        let targetScript = RawScriptBuildPhase(name: "Test", script: "Script", showEnvVarsInLog: true, hashable: false)
         let targetScripts = [targetScript]
 
         // When
-        subject.generateScripts(
+        subject.generateRawScriptBuildPhases(
             targetScripts,
             pbxTarget: target,
             pbxproj: pbxproj
@@ -131,11 +131,11 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let target = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
         pbxproj.add(object: target)
-        let targetScript = TargetScript(name: "Test", script: "Script", showEnvVarsInLog: true, hashable: false, shellPath: "/bin/zsh")
+        let targetScript = RawScriptBuildPhase(name: "Test", script: "Script", showEnvVarsInLog: true, hashable: false, shellPath: "/bin/zsh")
         let targetScripts = [targetScript]
 
         // When
-        subject.generateScripts(
+        subject.generateRawScriptBuildPhases(
             targetScripts,
             pbxTarget: target,
             pbxproj: pbxproj
@@ -885,8 +885,8 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let target = Target.test(
             sources: [],
             resources: [],
-            actions: [
-                TargetAction(
+            scripts: [
+                TargetScript(
                     name: "post",
                     order: .post,
                     script: .scriptPath(path.appending(component: "script.sh"), args: ["arg"]),
@@ -894,7 +894,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
                     basedOnDependencyAnalysis: false,
                     runForInstallBuildsOnly: true
                 ),
-                TargetAction(
+                TargetScript(
                     name: "pre",
                     order: .pre,
                     script: .scriptPath(path.appending(component: "script.sh"), args: ["arg"])
@@ -955,8 +955,8 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let target = Target.test(
             sources: [],
             resources: [],
-            actions: [
-                TargetAction(
+            scripts: [
+                TargetScript(
                     name: "post",
                     order: .post,
                     script: .scriptPath(path.appending(component: "script.sh"), args: ["arg"]),
@@ -965,7 +965,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
                     runForInstallBuildsOnly: true,
                     shellPath: "/bin/zsh" // testing custom shell
                 ),
-                TargetAction(
+                TargetScript(
                     name: "pre",
                     order: .pre,
                     script: .scriptPath(path.appending(component: "script.sh"), args: ["arg"]) // leaving default shell

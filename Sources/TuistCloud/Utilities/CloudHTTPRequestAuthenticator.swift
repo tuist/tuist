@@ -47,8 +47,7 @@ public final class CloudHTTPRequestAuthenticator: CloudHTTPRequestAuthenticating
         let serverURL = urlComponents.url!
 
         let environment = environmentVariables()
-        let tokenFromEnvironment = environment[Constants.EnvironmentVariables.cloudToken] ??
-            environment[Constants.EnvironmentVariables.deprecatedCloudToken]
+        let tokenFromEnvironment = environment[Constants.EnvironmentVariables.cloudToken]
         let token: String?
         if ciChecker.isCI() {
             token = tokenFromEnvironment

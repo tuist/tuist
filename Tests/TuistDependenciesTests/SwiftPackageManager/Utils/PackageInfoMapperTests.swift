@@ -1628,7 +1628,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             project,
             .test(
                 name: "Package",
-                settings: .init(base: ["GCC_C_LANGUAGE_STANDARD": "c99"]),
+                settings: .settings(base: ["GCC_C_LANGUAGE_STANDARD": "c99"]),
                 targets: [
                     .test("Target1"),
                 ]
@@ -1658,7 +1658,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             project,
             .test(
                 name: "Package",
-                settings: .init(base: ["CLANG_CXX_LANGUAGE_STANDARD": "gnu++14"]),
+                settings: .settings(base: ["CLANG_CXX_LANGUAGE_STANDARD": "gnu++14"]),
                 targets: [
                     .test("Target1"),
                 ]
@@ -1688,7 +1688,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             project,
             .test(
                 name: "Package",
-                settings: .init(base: ["SWIFT_VERSION": "4.0.0"]),
+                settings: .settings(base: ["SWIFT_VERSION": "4.0.0"]),
                 targets: [
                     .test("Target1"),
                 ]
@@ -1718,7 +1718,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             project,
             .test(
                 name: "Package",
-                settings: .init(base: ["SWIFT_VERSION": "5.0.0"]),
+                settings: .settings(base: ["SWIFT_VERSION": "5.0.0"]),
                 targets: [
                     .test("Target1"),
                 ]
@@ -1749,7 +1749,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             project,
             .test(
                 name: "Package",
-                settings: .init(base: ["SWIFT_VERSION": "4.2.0"]),
+                settings: .settings(base: ["SWIFT_VERSION": "4.2.0"]),
                 targets: [
                     .test("Target1"),
                 ]

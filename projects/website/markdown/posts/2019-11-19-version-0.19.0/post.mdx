@@ -51,7 +51,7 @@ In the vein of adding support for more product types, this version of Tuist also
 Before this version of Tuist, it was not possible to enable test coverage in schemes. Thanks to [Abbas](https://github.com/abbasmousavi)'s work, it's now possible and there's an API for that. If you would like to enable it in your custom schemes, you just need to pass the `codeCoverageTargets` attribute when initializing a `TestAction`:
 
 ```swift
-let test = TestAction(target: ["MyAppTests"], codeCoverageTargets: true)
+let test = TestAction.targets(["MyAppTests"], codeCoverageTargets: true)
 ```
 
 You can check the documentation of the `TestAction` model [here](https://docs.tuist.io/usage-projectswift#test-action).

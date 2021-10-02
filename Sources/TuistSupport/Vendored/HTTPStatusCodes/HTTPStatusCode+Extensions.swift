@@ -112,60 +112,6 @@ public extension HTTPURLResponse {
     }
 }
 
-// MARK: - Deprecated cases
-
-public extension HTTPStatusCode {
-    /// - deprecated: Renamed to `payloadTooLarge`
-    @available(*, deprecated, renamed: "payloadTooLarge")
-    static let requestEntityTooLarge = payloadTooLarge
-
-    /// - deprecated: Renamed to `uriTooLong`
-    @available(*, deprecated, renamed: "uriTooLong")
-    static let requestURITooLong = uriTooLong
-
-    /// - deprecated: Renamed to `rangeNotSatisfiable`
-    @available(*, deprecated, renamed: "rangeNotSatisfiable")
-    static let requestedRangeNotSatisfiable = rangeNotSatisfiable
-
-    /// - deprecated: Renamed to `iisLoginTimeout`
-    @available(*, deprecated, renamed: "iisLoginTimeout")
-    static let loginTimeout = iisLoginTimeout
-
-    /// - deprecated: Renamed to `iisRetryWith`
-    @available(*, deprecated, renamed: "iisRetryWith")
-    static let retryWith = iisRetryWith
-
-    /// - deprecated: Renamed to `nginxNoResponse`
-    @available(*, deprecated, renamed: "nginxNoResponse")
-    static let noResponse = nginxNoResponse
-
-    /// - deprecated: Renamed to `nginxSSLCertificateError`
-    @available(*, deprecated, renamed: "nginxSSLCertificateError")
-    static let certError = nginxSSLCertificateError
-
-    /// - deprecated: Renamed to `nginxSSLCertificateRequired`
-    @available(*, deprecated, renamed: "nginxSSLCertificateRequired")
-    static let noCert = nginxSSLCertificateRequired
-
-    /// - deprecated: Renamed to `nginxHTTPToHTTPS`
-    @available(*, deprecated, renamed: "nginxHTTPToHTTPS")
-    static let httpToHTTPS = nginxHTTPToHTTPS
-
-    /// - deprecated: Renamed to `nginxClientClosedRequest`
-    @available(*, deprecated, renamed: "nginxClientClosedRequest")
-    static let clientClosedRequest = nginxClientClosedRequest
-
-    /// - deprecated: Renamed to `networkConnectTimeoutError`
-    @available(*, deprecated, renamed: "networkConnectTimeoutError")
-    static let networkTimeoutError = networkConnectTimeoutError
-
-    /// Returned by version 1 of the Twitter Search and Trends API when the client is being rate limited; versions 1.1 and later use the 429 Too Many Requests (`tooManyRequests`) response code instead.
-    ///
-    /// - seealso: [Twitter Error Codes & Responses](https://dev.twitter.com/docs/error-codes-responses)
-    @available(*, deprecated, renamed: "tooManyRequests")
-    static let twitterEnhanceYourCalm = tooManyRequests
-}
-
 public extension HTTPURLResponse {
     /// - deprecated: Renamed to `init(url:statusCode:httpVersion:headerFields)` to correct Swift 3 naming convention.
     @available(*, deprecated, renamed: "init(url:statusCode:httpVersion:headerFields:)", message: "Renamed to correct Swift 3 naming convention")

@@ -111,7 +111,6 @@ func targets() -> [Target] {
                 .target(name: "TuistDependencies"),
                 .target(name: "TuistLinting"),
                 .target(name: "TuistCloud"),
-                .target(name: "TuistDoc"),
                 .target(name: "TuistMigration"),
                 .target(name: "TuistAsyncQueue"),
                 .target(name: "TuistAnalytics"),
@@ -135,7 +134,6 @@ func targets() -> [Target] {
                 .target(name: "TuistDependenciesTesting"),
                 .target(name: "TuistLintingTesting"),
                 .target(name: "TuistMigrationTesting"),
-                .target(name: "TuistDocTesting"),
                 .target(name: "TuistAsyncQueueTesting"),
                 .target(name: "TuistGraphTesting"),
                 .target(name: "TuistPlugin"),
@@ -150,26 +148,6 @@ func targets() -> [Target] {
                 .target(name: "TuistLoaderTesting"),
                 .target(name: "TuistCloudTesting"),
                 .target(name: "TuistGraphTesting"),
-            ]
-        ),
-        Target.module(
-            name: "TuistDoc",
-            dependencies: [
-                .target(name: "TuistCore"),
-                .target(name: "TuistGraph"),
-                .target(name: "TuistSupport"),
-            ],
-            testDependencies: [
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistCore"),
-                .target(name: "TuistCoreTesting"),
-                .target(name: "TuistGraphTesting"),
-                .target(name: "TuistSupport"),
-            ],
-            testingDependencies: [
-                .target(name: "TuistCore"),
-                .target(name: "TuistCoreTesting"),
-                .target(name: "TuistSupportTesting"),
             ]
         ),
         Target.module(

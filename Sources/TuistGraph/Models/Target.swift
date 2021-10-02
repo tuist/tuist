@@ -31,11 +31,11 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     public var copyFiles: [CopyFilesAction]
     public var headers: Headers?
     public var coreDataModels: [CoreDataModel]
-    public var actions: [TargetAction]
+    public var scripts: [TargetScript]
     public var environment: [String: String]
     public var launchArguments: [LaunchArgument]
     public var filesGroup: ProjectGroup
-    public var scripts: [TargetScript]
+    public var rawScriptBuildPhases: [RawScriptBuildPhase]
     public var playgrounds: [AbsolutePath]
     public var prune: Bool
 
@@ -55,12 +55,12 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
                 copyFiles: [CopyFilesAction] = [],
                 headers: Headers? = nil,
                 coreDataModels: [CoreDataModel] = [],
-                actions: [TargetAction] = [],
+                scripts: [TargetScript] = [],
                 environment: [String: String] = [:],
                 launchArguments: [LaunchArgument] = [],
                 filesGroup: ProjectGroup,
                 dependencies: [TargetDependency] = [],
-                scripts: [TargetScript] = [],
+                rawScriptBuildPhases: [RawScriptBuildPhase] = [],
                 playgrounds: [AbsolutePath] = [],
                 prune: Bool = false)
     {
@@ -78,12 +78,12 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         self.copyFiles = copyFiles
         self.headers = headers
         self.coreDataModels = coreDataModels
-        self.actions = actions
+        self.scripts = scripts
         self.environment = environment
         self.launchArguments = launchArguments
         self.filesGroup = filesGroup
         self.dependencies = dependencies
-        self.scripts = scripts
+        self.rawScriptBuildPhases = rawScriptBuildPhases
         self.playgrounds = playgrounds
         self.prune = prune
     }
@@ -93,14 +93,14 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         [.dynamicLibrary, .staticLibrary, .framework, .staticFramework].contains(product)
     }
 
-    /// Returns target's pre actions.
-    public var preActions: [TargetAction] {
-        actions.filter { $0.order == .pre }
+    /// Returns target's pre scripts.
+    public var preScripts: [TargetScript] {
+        scripts.filter { $0.order == .pre }
     }
 
-    /// Returns target's post actions.
-    public var postActions: [TargetAction] {
-        actions.filter { $0.order == .post }
+    /// Returns target's post scripts.
+    public var postScripts: [TargetScript] {
+        scripts.filter { $0.order == .post }
     }
 
     /// Target can link static products (e.g. an app can link a staticLibrary)
@@ -188,7 +188,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
             lhs.resources == rhs.resources &&
             lhs.headers == rhs.headers &&
             lhs.coreDataModels == rhs.coreDataModels &&
-            lhs.actions == rhs.actions &&
+            lhs.scripts == rhs.scripts &&
             lhs.dependencies == rhs.dependencies &&
             lhs.environment == rhs.environment
     }
@@ -211,11 +211,11 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
         return copy
     }
 
-    /// Returns a new copy of the target with the given actions.
-    /// - Parameter actions: Actions to be set to the copied instance.
-    public func with(actions: [TargetAction]) -> Target {
+    /// Returns a new copy of the target with the given scripts.
+    /// - Parameter scripts: Actions to be set to the copied instance.
+    public func with(scripts: [TargetScript]) -> Target {
         var copy = self
-        copy.actions = actions
+        copy.scripts = scripts
         return copy
     }
 

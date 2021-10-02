@@ -8,7 +8,7 @@ let project = Project(name: "App",
                                bundleId: "io.tuist.app",
                                infoPlist: "Info.plist",
                                sources: ["Sources/**"],
-                               actions: [
+                               scripts: [
                                 .pre(tool: "/bin/echo", arguments: ["\"tuist\""], name: "Tuist"),
                                 .post(tool: "/bin/echo", arguments: ["rocks"], name: "Rocks"),
                                 .pre(path: "script.sh", name: "Run script")

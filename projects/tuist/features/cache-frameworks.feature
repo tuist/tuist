@@ -5,7 +5,7 @@ Feature: Focuses projects with pre-compiled cached xcframeworks
     And I have a working directory
     And I initialize a ios application named MyApp
     And tuist warms the cache
-    When tuist focuses the target MyApp
+    When tuist focuses the targets MyApp,MyAppTests
     Then MyApp links the framework MyAppKit from the cache
     Then MyApp links the framework MyAppUI from the cache
     Then I should be able to build for iOS the scheme MyApp

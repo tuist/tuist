@@ -15,7 +15,6 @@ public struct TuistCommand: ParsableCommand {
                 CacheCommand.self,
                 CleanCommand.self,
                 DependenciesCommand.self,
-                DocCommand.self,
                 DumpCommand.self,
                 EditCommand.self,
                 ExecCommand.self,
@@ -30,7 +29,6 @@ public struct TuistCommand: ParsableCommand {
                 ScaffoldCommand.self,
                 SigningCommand.self,
                 TestCommand.self,
-                UpCommand.self,
                 VersionCommand.self,
             ]
         )

@@ -666,7 +666,7 @@ extension ProjectDescription.Settings {
             settingsDictionary["OTHER_LDFLAGS"] = .array(["$(inherited)"] + linkerFlags)
         }
 
-        return .init(base: settingsDictionary)
+        return .settings(base: settingsDictionary)
     }
 
     fileprivate struct PackageTarget: Hashable {
@@ -831,7 +831,7 @@ extension PackageInfo {
             settingsDictionary["SWIFT_VERSION"] = .string(swiftLanguageVersion)
         }
 
-        return settingsDictionary.isEmpty ? nil : .init(base: settingsDictionary)
+        return settingsDictionary.isEmpty ? nil : .settings(base: settingsDictionary)
     }
 
     fileprivate func swiftVersion(for configuredSwiftVersion: TSCUtility.Version?) -> String? {

@@ -251,22 +251,6 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         )
     }
 
-    func test_load_deprecatedFileName() throws {
-        // Given
-        let path = try temporaryPath().appending(component: "App")
-        let config = Config.test(generationOptions: [.organizationName("Foo")])
-        try stub(deprecatedManifest: config, at: path)
-
-        // When
-        _ = try subject.loadConfig(at: path)
-        _ = try subject.loadConfig(at: path)
-        let result = try subject.loadConfig(at: path)
-
-        // Then
-        XCTAssertEqual(result, config)
-        XCTAssertEqual(recordedLoadConfigCalls, 1)
-    }
-
     // MARK: - Helpers
 
     private func createSubject(tuistVersion: String = "1.0") -> CachedManifestLoader {
@@ -295,7 +279,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
     private func stub(deprecatedManifest manifest: Config,
                       at path: AbsolutePath) throws
     {
-        let manifestPath = path.appending(component: Manifest.config.deprecatedFileName ?? Manifest.config.fileName(path))
+        let manifestPath = path.appending(component: Manifest.config.fileName(path))
         try fileHandler.touch(manifestPath)
         let manifestData = try JSONEncoder().encode(manifest)
         try fileHandler.write(String(data: manifestData, encoding: .utf8)!, path: manifestPath, atomically: true)

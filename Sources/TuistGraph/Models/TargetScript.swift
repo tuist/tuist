@@ -1,39 +1,198 @@
 import Foundation
 import TSCBasic
 
-/// It represents a target build phase.
+/// It represents a target script build phase
 public struct TargetScript: Equatable, Codable {
-    /// The  name of the build phase.
+    /// Order when the script gets executed.
+    ///
+    /// - pre: Before the sources and resources build phase.
+    /// - post: After the sources and resources build phase.
+    public enum Order: String, Equatable, Codable {
+        case pre
+        case post
+    }
+
+    /// Specifies how to execute the target script
+    ///
+    /// - tool: Executes the tool with the given arguments. Tuist will look up the tool on the environment's PATH.
+    /// - scriptPath: Executes the file at the path with the given arguments.
+    /// - embedded: Executes the embedded script. This should be a short command.
+    public enum Script: Equatable, Codable {
+        case tool(_ path: String, _ args: [String] = [])
+        case scriptPath(_ path: AbsolutePath, args: [String] = [])
+        case embedded(String)
+    }
+
+    /// Name of the build phase when the project gets generated
     public let name: String
 
-    /// Script.
-    public let script: String
+    /// The script to execute in the script
+    public let script: Script
 
-    /// Whether we want the build phase to show the environment variables in the logs.
-    public let showEnvVarsInLog: Bool
+    /// The text of the embedded script
+    public var embeddedScript: String? {
+        if case let Script.embedded(embeddedScript) = script {
+            return embeddedScript
+        }
 
-    /// Whether the script should be hashed for caching purposes.
-    public let hashable: Bool
+        return nil
+    }
+
+    /// Name of the tool to execute. Tuist will look up the tool on the environment's PATH.
+    public var tool: String? {
+        if case let Script.tool(tool, _) = script {
+            return tool
+        }
+
+        return nil
+    }
+
+    /// Path to the script to execute.
+    public var path: AbsolutePath? {
+        if case let Script.scriptPath(path, _) = script {
+            return path
+        }
+
+        return nil
+    }
+
+    /// Target script order
+    public let order: Order
+
+    /// Arguments that to be passed
+    public var arguments: [String] {
+        switch script {
+        case let .scriptPath(_, args), let .tool(_, args):
+            return args
+
+        case .embedded:
+            return []
+        }
+    }
+
+    /// List of input file paths
+    public let inputPaths: [AbsolutePath]
+
+    /// List of input filelist paths
+    public let inputFileListPaths: [AbsolutePath]
+
+    /// List of output file paths
+    public let outputPaths: [AbsolutePath]
+
+    /// List of output filelist paths
+    public let outputFileListPaths: [AbsolutePath]
+
+    /// Show environment variables in the logs
+    public var showEnvVarsInLog: Bool
+
+    /// Whether to skip running this script in incremental builds, if nothing has changed
+    public let basedOnDependencyAnalysis: Bool?
+
+    /// Whether this script only runs on install builds (default is false)
+    public let runForInstallBuildsOnly: Bool
 
     /// The path to the shell which shall execute this script.
     public let shellPath: String
 
-    /// Initializes the target script.
-    /// - Parameter name: The name of the build phase.
-    /// - Parameter script: Script.
-    /// - Parameter showEnvVarsInLog: Whether we want the build phase to show the environment variables in the logs.
-    /// - Parameter hashable: Whether the script should be hashed for caching purposes.
-    /// - Parameter shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
+    /// Initializes a new target script with its attributes using a script at the given path to be executed.
+    ///
+    /// - Parameters:
+    ///   - name: Name of the build phase when the project gets generated
+    ///   - order: Target script order
+    ///   - path: Path to the script to execute
+    ///   - arguments: Arguments that to be passed
+    ///   - inputPaths: List of input file paths
+    ///   - inputFileListPaths: List of input filelist paths
+    ///   - outputPaths: List of output file paths
+    ///   - outputFileListPaths: List of output filelist paths
+    ///   - showEnvVarsInLog: Show environment variables in the logs
+    ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
+    ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
+    ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
     public init(name: String,
-                script: String,
-                showEnvVarsInLog: Bool,
-                hashable: Bool,
+                order: Order,
+                script: Script = .embedded(""),
+                inputPaths: [AbsolutePath] = [],
+                inputFileListPaths: [AbsolutePath] = [],
+                outputPaths: [AbsolutePath] = [],
+                outputFileListPaths: [AbsolutePath] = [],
+                showEnvVarsInLog: Bool = true,
+                basedOnDependencyAnalysis: Bool? = nil,
+                runForInstallBuildsOnly: Bool = false,
                 shellPath: String = "/bin/sh")
     {
         self.name = name
+        self.order = order
         self.script = script
+        self.inputPaths = inputPaths
+        self.inputFileListPaths = inputFileListPaths
+        self.outputPaths = outputPaths
+        self.outputFileListPaths = outputFileListPaths
         self.showEnvVarsInLog = showEnvVarsInLog
-        self.hashable = hashable
+        self.basedOnDependencyAnalysis = basedOnDependencyAnalysis
+        self.runForInstallBuildsOnly = runForInstallBuildsOnly
         self.shellPath = shellPath
+    }
+}
+
+extension Array where Element == TargetScript {
+    public var preScripts: [TargetScript] {
+        filter { $0.order == .pre }
+    }
+
+    public var postScripts: [TargetScript] {
+        filter { $0.order == .post }
+    }
+}
+
+// MARK: - TargetAction.Script - Codable
+
+extension TargetScript.Script {
+    private enum Kind: String, Codable {
+        case tool
+        case scriptPath
+        case embedded
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case kind
+        case path
+        case absolutePath
+        case args
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let kind = try container.decode(Kind.self, forKey: .kind)
+        switch kind {
+        case .tool:
+            let path = try container.decode(String.self, forKey: .path)
+            let args = try container.decode([String].self, forKey: .args)
+            self = .tool(path, args)
+        case .scriptPath:
+            let absolutePath = try container.decode(AbsolutePath.self, forKey: .absolutePath)
+            let args = try container.decode([String].self, forKey: .args)
+            self = .scriptPath(absolutePath, args: args)
+        case .embedded:
+            let path = try container.decode(String.self, forKey: .path)
+            self = .embedded(path)
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case let .tool(path, args):
+            try container.encode(Kind.tool, forKey: .kind)
+            try container.encode(path, forKey: .path)
+            try container.encode(args, forKey: .args)
+        case let .scriptPath(absolutePath, args):
+            try container.encode(Kind.scriptPath, forKey: .kind)
+            try container.encode(absolutePath, forKey: .absolutePath)
+            try container.encode(args, forKey: .args)
+        case let .embedded(path):
+            try container.encode(Kind.embedded, forKey: .kind)
+            try container.encode(path, forKey: .path)
+        }
     }
 }
