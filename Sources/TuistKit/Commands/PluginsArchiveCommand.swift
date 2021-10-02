@@ -10,7 +10,16 @@ struct PluginsArchiveCommannd: ParsableCommand {
         )
     }
     
+    @Option(
+        name: .shortAndLong,
+        help: "The path to the directory that contains the definition of the plugin.",
+        completion: .directory
+    )
+    var path: String?
+    
     func run() throws {
-        try PluginsArchiveService().run()
+        try PluginsArchiveService().run(
+            path: path
+        )
     }
 }
