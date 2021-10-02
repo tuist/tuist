@@ -2,13 +2,13 @@ import ArgumentParser
 import Foundation
 import TSCBasic
 
-struct PluginsCommand: ParsableCommand {
+struct PluginCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
-            commandName: "plugins",
-            abstract: "A set of commands for plugins' management.",
+            commandName: "plugin",
+            abstract: "A set of commands for plugin's management.",
             subcommands: [
-                PluginsArchiveCommannd.self,
+                PluginArchiveCommannd.self,
             ]
         )
     }

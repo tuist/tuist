@@ -6,8 +6,8 @@ import TuistSupportTesting
 @testable import TuistKit
 import TuistLoaderTesting
 
-final class PluginsArchiveServiceTests: TuistUnitTestCase {
-    private var subject: PluginsArchiveService!
+final class PluginArchiveServiceTests: TuistUnitTestCase {
+    private var subject: PluginArchiveService!
     private var swiftPackageManagerController: MockSwiftPackageManagerController!
     private var manifestLoader: MockManifestLoader!
     private var fileArchiverFactory: MockFileArchivingFactory!
@@ -17,7 +17,7 @@ final class PluginsArchiveServiceTests: TuistUnitTestCase {
         swiftPackageManagerController = MockSwiftPackageManagerController()
         manifestLoader = MockManifestLoader()
         fileArchiverFactory = MockFileArchivingFactory()
-        subject = PluginsArchiveService(
+        subject = PluginArchiveService(
             swiftPackageManagerController: swiftPackageManagerController,
             manifestLoader: manifestLoader,
             fileArchiverFactory: fileArchiverFactory

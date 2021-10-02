@@ -2,11 +2,11 @@ import ArgumentParser
 import Foundation
 import TSCBasic
 
-struct PluginsArchiveCommannd: ParsableCommand {
+struct PluginArchiveCommannd: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "archive",
-            abstract: "Archives plugins and saves the artifacts into `build` directory."
+            abstract: "Archives a plugin into a NameOfPlugin.tuist-plugin.zip."
         )
     }
     
@@ -18,7 +18,7 @@ struct PluginsArchiveCommannd: ParsableCommand {
     var path: String?
     
     func run() throws {
-        try PluginsArchiveService().run(
+        try PluginArchiveService().run(
             path: path
         )
     }

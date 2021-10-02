@@ -5,7 +5,7 @@ import TuistLoader
 import TSCBasic
 import ProjectDescription
 
-final class PluginsArchiveService {
+final class PluginArchiveService {
     private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let manifestLoader: ManifestLoading
     private let fileArchiverFactory: FileArchivingFactorying
