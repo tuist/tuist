@@ -31,18 +31,26 @@ ohai "Unzipping tuistenv..."
 unzip -o /tmp/tuistenv.zip -d /tmp/tuistenv > /dev/null
 ohai "Installing tuistenv..."
 
-HOMEBREW_DIR = $(brew --prefix)
+# Run `which -s brew` to check if HomeBrew is installed
+which -s brew
 
-if [[ ! -d $HOMEBREW_DIR ]]; then
-  mkdir -p /usr/local/bin/
+INSTALL_DIR = /usr/local/bin/
+
+# perform the check, `$?` is the output of the last command 
+if [[ $? != 0 ]] ; then
+  INSTALL_DIR = $(brew --prefix)
 fi
 
-if [[ -f "${HOMEBREW_DIR}/tuist" ]]; then
-  rm ${HOMEBREW_DIR}/tuist
+if [[ ! -d $INSTALL_DIR ]]; then
+  mkdir -p $INSTALL_DIR
 fi
 
-mv /tmp/tuistenv/tuistenv "${HOMEBREW_DIR}/tuist"
-chmod +x "${HOMEBREW_DIR}/tuist"
+if [[ -f "${INSTALL_DIR}/tuist" ]]; then
+  rm ${INSTALL_DIR}/tuist
+fi
+
+mv /tmp/tuistenv/tuistenv "${INSTALL_DIR}/tuist"
+chmod +x "${INSTALL_DIR}/tuist"
 
 rm -rf /tmp/tuistenv
 rm /tmp/tuistenv.zip
