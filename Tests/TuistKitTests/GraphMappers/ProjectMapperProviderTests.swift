@@ -130,7 +130,7 @@ final class ProjectMapperProviderTests: TuistUnitTestCase {
         let got = subject.mapper(
             config: Config.test(
                 generationOptions: [
-                    .enableCodeCoverage,
+                    .enableCodeCoverage(.all),
                 ]
             )
         )

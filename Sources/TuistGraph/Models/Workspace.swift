@@ -77,4 +77,36 @@ extension Workspace {
             additionalFiles: additionalFiles
         )
     }
+
+    public func codeCoverageTargets(mode: CodeCoverageMode?, projects: [Project]) -> [TargetReference] {
+        switch mode {
+        case .all, .none: return []
+        case let .targets(targets): return targets
+        case .relevant:
+            let allSchemes = schemes + projects.flatMap(\.schemes)
+            var resultTargets = Set<TargetReference>()
+
+            allSchemes.forEach { scheme in
+                // try to add code coverage targets only if code coverage is enabled
+                guard let testAction = scheme.testAction, testAction.coverage else { return }
+
+                let schemeCoverageTargets = testAction.codeCoverageTargets
+
+                // having empty `codeCoverageTargets` means that we should gather code coverage for all build targets
+                if schemeCoverageTargets.isEmpty, let buildAction = scheme.buildAction {
+                    resultTargets.formUnion(buildAction.targets)
+                } else {
+                    resultTargets.formUnion(schemeCoverageTargets)
+                }
+            }
+
+            // if we find no schemes that gather code coverage data, there are no relevant targets,
+            // so we disable code coverage
+            if resultTargets.isEmpty {
+                return []
+            }
+
+            return Array(resultTargets)
+        }
+    }
 }
