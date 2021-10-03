@@ -90,7 +90,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
             case .project(let name, let path):
                 dependentProject = workspace.projects.first(where: { $0.path == path })!
                 dependentTarget = dependentProject.targets.first(where: { $0.name == name })!
-            case .framework, .xcframework, .library, .package, .sdk, .cocoapods, .xctest:
+            case .framework, .xcframework, .library, .package, .sdk, .xctest:
                 continue
             }
 
