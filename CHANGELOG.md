@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 2.0.1 - Tarifa
+
 ### Fixed
 
 - Fix manifest cache, enabled by default [#3530](https://github.com/tuist/tuist/pull/3530) by [@adellibovi](https://github.com/adellibovi)
