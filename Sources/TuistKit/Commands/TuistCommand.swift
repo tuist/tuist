@@ -45,12 +45,12 @@ public struct TuistCommand: ParsableCommand {
 
     public static func main(_ arguments: [String]? = nil) -> Never {
         let errorHandler = ErrorHandler()
-        let executeCommand: () throws -> ()
+        let executeCommand: () throws -> Void
         do {
             let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
             let commandName = processedArguments.first ?? ""
             let isTuistCommand = Self.configuration.subcommands
-                .map({ $0._commandName })
+                .map { $0._commandName }
                 .contains(processedArguments.first ?? "")
             if isTuistCommand || !System.shared.commandExists("tuist-" + commandName) {
                 if processedArguments.first == ScaffoldCommand.configuration.commandName {

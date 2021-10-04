@@ -23,7 +23,7 @@ public protocol SwiftPackageManagerControlling {
     /// Loads the information from the package.
     /// - Parameter path: Directory where the `Package.swift` is defined.
     func loadPackageInfo(at path: AbsolutePath) throws -> PackageInfo
-    
+
     /// Builds a release binary containing release binaries compatible with arm64 and x86.
     /// - Parameters:
     ///     - packagePath: Directory where the `Package.swift` is defined.
@@ -80,7 +80,7 @@ public final class SwiftPackageManagerController: SwiftPackageManagerControlling
 
         return try decoder.decode(PackageInfo.self, from: data)
     }
-    
+
     public func buildFatReleaseBinary(
         packagePath: AbsolutePath,
         product: String,
@@ -96,7 +96,7 @@ public final class SwiftPackageManagerController: SwiftPackageManagerControlling
             "--build-path", buildPath.pathString,
             "--triple",
         ]
-        
+
         let arm64Target = "arm64-apple-macosx"
         let x64Target = "x86_64-apple-macosx"
         try System.shared.run(
@@ -109,11 +109,11 @@ public final class SwiftPackageManagerController: SwiftPackageManagerControlling
                 x64Target,
             ]
         )
-        
+
         if !FileHandler.shared.exists(outputPath) {
             try FileHandler.shared.createFolder(outputPath)
         }
-        
+
         try System.shared.run(
             "lipo", "-create", "-output", outputPath.appending(component: product).pathString,
             buildPath.appending(components: arm64Target, "release", product).pathString,

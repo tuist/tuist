@@ -69,7 +69,7 @@ extension PackageInfo {
         public let platformName: String
         public let version: String
         public let options: [String]
-        
+
         public init(
             platformName: String,
             version: String,
@@ -88,7 +88,7 @@ extension PackageInfo {
     public struct PackageConditionDescription: Decodable, Hashable {
         public let platformNames: [String]
         public let config: String?
-        
+
         public init(
             platformNames: [String],
             config: String?
@@ -114,7 +114,7 @@ extension PackageInfo {
         /// This is never empty, and is only the targets which are required to be in
         /// the product, but not necessarily their transitive dependencies.
         public let targets: [String]
-        
+
         public init(
             name: String,
             type: Product.ProductType,
@@ -191,7 +191,7 @@ extension PackageInfo {
 
         /// The binary target checksum.
         public let checksum: String?
-        
+
         public init(
             name: String,
             path: String?,
@@ -318,7 +318,7 @@ extension PackageInfo.Target {
             /// This is kind of like an "untyped" value since the length
             /// of the array will depend on the setting type.
             public let value: [String]
-            
+
             public init(
                 tool: Tool,
                 name: SettingName,

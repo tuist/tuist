@@ -1,17 +1,17 @@
-import XCTest
 import TSCBasic
 import TuistSupport
 import TuistSupportTesting
+import XCTest
 
-@testable import TuistKit
 import TuistLoaderTesting
+@testable import TuistKit
 
 final class PluginArchiveServiceTests: TuistUnitTestCase {
     private var subject: PluginArchiveService!
     private var swiftPackageManagerController: MockSwiftPackageManagerController!
     private var manifestLoader: MockManifestLoader!
     private var fileArchiverFactory: MockFileArchivingFactory!
-    
+
     override func setUp() {
         super.setUp()
         swiftPackageManagerController = MockSwiftPackageManagerController()
@@ -23,7 +23,7 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
             fileArchiverFactory: fileArchiverFactory
         )
     }
-    
+
     override func tearDown() {
         subject = nil
         swiftPackageManagerController = nil
@@ -31,7 +31,7 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
         fileArchiverFactory = nil
         super.tearDown()
     }
-    
+
     func test_run_when_no_task_products_defined() throws {
         // Given
         swiftPackageManagerController.loadPackageInfoStub = { _ in
@@ -41,14 +41,14 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
                         name: "my-non-task-executable",
                         type: .executable,
                         targets: []
-                    )
+                    ),
                 ]
             )
         }
-        
+
         // When
         try subject.run(path: nil)
-        
+
         // Then
         XCTAssertPrinterContains(
             "No tasks found - make sure you have executable products with tuist- prefix defined in your manifest.",
@@ -56,7 +56,7 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
             ==
         )
     }
-    
+
     func test_run() throws {
         // Given
         let path = try temporaryPath()
@@ -91,7 +91,7 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
         manifestLoader.loadPluginStub = { _ in
             .test(name: "TestPlugin")
         }
-        
+
         var builtProducts: [String] = []
         swiftPackageManagerController.loadBuildFatReleaseBinaryStub = { _, product, _, _ in
             builtProducts.append(product)
@@ -101,10 +101,10 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
         let zipPath = path.appending(components: "test-zip")
         fileArchiver.stubbedZipResult = zipPath
         try fileHandler.createFolder(zipPath)
-        
+
         // When
         try subject.run(path: path.pathString)
-        
+
         // Then
         XCTAssertEqual(invokedPackagePath, path)
         XCTAssertEqual(builtProducts, ["tuist-one", "tuist-two"])
@@ -114,6 +114,5 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
                 path.appending(component: "TestPlugin.tuist-plugin.zip")
             )
         )
-
     }
 }

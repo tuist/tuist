@@ -1,15 +1,15 @@
 import Foundation
-import TuistSupport
+import ProjectDescription
+import TSCBasic
 import TuistDependencies
 import TuistLoader
-import TSCBasic
-import ProjectDescription
+import TuistSupport
 
 final class PluginArchiveService {
     private let swiftPackageManagerController: SwiftPackageManagerControlling
     private let manifestLoader: ManifestLoading
     private let fileArchiverFactory: FileArchivingFactorying
-    
+
     init(
         swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
         manifestLoader: ManifestLoading = ManifestLoader(),
@@ -19,10 +19,10 @@ final class PluginArchiveService {
         self.manifestLoader = manifestLoader
         self.fileArchiverFactory = fileArchiverFactory
     }
-    
+
     func run(path: String?) throws {
         let path = self.path(path)
-        
+
         let packageInfo = try swiftPackageManagerController.loadPackageInfo(at: path)
         let taskProducts = packageInfo.products
             .filter {
@@ -35,14 +35,14 @@ final class PluginArchiveService {
             }
             .map(\.name)
             .filter { $0.hasPrefix("tuist-") }
-        
+
         if taskProducts.isEmpty {
             logger.warning("No tasks found - make sure you have executable products with tuist- prefix defined in your manifest.")
             return
         }
-        
+
         let plugin = try manifestLoader.loadPlugin(at: path)
-       
+
         try FileHandler.shared.inTemporaryDirectory { temporaryDirectory in
             try archiveProducts(
                 taskProducts: taskProducts,
@@ -52,7 +52,7 @@ final class PluginArchiveService {
             )
         }
     }
-    
+
     // MARK: - Helpers
 
     private func path(_ path: String?) -> AbsolutePath {
@@ -62,7 +62,7 @@ final class PluginArchiveService {
             return FileHandler.shared.currentPath
         }
     }
-    
+
     private func archiveProducts(
         taskProducts: [String],
         path: AbsolutePath,
@@ -89,11 +89,10 @@ final class PluginArchiveService {
             from: zipPath,
             to: path.appending(component: zipName)
         )
-        
+
         logger.notice(
             "Plugin was successfully archived. Create a new Github release and attach the file \(zipPath.pathString) as an artifact.",
             metadata: .success
         )
     }
 }
-

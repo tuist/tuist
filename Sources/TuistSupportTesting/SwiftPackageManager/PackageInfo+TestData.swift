@@ -1,6 +1,6 @@
 import TSCBasic
-import TuistGraph
 import TSCUtility
+import TuistGraph
 @testable import TuistSupport
 
 // MARK: - Test package
@@ -23,7 +23,7 @@ extension PackageInfo {
             swiftLanguageVersions: swiftLanguageVersions
         )
     }
-    
+
     public static var testJSON: String {
         """
         {

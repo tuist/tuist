@@ -146,14 +146,14 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(packageInfo, PackageInfo.googleAppMeasurement)
     }
-    
+
     func test_buildFatReleaseBinary() throws {
         // Given
         let packagePath = try temporaryPath()
         let product = "my-product"
         let buildPath = try temporaryPath()
         let outputPath = try temporaryPath()
-        
+
         system.succeedCommand(
             "swift", "build",
             "--configuration", "release",
@@ -172,13 +172,13 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             "--build-path", buildPath.pathString,
             "--triple", "x86_64-apple-macosx"
         )
-        
+
         system.succeedCommand(
             "lipo", "-create", "-output", outputPath.appending(component: product).pathString,
             buildPath.appending(components: "arm64-apple-macosx", "release", product).pathString,
             buildPath.appending(components: "x86_64-apple-macosx", "release", product).pathString
         )
-        
+
         // When
         try subject.buildFatReleaseBinary(
             packagePath: packagePath,
@@ -186,7 +186,7 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
             buildPath: buildPath,
             outputPath: outputPath
         )
-        
+
         // Then
         // Assert that `outputPath` was created
         XCTAssertTrue(fileHandler.isFolder(outputPath))
