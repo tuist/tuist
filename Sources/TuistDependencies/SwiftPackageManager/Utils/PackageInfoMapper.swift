@@ -10,7 +10,7 @@ import TuistSupport
 
 enum PackageInfoMapperError: FatalError, Equatable {
     /// Thrown when the default path folder is not present.
-    case cantFindDefaultPath(AbsolutePath)
+    case cantFindDefaultPath(AbsolutePath, String)
 
     /// Thrown when no supported platforms are found for a package.
     case noSupportedPlatforms(name: String, configured: Set<ProjectDescription.Platform>, package: Set<ProjectDescription.Platform>)
@@ -43,8 +43,11 @@ enum PackageInfoMapperError: FatalError, Equatable {
     /// Error description.
     var description: String {
         switch self {
-        case let .cantFindDefaultPath(packageFolder):
-            return "Default path not found for package at \(packageFolder.pathString)."
+        case let .cantFindDefaultPath(packageFolder, targetName):
+            return """
+            Default source path not found for package at \(packageFolder.pathString). \
+            Source path must be one of \(PackageInfoMapper.predefinedSourceDirectories.map { "\($0)/\(targetName)"})
+            """
         case let .noSupportedPlatforms(name, configured, package):
             return "No supported platform found for the \(name) dependency. Configured: \(configured), package: \(package)."
         case let .unknownByNameDependency(name):
@@ -111,6 +114,8 @@ public protocol PackageInfoMapping {
 }
 
 public final class PackageInfoMapper: PackageInfoMapping {
+    fileprivate static let predefinedSourceDirectories = ["Sources", "Source", "src", "srcs"]
+
     let moduleMapGenerator: SwiftPackageManagerModuleMapGenerating
 
     public init(moduleMapGenerator: SwiftPackageManagerModuleMapGenerating = SwiftPackageManagerModuleMapGenerator()) {
@@ -865,14 +870,13 @@ extension PackageInfo.Target {
         if let path = path {
             return packageFolder.appending(RelativePath(path))
         } else {
-            let predefinedSourceDirectories = ["Sources", "Source", "src", "srcs"]
-            for predefinedSourceDirectory in predefinedSourceDirectories {
-                let sourcesPath = packageFolder.appending(components: [predefinedSourceDirectory, name])
-                if FileHandler.shared.exists(sourcesPath) {
-                    return sourcesPath
-                }
+            let firstMatchingPath = PackageInfoMapper.predefinedSourceDirectories
+                .map { packageFolder.appending(components: [$0, name]) }
+                .first(where: { FileHandler.shared.exists($0) })
+            guard let mainPath = firstMatchingPath else {
+                throw PackageInfoMapperError.cantFindDefaultPath(packageFolder, name)
             }
-            throw PackageInfoMapperError.cantFindDefaultPath(packageFolder)
+            return mainPath
         }
     }
 
