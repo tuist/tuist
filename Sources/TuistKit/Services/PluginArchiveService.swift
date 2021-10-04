@@ -37,7 +37,7 @@ final class PluginArchiveService {
             .filter { $0.hasPrefix("tuist-") }
 
         if taskProducts.isEmpty {
-            logger.warning("No tasks found - make sure you have executable products with tuist- prefix defined in your manifest.")
+            logger.warning("No tasks found - make sure you have executable products with `tuist-` prefix defined in your manifest.")
             return
         }
 
