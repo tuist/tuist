@@ -14,6 +14,7 @@ let project = Project(
                 .sdk(name: "libc++.tbd", status: .required),
                 .external(name: "Adjust"),
                 .external(name: "Alamofire"),
+                .external(name: "Charts"),
                 .external(name: "ComposableArchitecture"),
                 .external(name: "FacebookCore"),
                 .external(name: "FirebaseAnalytics"),

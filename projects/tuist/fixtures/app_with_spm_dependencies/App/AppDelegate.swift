@@ -1,5 +1,6 @@
 import Adjust
 import Alamofire
+import Charts
 import ComposableArchitecture
 import FBSDKCoreKit
 import FirebaseAnalytics
@@ -24,6 +25,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Use Alamofire to make sure it links fine
         _ = AF.download("http://www.tuist.io")
 
+        // Use Charts to make sure it links fine
+        _ = BarChartView()
+        
         // Use FirebaseAnalytics to make sure it links fine
         Analytics.logEvent("Event", parameters: [:])
 

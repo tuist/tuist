@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Fixed
+
+- Fix mapping of SwiftPackageManager dependencies using alternative default source folders [#3532](https://github.com/tuist/tuist/pull/3532) by [@danyf90](https://github.com/danyf90)
+
 ## 2.0.1 - Tarifa
 
 ### Fixed
