@@ -1494,7 +1494,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", dependencies: [.xcframework(path: "Dependency1/Dependency1.xcframework")]),
+                    .test("Target1", dependencies: [.xcframework(path: "/Package/Dependency1/Dependency1.xcframework")]),
                 ]
             )
         )
