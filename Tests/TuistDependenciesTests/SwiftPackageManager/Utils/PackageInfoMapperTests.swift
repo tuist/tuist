@@ -438,10 +438,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         customSources: [
                             .init(stringLiteral:
                                 basePath.appending(RelativePath("Package/Path/Sources/Target1/Subfolder/**")).pathString
-                             ),
+                            ),
                             .init(stringLiteral:
                                 basePath.appending(RelativePath("Package/Path/Sources/Target1/Another/Subfolder/file.swift")).pathString
-                             ),
+                            ),
                         ]
                     ),
                 ]
@@ -494,7 +494,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             .init(
                                 Path(basePath.appending(RelativePath("Package/Path/Sources/Target1/**")).pathString),
                                 excluding: [
-                                    Path(basePath.appending(RelativePath("Package/Path/Sources/Target1/AnotherOne/Resource/**")).pathString)
+                                    Path(basePath.appending(RelativePath("Package/Path/Sources/Target1/AnotherOne/Resource/**")).pathString),
                                 ]
                             ),
                         ]),
@@ -502,21 +502,21 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             .glob(
                                 pattern: Path(basePath.appending(RelativePath("Package/Path/Sources/Target1/Resource/Folder/**")).pathString),
                                 excluding: [
-                                    Path(basePath.appending(RelativePath("Package/Path/Sources/Target1/AnotherOne/Resource/**")).pathString)
+                                    Path(basePath.appending(RelativePath("Package/Path/Sources/Target1/AnotherOne/Resource/**")).pathString),
                                 ],
                                 tags: []
                             ),
                             .glob(
                                 pattern: Path(basePath.appending(RelativePath("Package/Path/Sources/Target1/Another/Resource/Folder/**")).pathString),
                                 excluding: [
-                                    Path(basePath.appending(RelativePath("Package/Path/Sources/Target1/AnotherOne/Resource/**")).pathString)
+                                    Path(basePath.appending(RelativePath("Package/Path/Sources/Target1/AnotherOne/Resource/**")).pathString),
                                 ],
                                 tags: []
                             ),
                             .glob(
                                 pattern: Path(basePath.appending(RelativePath("Package/Path/Sources/Target1/AnotherOne/Resource/Folder/**")).pathString),
                                 excluding: [
-                                    Path(basePath.appending(RelativePath("Package/Path/Sources/Target1/AnotherOne/Resource/**")).pathString)
+                                    Path(basePath.appending(RelativePath("Package/Path/Sources/Target1/AnotherOne/Resource/**")).pathString),
                                 ],
                                 tags: []
                             ),
@@ -1583,7 +1583,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         "Target1",
                         basePath: basePath,
                         dependencies: [
-                            .xcframework(path: Path(basePath.appending(RelativePath("artifacts/Package/Dependency1.xcframework")).pathString))
+                            .xcframework(path: Path(basePath.appending(RelativePath("artifacts/Package/Dependency1.xcframework")).pathString)),
                         ]
                     ),
                 ]
@@ -1670,7 +1670,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         "Target1",
                         basePath: basePath,
                         dependencies: [
-                            .xcframework(path: Path(basePath.appending(RelativePath("artifacts/Package/Dependency1.xcframework")).pathString))
+                            .xcframework(path: Path(basePath.appending(RelativePath("artifacts/Package/Dependency1.xcframework")).pathString)),
                         ]
                     ),
                 ]

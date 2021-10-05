@@ -10,7 +10,7 @@ import TuistSupport
 
 enum PackageInfoMapperError: FatalError, Equatable {
     /// Thrown when the default path folder is not present.
-    case cantFindDefaultPath(AbsolutePath, String)
+    case defaultPathNotFound(AbsolutePath, String)
 
     /// Thrown when no supported platforms are found for a package.
     case noSupportedPlatforms(name: String, configured: Set<ProjectDescription.Platform>, package: Set<ProjectDescription.Platform>)
@@ -35,7 +35,7 @@ enum PackageInfoMapperError: FatalError, Equatable {
         switch self {
         case .noSupportedPlatforms, .unknownByNameDependency, .unknownPlatform, .unknownProductDependency, .unknownProductTarget:
             return .abort
-        case .cantFindDefaultPath, .unsupportedSetting:
+        case .defaultPathNotFound, .unsupportedSetting:
             return .bug
         }
     }
@@ -43,10 +43,10 @@ enum PackageInfoMapperError: FatalError, Equatable {
     /// Error description.
     var description: String {
         switch self {
-        case let .cantFindDefaultPath(packageFolder, targetName):
+        case let .defaultPathNotFound(packageFolder, targetName):
             return """
             Default source path not found for package at \(packageFolder.pathString). \
-            Source path must be one of \(PackageInfoMapper.predefinedSourceDirectories.map { "\($0)/\(targetName)"})
+            Source path must be one of \(PackageInfoMapper.predefinedSourceDirectories.map { "\($0)/\(targetName)" })
             """
         case let .noSupportedPlatforms(name, configured, package):
             return "No supported platform found for the \(name) dependency. Configured: \(configured), package: \(package)."
@@ -114,6 +114,8 @@ public protocol PackageInfoMapping {
 }
 
 public final class PackageInfoMapper: PackageInfoMapping {
+    // Predefined source directories, in order of preference.
+    // https://github.com/apple/swift-package-manager/blob/751f0b2a00276be2c21c074f4b21d952eaabb93b/Sources/PackageLoading/PackageBuilder.swift#L488
     fileprivate static let predefinedSourceDirectories = ["Sources", "Source", "src", "srcs"]
 
     let moduleMapGenerator: SwiftPackageManagerModuleMapGenerating
@@ -874,7 +876,7 @@ extension PackageInfo.Target {
                 .map { packageFolder.appending(components: [$0, name]) }
                 .first(where: { FileHandler.shared.exists($0) })
             guard let mainPath = firstMatchingPath else {
-                throw PackageInfoMapperError.cantFindDefaultPath(packageFolder, name)
+                throw PackageInfoMapperError.defaultPathNotFound(packageFolder, name)
             }
             return mainPath
         }
