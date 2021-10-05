@@ -535,9 +535,11 @@ let project = Project(
     options: [
         .textSettings(indentWidth: 4, tabWidth: 4)
     ],
-    settings: Settings(configurations: [
-        .debug(name: "Debug", settings: debugSettings(), xcconfig: nil),
-        .release(name: "Release", settings: releaseSettings(), xcconfig: nil),
-    ]),
+    settings: .settings(
+        configurations: [
+            .debug(name: "Debug", settings: debugSettings(), xcconfig: nil),
+            .release(name: "Release", settings: releaseSettings(), xcconfig: nil),
+        ]
+    ),
     targets: targets()
 )

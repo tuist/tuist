@@ -1,7 +1,7 @@
 import Foundation
+import TSCBasic
 import TuistCore
 import TuistGraph
-import TSCBasic
 
 /// Mapper that maps the `MODULE_MAP` build setting to the `-fmodule-map-file` compiler flags.
 /// It is required to avoid embedding the module map into the frameworks during cache operations, which would make the framework not portable, as
@@ -84,10 +84,10 @@ public final class ModuleMapMapper: WorkspaceMapping {
             let dependentProject: Project
             let dependentTarget: Target
             switch dependency {
-            case .target(let name):
+            case let .target(name):
                 dependentProject = project
                 dependentTarget = project.targets.first(where: { $0.name == name })!
-            case .project(let name, let path):
+            case let .project(name, path):
                 dependentProject = workspace.projects.first(where: { $0.path == path })!
                 dependentTarget = dependentProject.targets.first(where: { $0.name == name })!
             case .framework, .xcframework, .library, .package, .sdk, .xctest:
@@ -133,16 +133,16 @@ public final class ModuleMapMapper: WorkspaceMapping {
 
         var mappedOtherSwiftFlags: [String]
         switch oldOtherSwiftFlags ?? .array(["$(inherited)"]) {
-        case .array(let values):
+        case let .array(values):
             mappedOtherSwiftFlags = values
-        case .string(let value):
+        case let .string(value):
             mappedOtherSwiftFlags = value.split(separator: " ").map(String.init)
         }
 
         for moduleMap in dependenciesModuleMaps.sorted() {
             mappedOtherSwiftFlags.append(contentsOf: [
                 "-Xcc",
-                "-fmodule-map-file=$(SRCROOT)/\(moduleMap.relative(to: targetID.projectPath))"
+                "-fmodule-map-file=$(SRCROOT)/\(moduleMap.relative(to: targetID.projectPath))",
             ])
         }
 
@@ -158,9 +158,9 @@ public final class ModuleMapMapper: WorkspaceMapping {
 
         var mappedOtherCFlags: [String]
         switch oldOtherCFlags ?? .array(["$(inherited)"]) {
-        case .array(let values):
+        case let .array(values):
             mappedOtherCFlags = values
-        case .string(let value):
+        case let .string(value):
             mappedOtherCFlags = value.split(separator: " ").map(String.init)
         }
 

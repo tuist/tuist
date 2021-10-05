@@ -27,7 +27,7 @@ extension Target {
             infoPlist: .default,
             sources: ["\(rootFolder)/\(name)/**/*.swift"],
             dependencies: dependencies,
-            settings: Settings(
+            settings: .settings(
                 configurations: [
                     .debug(name: "Debug", settings: [:], xcconfig: nil),
                     .release(name: "Release", settings: [:], xcconfig: nil),
