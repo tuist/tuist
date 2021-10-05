@@ -501,6 +501,8 @@ extension ResourceFileElements {
         )
     }
 
+    // These files are automatically added as resource if they are inside targets directory.
+    // Check https://developer.apple.com/documentation/swift_packages/bundling_resources_with_a_swift_package
     private static let defaultSpmResourceFileExtensions = ["xib", "storyboard", "xcdatamodeld", "xcmappingmodel", "xcassets", "lproj"]
 
     private static func defaultResourcePaths(from path: AbsolutePath) -> [AbsolutePath] {
