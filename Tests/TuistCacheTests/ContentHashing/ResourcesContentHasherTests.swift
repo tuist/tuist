@@ -37,7 +37,7 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
         mockContentHasher.stubHashForPath[filePath2] = "2"
 
         // When
-        let hash = try subject.hash(resources: [file1, file2])
+        let hash = try MirrorHasher(contentHashing: mockContentHasher).hash(of: [file1, file2])
 
         // Then
         XCTAssertEqual(mockContentHasher.hashPathCallCount, 2)
@@ -52,7 +52,7 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
         mockContentHasher.stubHashForPath[filePath2] = "2"
 
         // When
-        let hash = try subject.hash(resources: [file1, file2])
+        let hash = try MirrorHasher(contentHashing: mockContentHasher).hash(of: [file1, file2])
 
         // Then
         XCTAssertEqual(mockContentHasher.hashPathCallCount, 2)
@@ -67,6 +67,8 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
         mockContentHasher.stubHashForPath[filePath2] = "2"
 
         // When/Then
-        XCTAssertEqual(try subject.hash(resources: [file1, file2]), try subject.hash(resources: [file2, file1]))
+        XCTAssertEqual(
+            try MirrorHasher(contentHashing: mockContentHasher).hash(of: [file1, file2]),
+            try MirrorHasher(contentHashing: mockContentHasher).hash(of: [file2, file1]))
     }
 }

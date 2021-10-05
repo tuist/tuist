@@ -40,7 +40,7 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
         coreDataModel = try buildCoreDataModel(versions: ["v1", "v2"], currentVersion: "currentV1")
 
         // When
-        let hash = try subject.hash(coreDataModels: [coreDataModel])
+        let hash = try MirrorHasher(contentHashing: mockContentHasher).hash(of: [coreDataModel])
 
         // Then
         XCTAssertEqual(hash, "fixed-hash;currentV1;/v1;/v2")
@@ -54,7 +54,7 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
         mockContentHasher.stubHashForPath[fakePath] = "different-hash"
 
         // When
-        let hash = try subject.hash(coreDataModels: [coreDataModel])
+        let hash = try MirrorHasher(contentHashing: mockContentHasher).hash(of: [coreDataModel])
 
         // Then
         XCTAssertNotEqual(hash, defaultValuesHash)
@@ -65,7 +65,7 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
         coreDataModel = try buildCoreDataModel(currentVersion: "2")
 
         // When
-        let hash = try subject.hash(coreDataModels: [coreDataModel])
+        let hash = try MirrorHasher(contentHashing: mockContentHasher).hash(of: [coreDataModel])
 
         XCTAssertNotEqual(hash, defaultValuesHash)
     }
@@ -75,7 +75,7 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
         coreDataModel = try buildCoreDataModel(versions: ["1", "2", "3"])
 
         // When
-        let hash = try subject.hash(coreDataModels: [coreDataModel])
+        let hash = try MirrorHasher(contentHashing: mockContentHasher).hash(of: [coreDataModel])
 
         // Then
         XCTAssertNotEqual(hash, defaultValuesHash)

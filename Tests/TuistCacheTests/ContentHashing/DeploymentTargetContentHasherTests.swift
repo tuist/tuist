@@ -30,7 +30,7 @@ final class DeploymentTargetContentHasherTests: TuistUnitTestCase {
         let deploymentTarget = DeploymentTarget.iOS("v1", .iphone)
 
         // Then
-        let hash = try subject.hash(deploymentTarget: deploymentTarget)
+        let hash = try MirrorHasher(contentHashing: mockContentHasher).hash(of: deploymentTarget)
         XCTAssertEqual(hash, "iOS-v1-1-hash")
         XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
     }
@@ -40,7 +40,7 @@ final class DeploymentTargetContentHasherTests: TuistUnitTestCase {
         let deploymentTarget = DeploymentTarget.iOS("v2", .ipad)
 
         // Then
-        let hash = try subject.hash(deploymentTarget: deploymentTarget)
+        let hash = try MirrorHasher(contentHashing: mockContentHasher).hash(of: deploymentTarget)
         XCTAssertEqual(hash, "iOS-v2-2-hash")
         XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
     }
@@ -50,7 +50,7 @@ final class DeploymentTargetContentHasherTests: TuistUnitTestCase {
         let deploymentTarget = DeploymentTarget.macOS("v2")
 
         // Then
-        let hash = try subject.hash(deploymentTarget: deploymentTarget)
+        let hash = try MirrorHasher(contentHashing: mockContentHasher).hash(of: deploymentTarget)
         XCTAssertEqual(hash, "macOS-v2-hash")
         XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
     }
@@ -60,7 +60,7 @@ final class DeploymentTargetContentHasherTests: TuistUnitTestCase {
         let deploymentTarget = DeploymentTarget.watchOS("v2")
 
         // Then
-        let hash = try subject.hash(deploymentTarget: deploymentTarget)
+        let hash = try MirrorHasher(contentHashing: mockContentHasher).hash(of: deploymentTarget)
         XCTAssertEqual(hash, "watchOS-v2-hash")
         XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
     }
@@ -70,7 +70,7 @@ final class DeploymentTargetContentHasherTests: TuistUnitTestCase {
         let deploymentTarget = DeploymentTarget.tvOS("v2")
 
         // Then
-        let hash = try subject.hash(deploymentTarget: deploymentTarget)
+        let hash = try MirrorHasher(contentHashing: mockContentHasher).hash(of: deploymentTarget)
         XCTAssertEqual(hash, "tvOS-v2-hash")
         XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
     }

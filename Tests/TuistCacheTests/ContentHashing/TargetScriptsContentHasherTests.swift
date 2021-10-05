@@ -68,7 +68,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         let targetScript = makeTargetScript()
 
         // When
-        _ = try subject.hash(targetScripts: [targetScript])
+        _ = try MirrorHasher(contentHashing: mockContentHasher).hash(of: [targetScript])
 
         // Then
         let expected = [inputPaths1Hash,
@@ -96,7 +96,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         let targetScript = makeTargetScript()
 
         // When
-        _ = try subject.hash(targetScripts: [targetScript])
+        _ = try MirrorHasher(contentHashing: mockContentHasher).hash(of: [targetScript])
 
         // Then
         let expected = [
@@ -134,7 +134,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         )
 
         // When
-        _ = try subject.hash(targetScripts: [targetScript])
+        _ = try MirrorHasher(contentHashing: mockContentHasher).hash(of: [targetScript])
 
         // Then
         let expected = [inputPaths2Hash,

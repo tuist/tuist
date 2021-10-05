@@ -79,49 +79,11 @@ public final class TargetContentHasher: TargetContentHashing {
         hashedTargets: inout [GraphHashedTarget: String],
         additionalStrings: [String]
     ) throws -> String {
-        let sourcesHash = try sourceFilesContentHasher.hash(sources: graphTarget.target.sources)
-        let resourcesHash = try resourcesContentHasher.hash(resources: graphTarget.target.resources)
-        let copyFilesHash = try copyFilesContentHasher.hash(copyFiles: graphTarget.target.copyFiles)
-        let coreDataModelHash = try coreDataModelsContentHasher.hash(coreDataModels: graphTarget.target.coreDataModels)
-        let targetScriptsHash = try targetScriptsContentHasher.hash(targetScripts: graphTarget.target.scripts)
+        let mirrorHasher = MirrorHasher(contentHashing: contentHasher)
+        let targetHash = try mirrorHasher.hash(of: graphTarget.target)
         let dependenciesHash = try dependenciesContentHasher.hash(graphTarget: graphTarget, hashedTargets: &hashedTargets)
-        let environmentHash = try contentHasher.hash(graphTarget.target.environment)
-        var stringsToHash = [
-            graphTarget.target.name,
-            graphTarget.target.platform.rawValue,
-            graphTarget.target.product.rawValue,
-            graphTarget.target.bundleId,
-            graphTarget.target.productName,
-            dependenciesHash,
-            sourcesHash,
-            resourcesHash,
-            copyFilesHash,
-            coreDataModelHash,
-            targetScriptsHash,
-            environmentHash,
-        ]
-        if let headers = graphTarget.target.headers {
-            let headersHash = try headersContentHasher.hash(headers: headers)
-            stringsToHash.append(headersHash)
-        }
-        if let deploymentTarget = graphTarget.target.deploymentTarget {
-            let deploymentTargetHash = try deploymentTargetContentHasher.hash(deploymentTarget: deploymentTarget)
-            stringsToHash.append(deploymentTargetHash)
-        }
-        if let infoPlist = graphTarget.target.infoPlist {
-            let infoPlistHash = try infoPlistContentHasher.hash(plist: infoPlist)
-            stringsToHash.append(infoPlistHash)
-        }
-        if let entitlements = graphTarget.target.entitlements {
-            let entitlementsHash = try contentHasher.hash(path: entitlements)
-            stringsToHash.append(entitlementsHash)
-        }
-        if let settings = graphTarget.target.settings {
-            let settingsHash = try settingsContentHasher.hash(settings: settings)
-            stringsToHash.append(settingsHash)
-        }
+        var stringsToHash = [targetHash, dependenciesHash]
         stringsToHash += additionalStrings
-
         return try contentHasher.hash(stringsToHash)
     }
 }

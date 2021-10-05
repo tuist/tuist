@@ -41,7 +41,7 @@ final class SettingsContentHasherTests: TuistUnitTestCase {
         )
 
         // When
-        let hash = try subject.hash(settings: settings)
+        let hash = try MirrorHasher(contentHashing: mockContentHasher).hash(of: settings)
 
         // Then
         XCTAssertEqual(hash, "CURRENT_PROJECT_VERSION:string(\"1\")-hash;devdebugSWIFT_VERSION:string(\"5\")-hashxconfigHash;recommended")
@@ -60,7 +60,7 @@ final class SettingsContentHasherTests: TuistUnitTestCase {
         )
 
         // When
-        let hash = try subject.hash(settings: settings)
+        let hash = try MirrorHasher(contentHashing: mockContentHasher).hash(of: settings)
 
         // Then
         XCTAssertEqual(hash, "CURRENT_PROJECT_VERSION:string(\"2\")-hash;prodreleaseSWIFT_VERSION:string(\"5\")-hash;essential")

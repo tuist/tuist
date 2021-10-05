@@ -33,7 +33,7 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
         mockContentHasher.stubHashForPath[filePath1] = "stubHash"
 
         // When
-        let hash = try subject.hash(plist: infoPlist)
+        let hash = try MirrorHasher(contentHashing: mockContentHasher).hash(of: infoPlist)
 
         // Then
         XCTAssertEqual(mockContentHasher.hashPathCallCount, 1)
@@ -48,7 +48,7 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
         )
 
         // When
-        let hash = try subject.hash(plist: infoPlist)
+        let hash = try MirrorHasher(contentHashing: mockContentHasher).hash(of: infoPlist)
 
         // Then
         XCTAssertEqual(mockContentHasher.hashDataCallCount, 1)
@@ -66,7 +66,7 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
             "6": ["6a": "6value"],
         ])
         // When
-        let hash = try subject.hash(plist: infoPlist)
+        let hash = try MirrorHasher(contentHashing: mockContentHasher).hash(of: infoPlist)
 
         // Then
         XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
@@ -85,10 +85,22 @@ final class InfoPlistContentHasherTests: TuistUnitTestCase {
         ])
 
         // When
-        let hash = try subject.hash(plist: infoPlist)
+        let hash = try MirrorHasher(contentHashing: mockContentHasher).hash(of: infoPlist)
 
         // Then
         XCTAssertEqual(mockContentHasher.hashStringCallCount, 1)
         XCTAssertEqual(hash, "1=integer(23);2=string(\"foo\");3=boolean(true);4=boolean(false);5=array([TuistGraph.InfoPlist.Value.string(\"5a\"), TuistGraph.InfoPlist.Value.string(\"5b\")]);6=dictionary([\"6a\": TuistGraph.InfoPlist.Value.string(\"6value\")]);-hash")
     }
+
+    func test_foo() throws {
+        // When
+        let hash1 = try MirrorHasher(contentHashing: mockContentHasher).hash(
+            of: InfoPlist.extendingDefault(with: [:]))
+        let hash2 = try MirrorHasher(contentHashing: mockContentHasher).hash(
+            of: InfoPlist.dictionary([:]))
+
+        // Then
+        XCTAssertNotEqual(hash1, hash2)
+    }
+
 }

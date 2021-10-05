@@ -39,7 +39,7 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
         // When
         sourceFile1 = SourceFile(path: sourceFile1Path, contentHash: "first")
         sourceFile2 = SourceFile(path: sourceFile2Path, contentHash: "second")
-        let hash = try subject.hash(sources: [sourceFile1, sourceFile2])
+        let hash = try MirrorHasher(contentHashing: mockContentHasher).hash(of: [sourceFile1, sourceFile2])
 
         // Then
         XCTAssertEqual(hash, "first;second")
@@ -47,7 +47,7 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
 
     func test_hash_returnsSameValue() throws {
         // When
-        let hash = try subject.hash(sources: [sourceFile1, sourceFile2])
+        let hash = try MirrorHasher(contentHashing: mockContentHasher).hash(of: [sourceFile1, sourceFile2])
 
         // Then
         XCTAssertEqual(hash, "-fno-objc-arc-hash;-print-objc-runtime-info-hash")
@@ -59,7 +59,7 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
         mockContentHasher.stubHashForPath[sourceFile2Path] = "file2-content-hash"
 
         // When
-        _ = try subject.hash(sources: [sourceFile1, sourceFile2])
+        _ = try MirrorHasher(contentHashing: mockContentHasher).hash(of: [sourceFile1, sourceFile2])
 
         // Then
         XCTAssertEqual(mockContentHasher.hashStringsSpy, ["file1-content-hash-fno-objc-arc-hash", "file2-content-hash-print-objc-runtime-info-hash"])

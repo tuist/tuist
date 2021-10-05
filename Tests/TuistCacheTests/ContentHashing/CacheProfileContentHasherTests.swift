@@ -30,7 +30,7 @@ final class CacheProfileContentHasherTests: TuistUnitTestCase {
         let cacheProfile = TuistGraph.Cache.Profile(name: "Development", configuration: "Debug")
 
         // Then
-        let hash = try subject.hash(cacheProfile: cacheProfile)
+        let hash = try MirrorHasher(contentHashing: mockContentHasher).hash(of: cacheProfile)
         XCTAssertEqual(hash, "Development;Debug")
         XCTAssertEqual(mockContentHasher.hashStringsCallCount, 1)
     }
