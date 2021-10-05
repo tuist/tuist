@@ -288,7 +288,7 @@ extension ProjectDescription.Target {
             return nil
         }
 
-        let path = try target.mainPath(packageFolder: packageFolder)
+        let path = try target.basePath(packageFolder: packageFolder)
         let publicHeadersPath = try target.publicHeadersPath(packageFolder: packageFolder)
         let moduleMap = try moduleMapGenerator.generate(moduleName: target.name, publicHeadersPath: publicHeadersPath)
 
@@ -576,7 +576,7 @@ extension ProjectDescription.Settings {
         var swiftFlags: [String] = []
         var linkerFlags: [String] = []
 
-        let mainPath = try target.mainPath(packageFolder: packageFolder)
+        let mainPath = try target.basePath(packageFolder: packageFolder)
         let mainRelativePath = mainPath.relative(to: packageFolder)
 
         if moduleMap.type != .none {
@@ -868,7 +868,8 @@ extension PackageInfo {
 }
 
 extension PackageInfo.Target {
-    func mainPath(packageFolder: AbsolutePath) throws -> AbsolutePath {
+    /// The path used as base for all the relative paths of the package (e.g. sources, resources, headers)
+    func basePath(packageFolder: AbsolutePath) throws -> AbsolutePath {
         if let path = path {
             return packageFolder.appending(RelativePath(path))
         } else {
@@ -883,7 +884,7 @@ extension PackageInfo.Target {
     }
 
     func publicHeadersPath(packageFolder: AbsolutePath) throws -> AbsolutePath {
-        let mainPath = try mainPath(packageFolder: packageFolder)
+        let mainPath = try basePath(packageFolder: packageFolder)
         return mainPath.appending(RelativePath(publicHeadersPath ?? "include"))
     }
 }
