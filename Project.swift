@@ -540,9 +540,11 @@ let project = Project(
         )
     ],
     packages: packages,
-    settings: Settings(configurations: [
-        .debug(name: "Debug", settings: debugSettings(), xcconfig: nil),
-        .release(name: "Release", settings: releaseSettings(), xcconfig: nil),
-    ]),
+    settings: .settings(
+        configurations: [
+            .debug(name: "Debug", settings: debugSettings(), xcconfig: nil),
+            .release(name: "Release", settings: releaseSettings(), xcconfig: nil),
+        ]
+    ),
     targets: targets()
 )

@@ -143,11 +143,11 @@ public final class PackageInfoMapper: PackageInfoMapping {
     ) {
         let targetDependencyToFramework: [String: Path] = packageInfos.reduce(into: [:]) { result, packageInfo in
             let artifactsFolderForPackage = artifactsFolder.appending(component: packageInfo.key)
-            packageInfos[packageInfo.key]?.targets.forEach { target in
+            packageInfo.value.targets.forEach { target in
                 guard target.type == .binary else { return }
                 if let path = target.path {
                     // local binary
-                    result[target.name] = Path(RelativePath(path).pathString)
+                    result[target.name] = Path(packageToFolder[packageInfo.key]!.appending(RelativePath(path)).pathString)
                 } else {
                     // remote binaries are checked out by SPM in artifacts/<Package>/<Target>.xcframework
                     result[target.name] = Path(artifactsFolderForPackage.appending(component: "\(target.name).xcframework").pathString)

@@ -1712,7 +1712,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", basePath: basePath, dependencies: [.xcframework(path: "Dependency1/Dependency1.xcframework")]),
+                    .test("Target1", basePath: basePath, dependencies: [.xcframework(path: "/Package/Dependency1/Dependency1.xcframework")]),
                 ]
             )
         )
