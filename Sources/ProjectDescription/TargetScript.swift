@@ -1,5 +1,6 @@
 import Foundation
 
+// swiftlint:disable:next type_body_length
 public struct TargetScript: Codable, Equatable {
     /// Order when the script gets executed.
     ///

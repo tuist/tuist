@@ -9,6 +9,9 @@ import TuistSupport
 // MARK: - PackageInfo Mapper Errors
 
 enum PackageInfoMapperError: FatalError, Equatable {
+    /// Thrown when the default path folder is not present.
+    case defaultPathNotFound(AbsolutePath, String)
+
     /// Thrown when no supported platforms are found for a package.
     case noSupportedPlatforms(name: String, configured: Set<ProjectDescription.Platform>, package: Set<ProjectDescription.Platform>)
 
@@ -32,7 +35,7 @@ enum PackageInfoMapperError: FatalError, Equatable {
         switch self {
         case .noSupportedPlatforms, .unknownByNameDependency, .unknownPlatform, .unknownProductDependency, .unknownProductTarget:
             return .abort
-        case .unsupportedSetting:
+        case .defaultPathNotFound, .unsupportedSetting:
             return .bug
         }
     }
@@ -40,6 +43,11 @@ enum PackageInfoMapperError: FatalError, Equatable {
     /// Error description.
     var description: String {
         switch self {
+        case let .defaultPathNotFound(packageFolder, targetName):
+            return """
+            Default source path not found for package at \(packageFolder.pathString). \
+            Source path must be one of \(PackageInfoMapper.predefinedSourceDirectories.map { "\($0)/\(targetName)" })
+            """
         case let .noSupportedPlatforms(name, configured, package):
             return "No supported platform found for the \(name) dependency. Configured: \(configured), package: \(package)."
         case let .unknownByNameDependency(name):
@@ -106,6 +114,10 @@ public protocol PackageInfoMapping {
 }
 
 public final class PackageInfoMapper: PackageInfoMapping {
+    // Predefined source directories, in order of preference.
+    // https://github.com/apple/swift-package-manager/blob/751f0b2a00276be2c21c074f4b21d952eaabb93b/Sources/PackageLoading/PackageBuilder.swift#L488
+    fileprivate static let predefinedSourceDirectories = ["Sources", "Source", "src", "srcs"]
+
     let moduleMapGenerator: SwiftPackageManagerModuleMapGenerating
 
     public init(moduleMapGenerator: SwiftPackageManagerModuleMapGenerating = SwiftPackageManagerModuleMapGenerator()) {
@@ -276,8 +288,8 @@ extension ProjectDescription.Target {
             return nil
         }
 
-        let path = packageFolder.appending(target.relativePath)
-        let publicHeadersPath = path.appending(target.relativePublicHeadersPath)
+        let path = try target.basePath(packageFolder: packageFolder)
+        let publicHeadersPath = try target.publicHeadersPath(packageFolder: packageFolder)
         let moduleMap = try moduleMapGenerator.generate(moduleName: target.name, publicHeadersPath: publicHeadersPath)
 
         let platform = try ProjectDescription.Platform.from(configured: platforms, package: packageInfo.platforms, packageName: packageName)
@@ -564,8 +576,13 @@ extension ProjectDescription.Settings {
         var swiftFlags: [String] = []
         var linkerFlags: [String] = []
 
+        let mainPath = try target.basePath(packageFolder: packageFolder)
+        let mainRelativePath = mainPath.relative(to: packageFolder)
+
         if moduleMap.type != .none {
-            headerSearchPaths.append("$(SRCROOT)/\(target.relativePath.appending(target.relativePublicHeadersPath))")
+            let publicHeadersPath = try target.publicHeadersPath(packageFolder: packageFolder)
+            let publicHeadersRelativePath = publicHeadersPath.relative(to: packageFolder)
+            headerSearchPaths.append("$(SRCROOT)/\(publicHeadersRelativePath.pathString)")
         }
 
         let allDependencies = Self.recursiveTargetDependencies(
@@ -575,10 +592,10 @@ extension ProjectDescription.Settings {
             targetToResolvedDependencies: targetToResolvedDependencies
         )
 
-        headerSearchPaths += allDependencies
+        headerSearchPaths += try allDependencies
             .compactMap { dependency in
                 guard let packagePath = packageToProject[dependency.package] else { return nil }
-                let headersPath = packagePath.appending(dependency.target.relativePath.appending(dependency.target.relativePublicHeadersPath))
+                let headersPath = try dependency.target.publicHeadersPath(packageFolder: packagePath)
                 guard FileHandler.shared.exists(headersPath) else { return nil }
                 return "$(SRCROOT)/\(headersPath.relative(to: packageFolder))"
             }
@@ -593,7 +610,7 @@ extension ProjectDescription.Settings {
 
             switch (setting.tool, setting.name) {
             case (.c, .headerSearchPath), (.cxx, .headerSearchPath):
-                headerSearchPaths.append("$(SRCROOT)/\(target.relativePath.pathString)/\(setting.value[0])")
+                headerSearchPaths.append("$(SRCROOT)/\(mainRelativePath.pathString)/\(setting.value[0])")
             case (.c, .define), (.cxx, .define):
                 let (name, value) = setting.extractDefine
                 defines[name] = value
@@ -851,12 +868,24 @@ extension PackageInfo {
 }
 
 extension PackageInfo.Target {
-    var relativePath: RelativePath {
-        RelativePath(path ?? "Sources/\(name)")
+    /// The path used as base for all the relative paths of the package (e.g. sources, resources, headers)
+    func basePath(packageFolder: AbsolutePath) throws -> AbsolutePath {
+        if let path = path {
+            return packageFolder.appending(RelativePath(path))
+        } else {
+            let firstMatchingPath = PackageInfoMapper.predefinedSourceDirectories
+                .map { packageFolder.appending(components: [$0, name]) }
+                .first(where: { FileHandler.shared.exists($0) })
+            guard let mainPath = firstMatchingPath else {
+                throw PackageInfoMapperError.defaultPathNotFound(packageFolder, name)
+            }
+            return mainPath
+        }
     }
 
-    var relativePublicHeadersPath: RelativePath {
-        RelativePath(publicHeadersPath ?? "include")
+    func publicHeadersPath(packageFolder: AbsolutePath) throws -> AbsolutePath {
+        let mainPath = try basePath(packageFolder: packageFolder)
+        return mainPath.appending(RelativePath(publicHeadersPath ?? "include"))
     }
 }
 

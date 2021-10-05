@@ -8,6 +8,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Fix caching of targets with module map [#3528](https://github.com/tuist/tuist/pull/3528) by [@danyf90](https://github.com/danyf90)
 - Fix SwiftPackageManager local xcframework mapping [#3533](https://github.com/tuist/tuist/pull/3533) by [@danyf90](https://github.com/danyf90)
+- Fix mapping of SwiftPackageManager dependencies using alternative default source folders [#3532](https://github.com/tuist/tuist/pull/3532) by [@danyf90](https://github.com/danyf90)
 
 ## 2.0.1 - Tarifa
 
