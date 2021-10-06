@@ -85,7 +85,6 @@ func targets() -> [Target] {
                 .external(name: "Signals"),
                 .external(name: "Stencil"),
                 .external(name: "StencilSwiftKit"),
-                .external(name: "SwiftGenKit"),
                 .external(name: "Swifter"),
                 .external(name: "SwiftToolsSupport-auto"),
                 .external(name: "XcodeProj"),
@@ -206,6 +205,7 @@ func targets() -> [Target] {
                 .target(name: "TuistCore"),
                 .target(name: "TuistGraph"),
                 .target(name: "TuistSupport"),
+                .external(name: "SwiftGenKit"),
             ],
             testDependencies: [
                 .target(name: "TuistCoreTesting"),
