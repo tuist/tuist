@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 2.0.2 - Wald
+
 ### Fixed
 
 - Fix caching of targets with module map [#3528](https://github.com/tuist/tuist/pull/3528) by [@danyf90](https://github.com/danyf90)
