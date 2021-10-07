@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+
+- Add device and os options to caching profiles [#3546](https://github.com/tuist/tuist/pull/3546) by [@mollyIV](https://github.com/mollyIV)
+
 ## 2.0.2 - Wald
 
 ### Fixed
