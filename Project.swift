@@ -416,7 +416,10 @@ func targets() -> [Target] {
             hasTesting: false,
             dependencies: [
                 .target(name: "TuistAsyncQueue"),
+                .target(name: "TuistCloud"),
                 .target(name: "TuistCore"),
+                .target(name: "TuistGraph"),
+                .target(name: "TuistLoader"),
             ],
             testDependencies: [
                 .target(name: "TuistSupportTesting"),

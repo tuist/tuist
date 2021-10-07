@@ -15,6 +15,6 @@ public struct CloudResponseError: Decodable, LocalizedError, Equatable {
     }
 }
 
-public struct CloudHEADResponseError: Decodable, LocalizedError, Equatable {
+public struct CloudEmptyResponseError: Decodable, LocalizedError, Equatable {
     public init() {}
 }

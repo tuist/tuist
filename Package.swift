@@ -728,12 +728,16 @@ let package = Package(
             name: "TuistAnalytics",
             dependencies: [
                 "TuistAsyncQueue",
+                "TuistCloud",
                 "TuistCore",
+                "TuistGraph",
+                "TuistLoader",
             ]
         ),
         .testTarget(
             name: "TuistAnalyticsTests",
             dependencies: [
+                "TuistAnalytics",
                 "TuistSupportTesting",
                 "TuistGraphTesting",
                 "TuistCoreTesting",

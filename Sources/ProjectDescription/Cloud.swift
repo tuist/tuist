@@ -10,6 +10,7 @@ public struct Cloud: Codable, Equatable {
 
     /// Cloud option.
     public enum Option: String, Codable, Equatable {
+        case analytics
         case insights
     }
 
