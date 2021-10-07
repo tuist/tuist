@@ -27,11 +27,16 @@ final class CacheProfileContentHasherTests: TuistUnitTestCase {
 
     func test_hash_callsContentHasherWithExpectedStrings() throws {
         // When
-        let cacheProfile = TuistGraph.Cache.Profile(name: "Development", configuration: "Debug")
+        let cacheProfile = TuistGraph.Cache.Profile(
+            name: "Development",
+            configuration: "Debug",
+            device: "iPhone 12",
+            os: "15.0.0"
+        )
 
         // Then
         let hash = try subject.hash(cacheProfile: cacheProfile)
-        XCTAssertEqual(hash, "Development;Debug")
+        XCTAssertEqual(hash, "Development;Debug;iPhone 12;15.0.0")
         XCTAssertEqual(mockContentHasher.hashStringsCallCount, 1)
     }
 }

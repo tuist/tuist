@@ -52,7 +52,15 @@ public protocol SimulatorControlling {
     func launchApp(bundleId: String, device: SimulatorDevice, arguments: [String]) throws
 
     /// Finds the simulator destination for the target platform
-    func destination(for targetPlatform: Platform) -> Single<String>
+    /// - Parameters:
+    ///     - targetPlatform: Given platform
+    ///     - version: Specific version, ignored if nil
+    ///     - deviceName: Specific device name (eg. iPhone X)
+    func destination(
+        for targetPlatform: Platform,
+        version: Version?,
+        deviceName: String?
+    ) -> Single<String>
 }
 
 public enum SimulatorControllerError: Equatable, FatalError {
@@ -199,7 +207,11 @@ public final class SimulatorController: SimulatorControlling {
         try System.shared.run(["/usr/bin/xcrun", "simctl", "launch", device.udid, bundleId] + arguments)
     }
 
-    public func destination(for targetPlatform: Platform) -> Single<String> {
+    public func destination(
+        for targetPlatform: Platform,
+        version: Version?,
+        deviceName: String?
+    ) -> Single<String> {
         var platform: Platform!
         switch targetPlatform {
         case .iOS: platform = .iOS
@@ -208,10 +220,15 @@ public final class SimulatorController: SimulatorControlling {
         case .macOS: return .just("platform=OS X,arch=x86_64")
         }
 
-        return findAvailableDevice(platform: platform)
-            .flatMap { (deviceAndRuntime) -> Single<String> in
-                .just("id=\(deviceAndRuntime.device.udid)")
-            }
+        return findAvailableDevice(
+            platform: platform,
+            version: version,
+            minVersion: nil,
+            deviceName: deviceName
+        )
+        .flatMap { (deviceAndRuntime) -> Single<String> in
+            .just("id=\(deviceAndRuntime.device.udid)")
+        }
     }
 }
 

@@ -140,7 +140,12 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
 
     func test_run_gives_correct_cache_profile_type_to_hasher() throws {
         // Given
-        let profile: Cache.Profile = .test(name: "Simulator", configuration: "Debug")
+        let profile: Cache.Profile = .test(
+            name: "Simulator",
+            configuration: "Debug",
+            device: "iPhone 12",
+            os: "15.0.0"
+        )
         configLoader.loadConfigStub = { _ in
             Config.test(cache: .test(profiles: [profile]))
         }
