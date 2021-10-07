@@ -31,27 +31,27 @@ ohai "Unzipping tuistenv..."
 unzip -o /tmp/tuistenv.zip -d /tmp/tuistenv > /dev/null
 ohai "Installing tuistenv..."
 
+INSTALL_DIR="/usr/local/bin"
 
-ARCH = $(uname -m)
-
-if ["$ARCH" = "x86_64"]; then
-  INSTALL_DIR = /usr/local/bin/
-fi
-
-if ["$ARCH" = "arm64"]; then
-  INSTALL_DIR = /opt/homebrew/bin/
-fi
+sudo_if_install_dir_not_writeable() {
+  local command="$1"
+  if [ -w $INSTALL_DIR ]; then
+    bash -c $command
+  else
+    bash -c "sudo ${command}"
+  fi
+}
 
 if [[ ! -d $INSTALL_DIR ]]; then
   mkdir -p $INSTALL_DIR
 fi
 
 if [[ -f "${INSTALL_DIR}/tuist" ]]; then
-  rm ${INSTALL_DIR}/tuist
+  sudo_if_install_dir_not_writeable "rm ${INSTALL_DIR}/tuist"
 fi
 
-mv /tmp/tuistenv/tuistenv "${INSTALL_DIR}/tuist"
-chmod +x "${INSTALL_DIR}/tuist"
+sudo_if_install_dir_not_writeable "mv /tmp/tuistenv/tuistenv \"${INSTALL_DIR}/tuist\""
+sudo_if_install_dir_not_writeable "chmod +x \"${INSTALL_DIR}/tuist\""
 
 rm -rf /tmp/tuistenv
 rm /tmp/tuistenv.zip
