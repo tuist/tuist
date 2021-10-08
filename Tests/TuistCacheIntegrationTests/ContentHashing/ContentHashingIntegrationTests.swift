@@ -148,8 +148,8 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         let contentHash = try subject.contentHashes(for: graph, cacheProfile: cacheProfile, cacheOutputType: .framework, excludedTargets: [])
 
         // Then
-        XCTAssertEqual(contentHash[framework1], "4bb5e4700b73009387bdb11bf6a09bb9")
-        XCTAssertEqual(contentHash[framework2], "d779ba9aa5f4cc09e63d534047584cf2")
+        XCTAssertEqual(contentHash[framework1], "d31f7192381862aa6b74c7bbf2f097ce")
+        XCTAssertEqual(contentHash[framework2], "d0229bc4f00ff0b52bccb45668b9baa9")
     }
 
     func test_contentHashes_hashChangesWithCacheOutputType() throws {

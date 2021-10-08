@@ -59,7 +59,7 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
                 cacheProfileContentHasher.hash(cacheProfile: cacheProfile),
                 cacheOutputType.description,
                 System.shared.swiftVersion(),
-                Constants.version,
+                Constants.cacheVersion,
             ]
         )
     }

@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Changed
+
+- Use cache version instead of Tuist version in target hash calculation [#3554](https://github.com/tuist/tuist/pull/3554) by [@danyf90](https://github.com/danyf90)
+
 ### Fixed
 
 - Fix Swift Package Manager default resource handling [#3295](https://github.com/tuist/tuist/pull/3295) by [@mstfy](https://github.com/mstfy)
