@@ -482,8 +482,7 @@ extension SourceFilesList {
 
 extension ResourceFileElements {
     fileprivate static func from(resources: [PackageInfo.Target.Resource], path: AbsolutePath, excluding: [String]) -> Self? {
-        let customResourcesPaths  = resources
-            .map { path.appending(RelativePath($0.path)) }
+        let customResourcesPaths  = resources.map { path.appending(RelativePath($0.path)) }
         let resourcesPaths = customResourcesPaths + defaultResourcePaths(from: path)
 
         return .init(
