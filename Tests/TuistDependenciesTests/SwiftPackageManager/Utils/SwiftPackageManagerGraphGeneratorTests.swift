@@ -19,6 +19,8 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
         super.setUp()
         swiftPackageManagerController = MockSwiftPackageManagerController()
         subject = SwiftPackageManagerGraphGenerator(swiftPackageManagerController: swiftPackageManagerController)
+
+        try? createFolders()
     }
 
     override func tearDown() {
@@ -246,6 +248,18 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
 
         // Then
         XCTAssertEqual(got, dependenciesGraph)
+    }
+
+    private func createFolders() throws {
+        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/nanopb/Sources/nanopb"))
+        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/GoogleUtilities/Sources/GULAppDelegateSwizzler"))
+        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/GoogleUtilities/Sources/GULNSData"))
+        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/GoogleUtilities/Sources/GULMethodSwizzler"))
+        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/GoogleUtilities/Sources/GULNetwork"))
+        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/ADependency/Sources/ALibrary"))
+        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/ADependency/Sources/ALibraryUtils"))
+        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/another-dependency/Sources/AnotherLibrary"))
+        try fileHandler.createFolder(AbsolutePath("/tmp/localPackage/Sources/TuistKit"))
     }
 }
 

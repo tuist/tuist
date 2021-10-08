@@ -134,7 +134,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             basePath: basePath,
                             customSources: .init(
                                 globs: [basePath.appending(RelativePath("Package/Path/\(alternativeDefaultSource)/Target1/**")).pathString]
-                            )
+                            ),
+                            sourcesPath: "\(alternativeDefaultSource)/Target1"
                         ),
                     ]
                 )
@@ -523,7 +524,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             ),
                         ],
                         excludedResources: [
-                            "/Package/Path/Sources/Target1/AnotherOne/Resource/**"
+                            "\(basePath.pathString)/Package/Path/Sources/Target1/AnotherOne/Resource/**"
                         ]
                     ),
                 ]
@@ -1715,7 +1716,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", basePath: basePath, dependencies: [.xcframework(path: "/Package/Dependency1/Dependency1.xcframework")]),
+                    .test("Target1", basePath: basePath, dependencies: [.xcframework(path: Path(basePath.appending(.init("Package/Dependency1/Dependency1.xcframework")).pathString))]),
                 ]
             )
         )
