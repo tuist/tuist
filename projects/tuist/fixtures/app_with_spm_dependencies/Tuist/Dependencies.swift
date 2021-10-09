@@ -11,6 +11,7 @@ let dependencies = Dependencies(
             .package(url: "https://github.com/pointfreeco/swift-composable-architecture", .upToNextMinor(from: "0.22.0")),
             .package(url: "https://github.com/Quick/Quick", .upToNextMajor(from: "4.0.0")),
             .package(url: "https://github.com/Quick/Nimble", .upToNextMajor(from: "9.0.0")),
+            .package(url: "https://github.com/Trendyol/ios-components", .branch("master"))
         ],
         deploymentTargets: [.iOS(targetVersion: "9.0", devices: [.iphone])]
     ),
