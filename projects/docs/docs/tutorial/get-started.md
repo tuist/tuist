@@ -81,7 +81,7 @@ let project = Project(
 )
 ```
 
-Since we are defining an Xcode project, most of the properties might be familiar to you. There are some that are available which are not used from the manifest that you've got generated. You can [check out](https://tuist.github.io/tuist/index.html) the project reference to see all the public models that are available in the `ProjectDescription` framework.
+Since we are defining an Xcode project, most of the properties might be familiar to you. There are some that are available which are not used from the manifest that you've got generated. You can [check out](../manifests/project.md) the project reference to see all the public models that are available in the `ProjectDescription` framework.
 
 ### Generating project
 
