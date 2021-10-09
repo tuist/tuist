@@ -6,7 +6,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
-- Perform remote cache download and upload concurrently [#3548](https://github.com/tuist/tuist/pull/3548) by [@danyf90](https://github.com/danyf90)
+- Perform remote cache download and upload concurrently [#3549](https://github.com/tuist/tuist/pull/3549) by [@danyf90](https://github.com/danyf90)
 
 ### Fixed
 
