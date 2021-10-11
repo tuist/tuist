@@ -85,7 +85,11 @@ public class Environment: Environmenting {
 
     /// Returns true if the output of Tuist should be coloured.
     public var shouldOutputBeColoured: Bool {
-        isStandardOutputInteractive || isColouredOutputEnvironmentTrue
+        if let coloredOutput = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.colouredOutput] {
+            return Constants.trueValues.contains(coloredOutput)
+        } else {
+            return isStandardOutputInteractive
+        }
     }
 
     /// Returns true if the standard output is interactive.
@@ -152,14 +156,5 @@ public class Environment: Environmenting {
     /// Settings path.
     public var settingsPath: AbsolutePath {
         directory.appending(component: "settings.json")
-    }
-
-    // MARK: - Fileprivate
-
-    /// Return true if the the coloured output is forced through an environment variable.
-    fileprivate var isColouredOutputEnvironmentTrue: Bool {
-        let environment = ProcessInfo.processInfo.environment
-        let coloredOutput = environment[Constants.EnvironmentVariables.colouredOutput]
-        return coloredOutput.flatMap { Constants.trueValues.contains($0) } ?? false
     }
 }

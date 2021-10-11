@@ -482,8 +482,9 @@ extension SourceFilesList {
 
 extension ResourceFileElements {
     fileprivate static func from(resources: [PackageInfo.Target.Resource], path: AbsolutePath, excluding: [String]) -> Self? {
-        let resourcesPaths = resources.map { path.appending(RelativePath($0.path)) }
-        guard !resourcesPaths.isEmpty else { return nil }
+        let customResourcesPaths  = resources.map { path.appending(RelativePath($0.path)) }
+        let resourcesPaths = customResourcesPaths + defaultResourcePaths(from: path)
+
         return .init(
             resources: resourcesPaths.map { absolutePath in
                 let absolutePathGlob = absolutePath.extension != nil ? absolutePath : absolutePath.appending(component: "**")
@@ -497,6 +498,16 @@ extension ResourceFileElements {
                 )
             }
         )
+    }
+
+    // These files are automatically added as resource if they are inside targets directory.
+    // Check https://developer.apple.com/documentation/swift_packages/bundling_resources_with_a_swift_package
+    private static let defaultSpmResourceFileExtensions = ["xib", "storyboard", "xcdatamodeld", "xcmappingmodel", "xcassets", "lproj"]
+
+    private static func defaultResourcePaths(from path: AbsolutePath) -> [AbsolutePath] {
+        ResourceFileElements.defaultSpmResourceFileExtensions.map { fileExtension -> AbsolutePath in
+            path.appending(components: ["**", "*.\(fileExtension)"])
+        }
     }
 }
 
