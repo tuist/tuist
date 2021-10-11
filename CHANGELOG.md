@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+
+- Add optional `manifest` argument to `tuist dump` command, to allow to dump other kinds of manifests [#3551](https://github.com/tuist/tuist/pull/3551) by [@danyf90](https://github.com/danyf90)
+
 ### Fixed
 
 - Fix Swift Package Manager default resource handling [#3295](https://github.com/tuist/tuist/pull/3295) by [@mstfy](https://github.com/mstfy)
