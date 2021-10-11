@@ -6,7 +6,7 @@ on:
       - main
   pull_request:
     paths:
-      - .package.resolved
+      - Tuist/Dependencies/Lockfiles/Package.resolved
       - Package.resolved
       - Gemfile*
       - Package.swift
