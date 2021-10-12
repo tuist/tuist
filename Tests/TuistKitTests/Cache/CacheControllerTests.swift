@@ -124,14 +124,13 @@ final class CacheControllerTests: TuistUnitTestCase {
         try subject.cache(path: path, cacheProfile: .test(configuration: "Debug"), includedTargets: [], dependenciesOnly: false)
 
         // Then
+        let targetsToBeCached = "bar, baz, foo"
         XCTAssertPrinterOutputContains("""
         Hashing cacheable targets
-        Targets to be cached: bar, baz, foo
+        Targets to be cached: \(targetsToBeCached)
         Filtering cacheable targets
         Building cacheable targets
-        Storing cacheable targets: \(aTarget.name), 1 out of 3
-        Storing cacheable targets: \(bTarget.name), 2 out of 3
-        Storing cacheable targets: \(cTarget.name), 3 out of 3
+        Storing 3 cacheable targets: \(targetsToBeCached)
         All cacheable targets have been cached successfully as xcframeworks
         """)
         XCTAssertEqual(cacheGraphLinter.invokedLintCount, 1)
@@ -329,13 +328,13 @@ final class CacheControllerTests: TuistUnitTestCase {
         try subject.cache(path: path, cacheProfile: .test(configuration: "Debug"), includedTargets: [bTarget.name], dependenciesOnly: false)
 
         // Then
+        let targetsToBeCached = [aTarget.name, bTarget.name].sorted().joined(separator: ", ")
         XCTAssertPrinterOutputContains("""
         Hashing cacheable targets
-        Targets to be cached: \([aTarget.name, bTarget.name].sorted().joined(separator: ", "))
+        Targets to be cached: \(targetsToBeCached)
         Filtering cacheable targets
         Building cacheable targets
-        Storing cacheable targets: \(aTarget.name), 1 out of 2
-        Storing cacheable targets: \(bTarget.name), 2 out of 2
+        Storing 2 cacheable targets: \(targetsToBeCached)
         All cacheable targets have been cached successfully as xcframeworks
         """)
         XCTAssertEqual(cacheGraphLinter.invokedLintCount, 1)

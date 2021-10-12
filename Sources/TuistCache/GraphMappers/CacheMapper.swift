@@ -145,13 +145,16 @@ public final class CacheMapper: GraphMapping {
     }
 
     private func fetch(hashes: [GraphTarget: String]) -> Single<[GraphTarget: AbsolutePath]> {
-        Single.zip(hashes.map { target, hash in
-            self.cache.exists(name: target.target.name, hash: hash)
-                .flatMap { (exists) -> Single<(target: GraphTarget, path: AbsolutePath?)> in
-                    guard exists else { return Single.just((target: target, path: nil)) }
-                    return self.cache.fetch(name: target.target.name, hash: hash).map { (target: target, path: $0) }
+        return Single
+            .zip(
+                hashes.map(context: .concurrent) { target, hash in
+                    self.cache.exists(name: target.target.name, hash: hash)
+                        .flatMap { (exists) -> Single<(target: GraphTarget, path: AbsolutePath?)> in
+                            guard exists else { return Single.just((target: target, path: nil)) }
+                            return self.cache.fetch(name: target.target.name, hash: hash).map { (target: target, path: $0) }
+                        }
                 }
-        })
+            )
             .map { result in
                 result.reduce(into: [GraphTarget: AbsolutePath]()) { acc, next in
                     guard let path = next.path else { return }
