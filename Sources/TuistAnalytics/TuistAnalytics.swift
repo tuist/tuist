@@ -8,7 +8,7 @@ public final class TuistAnalytics {
     public static func bootstrap(configLoader: ConfigLoader = ConfigLoader(manifestLoader: ManifestLoader())) throws {
         let path: AbsolutePath
         if let argumentIndex = CommandLine.arguments.firstIndex(of: "--path") {
-            path = AbsolutePath(CommandLine.arguments[argumentIndex], relativeTo: .current)
+            path = AbsolutePath(CommandLine.arguments[argumentIndex + 1], relativeTo: .current)
         } else {
             path = .current
         }

@@ -14,14 +14,14 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
     var requestDispatcher: MockHTTPRequestDispatcher!
 
     override func setUp() {
+        super.setUp()
         mockCloudClient = MockCloudClient()
         requestDispatcher = MockHTTPRequestDispatcher()
-        super.setUp()
     }
 
     override func tearDown() {
-        super.tearDown()
         subject = nil
+        super.tearDown()
     }
 
     func testDispatch_whenCloudAnalyticsIsNil_sendsOnlyToBackbone() {
