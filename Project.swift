@@ -13,27 +13,6 @@ func releaseSettings() -> SettingsDictionary {
     return baseSettings
 }
 
-let packages: [Package] = [
-    .package(url: "https://github.com/tuist/XcodeProj.git", .upToNextMajor(from: "8.3.1")),
-    .package(url: "https://github.com/CombineCommunity/CombineExt.git", .upToNextMajor(from: "1.3.0")),
-    .package(url: "https://github.com/apple/swift-tools-support-core.git", .upToNextMinor(from: "0.2.0")),
-    .package(url: "https://github.com/ReactiveX/RxSwift.git", .upToNextMajor(from: "5.1.1")),
-    .package(url: "https://github.com/apple/swift-log.git", .upToNextMajor(from: "1.4.0")),
-    .package(url: "https://github.com/kishikawakatsumi/KeychainAccess.git", .upToNextMajor(from: "4.2.2")),
-    .package(url: "https://github.com/fortmarek/swifter.git", .branch("stable")),
-    .package(url: "https://github.com/tuist/BlueSignals.git", .upToNextMajor(from: "1.0.21")),
-    .package(url: "https://github.com/maparoni/Zip.git", .revision("059e7346082d02de16220cd79df7db18ddeba8c3")),
-    .package(url: "https://github.com/rnine/Checksum.git", .upToNextMajor(from: "1.0.2")),
-    .package(url: "https://github.com/stencilproject/Stencil.git", .upToNextMajor(from: "0.14.1")),
-    .package(url: "https://github.com/SwiftGen/StencilSwiftKit.git", .upToNextMajor(from: "2.8.0")),
-    .package(url: "https://github.com/FabrizioBrancati/Queuer.git", .upToNextMajor(from: "2.1.1")),
-    .package(url: "https://github.com/krzyzanowskim/CryptoSwift.git", .upToNextMajor(from: "1.4.1")),
-    .package(url: "https://github.com/tuist/GraphViz.git", .branch("tuist")),
-    .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMajor(from: "0.4.3")),
-    .package(url: "https://github.com/fortmarek/SwiftGen", .branch("stable")),
-    .package(url: "https://github.com/kylef/PathKit.git", .upToNextMajor(from: "1.0.1")),
-]
-
 func targets() -> [Target] {
     return [
         Target.target(
@@ -68,29 +47,27 @@ func targets() -> [Target] {
     + [
         Target.module(
             name: "TuistSupport",
-            product: .framework,
             hasIntegrationTests: true,
             dependencies: [
-                .package(product: "CombineExt"),
-                .package(product: "SwiftToolsSupport-auto"),
-                .package(product: "RxSwift"),
-                .package(product: "RxRelay"),
-                .package(product: "RxBlocking"),
-                .package(product: "Logging"),
-                .package(product: "KeychainAccess"),
-                .package(product: "Swifter"),
-                .package(product: "Signals"),
-                .package(product: "Zip"),
-                .package(product: "Checksum"),
-                .package(product: "StencilSwiftKit"),
-                .package(product: "SwiftGenKit"),
-                .package(product: "Stencil"),
-                .package(product: "XcodeProj"),
-                .package(product: "Queuer"),
-                .package(product: "CryptoSwift"),
-                .package(product: "GraphViz"),
-                .package(product: "ArgumentParser"),
-                .package(product: "PathKit"),
+                .external(name: "ArgumentParser"),
+                .external(name: "Checksum"),
+                .external(name: "CombineExt"),
+                .external(name: "CryptoSwift"),
+                .external(name: "GraphViz"),
+                .external(name: "KeychainAccess"),
+                .external(name: "Logging"),
+                .external(name: "PathKit"),
+                .external(name: "Queuer"),
+                .external(name: "RxBlocking"),
+                .external(name: "RxRelay"),
+                .external(name: "RxSwift"),
+                .external(name: "Signals"),
+                .external(name: "Stencil"),
+                .external(name: "StencilSwiftKit"),
+                .external(name: "Swifter"),
+                .external(name: "SwiftToolsSupport-auto"),
+                .external(name: "XcodeProj"),
+                .external(name: "Zip"),
             ]
         ),
         Target.module(
@@ -207,6 +184,7 @@ func targets() -> [Target] {
                 .target(name: "TuistCore"),
                 .target(name: "TuistGraph"),
                 .target(name: "TuistSupport"),
+                .external(name: "SwiftGenKit"),
             ],
             testDependencies: [
                 .target(name: "TuistCoreTesting"),
@@ -534,12 +512,8 @@ func targets() -> [Target] {
 let project = Project(
     name: "Tuist",
     options: [
-        .textSettings(
-            indentWidth: 4,
-            tabWidth: 4
-        )
+        .textSettings(indentWidth: 4, tabWidth: 4)
     ],
-    packages: packages,
     settings: .settings(
         configurations: [
             .debug(name: "Debug", settings: debugSettings(), xcconfig: nil),

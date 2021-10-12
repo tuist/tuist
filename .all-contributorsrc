@@ -550,6 +550,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "astromonkee",
+      "name": "Astromonkee",
+      "avatar_url": "https://avatars.githubusercontent.com/u/44421303?v=4",
+      "profile": "https://github.com/astromonkee",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
