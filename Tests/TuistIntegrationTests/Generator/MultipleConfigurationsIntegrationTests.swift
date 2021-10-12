@@ -20,10 +20,6 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         }
     }
 
-    override func tearDown() {
-        super.tearDown()
-    }
-
     func testGenerateThrowsLintingErrorWhenConfigurationsAreEmpty() throws {
         // Given
         let projectSettings = Settings(configurations: [:])

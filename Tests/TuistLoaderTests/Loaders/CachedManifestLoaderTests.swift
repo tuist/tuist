@@ -66,10 +66,9 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
-
         subject = nil
         cacheDirectory = nil
+        super.tearDown()
     }
 
     // MARK: - Tests

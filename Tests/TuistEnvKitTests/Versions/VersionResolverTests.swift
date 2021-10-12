@@ -28,10 +28,9 @@ final class VersionResolverTests: XCTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
-
         settingsController = nil
         subject = nil
+        super.tearDown()
     }
 
     func test_resolve_when_version_and_bin() throws {

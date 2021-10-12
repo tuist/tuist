@@ -16,8 +16,8 @@ final class EmbedScriptGeneratorTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
         subject = nil
+        super.tearDown()
     }
 
     func test_script_when_includingSymbolsInFileLists() throws {

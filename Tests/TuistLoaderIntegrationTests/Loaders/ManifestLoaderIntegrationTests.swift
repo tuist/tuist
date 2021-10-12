@@ -15,8 +15,8 @@ final class ManifestLoaderTests: TuistTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
         subject = nil
+        super.tearDown()
     }
 
     func test_loadConfig() throws {

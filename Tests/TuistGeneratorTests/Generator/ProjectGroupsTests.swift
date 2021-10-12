@@ -45,12 +45,11 @@ final class ProjectGroupsTests: XCTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
-
         pbxproj = nil
         project = nil
         sourceRootPath = nil
         subject = nil
+        super.tearDown()
     }
 
     func test_generate() {

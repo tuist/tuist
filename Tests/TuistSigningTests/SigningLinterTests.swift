@@ -16,9 +16,8 @@ final class SigningLinterTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
-
         subject = nil
+        super.tearDown()
     }
 
     func test_lint_when_development_team_and_team_id_mismatch() {

@@ -26,12 +26,11 @@ final class SigningMatcherTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
-
         subject = nil
         signingFilesLocator = nil
         provisioningProfileParser = nil
         certificateParser = nil
+        super.tearDown()
     }
 
     func test_locates_certificates_from_entry_path() throws {

@@ -23,11 +23,11 @@ final class InstallerTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
         buildCopier = nil
         versionsController = nil
         tmpDir = nil
         subject = nil
+        super.tearDown()
     }
 
     func test_install_when_bundled_release() throws {

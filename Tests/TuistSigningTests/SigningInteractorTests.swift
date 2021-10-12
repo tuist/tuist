@@ -40,7 +40,6 @@ final class SigningInteractorTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
         signingFilesLocator = nil
         rootDirectoryLocator = nil
         signingMatcher = nil
@@ -49,6 +48,7 @@ final class SigningInteractorTests: TuistUnitTestCase {
         securityController = nil
         signingCipher = nil
         subject = nil
+        super.tearDown()
     }
 
     func test_install_creates_keychain() throws {

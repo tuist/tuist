@@ -19,9 +19,9 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
         project = nil
         subject = nil
+        super.tearDown()
     }
 
     func test_map_when_a_target_that_has_resources_and_doesnt_supports_them() throws {

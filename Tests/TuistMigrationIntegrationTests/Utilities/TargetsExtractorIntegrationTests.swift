@@ -15,8 +15,8 @@ final class TargetsExtractorIntegrationTests: TuistTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
         subject = nil
+        super.tearDown()
     }
 
     func test_when_the_xcodeproj_path_doesnt_exist() throws {

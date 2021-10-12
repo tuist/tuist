@@ -22,9 +22,9 @@ final class ProjectDevelopmentRegionMapperTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
         subject = nil
         config = nil
+        super.tearDown()
     }
 
     func test_map_changes_the_development_region() throws {
