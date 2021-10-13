@@ -16,6 +16,7 @@ final class ConfigTests: XCTestCase {
                 .enableCodeCoverage(.all),
                 .disablePackageVersionLocking,
                 .disableBundleAccessors,
+                .lastUpgradeCheck(.init(12, 5, 1)),
             ]
         )
 

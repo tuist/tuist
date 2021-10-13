@@ -5,6 +5,10 @@ extension String {
     // swiftlint:disable:next force_try
     private static let whitespaceRegularExpression = try! NSRegularExpression(pattern: "\\s")
 
+    public static func lastUpgradeCheck(from version: Version) -> String {
+        "\(version.major)\(version.minor)\(version.patch)"
+    }
+
     public var escapingWhitespaces: String {
         String.whitespaceRegularExpression.stringByReplacingMatches(
             in: self,

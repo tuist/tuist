@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TSCUtility
 
 public struct Workspace: Equatable, Codable {
     // MARK: - Attributes
@@ -13,6 +14,7 @@ public struct Workspace: Equatable, Codable {
     public var schemes: [Scheme]
     public var ideTemplateMacros: IDETemplateMacros?
     public var additionalFiles: [FileElement]
+    public var lastUpgradeCheck: Version?
 
     // MARK: - Init
 
@@ -23,7 +25,8 @@ public struct Workspace: Equatable, Codable {
         projects: [AbsolutePath],
         schemes: [Scheme] = [],
         ideTemplateMacros: IDETemplateMacros? = nil,
-        additionalFiles: [FileElement] = []
+        additionalFiles: [FileElement] = [],
+        lastUpgradeCheck: Version? = nil
     ) {
         self.path = path
         self.xcWorkspacePath = xcWorkspacePath
@@ -32,6 +35,7 @@ public struct Workspace: Equatable, Codable {
         self.schemes = schemes
         self.ideTemplateMacros = ideTemplateMacros
         self.additionalFiles = additionalFiles
+        self.lastUpgradeCheck = lastUpgradeCheck
     }
 }
 
@@ -50,7 +54,8 @@ extension Workspace {
             projects: projects,
             schemes: schemes,
             ideTemplateMacros: ideTemplateMacros,
-            additionalFiles: additionalFiles + files.map { .file(path: $0) }
+            additionalFiles: additionalFiles + files.map { .file(path: $0) },
+            lastUpgradeCheck: lastUpgradeCheck
         )
     }
 
@@ -62,7 +67,8 @@ extension Workspace {
             projects: projects,
             schemes: schemes,
             ideTemplateMacros: ideTemplateMacros,
-            additionalFiles: additionalFiles
+            additionalFiles: additionalFiles,
+            lastUpgradeCheck: lastUpgradeCheck
         )
     }
 
@@ -74,7 +80,8 @@ extension Workspace {
             projects: Array(Set(projects + otherProjects)),
             schemes: schemes,
             ideTemplateMacros: ideTemplateMacros,
-            additionalFiles: additionalFiles
+            additionalFiles: additionalFiles,
+            lastUpgradeCheck: lastUpgradeCheck
         )
     }
 

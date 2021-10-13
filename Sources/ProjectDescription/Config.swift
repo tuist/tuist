@@ -48,6 +48,10 @@ public struct Config: Codable, Equatable {
 
         /// Disables generating Bundle accessors.
         case disableBundleAccessors
+
+        /// Allows to suppress warnings in Xcode about updates to recommended settings. The warnings appear when Xcode version has been upgraded.
+        /// It is recommended to set the version option to Xcode's version that is used for development of a project, for example `.lastUpgradeCheck(.init(13, 0, 0))` for Xcode 13.0.0.
+        case lastUpgradeCheck(Version)
     }
 
     /// Generation options.
@@ -108,6 +112,7 @@ extension Config.GenerationOptions {
         case resolveDependenciesWithSystemScm
         case disablePackageVersionLocking
         case disableBundleAccessors
+        case lastUpgradeCheck
     }
 
     public init(from decoder: Decoder) throws {
@@ -148,6 +153,10 @@ extension Config.GenerationOptions {
             try container.decode(Bool.self, forKey: .disableBundleAccessors)
         {
             self = .disableBundleAccessors
+        } else if container.allKeys.contains(.lastUpgradeCheck), try container.decodeNil(forKey: .lastUpgradeCheck) == false {
+            var associatedValues = try container.nestedUnkeyedContainer(forKey: .lastUpgradeCheck)
+            let version = try associatedValues.decode(Version.self)
+            self = .lastUpgradeCheck(version)
         } else {
             throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown enum case"))
         }
@@ -180,6 +189,9 @@ extension Config.GenerationOptions {
             try container.encode(true, forKey: .disablePackageVersionLocking)
         case .disableBundleAccessors:
             try container.encode(true, forKey: .disableBundleAccessors)
+        case let .lastUpgradeCheck(version):
+            var associatedValues = container.nestedUnkeyedContainer(forKey: .lastUpgradeCheck)
+            try associatedValues.encode(version)
         }
     }
 }

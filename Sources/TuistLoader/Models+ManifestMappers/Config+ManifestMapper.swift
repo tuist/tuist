@@ -86,6 +86,8 @@ extension TuistGraph.Config.GenerationOption {
             return .disablePackageVersionLocking
         case .disableBundleAccessors:
             return .disableBundleAccessors
+        case let .lastUpgradeCheck(version):
+            return .lastUpgradeCheck(.init(version.major, version.minor, version.patch))
         }
     }
 }

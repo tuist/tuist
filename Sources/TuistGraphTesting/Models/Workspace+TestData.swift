@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TSCUtility
 @testable import TuistGraph
 
 public extension Workspace {
@@ -10,7 +11,8 @@ public extension Workspace {
         projects: [AbsolutePath] = [],
         schemes: [Scheme] = [],
         ideTemplateMacros: IDETemplateMacros? = nil,
-        additionalFiles: [FileElement] = []
+        additionalFiles: [FileElement] = [],
+        lastUpgradeCheck: Version? = nil
     ) -> Workspace {
         Workspace(
             path: path,
@@ -19,7 +21,8 @@ public extension Workspace {
             projects: projects,
             schemes: schemes,
             ideTemplateMacros: ideTemplateMacros,
-            additionalFiles: additionalFiles
+            additionalFiles: additionalFiles,
+            lastUpgradeCheck: lastUpgradeCheck
         )
     }
 }
