@@ -126,7 +126,6 @@ let package = Package(
                 rxSwiftDependency,
                 rxBlockingDependency,
                 "TuistLoader",
-                "TuistInsights",
                 "TuistScaffold",
                 "TuistSigning",
                 "TuistDependencies",
@@ -485,32 +484,6 @@ let package = Package(
                 "TuistSupportTesting",
                 "TuistGraphTesting",
                 rxBlockingDependency,
-            ]
-        ),
-        .target(
-            name: "TuistInsights",
-            dependencies: [
-                "XcodeProj",
-                swiftToolsSupportDependency,
-                "TuistCore",
-                "TuistGraph",
-                "TuistSupport",
-            ]
-        ),
-        .testTarget(
-            name: "TuistInsightsTests",
-            dependencies: [
-                "TuistInsights",
-                "TuistSupportTesting",
-                "TuistGraphTesting",
-            ]
-        ),
-        .testTarget(
-            name: "TuistInsightsIntegrationTests",
-            dependencies: [
-                "TuistInsights",
-                "TuistSupportTesting",
-                "TuistGraphTesting",
             ]
         ),
         .target(

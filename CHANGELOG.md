@@ -19,6 +19,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Fix Swift Package Manager default resource handling [#3295](https://github.com/tuist/tuist/pull/3295) by [@mstfy](https://github.com/mstfy)
 - If present, use coloured output configuration from environment even if it's false [#3550](https://github.com/tuist/tuist/pull/3550) by [@danyf90](https://github.com/danyf90)
 
+### Removed
+
+- Removed unused `Cloud.Option.insights` case [#3547](https://github.com/tuist/tuist/pull/3547) by [@danyf90](https://github.com/danyf90)
+
 ## 2.0.2 - Wald
 
 ### Fixed

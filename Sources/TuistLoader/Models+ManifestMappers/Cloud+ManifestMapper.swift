@@ -43,8 +43,6 @@ extension TuistGraph.Cloud.Option {
         switch manifest {
         case .analytics:
             return .analytics
-        case .insights:
-            return .insights
         }
     }
 }
