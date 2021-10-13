@@ -3,11 +3,11 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
-typealias CloudStoreResource = HTTPResource<Void, CloudEmptyResponseError>
+typealias CloudAnalyticsStoreResource = HTTPResource<Void, CloudEmptyResponseError>
 
 /// Entity responsible for providing analytics-related resources
 protocol CloudAnalyticsResourceFactorying {
-    func storeResource(commandEvent: CommandEvent) throws -> CloudStoreResource
+    func storeResource(commandEvent: CommandEvent) throws -> CloudAnalyticsStoreResource
 }
 
 class CloudAnalyticsResourceFactory: CloudAnalyticsResourceFactorying {
@@ -17,7 +17,7 @@ class CloudAnalyticsResourceFactory: CloudAnalyticsResourceFactorying {
         self.cloudConfig = cloudConfig
     }
 
-    func storeResource(commandEvent: CommandEvent) throws -> CloudStoreResource {
+    func storeResource(commandEvent: CommandEvent) throws -> CloudAnalyticsStoreResource {
         let url = apiAnalyticsURL(cacheURL: cloudConfig.url, projectId: cloudConfig.projectId)
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
