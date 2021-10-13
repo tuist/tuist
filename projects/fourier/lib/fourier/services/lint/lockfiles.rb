@@ -23,7 +23,7 @@ module Fourier
         private
           def assert_same_packages_count(spm_lockfile:, tuist_lockfile:)
             return true if spm_lockfile.count == tuist_lockfile.count
-            message = "The number of packages in the Package.resolved and .package.resolved don't match."
+            message = "The number of packages in the Package.resolved files don't match."
             Utilities::Output.error(message)
             false
           end
@@ -40,7 +40,7 @@ module Fourier
 
             if mismatched_packages.count != 0
               message = "There's a mismatch between the revision of the following pakages in"\
-              " in the Package.resolved and .package.resolved files:"\
+              " in the Package.resolved files:"\
               " #{mismatched_packages.join(", ")}"
               Utilities::Output.error(message)
               return false
@@ -54,7 +54,7 @@ module Fourier
           end
 
           def tuist_lockfile
-            path = File.expand_path(".package.resolved", root_directory)
+            path = File.expand_path("Tuist/Dependencies/Lockfiles/Package.resolved", root_directory)
             load_lockfile(path)
           end
 

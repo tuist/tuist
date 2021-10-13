@@ -12,17 +12,43 @@ final class DumpService {
         self.manifestLoader = manifestLoader
     }
 
-    func run(path: String?) throws {
+    func run(path: String?, manifest: DumpableManifest) throws {
         let projectPath: AbsolutePath
         if let path = path {
             projectPath = AbsolutePath(path, relativeTo: AbsolutePath.current)
         } else {
             projectPath = AbsolutePath.current
         }
+
         let manifestGraphLoader = ManifestGraphLoader(manifestLoader: manifestLoader)
         try manifestGraphLoader.loadPlugins(at: projectPath)
-        let project = try manifestLoader.loadProject(at: projectPath)
-        let json: JSON = try project.toJSON()
+
+        let encoded: Encodable
+        switch manifest {
+        case .project:
+            encoded = try manifestLoader.loadProject(at: projectPath)
+        case .workspace:
+            encoded = try manifestLoader.loadWorkspace(at: projectPath)
+        case .config:
+            encoded = try manifestLoader.loadConfig(at: projectPath)
+        case .template:
+            encoded = try manifestLoader.loadTemplate(at: projectPath)
+        case .dependencies:
+            encoded = try manifestLoader.loadDependencies(at: projectPath)
+        case .plugin:
+            encoded = try manifestLoader.loadPlugin(at: projectPath)
+        }
+
+        let json: JSON = try encoded.toJSON()
         logger.notice("\(json.toString(prettyPrint: true))")
     }
+}
+
+enum DumpableManifest: String, CaseIterable {
+    case project
+    case workspace
+    case config
+    case template
+    case dependencies
+    case plugin
 }

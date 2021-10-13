@@ -134,7 +134,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             basePath: basePath,
                             customSources: .init(
                                 globs: [basePath.appending(RelativePath("Package/Path/\(alternativeDefaultSource)/Target1/**")).pathString]
-                            )
+                            ),
+                            sourcesPath: "\(alternativeDefaultSource)/Target1"
                         ),
                     ]
                 )
@@ -232,7 +233,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         "com_example_target-1",
                         basePath: basePath,
                         customBundleID: "com.example.target-1",
-                        customSources: .init(globs: [basePath.appending(RelativePath("Package/Path/Sources/com.example.target-1/**")).pathString])
+                        customSources: .init(globs: [basePath.appending(RelativePath("Package/Path/Sources/com.example.target-1/**")).pathString]),
+                        sourcesPath: "Sources/com.example.target-1/"
                     ),
                 ]
             )
@@ -520,6 +522,9 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 ],
                                 tags: []
                             ),
+                        ],
+                        excludedResources: [
+                            "\(basePath.pathString)/Package/Path/Sources/Target1/AnotherOne/Resource/**"
                         ]
                     ),
                 ]
@@ -837,15 +842,14 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         "Target1",
                         basePath: basePath,
                         customSources: .init(globs: [basePath.appending(RelativePath("Package/Path/Custom/Path/Sources/Folder/**")).pathString]),
-                        resources: .init(
-                            resources: [
-                                .init(stringLiteral: basePath.appending(RelativePath("Package/Path/Custom/Path/Resource/Folder/**")).pathString),
-                            ]
-                        ),
+                        resources: [
+                            .init(stringLiteral: basePath.appending(RelativePath("Package/Path/Custom/Path/Resource/Folder/**")).pathString),
+                        ],
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Custom/Path/Headers"],
                         ],
-                        moduleMap: "$(SRCROOT)/Custom/Path/Headers/module.modulemap"
+                        moduleMap: "$(SRCROOT)/Custom/Path/Headers/module.modulemap",
+                        sourcesPath: "Custom/Path"
                     ),
                 ]
             )
@@ -1712,7 +1716,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", basePath: basePath, dependencies: [.xcframework(path: "/Package/Dependency1/Dependency1.xcframework")]),
+                    .test("Target1", basePath: basePath, dependencies: [.xcframework(path: Path(basePath.appending(.init("Package/Dependency1/Dependency1.xcframework")).pathString))]),
                 ]
             )
         )
@@ -2025,6 +2029,23 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     }
 }
 
+private func defaultSpmResources(_ target: String, customPath: String? = nil) -> ResourceFileElements {
+    let fullPath: String
+    if let customPath = customPath {
+        fullPath = customPath
+    } else {
+        fullPath = "/Package/Path/Sources/\(target)"
+    }
+    return [
+        "\(fullPath)/**/*.xib",
+        "\(fullPath)/**/*.storyboard",
+        "\(fullPath)/**/*.xcdatamodeld",
+        "\(fullPath)/**/*.xcmappingmodel",
+        "\(fullPath)/**/*.xcassets",
+        "\(fullPath)/**/*.lproj"
+    ]
+}
+
 extension PackageInfoMapping {
     fileprivate func map(
         package: String,
@@ -2120,12 +2141,31 @@ extension ProjectDescription.Target {
         customBundleID: String? = nil,
         deploymentTarget: ProjectDescription.DeploymentTarget? = nil,
         customSources: SourceFilesList? = nil,
-        resources: ResourceFileElements? = nil,
+        resources: [ProjectDescription.ResourceFileElement] = [],
         headers: ProjectDescription.Headers? = nil,
         dependencies: [ProjectDescription.TargetDependency] = [],
         customSettings: ProjectDescription.SettingsDictionary = [:],
-        moduleMap: String? = nil
+        moduleMap: String? = nil,
+        excludedResources: [String] = [],
+        sourcesPath: String? = nil
     ) -> Self {
+        let defaultResourceBasePath: String
+        if let sourcesPath = sourcesPath {
+            let relativePath = RelativePath("Package/Path/\(sourcesPath)/**")
+            defaultResourceBasePath = basePath.appending(relativePath).pathString
+        } else {
+            defaultResourceBasePath = basePath.appending(RelativePath("Package/Path/Sources/\(name)/**")).pathString
+        }
+
+
+        let defaultResources = ["xib", "storyboard", "xcdatamodeld", "xcmappingmodel", "xcassets", "lproj"]
+            .map { file -> ProjectDescription.ResourceFileElement in
+                return ResourceFileElement.glob(
+                    pattern: Path("\(defaultResourceBasePath)/*.\(file)"),
+                    excluding: excludedResources.map(Path.init(stringLiteral:))
+                )
+            }
+
         return .init(
             name: name,
             platform: platform,
@@ -2134,7 +2174,7 @@ extension ProjectDescription.Target {
             deploymentTarget: deploymentTarget,
             infoPlist: .default,
             sources: customSources ?? .init(globs: [basePath.appending(RelativePath("Package/Path/Sources/\(name)/**")).pathString]),
-            resources: resources,
+            resources: ResourceFileElements(resources: resources + defaultResources),
             headers: headers,
             dependencies: dependencies,
             settings: DependenciesGraph.spmSettings(with: customSettings, moduleMap: moduleMap)
