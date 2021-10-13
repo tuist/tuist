@@ -79,6 +79,7 @@ module.exports = {
       items: [
         'cloud/get-started',
         'cloud/specification',
+        'cloud/self-hosting',
       ],
     },
     {
