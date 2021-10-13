@@ -7,7 +7,7 @@ typealias CloudStoreResource = HTTPResource<Void, CloudEmptyResponseError>
 
 /// Entity responsible for providing analytics-related resources
 protocol CloudAnalyticsResourceFactorying {
-    func storeResource(encodedCommandEvent: Data) -> CloudStoreResource
+    func storeResource(commandEvent: CommandEvent) throws -> CloudStoreResource
 }
 
 class CloudAnalyticsResourceFactory: CloudAnalyticsResourceFactorying {
@@ -17,11 +17,14 @@ class CloudAnalyticsResourceFactory: CloudAnalyticsResourceFactorying {
         self.cloudConfig = cloudConfig
     }
 
-    func storeResource(encodedCommandEvent: Data) -> CloudStoreResource {
+    func storeResource(commandEvent: CommandEvent) throws -> CloudStoreResource {
         let url = apiAnalyticsURL(cacheURL: cloudConfig.url, projectId: cloudConfig.projectId)
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        let encodedCommandEvent = try encoder.encode(commandEvent)
         request.httpBody = encodedCommandEvent
         
         return HTTPResource(

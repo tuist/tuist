@@ -12,7 +12,6 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
     var subject: TuistAnalyticsDispatcher!
     var mockCloudClient: MockCloudClient!
     var requestDispatcher: MockHTTPRequestDispatcher!
-
     override func setUp() {
         super.setUp()
         mockCloudClient = MockCloudClient()
@@ -24,99 +23,75 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func testDispatch_whenCloudAnalyticsIsNil_sendsOnlyToBackbone() {
+    func testDispatch_whenCloudAnalyticsIsNil_sendsOnlyToBackbone() throws {
         // Given
-        let eventData = "DATA".data(using: .utf8)
         subject = TuistAnalyticsDispatcher(
-            cloudDependencies: nil,
+            cloud: nil,
             requestDispatcher: requestDispatcher
         )
 
         // When
         let expectation = XCTestExpectation(description: "completion is called")
-        subject.dispatchPersisted(
-            data: eventData!,
-            completion: {
-                expectation.fulfill()
-            }
-        )
+        try subject.dispatch(event: Self.commandEvent, completion: { expectation.fulfill() })
 
         // Then
         _ = XCTWaiter.wait(for: [expectation], timeout: 1.0)
         var expectedBackboneRequest = URLRequest(url: URL(string: "https://backbone.tuist.io/command_events.json")!)
         expectedBackboneRequest.httpMethod = "POST"
         expectedBackboneRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        expectedBackboneRequest.httpBody = eventData
+        expectedBackboneRequest.httpBody = try Self.commandEventData()
         XCTAssertEqual(requestDispatcher.requests, [expectedBackboneRequest])
     }
 
-    func testDispatch_whenCloudAnalyticsIsDisabled_sendsOnlyToBackbone() {
+    func testDispatch_whenCloudAnalyticsIsDisabled_sendsOnlyToBackbone() throws {
         // Given
         let config = Cloud(url: .test(), projectId: "project", options: [])
-        let eventData = "DATA".data(using: .utf8)
         mockCloudClient.mock(error: TestError(""))
         subject = TuistAnalyticsDispatcher(
-            cloudDependencies: (
-                config: config,
-                resourceFactory: CloudAnalyticsResourceFactory(cloudConfig: config),
-                client: mockCloudClient
-            ),
+            cloud: config,
+            cloudClient: mockCloudClient,
             requestDispatcher: requestDispatcher
         )
 
         // When
         let expectation = XCTestExpectation(description: "completion is called")
-        subject.dispatchPersisted(
-            data: eventData!,
-            completion: {
-                expectation.fulfill()
-            }
-        )
+        try subject.dispatch(event: Self.commandEvent, completion: { expectation.fulfill() })
 
         // Then
         _ = XCTWaiter.wait(for: [expectation], timeout: 1.0)
         var expectedBackboneRequest = URLRequest(url: URL(string: "https://backbone.tuist.io/command_events.json")!)
         expectedBackboneRequest.httpMethod = "POST"
         expectedBackboneRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        expectedBackboneRequest.httpBody = eventData
+        expectedBackboneRequest.httpBody = try Self.commandEventData()
         XCTAssertEqual(requestDispatcher.requests, [expectedBackboneRequest])
         XCTAssertFalse(mockCloudClient.invokedRequest)
     }
 
-    func testDispatch_whenCloudAnalyticsIsEnabled_sendsOnlyToBackboneAndCloud() {
+    func testDispatch_whenCloudAnalyticsIsEnabled_sendsToBackboneAndCloud() throws {
         // Given
         let projectID = "project"
         let cloudURL = URL.test()
         let config = Cloud(url: cloudURL, projectId: projectID, options: [.analytics])
-        let eventData = "DATA".data(using: .utf8)
         mockCloudClient.mock(
             object: (),
             response: .test(statusCode: 200)
         )
         subject = TuistAnalyticsDispatcher(
-            cloudDependencies: (
-                config: config,
-                resourceFactory: CloudAnalyticsResourceFactory(cloudConfig: config),
-                client: mockCloudClient
-            ),
+            cloud: config,
+            cloudClient: mockCloudClient,
             requestDispatcher: requestDispatcher
         )
 
         // When
         let expectation = XCTestExpectation(description: "completion is called")
-        subject.dispatchPersisted(
-            data: eventData!,
-            completion: {
-                expectation.fulfill()
-            }
-        )
+        try subject.dispatch(event: Self.commandEvent, completion: { expectation.fulfill() })
 
         // Then
         _ = XCTWaiter.wait(for: [expectation], timeout: 1.0)
         var expectedBackboneRequest = URLRequest(url: URL(string:  "https://backbone.tuist.io/command_events.json")!)
         expectedBackboneRequest.httpMethod = "POST"
         expectedBackboneRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        expectedBackboneRequest.httpBody = eventData
+        expectedBackboneRequest.httpBody = try Self.commandEventData()
         XCTAssertEqual(requestDispatcher.requests, [expectedBackboneRequest])
         var expectedCloudRequestUrlComponents = URLComponents(url: cloudURL, resolvingAgainstBaseURL: false)!
         expectedCloudRequestUrlComponents.path = "/api/analytics"
@@ -124,7 +99,7 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
         var expectedCloudRequest = URLRequest(url: expectedCloudRequestUrlComponents.url!)
         expectedCloudRequest.httpMethod = "POST"
         expectedCloudRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        expectedCloudRequest.httpBody = eventData
+        expectedCloudRequest.httpBody = try Self.commandEventData()
         XCTAssertEqual(
             mockCloudClient.invokedRequestParameterList as? [HTTPResource<Void, CloudEmptyResponseError>],
             [
@@ -135,5 +110,25 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
                 )
             ]
         )
+    }
+
+    static var commandEvent: CommandEvent {
+        return CommandEvent(
+            name: "event",
+            subcommand: nil,
+            params: [:],
+            durationInMs: 100,
+            clientId: "client",
+            tuistVersion: "2.0.0",
+            swiftVersion: "5.5",
+            macOSVersion: "12.0",
+            machineHardwareName: "arm64"
+        )
+    }
+
+    static func commandEventData() throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.keyEncodingStrategy = .convertToSnakeCase
+        return try encoder.encode(Self.commandEvent)
     }
 }
