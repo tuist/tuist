@@ -49,8 +49,8 @@ public struct Config: Codable, Equatable {
         /// Disables generating Bundle accessors.
         case disableBundleAccessors
 
-        /// Allows to suppress warnings in Xcode about updates to recommended settings. The warnings appear when Xcode version has been upgraded.
-        /// It is recommended to set the version option to Xcode's version that is used for development of a project, for example `.lastUpgradeCheck(.init(13, 0, 0))` for Xcode 13.0.0.
+        /// Allows to suppress warnings in Xcode about updates to recommended settings added in or below the specified Xcode version. The warnings appear when Xcode version has been upgraded.
+        /// It is recommended to set the version option to Xcode's version that is used for development of a project, for example `.lastUpgradeCheck(Version(13, 0, 0))` for Xcode 13.0.0.
         case lastXcodeUpgradeCheck(Version)
     }
 
