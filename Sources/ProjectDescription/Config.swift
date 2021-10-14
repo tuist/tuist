@@ -51,7 +51,7 @@ public struct Config: Codable, Equatable {
 
         /// Allows to suppress warnings in Xcode about updates to recommended settings. The warnings appear when Xcode version has been upgraded.
         /// It is recommended to set the version option to Xcode's version that is used for development of a project, for example `.lastUpgradeCheck(.init(13, 0, 0))` for Xcode 13.0.0.
-        case lastUpgradeCheck(Version)
+        case lastXcodeUpgradeCheck(Version)
     }
 
     /// Generation options.
@@ -112,7 +112,7 @@ extension Config.GenerationOptions {
         case resolveDependenciesWithSystemScm
         case disablePackageVersionLocking
         case disableBundleAccessors
-        case lastUpgradeCheck
+        case lastXcodeUpgradeCheck
     }
 
     public init(from decoder: Decoder) throws {
@@ -153,10 +153,10 @@ extension Config.GenerationOptions {
             try container.decode(Bool.self, forKey: .disableBundleAccessors)
         {
             self = .disableBundleAccessors
-        } else if container.allKeys.contains(.lastUpgradeCheck), try container.decodeNil(forKey: .lastUpgradeCheck) == false {
-            var associatedValues = try container.nestedUnkeyedContainer(forKey: .lastUpgradeCheck)
+        } else if container.allKeys.contains(.lastXcodeUpgradeCheck), try container.decodeNil(forKey: .lastXcodeUpgradeCheck) == false {
+            var associatedValues = try container.nestedUnkeyedContainer(forKey: .lastXcodeUpgradeCheck)
             let version = try associatedValues.decode(Version.self)
-            self = .lastUpgradeCheck(version)
+            self = .lastXcodeUpgradeCheck(version)
         } else {
             throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown enum case"))
         }
@@ -189,8 +189,8 @@ extension Config.GenerationOptions {
             try container.encode(true, forKey: .disablePackageVersionLocking)
         case .disableBundleAccessors:
             try container.encode(true, forKey: .disableBundleAccessors)
-        case let .lastUpgradeCheck(version):
-            var associatedValues = container.nestedUnkeyedContainer(forKey: .lastUpgradeCheck)
+        case let .lastXcodeUpgradeCheck(version):
+            var associatedValues = container.nestedUnkeyedContainer(forKey: .lastXcodeUpgradeCheck)
             try associatedValues.encode(version)
         }
     }
