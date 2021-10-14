@@ -52,7 +52,7 @@ let config = Config(
 )
 ```
 
-Additionally, you can specify a device and os in a caching profile: 
+Additionally, you can specify a device and OS in a caching profile: 
 
 ```swift
 let config = Config(
