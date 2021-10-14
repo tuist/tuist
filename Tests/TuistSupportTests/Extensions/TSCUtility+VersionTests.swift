@@ -22,4 +22,15 @@ final class TSCUtilityVersionTests: XCTestCase {
     func test_version_when_minorTagOmitted() {
         XCTAssertEqual(Version(unformattedString: "11"), Version(11, 0, 0))
     }
+
+    func test_xcode_string_value() {
+        // Given
+        let subject = Version(12, 5, 1)
+
+        // When
+        let got = subject.xcodeStringValue
+
+        // Then
+        XCTAssertEqual(got, "1251")
+    }
 }

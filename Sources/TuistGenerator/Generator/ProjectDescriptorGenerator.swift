@@ -286,7 +286,7 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
 
         /// Last upgrade check
         if let lastUpgradeCheck = project.lastUpgradeCheck {
-            attributes["LastUpgradeCheck"] = String.lastUpgradeCheck(from: lastUpgradeCheck)
+            attributes["LastUpgradeCheck"] = lastUpgradeCheck.xcodeStringValue
         }
 
         return attributes

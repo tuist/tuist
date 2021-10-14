@@ -17,17 +17,6 @@ final class StringExtrasTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got, "frameworkIOSResources")
     }
-
-    func test_lastUpgradeCheck() {
-        // Given
-        let subject = Version(12, 5, 1)
-
-        // When
-        let got = String.lastUpgradeCheck(from: subject)
-
-        // Then
-        XCTAssertEqual(got, "1251")
-    }
 }
 
 final class StringsArrayTests: TuistUnitTestCase {

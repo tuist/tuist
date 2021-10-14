@@ -168,12 +168,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         let wasCreatedForAppExtension = isSchemeForAppExtension(scheme: scheme, graphTraverser: graphTraverser)
 
-        let lastUpgradeVersion: String
-        if let lastUpgradeCheck = lastUpgradeCheck {
-            lastUpgradeVersion = .lastUpgradeCheck(from: lastUpgradeCheck)
-        } else {
-            lastUpgradeVersion = Constants.defaultLastUpgradeVersion
-        }
+        let lastUpgradeVersion = lastUpgradeCheck?.xcodeStringValue ?? Constants.defaultLastUpgradeVersion
 
         let xcscheme = XCScheme(
             name: scheme.name,
