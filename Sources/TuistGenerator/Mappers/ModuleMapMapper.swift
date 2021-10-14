@@ -144,9 +144,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
             }
         }
 
-        if !dependenciesModuleMaps.isEmpty {
-            targetToModuleMaps[targetID] = dependenciesModuleMaps
-        }
+        targetToModuleMaps[targetID] = dependenciesModuleMaps
     }
 
     private static func updatedOtherSwiftFlags(
