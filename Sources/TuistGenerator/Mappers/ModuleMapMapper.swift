@@ -152,7 +152,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
         oldOtherSwiftFlags: SettingsDictionary.Value?,
         targetToModuleMaps: [TargetID: Set<AbsolutePath>]
     ) -> SettingsDictionary.Value? {
-        guard let dependenciesModuleMaps = targetToModuleMaps[targetID] else { return nil }
+        guard let dependenciesModuleMaps = targetToModuleMaps[targetID], !dependenciesModuleMaps.isEmpty else { return nil }
 
         var mappedOtherSwiftFlags: [String]
         switch oldOtherSwiftFlags ?? .array(["$(inherited)"]) {
@@ -177,7 +177,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
         oldOtherCFlags: SettingsDictionary.Value?,
         targetToModuleMaps: [TargetID: Set<AbsolutePath>]
     ) -> SettingsDictionary.Value? {
-        guard let dependenciesModuleMaps = targetToModuleMaps[targetID] else { return nil }
+        guard let dependenciesModuleMaps = targetToModuleMaps[targetID], !dependenciesModuleMaps.isEmpty else { return nil }
 
         var mappedOtherCFlags: [String]
         switch oldOtherCFlags ?? .array(["$(inherited)"]) {
