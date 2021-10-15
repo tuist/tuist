@@ -3,10 +3,10 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
+import XCTest
 @testable import TuistAnalytics
 @testable import TuistCoreTesting
 @testable import TuistSupportTesting
-import XCTest
 
 final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
     var subject: TuistAnalyticsDispatcher!
@@ -88,7 +88,7 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
 
         // Then
         _ = XCTWaiter.wait(for: [expectation], timeout: 1.0)
-        var expectedBackboneRequest = URLRequest(url: URL(string:  "https://backbone.tuist.io/command_events.json")!)
+        var expectedBackboneRequest = URLRequest(url: URL(string: "https://backbone.tuist.io/command_events.json")!)
         expectedBackboneRequest.httpMethod = "POST"
         expectedBackboneRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         expectedBackboneRequest.httpBody = try Self.commandEventData()
@@ -107,7 +107,7 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
                     request: { expectedCloudRequest },
                     parse: { _, _ in () },
                     parseError: { _, _ in CloudEmptyResponseError() }
-                )
+                ),
             ]
         )
     }

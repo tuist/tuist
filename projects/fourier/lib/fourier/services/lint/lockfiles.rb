@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 require "json"
 
 module Fourier
@@ -40,8 +41,8 @@ module Fourier
 
             if mismatched_packages.count != 0
               message = "There's a mismatch between the revision of the following pakages in"\
-              " in the Package.resolved files:"\
-              " #{mismatched_packages.join(", ")}"
+                " in the Package.resolved files:"\
+                " #{mismatched_packages.join(", ")}"
               Utilities::Output.error(message)
               return false
             end

@@ -20,12 +20,12 @@ public struct TuistAnalyticsDispatcher: AsyncQueueDispatching {
     ) {
         let backbone = TuistAnalyticsBackboneBackend(requestDispatcher: requestDispatcher)
         if let cloud = cloud {
-            self.backends = [
+            backends = [
                 backbone,
-                TuistAnalyticsCloudBackend(config: cloud, resourceFactory: CloudAnalyticsResourceFactory(cloudConfig: cloud), client: cloudClient)
+                TuistAnalyticsCloudBackend(config: cloud, resourceFactory: CloudAnalyticsResourceFactory(cloudConfig: cloud), client: cloudClient),
             ]
         } else {
-            self.backends = [backbone]
+            backends = [backbone]
         }
     }
 
@@ -37,7 +37,7 @@ public struct TuistAnalyticsDispatcher: AsyncQueueDispatching {
         guard let commandEvent = event as? CommandEvent else { return }
 
         Single
-            .zip(try self.backends.map { try $0.send(commandEvent: commandEvent) })
+            .zip(try backends.map { try $0.send(commandEvent: commandEvent) })
             .asObservable()
             .subscribe(onNext: { _ in completion() })
             .disposed(by: disposeBag)

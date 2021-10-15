@@ -3,11 +3,11 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
-typealias CloudAnalyticsStoreResource = HTTPResource<Void, CloudEmptyResponseError>
+typealias CloudAnalyticsCreateResource = HTTPResource<Void, CloudEmptyResponseError>
 
 /// Entity responsible for providing analytics-related resources
 protocol CloudAnalyticsResourceFactorying {
-    func storeResource(commandEvent: CommandEvent) throws -> CloudAnalyticsStoreResource
+    func create(commandEvent: CommandEvent) throws -> CloudAnalyticsCreateResource
 }
 
 class CloudAnalyticsResourceFactory: CloudAnalyticsResourceFactorying {
@@ -17,8 +17,8 @@ class CloudAnalyticsResourceFactory: CloudAnalyticsResourceFactorying {
         self.cloudConfig = cloudConfig
     }
 
-    func storeResource(commandEvent: CommandEvent) throws -> CloudAnalyticsStoreResource {
-        let url = apiAnalyticsURL(cacheURL: cloudConfig.url, projectId: cloudConfig.projectId)
+    func create(commandEvent: CommandEvent) throws -> CloudAnalyticsCreateResource {
+        let url = createURL(cacheURL: cloudConfig.url, projectId: cloudConfig.projectId)
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -26,7 +26,7 @@ class CloudAnalyticsResourceFactory: CloudAnalyticsResourceFactorying {
         encoder.keyEncodingStrategy = .convertToSnakeCase
         let encodedCommandEvent = try encoder.encode(commandEvent)
         request.httpBody = encodedCommandEvent
-        
+
         return HTTPResource(
             request: { request },
             parse: { _, _ in () },
@@ -36,7 +36,7 @@ class CloudAnalyticsResourceFactory: CloudAnalyticsResourceFactorying {
 
     // MARK: Private
 
-    private func apiAnalyticsURL(
+    private func createURL(
         cacheURL: URL,
         projectId: String
     ) -> URL {
