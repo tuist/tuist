@@ -50,7 +50,7 @@ public extension TuistCore.DependenciesGraph {
                     "\(packageFolder.pathString)/customPath/excluded/sources/**",
                 ],
                 tags: []
-            )
+            ),
         ] + defaultResources(
             folder: "\(packageFolder.pathString)/customPath",
             excluding: ["\(packageFolder.pathString)/customPath/excluded/sources/**"]

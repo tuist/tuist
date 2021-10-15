@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Fixed
+
+- Fix `tuist generate` performance regression [#3562](https://github.com/tuist/tuist/pull/3562) by [@adellibovi](https://github.com/adellibovi)
+
 ### Added
 
 - Perform remote cache download and upload concurrently [#3549](https://github.com/tuist/tuist/pull/3549) by [@danyf90](https://github.com/danyf90)
