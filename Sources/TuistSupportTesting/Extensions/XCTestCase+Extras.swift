@@ -213,4 +213,11 @@ public extension XCTestCase {
         let requestPath = components.path
         XCTAssertEqual(requestPath, path, "Expected the path \(path) but got \(requestPath)", file: file, line: line)
     }
+
+    func XCTAssertHTTPResourceURL<T, E: Error>(_ resource: HTTPResource<T, E>, url: URL, file: StaticString = #file, line: UInt = #line) {
+        let request = resource.request()
+        let url = request.url!
+        let components = URLComponents(string: url.absoluteString)!
+        XCTAssertEqual(components.url!, url, "Expected the URL \(url.absoluteString) but got \(components.url!)", file: file, line: line)
+    }
 }
