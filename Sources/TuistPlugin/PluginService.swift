@@ -211,16 +211,22 @@ public final class PluginService: PluginServicing {
         guard FileHandler.shared.exists(pluginRepositoryDirectory.appending(component: Constants.DependenciesDirectory.packageSwiftName))
         else { return }
         
-        let pluginReleaseDirectory = pluginRepositoryDirectory.appending(component: "Release")
+        let pluginReleaseDirectory = pluginCacheDirectory.appending(component: "Release")
         guard !fileHandler.exists(pluginReleaseDirectory) else {
             logger.debug("Using cached git plugin release \(url)")
             return
         }
         
+        let plugin = try manifestLoader.loadPlugin(at: pluginRepositoryDirectory)
+        guard
+            let releaseURL = URL(string: url)?.appendingPathComponent("releases/download/\(gitTag)/\(plugin.name).tuist-plugin.zip")
+        // TODO: Throw error instead
+        else { return }
+        
         logger.debug("Cloning plugin release from \(url) @ \(gitTag)")
         try FileHandler.shared.inTemporaryDirectory { temporaryDirectory in
             let downloadPath = temporaryDirectory.appending(component: "release.zip")
-            try System.shared.run("/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, url)
+            try System.shared.run("/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, releaseURL.absoluteString)
             
             // Unzip
             try System.shared.run(
@@ -228,6 +234,11 @@ public final class PluginService: PluginServicing {
                 "-q", downloadPath.pathString,
                 "-d", pluginReleaseDirectory.pathString
             )
+            try FileHandler.shared.contentsOfDirectory(pluginReleaseDirectory)
+                .filter { $0.basename.hasPrefix("tuist-") }
+                .forEach {
+                    try System.shared.run("/bin/chmod", "+x", $0.pathString)
+                }
         }
     }
     
