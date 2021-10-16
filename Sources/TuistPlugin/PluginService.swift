@@ -13,6 +13,7 @@ public protocol PluginServicing {
     /// - Returns: The loaded `Plugins` representation.
     func loadPlugins(using config: Config) throws -> Plugins
     func fetchRemotePlugins(using config: Config) throws
+    func remotePluginPaths(using config: Config) throws -> [RemotePluginPaths]
 }
 
 public struct RemotePluginPaths {
