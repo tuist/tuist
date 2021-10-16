@@ -9,7 +9,7 @@ public final class MockSystem: Systeming {
     // swiftlint:disable:next large_tuple
     public var stubs: [String: (stderror: String?, stdout: String?, exitstatus: Int?)] = [:]
     private var calls: [String] = []
-    var whichStub: ((String) throws -> String?)?
+    public var whichStub: ((String) throws -> String?)?
 
     public init() {}
 

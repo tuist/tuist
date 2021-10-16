@@ -45,7 +45,7 @@ final class TuistService: NSObject {
             .filter { $0.basename.hasPrefix("tuist-") }
         if let pluginCommand = pluginExecutables.first(where: { $0.basename == commandName }) {
             arguments[0] = pluginCommand.pathString
-        } else if System.shared.commandExists("tuist-" + commandName) {
+        } else if System.shared.commandExists(commandName) {
             arguments[0] = commandName
         } else {
             throw TuistServiceError.taskUnavailable

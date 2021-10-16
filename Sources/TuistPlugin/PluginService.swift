@@ -6,6 +6,19 @@ import TuistLoader
 import TuistScaffold
 import TuistSupport
 
+public struct RemotePluginPaths {
+    public let repositoryPath: AbsolutePath
+    public let releasePath: AbsolutePath?
+    
+    public init(
+        repositoryPath: AbsolutePath,
+        releasePath: AbsolutePath?
+    ) {
+        self.repositoryPath = repositoryPath
+        self.releasePath = releasePath
+    }
+}
+
 /// A protocol defining a service for interacting with plugins.
 public protocol PluginServicing {
     /// Loads the `Plugins` and returns them as defined in given config.
@@ -14,11 +27,6 @@ public protocol PluginServicing {
     func loadPlugins(using config: Config) throws -> Plugins
     func fetchRemotePlugins(using config: Config) throws
     func remotePluginPaths(using config: Config) throws -> [RemotePluginPaths]
-}
-
-public struct RemotePluginPaths {
-    public let repositoryPath: AbsolutePath
-    public let releasePath: AbsolutePath?
 }
 
 /// A default implementation of `PluginServicing` which loads `Plugins` using the `Config` manifest.
