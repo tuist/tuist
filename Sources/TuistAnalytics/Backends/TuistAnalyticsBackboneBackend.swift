@@ -12,18 +12,23 @@ class TuistAnalyticsBackboneBackend: TuistAnalyticsBackend {
     }
 
     func send(commandEvent: CommandEvent) throws -> Single<Void> {
-        var request = URLRequest(url: URL(string: "https://backbone.tuist.io/command_events.json")!)
+        return requestDispatcher
+            .dispatch(resource: try resource(commandEvent))
+            .flatMap { _, _ in .just(()) }
+    }
+
+    func resource(_ commandEvent: CommandEvent) throws -> HTTPResource<Void, CloudEmptyResponseError> {
+        var request = URLRequest(url: Constants.backboneURL)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let encoder = JSONEncoder()
         encoder.keyEncodingStrategy = .convertToSnakeCase
         let encodedCommandEvent = try encoder.encode(commandEvent)
         request.httpBody = encodedCommandEvent
-        let resource = HTTPResource(
+        return HTTPResource(
             request: { request },
             parse: { _, _ in () },
             parseError: { _, _ in CloudEmptyResponseError() }
         )
-        return requestDispatcher.dispatch(resource: resource).flatMap { _, _ in .just(()) }
     }
 }
