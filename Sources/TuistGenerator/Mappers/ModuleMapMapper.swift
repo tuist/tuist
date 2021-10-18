@@ -19,10 +19,18 @@ public final class ModuleMapMapper: WorkspaceMapping {
     public init() {}
 
     public func map(workspace: WorkspaceWithProjects) throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
+        let (projectsByPath, targetsByName) = Self.makeProjectsByPathWithTargetsByName(workspace: workspace)
         var targetToModuleMaps: [TargetID: Set<AbsolutePath>] = [:]
         workspace.projects.forEach { project in
             project.targets.forEach { target in
-                Self.dependenciesModuleMaps(workspace: workspace, project: project, target: target, targetToModuleMaps: &targetToModuleMaps)
+                Self.dependenciesModuleMaps(
+                    workspace: workspace,
+                    project: project,
+                    target: target,
+                    targetToModuleMaps: &targetToModuleMaps,
+                    projectsByPath: projectsByPath,
+                    targetsByName: targetsByName
+                )
             }
         }
 
@@ -64,6 +72,18 @@ public final class ModuleMapMapper: WorkspaceMapping {
         return (mappedWorkspace, [])
     }
 
+    private static func makeProjectsByPathWithTargetsByName(workspace: WorkspaceWithProjects) -> ([AbsolutePath: Project], [String: Target]) {
+        var projectsByPath = [AbsolutePath: Project]()
+        var targetsByName = [String: Target]()
+        workspace.projects.forEach { project in
+            projectsByPath[project.path] = project
+            project.targets.forEach { target in
+                targetsByName[target.name] = target
+            }
+        }
+        return (projectsByPath, targetsByName)
+    }
+
     /// Calculates the set of module maps to be linked to a given target and populates the `targetToModuleMaps` dictionary.
     /// Each target must link the module map of its direct and indirect dependencies.
     /// The `targetToModuleMaps` is also used as cache to avoid recomputing the set for already computed targets.
@@ -71,7 +91,9 @@ public final class ModuleMapMapper: WorkspaceMapping {
         workspace: WorkspaceWithProjects,
         project: Project,
         target: Target,
-        targetToModuleMaps: inout [TargetID: Set<AbsolutePath>]
+        targetToModuleMaps: inout [TargetID: Set<AbsolutePath>],
+        projectsByPath: [AbsolutePath: Project],
+        targetsByName: [String: Target]
     ) {
         let targetID = TargetID(projectPath: project.path, targetName: target.name)
         if targetToModuleMaps[targetID] != nil {
@@ -86,10 +108,10 @@ public final class ModuleMapMapper: WorkspaceMapping {
             switch dependency {
             case let .target(name):
                 dependentProject = project
-                dependentTarget = project.targets.first(where: { $0.name == name })!
+                dependentTarget = targetsByName[name]!
             case let .project(name, path):
-                dependentProject = workspace.projects.first(where: { $0.path == path })!
-                dependentTarget = dependentProject.targets.first(where: { $0.name == name })!
+                dependentProject = projectsByPath[path]!
+                dependentTarget = targetsByName[name]!
             case .framework, .xcframework, .library, .package, .sdk, .xctest:
                 continue
             }
@@ -98,16 +120,19 @@ public final class ModuleMapMapper: WorkspaceMapping {
                 workspace: workspace,
                 project: dependentProject,
                 target: dependentTarget,
-                targetToModuleMaps: &targetToModuleMaps
+                targetToModuleMaps: &targetToModuleMaps,
+                projectsByPath: projectsByPath,
+                targetsByName: targetsByName
             )
 
             // direct dependency module map
             if case let .string(dependencyModuleMap) = dependentTarget.settings?.base[Self.modulemapFileSetting] {
+                let pathString = dependentProject.path.pathString
                 let dependencyModuleMapPath = AbsolutePath(
                     dependencyModuleMap
-                        .replacingOccurrences(of: "$(PROJECT_DIR)", with: dependentProject.path.pathString)
-                        .replacingOccurrences(of: "$(SRCROOT)", with: dependentProject.path.pathString)
-                        .replacingOccurrences(of: "$(SOURCE_ROOT)", with: dependentProject.path.pathString)
+                        .replacingOccurrences(of: "$(PROJECT_DIR)", with: pathString)
+                        .replacingOccurrences(of: "$(SRCROOT)", with: pathString)
+                        .replacingOccurrences(of: "$(SOURCE_ROOT)", with: pathString)
                 )
                 dependenciesModuleMaps.insert(dependencyModuleMapPath)
             }
@@ -119,9 +144,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
             }
         }
 
-        if !dependenciesModuleMaps.isEmpty {
-            targetToModuleMaps[targetID] = dependenciesModuleMaps
-        }
+        targetToModuleMaps[targetID] = dependenciesModuleMaps
     }
 
     private static func updatedOtherSwiftFlags(
@@ -129,7 +152,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
         oldOtherSwiftFlags: SettingsDictionary.Value?,
         targetToModuleMaps: [TargetID: Set<AbsolutePath>]
     ) -> SettingsDictionary.Value? {
-        guard let dependenciesModuleMaps = targetToModuleMaps[targetID] else { return nil }
+        guard let dependenciesModuleMaps = targetToModuleMaps[targetID], !dependenciesModuleMaps.isEmpty else { return nil }
 
         var mappedOtherSwiftFlags: [String]
         switch oldOtherSwiftFlags ?? .array(["$(inherited)"]) {
@@ -154,7 +177,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
         oldOtherCFlags: SettingsDictionary.Value?,
         targetToModuleMaps: [TargetID: Set<AbsolutePath>]
     ) -> SettingsDictionary.Value? {
-        guard let dependenciesModuleMaps = targetToModuleMaps[targetID] else { return nil }
+        guard let dependenciesModuleMaps = targetToModuleMaps[targetID], !dependenciesModuleMaps.isEmpty else { return nil }
 
         var mappedOtherCFlags: [String]
         switch oldOtherCFlags ?? .array(["$(inherited)"]) {

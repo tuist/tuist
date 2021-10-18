@@ -14,7 +14,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  RUBY_VERSION: '3.0.1'
+  RUBY_VERSION: '3.0.2'
   NODE_VERSION: '14.17.6'
 
 jobs:
@@ -45,9 +45,9 @@ jobs:
       - uses: actions/cache@v2
         with:
           path: vendor/bundle
-          key: ${{ runner.os }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('**/Gemfile.lock') }}
           restore-keys: |
-            ${{ runner.os }}-gems-
+            ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
       - name: Install Bundler dependencies
         run: |
           bundle config path vendor/bundle

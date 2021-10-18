@@ -14,8 +14,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  TUIST_CONFIG_STATS_OPT_OUT: true
-  RUBY_VERSION: '3.0.1'
+  TUIST_STATS_OPT_OUT: true
+  RUBY_VERSION: '3.0.2'
 
 jobs:
   test:
@@ -34,9 +34,9 @@ jobs:
       - uses: actions/cache@v2
         with:
           path: vendor/bundle
-          key: ${{ runner.os }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('**/Gemfile.lock') }}
           restore-keys: |
-            ${{ runner.os }}-gems-
+            ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
       - name: Bundle install
         run: |
           bundle config path vendor/bundle
