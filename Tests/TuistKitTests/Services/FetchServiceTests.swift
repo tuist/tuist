@@ -47,6 +47,30 @@ final class FetchServiceTests: TuistUnitTestCase {
 
         super.tearDown()
     }
+    
+    func test_run_when_fetching_plugins() throws {
+        // Given
+        let config = Config.test(
+            plugins: [
+                .git(url: "url", gitID: .tag("tag"))
+            ]
+        )
+        configLoader.loadConfigStub = { _ in
+            config
+        }
+        var invokedConfig: Config?
+        pluginService.fetchRemotePluginsStub = { config in
+            invokedConfig = config
+        }
+        
+        // When
+        try subject.run(path: nil, fetchCategories: [.plugins])
+        
+        // Then
+        XCTAssertEqual(
+            config, invokedConfig
+        )
+    }
 
     func test_run_when_fetching_dependencies() throws {
         // Given
