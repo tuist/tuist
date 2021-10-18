@@ -18,7 +18,7 @@ class TuistAnalyticsBackboneBackend: TuistAnalyticsBackend {
     }
 
     func resource(_ commandEvent: CommandEvent) throws -> HTTPResource<Void, CloudEmptyResponseError> {
-        var request = URLRequest(url: Constants.backboneURL)
+        var request = URLRequest(url: Constants.backboneURL.appendingPathComponent("command_events.json"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         let encoder = JSONEncoder()
