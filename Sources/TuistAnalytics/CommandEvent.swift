@@ -29,7 +29,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
         case swiftVersion
         case macOSVersion = "macos_version"
         case machineHardwareName
-        case isCI
+        case isCI = "is_ci"
     }
 
     public init(

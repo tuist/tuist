@@ -30,10 +30,7 @@ public class MachineEnvironment: MachineEnvironmentRetrieving {
 
     /// Indicates whether Tuist is running in Continuous Integration (CI) environment
     public var isCI: Bool {
-        guard let ci = ProcessInfo.processInfo.environment["CI"] else {
-            return false
-        }
-        return Constants.trueValues.contains(ci)
+        CIChecker().isCI()
     }
 }
 
