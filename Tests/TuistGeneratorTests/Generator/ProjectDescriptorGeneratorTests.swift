@@ -361,4 +361,26 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
             "../Packages/LocalPackageA",
         ])
     }
+
+    func test_generate_setsLastUpgradeCheck() throws {
+        // Given
+        let path = try temporaryPath()
+        let graph = Graph.test(path: path)
+        let graphTraverser = GraphTraverser(graph: graph)
+        let project = Project.test(
+            path: path,
+            targets: [],
+            lastUpgradeCheck: .init(12, 5, 1)
+        )
+
+        // When
+        let got = try subject.generate(project: project, graphTraverser: graphTraverser)
+
+        // Then
+        let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
+        let attributes = try XCTUnwrap(pbxProject.attributes as? [String: String])
+        XCTAssertEqual(attributes, [
+            "LastUpgradeCheck": "1251",
+        ])
+    }
 }

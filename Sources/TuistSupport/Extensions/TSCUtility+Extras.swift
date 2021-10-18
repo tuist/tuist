@@ -14,4 +14,8 @@ extension Version {
 
         self.init(string: formattedVersionComponents.joined(separator: "."))
     }
+
+    public var xcodeStringValue: String {
+        "\(major)\(minor)\(patch)"
+    }
 }

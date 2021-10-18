@@ -16,6 +16,7 @@ final class ConfigTests: XCTestCase {
                 .enableCodeCoverage(.all),
                 .disablePackageVersionLocking,
                 .disableBundleAccessors,
+                .lastXcodeUpgradeCheck(.init(12, 5, 1)),
             ]
         )
 

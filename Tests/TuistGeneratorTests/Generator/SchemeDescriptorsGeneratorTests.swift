@@ -1347,6 +1347,73 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(launchAction.selectedLauncherIdentifier, "Xcode.IDEFoundation.Launcher.PosixSpawn")
     }
 
+    func test_schemeGenerationLastUpgradeCheck_workspace() throws {
+        // Given
+        let target = Target.test()
+        let project = Project.test(
+            targets: [target],
+            schemes: [.test()],
+            lastUpgradeCheck: nil
+        )
+        let workspace = Workspace.test(
+            projects: [project.path],
+            schemes: [.test()],
+            lastUpgradeCheck: .init(13, 0, 0)
+        )
+
+        let graph = Graph.test(
+            path: project.path,
+            workspace: workspace,
+            projects: [project.path: project],
+            targets: [project.path: [target.name: target]],
+            dependencies: [:]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+        let generatedProject = generatedProject(targets: project.targets)
+
+        // When
+        let result = try subject.generateWorkspaceSchemes(
+            workspace: workspace,
+            generatedProjects: [generatedProject.path: generatedProject],
+            graphTraverser: graphTraverser
+        )
+
+        XCTAssertEqual(
+            result.first?.xcScheme.lastUpgradeVersion,
+            "1300"
+        )
+    }
+
+    func test_schemeGenerationLastUpgradeCheck_project() throws {
+        // Given
+        let target = Target.test()
+        let project = Project.test(
+            targets: [target],
+            schemes: [.test()],
+            lastUpgradeCheck: .init(13, 0, 0)
+        )
+
+        let graph = Graph.test(
+            path: project.path,
+            projects: [project.path: project],
+            targets: [project.path: [target.name: target]],
+            dependencies: [:]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = try subject.generateProjectSchemes(
+            project: project,
+            generatedProject: generatedProject(targets: project.targets),
+            graphTraverser: graphTraverser
+        )
+
+        XCTAssertEqual(
+            result.first?.xcScheme.lastUpgradeVersion,
+            "1300"
+        )
+    }
+
     // MARK: - Helpers
 
     private func createGeneratedProjects(projects: [Project]) -> [AbsolutePath: GeneratedProject] {
