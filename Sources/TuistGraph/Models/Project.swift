@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TSCUtility
 
 public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebugStringConvertible, Codable {
     // MARK: - Attributes
@@ -49,6 +50,9 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     /// `ResourceSynthesizers` that will be applied on individual target's resources
     public let resourceSynthesizers: [ResourceSynthesizer]
 
+    /// The version in which a check happened related to recommended settings after updating Xcode.
+    public var lastUpgradeCheck: Version?
+
     // MARK: - Init
 
     /// Initializes the project with its attributes.
@@ -81,7 +85,8 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
         schemes: [Scheme],
         ideTemplateMacros: IDETemplateMacros?,
         additionalFiles: [FileElement],
-        resourceSynthesizers: [ResourceSynthesizer]
+        resourceSynthesizers: [ResourceSynthesizer],
+        lastUpgradeCheck: Version?
     ) {
         self.path = path
         self.sourceRootPath = sourceRootPath
@@ -98,6 +103,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
         self.ideTemplateMacros = ideTemplateMacros
         self.additionalFiles = additionalFiles
         self.resourceSynthesizers = resourceSynthesizers
+        self.lastUpgradeCheck = lastUpgradeCheck
     }
 
     // MARK: - CustomStringConvertible
@@ -138,7 +144,8 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
             schemes: schemes,
             ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles,
-            resourceSynthesizers: resourceSynthesizers
+            resourceSynthesizers: resourceSynthesizers,
+            lastUpgradeCheck: lastUpgradeCheck
         )
     }
 
@@ -160,7 +167,8 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
             schemes: schemes,
             ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles,
-            resourceSynthesizers: resourceSynthesizers
+            resourceSynthesizers: resourceSynthesizers,
+            lastUpgradeCheck: lastUpgradeCheck
         )
     }
 

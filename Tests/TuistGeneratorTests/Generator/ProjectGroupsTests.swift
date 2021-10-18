@@ -39,7 +39,8 @@ final class ProjectGroupsTests: XCTestCase {
             schemes: [],
             ideTemplateMacros: nil,
             additionalFiles: [],
-            resourceSynthesizers: []
+            resourceSynthesizers: [],
+            lastUpgradeCheck: nil
         )
         pbxproj = PBXProj()
     }

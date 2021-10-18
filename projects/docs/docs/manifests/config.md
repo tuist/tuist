@@ -76,6 +76,7 @@ Generation options allow customizing the generation of Xcode projects.
 | `.resolveDependenciesWithSystemScm`         | Resolve SPM dependencies using your system's SCM credentials, instead of Xcode accounts.                                               |
 | `.disablePackageVersionLocking`             | Disables locking Swift packages. This can speed up generation but does increase risk if packages are not locked in their declarations. |
 | `.disableBundleAccessors`             | Disables generating Bundle accessors. |
+| `.lastXcodeUpgradeCheck(Version)`             | Allows to suppress warnings in Xcode about updates to recommended settings added in or below the specified Xcode version. The warnings appear when Xcode version has been upgraded. It is recommended to set the version option to Xcode's version that is used for development of a project, for example `.lastUpgradeCheck(Version(13, 0, 0))` for Xcode 13.0.0. |
 
 ### TemplateString
 
