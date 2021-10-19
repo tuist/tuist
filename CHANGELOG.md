@@ -15,6 +15,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Fix target caching resources linking for extensions. They are now considered `runnable` targrts (which they are) [#3570](https://github.com/tuist/tuist/pull/3570) by [@fila95](https://github.com/fila95)
+- Fix the way a target is known to be supporting resources, excluding `.commandLineTool`s. [#3572](https://github.com/tuist/tuist/pull/3572) by [@fila95](https://github.com/fila95)
 - Fix Swift Package Manager default resource handling [#3295](https://github.com/tuist/tuist/pull/3295) by [@mstfy](https://github.com/mstfy)
 - If present, use coloured output configuration from environment even if it's false [#3550](https://github.com/tuist/tuist/pull/3550) by [@danyf90](https://github.com/danyf90)
 - Fix `tuist generate` performance regression [#3562](https://github.com/tuist/tuist/pull/3562) by [@adellibovi](https://github.com/adellibovi)
