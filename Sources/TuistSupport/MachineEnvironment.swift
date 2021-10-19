@@ -6,6 +6,7 @@ public protocol MachineEnvironmentRetrieving {
     var macOSVersion: String { get }
     var swiftVersion: String { get }
     var hardwareName: String { get }
+    var isCI: Bool { get }
 }
 
 /// `MachineEnvironment` is a data structure that contains information about the machine executing Tuist
@@ -26,6 +27,11 @@ public class MachineEnvironment: MachineEnvironmentRetrieving {
 
     /// `hardwareName` is the name of the architecture of the machine running Tuist, e.g: "arm64" or "x86_64"
     public let hardwareName = ProcessInfo.processInfo.machineHardwareName
+
+    /// Indicates whether Tuist is running in Continuous Integration (CI) environment
+    public var isCI: Bool {
+        CIChecker().isCI()
+    }
 }
 
 extension ProcessInfo {
