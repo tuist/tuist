@@ -6,8 +6,11 @@ import TuistLoader
 import TuistScaffold
 import TuistSupport
 
+/// Paths to remote plugin's code and artifacts.
 public struct RemotePluginPaths {
+    /// Path to the cloned repository.
     public let repositoryPath: AbsolutePath
+    /// Path to the downloaded release artifacts.
     public let releasePath: AbsolutePath?
     
     public init(
@@ -19,13 +22,33 @@ public struct RemotePluginPaths {
     }
 }
 
+enum PluginServiceError: FatalError, Equatable {
+    case missingRemotePlugins([String])
+    
+    var description: String {
+        switch self {
+        case let .missingRemotePlugins(plugins):
+            return "Remote plugins \(plugins.joined(separator: ", ")) have not been fetched. Try running tuist fetch."
+        }
+    }
+    
+    var type: ErrorType {
+        switch self {
+        case .missingRemotePlugins:
+            return .abort
+        }
+    }
+}
+
 /// A protocol defining a service for interacting with plugins.
 public protocol PluginServicing {
     /// Loads the `Plugins` and returns them as defined in given config.
-    /// - Throws: An error if there are issues fetching or loading a plugin.
+    /// - Throws: An error if there are issues loading a plugin.
     /// - Returns: The loaded `Plugins` representation.
     func loadPlugins(using config: Config) throws -> Plugins
+    /// Fetches all remote plugins defined in a given config.
     func fetchRemotePlugins(using config: Config) throws
+    /// - Returns: Array of `RemotePluginPaths` for each remote plugin.
     func remotePluginPaths(using config: Config) throws -> [RemotePluginPaths]
 }
 
@@ -124,6 +147,11 @@ public final class PluginService: PluginServicing {
         let remotePluginManifests = try remotePluginRepositoryPaths
             .map(manifestLoader.loadPlugin)
         let pluginPaths = localPluginPaths + remotePluginRepositoryPaths
+        let missingRemotePlugins = zip(remotePluginManifests, remotePluginRepositoryPaths)
+            .filter { !FileHandler.shared.exists($0.1) }
+        if !missingRemotePlugins.isEmpty {
+            throw PluginServiceError.missingRemotePlugins(missingRemotePlugins.map(\.0.name))
+        }
         
         let localProjectDescriptionHelperPlugins = zip(localPluginManifests, localPluginPaths)
             .compactMap { plugin, path -> ProjectDescriptionHelpersPlugin? in
