@@ -141,10 +141,26 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     /// Returns true if the target supports hosting resources
     public var supportsResources: Bool {
         switch product {
-        case .dynamicLibrary, .staticLibrary, .staticFramework:
-            return false
-        default:
+        case .app,
+             .framework,
+             .unitTests,
+             .uiTests,
+             .bundle,
+             .appExtension,
+             .watch2App,
+             .watch2Extension,
+             .tvTopShelfExtension,
+             .messagesExtension,
+             .stickerPackExtension,
+             .appClip:
             return true
+
+        case
+            .commandLineTool,
+            .dynamicLibrary,
+            .staticLibrary,
+            .staticFramework:
+            return false
         }
     }
 
