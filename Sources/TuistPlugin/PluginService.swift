@@ -57,6 +57,11 @@ public protocol PluginServicing {
     func remotePluginPaths(using config: Config) throws -> [RemotePluginPaths]
 }
 
+enum PluginServiceConstants {
+    static let release = "Release"
+    static let repository = "Repository"
+}
+
 /// A default implementation of `PluginServicing` which loads `Plugins` using the `Config` manifest.
 public final class PluginService: PluginServicing {
     private let manifestLoader: ManifestLoading
@@ -113,7 +118,7 @@ public final class PluginService: PluginServicing {
                     config: config
                 )
                 return RemotePluginPaths(
-                    repositoryPath: pluginCacheDirectory.appending(component: "Repository"),
+                    repositoryPath: pluginCacheDirectory.appending(component: PluginServiceConstants.repository),
                     releasePath: nil
                 )
             case let .git(url: url, gitID: .tag(tag)):
@@ -122,9 +127,9 @@ public final class PluginService: PluginServicing {
                     gitId: tag,
                     config: config
                 )
-                let releasePath = pluginCacheDirectory.appending(component: "Release")
+                let releasePath = pluginCacheDirectory.appending(component: PluginServiceConstants.release)
                 return RemotePluginPaths(
-                    repositoryPath: pluginCacheDirectory.appending(component: "Repository"),
+                    repositoryPath: pluginCacheDirectory.appending(component: PluginServiceConstants.release),
                     releasePath: FileHandler.shared.exists(releasePath) ? releasePath : nil
                 )
             }
@@ -235,7 +240,7 @@ public final class PluginService: PluginServicing {
     /// Fetches the git plugins from the remote server and caches them in
     /// the Tuist cache with a unique fingerprint
     private func fetchGitPluginRepository(pluginCacheDirectory: AbsolutePath, url: String, gitId: String) throws {
-        let pluginRepositoryDirectory = pluginCacheDirectory.appending(component: "Repository")
+        let pluginRepositoryDirectory = pluginCacheDirectory.appending(component: PluginServiceConstants.repository)
         
         guard !fileHandler.exists(pluginRepositoryDirectory) else {
             logger.debug("Using cached git plugin \(url)")
@@ -248,12 +253,12 @@ public final class PluginService: PluginServicing {
     }
     
     private func fetchGitPluginRelease(pluginCacheDirectory: AbsolutePath, url: String, gitTag: String) throws {
-        let pluginRepositoryDirectory = pluginCacheDirectory.appending(component: "Repository")
+        let pluginRepositoryDirectory = pluginCacheDirectory.appending(component: PluginServiceConstants.repository)
         // If `Package.swift` exists for the plugin, a Github release should for the given `gitTag` should also exist
         guard FileHandler.shared.exists(pluginRepositoryDirectory.appending(component: Constants.DependenciesDirectory.packageSwiftName))
         else { return }
         
-        let pluginReleaseDirectory = pluginCacheDirectory.appending(component: "Release")
+        let pluginReleaseDirectory = pluginCacheDirectory.appending(component: PluginServiceConstants.release)
         guard !fileHandler.exists(pluginReleaseDirectory) else {
             logger.debug("Using cached git plugin release \(url)")
             return

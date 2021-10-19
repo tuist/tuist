@@ -23,7 +23,7 @@ struct FetchCommand: ParsableCommand {
     )
     var path: String?
     
-    @Argument(help: "Categories to be fetched..")
+    @Argument(help: "Categories to be fetched.")
     var fetchCategories: [FetchCategory] = FetchCategory.allCases
 
     func run() throws {

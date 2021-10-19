@@ -64,15 +64,7 @@ public struct TuistCommand: ParsableCommand {
                 executeCommand = { try execute(command) }
             } else {
                 executeCommand = {
-                    do {
-                        try TuistService().run(processedArguments)
-                    } catch TuistServiceError.taskUnavailable {
-                        do {
-                            _ = try parseAsRoot(processedArguments)
-                        } catch {
-                            handleParseError(error)
-                        }
-                    }
+                    executeTask(with: processedArguments)
                 }
             }
         } catch {
@@ -91,6 +83,18 @@ public struct TuistCommand: ParsableCommand {
             } else {
                 errorHandler.fatal(error: UnhandledError(error: error))
                 _exit(exitCode(for: error).rawValue)
+            }
+        }
+    }
+    
+    private static func executeTask(with processedArguments: [String]) {
+        do {
+            try TuistService().run(processedArguments)
+        } catch TuistServiceError.taskUnavailable {
+            do {
+                _ = try parseAsRoot(processedArguments)
+            } catch {
+                handleParseError(error)
             }
         }
     }

@@ -74,7 +74,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginCDirectory = cacheDirectoriesProvider.cacheDirectory(for: .plugins)
             .appending(component: pluginCFingerprint)
         try fileHandler.touch(
-            pluginBDirectory.appending(components: "Release")
+            pluginBDirectory.appending(components: PluginServiceConstants.release)
         )
         
         // When
@@ -86,15 +86,15 @@ final class PluginServiceTests: TuistUnitTestCase {
             Set(remotePluginPaths),
             Set([
                 RemotePluginPaths(
-                    repositoryPath: pluginADirectory.appending(component: "Repository"),
+                    repositoryPath: pluginADirectory.appending(component: PluginServiceConstants.repository),
                     releasePath: nil
                 ),
                 RemotePluginPaths(
-                    repositoryPath: pluginBDirectory.appending(component: "Repository"),
-                    releasePath: pluginBDirectory.appending(component: "Release")
+                    repositoryPath: pluginBDirectory.appending(component: PluginServiceConstants.repository),
+                    releasePath: pluginBDirectory.appending(component: PluginServiceConstants.release)
                 ),
                 RemotePluginPaths(
-                    repositoryPath: pluginCDirectory.appending(component: "Repository"),
+                    repositoryPath: pluginCDirectory.appending(component: PluginServiceConstants.repository),
                     releasePath: nil
                 ),
             ])
@@ -131,12 +131,12 @@ final class PluginServiceTests: TuistUnitTestCase {
         XCTAssertEqual(invokedCloneURL, pluginGitURL)
         XCTAssertEqual(
             invokedClonePath,
-            cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint, "Repository")
+            cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint, PluginServiceConstants.repository)
         )
         XCTAssertEqual(invokedCheckoutID, pluginGitSha)
         XCTAssertEqual(
             invokedCheckoutPath,
-            cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint, "Repository")
+            cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint, PluginServiceConstants.repository)
         )
     }
     
@@ -170,12 +170,12 @@ final class PluginServiceTests: TuistUnitTestCase {
         XCTAssertEqual(invokedCloneURL, pluginGitURL)
         XCTAssertEqual(
             invokedClonePath,
-            cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint, "Repository")
+            cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint, PluginServiceConstants.repository)
         )
         XCTAssertEqual(invokedCheckoutID, pluginGitTag)
         XCTAssertEqual(
             invokedCheckoutPath,
-            cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint, "Repository")
+            cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint, PluginServiceConstants.repository)
         )
     }
     
@@ -196,7 +196,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         cacheDirectoriesProvider.cacheDirectoryStub = temporaryDirectory
         try fileHandler.touch(
             pluginDirectory
-                .appending(components: "Repository", Constants.DependenciesDirectory.packageSwiftName)
+                .appending(components: PluginServiceConstants.repository, Constants.DependenciesDirectory.packageSwiftName)
         )
         let downloadPath = temporaryDirectory.appending(component: "release.zip")
         system.succeedCommand(
@@ -207,9 +207,9 @@ final class PluginServiceTests: TuistUnitTestCase {
         system.succeedCommand(
             "/usr/bin/unzip",
             "-q", downloadPath.pathString,
-            "-d", pluginDirectory.appending(component: "Release").pathString
+            "-d", pluginDirectory.appending(component: PluginServiceConstants.release).pathString
         )
-        let commandPath = pluginDirectory.appending(components: "Release", "tuist-command")
+        let commandPath = pluginDirectory.appending(components: PluginServiceConstants.release, "tuist-command")
         try fileHandler.touch(commandPath)
         system.succeedCommand("/bin/chmod", "+x", commandPath.pathString)
         
@@ -252,7 +252,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitId = "1.0.0"
         let pluginFingerprint = "\(pluginGitUrl)-\(pluginGitId)".md5
-        let cachedPluginPath = cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint, "Repository")
+        let cachedPluginPath = cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint, PluginServiceConstants.repository)
         let pluginName = "TestPlugin"
 
         manifestLoader.loadConfigStub = { _ in
@@ -309,7 +309,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitId = "1.0.0"
         let pluginFingerprint = "\(pluginGitUrl)-\(pluginGitId)".md5
-        let cachedPluginPath = cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint, "Repository")
+        let cachedPluginPath = cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint, PluginServiceConstants.repository)
         let pluginName = "TestPlugin"
         let resourceTemplatesPath = cachedPluginPath.appending(components: "ResourceSynthesizers")
 
@@ -369,7 +369,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitId = "1.0.0"
         let pluginFingerprint = "\(pluginGitUrl)-\(pluginGitId)".md5
-        let cachedPluginPath = cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint, "Repository")
+        let cachedPluginPath = cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint, PluginServiceConstants.repository)
         let pluginName = "TestPlugin"
         let tasksPath = cachedPluginPath.appending(components: Constants.tasksDirectoryName)
 
@@ -431,7 +431,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitId = "1.0.0"
         let pluginFingerprint = "\(pluginGitUrl)-\(pluginGitId)".md5
-        let cachedPluginPath = cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint, "Repository")
+        let cachedPluginPath = cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint, PluginServiceConstants.repository)
         let pluginName = "TestPlugin"
         let templatePath = cachedPluginPath.appending(components: "Templates", "custom")
         templatesDirectoryLocator.templatePluginDirectoriesStub = { _ in
