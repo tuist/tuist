@@ -35,6 +35,9 @@ public protocol Environmenting: AnyObject {
 
     /// Returns true unless the user specifically opted out from stats
     var isStatsEnabled: Bool { get }
+
+    /// Returns the user of the environment in which the CLI runs.
+    var whoami: String { get }
 }
 
 /// Local environment controller.
@@ -156,5 +159,12 @@ public class Environment: Environmenting {
     /// Settings path.
     public var settingsPath: AbsolutePath {
         directory.appending(component: "settings.json")
+    }
+
+    private var _whoami: String!
+    public var whoami: String {
+        if let _whoami = _whoami { return _whoami }
+        _whoami = try! System.shared.capture("/usr/bin/id", "-un").chomp()
+        return _whoami
     }
 }

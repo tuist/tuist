@@ -89,7 +89,7 @@ public final class ManifestModelConverter: ManifestModelConverting {
             }
         }
 
-        let externalProjects = try Dictionary<AbsolutePath, TuistGraph.Project>(uniqueKeysWithValues: manifest.externalProjects.map { project in
+        let externalProjects = try [AbsolutePath: TuistGraph.Project](uniqueKeysWithValues: manifest.externalProjects.map { project in
             let projectPath = AbsolutePath(project.key.pathString)
             var project = try convert(
                 manifest: project.value,
