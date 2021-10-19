@@ -457,21 +457,19 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             .sorted()
         var refs = bundles.compactMap { fileElements.product(target: $0.target.name) }
 
-        if target.product.runnable || target.product.testsBundle {
-            let linkableBundles = try graphTraverser
-                .linkableDependencies(path: path, name: target.name)
-                .compactMap { dependency -> PBXFileReference? in
-                    switch dependency {
-                    case let .bundle(path: path):
-                        let element = fileElements.file(path: path)
-                        return element
-                    default:
-                        return nil
-                    }
+        let linkableBundles = try graphTraverser
+            .linkableDependencies(path: path, name: target.name)
+            .compactMap { dependency -> PBXFileReference? in
+                switch dependency {
+                case let .bundle(path: path):
+                    let element = fileElements.file(path: path)
+                    return element
+                default:
+                    return nil
                 }
+            }
 
-            refs.append(contentsOf: linkableBundles)
-        }
+        refs.append(contentsOf: linkableBundles)
 
         refs.forEach {
             let pbxBuildFile = PBXBuildFile(file: $0)
