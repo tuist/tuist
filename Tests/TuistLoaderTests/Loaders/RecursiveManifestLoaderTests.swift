@@ -32,11 +32,10 @@ final class RecursiveManifestLoaderTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
-
         path = nil
         manifestLoader = nil
         subject = nil
+        super.tearDown()
     }
 
     // MARK: - Tests

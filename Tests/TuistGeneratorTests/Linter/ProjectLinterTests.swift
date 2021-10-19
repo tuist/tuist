@@ -31,13 +31,12 @@ final class ProjectLinterTests: XCTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
-
         subject = nil
         settingsLinter = nil
         schemeLinter = nil
         targetLinter = nil
         packageLinter = nil
+        super.tearDown()
     }
 
     func test_validate_when_there_are_duplicated_targets() throws {

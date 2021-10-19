@@ -24,9 +24,9 @@ class ProjectNameAndOrganizationMapperTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
         subject = nil
         config = nil
+        super.tearDown()
     }
 
     func test_map_changes_the_project_name() throws {

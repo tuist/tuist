@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 Then(/^tuist graph$/) do
   system(@tuist, "graph", "--path", @dir, "--output-path", @dir)
 end

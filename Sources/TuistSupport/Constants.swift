@@ -8,6 +8,7 @@ public enum Constants {
     public static let githubAPIURL = "https://api.github.com"
     public static let githubSlug = "tuist/tuist"
     public static let communityURL = "https://community.tuist.io"
+    public static let backboneURL = URL(string: "https://backbone.tuist.io")!
     public static let version = "2.0.2"
     public static let bundleName: String = "tuist.zip"
     public static let trueValues: [String] = ["1", "true", "TRUE", "yes", "YES"]

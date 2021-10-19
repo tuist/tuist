@@ -14,9 +14,8 @@ final class ProvisioningProfileParserTests: TuistTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
-
         provisioningProfileParser = nil
+        super.tearDown()
     }
 
     func test_parse_provisioningProfile() throws {

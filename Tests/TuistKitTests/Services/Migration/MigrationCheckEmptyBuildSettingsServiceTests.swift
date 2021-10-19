@@ -13,9 +13,9 @@ final class MigrationCheckEmptyBuildSettingsServiceTests: TuistUnitTestCase {
     var emptyBuildSettingsChecker: MockEmptyBuildSettingsChecker!
 
     override func setUp() {
+        super.setUp()
         emptyBuildSettingsChecker = MockEmptyBuildSettingsChecker()
         subject = MigrationCheckEmptyBuildSettingsService(emptyBuildSettingsChecker: emptyBuildSettingsChecker)
-        super.setUp()
     }
 
     override func tearDown() {

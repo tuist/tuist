@@ -46,6 +46,7 @@ final class RunServiceTests: TuistUnitTestCase {
     private struct TestError: Equatable, Error {}
 
     override func setUp() {
+        super.setUp()
         generator = MockGenerator()
         buildGraphInspector = MockBuildGraphInspector()
         targetBuilder = MockTargetBuilder()
@@ -56,7 +57,6 @@ final class RunServiceTests: TuistUnitTestCase {
             targetBuilder: targetBuilder,
             targetRunner: targetRunner
         )
-        super.setUp()
     }
 
     override func tearDown() {

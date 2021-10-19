@@ -18,8 +18,8 @@ final class XcodeBuildControllerIntegrationTests: TuistTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
         subject = nil
+        super.tearDown()
     }
 
     func test_showBuildSettings() throws {

@@ -83,6 +83,7 @@ final class CloudSessionControllerTests: TuistUnitTestCase {
     var subject: CloudSessionController!
 
     override func setUp() {
+        super.setUp()
         credentialsStore = MockCredentialsStore()
         httpRedirectListener = MockHTTPRedirectListener()
         ciChecker = MockCIChecker()
@@ -94,17 +95,16 @@ final class CloudSessionControllerTests: TuistUnitTestCase {
             ciChecker: ciChecker,
             opener: opener
         )
-        super.setUp()
     }
 
     override func tearDown() {
-        super.tearDown()
         credentialsStore = nil
         httpRedirectListener = nil
         ciChecker = nil
         opener = nil
         serverURL = nil
         subject = nil
+        super.tearDown()
     }
 
     func test_authenticate_when_parametersAreMissing() throws {

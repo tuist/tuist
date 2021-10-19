@@ -47,11 +47,11 @@ final class TargetBuilderTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
         buildGraphInspector = nil
         xcodeBuildController = nil
         xcodeProjectBuildDirectoryLocator = nil
         subject = nil
+        super.tearDown()
     }
 
     func test_buildScheme_callsXcodeBuildControllerWithArguments() throws {

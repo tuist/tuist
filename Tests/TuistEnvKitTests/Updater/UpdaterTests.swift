@@ -28,13 +28,12 @@ final class UpdaterTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
-
         versionsController = nil
         installer = nil
         envUpdater = nil
         subject = nil
         versionProvider = nil
+        super.tearDown()
     }
 
     func test_update_when_there_are_no_updates() throws {

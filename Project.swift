@@ -82,7 +82,6 @@ func targets() -> [Target] {
                 .target(name: "ProjectDescription"),
                 .target(name: "ProjectAutomation"),
                 .target(name: "TuistLoader"),
-                .target(name: "TuistInsights"),
                 .target(name: "TuistScaffold"),
                 .target(name: "TuistSigning"),
                 .target(name: "TuistDependencies"),
@@ -372,24 +371,6 @@ func targets() -> [Target] {
             hasTesting: false
         ),
         Target.module(
-            name: "TuistInsights",
-            hasTesting: false,
-            hasIntegrationTests: true,
-            dependencies: [
-                .target(name: "TuistCore"),
-                .target(name: "TuistGraph"),
-                .target(name: "TuistSupport"),
-            ],
-            testDependencies: [
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistGraphTesting"),
-            ],
-            integrationTestsDependencies: [
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistGraphTesting"),
-            ]
-        ),
-        Target.module(
             name: "TuistSigning",
             hasIntegrationTests: true,
             dependencies: [
@@ -416,7 +397,10 @@ func targets() -> [Target] {
             hasTesting: false,
             dependencies: [
                 .target(name: "TuistAsyncQueue"),
+                .target(name: "TuistCloud"),
                 .target(name: "TuistCore"),
+                .target(name: "TuistGraph"),
+                .target(name: "TuistLoader"),
             ],
             testDependencies: [
                 .target(name: "TuistSupportTesting"),

@@ -15,9 +15,8 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
-
         subject = nil
+        super.tearDown()
     }
 
     func test_maps_modulemap_build_flag_to_setting() throws {

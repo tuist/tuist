@@ -13,9 +13,8 @@ final class CertificateParserTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
-
         subject = nil
+        super.tearDown()
     }
 
     func test_name_parsing_fails_when_not_present() throws {

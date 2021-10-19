@@ -20,9 +20,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
-
         subject = nil
+        super.tearDown()
     }
 
     // MARK: - Build Action Tests

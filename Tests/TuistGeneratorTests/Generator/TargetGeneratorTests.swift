@@ -27,13 +27,12 @@ final class TargetGeneratorTests: XCTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
-
         subject = nil
         fileElements = nil
         pbxProject = nil
         pbxproj = nil
         path = nil
+        super.tearDown()
     }
 
     func test_generateTarget_productName() throws {

@@ -17,10 +17,9 @@ final class SettingsHelpersTests: XCTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
-
         settings = nil
         subject = nil
+        super.tearDown()
     }
 
     func testExtend_whenNoSettings() {
