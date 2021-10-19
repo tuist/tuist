@@ -134,7 +134,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
             .staticLibrary,
             .unitTests,
             .uiTests:
-          return false
+            return false
         }
     }
 
