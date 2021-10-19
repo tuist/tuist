@@ -191,16 +191,33 @@ public extension XCTestCase {
 
     // MARK: - HTTPResource
 
-    func XCTAssertHTTPMethod<T, E: Error>(_ resource: HTTPResource<T, E>, _ method: String, file _: StaticString = #file, line _: UInt = #line) {
+    func XCTAssertHTTPResourceMethod<T, E: Error>(_ resource: HTTPResource<T, E>, _ method: String, file: StaticString = #file, line: UInt = #line) {
         let request = resource.request()
-        XCTAssertEqual(request.httpMethod!, method, "Expected the HTTP request method \(method) but got \(request.httpMethod!)")
+        XCTAssertEqual(request.httpMethod!, method, "Expected the HTTP request method \(method) but got \(request.httpMethod!)", file: file, line: line)
     }
 
-    func XCTAssertURLPath<T, E: Error>(_ resource: HTTPResource<T, E>, path: String, file _: StaticString = #file, line _: UInt = #line) {
+    func XCTAssertHTTPResourceContainsHeader<T, E: Error>(_ resource: HTTPResource<T, E>, header: String, value: String, file: StaticString = #file, line: UInt = #line) {
+        let request = resource.request()
+        let headers = request.allHTTPHeaderFields ?? [:]
+        guard let headerValue = headers[header] else {
+            XCTFail("The request doesn't contain the header \(header)", file: file, line: line)
+            return
+        }
+        XCTAssertEqual(headerValue, value, "Expected header \(header) to have value \(value) but got \(headerValue)", file: file, line: line)
+    }
+
+    func XCTAssertHTTPResourcePath<T, E: Error>(_ resource: HTTPResource<T, E>, path: String, file: StaticString = #file, line: UInt = #line) {
         let request = resource.request()
         let url = request.url!
         let components = URLComponents(string: url.absoluteString)!
         let requestPath = components.path
-        XCTAssertEqual(requestPath, path, "Expected the path \(path) but got \(requestPath)")
+        XCTAssertEqual(requestPath, path, "Expected the path \(path) but got \(requestPath)", file: file, line: line)
+    }
+
+    func XCTAssertHTTPResourceURL<T, E: Error>(_ resource: HTTPResource<T, E>, url: URL, file: StaticString = #file, line: UInt = #line) {
+        let request = resource.request()
+        let url = request.url!
+        let components = URLComponents(string: url.absoluteString)!
+        XCTAssertEqual(components.url!, url, "Expected the URL \(url.absoluteString) but got \(components.url!)", file: file, line: line)
     }
 }

@@ -69,7 +69,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
 
     func test_exists_whenClientReturnsAnError() throws {
         // Given
-        cloudClient.mock(error: CloudHEADResponseError())
+        cloudClient.mock(error: CloudEmptyResponseError())
 
         // When
         let result = subject.exists(name: "targetName", hash: "acho tio")
@@ -80,8 +80,8 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         switch result {
         case .completed:
             XCTFail("Expected result to complete with error, but result was successful.")
-        case let .failed(_, error) where error is CloudHEADResponseError:
-            XCTAssertEqual(error as! CloudHEADResponseError, CloudHEADResponseError())
+        case let .failed(_, error) where error is CloudEmptyResponseError:
+            XCTAssertEqual(error as! CloudEmptyResponseError, CloudEmptyResponseError())
         default:
             XCTFail("Expected result to complete with error, but result error wasn't the expected type.")
         }
@@ -89,7 +89,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
 
     func test_exists_whenClientReturnsAnHTTPError() throws {
         // Given
-        let cloudResponse: CloudResponse<CloudHEADResponse> = CloudResponse(status: "shaki", data: CloudHEADResponse())
+        let cloudResponse: CloudResponse<CloudEmptyResponse> = CloudResponse(status: "shaki", data: CloudEmptyResponse())
         let httpResponse: HTTPURLResponse = .test(statusCode: 500)
         cloudClient.mock(object: cloudResponse, response: httpResponse)
 
@@ -104,7 +104,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
 
     func test_exists_whenClientReturnsASuccess() throws {
         // Given
-        let cloudResponse = CloudResponse<CloudHEADResponse>(status: "shaki", data: CloudHEADResponse())
+        let cloudResponse = CloudResponse<CloudEmptyResponse>(status: "shaki", data: CloudEmptyResponse())
         let httpResponse: HTTPURLResponse = .test()
         cloudClient.mock(object: cloudResponse, response: httpResponse)
 
@@ -119,7 +119,7 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
 
     func test_exists_whenClientReturnsA202() throws {
         // Given
-        let cloudResponse = CloudResponse<CloudHEADResponse>(status: "shaki", data: CloudHEADResponse())
+        let cloudResponse = CloudResponse<CloudEmptyResponse>(status: "shaki", data: CloudEmptyResponse())
         let httpResponse: HTTPURLResponse = .test(statusCode: 202)
         cloudClient.mock(object: cloudResponse, response: httpResponse)
 

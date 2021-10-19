@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 addpath = lambda do |p|
   $LOAD_PATH.unshift(p) unless $LOAD_PATH.include?(p)
 end

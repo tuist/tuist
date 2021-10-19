@@ -53,10 +53,10 @@ final class CloudAuthServiceTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
         cloudSessionController = nil
         configLoader = nil
         subject = nil
+        super.tearDown()
     }
 
     func test_authenticate_when_cloudURL_is_missing() {

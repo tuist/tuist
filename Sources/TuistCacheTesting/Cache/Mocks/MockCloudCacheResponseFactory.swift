@@ -17,11 +17,11 @@ public class MockCloudCacheResourceFactory: CloudCacheResourceFactorying {
     public var stubbedExistsResourceError: Error?
     public var stubbedExistsResourceResult: CloudExistsResource = HTTPResource(
         request: { URLRequest.test() },
-        parse: { _, _ in CloudResponse(status: "HEAD", data: CloudHEADResponse()) },
-        parseError: { _, _ in CloudHEADResponseError() }
+        parse: { _, _ in CloudResponse(status: "HEAD", data: CloudEmptyResponse()) },
+        parseError: { _, _ in CloudEmptyResponseError() }
     )
 
-    public func existsResource(name: String, hash: String) throws -> HTTPResource<CloudResponse<CloudHEADResponse>, CloudHEADResponseError> {
+    public func existsResource(name: String, hash: String) throws -> HTTPResource<CloudResponse<CloudEmptyResponse>, CloudEmptyResponseError> {
         invokedExistsResource = true
         invokedExistsResourceCount += 1
         invokedExistsResourceParameters = (name, hash, ())

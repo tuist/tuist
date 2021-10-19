@@ -3,7 +3,7 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
-typealias CloudExistsResource = HTTPResource<CloudResponse<CloudHEADResponse>, CloudHEADResponseError>
+typealias CloudExistsResource = HTTPResource<CloudResponse<CloudEmptyResponse>, CloudEmptyResponseError>
 typealias CloudCacheResource = HTTPResource<CloudResponse<CloudCacheResponse>, CloudResponseError>
 typealias CloudVerifyUploadResource = HTTPResource<CloudResponse<CloudVerifyUploadResponse>, CloudResponseError>
 
@@ -28,8 +28,8 @@ class CloudCacheResourceFactory: CloudCacheResourceFactorying {
         request.httpMethod = "HEAD"
         return HTTPResource(
             request: { request },
-            parse: { _, _ in CloudResponse(status: "HEAD", data: CloudHEADResponse()) },
-            parseError: { _, _ in CloudHEADResponseError() }
+            parse: { _, _ in CloudResponse(status: "HEAD", data: CloudEmptyResponse()) },
+            parseError: { _, _ in CloudEmptyResponseError() }
         )
     }
 

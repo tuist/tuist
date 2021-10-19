@@ -25,7 +25,8 @@ public final class CommandEventFactory {
             tuistVersion: Constants.version,
             swiftVersion: machineEnvironment.swiftVersion,
             macOSVersion: machineEnvironment.macOSVersion,
-            machineHardwareName: machineEnvironment.hardwareName
+            machineHardwareName: machineEnvironment.hardwareName,
+            isCI: machineEnvironment.isCI
         )
         return commandEvent
     }

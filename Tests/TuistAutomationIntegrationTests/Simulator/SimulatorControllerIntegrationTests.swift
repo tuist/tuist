@@ -13,13 +13,13 @@ final class SimulatorControllerIntegrationTests: TuistTestCase {
     var subject: SimulatorController!
 
     override func setUp() {
-        subject = SimulatorController()
         super.setUp()
+        subject = SimulatorController()
     }
 
     override func tearDown() {
-        super.tearDown()
         subject = nil
+        super.tearDown()
     }
 
     func test_devices() throws {

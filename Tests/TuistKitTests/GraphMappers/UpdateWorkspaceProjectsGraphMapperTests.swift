@@ -18,13 +18,13 @@ final class UpdateWorkspaceProjectsGraphMapperTests: TuistUnitTestCase {
     var subject: UpdateWorkspaceProjectsGraphMapper!
 
     override func setUp() {
-        subject = UpdateWorkspaceProjectsGraphMapper()
         super.setUp()
+        subject = UpdateWorkspaceProjectsGraphMapper()
     }
 
     override func tearDown() {
-        super.tearDown()
         subject = nil
+        super.tearDown()
     }
 
     func test_map_removesNonExistingProjects() throws {

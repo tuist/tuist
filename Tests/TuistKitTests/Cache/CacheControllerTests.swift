@@ -54,7 +54,6 @@ final class CacheControllerTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
         generator = nil
         updatedGenerator = nil
         artifactBuilder = nil
@@ -64,6 +63,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         cache = nil
         subject = nil
         config = nil
+        super.tearDown()
     }
 
     func test_cache_builds_and_caches_the_frameworks() throws {

@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 Then(%r{run tuist migration list-targets for (.+) \
 in ios_workspace_with_microfeature_architecture matches (.+)$}) do |framework, json_file|
   fixtures_path = File.expand_path("../../fixtures", __dir__)

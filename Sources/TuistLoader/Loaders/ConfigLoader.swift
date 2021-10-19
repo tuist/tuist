@@ -20,8 +20,9 @@ public final class ConfigLoader: ConfigLoading {
     private let rootDirectoryLocator: RootDirectoryLocating
     private let fileHandler: FileHandling
     private var cachedConfigs: [AbsolutePath: TuistGraph.Config] = [:]
+
     public init(
-        manifestLoader: ManifestLoading,
+        manifestLoader: ManifestLoading = ManifestLoader(),
         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
         fileHandler: FileHandling = FileHandler.shared
     ) {

@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 require "xcodeproj"
 
 Then(/^tuist warms the cache$/) do

@@ -19,9 +19,8 @@ final class CarthageGraphGeneratorTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
-
         subject = nil
+        super.tearDown()
     }
 
     func test_generate() throws {
