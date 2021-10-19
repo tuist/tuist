@@ -8,6 +8,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Add `analytics` option to `Config.Cloud` to enable sending analytics event to cloud backend [#3547](https://github.com/tuist/tuist/pull/3547) by [@danyf90](https://github.com/danyf90)
 - Add optional `manifest` argument to `tuist dump` command, to allow to dump other kinds of manifests [#3551](https://github.com/tuist/tuist/pull/3551) by [@danyf90](https://github.com/danyf90)
+- Add device and os options to caching profiles [#3546](https://github.com/tuist/tuist/pull/3546) by [@mollyIV](https://github.com/mollyIV)
 - Add support for configuring the `LastUpgradeCheck` of the `Xcode` project [#3561](https://github.com/tuist/tuist/pull/3561) by [@mollyIV](https://github.com/mollyIV)
 - Add arbitrarily high `LastUpgradeCheck` to SwiftPackageManager generated projects to disable warnings [#3569](https://github.com/tuist/tuist/pull/3569) by [@danyf90](https://github.com/danyf90)
 - Add `isCI` parameter to analytics events [#3568](https://github.com/tuist/tuist/pull/3568) by [@mollyIV](https://github.com/mollyIV).

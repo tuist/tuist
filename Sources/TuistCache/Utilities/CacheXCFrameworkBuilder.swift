@@ -2,6 +2,7 @@ import Foundation
 import RxBlocking
 import RxSwift
 import TSCBasic
+import struct TSCUtility.Version
 import TuistCore
 import TuistGraph
 import TuistSupport
@@ -25,7 +26,14 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
     /// Returns the type of artifact that the concrete builder processes
     public var cacheOutputType: CacheOutputType = .xcframework
 
-    public func build(scheme: Scheme, projectTarget: XcodeBuildTarget, configuration: String, into outputDirectory: AbsolutePath) throws {
+    public func build(
+        scheme: Scheme,
+        projectTarget: XcodeBuildTarget,
+        configuration: String,
+        osVersion _: Version?,
+        deviceName _: String?,
+        into outputDirectory: AbsolutePath
+    ) throws {
         let platform = self.platform(scheme: scheme)
 
         // Create temporary directories

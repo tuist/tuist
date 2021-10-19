@@ -197,6 +197,8 @@ final class CacheController: CacheControlling {
                     scheme: scheme,
                     projectTarget: XcodeBuildTarget(with: projectPath),
                     configuration: cacheProfile.configuration,
+                    osVersion: cacheProfile.os,
+                    deviceName: cacheProfile.device,
                     into: outputDirectory
                 )
             }
@@ -208,6 +210,8 @@ final class CacheController: CacheControlling {
                     scheme: scheme,
                     projectTarget: XcodeBuildTarget(with: projectPath),
                     configuration: cacheProfile.configuration,
+                    osVersion: cacheProfile.os,
+                    deviceName: cacheProfile.device,
                     into: outputDirectory
                 )
             }

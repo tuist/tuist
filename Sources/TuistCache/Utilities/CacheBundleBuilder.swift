@@ -2,6 +2,7 @@ import Foundation
 import RxBlocking
 import RxSwift
 import TSCBasic
+import struct TSCUtility.Version
 import TuistCore
 import TuistGraph
 import TuistSupport
@@ -26,12 +27,21 @@ public final class CacheBundleBuilder: CacheArtifactBuilding {
         self.developerEnvironment = developerEnvironment
     }
 
-    public func build(scheme: Scheme, projectTarget: XcodeBuildTarget, configuration: String, into outputDirectory: AbsolutePath) throws {
+    public func build(
+        scheme: Scheme,
+        projectTarget: XcodeBuildTarget,
+        configuration: String,
+        osVersion: Version?,
+        deviceName: String?,
+        into outputDirectory: AbsolutePath
+    ) throws {
         let platform = self.platform(scheme: scheme)
 
         let arguments = try self.arguments(
             platform: platform,
-            configuration: configuration
+            configuration: configuration,
+            osVersion: osVersion,
+            deviceName: deviceName
         )
 
         try xcodebuild(
@@ -55,18 +65,24 @@ public final class CacheBundleBuilder: CacheArtifactBuilding {
     // MARK: - Fileprivate
 
     fileprivate func arguments(platform: Platform,
-                               configuration: String) throws -> [XcodeBuildArgument]
+                               configuration: String,
+                               osVersion: Version?,
+                               deviceName: String?) throws -> [XcodeBuildArgument]
     {
-        return try simulatorController.destination(for: platform)
-            .map { (destination: String) -> [XcodeBuildArgument] in
-                [
-                    .sdk(platform == .macOS ? platform.xcodeDeviceSDK : platform.xcodeSimulatorSDK!),
-                    .configuration(configuration),
-                    .destination(destination),
-                ]
-            }
-            .toBlocking()
-            .single()
+        return try simulatorController.destination(
+            for: platform,
+            version: osVersion,
+            deviceName: deviceName
+        )
+        .map { (destination: String) -> [XcodeBuildArgument] in
+            [
+                .sdk(platform == .macOS ? platform.xcodeDeviceSDK : platform.xcodeSimulatorSDK!),
+                .configuration(configuration),
+                .destination(destination),
+            ]
+        }
+        .toBlocking()
+        .single()
     }
 
     fileprivate func xcodebuild(projectTarget: XcodeBuildTarget,
