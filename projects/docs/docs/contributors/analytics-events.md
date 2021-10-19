@@ -22,3 +22,4 @@ Schema:
 | `swiftVersion`        | `String`           | The version of Swift when the command run                    | `5.0`                              | true     |
 | `macOSVersion`        | `String`           | The version of macOS when the command run                    | `10.15.7`                          | true     |
 | `machineHardwareName` | `String`           | A string identifing the architecture of the operating system | `arm64`                            | true     |
+| `isCI` | `Bool`           | Indicates whether Tuist is running in Continuous Integration (CI) environment | true                            | true     |

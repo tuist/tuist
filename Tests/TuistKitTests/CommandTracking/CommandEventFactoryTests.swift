@@ -42,7 +42,8 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
             tuistVersion: Constants.version,
             swiftVersion: "5.1",
             macOSVersion: "10.15.0",
-            machineHardwareName: "arm64"
+            machineHardwareName: "arm64",
+            isCI: false
         )
 
         // When
@@ -58,6 +59,7 @@ final class CommandEventFactoryTests: TuistUnitTestCase {
         XCTAssertEqual(event.swiftVersion, expectedEvent.swiftVersion)
         XCTAssertEqual(event.macOSVersion, expectedEvent.macOSVersion)
         XCTAssertEqual(event.machineHardwareName, expectedEvent.machineHardwareName)
+        XCTAssertEqual(event.isCI, expectedEvent.isCI)
     }
 }
 
@@ -66,4 +68,5 @@ private final class MockMachineEnvironment: MachineEnvironmentRetrieving {
     var macOSVersion: String { "10.15.0" }
     var swiftVersion: String { "5.1" }
     var hardwareName: String { "arm64" }
+    var isCI: Bool { false }
 }
