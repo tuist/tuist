@@ -110,12 +110,13 @@ jobs:
             'init',
             'lint-code',
             'lint-project',
+            'list-targets',
+            'plugins',
             'precompiled',
             'run',
             'scaffold',
-            'test',
-            'graph',
             'tasks',
+            'test',
           ]
     env:
       TUIST_CONFIG_GITHUB_API_TOKEN: ${{ secrets.GH_TOKEN }}

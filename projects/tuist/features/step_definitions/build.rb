@@ -6,12 +6,12 @@ Then(/^tuist builds the scheme ([a-zA-Z\-]+) from the project$/) do |scheme|
   system(@tuist, "build", scheme, "--path", @dir)
 end
 
-Then(%r{^tuist builds the scheme ([a-zA-Z\-]+)\
+Then(%r{^tuist builds the scheme ([a-zA-Z\-]+) \
 and configuration ([a-zA-Z\-]+) from the project$}) do |scheme, configuration|
   system(@tuist, "build", scheme, "--path", @dir, "--configuration", configuration)
 end
 
-Then(%r{^tuist builds the scheme ([a-zA-Z\-]+)\
+Then(%r{^tuist builds the scheme ([a-zA-Z\-]+) \
 and configuration ([a-zA-Z\-]+) from the project to output path (.+)$}) do |scheme, configuration, path|
   system(@tuist, "build", scheme, "--path", @dir, "--configuration", configuration,
     "--build-output-path", File.join(@dir, path))

@@ -48,7 +48,7 @@ Then(/^tuist generates the project with environment variable (.+) and value (.+)
   ENV[variable] = nil
 end
 
-Then(%r{^tuist generates the project at ([a-zA-Z]/+)$}) do |path|
+Then(%r{^tuist generates the project at ([a-zA-Z/]+)$}) do |path|
   system(@tuist, "generate", "--path", File.join(@dir, path))
   @workspace_path = Dir.glob(File.join(@dir, path, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
@@ -60,19 +60,25 @@ Then(/^tuist focuses the target ([a-zA-Z]+)$/) do |target|
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
 end
 
+Then(%r{^tuist focuses the targets ([a-zA-Z,]+)$}) do |targets|
+  system(@tuist, "focus", "--no-open", "--path", @dir, *targets.split(","))
+  @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
+  @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
+end
+
 Then(/^tuist focuses the target ([a-zA-Z]+) with ([a-zA-Z]+) profile$/) do |target, cache_profile|
   system(@tuist, "focus", "--no-open", "--path", @dir, target, "--profile", cache_profile)
   @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
 end
 
-Then(%r{^tuist focuses the target ([a-zA-Z]+) at ([a-zA-Z]/+)$}) do |target, path|
+Then(%r{^tuist focuses the target ([a-zA-Z]+) at ([a-zA-Z/]+)$}) do |target, path|
   system(@tuist, "focus", "--no-open", "--path", File.join(@dir, path), target)
   @workspace_path = Dir.glob(File.join(@dir, path, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
 end
 
-Then(%r{^tuist focuses the targets ([a-zA-Z,]+) at ([a-zA-Z]/+)$}) do |targets, path|
+Then(%r{^tuist focuses the targets ([a-zA-Z,]+) at ([a-zA-Z/]+)$}) do |targets, path|
   system(@tuist, "focus", "--no-open", "--path", File.join(@dir, path), *targets.split(","))
   @workspace_path = Dir.glob(File.join(@dir, path, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
@@ -84,13 +90,20 @@ Then(/^tuist focuses the target ([a-zA-Z]+) using xcframeworks$/) do |target|
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
 end
 
-Then(%r{^tuist focuses the target ([a-zA-Z]+) at ([a-zA-Z]/+) using xcframeworks$}) do |target, path|
+Then(%r{^tuist focuses the targets ([a-zA-Z,]+) using xcframeworks$}) do |targets|
+  system(@tuist, "focus", "--no-open", "--path", @dir, *targets.split(","),
+    "--xcframeworks")
+  @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
+  @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
+end
+
+Then(%r{^tuist focuses the target ([a-zA-Z]+) at ([a-zA-Z/]+) using xcframeworks$}) do |target, path|
   system(@tuist, "focus", "--no-open", "--path", File.join(@dir, path), target, "--xcframeworks")
   @workspace_path = Dir.glob(File.join(@dir, path, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, path, "*.xcodeproj")).first
 end
 
-Then(%r{^tuist focuses the targets ([a-zA-Z,]+) at ([a-zA-Z]/+) using xcframeworks$}) do |targets, path|
+Then(%r{^tuist focuses the targets ([a-zA-Z,]+) at ([a-zA-Z/]+) using xcframeworks$}) do |targets, path|
   system(@tuist, "focus", "--no-open", "--path", File.join(@dir, path), *targets.split(","),
     "--xcframeworks")
   @workspace_path = Dir.glob(File.join(@dir, path, "*.xcworkspace")).first
