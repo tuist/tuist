@@ -303,7 +303,7 @@ class CacheGraphMutator: CacheGraphMutating {
         for (key, value) in graphDependencies {
             guard
                 let target = graphTraverser.target(from: key),
-                target.target.product.runnable || target.target.product.testsBundle
+                target.target.product.runnable || target.target.product == .unitTests
             else { continue }
 
             var precompiledDependencies: Set<GraphDependency> = []
