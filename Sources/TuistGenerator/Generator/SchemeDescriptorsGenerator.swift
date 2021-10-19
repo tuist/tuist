@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TSCUtility
 import TuistCore
 import TuistGraph
 import TuistSupport
@@ -76,7 +77,8 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                 scheme: scheme,
                 path: workspace.xcWorkspacePath.parentDirectory,
                 graphTraverser: graphTraverser,
-                generatedProjects: generatedProjects
+                generatedProjects: generatedProjects,
+                lastUpgradeCheck: workspace.lastUpgradeCheck
             )
         }
 
@@ -92,7 +94,8 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                 scheme: scheme,
                 path: project.xcodeProjPath.parentDirectory,
                 graphTraverser: graphTraverser,
-                generatedProjects: [project.xcodeProjPath: generatedProject]
+                generatedProjects: [project.xcodeProjPath: generatedProject],
+                lastUpgradeCheck: project.lastUpgradeCheck
             )
         }
     }
@@ -123,7 +126,8 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     private func generateScheme(scheme: Scheme,
                                 path: AbsolutePath,
                                 graphTraverser: GraphTraversing,
-                                generatedProjects: [AbsolutePath: GeneratedProject]) throws -> SchemeDescriptor
+                                generatedProjects: [AbsolutePath: GeneratedProject],
+                                lastUpgradeCheck: Version?) throws -> SchemeDescriptor
     {
         let generatedBuildAction = try schemeBuildAction(
             scheme: scheme,
@@ -164,9 +168,11 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         let wasCreatedForAppExtension = isSchemeForAppExtension(scheme: scheme, graphTraverser: graphTraverser)
 
+        let lastUpgradeVersion = lastUpgradeCheck?.xcodeStringValue ?? Constants.defaultLastUpgradeVersion
+
         let xcscheme = XCScheme(
             name: scheme.name,
-            lastUpgradeVersion: Constants.defaultLastUpgradeVersion,
+            lastUpgradeVersion: lastUpgradeVersion,
             version: Constants.defaultVersion,
             buildAction: generatedBuildAction,
             testAction: generatedTestAction,

@@ -14,9 +14,8 @@ final class CertificateParserIntegrationTests: TuistTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
-
         certificateParser = nil
+        super.tearDown()
     }
 
     func test_parse_certificate() throws {

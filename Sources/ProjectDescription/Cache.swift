@@ -10,14 +10,27 @@ public struct Cache: Codable, Equatable {
         /// The configuration to be used when building the project during a caching warmup
         public let configuration: String
 
+        /// The device to be used when building the project during a caching warmup
+        public let device: String?
+
+        /// The version of the OS to be used when building the project during a caching warmup
+        public let os: String?
+
         /// Returns a `Cache.Profile` instance.
         ///
         /// - Parameters:
         ///     - name: The unique name of the cache profile
         ///     - configuration: The configuration to be used when building the project during a caching warmup
+        ///     - device: The device to be used when building the project during a caching warmup
+        ///     - os: The version of the OS to be used when building the project during a caching warmup
         /// - Returns: The `Cache.Profile` instance
-        public static func profile(name: String, configuration: String) -> Profile {
-            Profile(name: name, configuration: configuration)
+        public static func profile(
+            name: String,
+            configuration: String,
+            device: String? = nil,
+            os: String? = nil
+        ) -> Profile {
+            Profile(name: name, configuration: configuration, device: device, os: os)
         }
     }
 

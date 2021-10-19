@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 require "open3"
 Given(/tuist is available/) do
   project_root = File.expand_path("../../../../..", __dir__)

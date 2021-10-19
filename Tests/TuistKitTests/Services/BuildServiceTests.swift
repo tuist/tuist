@@ -54,11 +54,11 @@ final class BuildServiceTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
         generator = nil
         buildGraphInspector = nil
         targetBuilder = nil
         subject = nil
+        super.tearDown()
     }
 
     func test_run_when_the_project_should_be_generated() throws {

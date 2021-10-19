@@ -18,8 +18,8 @@ final class TemplateGeneratorTests: TuistTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
         subject = nil
+        super.tearDown()
     }
 
     func test_directories_are_generated() throws {

@@ -36,6 +36,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
     private var subject: TargetRunner!
 
     override func setUp() {
+        super.setUp()
         xcodeBuildController = MockXcodeBuildController()
         xcodeProjectBuildDirectoryLocator = MockXcodeProjectBuildDirectoryLocator()
         simulatorController = MockSimulatorController()
@@ -44,7 +45,6 @@ final class TargetRunnerTests: TuistUnitTestCase {
             xcodeProjectBuildDirectoryLocator: xcodeProjectBuildDirectoryLocator,
             simulatorController: simulatorController
         )
-        super.setUp()
     }
 
     override func tearDown() {

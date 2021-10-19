@@ -64,4 +64,21 @@ final class WorkspaceMapperProviderTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got.filter { $0 is IDETemplateMacrosMapper }.count, 1)
     }
+
+    func test_mappers_does_add_last_upgrade_check_when_set_in_generation_options() throws {
+        // Given
+        subject = WorkspaceMapperProvider(contentHasher: ContentHasher())
+
+        // When
+        let got = subject.mappers(
+            config: Config.test(
+                generationOptions: [
+                    .lastUpgradeCheck(.init(13, 0, 0)),
+                ]
+            )
+        )
+
+        // Then
+        XCTAssertEqual(got.filter { $0 is LastUpgradeVersionWorkspaceMapper }.count, 1)
+    }
 }

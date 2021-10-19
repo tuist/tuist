@@ -15,8 +15,8 @@ final class SettingsToXCConfigExtractorIntegrationTests: TuistTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
         subject = nil
+        super.tearDown()
     }
 
     func test_extract_when_target() throws {

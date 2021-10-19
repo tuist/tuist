@@ -13,14 +13,14 @@ final class AsyncQueuePersistorTests: TuistUnitTestCase {
     var subject: AsyncQueuePersistor!
 
     override func setUp() {
+        super.setUp()
         let temporaryDirectory = try! temporaryPath()
         subject = AsyncQueuePersistor(directory: temporaryDirectory)
-        super.setUp()
     }
 
     override func tearDown() {
-        super.tearDown()
         subject = nil
+        super.tearDown()
     }
 
     func test_write() throws {

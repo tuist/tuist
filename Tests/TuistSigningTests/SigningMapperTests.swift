@@ -28,11 +28,11 @@ final class SigningMapperTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
         signingFilesLocator = nil
         signingMatcher = nil
         signingCipher = nil
         subject = nil
+        super.tearDown()
     }
 
     func test_signing_mapping() throws {

@@ -10,9 +10,9 @@ final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
     private var subject: XcodeProjectBuildDirectoryLocator!
 
     override func setUp() {
+        super.setUp()
         derivedDataLocator = MockDerivedDataLocator()
         subject = XcodeProjectBuildDirectoryLocator(derivedDataLocator: derivedDataLocator)
-        super.setUp()
     }
 
     override func tearDown() {

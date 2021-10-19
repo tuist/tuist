@@ -22,8 +22,8 @@ final class CleanServiceTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
         subject = nil
+        super.tearDown()
     }
 
     func test_run_with_category_cleans_category() throws {

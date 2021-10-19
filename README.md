@@ -204,6 +204,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="https://twitter.com/MarvinNazari"><img src="https://avatars.githubusercontent.com/u/926772?v=4" width="100px;" alt=""/><br /><sub><b>Marvin Nazari</b></sub></a></td>
     <td align="center"><a href="http://twitter.com/codeOfRobin"><img src="https://avatars.githubusercontent.com/u/5009041?v=4" width="100px;" alt=""/><br /><sub><b>Robin Malhotra</b></sub></a></td>
     <td align="center"><a href="https://github.com/astromonkee"><img src="https://avatars.githubusercontent.com/u/44421303?v=4" width="100px;" alt=""/><br /><sub><b>Astromonkee</b></sub></a></td>
+    <td align="center"><a href="https://github.com/ezraberch"><img src="https://avatars.githubusercontent.com/u/49635435?v=4" width="100px;" alt=""/><br /><sub><b>ezraberch</b></sub></a></td>
   </tr>
 </table>
 

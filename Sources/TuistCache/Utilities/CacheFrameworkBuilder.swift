@@ -2,6 +2,7 @@ import Foundation
 import RxBlocking
 import RxSwift
 import TSCBasic
+import struct TSCUtility.Version
 import TuistCore
 import TuistGraph
 import TuistSupport
@@ -46,12 +47,21 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
     /// Returns the type of artifact that the concrete builder processes
     public var cacheOutputType: CacheOutputType = .framework
 
-    public func build(scheme: Scheme, projectTarget: XcodeBuildTarget, configuration: String, into outputDirectory: AbsolutePath) throws {
+    public func build(
+        scheme: Scheme,
+        projectTarget: XcodeBuildTarget,
+        configuration: String,
+        osVersion: Version?,
+        deviceName: String?,
+        into outputDirectory: AbsolutePath
+    ) throws {
         let platform = self.platform(scheme: scheme)
 
         let arguments = try self.arguments(
             platform: platform,
-            configuration: configuration
+            configuration: configuration,
+            version: osVersion,
+            deviceName: deviceName
         )
 
         try xcodebuild(
@@ -75,9 +85,11 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
     // MARK: - Fileprivate
 
     fileprivate func arguments(platform: Platform,
-                               configuration: String) throws -> [XcodeBuildArgument]
+                               configuration: String,
+                               version: Version?,
+                               deviceName: String?) throws -> [XcodeBuildArgument]
     {
-        return try destination(platform: platform)
+        return try destination(platform: platform, version: version, deviceName: deviceName)
             .map { (destination: String) -> [XcodeBuildArgument] in
                 [
                     .sdk(platform == .macOS ? platform.xcodeDeviceSDK : platform.xcodeSimulatorSDK!),
@@ -93,7 +105,7 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
 
     /// https://www.mokacoding.com/blog/xcodebuild-destination-options/
     /// https://www.mokacoding.com/blog/how-to-always-run-latest-simulator-cli/
-    fileprivate func destination(platform: Platform) -> Single<String> {
+    fileprivate func destination(platform: Platform, version: Version?, deviceName: String?) -> Single<String> {
         var mappedPlatform: Platform!
         switch platform {
         case .iOS: mappedPlatform = .iOS
@@ -102,7 +114,7 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
         case .macOS: return .just("platform=OS X,arch=x86_64")
         }
 
-        return simulatorController.findAvailableDevice(platform: mappedPlatform)
+        return simulatorController.findAvailableDevice(platform: mappedPlatform, version: version, minVersion: nil, deviceName: deviceName)
             .flatMap { (deviceAndRuntime) -> Single<String> in
                 .just("id=\(deviceAndRuntime.device.udid)")
             }
