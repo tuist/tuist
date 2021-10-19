@@ -91,8 +91,19 @@ final class ProductTests: XCTestCase {
     }
 
     func test_runnable() {
+        let runnables: [Product] = [
+            .app,
+            .appClip,
+            .commandLineTool,
+            .watch2App,
+            .appExtension,
+            .messagesExtension,
+            .stickerPackExtension,
+            .tvTopShelfExtension,
+            .watch2Extension
+        ]
         Product.allCases.forEach { product in
-            if [.app, .appClip, .commandLineTool, .watch2App].contains(product) {
+            if runnables.contains(product) {
                 XCTAssertTrue(product.runnable)
             } else {
                 XCTAssertFalse(product.runnable)
