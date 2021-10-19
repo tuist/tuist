@@ -524,7 +524,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             ),
                         ],
                         excludedResources: [
-                            "\(basePath.pathString)/Package/Path/Sources/Target1/AnotherOne/Resource/**"
+                            "\(basePath.pathString)/Package/Path/Sources/Target1/AnotherOne/Resource/**",
                         ]
                     ),
                 ]
@@ -2042,7 +2042,7 @@ private func defaultSpmResources(_ target: String, customPath: String? = nil) ->
         "\(fullPath)/**/*.xcdatamodeld",
         "\(fullPath)/**/*.xcmappingmodel",
         "\(fullPath)/**/*.xcassets",
-        "\(fullPath)/**/*.lproj"
+        "\(fullPath)/**/*.lproj",
     ]
 }
 
@@ -2157,10 +2157,9 @@ extension ProjectDescription.Target {
             defaultResourceBasePath = basePath.appending(RelativePath("Package/Path/Sources/\(name)/**")).pathString
         }
 
-
         let defaultResources = ["xib", "storyboard", "xcdatamodeld", "xcmappingmodel", "xcassets", "lproj"]
             .map { file -> ProjectDescription.ResourceFileElement in
-                return ResourceFileElement.glob(
+                ResourceFileElement.glob(
                     pattern: Path("\(defaultResourceBasePath)/*.\(file)"),
                     excluding: excludedResources.map(Path.init(stringLiteral:))
                 )

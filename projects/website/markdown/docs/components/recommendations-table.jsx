@@ -6,7 +6,6 @@ const renderers = {
 }
 
 const RecommendationsTable = ({ recommendations }) => {
-  console.log(ReactMarkdown.renderers)
   return (
     <table className="table-auto my-5 w-full">
       <tbody>

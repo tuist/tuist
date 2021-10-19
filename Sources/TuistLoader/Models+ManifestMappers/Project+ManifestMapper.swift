@@ -53,7 +53,8 @@ extension TuistGraph.Project {
             schemes: schemes,
             ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles,
-            resourceSynthesizers: resourceSynthesizers
+            resourceSynthesizers: resourceSynthesizers,
+            lastUpgradeCheck: nil
         )
     }
 }

@@ -75,6 +75,15 @@ module.exports = {
     },
     {
       type: 'category',
+      label: 'Cloud',
+      items: [
+        'cloud/get-started',
+        'cloud/specification',
+        'cloud/self-hosting',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Contributors',
       items: [
         'contributors/get-started',

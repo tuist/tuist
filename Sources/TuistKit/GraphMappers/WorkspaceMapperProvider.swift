@@ -1,4 +1,5 @@
 import Foundation
+import TSCUtility
 import TuistCore
 import TuistGenerator
 import TuistGraph
@@ -58,6 +59,25 @@ final class WorkspaceMapperProvider: WorkspaceMapperProviding {
             ModuleMapMapper()
         )
 
+        if let lastUpgradeVersion = lastUpgradeCheckOverride(config: config) {
+            mappers.append(
+                LastUpgradeVersionWorkspaceMapper(
+                    lastUpgradeVersion: lastUpgradeVersion
+                )
+            )
+        }
+
         return mappers
+    }
+
+    private func lastUpgradeCheckOverride(config: Config) -> Version? {
+        config.generationOptions.compactMap { item -> Version? in
+            switch item {
+            case let .lastUpgradeCheck(version):
+                return version
+            default:
+                return nil
+            }
+        }.first
     }
 }

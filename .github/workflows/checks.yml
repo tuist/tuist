@@ -22,7 +22,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  RUBY_VERSION: '3.0.1'
+  RUBY_VERSION: '3.0.2'
 
 jobs:
   format:
@@ -41,9 +41,9 @@ jobs:
       - uses: actions/cache@v2
         with:
           path: vendor/bundle
-          key: ${{ runner.os }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('**/Gemfile.lock') }}
           restore-keys: |
-            ${{ runner.os }}-gems-
+            ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
       - name: Bundle install
         run: |
           bundle config path vendor/bundle
@@ -66,9 +66,9 @@ jobs:
       - uses: actions/cache@v2
         with:
           path: vendor/bundle
-          key: ${{ runner.os }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}${{ hashFiles('**/Gemfile.lock') }}
           restore-keys: |
-            ${{ runner.os }}-gems-
+            ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
       - name: Bundle install
         run: |
           bundle config path vendor/bundle
@@ -93,9 +93,9 @@ jobs:
       - uses: actions/cache@v2
         with:
           path: vendor/bundle
-          key: ${{ runner.os }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('**/Gemfile.lock') }}
           restore-keys: |
-            ${{ runner.os }}-gems-
+            ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
       - name: Bundle install
         run: |
           bundle config path vendor/bundle

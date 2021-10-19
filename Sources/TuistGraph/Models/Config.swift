@@ -21,6 +21,8 @@ public struct Config: Equatable, Hashable {
         case disablePackageVersionLocking
         /// Disables generating Bundle accessors.
         case disableBundleAccessors
+        /// Allows to suppress warnings in Xcode about updates to recommended settings.
+        case lastUpgradeCheck(Version)
     }
 
     /// List of `Plugin`s used to extend Tuist.
