@@ -457,7 +457,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             .sorted()
         var refs = bundles.compactMap { fileElements.product(target: $0.target.name) }
 
-        if target.product.runnable {
+        if target.product.runnable || target.product.testsBundle {
             let linkableBundles = try graphTraverser
                 .linkableDependencies(path: path, name: target.name)
                 .compactMap { dependency -> PBXFileReference? in
