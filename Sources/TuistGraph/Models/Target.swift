@@ -155,11 +155,10 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
              .appClip:
             return true
 
-        case
-            .commandLineTool,
-            .dynamicLibrary,
-            .staticLibrary,
-            .staticFramework:
+        case .commandLineTool,
+             .dynamicLibrary,
+             .staticLibrary,
+             .staticFramework:
             return false
         }
     }
