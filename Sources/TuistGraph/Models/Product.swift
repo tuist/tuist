@@ -115,10 +115,26 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
     /// Returns true if the target can be ran.
     public var runnable: Bool {
         switch self {
-        case .app, .appClip, .commandLineTool, .watch2App:
+        case
+            .app,
+            .appClip,
+            .commandLineTool,
+            .watch2App,
+            .appExtension,
+            .messagesExtension,
+            .stickerPackExtension,
+            .tvTopShelfExtension,
+            .watch2Extension:
             return true
-        default:
-            return false
+        case
+            .bundle,
+            .dynamicLibrary,
+            .framework,
+            .staticFramework,
+            .staticLibrary,
+            .unitTests,
+            .uiTests:
+          return false
         }
     }
 
