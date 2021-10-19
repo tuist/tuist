@@ -7,7 +7,7 @@ import TuistScaffold
 import TuistSupport
 
 /// Paths to remote plugin's code and artifacts.
-public struct RemotePluginPaths {
+public struct RemotePluginPaths: Equatable, Hashable {
     /// Path to the cloned repository.
     public let repositoryPath: AbsolutePath
     /// Path to the downloaded release artifacts.
@@ -24,11 +24,14 @@ public struct RemotePluginPaths {
 
 enum PluginServiceError: FatalError, Equatable {
     case missingRemotePlugins([String])
+    case invalidURL(String)
     
     var description: String {
         switch self {
         case let .missingRemotePlugins(plugins):
             return "Remote plugins \(plugins.joined(separator: ", ")) have not been fetched. Try running tuist fetch."
+        case let .invalidURL(url):
+            return "Invalid URL for the plugin's Github repository: \(url)."
         }
     }
     
@@ -36,6 +39,8 @@ enum PluginServiceError: FatalError, Equatable {
         switch self {
         case .missingRemotePlugins:
             return .abort
+        case .invalidURL:
+            return .bug
         }
     }
 }
@@ -244,7 +249,7 @@ public final class PluginService: PluginServicing {
     
     private func fetchGitPluginRelease(pluginCacheDirectory: AbsolutePath, url: String, gitTag: String) throws {
         let pluginRepositoryDirectory = pluginCacheDirectory.appending(component: "Repository")
-        // Make sure that `Package.swift` - if so, a release should also has been released
+        // If `Package.swift` exists for the plugin, a Github release should for the given `gitTag` should also exist
         guard FileHandler.shared.exists(pluginRepositoryDirectory.appending(component: Constants.DependenciesDirectory.packageSwiftName))
         else { return }
         
@@ -257,8 +262,7 @@ public final class PluginService: PluginServicing {
         let plugin = try manifestLoader.loadPlugin(at: pluginRepositoryDirectory)
         guard
             let releaseURL = URL(string: url)?.appendingPathComponent("releases/download/\(gitTag)/\(plugin.name).tuist-plugin.zip")
-        // TODO: Throw error instead
-        else { return }
+        else { throw PluginServiceError.invalidURL(url) }
         
         logger.debug("Cloning plugin release from \(url) @ \(gitTag)")
         try FileHandler.shared.inTemporaryDirectory { temporaryDirectory in

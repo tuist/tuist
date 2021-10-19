@@ -14,7 +14,7 @@ import XCTest
 
 @testable import TuistPlugin
 
-final class PluginServiceTests: TuistTestCase {
+final class PluginServiceTests: TuistUnitTestCase {
     private var manifestLoader: MockManifestLoader!
     private var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
     private var gitHandler: MockGitHandler!
@@ -47,6 +47,176 @@ final class PluginServiceTests: TuistTestCase {
         gitHandler = nil
         subject = nil
         super.tearDown()
+    }
+    
+    func test_remotePluginPaths() throws {
+        // Given
+        let pluginAGitURL = "https://url/to/repo/a.git"
+        let pluginAGitSha = "abc"
+        let pluginAFingerprint = "\(pluginAGitURL)-\(pluginAGitSha)".md5
+        let pluginBGitURL = "https://url/to/repo/b.git"
+        let pluginBGitTag = "abc"
+        let pluginBFingerprint = "\(pluginBGitURL)-\(pluginBGitTag)".md5
+        let pluginCGitURL = "https://url/to/repo/c.git"
+        let pluginCGitTag = "abc"
+        let pluginCFingerprint = "\(pluginCGitURL)-\(pluginCGitTag)".md5
+        let config = mockConfig(
+            plugins: [
+                .git(url: pluginAGitURL, gitID: .sha(pluginAGitSha)),
+                .git(url: pluginBGitURL, gitID: .tag(pluginBGitTag)),
+                .git(url: pluginCGitURL, gitID: .tag(pluginCGitTag)),
+            ]
+        )
+        let pluginADirectory = cacheDirectoriesProvider.cacheDirectory(for: .plugins)
+            .appending(component: pluginAFingerprint)
+        let pluginBDirectory = cacheDirectoriesProvider.cacheDirectory(for: .plugins)
+            .appending(component: pluginBFingerprint)
+        let pluginCDirectory = cacheDirectoriesProvider.cacheDirectory(for: .plugins)
+            .appending(component: pluginCFingerprint)
+        try fileHandler.touch(
+            pluginBDirectory.appending(components: "Release")
+        )
+        
+        // When
+        let remotePluginPaths = try subject.remotePluginPaths(using: config)
+            .sorted(by: { $0.repositoryPath > $1.repositoryPath })
+        
+        // Then
+        XCTAssertEqual(
+            Set(remotePluginPaths),
+            Set([
+                RemotePluginPaths(
+                    repositoryPath: pluginADirectory.appending(component: "Repository"),
+                    releasePath: nil
+                ),
+                RemotePluginPaths(
+                    repositoryPath: pluginBDirectory.appending(component: "Repository"),
+                    releasePath: pluginBDirectory.appending(component: "Release")
+                ),
+                RemotePluginPaths(
+                    repositoryPath: pluginCDirectory.appending(component: "Repository"),
+                    releasePath: nil
+                ),
+            ])
+        )
+    }
+    
+    func test_fetchRemotePlugins_when_git_sha() throws {
+        // Given
+        let pluginGitURL = "https://url/to/repo.git"
+        let pluginGitSha = "abc"
+        let pluginFingerprint = "\(pluginGitURL)-\(pluginGitSha)".md5
+        let config = mockConfig(
+            plugins: [
+                .git(url: pluginGitURL, gitID: .sha(pluginGitSha))
+            ]
+        )
+        var invokedCloneURL: String?
+        var invokedClonePath: AbsolutePath?
+        gitHandler.cloneToStub = { url, path in
+            invokedCloneURL = url
+            invokedClonePath = path
+        }
+        var invokedCheckoutID: String?
+        var invokedCheckoutPath: AbsolutePath?
+        gitHandler.checkoutStub = { id, path in
+            invokedCheckoutID = id
+            invokedCheckoutPath = path
+        }
+        
+        // When
+        try subject.fetchRemotePlugins(using: config)
+        
+        // Then
+        XCTAssertEqual(invokedCloneURL, pluginGitURL)
+        XCTAssertEqual(
+            invokedClonePath,
+            cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint, "Repository")
+        )
+        XCTAssertEqual(invokedCheckoutID, pluginGitSha)
+        XCTAssertEqual(
+            invokedCheckoutPath,
+            cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint, "Repository")
+        )
+    }
+    
+    func test_fetchRemotePlugins_when_git_tag_and_repository_not_cached() throws {
+        // Given
+        let pluginGitURL = "https://url/to/repo.git"
+        let pluginGitTag = "1.0.0"
+        let pluginFingerprint = "\(pluginGitURL)-\(pluginGitTag)".md5
+        let config = mockConfig(
+            plugins: [
+                .git(url: pluginGitURL, gitID: .tag(pluginGitTag))
+            ]
+        )
+        var invokedCloneURL: String?
+        var invokedClonePath: AbsolutePath?
+        gitHandler.cloneToStub = { url, path in
+            invokedCloneURL = url
+            invokedClonePath = path
+        }
+        var invokedCheckoutID: String?
+        var invokedCheckoutPath: AbsolutePath?
+        gitHandler.checkoutStub = { id, path in
+            invokedCheckoutID = id
+            invokedCheckoutPath = path
+        }
+        
+        // When
+        try subject.fetchRemotePlugins(using: config)
+        
+        // Then
+        XCTAssertEqual(invokedCloneURL, pluginGitURL)
+        XCTAssertEqual(
+            invokedClonePath,
+            cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint, "Repository")
+        )
+        XCTAssertEqual(invokedCheckoutID, pluginGitTag)
+        XCTAssertEqual(
+            invokedCheckoutPath,
+            cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint, "Repository")
+        )
+    }
+    
+    func test_fetchRemotePlugins_when_git_tag_and_repository_cached() throws {
+        // Given
+        let pluginGitURL = "https://url/to/repo.git"
+        let pluginGitTag = "1.0.0"
+        let pluginFingerprint = "\(pluginGitURL)-\(pluginGitTag)".md5
+        let config = mockConfig(
+            plugins: [
+                .git(url: pluginGitURL, gitID: .tag(pluginGitTag))
+            ]
+        )
+        
+        let pluginDirectory = cacheDirectoriesProvider.cacheDirectory(for: .plugins)
+            .appending(component: pluginFingerprint)
+        let temporaryDirectory = try temporaryPath()
+        cacheDirectoriesProvider.cacheDirectoryStub = temporaryDirectory
+        try fileHandler.touch(
+            pluginDirectory
+                .appending(components: "Repository", Constants.DependenciesDirectory.packageSwiftName)
+        )
+        let downloadPath = temporaryDirectory.appending(component: "release.zip")
+        system.succeedCommand(
+            "/usr/bin/curl", "-LSs", "--output",
+            downloadPath.pathString,
+            "\(pluginGitURL)/releases/download/\(pluginGitTag)/Plugin.tuist-plugin.zip"
+        )
+        system.succeedCommand(
+            "/usr/bin/unzip",
+            "-q", downloadPath.pathString,
+            "-d", pluginDirectory.appending(component: "Release").pathString
+        )
+        let commandPath = pluginDirectory.appending(components: "Release", "tuist-command")
+        try fileHandler.touch(commandPath)
+        system.succeedCommand("/bin/chmod", "+x", commandPath.pathString)
+        
+        // When
+        try subject.fetchRemotePlugins(using: config)
+        
+        // Then
     }
 
     func test_loadPlugins_WHEN_localHelpers() throws {
