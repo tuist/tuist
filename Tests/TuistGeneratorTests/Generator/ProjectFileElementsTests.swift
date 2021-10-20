@@ -425,7 +425,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             ),
             dependencies: [],
             playgrounds: ["/project/MyPlayground.playground"],
-            additionalFiles: ["/project/README.md"]
+            additionalFiles: [.file(path: AbsolutePath("/project/README.png"))]
         )
 
         // When
