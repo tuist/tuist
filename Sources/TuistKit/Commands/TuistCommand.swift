@@ -64,7 +64,7 @@ public struct TuistCommand: ParsableCommand {
                 executeCommand = { try execute(command) }
             } else {
                 executeCommand = {
-                    executeTask(with: processedArguments)
+                    try executeTask(with: processedArguments)
                 }
             }
         } catch {
@@ -87,7 +87,7 @@ public struct TuistCommand: ParsableCommand {
         }
     }
     
-    private static func executeTask(with processedArguments: [String]) {
+    private static func executeTask(with processedArguments: [String]) throws {
         do {
             try TuistService().run(processedArguments)
         } catch TuistServiceError.taskUnavailable {
