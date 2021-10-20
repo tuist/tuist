@@ -21,6 +21,8 @@ final class PluginServiceTests: TuistUnitTestCase {
     private var subject: PluginService!
     private var cacheDirectoriesProvider: MockCacheDirectoriesProvider!
     private var cacheDirectoryProviderFactory: MockCacheDirectoriesProviderFactory!
+    private var fileUnarchiver: MockFileUnarchiver!
+    private var fileClient: MockFileClient!
 
     override func setUp() {
         super.setUp()
@@ -32,12 +34,18 @@ final class PluginServiceTests: TuistUnitTestCase {
         cacheDirectoriesProvider.cacheDirectoryStub = try! temporaryPath()
         cacheDirectoryProviderFactory = MockCacheDirectoriesProviderFactory(provider: cacheDirectoriesProvider)
         cacheDirectoryProviderFactory.cacheDirectoriesStub = { _ in mockCacheDirectoriesProvider }
+        fileUnarchiver = MockFileUnarchiver()
+        let fileArchivingFactory = MockFileArchivingFactory()
+        fileArchivingFactory.stubbedMakeFileUnarchiverResult = fileUnarchiver
+        fileClient = MockFileClient()
         subject = PluginService(
             manifestLoader: manifestLoader,
             templatesDirectoryLocator: templatesDirectoryLocator,
             fileHandler: fileHandler,
             gitHandler: gitHandler,
-            cacheDirectoryProviderFactory: cacheDirectoryProviderFactory
+            cacheDirectoryProviderFactory: cacheDirectoryProviderFactory,
+            fileArchivingFactory: fileArchivingFactory,
+            fileClient: fileClient
         )
     }
 
@@ -45,6 +53,10 @@ final class PluginServiceTests: TuistUnitTestCase {
         manifestLoader = nil
         templatesDirectoryLocator = nil
         gitHandler = nil
+        cacheDirectoriesProvider = nil
+        cacheDirectoryProviderFactory = nil
+        fileUnarchiver = nil
+        fileClient = nil
         subject = nil
         super.tearDown()
     }
@@ -79,7 +91,6 @@ final class PluginServiceTests: TuistUnitTestCase {
         
         // When
         let remotePluginPaths = try subject.remotePluginPaths(using: config)
-            .sorted(by: { $0.repositoryPath > $1.repositoryPath })
         
         // Then
         XCTAssertEqual(
@@ -198,25 +209,11 @@ final class PluginServiceTests: TuistUnitTestCase {
             pluginDirectory
                 .appending(components: PluginServiceConstants.repository, Constants.DependenciesDirectory.packageSwiftName)
         )
-        let downloadPath = temporaryDirectory.appending(component: "release.zip")
-        system.succeedCommand(
-            "/usr/bin/curl", "-LSs", "--output",
-            downloadPath.pathString,
-            "\(pluginGitURL)/releases/download/\(pluginGitTag)/Plugin.tuist-plugin.zip"
-        )
-        system.succeedCommand(
-            "/usr/bin/unzip",
-            "-q", downloadPath.pathString,
-            "-d", pluginDirectory.appending(component: PluginServiceConstants.release).pathString
-        )
         let commandPath = pluginDirectory.appending(components: PluginServiceConstants.release, "tuist-command")
         try fileHandler.touch(commandPath)
-        system.succeedCommand("/bin/chmod", "+x", commandPath.pathString)
         
-        // When
+        // When / Then
         try subject.fetchRemotePlugins(using: config)
-        
-        // Then
     }
 
     func test_loadPlugins_WHEN_localHelpers() throws {

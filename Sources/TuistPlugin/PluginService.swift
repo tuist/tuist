@@ -69,6 +69,8 @@ public final class PluginService: PluginServicing {
     private let fileHandler: FileHandling
     private let gitHandler: GitHandling
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
+    private let fileArchivingFactory: FileArchivingFactorying
+    private let fileClient: FileClienting
     
     /// Creates a `PluginService`.
     /// - Parameters:
@@ -76,18 +78,24 @@ public final class PluginService: PluginServicing {
     ///   - templateDirectoryLocator: Locator for finding templates for plugins.
     ///   - fileHandler: A file handler for creating plugin directories/related files.
     ///   - gitHandler: A git handler for cloning and interacting with remote plugins.
+    ///   - fileArchiver: FileArchiver for unzipping plugin releases.
+    ///   - fileClient: FileClient for downloading plugin releases.
     public init(
         manifestLoader: ManifestLoading = ManifestLoader(),
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
         fileHandler: FileHandling = FileHandler.shared,
         gitHandler: GitHandling = GitHandler(),
-        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory()
+        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory(),
+        fileArchivingFactory: FileArchivingFactorying = FileArchivingFactory(),
+        fileClient: FileClienting = FileClient()
     ) {
         self.manifestLoader = manifestLoader
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.fileHandler = fileHandler
         self.gitHandler = gitHandler
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
+        self.fileArchivingFactory = fileArchivingFactory
+        self.fileClient = fileClient
     }
     
     public func fetchRemotePlugins(using config: Config) throws {
@@ -129,7 +137,7 @@ public final class PluginService: PluginServicing {
                 )
                 let releasePath = pluginCacheDirectory.appending(component: PluginServiceConstants.release)
                 return RemotePluginPaths(
-                    repositoryPath: pluginCacheDirectory.appending(component: PluginServiceConstants.release),
+                    repositoryPath: pluginCacheDirectory.appending(component: PluginServiceConstants.repository),
                     releasePath: FileHandler.shared.exists(releasePath) ? releasePath : nil
                 )
             }
@@ -271,19 +279,39 @@ public final class PluginService: PluginServicing {
         
         logger.debug("Cloning plugin release from \(url) @ \(gitTag)")
         try FileHandler.shared.inTemporaryDirectory { temporaryDirectory in
-            let downloadPath = temporaryDirectory.appending(component: "release.zip")
-            try System.shared.run("/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, releaseURL.absoluteString)
+            // Download the release.
+            // Currently, we assume the release path exists.
+            let downloadPath = try fileClient.download(url: releaseURL)
+                .toBlocking()
+                .single()
+            let downloadZipPath = downloadPath.removingLastComponent().appending(component: "release.zip")
+            defer {
+                try? FileHandler.shared.delete(downloadPath)
+                try? FileHandler.shared.delete(downloadZipPath)
+            }
+            try FileHandler.shared.move(from: downloadPath, to: downloadZipPath)
             
             // Unzip
-            try System.shared.run(
-                "/usr/bin/unzip",
-                "-q", downloadPath.pathString,
-                "-d", pluginReleaseDirectory.pathString
+            let fileUnarchiver = try fileArchivingFactory.makeFileUnarchiver(for: downloadZipPath)
+            let unarchivedContents = try FileHandler.shared.contentsOfDirectory(
+                try fileUnarchiver.unzip()
             )
+            defer {
+                try? fileUnarchiver.delete()
+            }
+            try FileHandler.shared.createFolder(pluginReleaseDirectory)
+            try unarchivedContents.forEach {
+                try FileHandler.shared.move(
+                    from: $0,
+                    to: pluginReleaseDirectory.appending(component: $0.basename)
+                )
+            }
+
+            // Mark files as executables (this information is lost during (un)archiving)
             try FileHandler.shared.contentsOfDirectory(pluginReleaseDirectory)
                 .filter { $0.basename.hasPrefix("tuist-") }
                 .forEach {
-                    try System.shared.run("/bin/chmod", "+x", $0.pathString)
+                    try System.shared.chmod(.executable, path: $0, options: [.onlyFiles])
                 }
         }
     }

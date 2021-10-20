@@ -202,4 +202,13 @@ public final class MockSystem: Systeming {
     public func called(_ args: String...) -> Bool {
         called(args)
     }
+    
+    public var chmodStub: ((FileMode, AbsolutePath, Set<FileMode.Option>) throws -> Void)?
+    public func chmod(
+        _ mode: FileMode,
+        path: AbsolutePath,
+        options: Set<FileMode.Option>
+    ) throws {
+        try chmodStub?(mode, path, options)
+    }
 }

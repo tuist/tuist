@@ -89,6 +89,7 @@ final class PluginArchiveService {
             from: zipPath,
             to: path.appending(component: zipName)
         )
+        try archiver.delete()
 
         logger.notice(
             "Plugin was successfully archived. Create a new Github release and attach the file \(zipPath.pathString) as an artifact.",
