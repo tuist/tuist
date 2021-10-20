@@ -94,10 +94,10 @@ public final class PluginService: PluginServicing {
         try config.plugins
             .forEach { pluginLocation in
                 switch pluginLocation {
-                case let .git(url, gitID):
+                case let .git(url, gitReference):
                     try fetchRemotePlugin(
                         url: url,
-                        gitID: gitID,
+                        gitReference: gitReference,
                         config: config
                     )
                 case .local:
@@ -111,7 +111,7 @@ public final class PluginService: PluginServicing {
             switch pluginLocation {
             case .local:
                 return nil
-            case let .git(url: url, gitID: .sha(sha)):
+            case let .git(url: url, gitReference: .sha(sha)):
                 let pluginCacheDirectory = try self.pluginCacheDirectory(
                     url: url,
                     gitId: sha,
@@ -121,7 +121,7 @@ public final class PluginService: PluginServicing {
                     repositoryPath: pluginCacheDirectory.appending(component: PluginServiceConstants.repository),
                     releasePath: nil
                 )
-            case let .git(url: url, gitID: .tag(tag)):
+            case let .git(url: url, gitReference: .tag(tag)):
                 let pluginCacheDirectory = try self.pluginCacheDirectory(
                     url: url,
                     gitId: tag,
@@ -200,20 +200,20 @@ public final class PluginService: PluginServicing {
     
     private func fetchRemotePlugin(
         url: String,
-        gitID: PluginLocation.GitID,
+        gitReference: PluginLocation.GitReference,
         config: Config
     ) throws {
         let pluginCacheDirectory = try self.pluginCacheDirectory(
             url: url,
-            gitId: gitID.raw,
+            gitId: gitReference.raw,
             config: config
         )
         try fetchGitPluginRepository(
             pluginCacheDirectory: pluginCacheDirectory,
             url: url,
-            gitId: gitID.raw
+            gitId: gitReference.raw
         )
-        switch gitID {
+        switch gitReference {
         case .sha:
             break
         case let .tag(tag):
@@ -307,7 +307,7 @@ public final class PluginService: PluginServicing {
     }
 }
 
-private extension PluginLocation.GitID {
+private extension PluginLocation.GitReference {
     var raw: String {
         switch self {
         case let .tag(tag):

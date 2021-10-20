@@ -52,7 +52,7 @@ final class FetchServiceTests: TuistUnitTestCase {
         // Given
         let config = Config.test(
             plugins: [
-                .git(url: "url", gitID: .tag("tag"))
+                .git(url: "url", gitReference: .tag("tag"))
             ]
         )
         configLoader.loadConfigStub = { _ in
