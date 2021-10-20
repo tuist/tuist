@@ -122,7 +122,8 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
             tuistVersion: "2.0.0",
             swiftVersion: "5.5",
             macOSVersion: "12.0",
-            machineHardwareName: "arm64"
+            machineHardwareName: "arm64",
+            isCI: false
         )
     }
 
