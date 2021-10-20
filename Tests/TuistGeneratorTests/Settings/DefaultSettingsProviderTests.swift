@@ -124,9 +124,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
-
         subject = nil
+        super.tearDown()
     }
 
     func testProjectSettings_whenExcludingEssentialDebug() throws {

@@ -16,8 +16,8 @@ final class SimulatorControllerTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
         subject = nil
+        super.tearDown()
     }
 
     func test_devices_should_returnListOfDevicesFromJson() throws {

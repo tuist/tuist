@@ -23,10 +23,10 @@ final class CacheTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
         firstCache = nil
         secondCache = nil
         subject = nil
+        super.tearDown()
     }
 
     func test_exists_when_in_first_cache_does_not_check_second_and_returns_true() {

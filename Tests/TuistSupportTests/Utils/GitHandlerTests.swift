@@ -12,8 +12,8 @@ final class GitHandlerTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
         subject = nil
+        super.tearDown()
     }
 
     func test_cloneInto() throws {

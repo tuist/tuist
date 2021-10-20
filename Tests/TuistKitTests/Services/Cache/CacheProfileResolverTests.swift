@@ -81,8 +81,8 @@ final class CacheProfileResolverTests: TuistUnitTestCase {
             from: .test(
                 cache: Cache(
                     profiles: [
-                        .init(name: "foo", configuration: "debug"),
-                        .init(name: "bar", configuration: "release"),
+                        .init(name: "foo", configuration: "debug", device: "iPhone 12", os: "15.0.0"),
+                        .init(name: "bar", configuration: "release", device: "iPhone 12", os: "15.0.0"),
                     ], path: nil
                 )
             )
@@ -93,7 +93,9 @@ final class CacheProfileResolverTests: TuistUnitTestCase {
             resolvedProfile,
             CacheProfile(
                 name: "bar",
-                configuration: "release"
+                configuration: "release",
+                device: "iPhone 12",
+                os: "15.0.0"
             )
         )
     }

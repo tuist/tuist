@@ -23,8 +23,8 @@ final class XcodeTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
         plistEncoder = nil
+        super.tearDown()
     }
 
     func test_read() throws {

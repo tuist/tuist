@@ -16,10 +16,9 @@ final class EncryptServiceTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
-
         signingCipher = nil
         subject = nil
+        super.tearDown()
     }
 
     func test_calls_encrypt_with_provided_path() throws {

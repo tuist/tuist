@@ -16,10 +16,9 @@ final class BuildCopierTests: XCTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
-
         fileManager = nil
         subject = nil
+        super.tearDown()
     }
 
     func test_files() {

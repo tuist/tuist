@@ -27,9 +27,9 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
     var errorHandler: MockErrorHandler!
 
     override func setUp() {
+        super.setUp()
         subject = BuildPhaseGenerator()
         errorHandler = MockErrorHandler()
-        super.setUp()
     }
 
     override func tearDown() {

@@ -18,8 +18,8 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
         subject = nil
+        super.tearDown()
     }
 
     func test_buildArguments_when_macOS() throws {

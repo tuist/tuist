@@ -76,7 +76,7 @@ public final class MockSimulatorController: SimulatorControlling {
     }
 
     public var destinationStub: ((Platform) -> Single<String>)?
-    public func destination(for targetPlatform: Platform) -> Single<String> {
+    public func destination(for targetPlatform: Platform, version _: Version?, deviceName _: String?) -> Single<String> {
         destinationStub?(targetPlatform) ?? .just("id=\(SimulatorDeviceAndRuntime.test().device.udid)")
     }
 }

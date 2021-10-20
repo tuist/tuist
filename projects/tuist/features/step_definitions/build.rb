@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 Then(/^tuist builds the project$/) do
   system(@tuist, "build", "--path", @dir)
 end

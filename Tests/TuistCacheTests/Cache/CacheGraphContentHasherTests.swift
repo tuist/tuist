@@ -30,10 +30,10 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
         graphContentHasher = nil
         contentHasher = nil
         subject = nil
+        super.tearDown()
     }
 
     func test_contentHashes_when_no_excluded_targets_all_hashes_are_computed() throws {

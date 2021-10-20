@@ -14,8 +14,8 @@ final class XcodeControllerTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
         subject = nil
+        super.tearDown()
     }
 
     func test_selected_when_xcodeSelectDoesntReturnThePath() throws {
