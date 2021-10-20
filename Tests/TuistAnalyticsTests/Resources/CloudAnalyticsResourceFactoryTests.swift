@@ -35,7 +35,8 @@ final class CloudAnalyticsResourceFactoryTests: TuistUnitTestCase {
             tuistVersion: "1.2.3",
             swiftVersion: "5.1",
             macOSVersion: "10.15",
-            machineHardwareName: "darwin"
+            machineHardwareName: "darwin",
+            isCI: false
         )
         let got = try subject.create(commandEvent: event)
 
