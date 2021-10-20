@@ -59,6 +59,9 @@ public struct Target: Codable, Equatable {
     /// Launch argument to be exposed to the target.
     public let launchArguments: [LaunchArgument]
 
+    /// The additional files to include in the target (won't be included in a build phase)
+    public let additionalFiles: [FileElement]
+
     public enum CodingKeys: String, CodingKey {
         case name
         case platform
@@ -78,6 +81,7 @@ public struct Target: Codable, Equatable {
         case environment
         case launchArguments
         case deploymentTarget
+        case additionalFiles
     }
 
     /// Initializes the target.
@@ -99,25 +103,28 @@ public struct Target: Codable, Equatable {
     ///   - coreDataModels: CoreData models.
     ///   - environment: Environment variables to be exposed to the target.
     ///   - launchArguments: Launch arguments that are passwd to target.
-    public init(name: String,
-                platform: Platform,
-                product: Product,
-                productName: String? = nil,
-                bundleId: String,
-                deploymentTarget: DeploymentTarget? = nil,
-                infoPlist: InfoPlist,
-                sources: SourceFilesList? = nil,
-                resources: ResourceFileElements? = nil,
-                copyFiles: [CopyFilesAction]? = nil,
-                headers: Headers? = nil,
-                entitlements: Path? = nil,
-                scripts: [TargetScript] = [],
-                dependencies: [TargetDependency] = [],
-                settings: Settings? = nil,
-                coreDataModels: [CoreDataModel] = [],
-                environment: [String: String] = [:],
-                launchArguments: [LaunchArgument] = [])
-    {
+    ///   - additionalFiles: The additional files to include in the target (won't be included in a build phase).
+    public init(
+        name: String,
+        platform: Platform,
+        product: Product,
+        productName: String? = nil,
+        bundleId: String,
+        deploymentTarget: DeploymentTarget? = nil,
+        infoPlist: InfoPlist,
+        sources: SourceFilesList? = nil,
+        resources: ResourceFileElements? = nil,
+        copyFiles: [CopyFilesAction]? = nil,
+        headers: Headers? = nil,
+        entitlements: Path? = nil,
+        scripts: [TargetScript] = [],
+        dependencies: [TargetDependency] = [],
+        settings: Settings? = nil,
+        coreDataModels: [CoreDataModel] = [],
+        environment: [String: String] = [:],
+        launchArguments: [LaunchArgument] = [],
+        additionalFiles: [FileElement] = []
+    ) {
         self.name = name
         self.platform = platform
         self.bundleId = bundleId
@@ -136,5 +143,6 @@ public struct Target: Codable, Equatable {
         self.environment = environment
         self.launchArguments = launchArguments
         self.deploymentTarget = deploymentTarget
+        self.additionalFiles = additionalFiles
     }
 }

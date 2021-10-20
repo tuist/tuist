@@ -424,7 +424,8 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                 project: [AbsolutePath("/project/project.h")]
             ),
             dependencies: [],
-            playgrounds: ["/project/MyPlayground.playground"]
+            playgrounds: ["/project/MyPlayground.playground"],
+            additionalFiles: ["/project/README.md"]
         )
 
         // When
@@ -445,6 +446,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             GroupFileElement(path: "/project/model.xcdatamodeld", group: target.filesGroup),
             GroupFileElement(path: "/project/tuist.rtfd", group: target.filesGroup),
             GroupFileElement(path: "/project/tuist.rtfd/TXT.rtf", group: target.filesGroup),
+            GroupFileElement(path: "/project/README.md", group: target.filesGroup),
         ]))
     }
 
