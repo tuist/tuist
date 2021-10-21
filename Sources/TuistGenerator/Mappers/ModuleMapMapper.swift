@@ -42,7 +42,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
                 let targetID = TargetID(projectPath: mappedProject.path, targetName: mappedTarget.name)
                 var mappedSettingsDictionary = mappedTarget.settings?.base ?? [:]
                 let hasModuleMap = mappedSettingsDictionary[Self.modulemapFileSetting] != nil
-                guard hasModuleMap || targetToModuleMaps[targetID] != nil else { continue }
+                guard hasModuleMap || !(targetToModuleMaps[targetID]?.isEmpty ?? true) else { continue }
 
                 if hasModuleMap {
                     mappedSettingsDictionary[Self.modulemapFileSetting] = nil

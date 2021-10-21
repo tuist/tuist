@@ -22,7 +22,8 @@ extension CommandEvent {
             tuistVersion: tuistVersion,
             swiftVersion: swiftVersion,
             macOSVersion: macOSVersion,
-            machineHardwareName: machineHardwareName
+            machineHardwareName: machineHardwareName,
+            isCI: false
         )
     }
 }
