@@ -10,20 +10,31 @@ import XCTest
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
 
-private typealias GeneratorParameters = (sources: Set<String>, xcframeworks: Bool, cacheProfile: TuistGraph.Cache.Profile, ignoreCache: Bool)
-
 final class MockFocusServiceProjectGeneratorFactory: FocusServiceProjectGeneratorFactorying {
+    struct GeneratorParameters: Equatable {
+        let sources: Set<String>
+        let xcframeworks: Bool
+        let cacheProfile: TuistGraph.Cache.Profile
+        let ignoreCache: Bool
+    }
+
     var invokedGenerator = false
     var invokedGeneratorCount = 0
-    fileprivate var invokedGeneratorParameters: GeneratorParameters?
-    fileprivate var invokedGeneratorParametersList = [GeneratorParameters]()
+    var invokedGeneratorParameters: GeneratorParameters?
+    var invokedGeneratorParametersList = [GeneratorParameters]()
     var stubbedGeneratorResult: Generating!
 
     func generator(sources: Set<String>, xcframeworks: Bool, cacheProfile: TuistGraph.Cache.Profile, ignoreCache: Bool) -> Generating {
         invokedGenerator = true
         invokedGeneratorCount += 1
-        invokedGeneratorParameters = (sources, xcframeworks, cacheProfile, ignoreCache)
-        invokedGeneratorParametersList.append((sources, xcframeworks, cacheProfile, ignoreCache))
+        let generatorParameters = GeneratorParameters(
+            sources: sources,
+            xcframeworks: xcframeworks,
+            cacheProfile: cacheProfile,
+            ignoreCache: ignoreCache
+        )
+        invokedGeneratorParameters = generatorParameters
+        invokedGeneratorParametersList.append(generatorParameters)
         return stubbedGeneratorResult
     }
 }

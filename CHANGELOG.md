@@ -16,6 +16,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Changed
 
 - Perform remote cache download and upload concurrently [#3549](https://github.com/tuist/tuist/pull/3549) by [@danyf90](https://github.com/danyf90)
+- Improve the cache warm command significantly by avoiding to recompile already in-cache dependency targets [#3585](https://github.com/tuist/tuist/pull/3585) by [@danyf90](https://github.com/danyf90)
 
 ### Fixed
 
