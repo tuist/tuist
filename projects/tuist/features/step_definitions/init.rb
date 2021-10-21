@@ -5,6 +5,6 @@ When(/^I initialize a (.+) application named (.+) with (.+) template$/) do |plat
     name)
 end
 
-When(/^I initialize a (.+) application named ([^with]+)$/) do |platform, name|
+When(/^I initialize a (.+) application named ([a-zA-Z\-_]+)$/) do |platform, name|
   system(@tuist, "init", "--path", @dir, "--platform", platform, "--name", name)
 end
