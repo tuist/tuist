@@ -178,8 +178,11 @@ final class CacheController: CacheControlling {
 
         logger.notice("Filtering cacheable targets")
 
-        let targetsToBeCached = Set(hashesByTargetToBeCached.map(\.0.target.name)
+        let targetsToBeCached = Set(hashesByTargetToBeCached.map(\.0.target.name))
         let xcframeworks = artifactBuilder.cacheOutputType == .xcframework
+        _ = try projectGeneratorProvider
+            .generator(includedTargets: targetsToBeCached)
+            .generateWithGraph(path: path, projectOnly: false)
         let (projectPath, updatedGraph) = try focusServiceProjectGeneratorFactory
             .generator(sources: targetsToBeCached, xcframeworks: xcframeworks, cacheProfile: cacheProfile, ignoreCache: false)
             .generateWithGraph(path: path, projectOnly: false)
