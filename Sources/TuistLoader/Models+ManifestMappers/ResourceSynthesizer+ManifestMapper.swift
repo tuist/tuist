@@ -57,6 +57,8 @@ extension TuistGraph.ResourceSynthesizer.Parser {
             return .json
         case .yaml:
             return .yaml
+        case .files:
+            return .files
         }
     }
 }

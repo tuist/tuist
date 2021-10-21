@@ -195,7 +195,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
 
             paths = prioritizedPaths + unprioritizedPaths
 
-        case .assets, .coreData, .fonts, .interfaceBuilder, .json, .plists, .yaml:
+        case .assets, .coreData, .fonts, .interfaceBuilder, .json, .plists, .yaml, .files:
             break
         }
 
@@ -228,6 +228,8 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
             return SynthesizedResourceInterfaceTemplates.fontsTemplate
         case .coreData, .interfaceBuilder, .json, .yaml:
             throw SynthesizedResourceInterfaceProjectMapperError.defaultTemplateNotAvailable(parser)
+        case .files:
+            return SynthesizedResourceInterfaceTemplates.filesTemplate
         }
     }
 }
