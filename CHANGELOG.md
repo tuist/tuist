@@ -26,6 +26,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Fixed
 
+- Fix a focused project issue for which when focusing a tests target, cached resources are not linked to it. [#3571](https://github.com/tuist/tuist/pull/3571) by [@fila95](https://github.com/fila95)
 - Fix target caching resources linking for extensions. They are now considered `runnable` targrts (which they are) [#3570](https://github.com/tuist/tuist/pull/3570) by [@fila95](https://github.com/fila95)
 - Fix the way a target is known to be supporting resources, excluding `.commandLineTool`s. [#3572](https://github.com/tuist/tuist/pull/3572) by [@fila95](https://github.com/fila95)
 - Fix Swift Package Manager default resource handling [#3295](https://github.com/tuist/tuist/pull/3295) by [@mstfy](https://github.com/mstfy)
