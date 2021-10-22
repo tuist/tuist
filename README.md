@@ -88,9 +88,12 @@ Do you want to know more about what Tuist can offer you? Or perhaps want to cont
 
 ## Supported by great companies
 
-1Password supports this project by providing a team account to store sensitive like access tokens and passwords:
+1Password and Bugsnag support the project by giving us access to their service through an open-source program.
 
-<img width="100" src="assets/1Password.png"/>
+<div align="center">
+  <img width="70" src="assets/1Password.png" hspace="10"/>
+  <img width="200" src="https://images.typeform.com/images/QKuaAssrFCq7/image/default" hspace="10">
+</div>
 
 ## Contribute 👩‍💻
 

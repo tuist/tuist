@@ -11,3 +11,4 @@ Request for comments document (if applies):
 - [ ] The changes have been tested following the [documented guidelines](https://docs.tuist.io/contributors/testing-strategy/).
 - [ ] The `CHANGELOG.md` has been updated to reflect the changes. In case of a breaking change, it's been flagged as such.
 - [ ] In case the PR introduces changes that affect users, the documentation has been updated.
+- [ ] In case the PR introduces changes that affect how the cache artifact is generated starting from the `TuistGraph.Target`, the `Constants.cacheVersion` has been updated.
