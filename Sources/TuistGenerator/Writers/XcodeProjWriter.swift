@@ -38,6 +38,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
     public func write(project: ProjectDescriptor) throws {
         let project = enrichingXcodeProjWithSchemes(descriptor: project)
         try project.xcodeProj.write(path: project.xcodeprojPath.path)
+        try writeXCSchemeManagement(schemes: project.schemeDescriptors, xcodeprojPath: project.xcodeprojPath)
         try project.schemeDescriptors.forEach { try write(scheme: $0, xccontainerPath: project.xcodeprojPath) }
         try sideEffectDescriptorExecutor.execute(sideEffects: project.sideEffectDescriptors)
     }
@@ -68,6 +69,21 @@ public final class XcodeProjWriter: XcodeProjWriting {
             schemeDescriptors: userSchemes,
             sideEffectDescriptors: descriptor.sideEffectDescriptors
         )
+    }
+    
+    private func writeXCSchemeManagement(schemes: [SchemeDescriptor], xcodeprojPath: AbsolutePath) throws {
+        let user = Environment.shared.whoami
+        let xcschememanagementPath = xcodeprojPath.appending(RelativePath("xcuserdata/\(user).xcuserdatad/xcschemes/xcschememanagement.plist"))
+        var userStateSchemes: [XCSchemeManagement.UserStateScheme] = []
+        let sortedSchemes = schemes.sorted(by: { $0.xcScheme.name < $1.xcScheme.name })
+        for (index, scheme) in sortedSchemes.enumerated() {
+            userStateSchemes.append(.init(name: scheme.xcScheme.name, shared: scheme.shared, orderHint: index, isShown: !scheme.hidden))
+        }
+        if FileHandler.shared.exists(xcschememanagementPath) {
+            try FileHandler.shared.delete(xcschememanagementPath)
+        }
+        try XCSchemeManagement(schemeUserState: userStateSchemes, suppressBuildableAutocreation: nil)
+            .write(path: xcschememanagementPath.path)
     }
 
     private func write(scheme: SchemeDescriptor,
