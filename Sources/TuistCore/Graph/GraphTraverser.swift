@@ -125,7 +125,7 @@ public class GraphTraverser: GraphTraversing {
         })
     }
 
-    public func resourceBundleDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget> {
+    public func resourceBundleDependencies(path: AbsolutePath, name: String) -> Set<GraphDependencyReference> {
         guard let target = graph.targets[path]?[name] else { return [] }
         guard target.supportsResources else { return [] }
 
@@ -133,18 +133,12 @@ public class GraphTraverser: GraphTraversing {
             self.target(from: $0)?.target.supportsResources == true
         }
 
-        let isBundle: (GraphDependency) -> Bool = {
-            self.target(from: $0)?.target.product == .bundle
-        }
-
         let bundles = filterDependencies(
             from: .target(name: name, path: path),
-            test: isBundle,
+            test: isDependencyResourceBundle,
             skip: canHostResources
         )
-        let bundleTargets = bundles.compactMap(target(from:))
-
-        return Set(bundleTargets)
+        return Set(bundles.compactMap(dependencyReference))
     }
 
     public func testTargetsDependingOn(path: AbsolutePath, name: String) -> Set<GraphTarget> {
@@ -360,7 +354,7 @@ public class GraphTraverser: GraphTraversing {
             dependencies.formUnion(directStaticDependencies(path: path, name: name))
         }
 
-        dependencies.formUnion(resourceBundleDependencies(path: path, name: name).map(targetProductReference))
+        dependencies.formUnion(resourceBundleDependencies(path: path, name: name))
 
         return Set(dependencies)
     }
@@ -711,6 +705,17 @@ public class GraphTraverser: GraphTraversing {
                 primaryBinaryPath: primaryBinaryPath,
                 binaryPath: primaryBinaryPath
             )
+        }
+    }
+
+    private func isDependencyResourceBundle(dependency: GraphDependency) -> Bool {
+        switch dependency {
+        case .bundle:
+            return true
+        case let .target(name: name, path: path):
+            return target(path: path, name: name)?.target.product == .bundle
+        default:
+            return false
         }
     }
 }

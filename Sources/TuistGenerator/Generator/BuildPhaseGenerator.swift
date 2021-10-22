@@ -288,16 +288,14 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
         pbxBuildFiles.append(contentsOf: try generateResourcesBuildFile(
             files: target.resources,
-            fileElements: fileElements,
-            pbxproj: pbxproj
+            fileElements: fileElements
         ))
 
         try pbxBuildFiles.append(contentsOf: generateResourceBundle(
             path: path,
             target: target,
             graphTraverser: graphTraverser,
-            fileElements: fileElements,
-            pbxproj: pbxproj
+            fileElements: fileElements
         ))
 
         if !target.supportsSources {
@@ -359,11 +357,10 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         }
     }
 
-    private func generateResourcesBuildFile(files: [ResourceFileElement],
-                                            fileElements: ProjectFileElements,
-                                            pbxproj _: PBXProj) throws
-        -> [PBXBuildFile]
-    {
+    private func generateResourcesBuildFile(
+        files: [ResourceFileElement],
+        fileElements: ProjectFileElements
+    ) throws -> [PBXBuildFile] {
         var buildFilesCache = Set<AbsolutePath>()
         var pbxBuildFiles = [PBXBuildFile]()
         let ignoredVariantGroupExtensions = [".intentdefinition"]
@@ -445,37 +442,29 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         return pbxBuildFile
     }
 
-    private func generateResourceBundle(path: AbsolutePath,
-                                        target: Target,
-                                        graphTraverser: GraphTraversing,
-                                        fileElements: ProjectFileElements,
-                                        pbxproj _: PBXProj) throws -> [PBXBuildFile]
-    {
-        var pbxBuildFiles = [PBXBuildFile]()
+    private func generateResourceBundle(
+        path: AbsolutePath,
+        target: Target,
+        graphTraverser: GraphTraversing,
+        fileElements: ProjectFileElements
+    ) throws -> [PBXBuildFile] {
         let bundles = graphTraverser
             .resourceBundleDependencies(path: path, name: target.name)
             .sorted()
-        var refs = bundles.compactMap { fileElements.product(target: $0.target.name) }
-
-        let linkableBundles = try graphTraverser
-            .linkableDependencies(path: path, name: target.name)
-            .compactMap { dependency -> PBXFileReference? in
-                switch dependency {
-                case let .bundle(path: path):
-                    let element = fileElements.file(path: path)
-                    return element
-                default:
-                    return nil
-                }
+        let fileReferences = bundles.compactMap { dependency -> PBXFileReference? in
+            switch dependency {
+            case let .bundle(path: path):
+                return fileElements.file(path: path)
+            case let .product(target: target, _, _):
+                return fileElements.product(target: target)
+            default:
+                return nil
             }
-
-        refs.append(contentsOf: linkableBundles)
-
-        refs.forEach {
-            let pbxBuildFile = PBXBuildFile(file: $0)
-            pbxBuildFiles.append(pbxBuildFile)
         }
-        return pbxBuildFiles
+
+        return fileReferences.map {
+            PBXBuildFile(file: $0)
+        }
     }
 
     func generateAppExtensionsBuildPhase(path: AbsolutePath,
