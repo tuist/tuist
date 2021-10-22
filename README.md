@@ -94,6 +94,7 @@ Do you want to know more about what Tuist can offer you? Or perhaps want to cont
   <img width="70" src="assets/1Password.png" hspace="10"/>
   <img width="200" src="https://images.typeform.com/images/QKuaAssrFCq7/image/default" hspace="10">
 </div>
+
 ## Contribute 👩‍💻
 
 If you are interested in contributed to the project, our documentation has a section with resources for contributors. We recommend starting from [this page](https://docs.tuist.io/contributors/get-started).
