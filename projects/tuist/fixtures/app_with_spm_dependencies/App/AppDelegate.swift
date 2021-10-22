@@ -6,6 +6,7 @@ import FBSDKCoreKit
 import FirebaseAnalytics
 import FirebaseCore
 import FirebaseDatabase
+import GoogleSignIn
 import TYStatusBarView
 import UIKit
 
@@ -37,6 +38,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
         // Use Facebook to make sure it links fine
         Settings.setAdvertiserTrackingEnabled(true)
+
+        // Use GoogleSignIn to make sure it links fine
+        _ = GIDConfiguration(clientID: "YOUR_IOS_CLIENT_ID")
 
         return true
     }
