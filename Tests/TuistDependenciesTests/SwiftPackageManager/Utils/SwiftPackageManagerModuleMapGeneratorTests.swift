@@ -95,17 +95,17 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
         let moduleMap = try subject.generate(moduleName: "Module", publicHeadersPath: "/Absolute/Public/Headers/Path")
         XCTAssertEqual(moduleMap.type, moduleMapType)
         switch moduleMapType {
-        case .none, .header:
+        case .none, .header, .nestedHeader:
             XCTAssertNil(moduleMap.path)
         case .custom:
             XCTAssertEqual(moduleMap.path, "/Absolute/Public/Headers/Path/module.modulemap")
-        case .nestedHeader, .directory:
+        case .directory:
             XCTAssertEqual(moduleMap.path, "/Absolute/Public/Headers/Path/Module.modulemap")
         }
         switch moduleMapType {
-        case .none, .custom, .header:
+        case .none, .custom, .header, .nestedHeader:
             XCTAssertFalse(writeCalled)
-        case .nestedHeader, .directory:
+        case .directory:
             XCTAssertTrue(writeCalled)
         }
     }

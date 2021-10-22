@@ -554,15 +554,13 @@ extension ProjectDescription.Headers {
     fileprivate static func from(moduleMapType: ModuleMapType, publicHeadersPath: AbsolutePath) throws -> Self? {
         // As per SPM logic, headers should be added only when using the umbrella header without modulemap:
         // https://github.com/apple/swift-package-manager/blob/9b9bed7eaf0f38eeccd0d8ca06ae08f6689d1c3f/Sources/Xcodeproj/pbxproj.swift#L588-L609
-        guard
-            moduleMapType == .header,
-            let publicHeaders = FileHandler.shared.filesAndDirectoriesContained(in: publicHeadersPath)?.filter({ $0.extension == "h" }),
-            !publicHeaders.isEmpty
-        else {
+        switch moduleMapType {
+        case .header, .nestedHeader:
+            let publicHeaders = FileHandler.shared.filesAndDirectoriesContained(in: publicHeadersPath)!.filter({ $0.extension == "h" })
+            return Headers(public: ProjectDescription.FileList(globs: publicHeaders.map { Path($0.pathString) }))
+        case .none, .custom, .directory:
             return nil
         }
-
-        return Headers(public: ProjectDescription.FileList(globs: publicHeaders.map { Path($0.pathString) }))
     }
 }
 
