@@ -75,6 +75,8 @@ extension TuistGraph.Target {
 
         let playgrounds = sourcesPlaygrounds + resourcesPlaygrounds
 
+        let additionalFiles = try manifest.additionalFiles.flatMap { try TuistGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths) }
+
         return TuistGraph.Target(
             name: name,
             platform: platform,
@@ -95,7 +97,8 @@ extension TuistGraph.Target {
             launchArguments: launchArguments,
             filesGroup: .group(name: "Project"),
             dependencies: dependencies,
-            playgrounds: playgrounds
+            playgrounds: playgrounds,
+            additionalFiles: additionalFiles
         )
     }
 
