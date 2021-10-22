@@ -4,6 +4,11 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Changed
+
+- Use cache version instead of Tuist version in target hash calculation [#3554](https://github.com/tuist/tuist/pull/3554) by [@danyf90](https://github.com/danyf90)
+- Perform remote cache download and upload concurrently [#3549](https://github.com/tuist/tuist/pull/3549) by [@danyf90](https://github.com/danyf90)
+
 ### Added
 
 - Add `analytics` option to `Config.Cloud` to enable sending analytics event to cloud backend [#3547](https://github.com/tuist/tuist/pull/3547) by [@danyf90](https://github.com/danyf90)
@@ -12,10 +17,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Add support for configuring the `LastUpgradeCheck` of the `Xcode` project [#3561](https://github.com/tuist/tuist/pull/3561) by [@mollyIV](https://github.com/mollyIV)
 - Add arbitrarily high `LastUpgradeCheck` to SwiftPackageManager generated projects to disable warnings [#3569](https://github.com/tuist/tuist/pull/3569) by [@danyf90](https://github.com/danyf90)
 - Add `isCI` parameter to analytics events [#3568](https://github.com/tuist/tuist/pull/3568) by [@mollyIV](https://github.com/mollyIV).
-
-### Changed
-
-- Perform remote cache download and upload concurrently [#3549](https://github.com/tuist/tuist/pull/3549) by [@danyf90](https://github.com/danyf90)
 
 ### Fixed
 
