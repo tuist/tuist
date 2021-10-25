@@ -374,26 +374,26 @@ extension ProjectDescription.DeploymentTarget {
         packageName: String
     ) throws -> Self? {
         let platform = try ProjectDescription.Platform.from(configured: configuredPlatforms, package: package, packageName: packageName)
-        
+
         func target(platformName: String, targetFromVersion: (String) -> ProjectDescription.DeploymentTarget) -> ProjectDescription.DeploymentTarget? {
             // when package and config include deployment targets, use config value if version is valid
             // (i.e. config target >= package target)
             if let packagePlatform = package.first(where: { $0.platformName == platformName.lowercased() }), let configuredDeploymentTarget = configuredDeploymentTargets.first(where: { $0.platform == platformName }), configuredDeploymentTarget.version >= packagePlatform.version {
                 return ProjectDescription.DeploymentTarget.from(deploymentTarget: configuredDeploymentTarget)
-            // use package declared deployment target
+                // use package declared deployment target
             } else if let packagePlatform = package.first(where: { $0.platformName == platformName.lowercased() }) {
                 return targetFromVersion(packagePlatform.version)
-            // config defined deployment target
+                // config defined deployment target
             } else if let configuredDeploymentTarget = configuredDeploymentTargets.first(where: { $0.platform == platformName }) {
                 return ProjectDescription.DeploymentTarget.from(deploymentTarget: configuredDeploymentTarget)
             } else {
                 return nil
             }
         }
-        
+
         switch platform {
         case .iOS:
-            return target(platformName: "iOS", targetFromVersion: { .iOS(targetVersion: $0, devices: [.iphone, .ipad])})
+            return target(platformName: "iOS", targetFromVersion: { .iOS(targetVersion: $0, devices: [.iphone, .ipad]) })
         case .macOS:
             return target(platformName: "macOS", targetFromVersion: DeploymentTarget.macOS(targetVersion:))
         case .watchOS:
