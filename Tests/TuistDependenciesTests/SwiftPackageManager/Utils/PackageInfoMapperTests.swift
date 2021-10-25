@@ -1043,6 +1043,41 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             )
         )
     }
+    
+    func testMap_whenPackageDefinesPlatform_configuresDeploymentTargetHigherThanPackage() throws {
+        let basePath = try temporaryPath()
+        let sourcesPath = basePath.appending(RelativePath("Package/Path/Sources/Target1"))
+        try fileHandler.createFolder(sourcesPath)
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(name: "Target1"),
+                    ],
+                    platforms: [.init(platformName: "ios", version: "13.0", options: [])],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            platforms: [.iOS],
+            deploymentTargets: [.iOS("14.0", .iphone)]
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test("Target1", basePath: basePath, platform: .iOS, deploymentTarget: .iOS(targetVersion: "14.0", devices: [.iphone])),
+                ]
+            )
+        )
+    }
 
     func testMap_whenSettingsContainsCHeaderSearchPath_mapsToHeaderSearchPathsSetting() throws {
         let basePath = try temporaryPath()
@@ -2035,6 +2070,7 @@ extension PackageInfoMapping {
         basePath: AbsolutePath = "/",
         packageInfos: [String: PackageInfo] = [:],
         platforms: Set<TuistGraph.Platform> = [.iOS],
+        deploymentTargets: Set<TuistGraph.DeploymentTarget> = [],
         swiftToolsVersion: TSCUtility.Version? = nil
     ) throws -> ProjectDescription.Project? {
         let productToPackage: [String: String] = packageInfos.reduce(into: [:]) { result, packageInfo in
@@ -2061,7 +2097,7 @@ extension PackageInfoMapping {
             path: basePath.appending(component: package).appending(component: "Path"),
             productTypes: [:],
             platforms: platforms,
-            deploymentTargets: [],
+            deploymentTargets: deploymentTargets,
             targetToProducts: targetToProducts,
             targetToResolvedDependencies: targetToResolvedDependencies,
             packageToProject: Dictionary(uniqueKeysWithValues: packageInfos.keys.map {
