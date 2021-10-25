@@ -374,36 +374,33 @@ extension ProjectDescription.DeploymentTarget {
         packageName: String
     ) throws -> Self? {
         let platform = try ProjectDescription.Platform.from(configured: configuredPlatforms, package: package, packageName: packageName)
-        switch platform {
-        case .iOS:
-            if let packagePlatform = package.first(where: { $0.platformName == "ios" }), let configuredDeploymentTarget = configuredDeploymentTargets.first(where: { $0.platform == "iOS" }), configuredDeploymentTarget.version >= packagePlatform.version {
-                return .from(deploymentTarget: configuredDeploymentTarget)
-            } else if let packagePlatform = package.first(where: { $0.platformName == "ios" }) {
-                return .iOS(targetVersion: packagePlatform.version, devices: [.iphone, .ipad])
-            } else if let configuredDeploymentTarget = configuredDeploymentTargets.first(where: { $0.platform == "iOS" }) {
-                return .from(deploymentTarget: configuredDeploymentTarget)
-            }
-        case .macOS:
-            if let packagePlatform = package.first(where: { $0.platformName == "macos" }) {
-                return .macOS(targetVersion: packagePlatform.version)
-            } else if let configuredDeploymentTarget = configuredDeploymentTargets.first(where: { $0.platform == "macOS" }) {
-                return .from(deploymentTarget: configuredDeploymentTarget)
-            }
-        case .watchOS:
-            if let packagePlatform = package.first(where: { $0.platformName == "watchos" }) {
-                return .watchOS(targetVersion: packagePlatform.version)
-            } else if let configuredDeploymentTarget = configuredDeploymentTargets.first(where: { $0.platform == "watchOS" }) {
-                return .from(deploymentTarget: configuredDeploymentTarget)
-            }
-        case .tvOS:
-            if let packagePlatform = package.first(where: { $0.platformName == "tvos" }) {
-                return .tvOS(targetVersion: packagePlatform.version)
-            } else if let configuredDeploymentTarget = configuredDeploymentTargets.first(where: { $0.platform == "tvOS" }) {
-                return .from(deploymentTarget: configuredDeploymentTarget)
+        
+        func target(platformName: String, targetFromVersion: (String) -> ProjectDescription.DeploymentTarget) -> ProjectDescription.DeploymentTarget? {
+            // when package and config include deployment targets, use config value if version is valid
+            // (i.e. config target >= package target)
+            if let packagePlatform = package.first(where: { $0.platformName == platformName.lowercased() }), let configuredDeploymentTarget = configuredDeploymentTargets.first(where: { $0.platform == platformName }), configuredDeploymentTarget.version >= packagePlatform.version {
+                return ProjectDescription.DeploymentTarget.from(deploymentTarget: configuredDeploymentTarget)
+            // use package declared deployment target
+            } else if let packagePlatform = package.first(where: { $0.platformName == platformName.lowercased() }) {
+                return targetFromVersion(packagePlatform.version)
+            // config defined deployment target
+            } else if let configuredDeploymentTarget = configuredDeploymentTargets.first(where: { $0.platform == platformName }) {
+                return ProjectDescription.DeploymentTarget.from(deploymentTarget: configuredDeploymentTarget)
+            } else {
+                return nil
             }
         }
-
-        return nil
+        
+        switch platform {
+        case .iOS:
+            return target(platformName: "iOS", targetFromVersion: { .iOS(targetVersion: $0, devices: [.iphone, .ipad])})
+        case .macOS:
+            return target(platformName: "macOS", targetFromVersion: DeploymentTarget.macOS(targetVersion:))
+        case .watchOS:
+            return target(platformName: "watchOS", targetFromVersion: DeploymentTarget.watchOS(targetVersion:))
+        case .tvOS:
+            return target(platformName: "tvOS", targetFromVersion: DeploymentTarget.tvOS(targetVersion:))
+        }
     }
 }
 
