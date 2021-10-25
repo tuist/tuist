@@ -19,7 +19,6 @@ let project = Project(
                 .external(name: "FacebookCore"),
                 .external(name: "FirebaseAnalytics"),
                 .external(name: "FirebaseDatabase"),
-                .external(name: "TYStatusBarView")
             ]
         ),
         Target(

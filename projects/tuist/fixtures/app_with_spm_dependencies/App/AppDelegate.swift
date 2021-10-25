@@ -6,7 +6,6 @@ import FBSDKCoreKit
 import FirebaseAnalytics
 import FirebaseCore
 import FirebaseDatabase
-import TYStatusBarView
 import UIKit
 
 @UIApplicationMain
