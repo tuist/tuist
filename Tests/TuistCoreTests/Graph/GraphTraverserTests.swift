@@ -396,7 +396,9 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.resourceBundleDependencies(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got.map(\.target), [bundle])
+        XCTAssertEqual(got, [
+            .product(target: bundle.name, productName: bundle.productNameWithExtension, platformFilter: .ios),
+        ])
     }
 
     func test_resourceBundleDependencies_when_the_target_doesnt_support_resources() {
@@ -453,8 +455,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.resourceBundleDependencies(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got.map(\.target.name), [
-            "Bundle1",
+        XCTAssertEqual(got, [
+            .product(target: bundle.name, productName: bundle.productNameWithExtension, platformFilter: .ios),
         ])
     }
 
@@ -486,8 +488,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.resourceBundleDependencies(path: projectB.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got.map(\.target.name), [
-            "Bundle1",
+        XCTAssertEqual(got, [
+            .product(target: bundle.name, productName: bundle.productNameWithExtension, platformFilter: .ios),
         ])
     }
 
@@ -522,8 +524,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.resourceBundleDependencies(path: projectB.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got.map(\.target.name), [
-            "ResourceBundle",
+        XCTAssertEqual(got, [
+            .product(target: bundle.name, productName: bundle.productNameWithExtension, platformFilter: .ios),
         ])
     }
 
@@ -565,9 +567,9 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.resourceBundleDependencies(path: projectB.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got.map(\.target.name), [
-            "ResourceBundle1",
-            "ResourceBundle2",
+        XCTAssertEqual(got, [
+            .product(target: bundle1.name, productName: bundle1.productNameWithExtension, platformFilter: .ios),
+            .product(target: bundle2.name, productName: bundle2.productNameWithExtension, platformFilter: .ios),
         ])
     }
 
@@ -614,12 +616,192 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let staticFramework2Results = subject.resourceBundleDependencies(path: projectA.path, name: staticFramework2.name).sorted()
 
         // Then
-        XCTAssertEqual(appResults.map(\.target.name), [])
-        XCTAssertEqual(dynamicFrameworkResults.map(\.target.name), [
-            "ResourceBundle",
+        XCTAssertEqual(appResults, [])
+        XCTAssertEqual(dynamicFrameworkResults, [
+            .product(target: bundle.name, productName: bundle.productNameWithExtension, platformFilter: .ios),
         ])
-        XCTAssertEqual(staticFramework1Results.map(\.target.name), [])
-        XCTAssertEqual(staticFramework2Results.map(\.target.name), [])
+        XCTAssertEqual(staticFramework1Results, [])
+        XCTAssertEqual(staticFramework2Results, [])
+    }
+
+    func test_resourceBundleDependencies_precompiledResourceBundles_testBundle() {
+        // Given
+        let bundlePath = AbsolutePath("/path/cache/CachedStaticFrameworkA.bundle")
+        let bundle = GraphDependency.bundle(path: bundlePath)
+        let cachedFramework = GraphDependency.testFramework(
+            path: "/path/cache/CachedStaticFrameworkA.framework",
+            linking: .static
+        )
+        let staticFramework = Target.test(name: "StaticFrameworkB", product: .staticFramework)
+        let staticFrameworkProject = Project.test(path: "/path/modules/StaticFrameworkB", targets: [staticFramework])
+
+        let appTests = Target.test(name: "AppTests", product: .unitTests)
+        let appProject = Project.test(path: "/path/apps/App", targets: [appTests])
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: appTests.name, path: appProject.path): Set([
+                .target(name: staticFramework.name, path: staticFrameworkProject.path),
+            ]),
+            .target(name: staticFramework.name, path: staticFrameworkProject.path): Set([
+                cachedFramework,
+            ]),
+            cachedFramework: Set([
+                bundle,
+            ]),
+        ]
+        let graph = Graph.test(
+            path: .root,
+            projects: [
+                staticFrameworkProject.path: staticFrameworkProject,
+                appProject.path: appProject,
+            ],
+            targets: [
+                staticFrameworkProject.path: [
+                    staticFramework.name: staticFramework,
+                ],
+                appProject.path: [
+                    appTests.name: appTests,
+                ],
+            ],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let appTestResults = subject.resourceBundleDependencies(
+            path: appProject.path,
+            name: appTests.name
+        ).sorted()
+        let frameworkResults = subject.resourceBundleDependencies(
+            path: staticFrameworkProject.path,
+            name: staticFramework.name
+        ).sorted()
+
+        // Then
+        XCTAssertEqual(appTestResults, [
+            .bundle(path: bundlePath),
+        ])
+        XCTAssertEqual(frameworkResults, [])
+    }
+
+    func test_resourceBundleDependencies_precompiledResourceBundles_staticFramework() {
+        // Given
+        let bundlePath = AbsolutePath("/path/cache/CachedStaticFrameworkA.bundle")
+        let bundle = GraphDependency.bundle(path: bundlePath)
+        let cachedFramework = GraphDependency.testFramework(
+            path: "/path/cache/CachedStaticFrameworkA.framework",
+            linking: .static
+        )
+        let staticFramework = Target.test(name: "StaticFrameworkB", product: .staticFramework)
+        let staticFrameworkProject = Project.test(path: "/path/modules/StaticFrameworkB", targets: [staticFramework])
+
+        let app = Target.test(name: "App", product: .app)
+        let appProject = Project.test(path: "/path/apps/App", targets: [app])
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: appProject.path): Set([
+                .target(name: staticFramework.name, path: staticFrameworkProject.path),
+            ]),
+            .target(name: staticFramework.name, path: staticFrameworkProject.path): Set([
+                cachedFramework,
+            ]),
+            cachedFramework: Set([
+                bundle,
+            ]),
+        ]
+        let graph = Graph.test(
+            path: .root,
+            projects: [
+                staticFrameworkProject.path: staticFrameworkProject,
+                appProject.path: appProject,
+            ],
+            targets: [
+                staticFrameworkProject.path: [
+                    staticFramework.name: staticFramework,
+                ],
+                appProject.path: [
+                    app.name: app,
+                ],
+            ],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let appResults = subject.resourceBundleDependencies(
+            path: appProject.path,
+            name: app.name
+        ).sorted()
+        let frameworkResults = subject.resourceBundleDependencies(
+            path: staticFrameworkProject.path,
+            name: staticFramework.name
+        ).sorted()
+
+        // Then
+        XCTAssertEqual(appResults, [
+            .bundle(path: bundlePath),
+        ])
+        XCTAssertEqual(frameworkResults, [])
+    }
+
+    func test_resourceBundleDependencies_precompiledResourceBundles_dynamicFramework() {
+        // Given
+        let bundlePath = AbsolutePath("/path/cache/CachedStaticFrameworkA.bundle")
+        let bundle = GraphDependency.bundle(path: bundlePath)
+        let cachedFramework = GraphDependency.testFramework(
+            path: "/path/cache/CachedStaticFrameworkA.framework",
+            linking: .static
+        )
+        let dynamicFramework = Target.test(name: "DynamicFrameworkB", product: .framework)
+        let dynamicFrameworkProject = Project.test(path: "/path/modules/StaticFrameworkB", targets: [dynamicFramework])
+
+        let app = Target.test(name: "App", product: .app)
+        let appProject = Project.test(path: "/path/apps/App", targets: [app])
+
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: app.name, path: appProject.path): Set([
+                .target(name: dynamicFramework.name, path: dynamicFrameworkProject.path),
+            ]),
+            .target(name: dynamicFramework.name, path: dynamicFrameworkProject.path): Set([
+                cachedFramework,
+            ]),
+            cachedFramework: Set([
+                bundle,
+            ]),
+        ]
+        let graph = Graph.test(
+            path: .root,
+            projects: [
+                dynamicFrameworkProject.path: dynamicFrameworkProject,
+                appProject.path: appProject,
+            ],
+            targets: [
+                dynamicFrameworkProject.path: [
+                    dynamicFramework.name: dynamicFramework,
+                ],
+                appProject.path: [
+                    app.name: app,
+                ],
+            ],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let appResults = subject.resourceBundleDependencies(
+            path: appProject.path,
+            name: app.name
+        ).sorted()
+        let frameworkResults = subject.resourceBundleDependencies(
+            path: dynamicFrameworkProject.path,
+            name: dynamicFramework.name
+        ).sorted()
+
+        // Then
+        XCTAssertEqual(appResults, [])
+        XCTAssertEqual(frameworkResults, [
+            .bundle(path: bundlePath),
+        ])
     }
 
     func test_target_from_dependency() {

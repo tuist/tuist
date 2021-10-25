@@ -238,9 +238,9 @@ final class MockGraphTraverser: GraphTraversing {
     var invokedResourceBundleDependenciesCount = 0
     var invokedResourceBundleDependenciesParameters: (path: AbsolutePath, name: String)? // swiftlint:disable:this identifier_name
     var invokedResourceBundleDependenciesParametersList = [(path: AbsolutePath, name: String)]() // swiftlint:disable:this identifier_name
-    var stubbedResourceBundleDependenciesResult: Set<GraphTarget>! = []
+    var stubbedResourceBundleDependenciesResult: Set<GraphDependencyReference>! = []
 
-    func resourceBundleDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget> {
+    func resourceBundleDependencies(path: AbsolutePath, name: String) -> Set<GraphDependencyReference> {
         invokedResourceBundleDependencies = true
         invokedResourceBundleDependenciesCount += 1
         invokedResourceBundleDependenciesParameters = (path, name)
