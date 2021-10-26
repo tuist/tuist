@@ -53,9 +53,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
     // MARK: - Private
 
     private func write(project: ProjectDescriptor, schemesOrderHint: [String: Int]?) throws {
-        var schemesOrderHint = schemesOrderHint
-        if schemesOrderHint == nil {
-            schemesOrderHint = self.schemesOrderHint(schemes: project.schemeDescriptors)
+        let schemesOrderHint = schemesOrderHint ?? self.schemesOrderHint(schemes: project.schemeDescriptors) ?? [:]
         }
         let project = enrichingXcodeProjWithSchemes(descriptor: project)
         try project.xcodeProj.write(path: project.xcodeprojPath.path)
