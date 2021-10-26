@@ -53,21 +53,20 @@ public final class XcodeProjWriter: XcodeProjWriting {
     // MARK: - Private
 
     private func write(project: ProjectDescriptor, schemesOrderHint: [String: Int]?) throws {
-        let schemesOrderHint = schemesOrderHint ?? self.schemesOrderHint(schemes: project.schemeDescriptors) ?? [:]
-        }
+        let schemesOrderHint = schemesOrderHint ?? self.schemesOrderHint(schemes: project.schemeDescriptors)
         let project = enrichingXcodeProjWithSchemes(descriptor: project)
         try project.xcodeProj.write(path: project.xcodeprojPath.path)
-        try writeSchemes(schemeDescriptors: project.schemeDescriptors, xccontainerPath: project.xcodeprojPath, schemesOrderHint: schemesOrderHint ?? [:])
+        try writeSchemes(schemeDescriptors: project.schemeDescriptors, xccontainerPath: project.xcodeprojPath, schemesOrderHint: schemesOrderHint)
         try sideEffectDescriptorExecutor.execute(sideEffects: project.sideEffectDescriptors)
     }
 
     private func writeSchemes(schemeDescriptors: [SchemeDescriptor],
                               xccontainerPath: AbsolutePath,
-                              schemesOrderHint _: [String: Int]) throws
+                              schemesOrderHint: [String: Int]) throws
     {
         let currentSchemes = self.currentSchemes(xccontainerPath: xccontainerPath)
         let writtenSchemes = try schemeDescriptors.map { try write(scheme: $0, xccontainerPath: xccontainerPath) }
-        try writeXCSchemeManagement(schemes: schemeDescriptors, xccontainerPath: xccontainerPath)
+        try writeXCSchemeManagement(schemes: schemeDescriptors, xccontainerPath: xccontainerPath, schemesOrderHint: schemesOrderHint)
         // If we don't delete the schemes that we no longer need they'll remain as leftovers and show up
         // on the schemes dropdown menu
         try Set(currentSchemes).subtracting(writtenSchemes).forEach { schemeToDelete in
@@ -78,7 +77,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
     private func currentSchemes(xccontainerPath: AbsolutePath) -> [AbsolutePath] {
         let sharedSchemesDirectory = schemeDirectory(path: xccontainerPath, shared: true)
         let userSchemesDirectory = schemeDirectory(path: xccontainerPath, shared: false)
-        return (sharedSchemesDirectory + userSchemesDirectory).map { FileHandler.shared.glob($0, glob: "*.xcscheme") }
+        return [sharedSchemesDirectory, userSchemesDirectory].flatMap { FileHandler.shared.glob($0, glob: "*.xcscheme") }
     }
 
     private func schemesOrderHint(schemes: [SchemeDescriptor]) -> [String: Int] {

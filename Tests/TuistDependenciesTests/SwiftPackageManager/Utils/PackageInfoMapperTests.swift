@@ -134,8 +134,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             basePath: basePath,
                             customSources: .init(
                                 globs: [basePath.appending(RelativePath("Package/Path/\(alternativeDefaultSource)/Target1/**")).pathString]
-                            ),
-                            sourcesPath: "\(alternativeDefaultSource)/Target1"
+                            )
                         ),
                     ]
                 )
@@ -233,8 +232,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         "com_example_target-1",
                         basePath: basePath,
                         customBundleID: "com.example.target-1",
-                        customSources: .init(globs: [basePath.appending(RelativePath("Package/Path/Sources/com.example.target-1/**")).pathString]),
-                        sourcesPath: "Sources/com.example.target-1/"
+                        customSources: .init(globs: [basePath.appending(RelativePath("Package/Path/Sources/com.example.target-1/**")).pathString])
                     ),
                 ]
             )
@@ -522,9 +520,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 ],
                                 tags: []
                             ),
-                        ],
-                        excludedResources: [
-                            "\(basePath.pathString)/Package/Path/Sources/Target1/AnotherOne/Resource/**",
                         ]
                     ),
                 ]
@@ -848,8 +843,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Custom/Path/Headers"],
                         ],
-                        moduleMap: "$(SRCROOT)/Custom/Path/Headers/module.modulemap",
-                        sourcesPath: "Custom/Path"
+                        moduleMap: "$(SRCROOT)/Custom/Path/Headers/module.modulemap"
                     ),
                 ]
             )
@@ -2128,9 +2122,7 @@ extension ProjectDescription.Target {
         headers: ProjectDescription.Headers? = nil,
         dependencies: [ProjectDescription.TargetDependency] = [],
         customSettings: ProjectDescription.SettingsDictionary = [:],
-        moduleMap: String? = nil,
-        excludedResources _: [String] = [],
-        sourcesPath _: String? = nil
+        moduleMap: String? = nil
     ) -> Self {
         return .init(
             name: name,
