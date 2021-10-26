@@ -6,7 +6,7 @@ import FBSDKCoreKit
 import FirebaseAnalytics
 import FirebaseCore
 import FirebaseDatabase
-import TYStatusBarView
+import FirebaseFirestore
 import UIKit
 
 @UIApplicationMain
@@ -29,14 +29,17 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         // Use Charts to make sure it links fine
         _ = BarChartView()
         
+        // Use Facebook to make sure it links fine
+        Settings.setAdvertiserTrackingEnabled(true)
+
         // Use FirebaseAnalytics to make sure it links fine
         Analytics.logEvent("Event", parameters: [:])
 
         // Use FirebaseDatabase to make sure it links fine
         Database.database(app: FirebaseApp.app()!).reference().setValue("value")
 
-        // Use Facebook to make sure it links fine
-        Settings.setAdvertiserTrackingEnabled(true)
+        // Use FirebaseFirestore to make sure it links fine
+        _ = Firestore.firestore()
 
         return true
     }
