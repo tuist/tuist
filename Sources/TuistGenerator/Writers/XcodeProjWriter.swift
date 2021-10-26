@@ -80,8 +80,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
     private func currentSchemes(xccontainerPath: AbsolutePath) -> [AbsolutePath] {
         let sharedSchemesDirectory = schemeDirectory(path: xccontainerPath, shared: true)
         let userSchemesDirectory = schemeDirectory(path: xccontainerPath, shared: false)
-        return FileHandler.shared.glob(sharedSchemesDirectory, glob: "*.xcscheme") +
-            FileHandler.shared.glob(userSchemesDirectory, glob: "*.xcscheme")
+        return (sharedSchemesDirectory + userSchemesDirectory).map { FileHandler.shared.glob($0, glob: "*.xcscheme") }
     }
 
     private func schemesOrderHint(schemes: [SchemeDescriptor]) -> [String: Int] {
