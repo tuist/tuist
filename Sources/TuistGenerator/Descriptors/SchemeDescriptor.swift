@@ -18,7 +18,7 @@ public struct SchemeDescriptor {
 
     /// The Scheme type shared vs user scheme
     public var shared: Bool
-    
+
     /// Whether the scheme is hidden or not.
     public var hidden: Bool
 

@@ -66,7 +66,6 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
             try FileHandler.shared.write(generatedModuleMapContent, path: generatedModuleMapPath, atomically: true)
             return (type: moduleMapType, path: generatedModuleMapPath)
         }
-
     }
 
     static func customModuleMapPath(publicHeadersPath: AbsolutePath) throws -> AbsolutePath? {

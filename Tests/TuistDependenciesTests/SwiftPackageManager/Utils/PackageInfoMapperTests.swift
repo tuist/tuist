@@ -2129,8 +2129,8 @@ extension ProjectDescription.Target {
         dependencies: [ProjectDescription.TargetDependency] = [],
         customSettings: ProjectDescription.SettingsDictionary = [:],
         moduleMap: String? = nil,
-        excludedResources: [String] = [],
-        sourcesPath: String? = nil
+        excludedResources _: [String] = [],
+        sourcesPath _: String? = nil
     ) -> Self {
         return .init(
             name: name,
