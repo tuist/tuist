@@ -7,6 +7,7 @@ import FirebaseAnalytics
 import FirebaseCore
 import FirebaseDatabase
 import FirebaseFirestore
+import GoogleSignIn
 import UIKit
 
 @UIApplicationMain
@@ -40,6 +41,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
         // Use FirebaseFirestore to make sure it links fine
         _ = Firestore.firestore()
+
+        // Use GoogleSignIn to make sure it links fine
+        _ = GIDConfiguration(clientID: "YOUR_IOS_CLIENT_ID")
 
         return true
     }
