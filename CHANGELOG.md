@@ -10,6 +10,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Fix SwiftPackageManager dependencies mapping when the dependency contains nested umbrella header [#3588](https://github.com/tuist/tuist/pull/3588) by [@danyf90](https://github.com/danyf90)
 - Revert [Swift Package Manager default resource handling] [#3594](https://github.com/tuist/tuist/pull/3594) by [@danyf90](https://github.com/danyf90)
+- Fix SwiftPackageManager dependencies deployment target being invalid when some packages don't define targets [#3600](https://github.com/tuist/tuist/pull/3600) by [@wattson12](https://github.com/wattson12)
 
 ## 2.1.0 - Coloratura
 
