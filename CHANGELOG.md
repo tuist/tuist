@@ -7,8 +7,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Fix SwiftPackageManager dependencies mapping when the dependency contains nested umbrella header [#3588](https://github.com/tuist/tuist/pull/3588) by [@danyf90](https://github.com/danyf90)
+- Revert [Swift Package Manager default resource handling] [#3594](https://github.com/tuist/tuist/pull/3594) by [@danyf90](https://github.com/danyf90)
 
 ## 2.1.0 - Coloratura
+
 ### Changed
 
 - Use cache version instead of Tuist version in target hash calculation [#3554](https://github.com/tuist/tuist/pull/3554) by [@danyf90](https://github.com/danyf90)
@@ -22,12 +24,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Add support for configuring the `LastUpgradeCheck` of the `Xcode` project [#3561](https://github.com/tuist/tuist/pull/3561) by [@mollyIV](https://github.com/mollyIV)
 - Add arbitrarily high `LastUpgradeCheck` to SwiftPackageManager generated projects to disable warnings [#3569](https://github.com/tuist/tuist/pull/3569) by [@danyf90](https://github.com/danyf90)
 - Add `isCI` parameter to analytics events [#3568](https://github.com/tuist/tuist/pull/3568) by [@mollyIV](https://github.com/mollyIV)
-- Add Add Files Resource Synthesizer [#3584](https://github.com/tuist/tuist/pull/3584) by [@mollyIV](https://github.com/mollyIV)
+- Add Files Resource Synthesizer [#3584](https://github.com/tuist/tuist/pull/3584) by [@mollyIV](https://github.com/mollyIV)
 - Add support for additional files at the target level [#3579](https://github.com/tuist/tuist/pull/3579) by [@danyf90](https://github.com/danyf90)
-
-### Changed
-
-- Perform remote cache download and upload concurrently [#3549](https://github.com/tuist/tuist/pull/3549) by [@danyf90](https://github.com/danyf90)
 
 ### Fixed
 
