@@ -20,6 +20,7 @@ public struct TuistCommand: ParsableCommand {
                 ExecCommand.self,
                 FocusCommand.self,
                 GenerateCommand.self,
+                PlayCommand.self,
                 GraphCommand.self,
                 InitCommand.self,
                 CloudCommand.self,
