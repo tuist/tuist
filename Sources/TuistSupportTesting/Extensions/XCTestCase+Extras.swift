@@ -196,7 +196,13 @@ public extension XCTestCase {
         XCTAssertEqual(request.httpMethod!, method, "Expected the HTTP request method \(method) but got \(request.httpMethod!)", file: file, line: line)
     }
 
-    func XCTAssertHTTPResourceContainsHeader<T, E: Error>(_ resource: HTTPResource<T, E>, header: String, value: String, file: StaticString = #file, line: UInt = #line) {
+    func XCTAssertHTTPResourceContainsHeader<T, E: Error>(
+        _ resource: HTTPResource<T, E>,
+        header: String,
+        value: String,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) {
         let request = resource.request()
         let headers = request.allHTTPHeaderFields ?? [:]
         guard let headerValue = headers[header] else {

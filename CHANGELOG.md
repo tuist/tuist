@@ -4,12 +4,16 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Changed
+
+- **Breaking** Update logic to calculate deployment target for SwiftPackageManager packages not specifying it, and remove no longer used `SwiftPackageManagerDependencies.deploymentTargets` property [#3602](https://github.com/tuist/tuist/pull/3602) by [@danyf90](https://github.com/danyf90)
+
 ## 2.1.1 - Patenipat
 
 ### Fixed
 
 - Fix SwiftPackageManager dependencies mapping when the dependency contains nested umbrella header [#3588](https://github.com/tuist/tuist/pull/3588) by [@danyf90](https://github.com/danyf90)
-- Revert [Swift Package Manager default resource handling] [#3594](https://github.com/tuist/tuist/pull/3594) by [@danyf90](https://github.com/danyf90)
+- Revert [Swift Package Manager default resource handling](https://github.com/tuist/tuist/pull/3594) [#3594](https://github.com/tuist/tuist/pull/3594) by [@danyf90](https://github.com/danyf90)
 
 ## 2.1.0 - Coloratura
 
