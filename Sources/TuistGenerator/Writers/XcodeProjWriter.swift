@@ -130,7 +130,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
         ).appending(component: "xcschememanagement.plist")
         let userStateSchemes = schemes.map { scheme in
             XCSchemeManagement.UserStateScheme(
-                name: scheme.xcScheme.name,
+                name: "\(scheme.xcScheme.name).xcscheme",
                 shared: scheme.shared,
                 orderHint: schemesOrderHint[scheme.xcScheme.name],
                 isShown: !scheme.hidden
