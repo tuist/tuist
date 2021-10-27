@@ -9,11 +9,11 @@ import TuistSupport
 // MARK: - PackageInfo Mapper Errors
 
 enum PackageInfoMapperError: FatalError, Equatable {
-    /// Thrown when the minimum deployment target cannot be parsed.
-    case cantParseMinDeploymentTarget(ProjectDescription.Platform)
-
     /// Thrown when the default path folder is not present.
     case defaultPathNotFound(AbsolutePath, String)
+
+    /// Thrown when the parsing of minimum deployment target failed.
+    case minDeploymentTargetParsingFailed(ProjectDescription.Platform)
 
     /// Thrown when no supported platforms are found for a package.
     case noSupportedPlatforms(name: String, configured: Set<ProjectDescription.Platform>, package: Set<ProjectDescription.Platform>)
@@ -38,7 +38,7 @@ enum PackageInfoMapperError: FatalError, Equatable {
         switch self {
         case .noSupportedPlatforms, .unknownByNameDependency, .unknownPlatform, .unknownProductDependency, .unknownProductTarget:
             return .abort
-        case .cantParseMinDeploymentTarget, .defaultPathNotFound, .unsupportedSetting:
+        case .minDeploymentTargetParsingFailed, .defaultPathNotFound, .unsupportedSetting:
             return .bug
         }
     }
@@ -46,13 +46,13 @@ enum PackageInfoMapperError: FatalError, Equatable {
     /// Error description.
     var description: String {
         switch self {
-        case let .cantParseMinDeploymentTarget(platform):
-            return "The minimum deployment target for \(platform) platform cannot be parsed."
         case let .defaultPathNotFound(packageFolder, targetName):
             return """
             Default source path not found for package at \(packageFolder.pathString). \
             Source path must be one of \(PackageInfoMapper.predefinedSourceDirectories.map { "\($0)/\(targetName)" })
             """
+        case let .minDeploymentTargetParsingFailed(platform):
+            return "The minimum deployment target for \(platform) platform cannot be parsed."
         case let .noSupportedPlatforms(name, configured, package):
             return "No supported platform found for the \(name) dependency. Configured: \(configured), package: \(package)."
         case let .unknownByNameDependency(name):
@@ -251,7 +251,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
             guard let fromMinVersion = sdkInfo.components(separatedBy: " version ").dropFirst().first.map({ String($0) }),
                 let minVersion = fromMinVersion.split(separator: "\n").first.map({ String($0) })
             else {
-                throw PackageInfoMapperError.cantParseMinDeploymentTarget(platform)
+                throw PackageInfoMapperError.minDeploymentTargetParsingFailed(platform)
             }
 
             switch platform {
