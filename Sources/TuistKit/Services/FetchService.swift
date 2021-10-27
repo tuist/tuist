@@ -62,7 +62,6 @@ final class FetchService {
     }
     
     private func fetchDependencies(path: AbsolutePath) throws {
-        guard FileHandler.shared.exists(path.appending(component: "Dependencies.swift")) else { return }
         logger.info("Resolving and fetching dependencies.", metadata: .section)
 
         let dependencies = try dependenciesModelLoader.loadDependencies(at: path)
