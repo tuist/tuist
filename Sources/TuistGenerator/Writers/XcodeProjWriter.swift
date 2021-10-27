@@ -46,7 +46,18 @@ public final class XcodeProjWriter: XcodeProjWriting {
             try self.write(project: projectDescriptor, schemesOrderHint: schemesOrderHint)
         }
         try workspace.xcworkspace.write(path: workspace.xcworkspacePath.path, override: true)
-        try writeSchemes(schemeDescriptors: workspace.schemeDescriptors, xccontainerPath: workspace.xcworkspacePath, schemesOrderHint: schemesOrderHint)
+
+        // Write all schemes (XCWorkspace doesn't manage any schemes like XcodeProj.sharedData)
+        try writeSchemes(
+            schemeDescriptors: workspace.schemeDescriptors,
+            xccontainerPath: workspace.xcworkspacePath,
+            wipeSharedSchemesBeforeWriting: true
+        )
+        try writeXCSchemeManagement(
+            schemes: workspace.schemeDescriptors,
+            xccontainerPath: workspace.xcworkspacePath,
+            schemesOrderHint: schemesOrderHint
+        )
         try sideEffectDescriptorExecutor.execute(sideEffects: workspace.sideEffectDescriptors)
     }
 
@@ -54,30 +65,36 @@ public final class XcodeProjWriter: XcodeProjWriting {
 
     private func write(project: ProjectDescriptor, schemesOrderHint: [String: Int]?) throws {
         let schemesOrderHint = schemesOrderHint ?? self.schemesOrderHint(schemes: project.schemeDescriptors)
-        let project = enrichingXcodeProjWithSchemes(descriptor: project)
+
+        // XcodeProj can manage writing of shared schemes, we have to manually manage the user schemes
+        let project = enrichingXcodeProjWithSharedSchemes(descriptor: project)
         try project.xcodeProj.write(path: project.xcodeprojPath.path)
-        try writeSchemes(schemeDescriptors: project.schemeDescriptors, xccontainerPath: project.xcodeprojPath, schemesOrderHint: schemesOrderHint)
+
+        // Write user schemes only
+        try writeSchemes(
+            schemeDescriptors: project.userSchemeDescriptors,
+            xccontainerPath: project.xcodeprojPath,
+            wipeSharedSchemesBeforeWriting: false // Since we are only writing user schemes
+        )
+        try writeXCSchemeManagement(
+            schemes: project.schemeDescriptors,
+            xccontainerPath: project.xcodeprojPath,
+            schemesOrderHint: schemesOrderHint
+        )
+
         try sideEffectDescriptorExecutor.execute(sideEffects: project.sideEffectDescriptors)
     }
 
-    private func writeSchemes(schemeDescriptors: [SchemeDescriptor],
-                              xccontainerPath: AbsolutePath,
-                              schemesOrderHint: [String: Int]) throws
-    {
-        let currentSchemes = self.currentSchemes(xccontainerPath: xccontainerPath)
-        let writtenSchemes = try schemeDescriptors.map { try write(scheme: $0, xccontainerPath: xccontainerPath) }
-        try writeXCSchemeManagement(schemes: schemeDescriptors, xccontainerPath: xccontainerPath, schemesOrderHint: schemesOrderHint)
-        // If we don't delete the schemes that we no longer need they'll remain as leftovers and show up
-        // on the schemes dropdown menu
-        try Set(currentSchemes).subtracting(writtenSchemes).forEach { schemeToDelete in
-            try FileHandler.shared.delete(schemeToDelete)
+    private func writeSchemes(
+        schemeDescriptors: [SchemeDescriptor],
+        xccontainerPath: AbsolutePath,
+        wipeSharedSchemesBeforeWriting: Bool
+    ) throws {
+        let sharedSchemesPath = schemeDirectory(path: xccontainerPath, shared: true)
+        if wipeSharedSchemesBeforeWriting, FileHandler.shared.exists(sharedSchemesPath) {
+            try FileHandler.shared.delete(sharedSchemesPath)
         }
-    }
-
-    private func currentSchemes(xccontainerPath: AbsolutePath) -> [AbsolutePath] {
-        let sharedSchemesDirectory = schemeDirectory(path: xccontainerPath, shared: true)
-        let userSchemesDirectory = schemeDirectory(path: xccontainerPath, shared: false)
-        return [sharedSchemesDirectory, userSchemesDirectory].flatMap { FileHandler.shared.glob($0, glob: "*.xcscheme") }
+        try schemeDescriptors.forEach { try write(scheme: $0, xccontainerPath: xccontainerPath) }
     }
 
     private func schemesOrderHint(schemes: [SchemeDescriptor]) -> [String: Int] {
@@ -85,46 +102,56 @@ public final class XcodeProjWriter: XcodeProjWriting {
         return sortedSchemes.reduceWithIndex(into: [String: Int]()) { $0[$1.xcScheme.name] = $2 }
     }
 
-    private func enrichingXcodeProjWithSchemes(descriptor: ProjectDescriptor) -> ProjectDescriptor {
-        let sharedSchemes = descriptor.schemeDescriptors.filter { $0.shared }
-        let userSchemes = descriptor.schemeDescriptors.filter { !$0.shared }
-
+    private func enrichingXcodeProjWithSharedSchemes(descriptor: ProjectDescriptor) -> ProjectDescriptor {
+        // XcodeProj.sharedData manages writing / replacing of shared schemes
         let xcodeProj = descriptor.xcodeProj
         let sharedData = xcodeProj.sharedData ?? XCSharedData(schemes: [])
 
-        sharedData.schemes.append(contentsOf: sharedSchemes.map(\.xcScheme))
+        sharedData.schemes.append(contentsOf: descriptor.sharedSchemeDescriptors.map(\.xcScheme))
         xcodeProj.sharedData = sharedData
 
         return ProjectDescriptor(
             path: descriptor.path,
             xcodeprojPath: descriptor.xcodeprojPath,
             xcodeProj: descriptor.xcodeProj,
-            schemeDescriptors: userSchemes,
+            schemeDescriptors: descriptor.schemeDescriptors,
             sideEffectDescriptors: descriptor.sideEffectDescriptors
         )
     }
 
-    private func writeXCSchemeManagement(schemes: [SchemeDescriptor], xccontainerPath: AbsolutePath, schemesOrderHint: [String: Int] = [:]) throws {
-        let xcschememanagementPath = schemeDirectory(path: xccontainerPath, shared: false).appending(component: "xcschememanagement.plist")
-        var userStateSchemes: [XCSchemeManagement.UserStateScheme] = []
-        schemes.forEach { scheme in
-            userStateSchemes.append(.init(name: scheme.xcScheme.name, shared: scheme.shared, orderHint: schemesOrderHint[scheme.xcScheme.name], isShown: !scheme.hidden))
+    private func writeXCSchemeManagement(
+        schemes: [SchemeDescriptor],
+        xccontainerPath: AbsolutePath,
+        schemesOrderHint: [String: Int] = [:]
+    ) throws {
+        let xcschememanagementPath = schemeDirectory(
+            path: xccontainerPath,
+            shared: false
+        ).appending(component: "xcschememanagement.plist")
+        let userStateSchemes = schemes.map { scheme in
+            XCSchemeManagement.UserStateScheme(
+                name: scheme.xcScheme.name,
+                shared: scheme.shared,
+                orderHint: schemesOrderHint[scheme.xcScheme.name],
+                isShown: !scheme.hidden
+            )
         }
         if FileHandler.shared.exists(xcschememanagementPath) {
             try FileHandler.shared.delete(xcschememanagementPath)
         }
+        try FileHandler.shared.createFolder(xcschememanagementPath.parentDirectory)
         try XCSchemeManagement(schemeUserState: userStateSchemes, suppressBuildableAutocreation: nil)
             .write(path: xcschememanagementPath.path)
     }
 
-    private func write(scheme: SchemeDescriptor,
-                       xccontainerPath: AbsolutePath) throws -> AbsolutePath
-    {
+    private func write(
+        scheme: SchemeDescriptor,
+        xccontainerPath: AbsolutePath
+    ) throws {
         let schemeDirectory = self.schemeDirectory(path: xccontainerPath, shared: scheme.shared)
         let schemePath = schemeDirectory.appending(component: "\(scheme.xcScheme.name).xcscheme")
         try FileHandler.shared.createFolder(schemeDirectory)
         try scheme.xcScheme.write(path: schemePath.path, override: true)
-        return schemePath
     }
 
     private func schemeDirectory(path: AbsolutePath, shared: Bool = true) -> AbsolutePath {
@@ -134,5 +161,15 @@ public final class XcodeProjWriter: XcodeProjWriting {
             let username = NSUserName()
             return path.appending(RelativePath("xcuserdata/\(username).xcuserdatad/xcschemes"))
         }
+    }
+}
+
+private extension ProjectDescriptor {
+    var sharedSchemeDescriptors: [SchemeDescriptor] {
+        schemeDescriptors.filter { $0.shared }
+    }
+
+    var userSchemeDescriptors: [SchemeDescriptor] {
+        schemeDescriptors.filter { !$0.shared }
     }
 }
