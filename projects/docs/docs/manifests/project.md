@@ -376,6 +376,8 @@ A `Scheme` defines a collection of targets to `Build, Run, Test, Profile, Analyz
 | `archiveAction` | Action that runs the project archive.                                                                                            | [`ArchiveAction`](#archive-action) | No       |         |
 | `profileAction` | Action that profiles the project.                                                                                                | [`ProfileAction`](#profile-action) | No       |         |
 | `analyzeAction` | Action that analyze the project.                                                                                                 | [`AnalyzeAction`](#analyze-action) | No       |         |
+| `hidden` | When `true` the scheme doesn't show up in the dropdown scheme's list.                                                             | `Boolean`| No       |       `false`  |
+
 
 :::note Auto-generation of schemes
 Tuist will auto-generate a scheme for each target by default in addition to any defined schemes. This however can be disabled if needed via the [Configuration generationOptions](/manifests/config#generationoption).

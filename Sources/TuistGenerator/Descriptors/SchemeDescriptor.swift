@@ -19,8 +19,12 @@ public struct SchemeDescriptor {
     /// The Scheme type shared vs user scheme
     public var shared: Bool
 
-    public init(xcScheme: XCScheme, shared: Bool) {
+    /// Whether the scheme is hidden or not.
+    public var hidden: Bool
+
+    public init(xcScheme: XCScheme, shared: Bool, hidden: Bool) {
         self.xcScheme = xcScheme
         self.shared = shared
+        self.hidden = hidden
     }
 }

@@ -183,7 +183,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             wasCreatedForAppExtension: wasCreatedForAppExtension
         )
 
-        return SchemeDescriptor(xcScheme: xcscheme, shared: scheme.shared)
+        return SchemeDescriptor(xcScheme: xcscheme, shared: scheme.shared, hidden: scheme.hidden)
     }
 
     /// Generates the scheme build action.
