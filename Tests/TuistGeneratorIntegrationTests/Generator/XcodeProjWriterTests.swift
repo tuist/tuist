@@ -105,25 +105,25 @@ final class XcodeProjWriterTests: TuistTestCase {
         XCTAssertTrue(paths.allSatisfy { FileHandler.shared.exists($0) })
     }
 
-    func test_generate_replacesSchemes() throws {
+    func test_generate_replacesProjectSharedSchemes() throws {
         // Given
         let path = try temporaryPath()
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
         let schemeA = SchemeDescriptor.test(name: "SchemeA", shared: true)
         let schemeB = SchemeDescriptor.test(name: "SchemeB", shared: true)
-        let userScheme = SchemeDescriptor.test(name: "UserScheme", shared: false)
+        let schemeC = SchemeDescriptor.test(name: "SchemeC", shared: true)
 
         let schemesWriteOperations = [
             [schemeA, schemeB],
-            [schemeA, userScheme],
+            [schemeA, schemeC],
         ]
 
         // When
-        try schemesWriteOperations.forEach {
+        try schemesWriteOperations.forEach { schemes in
             let descriptor = ProjectDescriptor.test(
                 path: path,
                 xcodeprojPath: xcodeProjPath,
-                schemes: $0
+                schemes: schemes
             )
             try subject.write(project: descriptor)
         }
@@ -133,7 +133,101 @@ final class XcodeProjWriterTests: TuistTestCase {
         let schemes = fileHandler.glob(xcodeProjPath, glob: "**/*.xcscheme").map(\.basename)
         XCTAssertEqual(schemes, [
             "SchemeA.xcscheme",
-            "UserScheme.xcscheme",
+            "SchemeC.xcscheme",
+        ])
+    }
+
+    func test_generate_preservesProjectUserSchemes() throws {
+        // Given
+        let path = try temporaryPath()
+        let xcodeProjPath = path.appending(component: "Project.xcodeproj")
+        let userSchemeA = SchemeDescriptor.test(name: "UserSchemeA", shared: false)
+        let userSchemeB = SchemeDescriptor.test(name: "UserSchemeB", shared: false)
+
+        let schemesWriteOperations = [
+            [userSchemeA],
+            [userSchemeB],
+        ]
+
+        // When
+        try schemesWriteOperations.forEach { schemes in
+            let descriptor = ProjectDescriptor.test(
+                path: path,
+                xcodeprojPath: xcodeProjPath,
+                schemes: schemes
+            )
+            try subject.write(project: descriptor)
+        }
+
+        // Then
+        let fileHandler = FileHandler.shared
+        let schemes = fileHandler.glob(xcodeProjPath, glob: "**/*.xcscheme").map(\.basename)
+        XCTAssertEqual(schemes, [
+            "UserSchemeA.xcscheme",
+            "UserSchemeB.xcscheme",
+        ])
+    }
+
+    func test_generate_replacesWorkspaceSharedSchemes() throws {
+        // Given
+        let path = try temporaryPath()
+        let xcworkspacePath = path.appending(component: "Workspace.xcworkspace")
+        let schemeA = SchemeDescriptor.test(name: "SchemeA", shared: true)
+        let schemeB = SchemeDescriptor.test(name: "SchemeB", shared: true)
+        let schemeC = SchemeDescriptor.test(name: "SchemeC", shared: true)
+
+        let schemesWriteOperations = [
+            [schemeA, schemeB],
+            [schemeA, schemeC],
+        ]
+
+        // When
+        try schemesWriteOperations.forEach { schemes in
+            let descriptor = WorkspaceDescriptor.test(
+                path: path,
+                xcworkspacePath: xcworkspacePath,
+                schemes: schemes
+            )
+            try subject.write(workspace: descriptor)
+        }
+
+        // Then
+        let fileHandler = FileHandler.shared
+        let schemes = fileHandler.glob(xcworkspacePath, glob: "**/*.xcscheme").map(\.basename)
+        XCTAssertEqual(schemes, [
+            "SchemeA.xcscheme",
+            "SchemeC.xcscheme",
+        ])
+    }
+
+    func test_generate_preservesWorkspaceUserSchemes() throws {
+        // Given
+        let path = try temporaryPath()
+        let xcworkspacePath = path.appending(component: "Workspace.xcworkspace")
+        let userSchemeA = SchemeDescriptor.test(name: "UserSchemeA", shared: false)
+        let userSchemeB = SchemeDescriptor.test(name: "UserSchemeB", shared: false)
+
+        let schemesWriteOperations = [
+            [userSchemeA],
+            [userSchemeB],
+        ]
+
+        // When
+        try schemesWriteOperations.forEach { schemes in
+            let descriptor = WorkspaceDescriptor.test(
+                path: path,
+                xcworkspacePath: xcworkspacePath,
+                schemes: schemes
+            )
+            try subject.write(workspace: descriptor)
+        }
+
+        // Then
+        let fileHandler = FileHandler.shared
+        let schemes = fileHandler.glob(xcworkspacePath, glob: "**/*.xcscheme").map(\.basename)
+        XCTAssertEqual(schemes, [
+            "UserSchemeA.xcscheme",
+            "UserSchemeB.xcscheme",
         ])
     }
 
