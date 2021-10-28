@@ -41,7 +41,7 @@ class Generator: Generating {
     convenience init(contentHasher: ContentHashing) {
         self.init(
             projectMapperProvider: ProjectMapperProvider(contentHasher: contentHasher),
-            graphMapperProvider: GraphMapperProvider(),
+            graphMapperProvider: GraphMapperProviderFactory().defaultProvider(),
             workspaceMapperProvider: WorkspaceMapperProvider(contentHasher: contentHasher),
             manifestLoaderFactory: ManifestLoaderFactory()
         )

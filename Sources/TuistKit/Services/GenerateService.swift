@@ -15,7 +15,7 @@ final class GenerateServiceProjectGeneratorFactory: GenerateServiceProjectGenera
         let projectMapperProvider = ProjectMapperProvider(contentHasher: contentHasher)
         return Generator(
             projectMapperProvider: projectMapperProvider,
-            graphMapperProvider: GraphMapperProvider(),
+            graphMapperProvider: GraphMapperProviderFactory().defaultProvider(),
             workspaceMapperProvider: WorkspaceMapperProvider(contentHasher: contentHasher),
             manifestLoaderFactory: ManifestLoaderFactory()
         )

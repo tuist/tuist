@@ -15,15 +15,13 @@ protocol GraphMapperProviding {
 }
 
 final class GraphMapperProvider: GraphMapperProviding {
-    init() {}
-
-    func mapper(config: Config) -> GraphMapping {
-        SequentialGraphMapper(mappers(config: config))
+    let mappers: (Config) -> [GraphMapping]
+    
+    init(mappers: @escaping (Config) -> [GraphMapping]) {
+        self.mappers = mappers
     }
-
-    func mappers(config _: Config) -> [GraphMapping] {
-        var mappers: [GraphMapping] = []
-        mappers.append(UpdateWorkspaceProjectsGraphMapper())
-        return mappers
+    
+    func mapper(config: Config) -> GraphMapping {
+        return SequentialGraphMapper(mappers(config))
     }
 }

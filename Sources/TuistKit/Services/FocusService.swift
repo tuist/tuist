@@ -18,13 +18,11 @@ final class FocusServiceProjectGeneratorFactory: FocusServiceProjectGeneratorFac
 
     func generator(sources: Set<String>, xcframeworks: Bool, cacheProfile: TuistGraph.Cache.Profile, ignoreCache: Bool) -> Generating {
         let contentHasher = CacheContentHasher()
-        let graphMapperProvider = FocusGraphMapperProvider(
-            contentHasher: contentHasher,
-            cache: !ignoreCache,
-            cacheSources: sources,
-            cacheProfile: cacheProfile,
-            cacheOutputType: xcframeworks ? .xcframework : .framework
-        )
+        let graphMapperProvider = GraphMapperProviderFactory().focusProvider(contentHasher: contentHasher,
+                                                                             cache: !ignoreCache,
+                                                                             cacheSources: sources,
+                                                                             cacheProfile: cacheProfile,
+                                                                             cacheOutputType: xcframeworks ? .xcframework : .framework)
         let projectMapperProvider = ProjectMapperProvider(contentHasher: contentHasher)
         return Generator(
             projectMapperProvider: projectMapperProvider,

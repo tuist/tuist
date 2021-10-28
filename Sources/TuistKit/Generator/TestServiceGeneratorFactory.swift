@@ -4,6 +4,7 @@ import TuistCache
 import TuistCore
 import TuistLoader
 import TuistSupport
+import TuistGraph
 
 protocol TestServiceGeneratorFactorying {
     func generator(
@@ -21,9 +22,7 @@ final class TestServiceGeneratorFactory: TestServiceGeneratorFactorying {
     ) -> Generating {
         Generator(
             projectMapperProvider: AutomationProjectMapperProvider(skipUITests: skipUITests),
-            graphMapperProvider: AutomationGraphMapperProvider(
-                testsCacheDirectory: testsCacheDirectory
-            ),
+            graphMapperProvider: GraphMapperProviderFactory().automationProvider(testsCacheDirectory: testsCacheDirectory),
             workspaceMapperProvider: AutomationWorkspaceMapperProvider(
                 workspaceDirectory: FileHandler.shared.resolveSymlinks(automationPath),
                 skipUITests: skipUITests

@@ -28,26 +28,6 @@ class CacheControllerProjectMapperProvider: ProjectMapperProviding {
     }
 }
 
-class CacheControllerGraphMapperProvider: GraphMapperProviding {
-    private let includedTargets: Set<String>?
-    private let defaultProvider: GraphMapperProviding
-    init(includedTargets: Set<String>?,
-         defaultProvider: GraphMapperProviding = GraphMapperProvider())
-    {
-        self.includedTargets = includedTargets
-        self.defaultProvider = defaultProvider
-    }
-
-    func mapper(config: Config) -> GraphMapping {
-        let defaultMapper = defaultProvider.mapper(config: config)
-        return SequentialGraphMapper([
-            FilterTargetsDependenciesTreeGraphMapper(includedTargets: includedTargets),
-            CacheTreeShakingGraphMapper(),
-            defaultMapper,
-        ])
-    }
-}
-
 protocol CacheControllerProjectGeneratorProviding {
     /// Returns an instance of the project generator that should be used to generate the projects for caching.
     /// - Parameter includedTargets: Targets to be filtered
@@ -71,9 +51,10 @@ class CacheControllerProjectGeneratorProvider: CacheControllerProjectGeneratorPr
             workspaceMapperProvider: workspaceMapperProvider,
             includedTargets: includedTargets ?? []
         )
+        let graphMapperProvider = GraphMapperProviderFactory().cacheProvider(includedTargets: includedTargets)
         return Generator(
             projectMapperProvider: projectMapperProvider,
-            graphMapperProvider: CacheControllerGraphMapperProvider(includedTargets: includedTargets),
+            graphMapperProvider: graphMapperProvider,
             workspaceMapperProvider: cacheWorkspaceMapperProvider,
             manifestLoaderFactory: ManifestLoaderFactory()
         )
