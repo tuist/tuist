@@ -234,17 +234,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
         let minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]
         minDeploymentTargets = try Set(targetToPlatforms.values).reduce(into: [:]) { result, platform in
-            let sdk: String
-            switch platform {
-            case .iOS:
-                sdk = "iphoneos"
-            case .macOS:
-                sdk = "macosx"
-            case .watchOS:
-                sdk = "watchos"
-            case .tvOS:
-                sdk = "appletvos"
-            }
+            // Calculate the minimum deployment target for a given platform, by analyzing the corresponding XCTest framework using `vtool`
+            let sdk = TuistGraph.Platform(rawValue: platform.rawValue)!.xcodeSdkRoot
             let sdkPlatformPath = try System.shared.capture("/usr/bin/xcrun", "--sdk", sdk, "--show-sdk-platform-path").spm_chomp()
             let xcTestRelativePath = "Developer/Library/Frameworks/XCTest.framework/XCTest"
             let sdkInfo = try System.shared.capture("/usr/bin/xcrun", "vtool", "-show-build", "\(sdkPlatformPath)/\(xcTestRelativePath)")
