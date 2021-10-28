@@ -273,6 +273,7 @@ The type of build product this target will output. It can be any of the followin
 | `.watch2Extension`      | A Watch application extension. (watchOS platform only).               |
 | `.messagesExtension`    | An iMessage extension. (iOS platform only)                            |
 | `.appClip`              | An appClip. (iOS platform only).                                      |
+| `.commandLineTool`      | A command line tool (macOS platform only).                            |
 
 ### InfoPlist
 
