@@ -15,6 +15,7 @@ saying goes, "one image is worth a thousand words":
 The command will output the dependency graph as an image, in the `png` format.
 You can also change the format to `dot` (see [DOT](<https://en.wikipedia.org/wiki/DOT_(graph_description_language)>))
 to get the raw contents of the graph.
+You can also change the format to `json` to export the project structure into a JSON file.
 
 ### Command
 
@@ -24,10 +25,10 @@ Run the following command from a directory that contains a workspace or project 
 tuist graph
 ```
 
-If you prefer to have the dot representation of the graph and render it separately, you can run:
+If you prefer to have the dot or json representations of the graph and render it separately, you can run:
 
 ```bash
-tuist graph --format dot
+tuist graph --format [dot|json]
 ```
 
 To show the graph of only specific targets and their dependencies, you can run:
@@ -52,7 +53,7 @@ If you prefer the old style, without different colors and shapes, pass the `--si
 | ------------------------------ | ----- | ---------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ----------------- | -------- |
 | `--skip-test-targets`          | `-t`  | Excludes test targets from the generated graph.                                                                  |                                                                                                                                    |                   | No       |
 | `--skip-external-dependencies` | `-d`  | Excludes external dependencies from the generated graph.                                                         |                                                                                                                                    |                   | No       |
-| `--format`                     | `-f`  | The format of the generated graph.                                                                               | `dot`, `png`                                                                                                                       | `png`             | No       |
+| `--format`                     | `-f`  | The format of the generated graph.                                                                               | `dot`, `png`, `json`                                                                                                                       | `png`             | No       |
 | `--simple`                     | `-s`  | Simple graph: disable different shapes and colors.                                                               |                                                                                                                                    |                   | No       |
 | `--algorithm`                  | `-a`  | The algorithm used for drawing the graph. For large graphs, it's recommended to use `fdp`.                       | `dot`, `neato`, `twopi`, `circo`, `fdp`, `sfdp`, `patchwork`                                                                       | `dot`             | No       |
 | `--path`                       | `-p`  | The path to the directory that contains the definition of the project.                                           |                                                                                                                                    | Current directory | No       |
