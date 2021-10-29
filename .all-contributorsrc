@@ -568,6 +568,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "cconstable",
+      "name": "Christopher Constable",
+      "avatar_url": "https://avatars.githubusercontent.com/u/564781?v=4",
+      "profile": "https://github.com/cconstable",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
