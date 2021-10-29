@@ -2,8 +2,6 @@ name: Bug Report
 description: Create a report to help us improve
 title: "[Bug]: "
 labels: ["bug"]
-assignees:
-  - "@tuist/core"
 body:
   - type: markdown
     attributes:
