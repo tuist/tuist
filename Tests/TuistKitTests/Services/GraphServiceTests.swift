@@ -64,4 +64,33 @@ final class GraphServiceTests: TuistUnitTestCase {
         Graph exported to \(graphPath.pathString)
         """)
     }
+    
+    func test_run_whenJson() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        let graphPath = temporaryPath.appending(component: "graph.json")
+        let projectManifestPath = temporaryPath.appending(component: "Project.swift")
+
+        try FileHandler.shared.touch(graphPath)
+        try FileHandler.shared.touch(projectManifestPath)
+
+        // When
+        try subject.run(
+            format: .json,
+            layoutAlgorithm: .dot,
+            skipTestTargets: false,
+            skipExternalDependencies: false,
+            targetsToFilter: [],
+            path: temporaryPath,
+            outputPath: temporaryPath
+        )
+        let got = try FileHandler.shared.readTextFile(graphPath)
+        let expected = "{\"packages\":[],\"workspace\":{\"path\":\"\\/\",\"schemes\":[],\"additionalFiles\":[],\"name\":\"test\",\"projects\":[],\"xcWorkspacePath\":\"\\/\"},\"targets\":[],\"path\":\"\\/\",\"dependencies\":[],\"name\":\"graph\",\"projects\":[]}"
+        // Then
+        XCTAssertEqual(got, expected)
+        XCTAssertPrinterOutputContains("""
+        Deleting existing graph at \(graphPath.pathString)
+        Graph exported to \(graphPath.pathString)
+        """)
+    }
 }

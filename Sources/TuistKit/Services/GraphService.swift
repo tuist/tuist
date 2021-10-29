@@ -11,6 +11,10 @@ import TuistSupport
 final class GraphService {
     private let graphVizMapper: GraphToGraphVizMapping
     private let manifestGraphLoader: ManifestGraphLoading
+    
+    private enum GraphServiceError: Error {
+        case withMessage(String)
+    }
 
     convenience init() {
         let manifestLoader = ManifestLoaderFactory()
@@ -41,19 +45,32 @@ final class GraphService {
     {
         let graph = try manifestGraphLoader.loadGraph(at: path)
 
-        let graphVizGraph = graphVizMapper.map(
-            graph: graph,
-            skipTestTargets: skipTestTargets,
-            skipExternalDependencies: skipExternalDependencies,
-            targetsToFilter: targetsToFilter
-        )
-
         let filePath = outputPath.appending(component: "graph.\(format.rawValue)")
         if FileHandler.shared.exists(filePath) {
             logger.notice("Deleting existing graph at \(filePath.pathString)")
             try FileHandler.shared.delete(filePath)
         }
-        try export(graph: graphVizGraph, at: filePath, withFormat: format, layoutAlgorithm: layoutAlgorithm)
+        
+        switch format {
+        case .dot, .png:
+            let graphVizGraph = graphVizMapper.map(
+                graph: graph,
+                skipTestTargets: skipTestTargets,
+                skipExternalDependencies: skipExternalDependencies,
+                targetsToFilter: targetsToFilter
+            )
+            
+            try export(graph: graphVizGraph, at: filePath, withFormat: format, layoutAlgorithm: layoutAlgorithm)
+        case .json:
+            let jsonData = try JSONEncoder().encode(graph)
+            let jsonString = String(data: jsonData, encoding: .utf8)
+            guard let jsonString = jsonString else {
+                throw GraphServiceError.withMessage("failed to encode graph to JSON")
+            }
+            
+            try export(jsonContent: jsonString, at: filePath)
+        }
+        
         logger.notice("Graph exported to \(filePath.pathString).", metadata: .success)
     }
 
@@ -67,7 +84,13 @@ final class GraphService {
             try exportDOTRepresentation(from: graph, at: filePath)
         case .png:
             try exportPNGRepresentation(from: graph, at: filePath, layoutAlgorithm: layoutAlgorithm)
+        default:
+            throw GraphServiceError.withMessage("\(format.rawValue) is not a visual graph format to export")
         }
+    }
+    
+    private func export(jsonContent: String, at filePath: AbsolutePath) throws {
+        try FileHandler.shared.write(jsonContent, path: filePath, atomically: true)
     }
 
     private func exportDOTRepresentation(from graphVizGraph: GraphViz.Graph, at filePath: AbsolutePath) throws {
