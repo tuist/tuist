@@ -45,10 +45,6 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
                     [
                         .local(path: Path(localSwiftPackagePath.pathString)),
                         .remote(url: "RemoteUrl.com", requirement: .exact("1.2.3")),
-                    ],
-                    deploymentTargets: [
-                        .iOS(targetVersion: "13.0", devices: [.iphone]),
-                        .macOS(targetVersion: "10.0"),
                     ]
                 ),
                 platforms: [.iOS, .macOS]
@@ -71,11 +67,7 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
                     .local(path: localSwiftPackagePath),
                     .remote(url: "RemoteUrl.com", requirement: .exact("1.2.3")),
                 ],
-                productTypes: [:],
-                deploymentTargets: [
-                    .iOS("13.0", [.iphone]),
-                    .macOS("10.0"),
-                ]
+                productTypes: [:]
             ),
             platforms: [.iOS, .macOS]
         )

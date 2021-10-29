@@ -12,6 +12,9 @@ enum PackageInfoMapperError: FatalError, Equatable {
     /// Thrown when the default path folder is not present.
     case defaultPathNotFound(AbsolutePath, String)
 
+    /// Thrown when the parsing of minimum deployment target failed.
+    case minDeploymentTargetParsingFailed(ProjectDescription.Platform)
+
     /// Thrown when no supported platforms are found for a package.
     case noSupportedPlatforms(name: String, configured: Set<ProjectDescription.Platform>, package: Set<ProjectDescription.Platform>)
 
@@ -35,7 +38,7 @@ enum PackageInfoMapperError: FatalError, Equatable {
         switch self {
         case .noSupportedPlatforms, .unknownByNameDependency, .unknownPlatform, .unknownProductDependency, .unknownProductTarget:
             return .abort
-        case .defaultPathNotFound, .unsupportedSetting:
+        case .minDeploymentTargetParsingFailed, .defaultPathNotFound, .unsupportedSetting:
             return .bug
         }
     }
@@ -48,6 +51,8 @@ enum PackageInfoMapperError: FatalError, Equatable {
             Default source path not found for package at \(packageFolder.pathString). \
             Source path must be one of \(PackageInfoMapper.predefinedSourceDirectories.map { "\($0)/\(targetName)" })
             """
+        case let .minDeploymentTargetParsingFailed(platform):
+            return "The minimum deployment target for \(platform) platform cannot be parsed."
         case let .noSupportedPlatforms(name, configured, package):
             return "No supported platform found for the \(name) dependency. Configured: \(configured), package: \(package)."
         case let .unknownByNameDependency(name):
@@ -73,18 +78,16 @@ public protocol PackageInfoMapping {
     ///   - packageInfos: All available `PackageInfo`s
     ///   - productToPackage: Mapping from a product to its package
     ///   - packageToFolder: Mapping from a package name to its local folder
-    ///   - targetDependencyToFramework: Mapping from a target dependency to its framework
+    ///   - artifactsFolder: The folders containing downloaded SwiftPackageManager artifacts
+    ///   - platforms: The configured platforms
     /// - Returns: Mapped project
     func preprocess(
         packageInfos: [String: PackageInfo],
         productToPackage: [String: String],
         packageToFolder: [String: AbsolutePath],
-        artifactsFolder: AbsolutePath
-    ) throws -> ( // swiftlint:disable:this large_tuple
-        targetToProducts: [String: Set<PackageInfo.Product>],
-        resolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
-        externalDependencies: [String: [ProjectDescription.TargetDependency]]
-    )
+        artifactsFolder: AbsolutePath,
+        platforms: Set<TuistGraph.Platform>
+    ) throws -> PackageInfoMapper.PreprocessInfo
 
     /// Maps a `PackageInfo` to a `ProjectDescription.Project`.
     /// - Parameters:
@@ -93,8 +96,10 @@ public protocol PackageInfoMapping {
     ///   - name: Name of the package
     ///   - path: Path of the package
     ///   - productTypes: Product type mapping
-    ///   - platforms: Configured platforms
-    ///   - deploymentTargets: Configured deployment targets
+    ///   - minDeploymentTargets: Minimum support deployment target per platform
+    ///   - targetToPlatform: Mapping from a target name to its platform
+    ///   - targetToProducts: Mapping from a target name to its products
+    ///   - targetToResolvedDependencies: Mapping from a target name to its dependencies
     ///   - packageToProject: Mapping from a package name to its path
     ///   - swiftToolsVersion: The version of Swift tools that will be used to map dependencies
     /// - Returns: Mapped project
@@ -104,8 +109,8 @@ public protocol PackageInfoMapping {
         name: String,
         path: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
-        platforms: Set<TuistGraph.Platform>,
-        deploymentTargets: Set<TuistGraph.DeploymentTarget>,
+        minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
+        targetToPlatform: [String: ProjectDescription.Platform],
         targetToProducts: [String: Set<PackageInfo.Product>],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         packageToProject: [String: AbsolutePath],
@@ -114,6 +119,14 @@ public protocol PackageInfoMapping {
 }
 
 public final class PackageInfoMapper: PackageInfoMapping {
+    public struct PreprocessInfo {
+        let platformToMinDeploymentTarget: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]
+        let productToExternalDependencies: [String: [ProjectDescription.TargetDependency]]
+        let targetToPlatform: [String: ProjectDescription.Platform]
+        let targetToProducts: [String: Set<PackageInfo.Product>]
+        let targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]]
+    }
+
     // Predefined source directories, in order of preference.
     // https://github.com/apple/swift-package-manager/blob/751f0b2a00276be2c21c074f4b21d952eaabb93b/Sources/PackageLoading/PackageBuilder.swift#L488
     fileprivate static let predefinedSourceDirectories = ["Sources", "Source", "src", "srcs"]
@@ -129,18 +142,16 @@ public final class PackageInfoMapper: PackageInfoMapping {
     ///   - packageInfos: All available `PackageInfo`s
     ///   - productToPackage: Mapping from a product to its package
     ///   - packageToFolder: Mapping from a package name to its local folder
-    ///   - targetDependencyToFramework: Mapping from a target dependency to its framework
+    ///   - artifactsFolder: The folders containing downloaded SwiftPackageManager artifacts
+    ///   - platforms: The configured platforms
     /// - Returns: Mapped project
     public func preprocess( // swiftlint:disable:this function_body_length
         packageInfos: [String: PackageInfo],
         productToPackage: [String: String],
         packageToFolder: [String: AbsolutePath],
-        artifactsFolder: AbsolutePath
-    ) throws -> ( // swiftlint:disable:this large_tuple
-        targetToProducts: [String: Set<PackageInfo.Product>],
-        resolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
-        externalDependencies: [String: [ProjectDescription.TargetDependency]]
-    ) {
+        artifactsFolder: AbsolutePath,
+        platforms: Set<TuistGraph.Platform>
+    ) throws -> PreprocessInfo {
         let targetDependencyToFramework: [String: Path] = packageInfos.reduce(into: [:]) { result, packageInfo in
             let artifactsFolderForPackage = artifactsFolder.appending(component: packageInfo.key)
             packageInfo.value.targets.forEach { target in
@@ -211,7 +222,48 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
         }
 
-        return (targetToProducts: targetToProducts, resolvedDependencies: resolvedDependencies, externalDependencies: externalDependencies)
+        let targetToPlatforms: [String: ProjectDescription.Platform] = try packageInfos.reduce(into: [:]) { result, packageInfo in
+            try packageInfo.value.targets.forEach { target in
+                result[target.name] = try ProjectDescription.Platform.from(
+                    configured: platforms,
+                    package: packageInfo.value.platforms,
+                    packageName: packageInfo.key
+                )
+            }
+        }
+
+        let minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]
+        minDeploymentTargets = try Set(targetToPlatforms.values).reduce(into: [:]) { result, platform in
+            // Calculate the minimum deployment target for a given platform, by analyzing the corresponding XCTest framework using `vtool`
+            let sdk = TuistGraph.Platform(rawValue: platform.rawValue)!.xcodeSdkRoot
+            let sdkPlatformPath = try System.shared.capture("/usr/bin/xcrun", "--sdk", sdk, "--show-sdk-platform-path").spm_chomp()
+            let xcTestRelativePath = "Developer/Library/Frameworks/XCTest.framework/XCTest"
+            let sdkInfo = try System.shared.capture("/usr/bin/xcrun", "vtool", "-show-build", "\(sdkPlatformPath)/\(xcTestRelativePath)")
+            guard let fromMinVersion = sdkInfo.components(separatedBy: " version ").dropFirst().first.map({ String($0) }),
+                let minVersion = fromMinVersion.split(separator: "\n").first.map({ String($0) })
+            else {
+                throw PackageInfoMapperError.minDeploymentTargetParsingFailed(platform)
+            }
+
+            switch platform {
+            case .iOS:
+                result[platform] = .iOS(targetVersion: minVersion, devices: [.iphone, .ipad])
+            case .macOS:
+                result[platform] = .macOS(targetVersion: minVersion)
+            case .watchOS:
+                result[platform] = .watchOS(targetVersion: minVersion)
+            case .tvOS:
+                result[platform] = .tvOS(targetVersion: minVersion)
+            }
+        }
+
+        return .init(
+            platformToMinDeploymentTarget: minDeploymentTargets,
+            productToExternalDependencies: externalDependencies,
+            targetToPlatform: targetToPlatforms,
+            targetToProducts: targetToProducts,
+            targetToResolvedDependencies: resolvedDependencies
+        )
     }
 
     public func map(
@@ -220,8 +272,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
         name: String,
         path: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
-        platforms: Set<TuistGraph.Platform>,
-        deploymentTargets: Set<TuistGraph.DeploymentTarget>,
+        minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
+        targetToPlatform: [String: ProjectDescription.Platform],
         targetToProducts: [String: Set<PackageInfo.Product>],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         packageToProject: [String: AbsolutePath],
@@ -238,8 +290,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 packageFolder: path,
                 packageToProject: packageToProject,
                 productTypes: productTypes,
-                platforms: platforms,
-                deploymentTargets: deploymentTargets,
+                platforms: targetToPlatform,
+                minDeploymentTargets: minDeploymentTargets,
                 targetToResolvedDependencies: targetToResolvedDependencies,
                 moduleMapGenerator: moduleMapGenerator
             )
@@ -273,8 +325,8 @@ extension ProjectDescription.Target {
         packageFolder: AbsolutePath,
         packageToProject: [String: AbsolutePath],
         productTypes: [String: TuistGraph.Product],
-        platforms: Set<TuistGraph.Platform>,
-        deploymentTargets: Set<TuistGraph.DeploymentTarget>,
+        platforms: [String: ProjectDescription.Platform],
+        minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         moduleMapGenerator: SwiftPackageManagerModuleMapGenerating
     ) throws -> Self? {
@@ -292,10 +344,10 @@ extension ProjectDescription.Target {
         let publicHeadersPath = try target.publicHeadersPath(packageFolder: packageFolder)
         let moduleMap = try moduleMapGenerator.generate(moduleName: target.name, publicHeadersPath: publicHeadersPath)
 
-        let platform = try ProjectDescription.Platform.from(configured: platforms, package: packageInfo.platforms, packageName: packageName)
+        let platform = platforms[target.name]!
         let deploymentTarget = try ProjectDescription.DeploymentTarget.from(
-            configuredPlatforms: platforms,
-            configuredDeploymentTargets: deploymentTargets,
+            platform: platform,
+            minDeploymentTargets: minDeploymentTargets,
             package: packageInfo.platforms,
             packageName: packageName
         )
@@ -349,7 +401,6 @@ extension ProjectDescription.Platform {
         let packagePlatforms = Set(package.isEmpty ? ProjectDescription.Platform.allCases : try package.map { try $0.descriptionPlatform() })
         let validPlatforms = configuredPlatforms.intersection(packagePlatforms)
 
-        #warning("Handle multiple platforms when supported in ProjectDescription.Target")
         if validPlatforms.contains(.iOS) {
             return .iOS
         }
@@ -368,40 +419,16 @@ extension ProjectDescription.Platform {
 
 extension ProjectDescription.DeploymentTarget {
     fileprivate static func from(
-        configuredPlatforms: Set<TuistGraph.Platform>,
-        configuredDeploymentTargets: Set<TuistGraph.DeploymentTarget>,
+        platform: ProjectDescription.Platform,
+        minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         package: [PackageInfo.Platform],
-        packageName: String
-    ) throws -> Self? {
-        let platform = try ProjectDescription.Platform.from(configured: configuredPlatforms, package: package, packageName: packageName)
-        switch platform {
-        case .iOS:
-            if let packagePlatform = package.first(where: { $0.platformName == "ios" }) {
-                return .iOS(targetVersion: packagePlatform.version, devices: [.iphone, .ipad])
-            } else if let configuredDeploymentTarget = configuredDeploymentTargets.first(where: { $0.platform == "iOS" }) {
-                return .from(deploymentTarget: configuredDeploymentTarget)
-            }
-        case .macOS:
-            if let packagePlatform = package.first(where: { $0.platformName == "macos" }) {
-                return .macOS(targetVersion: packagePlatform.version)
-            } else if let configuredDeploymentTarget = configuredDeploymentTargets.first(where: { $0.platform == "macOS" }) {
-                return .from(deploymentTarget: configuredDeploymentTarget)
-            }
-        case .watchOS:
-            if let packagePlatform = package.first(where: { $0.platformName == "watchos" }) {
-                return .watchOS(targetVersion: packagePlatform.version)
-            } else if let configuredDeploymentTarget = configuredDeploymentTargets.first(where: { $0.platform == "watchOS" }) {
-                return .from(deploymentTarget: configuredDeploymentTarget)
-            }
-        case .tvOS:
-            if let packagePlatform = package.first(where: { $0.platformName == "tvos" }) {
-                return .tvOS(targetVersion: packagePlatform.version)
-            } else if let configuredDeploymentTarget = configuredDeploymentTargets.first(where: { $0.platform == "tvOS" }) {
-                return .from(deploymentTarget: configuredDeploymentTarget)
-            }
+        packageName _: String
+    ) throws -> Self {
+        if let packagePlatform = package.first(where: { $0.platformName == platform.rawValue }) {
+            return .iOS(targetVersion: packagePlatform.version, devices: [.iphone, .ipad])
+        } else {
+            return minDeploymentTargets[platform]!
         }
-
-        return nil
     }
 }
 
