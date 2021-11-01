@@ -76,6 +76,17 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
             arguments.append(contentsOf: ["-scmProvider", "system"])
         }
 
+        // Set specific clone directory for Xcode managed SPM dependencies
+        let clonedSourcePackagesDirPath = config.generationOptions
+            .compactMap { option -> AbsolutePath? in
+                guard case let .clonedSourcePackagesDirPath(path) = option else { return nil }
+                return path
+            }
+            .first
+        if let clonedSourcePackagesDirPath = clonedSourcePackagesDirPath {
+            arguments.append(contentsOf: ["-clonedSourcePackagesDirPath", clonedSourcePackagesDirPath.pathString])
+        }
+
         arguments.append(contentsOf: ["-workspace", workspacePath.pathString, "-list"])
 
         _ = try System.shared.observable(arguments)
