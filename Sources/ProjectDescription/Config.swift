@@ -52,6 +52,8 @@ public struct Config: Codable, Equatable {
         /// Allows to suppress warnings in Xcode about updates to recommended settings added in or below the specified Xcode version. The warnings appear when Xcode version has been upgraded.
         /// It is recommended to set the version option to Xcode's version that is used for development of a project, for example `.lastUpgradeCheck(Version(13, 0, 0))` for Xcode 13.0.0.
         case lastXcodeUpgradeCheck(Version)
+
+        case clonedSourcePackagesDirPath(Path)
     }
 
     /// Generation options.
@@ -113,6 +115,7 @@ extension Config.GenerationOptions {
         case disablePackageVersionLocking
         case disableBundleAccessors
         case lastXcodeUpgradeCheck
+        case clonedSourcePackagesDirPath
     }
 
     public init(from decoder: Decoder) throws {
@@ -157,6 +160,12 @@ extension Config.GenerationOptions {
             var associatedValues = try container.nestedUnkeyedContainer(forKey: .lastXcodeUpgradeCheck)
             let version = try associatedValues.decode(Version.self)
             self = .lastXcodeUpgradeCheck(version)
+        } else if
+            container.allKeys.contains(.clonedSourcePackagesDirPath), try container.decodeNil(forKey: .clonedSourcePackagesDirPath) == false
+        {
+            var associatedValues = try container.nestedUnkeyedContainer(forKey: .clonedSourcePackagesDirPath)
+            let path = try associatedValues.decode(Path.self)
+            self = .clonedSourcePackagesDirPath(path)
         } else {
             throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown enum case"))
         }
@@ -192,6 +201,9 @@ extension Config.GenerationOptions {
         case let .lastXcodeUpgradeCheck(version):
             var associatedValues = container.nestedUnkeyedContainer(forKey: .lastXcodeUpgradeCheck)
             try associatedValues.encode(version)
+        case let .clonedSourcePackagesDirPath(path):
+            var associatedValues = container.nestedUnkeyedContainer(forKey: .clonedSourcePackagesDirPath)
+            try associatedValues.encode(path)
         }
     }
 }
