@@ -88,6 +88,8 @@ extension TuistGraph.Config.GenerationOption {
             return .disableBundleAccessors
         case let .lastXcodeUpgradeCheck(version):
             return .lastUpgradeCheck(.init(version.major, version.minor, version.patch))
+        case let .clonedSourcePackagesDirPath(path):
+            return .clonedSourcePackagesDirPath(try generatorPaths.resolve(path: path))
         }
     }
 }

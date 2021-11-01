@@ -23,6 +23,7 @@ public struct Config: Equatable, Hashable {
         case disableBundleAccessors
         /// Allows to suppress warnings in Xcode about updates to recommended settings.
         case lastUpgradeCheck(Version)
+        case clonedSourcePackagesDirPath(AbsolutePath)
     }
 
     /// List of `Plugin`s used to extend Tuist.

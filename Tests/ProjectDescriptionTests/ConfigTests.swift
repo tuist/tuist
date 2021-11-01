@@ -17,6 +17,7 @@ final class ConfigTests: XCTestCase {
                 .disablePackageVersionLocking,
                 .disableBundleAccessors,
                 .lastXcodeUpgradeCheck(.init(12, 5, 1)),
+                .clonedSourcePackagesDirPath(.relativeToRoot("spm")),
             ]
         )
 
