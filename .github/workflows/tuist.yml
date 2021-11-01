@@ -6,15 +6,17 @@ on:
       - main
   pull_request:
     paths:
-      - Tuist/Dependencies/Lockfiles/Package.resolved
+      - Tuist/**
       - Package.resolved
       - Gemfile*
       - Package.swift
+      - Project.swift
       - Sources/**
       - Tests/**
       - projects/tuist/features/**
       - projects/tuist/fixtures/**
       - .github/workflows/tuist.yml
+      - .package.resolved
 
 concurrency:
   group: tuist-${{ github.head_ref }}
