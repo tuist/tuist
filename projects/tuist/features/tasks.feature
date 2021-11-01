@@ -12,6 +12,7 @@ Feature: Run tasks
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture app_with_plugins into the working directory
+    Then tuist does fetch
     Then tuist runs a task create-file
     Then content of a file named plugin-file.txt should be equal to File created with a plugin
     Then tuist-create-file is added to PATH
