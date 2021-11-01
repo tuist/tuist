@@ -3,6 +3,7 @@ Feature: Run tasks
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture app_with_tasks into the working directory
+    Then tuist does fetch
     Then tuist runs a task create-file
     Then content of a file named file.txt should be equal to File created with a task
     Then tuist runs a task create-file with attribute file-name as custom-file
