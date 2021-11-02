@@ -53,6 +53,8 @@ public struct Config: Codable, Equatable {
         /// It is recommended to set the version option to Xcode's version that is used for development of a project, for example `.lastUpgradeCheck(Version(13, 0, 0))` for Xcode 13.0.0.
         case lastXcodeUpgradeCheck(Version)
 
+        /// Allows setting a custom directory to be used when resolving package dependencies
+        /// This path is passed to `xcodebuild` via the `-clonedSourcePackagesDirPath` argument
         case clonedSourcePackagesDirPath(Path)
     }
 
