@@ -5,6 +5,7 @@ import TuistCore
 import TuistGraph
 import TuistLoader
 import TuistSupport
+import TuistAutomation
 
 final class CacheWarmService {
     private let configLoader: ConfigLoading
@@ -17,22 +18,25 @@ final class CacheWarmService {
         let path = self.path(path)
         let config = try configLoader.loadConfig(path: path)
         let cache = Cache(storageProvider: CacheStorageProvider(config: config))
-        let cacheControllerFactory = CacheControllerFactory(cache: cache)
         let contentHasher = CacheContentHasher()
         let cacheController: CacheControlling
         if xcframeworks {
-            cacheController = cacheControllerFactory.makeForXCFramework(contentHasher: contentHasher)
+            cacheController = xcframeworkCacheController(cache: cache, contentHasher: contentHasher)
         } else {
-            cacheController = cacheControllerFactory.makeForSimulatorFramework(contentHasher: contentHasher)
+            cacheController = simulatorFrameworkCacheController(cache: cache, contentHasher: contentHasher)
         }
 
         let profile = try CacheProfileResolver().resolveCacheProfile(named: profile, from: config)
-        try cacheController.cache(path: path, cacheProfile: profile, includedTargets: targets, dependenciesOnly: dependenciesOnly)
+        try cacheController.cache(config: config,
+                                  path: path,
+                                  cacheProfile: profile,
+                                  includedTargets: targets,
+                                  dependenciesOnly: dependenciesOnly)
     }
 
-    // MARK: - Helpers
+    // MARK: - Fileprivate
 
-    private func path(_ path: String?) -> AbsolutePath {
+    fileprivate func path(_ path: String?) -> AbsolutePath {
         if let path = path {
             return AbsolutePath(path, relativeTo: currentPath)
         } else {
@@ -40,7 +44,29 @@ final class CacheWarmService {
         }
     }
 
-    private var currentPath: AbsolutePath {
+    fileprivate var currentPath: AbsolutePath {
         FileHandler.shared.currentPath
+    }
+
+    fileprivate func simulatorFrameworkCacheController(cache: CacheStoring, contentHasher: ContentHashing) -> CacheControlling {
+        let frameworkBuilder = CacheFrameworkBuilder(xcodeBuildController: XcodeBuildController())
+        let bundleBuilder = CacheBundleBuilder(xcodeBuildController: XcodeBuildController())
+        return CacheController(
+            cache: cache,
+            artifactBuilder: frameworkBuilder,
+            bundleArtifactBuilder: bundleBuilder,
+            contentHasher: contentHasher
+        )
+    }
+
+    fileprivate func xcframeworkCacheController(cache: CacheStoring, contentHasher: ContentHashing) -> CacheControlling {
+        let frameworkBuilder = CacheXCFrameworkBuilder(xcodeBuildController: XcodeBuildController())
+        let bundleBuilder = CacheBundleBuilder(xcodeBuildController: XcodeBuildController())
+        return CacheController(
+            cache: cache,
+            artifactBuilder: frameworkBuilder,
+            bundleArtifactBuilder: bundleBuilder,
+            contentHasher: contentHasher
+        )
     }
 }

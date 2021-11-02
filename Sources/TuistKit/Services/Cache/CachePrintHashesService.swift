@@ -7,16 +7,14 @@ import TuistLoader
 import TuistSupport
 
 final class CachePrintHashesService {
-    /// Project generator
-    let generator: Generating
-
-    let cacheGraphContentHasher: CacheGraphContentHashing
+    private let generatorFactory: GeneratorFactorying
+    private let cacheGraphContentHasher: CacheGraphContentHashing
     private let clock: Clock
     private let configLoader: ConfigLoading
-
+    
     convenience init(contentHasher: ContentHashing = CacheContentHasher()) {
         self.init(
-            generator: Generator(contentHasher: contentHasher),
+            generatorFactory: GeneratorFactory(),
             cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
             clock: WallClock(),
             configLoader: ConfigLoader(manifestLoader: ManifestLoader())
@@ -24,12 +22,12 @@ final class CachePrintHashesService {
     }
 
     init(
-        generator: Generating,
+        generatorFactory: GeneratorFactorying,
         cacheGraphContentHasher: CacheGraphContentHashing,
         clock: Clock,
         configLoader: ConfigLoading
     ) {
-        self.generator = generator
+        self.generatorFactory = generatorFactory
         self.cacheGraphContentHasher = cacheGraphContentHasher
         self.clock = clock
         self.configLoader = configLoader
@@ -37,9 +35,9 @@ final class CachePrintHashesService {
 
     func run(path: AbsolutePath, xcframeworks: Bool, profile: String?) throws {
         let timer = clock.startTimer()
-
-        let graph = try generator.load(path: path)
         let config = try configLoader.loadConfig(path: path)
+        let generator = self.generatorFactory.default(config: config)
+        let graph = try generator.load(path: path)
         let cacheOutputType: CacheOutputType = xcframeworks ? .xcframework : .framework
         let cacheProfile = try CacheProfileResolver().resolveCacheProfile(named: profile, from: config)
         let hashes = try cacheGraphContentHasher.contentHashes(

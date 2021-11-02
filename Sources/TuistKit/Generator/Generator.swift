@@ -32,25 +32,16 @@ class Generator: Generating {
     private let sideEffectDescriptorExecutor: SideEffectDescriptorExecuting
     private let graphMapper: GraphMapping
     private let projectMapperProvider: ProjectMapperProviding
-    private let workspaceMapperProvider: WorkspaceMapperProviding
+    private let workspaceMapper: WorkspaceMapping
     private let manifestLoader: ManifestLoading
     private let pluginsService: PluginServicing
     private let configLoader: ConfigLoading
     private let dependenciesGraphController: DependenciesGraphControlling
 
-    convenience init(contentHasher: ContentHashing) {
-        self.init(
-            projectMapperProvider: ProjectMapperProvider(contentHasher: contentHasher),
-            graphMapper: GraphMapperFactory().default(),
-            workspaceMapperProvider: WorkspaceMapperProvider(contentHasher: contentHasher),
-            manifestLoaderFactory: ManifestLoaderFactory()
-        )
-    }
-
     init(
         projectMapperProvider: ProjectMapperProviding,
         graphMapper: GraphMapping,
-        workspaceMapperProvider: WorkspaceMapperProviding,
+        workspaceMapper: WorkspaceMapping,
         manifestLoaderFactory: ManifestLoaderFactory,
         dependenciesGraphController: DependenciesGraphControlling = DependenciesGraphController()
     ) {
@@ -62,7 +53,7 @@ class Generator: Generating {
         sideEffectDescriptorExecutor = SideEffectDescriptorExecutor()
         self.graphMapper = graphMapper
         self.projectMapperProvider = projectMapperProvider
-        self.workspaceMapperProvider = workspaceMapperProvider
+        self.workspaceMapper = workspaceMapper
         self.manifestLoader = manifestLoader
         pluginsService = PluginService(manifestLoader: manifestLoader)
         configLoader = ConfigLoader(
@@ -265,7 +256,6 @@ class Generator: Generating {
         let models = (workspace: workspace, projects: projects)
 
         // Apply any registered model mappers
-        let workspaceMapper = workspaceMapperProvider.mapper(config: config)
         let (updatedModels, modelMapperSideEffects) = try workspaceMapper.map(
             workspace: .init(workspace: models.workspace, projects: models.projects)
         )
@@ -319,7 +309,6 @@ class Generator: Generating {
         )
 
         // Apply model mappers
-        let workspaceMapper = workspaceMapperProvider.mapper(config: config)
         let (updatedModels, modelMapperSideEffects) = try workspaceMapper.map(
             workspace: .init(workspace: models.workspace, projects: models.projects)
         )

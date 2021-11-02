@@ -28,52 +28,24 @@ class CacheControllerProjectMapperProvider: ProjectMapperProviding {
     }
 }
 
-protocol CacheControllerProjectGeneratorProviding {
-    /// Returns an instance of the project generator that should be used to generate the projects for caching.
-    /// - Parameter includedTargets: Targets to be filtered
-    /// - Returns: An instance of the project generator.
-    func generator(includedTargets: Set<String>?) -> Generating
-}
-
-/// A provider that returns the project generator that should be used by the cache controller.
-class CacheControllerProjectGeneratorProvider: CacheControllerProjectGeneratorProviding {
-    private let contentHasher: ContentHashing
-
-    init(contentHasher: ContentHashing) {
-        self.contentHasher = contentHasher
-    }
-
-    func generator(includedTargets: Set<String>?) -> Generating {
-        let contentHasher = CacheContentHasher()
-        let projectMapperProvider = CacheControllerProjectMapperProvider(contentHasher: contentHasher)
-        let workspaceMapperProvider = WorkspaceMapperProvider(projectMapperProvider: projectMapperProvider)
-        let cacheWorkspaceMapperProvider = GenerateCacheableSchemesWorkspaceMapperProvider(
-            workspaceMapperProvider: workspaceMapperProvider,
-            includedTargets: includedTargets ?? []
-        )
-        let graphMapper = GraphMapperFactory().cache(includedTargets: includedTargets)
-        return Generator(
-            projectMapperProvider: projectMapperProvider,
-            graphMapper: graphMapper,
-            workspaceMapperProvider: cacheWorkspaceMapperProvider,
-            manifestLoaderFactory: ManifestLoaderFactory()
-        )
-    }
-}
-
 protocol CacheControlling {
     /// Caches the cacheable targets that are part of the workspace or project at the given path.
     /// - Parameters:
+    ///   - config: The project configuration.
     ///   - path: Path to the directory that contains a workspace or a project.
     ///   - cacheProfile: The caching profile.
     ///   - includedTargets: If present, a list of the targets and their dependencies to cache.
     ///   - dependenciesOnly: If true, the targets passed in the `targets` parameter are not cached, but only their dependencies
-    func cache(path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile, includedTargets: Set<String>, dependenciesOnly: Bool) throws
+    func cache(config: Config,
+               path: AbsolutePath,
+               cacheProfile: TuistGraph.Cache.Profile,
+               includedTargets: Set<String>,
+               dependenciesOnly: Bool) throws
 }
 
 final class CacheController: CacheControlling {
-    /// Project generator provider.
-    let projectGeneratorProvider: CacheControllerProjectGeneratorProviding
+    /// Generator factory
+    let generatorFactory: GeneratorFactorying
 
     /// Utility to build the (xc)frameworks.
     private let artifactBuilder: CacheArtifactBuilding
@@ -98,7 +70,7 @@ final class CacheController: CacheControlling {
             cache: cache,
             artifactBuilder: artifactBuilder,
             bundleArtifactBuilder: bundleArtifactBuilder,
-            projectGeneratorProvider: CacheControllerProjectGeneratorProvider(contentHasher: contentHasher),
+            generatorFactory: GeneratorFactory(contentHasher: contentHasher),
             cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
             cacheGraphLinter: CacheGraphLinter()
         )
@@ -107,20 +79,20 @@ final class CacheController: CacheControlling {
     init(cache: CacheStoring,
          artifactBuilder: CacheArtifactBuilding,
          bundleArtifactBuilder: CacheArtifactBuilding,
-         projectGeneratorProvider: CacheControllerProjectGeneratorProviding,
+         generatorFactory: GeneratorFactorying,
          cacheGraphContentHasher: CacheGraphContentHashing,
          cacheGraphLinter: CacheGraphLinting)
     {
         self.cache = cache
-        self.projectGeneratorProvider = projectGeneratorProvider
+        self.generatorFactory = generatorFactory
         self.artifactBuilder = artifactBuilder
         self.bundleArtifactBuilder = bundleArtifactBuilder
         self.cacheGraphContentHasher = cacheGraphContentHasher
         self.cacheGraphLinter = cacheGraphLinter
     }
 
-    func cache(path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile, includedTargets: Set<String>, dependenciesOnly: Bool) throws {
-        let generator = projectGeneratorProvider.generator(includedTargets: includedTargets.isEmpty ? nil : Set(includedTargets))
+    func cache(config: Config, path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile, includedTargets: Set<String>, dependenciesOnly: Bool) throws {
+        let generator = generatorFactory.cache(config: config, includedTargets: includedTargets.isEmpty ? nil : Set(includedTargets))
         let (_, graph) = try generator.generateWithGraph(path: path, projectOnly: false)
 
         // Lint
@@ -146,7 +118,7 @@ final class CacheController: CacheControlling {
 
         logger.notice("Filtering cacheable targets")
 
-        let updatedGenerator = projectGeneratorProvider.generator(includedTargets: Set(hashesByTargetToBeCached.map { $0.0.target.name }))
+        let updatedGenerator = generatorFactory.cache(config: config, includedTargets: Set(hashesByTargetToBeCached.map { $0.0.target.name }))
 
         let (projectPath, updatedGraph) = try updatedGenerator.generateWithGraph(path: path, projectOnly: false)
 
