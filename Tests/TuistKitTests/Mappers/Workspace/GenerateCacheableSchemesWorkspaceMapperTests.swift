@@ -7,7 +7,7 @@ import XCTest
 @testable import TuistKit
 @testable import TuistSupportTesting
 
-final class GenerateCacheableSchemesWorkspaceMapperTests: XCTestCase {
+final class GenerateCacheableSchemesWorkspaceMapperTests: TuistUnitTestCase {
     func test_generate_binary_and_bundles_schemes() throws {
         // Given
         let targetA = Target.test(name: "A", platform: .iOS, product: .framework)

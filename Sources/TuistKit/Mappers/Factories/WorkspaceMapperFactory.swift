@@ -68,7 +68,7 @@ final class WorkspaceMapperFactory: WorkspaceMapperFactorying {
         var mappers: [WorkspaceMapping] = []
 
         mappers.append(
-            ProjectWorkspaceMapper(mapper: projectMapperFactory.default(config: config))
+            ProjectWorkspaceMapper(mapper: SequentialProjectMapper(mappers: projectMapperFactory.default(config: config)))
         )
 
         mappers.append(

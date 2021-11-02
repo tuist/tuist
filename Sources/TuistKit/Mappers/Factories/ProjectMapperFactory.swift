@@ -13,19 +13,19 @@ protocol ProjectMapperFactorying {
     /// Returns the default project mapper.
     /// - Parameter config: The project configuration
     /// - Returns: A project mapper instance.
-    func `default`(config: Config) -> ProjectMapping
+    func `default`(config: Config) -> [ProjectMapping]
     
     /// Returns a project mapper for caching projects.
     /// - Parameter config: The project configuration.
     /// - Returns: An instance of a project mapper.
-    func cache(config: Config) -> ProjectMapping
+    func cache(config: Config) -> [ProjectMapping]
     
     
     /// Returns a project mapper for automation.
     /// - Parameter config: The project configuration.
     /// - Parameter skipUITests: Whether UI tests should be skipped.
     /// - Returns: An instance of a project mapper.
-    func automation(config: Config, skipUITests: Bool) -> ProjectMapping
+    func automation(config: Config, skipUITests: Bool) -> [ProjectMapping]
 }
 
 final class ProjectMapperFactory: ProjectMapperFactorying {
@@ -35,15 +35,15 @@ final class ProjectMapperFactory: ProjectMapperFactorying {
         self.contentHasher = contentHasher
     }
 
-    func `default`(config: Config) -> ProjectMapping {
-        return SequentialProjectMapper(mappers: self.defaultMappers(config: config))
+    func `default`(config: Config) -> [ProjectMapping] {
+        return self.defaultMappers(config: config)
     }
     
-    func cache(config: Config) -> ProjectMapping {
+    func cache(config: Config) -> [ProjectMapping] {
         return self.default(config: config)
     }
 
-    func automation(config: Config, skipUITests: Bool) -> ProjectMapping {
+    func automation(config: Config, skipUITests: Bool) -> [ProjectMapping] {
         var mappers: [ProjectMapping] = []
         mappers += self.defaultMappers(config: config)
 
@@ -65,7 +65,7 @@ final class ProjectMapperFactory: ProjectMapperFactorying {
             )
         }
 
-        return SequentialProjectMapper(mappers: mappers)
+        return mappers
     }
     
     // MARK: - Fileprivate

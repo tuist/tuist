@@ -83,9 +83,9 @@ class GeneratorFactory: GeneratorFactorying {
                                                    cacheProfile: cacheProfile,
                                                    cacheOutputType: xcframeworks ? .xcframework : .framework)
         let workspaceMapper = workspaceMapperFactory.default(config: config)
-        let projectMapper = projectMapperFactory.default(config: config)
+        let projectMappers = projectMapperFactory.default(config: config)
         return Generator(
-            projectMapper: projectMapper,
+            projectMapper: SequentialProjectMapper(mappers: projectMappers),
             graphMapper: graphMapper,
             workspaceMapper: workspaceMapper,
             manifestLoaderFactory: ManifestLoaderFactory()
@@ -105,9 +105,9 @@ class GeneratorFactory: GeneratorFactorying {
         let graphMapper = graphMapperFactory.automation(config: config, testsCacheDirectory: testsCacheDirectory)
         let workspaceMapper = workspaceMapperFactory.automation(config: config,
                                                                 workspaceDirectory: FileHandler.shared.resolveSymlinks(automationPath))
-        let projectMapper = projectMapperFactory.automation(config: config, skipUITests: skipUITests)
+        let projectMappers = projectMapperFactory.automation(config: config, skipUITests: skipUITests)
         return Generator(
-            projectMapper: projectMapper,
+            projectMapper: SequentialProjectMapper(mappers: projectMappers),
             graphMapper: graphMapper,
             workspaceMapper: workspaceMapper,
             manifestLoaderFactory: ManifestLoaderFactory()
@@ -115,11 +115,11 @@ class GeneratorFactory: GeneratorFactorying {
     }
     
     func cache(config: Config, includedTargets: Set<String>?) -> Generating {
-        let projectMapper = projectMapperFactory.cache(config: config)
+        let projectMappers = projectMapperFactory.cache(config: config)
         let graphMapper = self.graphMapperFactory.cache(includedTargets: includedTargets)
         let workspaceMapper = self.workspaceMapperFactory.cache(config: config, includedTargets: includedTargets ?? [])
         return Generator(
-            projectMapper: projectMapper,
+            projectMapper: SequentialProjectMapper(mappers: projectMappers),
             graphMapper: graphMapper,
             workspaceMapper: workspaceMapper,
             manifestLoaderFactory: ManifestLoaderFactory()
@@ -129,11 +129,11 @@ class GeneratorFactory: GeneratorFactorying {
     // MARK: - Fileprivate
     
     func `default`(config: Config, contentHasher: ContentHashing) -> Generating {
-        let projectMapper = projectMapperFactory.default(config: config)
+        let projectMappers = projectMapperFactory.default(config: config)
         let graphMapper = graphMapperFactory.default()
         let workspaceMapper = workspaceMapperFactory.default(config: config)
         return Generator(
-            projectMapper: projectMapper,
+            projectMapper: SequentialProjectMapper(mappers: projectMappers),
             graphMapper: graphMapper,
             workspaceMapper: workspaceMapper,
             manifestLoaderFactory: ManifestLoaderFactory()
