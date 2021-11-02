@@ -5,7 +5,7 @@ import TuistSupport
 
 /// `GenerateCacheableSchemesWorkspaceMapper` will generate additional schemes which include the targets to be cached
 final class GenerateCacheableSchemesWorkspaceMapper: WorkspaceMapping {
-    private let includedTargets: Set<String>
+    let includedTargets: Set<String>
 
     init(includedTargets: Set<String>) {
         self.includedTargets = includedTargets

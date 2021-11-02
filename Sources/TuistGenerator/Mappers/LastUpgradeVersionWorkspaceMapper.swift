@@ -3,7 +3,7 @@ import TSCUtility
 import TuistCore
 
 public final class LastUpgradeVersionWorkspaceMapper: WorkspaceMapping {
-    private let lastUpgradeVersion: Version
+    let lastUpgradeVersion: Version
 
     public init(lastUpgradeVersion: Version) {
         self.lastUpgradeVersion = lastUpgradeVersion
