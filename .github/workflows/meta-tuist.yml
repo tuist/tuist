@@ -32,7 +32,7 @@ jobs:
     runs-on: macOS-11
     strategy:
       matrix:
-        xcode: ['12.5.1', "13.0"]
+        xcode: ['13.0']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -58,7 +58,7 @@ jobs:
     runs-on: macOS-11
     strategy:
       matrix:
-        xcode: ['12.5.1', "13.0"]
+        xcode: ['13.0']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
@@ -84,7 +84,7 @@ jobs:
     runs-on: macOS-11
     strategy:
       matrix:
-        xcode: ['12.5.1', "13.0"]
+        xcode: ['13.0']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
