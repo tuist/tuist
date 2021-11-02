@@ -7,12 +7,12 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistSupportTesting
 
-final class CacheTreeShakingGraphMapperTests: TuistUnitTestCase {
-    var subject: CacheTreeShakingGraphMapper!
+final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
+    var subject: TreeShakePrunedTargetsGraphMapper!
 
     override func setUp() {
         super.setUp()
-        subject = CacheTreeShakingGraphMapper()
+        subject = TreeShakePrunedTargetsGraphMapper()
     }
 
     override func tearDown() {

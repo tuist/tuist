@@ -7,9 +7,9 @@ import TuistSupport
 /// Tree-shakes testable targets which hashes have not changed from those in the tests cache directory
 /// Creates tests hash files into a `hashesCacheDirectory`
 public final class TestsCacheGraphMapper: GraphMapping {
-    private let hashesCacheDirectory: AbsolutePath
+    let hashesCacheDirectory: AbsolutePath
+    let config: Config
     private let graphContentHasher: GraphContentHashing
-    private let config: Config
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
 
     /// - Parameters:

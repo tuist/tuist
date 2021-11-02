@@ -6,7 +6,7 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
-enum CacheMapperError: FatalError, Equatable {
+enum FocusTargetsGraphMapperError: FatalError, Equatable {
     case missingTargets(missingTargets: [String], availableTargets: [String])
 
     var description: String {
@@ -24,7 +24,7 @@ enum CacheMapperError: FatalError, Equatable {
     }
 }
 
-public final class CacheMapper: GraphMapping {
+public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
     // MARK: - Attributes
 
     /// Cache.
@@ -77,7 +77,7 @@ public final class CacheMapper: GraphMapping {
          cacheProfile: TuistGraph.Cache.Profile,
          cacheOutputType: CacheOutputType,
          cacheGraphMutator: CacheGraphMutating = CacheGraphMutator(),
-         queue: DispatchQueue = CacheMapper.dispatchQueue())
+         queue: DispatchQueue = TargetsToCacheBinariesGraphMapper.dispatchQueue())
     {
         self.config = config
         self.cache = cache
@@ -100,7 +100,7 @@ public final class CacheMapper: GraphMapping {
         guard
             missingTargets.isEmpty
         else {
-            throw CacheMapperError.missingTargets(
+            throw FocusTargetsGraphMapperError.missingTargets(
                 missingTargets: missingTargets.sorted(),
                 availableTargets: availableTargets.sorted()
             )

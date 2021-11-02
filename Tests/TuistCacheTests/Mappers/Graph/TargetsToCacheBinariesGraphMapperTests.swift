@@ -11,11 +11,11 @@ import XCTest
 @testable import TuistGraphTesting
 @testable import TuistSupportTesting
 
-final class CacheMapperTests: TuistUnitTestCase {
+final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
     var cache: MockCacheStorage!
     var cacheGraphContentHasher: MockCacheGraphContentHasher!
     var cacheGraphMutator: MockCacheGraphMutator!
-    var subject: CacheMapper!
+    var subject: TargetsToCacheBinariesGraphMapper!
     var config: Config!
 
     override func setUp() {
@@ -24,7 +24,7 @@ final class CacheMapperTests: TuistUnitTestCase {
         cacheGraphContentHasher = MockCacheGraphContentHasher()
         cacheGraphMutator = MockCacheGraphMutator()
         config = .test()
-        subject = CacheMapper(
+        subject = TargetsToCacheBinariesGraphMapper(
             config: config,
             cache: cache,
             cacheGraphContentHasher: cacheGraphContentHasher,
@@ -47,7 +47,7 @@ final class CacheMapperTests: TuistUnitTestCase {
 
     func test_map_when_a_source_is_not_available() throws {
         // Given
-        subject = CacheMapper(
+        subject = TargetsToCacheBinariesGraphMapper(
             config: config,
             cache: cache,
             cacheGraphContentHasher: cacheGraphContentHasher,
@@ -73,7 +73,7 @@ final class CacheMapperTests: TuistUnitTestCase {
         // When / Then
         XCTAssertThrowsSpecific(
             try subject.map(graph: graph),
-            CacheMapperError.missingTargets(missingTargets: ["C", "D"], availableTargets: ["A", "B"])
+            FocusTargetsGraphMapperError.missingTargets(missingTargets: ["C", "D"], availableTargets: ["A", "B"])
         )
     }
 
@@ -244,7 +244,7 @@ final class CacheMapperTests: TuistUnitTestCase {
         let path = try temporaryPath()
         let project = Project.test(path: path)
 
-        subject = CacheMapper(
+        subject = TargetsToCacheBinariesGraphMapper(
             config: config,
             cache: cache,
             cacheGraphContentHasher: cacheGraphContentHasher,

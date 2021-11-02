@@ -4,10 +4,10 @@ import TuistCore
 import TuistCoreTesting
 import TuistGraph
 import XCTest
-@testable import TuistGenerator
 import TuistLoader
 import TuistSigning
 import TuistAutomation
+@testable import TuistGenerator
 @testable import TuistCore
 @testable import TuistKit
 @testable import TuistSupportTesting

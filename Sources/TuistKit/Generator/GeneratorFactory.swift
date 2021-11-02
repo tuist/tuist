@@ -77,7 +77,7 @@ class GeneratorFactory: GeneratorFactorying {
                xcframeworks: Bool,
                cacheProfile: TuistGraph.Cache.Profile,
                ignoreCache: Bool) -> Generating {
-        let graphMapper = graphMapperFactory.focus(config: config,
+        let graphMappers = graphMapperFactory.focus(config: config,
                                                    cache: !ignoreCache,
                                                    cacheSources: sources,
                                                    cacheProfile: cacheProfile,
@@ -86,7 +86,7 @@ class GeneratorFactory: GeneratorFactorying {
         let projectMappers = projectMapperFactory.default(config: config)
         return Generator(
             projectMapper: SequentialProjectMapper(mappers: projectMappers),
-            graphMapper: graphMapper,
+            graphMapper: SequentialGraphMapper(graphMappers),
             workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
             manifestLoaderFactory: ManifestLoaderFactory()
         )
@@ -102,13 +102,13 @@ class GeneratorFactory: GeneratorFactorying {
         testsCacheDirectory: AbsolutePath,
         skipUITests: Bool
     ) -> Generating {
-        let graphMapper = graphMapperFactory.automation(config: config, testsCacheDirectory: testsCacheDirectory)
+        let graphMappers = graphMapperFactory.automation(config: config, testsCacheDirectory: testsCacheDirectory)
         let workspaceMappers = workspaceMapperFactory.automation(config: config,
                                                                 workspaceDirectory: FileHandler.shared.resolveSymlinks(automationPath))
         let projectMappers = projectMapperFactory.automation(config: config, skipUITests: skipUITests)
         return Generator(
             projectMapper: SequentialProjectMapper(mappers: projectMappers),
-            graphMapper: graphMapper,
+            graphMapper:  SequentialGraphMapper(graphMappers),
             workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
             manifestLoaderFactory: ManifestLoaderFactory()
         )
@@ -116,11 +116,11 @@ class GeneratorFactory: GeneratorFactorying {
     
     func cache(config: Config, includedTargets: Set<String>?) -> Generating {
         let projectMappers = projectMapperFactory.cache(config: config)
-        let graphMapper = self.graphMapperFactory.cache(includedTargets: includedTargets)
+        let graphMappers = self.graphMapperFactory.cache(includedTargets: includedTargets)
         let workspaceMappers = self.workspaceMapperFactory.cache(config: config, includedTargets: includedTargets ?? [])
         return Generator(
             projectMapper: SequentialProjectMapper(mappers: projectMappers),
-            graphMapper: graphMapper,
+            graphMapper:  SequentialGraphMapper(graphMappers),
             workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
             manifestLoaderFactory: ManifestLoaderFactory()
         )
@@ -130,11 +130,11 @@ class GeneratorFactory: GeneratorFactorying {
     
     func `default`(config: Config, contentHasher: ContentHashing) -> Generating {
         let projectMappers = projectMapperFactory.default(config: config)
-        let graphMapper = graphMapperFactory.default()
+        let graphMappers = graphMapperFactory.default()
         let workspaceMappers = workspaceMapperFactory.default(config: config)
         return Generator(
             projectMapper: SequentialProjectMapper(mappers: projectMappers),
-            graphMapper: graphMapper,
+            graphMapper:  SequentialGraphMapper(graphMappers),
             workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
             manifestLoaderFactory: ManifestLoaderFactory()
         )

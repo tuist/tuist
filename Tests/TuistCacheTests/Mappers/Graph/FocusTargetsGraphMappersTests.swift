@@ -7,14 +7,14 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistSupportTesting
 
-final class FilterTargetsDependenciesTreeGraphMapperTests: TuistUnitTestCase {
+final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
     func test_map_when_included_targets_is_nil_no_targets_are_pruned() throws {
         // Given
         let targetNames = ["foo", "bar", "baz"].shuffled()
         let aTarget = Target.test(name: targetNames[0])
         let bTarget = Target.test(name: targetNames[1])
         let cTarget = Target.test(name: targetNames[2])
-        let subject = FilterTargetsDependenciesTreeGraphMapper(includedTargets: nil)
+        let subject = FocusTargetsGraphMappers(includedTargets: nil)
         let path = try temporaryPath()
         let project = Project.test(path: path)
         let graph = Graph.test(
@@ -51,7 +51,7 @@ final class FilterTargetsDependenciesTreeGraphMapperTests: TuistUnitTestCase {
         let aTarget = Target.test(name: targetNames[0])
         let bTarget = Target.test(name: targetNames[1])
         let cTarget = Target.test(name: targetNames[2])
-        let subject = FilterTargetsDependenciesTreeGraphMapper(includedTargets: [])
+        let subject = FocusTargetsGraphMappers(includedTargets: [])
         let path = try temporaryPath()
         let project = Project.test(path: path)
         let graph = Graph.test(
@@ -92,7 +92,7 @@ final class FilterTargetsDependenciesTreeGraphMapperTests: TuistUnitTestCase {
         let aTarget = Target.test(name: targetNames[0])
         let bTarget = Target.test(name: targetNames[1])
         let cTarget = Target.test(name: targetNames[2])
-        let subject = FilterTargetsDependenciesTreeGraphMapper(includedTargets: [aTarget.name])
+        let subject = FocusTargetsGraphMappers(includedTargets: [aTarget.name])
         let path = try temporaryPath()
         let project = Project.test(path: path)
         let graph = Graph.test(
@@ -133,7 +133,7 @@ final class FilterTargetsDependenciesTreeGraphMapperTests: TuistUnitTestCase {
         let aTarget = Target.test(name: targetNames[0])
         let bTarget = Target.test(name: targetNames[1])
         let cTarget = Target.test(name: targetNames[2])
-        let subject = FilterTargetsDependenciesTreeGraphMapper(includedTargets: [bTarget.name])
+        let subject = FocusTargetsGraphMappers(includedTargets: [bTarget.name])
         let path = try temporaryPath()
         let project = Project.test(path: path)
         let graph = Graph.test(
@@ -175,7 +175,7 @@ final class FilterTargetsDependenciesTreeGraphMapperTests: TuistUnitTestCase {
         let aTestTarget = Target.test(name: targetNames[0] + "Tests", product: .unitTests)
         let bTarget = Target.test(name: targetNames[1])
         let cTarget = Target.test(name: targetNames[2])
-        let subject = FilterTargetsDependenciesTreeGraphMapper(includedTargets: [aTarget.name])
+        let subject = FocusTargetsGraphMappers(includedTargets: [aTarget.name])
         let path = try temporaryPath()
         let project = Project.test(path: path)
         let graph = Graph.test(

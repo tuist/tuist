@@ -3,10 +3,10 @@ import TSCBasic
 import TuistCore
 import TuistGraph
 
-/// `FilterTargetsDependenciesTreeGraphMapper` is used to filter out some targets and their dependencies and tests targets.
-public final class FilterTargetsDependenciesTreeGraphMapper: GraphMapping {
+/// `FocusTargetsGraphMappers` is used to filter out some targets and their dependencies and tests targets.
+public final class FocusTargetsGraphMappers: GraphMapping {
     /// The targets name to be kept as non prunable with their respective dependencies and tests targets
-    private let includedTargets: Set<String>?
+    let includedTargets: Set<String>?
 
     public init(includedTargets: Set<String>?) {
         self.includedTargets = includedTargets

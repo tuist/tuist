@@ -3,7 +3,7 @@ import TSCBasic
 import TuistCore
 import TuistGraph
 
-public final class CacheTreeShakingGraphMapper: GraphMapping {
+public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
     public init() {}
 
     public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
