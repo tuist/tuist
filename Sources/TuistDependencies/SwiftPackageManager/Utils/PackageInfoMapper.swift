@@ -425,7 +425,16 @@ extension ProjectDescription.DeploymentTarget {
         packageName _: String
     ) throws -> Self {
         if let packagePlatform = package.first(where: { $0.platformName == platform.rawValue }) {
-            return .iOS(targetVersion: packagePlatform.version, devices: [.iphone, .ipad])
+            switch platform {
+            case .iOS:
+                return .iOS(targetVersion: packagePlatform.version, devices: [.iphone, .ipad])
+            case .macOS:
+                return .macOS(targetVersion: packagePlatform.version)
+            case .watchOS:
+                return .watchOS(targetVersion: packagePlatform.version)
+            case .tvOS:
+                return .tvOS(targetVersion: packagePlatform.version)
+            }
         } else {
             return minDeploymentTargets[platform]!
         }
