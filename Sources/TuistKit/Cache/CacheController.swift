@@ -51,10 +51,10 @@ class CacheControllerProjectGeneratorProvider: CacheControllerProjectGeneratorPr
             workspaceMapperProvider: workspaceMapperProvider,
             includedTargets: includedTargets ?? []
         )
-        let graphMapperProvider = GraphMapperProviderFactory().cacheProvider(includedTargets: includedTargets)
+        let graphMapper = GraphMapperFactory().cache(includedTargets: includedTargets)
         return Generator(
             projectMapperProvider: projectMapperProvider,
-            graphMapperProvider: graphMapperProvider,
+            graphMapper: graphMapper,
             workspaceMapperProvider: cacheWorkspaceMapperProvider,
             manifestLoaderFactory: ManifestLoaderFactory()
         )

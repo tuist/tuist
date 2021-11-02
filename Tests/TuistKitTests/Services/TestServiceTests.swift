@@ -16,7 +16,7 @@ import XCTest
 final class TestServiceTests: TuistUnitTestCase {
     private var subject: TestService!
     private var generator: MockGenerator!
-    private var testServiceGeneratorFactory: MockTestServiceGeneratorFactory!
+    private var generatorFactory: MockGeneratorFactory!
     private var xcodebuildController: MockXcodeBuildController!
     private var buildGraphInspector: MockBuildGraphInspector!
     private var simulatorController: MockSimulatorController!
@@ -32,10 +32,8 @@ final class TestServiceTests: TuistUnitTestCase {
         simulatorController = .init()
         contentHasher = .init()
         testsCacheTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        testServiceGeneratorFactory = .init()
-        testServiceGeneratorFactory.generatorStub = { _, _, _ in
-            self.generator
-        }
+        generatorFactory = .init()
+        generatorFactory.stubbedTestResult = self.generator
         let mockCacheDirectoriesProvider = try MockCacheDirectoriesProvider()
         cacheDirectoriesProvider = mockCacheDirectoriesProvider
 
@@ -45,7 +43,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
         subject = TestService(
             testsCacheTemporaryDirectory: testsCacheTemporaryDirectory,
-            testServiceGeneratorFactory: testServiceGeneratorFactory,
+            generatorFactory: generatorFactory,
             xcodebuildController: xcodebuildController,
             buildGraphInspector: buildGraphInspector,
             simulatorController: simulatorController,
@@ -60,7 +58,7 @@ final class TestServiceTests: TuistUnitTestCase {
         buildGraphInspector = nil
         simulatorController = nil
         testsCacheTemporaryDirectory = nil
-        testServiceGeneratorFactory = nil
+        generatorFactory = nil
         contentHasher = nil
         subject = nil
         super.tearDown()
@@ -68,12 +66,6 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_uses_project_directory() throws {
         // Given
-        var automationPath: AbsolutePath?
-
-        testServiceGeneratorFactory.generatorStub = { gotAutomationPath, _, _ in
-            automationPath = gotAutomationPath
-            return self.generator
-        }
         contentHasher.hashStub = {
             "\($0.replacingOccurrences(of: "/", with: ""))-hash"
         }
@@ -84,8 +76,9 @@ final class TestServiceTests: TuistUnitTestCase {
         )
 
         // Then
+        let gotPath = generatorFactory.invokedTestParametersList.first?.automationPath
         XCTAssertEqual(
-            automationPath,
+            gotPath,
             cacheDirectoriesProvider.cacheDirectory(for: .generatedAutomationProjects).appending(component: "test-hash")
         )
     }

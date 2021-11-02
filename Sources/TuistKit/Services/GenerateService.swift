@@ -5,39 +5,22 @@ import TuistGenerator
 import TuistLoader
 import TuistSupport
 
-protocol GenerateServiceProjectGeneratorFactorying {
-    func generator() -> Generating
-}
-
-final class GenerateServiceProjectGeneratorFactory: GenerateServiceProjectGeneratorFactorying {
-    func generator() -> Generating {
-        let contentHasher = CacheContentHasher()
-        let projectMapperProvider = ProjectMapperProvider(contentHasher: contentHasher)
-        return Generator(
-            projectMapperProvider: projectMapperProvider,
-            graphMapperProvider: GraphMapperProviderFactory().defaultProvider(),
-            workspaceMapperProvider: WorkspaceMapperProvider(contentHasher: contentHasher),
-            manifestLoaderFactory: ManifestLoaderFactory()
-        )
-    }
-}
-
 final class GenerateService {
     // MARK: - Attributes
 
     private let opener: Opening
     private let clock: Clock
-    private let projectGeneratorFactory: GenerateServiceProjectGeneratorFactorying
+    private let generatorFactory: GeneratorFactorying
 
     // MARK: - Init
 
     init(clock: Clock = WallClock(),
          opener: Opening = Opener(),
-         projectGeneratorFactory: GenerateServiceProjectGeneratorFactorying = GenerateServiceProjectGeneratorFactory())
+         generatorFactory: GeneratorFactorying = GeneratorFactory())
     {
         self.clock = clock
         self.opener = opener
-        self.projectGeneratorFactory = projectGeneratorFactory
+        self.generatorFactory = generatorFactory
     }
 
     func run(path: String?,
@@ -46,7 +29,7 @@ final class GenerateService {
     {
         let timer = clock.startTimer()
         let path = self.path(path)
-        let generator = projectGeneratorFactory.generator()
+        let generator = generatorFactory.default()
 
         let generatedProjectPath = try generator.generate(path: path, projectOnly: projectOnly)
         if open {

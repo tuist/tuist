@@ -10,31 +10,19 @@ import XCTest
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
 
-final class MockGenerateServiceProjectGeneratorFactory: GenerateServiceProjectGeneratorFactorying {
-    var invokedGenerator = false
-    var invokedGeneratorCount = 0
-    var stubbedGeneratorResult: Generating!
-
-    func generator() -> Generating {
-        invokedGenerator = true
-        invokedGeneratorCount += 1
-        return stubbedGeneratorResult
-    }
-}
-
 final class GenerateServiceTests: TuistUnitTestCase {
     var subject: GenerateService!
     var generator: MockGenerator!
     var opener: MockOpener!
     var clock: StubClock!
-    var projectGeneratorFactory: MockGenerateServiceProjectGeneratorFactory!
+    var generatorFactory: MockGeneratorFactory!
 
     override func setUp() {
         super.setUp()
         opener = MockOpener()
-        projectGeneratorFactory = MockGenerateServiceProjectGeneratorFactory()
+        generatorFactory = MockGeneratorFactory()
         generator = MockGenerator()
-        projectGeneratorFactory.stubbedGeneratorResult = generator
+        generatorFactory.stubbedDefaultResult = generator
         clock = StubClock()
         generator.generateStub = { _, _ in
             AbsolutePath("/Test")
@@ -43,12 +31,12 @@ final class GenerateServiceTests: TuistUnitTestCase {
         subject = GenerateService(
             clock: clock,
             opener: opener,
-            projectGeneratorFactory: projectGeneratorFactory
+            generatorFactory: generatorFactory
         )
     }
 
     override func tearDown() {
-        projectGeneratorFactory = nil
+        generatorFactory = nil
         generator = nil
         clock = nil
         subject = nil
