@@ -51,18 +51,23 @@ protocol GeneratorFactorying {
 
 class GeneratorFactory: GeneratorFactorying {
     
+    let projectMapperFactory: ProjectMapperFactorying
     let graphMapperFactory: GraphMapperFactorying
     let workspaceMapperFactory: WorkspaceMapperFactorying
     
     convenience init(contentHasher: ContentHashing = ContentHasher()) {
-        let workspaceMapperFactory = WorkspaceMapperFactory(contentHasher: contentHasher)
+        let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
+        let workspaceMapperFactory = WorkspaceMapperFactory(projectMapperFactory: projectMapperFactory)
         let graphMapperFactory = GraphMapperFactory(contentHasher: contentHasher)
-        self.init(graphMapperFactory: graphMapperFactory,
+        self.init(projectMapperFactory: projectMapperFactory,
+                  graphMapperFactory: graphMapperFactory,
                   workspaceMapperFactory: workspaceMapperFactory)
     }
     
-    init(graphMapperFactory: GraphMapperFactorying,
+    init(projectMapperFactory: ProjectMapperFactorying,
+         graphMapperFactory: GraphMapperFactorying,
          workspaceMapperFactory: WorkspaceMapperFactorying) {
+        self.projectMapperFactory = projectMapperFactory
         self.graphMapperFactory = graphMapperFactory
         self.workspaceMapperFactory = workspaceMapperFactory
     }
@@ -72,16 +77,15 @@ class GeneratorFactory: GeneratorFactorying {
                xcframeworks: Bool,
                cacheProfile: TuistGraph.Cache.Profile,
                ignoreCache: Bool) -> Generating {
-        let contentHasher = ContentHasher()
         let graphMapper = graphMapperFactory.focus(config: config,
                                                    cache: !ignoreCache,
                                                    cacheSources: sources,
                                                    cacheProfile: cacheProfile,
                                                    cacheOutputType: xcframeworks ? .xcframework : .framework)
-        let projectMapperProvider = ProjectMapperProvider(contentHasher: contentHasher)
         let workspaceMapper = workspaceMapperFactory.default(config: config)
+        let projectMapper = projectMapperFactory.default(config: config)
         return Generator(
-            projectMapperProvider: projectMapperProvider,
+            projectMapper: projectMapper,
             graphMapper: graphMapper,
             workspaceMapper: workspaceMapper,
             manifestLoaderFactory: ManifestLoaderFactory()
@@ -101,9 +105,9 @@ class GeneratorFactory: GeneratorFactorying {
         let graphMapper = graphMapperFactory.automation(config: config, testsCacheDirectory: testsCacheDirectory)
         let workspaceMapper = workspaceMapperFactory.automation(config: config,
                                                                 workspaceDirectory: FileHandler.shared.resolveSymlinks(automationPath))
-
+        let projectMapper = projectMapperFactory.automation(config: config, skipUITests: skipUITests)
         return Generator(
-            projectMapperProvider: AutomationProjectMapperProvider(skipUITests: skipUITests),
+            projectMapper: projectMapper,
             graphMapper: graphMapper,
             workspaceMapper: workspaceMapper,
             manifestLoaderFactory: ManifestLoaderFactory()
@@ -111,12 +115,11 @@ class GeneratorFactory: GeneratorFactorying {
     }
     
     func cache(config: Config, includedTargets: Set<String>?) -> Generating {
-        let contentHasher = CacheContentHasher()
-        let projectMapperProvider = CacheControllerProjectMapperProvider(contentHasher: contentHasher)
+        let projectMapper = projectMapperFactory.cache(config: config)
         let graphMapper = self.graphMapperFactory.cache(includedTargets: includedTargets)
         let workspaceMapper = self.workspaceMapperFactory.cache(config: config, includedTargets: includedTargets ?? [])
         return Generator(
-            projectMapperProvider: projectMapperProvider,
+            projectMapper: projectMapper,
             graphMapper: graphMapper,
             workspaceMapper: workspaceMapper,
             manifestLoaderFactory: ManifestLoaderFactory()
@@ -126,11 +129,11 @@ class GeneratorFactory: GeneratorFactorying {
     // MARK: - Fileprivate
     
     func `default`(config: Config, contentHasher: ContentHashing) -> Generating {
-        let projectMapperProvider = ProjectMapperProvider(contentHasher: contentHasher)
+        let projectMapper = projectMapperFactory.default(config: config)
         let graphMapper = graphMapperFactory.default()
         let workspaceMapper = workspaceMapperFactory.default(config: config)
         return Generator(
-            projectMapperProvider: projectMapperProvider,
+            projectMapper: projectMapper,
             graphMapper: graphMapper,
             workspaceMapper: workspaceMapper,
             manifestLoaderFactory: ManifestLoaderFactory()

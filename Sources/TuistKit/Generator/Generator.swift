@@ -31,7 +31,7 @@ class Generator: Generating {
     private let signingInteractor: SigningInteracting = SigningInteractor()
     private let sideEffectDescriptorExecutor: SideEffectDescriptorExecuting
     private let graphMapper: GraphMapping
-    private let projectMapperProvider: ProjectMapperProviding
+    private let projectMapper: ProjectMapping
     private let workspaceMapper: WorkspaceMapping
     private let manifestLoader: ManifestLoading
     private let pluginsService: PluginServicing
@@ -39,7 +39,7 @@ class Generator: Generating {
     private let dependenciesGraphController: DependenciesGraphControlling
 
     init(
-        projectMapperProvider: ProjectMapperProviding,
+        projectMapper: ProjectMapping,
         graphMapper: GraphMapping,
         workspaceMapper: WorkspaceMapping,
         manifestLoaderFactory: ManifestLoaderFactory,
@@ -52,7 +52,7 @@ class Generator: Generating {
         )
         sideEffectDescriptorExecutor = SideEffectDescriptorExecutor()
         self.graphMapper = graphMapper
-        self.projectMapperProvider = projectMapperProvider
+        self.projectMapper = projectMapper
         self.workspaceMapper = workspaceMapper
         self.manifestLoader = manifestLoader
         pluginsService = PluginService(manifestLoader: manifestLoader)
@@ -120,7 +120,6 @@ class Generator: Generating {
             dependenciesGraph.externalProjects.values
 
         // Apply any registered model mappers
-        let projectMapper = projectMapperProvider.mapper(config: config)
         let updatedModels = try models.map(projectMapper.map)
         let updatedProjects = updatedModels.map(\.0)
         let modelMapperSideEffects = updatedModels.flatMap(\.1)

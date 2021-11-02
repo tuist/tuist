@@ -27,14 +27,10 @@ protocol WorkspaceMapperFactorying {
 
 final class WorkspaceMapperFactory: WorkspaceMapperFactorying {
     
-    private let projectMapperProvider: ProjectMapperProviding
+    private let projectMapperFactory: ProjectMapperFactorying
 
-    convenience init(contentHasher: ContentHashing) {
-        self.init(projectMapperProvider: ProjectMapperProvider(contentHasher: contentHasher))
-    }
-
-    init(projectMapperProvider: ProjectMapperProviding = ProjectMapperProvider()) {
-        self.projectMapperProvider = projectMapperProvider
+    init(projectMapperFactory: ProjectMapperFactorying) {
+        self.projectMapperFactory = projectMapperFactory
     }
 
     func cache(config: Config, includedTargets: Set<String>) -> WorkspaceMapping {
@@ -72,11 +68,7 @@ final class WorkspaceMapperFactory: WorkspaceMapperFactorying {
         var mappers: [WorkspaceMapping] = []
 
         mappers.append(
-            ProjectWorkspaceMapper(
-                mapper: projectMapperProvider.mapper(
-                    config: config
-                )
-            )
+            ProjectWorkspaceMapper(mapper: projectMapperFactory.default(config: config))
         )
 
         mappers.append(

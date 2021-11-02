@@ -11,23 +11,6 @@ import TuistGraph
 import TuistLoader
 import TuistSupport
 
-/// A provider that concatenates the default mappers, to the mapper that adds the build phase
-/// to locate the built products directory.
-class CacheControllerProjectMapperProvider: ProjectMapperProviding {
-    fileprivate let contentHasher: ContentHashing
-    init(contentHasher: ContentHashing) {
-        self.contentHasher = contentHasher
-    }
-
-    func mapper(config: Config) -> ProjectMapping {
-        let defaultProjectMapperProvider = ProjectMapperProvider(contentHasher: contentHasher)
-        let defaultMapper = defaultProjectMapperProvider.mapper(
-            config: config
-        )
-        return SequentialProjectMapper(mappers: [defaultMapper])
-    }
-}
-
 protocol CacheControlling {
     /// Caches the cacheable targets that are part of the workspace or project at the given path.
     /// - Parameters:
