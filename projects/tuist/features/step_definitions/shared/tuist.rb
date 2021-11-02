@@ -61,7 +61,7 @@ Then(/^tuist focuses the target ([a-zA-Z]+)$/) do |target|
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
 end
 
-Then(%r{^tuist focuses the targets ([a-zA-Z,]+)$}) do |targets|
+Then(/^tuist focuses the targets ([a-zA-Z,]+)$/) do |targets|
   system(@tuist, "focus", "--no-open", "--path", @dir, *targets.split(","))
   @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
@@ -91,7 +91,7 @@ Then(/^tuist focuses the target ([a-zA-Z]+) using xcframeworks$/) do |target|
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
 end
 
-Then(%r{^tuist focuses the targets ([a-zA-Z,]+) using xcframeworks$}) do |targets|
+Then(/^tuist focuses the targets ([a-zA-Z,]+) using xcframeworks$/) do |targets|
   system(@tuist, "focus", "--no-open", "--path", @dir, *targets.split(","),
     "--xcframeworks")
   @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
