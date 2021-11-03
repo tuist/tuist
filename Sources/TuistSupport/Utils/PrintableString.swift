@@ -97,11 +97,11 @@ extension PrintableString {
         }
 
         public var description: String {
-          guard Environment.shared.shouldOutputBeColoured else {
-            return unformatted
-          }
+            guard Environment.shared.shouldOutputBeColoured else {
+                return unformatted
+            }
 
-          switch self {
+            switch self {
             case let .raw(string):
                 return string
             case let .command(token), let .keystroke(token):
