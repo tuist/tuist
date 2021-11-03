@@ -4,46 +4,75 @@ import TSCUtility
 import TuistCore
 import TuistGraph
 import TuistGraphTesting
+import TuistCoreTesting
+import TuistDependenciesTesting
+import TuistLoaderTesting
+import TuistSupportTesting
+import TuistPluginTesting
 import XCTest
 
-@testable import TuistCoreTesting
-@testable import TuistDependenciesTesting
 @testable import TuistKit
-@testable import TuistLoaderTesting
-@testable import TuistSupportTesting
 
-final class DependenciesFetchServiceTests: TuistUnitTestCase {
+final class FetchServiceTests: TuistUnitTestCase {
+    private var pluginService: MockPluginService!
+    private var configLoader: MockConfigLoader!
     private var dependenciesController: MockDependenciesController!
     private var dependenciesModelLoader: MockDependenciesModelLoader!
-    private var configLoader: MockConfigLoader!
 
-    private var subject: DependenciesFetchService!
+    private var subject: FetchService!
 
     override func setUp() {
         super.setUp()
 
+        pluginService = MockPluginService()
+        configLoader = MockConfigLoader()
         dependenciesController = MockDependenciesController()
         dependenciesModelLoader = MockDependenciesModelLoader()
-        configLoader = MockConfigLoader()
 
-        subject = DependenciesFetchService(
+        subject = FetchService(
+            pluginService: pluginService,
+            configLoader: configLoader,
             dependenciesController: dependenciesController,
-            dependenciesModelLoader: dependenciesModelLoader,
-            configLoading: configLoader
+            dependenciesModelLoader: dependenciesModelLoader
         )
     }
 
     override func tearDown() {
         subject = nil
 
+        pluginService = nil
+        configLoader = nil
         dependenciesController = nil
         dependenciesModelLoader = nil
-        configLoader = nil
 
         super.tearDown()
     }
+    
+    func test_run_when_fetching_plugins() throws {
+        // Given
+        let config = Config.test(
+            plugins: [
+                .git(url: "url", gitReference: .tag("tag"))
+            ]
+        )
+        configLoader.loadConfigStub = { _ in
+            config
+        }
+        var invokedConfig: Config?
+        pluginService.fetchRemotePluginsStub = { config in
+            invokedConfig = config
+        }
+        
+        // When
+        try subject.run(path: nil, fetchCategories: [.plugins])
+        
+        // Then
+        XCTAssertEqual(
+            config, invokedConfig
+        )
+    }
 
-    func test_run() throws {
+    func test_run_when_fetching_dependencies() throws {
         // Given
         let stubbedPath = try temporaryPath()
         let stubbedDependencies = Dependencies(
@@ -79,7 +108,7 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.run(path: stubbedPath.pathString)
+        try subject.run(path: stubbedPath.pathString, fetchCategories: [.dependencies])
 
         // Then
         XCTAssertTrue(dependenciesModelLoader.invokedLoadDependencies)

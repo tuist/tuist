@@ -8,7 +8,6 @@ struct DependenciesCommand: ParsableCommand {
             commandName: "dependencies",
             abstract: "A set of commands for dependencies' management.",
             subcommands: [
-                DependenciesFetchCommand.self,
                 DependenciesUpdateCommand.self,
                 DependenciesCleanCommand.self,
             ]
