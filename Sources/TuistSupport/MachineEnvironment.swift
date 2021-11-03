@@ -15,15 +15,29 @@ public class MachineEnvironment: MachineEnvironmentRetrieving {
     private init() {}
 
     /// `clientId` is a unique anonymous hash that identifies the machine running Tuist
-    public let clientId = (Host.current().name?.checksum(algorithm: .md5)) ?? "unknown"
+    public let clientId = (
+      try? System.shared
+        .capture("ioreg", "-d2", "-c", "IOPlatformExpertDevice")
+        .components(separatedBy: "\"IOPlatformUUID\" = \"")
+        .last?.components(separatedBy: "\"")
+        .first?.checksum(algorithm: .md5)
+    ) ?? "unknown"
 
     /// The `macOSVersion` of the machine running Tuist, in the format major.minor.path, e.g: "10.15.7"
-
-    // swiftlint:disable line_length
-    public let macOSVersion = "\(ProcessInfo.processInfo.operatingSystemVersion.majorVersion).\(ProcessInfo.processInfo.operatingSystemVersion.minorVersion).\(ProcessInfo.processInfo.operatingSystemVersion.patchVersion)"
+    public let macOSVersion = """
+      \(ProcessInfo.processInfo.operatingSystemVersion.majorVersion).\
+      \(ProcessInfo.processInfo.operatingSystemVersion.minorVersion).\
+      \(ProcessInfo.processInfo.operatingSystemVersion.patchVersion)
+    """
 
     /// The `swiftVersion` of the machine running Tuist
-    public let swiftVersion = (try? System.shared.capture("/usr/bin/xcrun", "swift", "-version").components(separatedBy: "Swift version ").last?.components(separatedBy: " ").first) ?? "unknown"
+    public let swiftVersion = (
+      try? System.shared
+        .capture("/usr/bin/xcrun", "swift", "-version")
+        .components(separatedBy: "Swift version ")
+        .last?.components(separatedBy: " ")
+        .first
+    ) ?? "unknown"
 
     /// `hardwareName` is the name of the architecture of the machine running Tuist, e.g: "arm64" or "x86_64"
     public let hardwareName = ProcessInfo.processInfo.machineHardwareName
