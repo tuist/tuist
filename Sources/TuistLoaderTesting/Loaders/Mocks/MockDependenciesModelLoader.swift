@@ -7,11 +7,11 @@ import TuistSupport
 public class MockDependenciesModelLoader: DependenciesModelLoading {
     public init() {}
 
-    var invokedLoadDependencies = false
-    var invokedLoadDependenciesCount = 0
-    var invokedLoadDependenciesParameters: AbsolutePath?
-    var invokedLoadDependenciesParemetersList = [AbsolutePath]()
-    var loadDependenciesStub: ((AbsolutePath) throws -> Dependencies)?
+    public var invokedLoadDependencies = false
+    public var invokedLoadDependenciesCount = 0
+    public var invokedLoadDependenciesParameters: AbsolutePath?
+    public var invokedLoadDependenciesParemetersList = [AbsolutePath]()
+    public var loadDependenciesStub: ((AbsolutePath) throws -> Dependencies)?
 
     public func loadDependencies(at path: AbsolutePath) throws -> Dependencies {
         invokedLoadDependencies = true
