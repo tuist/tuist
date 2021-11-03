@@ -9,8 +9,8 @@ import TuistGraph
 public final class MockDependenciesController: DependenciesControlling {
     public init() {}
 
-    var invokedFetch = false
-    var fetchStub: ((AbsolutePath, TuistGraph.Dependencies, TSCUtility.Version?) throws -> TuistCore.DependenciesGraph)?
+    public var invokedFetch = false
+    public var fetchStub: ((AbsolutePath, TuistGraph.Dependencies, TSCUtility.Version?) throws -> TuistCore.DependenciesGraph)?
 
     public func fetch(
         at path: AbsolutePath,
@@ -21,8 +21,8 @@ public final class MockDependenciesController: DependenciesControlling {
         return try fetchStub?(path, dependencies, swiftVersion) ?? .none
     }
 
-    var invokedUpdate = false
-    var updateStub: ((AbsolutePath, TuistGraph.Dependencies, TSCUtility.Version?) throws -> TuistCore.DependenciesGraph)?
+    public var invokedUpdate = false
+    public var updateStub: ((AbsolutePath, TuistGraph.Dependencies, TSCUtility.Version?) throws -> TuistCore.DependenciesGraph)?
 
     public func update(
         at path: AbsolutePath,
@@ -33,8 +33,8 @@ public final class MockDependenciesController: DependenciesControlling {
         return try updateStub?(path, dependencies, swiftVersion) ?? .none
     }
 
-    var invokedSave = false
-    var saveStub: ((TuistGraph.DependenciesGraph, AbsolutePath) throws -> Void)?
+    public var invokedSave = false
+    public var saveStub: ((TuistGraph.DependenciesGraph, AbsolutePath) throws -> Void)?
 
     public func save(dependenciesGraph: TuistGraph.DependenciesGraph, to path: AbsolutePath) throws {
         invokedSave = true

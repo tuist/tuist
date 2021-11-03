@@ -18,6 +18,7 @@ public struct TuistCommand: ParsableCommand {
                 DumpCommand.self,
                 EditCommand.self,
                 ExecCommand.self,
+                FetchCommand.self,
                 FocusCommand.self,
                 GenerateCommand.self,
                 GraphCommand.self,
@@ -46,11 +47,10 @@ public struct TuistCommand: ParsableCommand {
         let executeCommand: () throws -> Void
         do {
             let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
-            let commandName = processedArguments.first ?? ""
             let isTuistCommand = Self.configuration.subcommands
-                .map { $0._commandName }
+                .map({ $0._commandName })
                 .contains(processedArguments.first ?? "")
-            if isTuistCommand || !System.shared.commandExists("tuist-" + commandName) {
+            if isTuistCommand {
                 if processedArguments.first == ScaffoldCommand.configuration.commandName {
                     try ScaffoldCommand.preprocess(processedArguments)
                 }
@@ -64,17 +64,11 @@ public struct TuistCommand: ParsableCommand {
                 executeCommand = { try execute(command) }
             } else {
                 executeCommand = {
-                    try TuistService().run(processedArguments)
+                    try executeTask(with: processedArguments)
                 }
             }
         } catch {
-            let exitCode = self.exitCode(for: error).rawValue
-            if exitCode == 0 {
-                logger.info("\(fullMessage(for: error))")
-            } else {
-                logger.error("\(fullMessage(for: error))")
-            }
-            _exit(exitCode)
+            handleParseError(error)
         }
         do {
             try executeCommand()
@@ -91,6 +85,28 @@ public struct TuistCommand: ParsableCommand {
                 _exit(exitCode(for: error).rawValue)
             }
         }
+    }
+    
+    private static func executeTask(with processedArguments: [String]) throws {
+        do {
+            try TuistService().run(processedArguments)
+        } catch TuistServiceError.taskUnavailable {
+            do {
+                _ = try parseAsRoot(processedArguments)
+            } catch {
+                handleParseError(error)
+            }
+        }
+    }
+    
+    private static func handleParseError(_ error: Error) -> Never {
+        let exitCode = self.exitCode(for: error).rawValue
+        if exitCode == 0 {
+            logger.info("\(fullMessage(for: error))")
+        } else {
+            logger.error("\(fullMessage(for: error))")
+        }
+        _exit(exitCode)
     }
 
     private static func execute(_ command: ParsableCommand) throws {
