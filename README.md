@@ -210,6 +210,9 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="https://github.com/ezraberch"><img src="https://avatars.githubusercontent.com/u/49635435?v=4" width="100px;" alt=""/><br /><sub><b>ezraberch</b></sub></a></td>
     <td align="center"><a href="https://github.com/cconstable"><img src="https://avatars.githubusercontent.com/u/564781?v=4" width="100px;" alt=""/><br /><sub><b>Christopher Constable</b></sub></a></td>
   </tr>
+  <tr>
+    <td align="center"><a href="https://github.com/neakor"><img src="https://avatars.githubusercontent.com/u/1827517?v=4" width="100px;" alt=""/><br /><sub><b>Yi Wang</b></sub></a></td>
+  </tr>
 </table>
 
 <!-- markdownlint-restore -->
