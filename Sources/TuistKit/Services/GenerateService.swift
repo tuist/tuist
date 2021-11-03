@@ -12,7 +12,7 @@ final class GenerateService {
     private let clock: Clock
     private let generatorFactory: GeneratorFactorying
     private let configLoader: ConfigLoading
-    
+
     // MARK: - Init
 
     init(clock: Clock = WallClock(),
@@ -32,7 +32,7 @@ final class GenerateService {
     {
         let timer = clock.startTimer()
         let path = self.path(path)
-        let config = try self.configLoader.loadConfig(path: path)
+        let config = try configLoader.loadConfig(path: path)
         let generator = generatorFactory.default(config: config)
 
         let generatedProjectPath = try generator.generate(path: path, projectOnly: projectOnly)

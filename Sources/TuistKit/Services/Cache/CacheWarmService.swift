@@ -1,11 +1,11 @@
 import Foundation
 import TSCBasic
+import TuistAutomation
 import TuistCache
 import TuistCore
 import TuistGraph
 import TuistLoader
 import TuistSupport
-import TuistAutomation
 
 final class CacheWarmService {
     private let configLoader: ConfigLoading
@@ -27,11 +27,13 @@ final class CacheWarmService {
         }
 
         let profile = try CacheProfileResolver().resolveCacheProfile(named: profile, from: config)
-        try cacheController.cache(config: config,
-                                  path: path,
-                                  cacheProfile: profile,
-                                  includedTargets: targets,
-                                  dependenciesOnly: dependenciesOnly)
+        try cacheController.cache(
+            config: config,
+            path: path,
+            cacheProfile: profile,
+            includedTargets: targets,
+            dependenciesOnly: dependenciesOnly
+        )
     }
 
     // MARK: - Fileprivate

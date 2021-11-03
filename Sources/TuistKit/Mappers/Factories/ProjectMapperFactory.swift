@@ -1,26 +1,24 @@
 import Foundation
+import TuistAutomation
 import TuistCore
 import TuistGenerator
 import TuistGraph
 import TuistLoader
 import TuistSigning
 import TuistSupport
-import TuistAutomation
 
 /// The protocol describes an interface for getting project mappers.
 protocol ProjectMapperFactorying {
-    
     /// Returns the default project mapper.
     /// - Parameter config: The project configuration
     /// - Returns: A project mapper instance.
     func `default`(config: Config) -> [ProjectMapping]
-    
+
     /// Returns a project mapper for caching projects.
     /// - Parameter config: The project configuration.
     /// - Returns: An instance of a project mapper.
     func cache(config: Config) -> [ProjectMapping]
-    
-    
+
     /// Returns a project mapper for automation.
     /// - Parameter config: The project configuration.
     /// - Parameter skipUITests: Whether UI tests should be skipped.
@@ -34,7 +32,7 @@ final class ProjectMapperFactory: ProjectMapperFactorying {
     init(contentHasher: ContentHashing = ContentHasher()) {
         self.contentHasher = contentHasher
     }
-    
+
     func cache(config: Config) -> [ProjectMapping] {
         return self.default(config: config)
     }
@@ -63,7 +61,7 @@ final class ProjectMapperFactory: ProjectMapperFactorying {
 
         return mappers
     }
-    
+
     func `default`(config: Config) -> [ProjectMapping] {
         var mappers: [ProjectMapping] = []
 
@@ -111,7 +109,7 @@ final class ProjectMapperFactory: ProjectMapperFactorying {
 
         // Signing
         mappers.append(SigningMapper())
-        
+
         return mappers
     }
 }

@@ -1,23 +1,22 @@
 import Foundation
+import TSCBasic
 import TSCUtility
+import TuistAutomation
 import TuistCore
 import TuistGenerator
 import TuistGraph
-import TuistAutomation
-import TSCBasic
 
 protocol WorkspaceMapperFactorying {
-    
     /// Returns the default workspace mapper.
     /// - Returns: A workspace mapping instance.
     func `default`(config: Config) -> [WorkspaceMapping]
-    
+
     /// Returns a mapper to generate cacheable prorjects.
     /// - Parameter config: The project configuration.
     /// - Parameter includedTargets: The list of targets to cache.
     /// - Returns: A workspace mapping instance.
     func cache(config: Config, includedTargets: Set<String>) -> [WorkspaceMapping]
-    
+
     /// Returns a mapper for automation commands like build and test.
     /// - Parameter config: The project configuration.
     /// - Parameter workspaceDirectory: The directory where the workspace will be generated.
@@ -26,7 +25,6 @@ protocol WorkspaceMapperFactorying {
 }
 
 final class WorkspaceMapperFactory: WorkspaceMapperFactorying {
-    
     private let projectMapperFactory: ProjectMapperFactorying
 
     init(projectMapperFactory: ProjectMapperFactorying) {
@@ -35,7 +33,7 @@ final class WorkspaceMapperFactory: WorkspaceMapperFactorying {
 
     func cache(config: Config, includedTargets: Set<String>) -> [WorkspaceMapping] {
         var mappers = self.default(config: config)
-        mappers +=  [GenerateCacheableSchemesWorkspaceMapper(includedTargets: includedTargets)]
+        mappers += [GenerateCacheableSchemesWorkspaceMapper(includedTargets: includedTargets)]
         return mappers
     }
 

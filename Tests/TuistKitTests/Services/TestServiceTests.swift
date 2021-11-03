@@ -33,7 +33,7 @@ final class TestServiceTests: TuistUnitTestCase {
         contentHasher = .init()
         testsCacheTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         generatorFactory = .init()
-        generatorFactory.stubbedTestResult = self.generator
+        generatorFactory.stubbedTestResult = generator
         let mockCacheDirectoriesProvider = try MockCacheDirectoriesProvider()
         cacheDirectoriesProvider = mockCacheDirectoriesProvider
 

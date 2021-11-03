@@ -1,11 +1,10 @@
 import Foundation
-import TuistGraph
-import TuistCore
 import TSCBasic
+import TuistCore
+import TuistGraph
 @testable import TuistKit
 
 final class MockGeneratorFactory: GeneratorFactorying {
-
     var invokedFocus = false
     var invokedFocusCount = 0
     var invokedFocusParameters: (config: Config, sources: Set<String>, xcframeworks: Bool, cacheProfile: TuistGraph.Cache.Profile, ignoreCache: Bool)?
@@ -13,10 +12,11 @@ final class MockGeneratorFactory: GeneratorFactorying {
     var stubbedFocusResult: Generating!
 
     func focus(config: Config,
-        sources: Set<String>,
-        xcframeworks: Bool,
-        cacheProfile: TuistGraph.Cache.Profile,
-        ignoreCache: Bool) -> Generating {
+               sources: Set<String>,
+               xcframeworks: Bool,
+               cacheProfile: TuistGraph.Cache.Profile,
+               ignoreCache: Bool) -> Generating
+    {
         invokedFocus = true
         invokedFocusCount += 1
         invokedFocusParameters = (config, sources, xcframeworks, cacheProfile, ignoreCache)

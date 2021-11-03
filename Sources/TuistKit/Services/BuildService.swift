@@ -4,8 +4,8 @@ import TuistAutomation
 import TuistCache
 import TuistCore
 import TuistGraph
-import TuistSupport
 import TuistLoader
+import TuistSupport
 
 enum BuildServiceError: FatalError {
     case workspaceNotFound(path: String)
@@ -61,7 +61,7 @@ final class BuildService {
         path: AbsolutePath
     ) throws {
         let graph: Graph
-        let config = try self.configLoader.loadConfig(path: path)
+        let config = try configLoader.loadConfig(path: path)
         let generator = generatorFactory.default(config: config)
         if try (generate || buildGraphInspector.workspacePath(directory: path) == nil) {
             graph = try generator.generateWithGraph(path: path, projectOnly: false).1

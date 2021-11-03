@@ -28,11 +28,13 @@ final class FocusService {
         let path = self.path(path)
         let config = try configLoader.loadConfig(path: path)
         let cacheProfile = try CacheProfileResolver().resolveCacheProfile(named: profile, from: config)
-        let generator =  generatorFactory.focus(config: config,
-                                                sources: sources,
-                                                xcframeworks: xcframeworks,
-                                                cacheProfile: cacheProfile,
-                                                ignoreCache: ignoreCache)
+        let generator = generatorFactory.focus(
+            config: config,
+            sources: sources,
+            xcframeworks: xcframeworks,
+            cacheProfile: cacheProfile,
+            ignoreCache: ignoreCache
+        )
         let workspacePath = try generator.generate(path: path, projectOnly: false)
         if !noOpen {
             try opener.open(path: workspacePath)

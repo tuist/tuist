@@ -121,11 +121,13 @@ final class CacheControllerTests: TuistUnitTestCase {
         artifactBuilder.stubbedCacheOutputType = .xcframework
 
         // When
-        try subject.cache(config: .test(),
-                          path: path,
-                          cacheProfile: .test(configuration: "Debug"),
-                          includedTargets: [],
-                          dependenciesOnly: false)
+        try subject.cache(
+            config: .test(),
+            path: path,
+            cacheProfile: .test(configuration: "Debug"),
+            includedTargets: [],
+            dependenciesOnly: false
+        )
 
         // Then
         let targetsToBeCached = "bar, baz, foo"
@@ -200,11 +202,13 @@ final class CacheControllerTests: TuistUnitTestCase {
         cache.existsStub = { _, _ in throw remoteCacheError }
         // When / Then
         XCTAssertThrowsSpecific(
-            try subject.cache(config: .test(),
-                              path: path,
-                              cacheProfile: .test(configuration: "Debug"),
-                              includedTargets: [],
-                              dependenciesOnly: false),
+            try subject.cache(
+                config: .test(),
+                path: path,
+                cacheProfile: .test(configuration: "Debug"),
+                includedTargets: [],
+                dependenciesOnly: false
+            ),
             remoteCacheError
         )
     }
@@ -267,11 +271,13 @@ final class CacheControllerTests: TuistUnitTestCase {
         artifactBuilder.stubbedCacheOutputType = .xcframework
 
         // When
-        try subject.cache(config: .test(),
-                          path: path,
-                          cacheProfile: .test(configuration: "Debug"),
-                          includedTargets: [],
-                          dependenciesOnly: false)
+        try subject.cache(
+            config: .test(),
+            path: path,
+            cacheProfile: .test(configuration: "Debug"),
+            includedTargets: [],
+            dependenciesOnly: false
+        )
 
         // Then
         XCTAssertPrinterOutputContains("All cacheable targets are already cached")
@@ -337,11 +343,13 @@ final class CacheControllerTests: TuistUnitTestCase {
         artifactBuilder.stubbedCacheOutputType = .xcframework
 
         // When
-        try subject.cache(config: .test(),
-                          path: path,
-                          cacheProfile: .test(configuration: "Debug"),
-                          includedTargets: [bTarget.name],
-                          dependenciesOnly: false)
+        try subject.cache(
+            config: .test(),
+            path: path,
+            cacheProfile: .test(configuration: "Debug"),
+            includedTargets: [bTarget.name],
+            dependenciesOnly: false
+        )
 
         // Then
         let targetsToBeCached = [aTarget.name, bTarget.name].sorted().joined(separator: ", ")

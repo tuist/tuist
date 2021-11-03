@@ -11,7 +11,7 @@ final class CachePrintHashesService {
     private let cacheGraphContentHasher: CacheGraphContentHashing
     private let clock: Clock
     private let configLoader: ConfigLoading
-    
+
     convenience init(contentHasher: ContentHashing = CacheContentHasher()) {
         self.init(
             generatorFactory: GeneratorFactory(),
@@ -36,7 +36,7 @@ final class CachePrintHashesService {
     func run(path: AbsolutePath, xcframeworks: Bool, profile: String?) throws {
         let timer = clock.startTimer()
         let config = try configLoader.loadConfig(path: path)
-        let generator = self.generatorFactory.default(config: config)
+        let generator = generatorFactory.default(config: config)
         let graph = try generator.load(path: path)
         let cacheOutputType: CacheOutputType = xcframeworks ? .xcframework : .framework
         let cacheProfile = try CacheProfileResolver().resolveCacheProfile(named: profile, from: config)

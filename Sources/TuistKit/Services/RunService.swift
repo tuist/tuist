@@ -5,8 +5,8 @@ import TuistAutomation
 import TuistCache
 import TuistCore
 import TuistGraph
-import TuistSupport
 import TuistLoader
+import TuistSupport
 
 enum RunServiceError: FatalError {
     case schemeNotFound(scheme: String, existing: [String])
@@ -45,14 +45,14 @@ final class RunService {
     private let targetBuilder: TargetBuilding
     private let targetRunner: TargetRunning
     private let configLoader: ConfigLoading
-    
+
     init(
         generatorFactory: GeneratorFactorying = GeneratorFactory(),
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         targetBuilder: TargetBuilding = TargetBuilder(),
         targetRunner: TargetRunning = TargetRunner(),
         configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader())
-        
+
     ) {
         self.generatorFactory = generatorFactory
         self.buildGraphInspector = buildGraphInspector
@@ -70,7 +70,8 @@ final class RunService {
         configuration: String?,
         device: String?,
         version: String?,
-        arguments: [String]) throws {
+        arguments: [String]
+    ) throws {
         let runPath: AbsolutePath
         if let path = path {
             runPath = AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)

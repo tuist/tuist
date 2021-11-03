@@ -1,16 +1,15 @@
 import Foundation
-import TuistGraph
-import TuistCache
-import TuistGenerator
-import TuistLoader
 import TSCBasic
-import TuistSupport
+import TuistCache
 import TuistCore
+import TuistGenerator
+import TuistGraph
+import TuistLoader
+import TuistSupport
 
 /// The protocol describes the interface of a factory that instantiates
 /// generators for different commands
 protocol GeneratorFactorying {
-    
     /// Returns the generator for focused projects.
     /// - Parameter config: The project configuration.
     /// - Parameter sources: The list of targets whose sources should be inclued.
@@ -23,7 +22,7 @@ protocol GeneratorFactorying {
                xcframeworks: Bool,
                cacheProfile: TuistGraph.Cache.Profile,
                ignoreCache: Bool) -> Generating
-    
+
     /// Returns the generator to generate a project to run tests on.
     /// - Parameter config: The project configuration
     /// - Parameter automationPath: The automation path.
@@ -36,12 +35,12 @@ protocol GeneratorFactorying {
         testsCacheDirectory: AbsolutePath,
         skipUITests: Bool
     ) -> Generating
-    
+
     /// Returns the default generator.
     /// - Parameter config: The project configuration.
     /// - Returns: A Generator instance.
     func `default`(config: Config) -> Generating
-    
+
     /// Returns a generator that generates a cacheable project.
     /// - Parameter config: The project configuration.
     /// - Parameter includedTargets: The targets to cache. When nil, it caches all the cacheable targets.
@@ -50,38 +49,43 @@ protocol GeneratorFactorying {
 }
 
 class GeneratorFactory: GeneratorFactorying {
-    
     let projectMapperFactory: ProjectMapperFactorying
     let graphMapperFactory: GraphMapperFactorying
     let workspaceMapperFactory: WorkspaceMapperFactorying
-    
+
     convenience init(contentHasher: ContentHashing = ContentHasher()) {
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
         let workspaceMapperFactory = WorkspaceMapperFactory(projectMapperFactory: projectMapperFactory)
         let graphMapperFactory = GraphMapperFactory(contentHasher: contentHasher)
-        self.init(projectMapperFactory: projectMapperFactory,
-                  graphMapperFactory: graphMapperFactory,
-                  workspaceMapperFactory: workspaceMapperFactory)
+        self.init(
+            projectMapperFactory: projectMapperFactory,
+            graphMapperFactory: graphMapperFactory,
+            workspaceMapperFactory: workspaceMapperFactory
+        )
     }
-    
+
     init(projectMapperFactory: ProjectMapperFactorying,
          graphMapperFactory: GraphMapperFactorying,
-         workspaceMapperFactory: WorkspaceMapperFactorying) {
+         workspaceMapperFactory: WorkspaceMapperFactorying)
+    {
         self.projectMapperFactory = projectMapperFactory
         self.graphMapperFactory = graphMapperFactory
         self.workspaceMapperFactory = workspaceMapperFactory
     }
-    
+
     func focus(config: Config,
                sources: Set<String>,
                xcframeworks: Bool,
                cacheProfile: TuistGraph.Cache.Profile,
-               ignoreCache: Bool) -> Generating {
-        let graphMappers = graphMapperFactory.focus(config: config,
-                                                   cache: !ignoreCache,
-                                                   cacheSources: sources,
-                                                   cacheProfile: cacheProfile,
-                                                   cacheOutputType: xcframeworks ? .xcframework : .framework)
+               ignoreCache: Bool) -> Generating
+    {
+        let graphMappers = graphMapperFactory.focus(
+            config: config,
+            cache: !ignoreCache,
+            cacheSources: sources,
+            cacheProfile: cacheProfile,
+            cacheOutputType: xcframeworks ? .xcframework : .framework
+        )
         let workspaceMappers = workspaceMapperFactory.default(config: config)
         let projectMappers = projectMapperFactory.default(config: config)
         return Generator(
@@ -91,11 +95,11 @@ class GeneratorFactory: GeneratorFactorying {
             manifestLoaderFactory: ManifestLoaderFactory()
         )
     }
-    
+
     func `default`(config: Config) -> Generating {
         self.default(config: config, contentHasher: ContentHasher())
     }
-    
+
     func test(
         config: Config,
         automationPath: AbsolutePath,
@@ -103,38 +107,40 @@ class GeneratorFactory: GeneratorFactorying {
         skipUITests: Bool
     ) -> Generating {
         let graphMappers = graphMapperFactory.automation(config: config, testsCacheDirectory: testsCacheDirectory)
-        let workspaceMappers = workspaceMapperFactory.automation(config: config,
-                                                                workspaceDirectory: FileHandler.shared.resolveSymlinks(automationPath))
+        let workspaceMappers = workspaceMapperFactory.automation(
+            config: config,
+            workspaceDirectory: FileHandler.shared.resolveSymlinks(automationPath)
+        )
         let projectMappers = projectMapperFactory.automation(config: config, skipUITests: skipUITests)
         return Generator(
             projectMapper: SequentialProjectMapper(mappers: projectMappers),
-            graphMapper:  SequentialGraphMapper(graphMappers),
+            graphMapper: SequentialGraphMapper(graphMappers),
             workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
             manifestLoaderFactory: ManifestLoaderFactory()
         )
     }
-    
+
     func cache(config: Config, includedTargets: Set<String>?) -> Generating {
         let projectMappers = projectMapperFactory.cache(config: config)
-        let graphMappers = self.graphMapperFactory.cache(includedTargets: includedTargets)
-        let workspaceMappers = self.workspaceMapperFactory.cache(config: config, includedTargets: includedTargets ?? [])
+        let graphMappers = graphMapperFactory.cache(includedTargets: includedTargets)
+        let workspaceMappers = workspaceMapperFactory.cache(config: config, includedTargets: includedTargets ?? [])
         return Generator(
             projectMapper: SequentialProjectMapper(mappers: projectMappers),
-            graphMapper:  SequentialGraphMapper(graphMappers),
+            graphMapper: SequentialGraphMapper(graphMappers),
             workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
             manifestLoaderFactory: ManifestLoaderFactory()
         )
     }
-    
+
     // MARK: - Fileprivate
-    
-    func `default`(config: Config, contentHasher: ContentHashing) -> Generating {
+
+    func `default`(config: Config, contentHasher _: ContentHashing) -> Generating {
         let projectMappers = projectMapperFactory.default(config: config)
         let graphMappers = graphMapperFactory.default()
         let workspaceMappers = workspaceMapperFactory.default(config: config)
         return Generator(
             projectMapper: SequentialProjectMapper(mappers: projectMappers),
-            graphMapper:  SequentialGraphMapper(graphMappers),
+            graphMapper: SequentialGraphMapper(graphMappers),
             workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
             manifestLoaderFactory: ManifestLoaderFactory()
         )
