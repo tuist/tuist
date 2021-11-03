@@ -113,8 +113,8 @@ end
 
 Then(/tuist edits the project/) do
   system(@tuist, "edit", "--path", @dir, "--permanent")
-  @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
-  @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
+  @workspace_path = Dir.glob(File.join(@dir, "Manifests.xcworkspace")).first
+  @xcodeproj_path = Dir.glob(File.join(@dir, "Manifests.xcodeproj")).first
 end
 
 Then(/tuist sets up the project/) do
