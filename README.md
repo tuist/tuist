@@ -212,6 +212,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
   </tr>
   <tr>
     <td align="center"><a href="https://github.com/neakor"><img src="https://avatars.githubusercontent.com/u/1827517?v=4" width="100px;" alt=""/><br /><sub><b>Yi Wang</b></sub></a></td>
+    <td align="center"><a href="https://www.mustafadur.com"><img src="https://avatars.githubusercontent.com/u/971530?v=4" width="100px;" alt=""/><br /><sub><b>Mustafa Dur</b></sub></a></td>
   </tr>
 </table>
 
