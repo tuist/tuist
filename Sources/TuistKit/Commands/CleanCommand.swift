@@ -6,7 +6,7 @@ struct CleanCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "clean",
-            abstract: "Clean all the artefacts stored locally"
+            abstract: "Clean all the artifacts stored locally"
         )
     }
 
