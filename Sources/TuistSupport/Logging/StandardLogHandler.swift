@@ -26,26 +26,28 @@ public struct StandardLogHandler: LogHandler {
         }
 
         let string: String
-
-        switch metadata?[Logger.Metadata.tuist] {
-        case Logger.Metadata.successKey?:
-            string = message.description.green().bold()
-        case Logger.Metadata.sectionKey?:
-            string = message.description.cyan().bold()
-        case Logger.Metadata.subsectionKey?:
-            string = message.description.cyan()
-        default:
-
-            switch level {
-            case .critical:
-                string = message.description.red().bold()
-            case .error:
-                string = message.description.red()
-            case .warning:
-                string = message.description.yellow()
-            case .notice, .info, .debug, .trace:
-                string = message.description
+        if Environment.shared.shouldOutputBeColoured {
+            switch metadata?[Logger.Metadata.tuist] {
+            case Logger.Metadata.successKey?:
+                string = message.description.green().bold()
+            case Logger.Metadata.sectionKey?:
+                string = message.description.cyan().bold()
+            case Logger.Metadata.subsectionKey?:
+                string = message.description.cyan()
+            default:
+                switch level {
+                case .critical:
+                    string = message.description.red().bold()
+                case .error:
+                    string = message.description.red()
+                case .warning:
+                    string = message.description.yellow()
+                case .notice, .info, .debug, .trace:
+                    string = message.description
+                }
             }
+        } else {
+            string = message.description
         }
 
         output(for: level).print(string)
