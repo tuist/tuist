@@ -57,6 +57,7 @@ final class GraphMapperFactory: GraphMapperFactorying {
     {
         var mappers: [GraphMapping] = []
         mappers.append(FocusTargetsGraphMappers(includedTargets: cacheSources))
+        mappers.append(TreeShakePrunedTargetsGraphMapper())
         if cache {
             let focusTargetsGraphMapper = TargetsToCacheBinariesGraphMapper(
                 config: config,
@@ -66,8 +67,8 @@ final class GraphMapperFactory: GraphMapperFactorying {
                 cacheOutputType: cacheOutputType
             )
             mappers.append(focusTargetsGraphMapper)
+            mappers.append(TreeShakePrunedTargetsGraphMapper())
         }
-        mappers.append(TreeShakePrunedTargetsGraphMapper())
 
         // The default mapper is executed at the end because it ensures that the workspace is in sync with the content in the graph.
         mappers.append(contentsOf: self.default())
