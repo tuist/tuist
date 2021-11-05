@@ -20,6 +20,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Fix handling of `TUIST_CONFIG_COLOURED_OUTPUT` environment variable [#3631](https://github.com/tuist/tuist/pull/3631) by [@danyf90](https://github.com/danyf90)
 - Fix `tuist dump config` no longer requires to be executed inside the `Tuist` folder [#3647](https://github.com/tuist/tuist/pull/3647) by [@danyf90](https://github.com/danyf90)
+- Calculation of the macOS minimum deployment target for Swift Packages that don't specify it [#3639](https://github.com/tuist/tuist/pull/3639) by [@pepibumur](https://github.com/pepibumur)
 
 ## 2.1.1 - Patenipat
 
