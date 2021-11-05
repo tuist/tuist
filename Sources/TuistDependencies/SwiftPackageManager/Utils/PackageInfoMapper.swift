@@ -130,11 +130,14 @@ public final class PackageInfoMapper: PackageInfoMapping {
     // Predefined source directories, in order of preference.
     // https://github.com/apple/swift-package-manager/blob/751f0b2a00276be2c21c074f4b21d952eaabb93b/Sources/PackageLoading/PackageBuilder.swift#L488
     fileprivate static let predefinedSourceDirectories = ["Sources", "Source", "src", "srcs"]
+    fileprivate let moduleMapGenerator: SwiftPackageManagerModuleMapGenerating
+    fileprivate let minimumDeploymentTargetCalculator: MinimumDeploymentTargetCalculating
 
-    let moduleMapGenerator: SwiftPackageManagerModuleMapGenerating
-
-    public init(moduleMapGenerator: SwiftPackageManagerModuleMapGenerating = SwiftPackageManagerModuleMapGenerator()) {
+    public init(moduleMapGenerator: SwiftPackageManagerModuleMapGenerating = SwiftPackageManagerModuleMapGenerator(),
+                minimumDeploymentTargetCalculator: MinimumDeploymentTargetCalculating = MinimumDeploymentTargetCalculator())
+    {
         self.moduleMapGenerator = moduleMapGenerator
+        self.minimumDeploymentTargetCalculator = minimumDeploymentTargetCalculator
     }
 
     /// Resolves all SwiftPackageManager dependencies.
@@ -231,31 +234,10 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 )
             }
         }
-
-        let minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]
-        minDeploymentTargets = try Set(targetToPlatforms.values).reduce(into: [:]) { result, platform in
-            // Calculate the minimum deployment target for a given platform, by analyzing the corresponding XCTest framework using `vtool`
-            let sdk = TuistGraph.Platform(rawValue: platform.rawValue)!.xcodeSdkRoot
-            let sdkPlatformPath = try System.shared.capture("/usr/bin/xcrun", "--sdk", sdk, "--show-sdk-platform-path").spm_chomp()
-            let xcTestRelativePath = "Developer/Library/Frameworks/XCTest.framework/XCTest"
-            let sdkInfo = try System.shared.capture("/usr/bin/xcrun", "vtool", "-show-build", "\(sdkPlatformPath)/\(xcTestRelativePath)")
-            guard let fromMinVersion = sdkInfo.components(separatedBy: " version ").dropFirst().first.map({ String($0) }),
-                let minVersion = fromMinVersion.split(separator: "\n").first.map({ String($0) })
-            else {
-                throw PackageInfoMapperError.minDeploymentTargetParsingFailed(platform)
+        let minDeploymentTargets = try minimumDeploymentTargetCalculator.allPlatforms()
+            .reduce(into: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]()) { acc, next in
+                acc[next.key.descriptionPlatform] = next.value.descriptionDeploymentTarget
             }
-
-            switch platform {
-            case .iOS:
-                result[platform] = .iOS(targetVersion: minVersion, devices: [.iphone, .ipad])
-            case .macOS:
-                result[platform] = .macOS(targetVersion: minVersion)
-            case .watchOS:
-                result[platform] = .watchOS(targetVersion: minVersion)
-            case .tvOS:
-                result[platform] = .tvOS(targetVersion: minVersion)
-            }
-        }
 
         return .init(
             platformToMinDeploymentTarget: minDeploymentTargets,
@@ -785,6 +767,27 @@ extension TuistGraph.Platform {
         case .watchOS:
             return .watchOS
         }
+    }
+}
+
+extension TuistGraph.DeploymentTarget {
+    fileprivate var descriptionDeploymentTarget: ProjectDescription.DeploymentTarget {
+        switch self {
+        case let .iOS(version, deploymentDevice):
+            return .iOS(targetVersion: version, devices: deploymentDevice.descriptionDeploymentDevice)
+        case let .macOS(version):
+            return .macOS(targetVersion: version)
+        case let .tvOS(version):
+            return .tvOS(targetVersion: version)
+        case let .watchOS(version):
+            return .watchOS(targetVersion: version)
+        }
+    }
+}
+
+extension TuistGraph.DeploymentDevice {
+    fileprivate var descriptionDeploymentDevice: ProjectDescription.DeploymentDevice {
+        return .init(rawValue: rawValue)
     }
 }
 
