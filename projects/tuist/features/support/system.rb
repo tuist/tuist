@@ -6,7 +6,7 @@ module System
   def system(*args)
     log(args.join(" "))
     if ARGV.include?("--verbose")
-      status = Open3.popen2e(*args) do |stdin, stdout_stderr, wait_thread|
+      status = Open3.popen2e(args.join(" ")) do |stdin, stdout_stderr, wait_thread|
         Thread.new do
           stdout_stderr.each {|l| puts l }
         end
@@ -15,7 +15,7 @@ module System
       end
       assert(status.success?)
     else
-      _, err, status = Open3.capture3(*args)
+      _, err, status = Open3.capture3(args.join(" "))
       assert(status.success?, err)
     end
   end
