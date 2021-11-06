@@ -15,11 +15,16 @@ public class MachineEnvironment: MachineEnvironmentRetrieving {
     private init() {}
 
     /// `clientId` is a unique anonymous hash that identifies the machine running Tuist
-    public lazy var clientId = try! System.shared // swiftlint:disable:this force_try
-        .capture("ioreg", "-d2", "-c", "IOPlatformExpertDevice")
-        .components(separatedBy: "\"IOPlatformUUID\" = \"").last!
-        .components(separatedBy: "\"").first!
-        .checksum(algorithm: .md5)!
+    public lazy var clientId: String = {
+        let matchingDict = IOServiceMatching("IOPlatformExpertDevice")
+        let platformExpert = IOServiceGetMatchingService(kIOMasterPortDefault, matchingDict)
+        defer { IOObjectRelease(platformExpert) }
+        guard platformExpert != 0 else {
+            fatalError("Couldn't obtain the platform expert")
+        }
+        let uuid = IORegistryEntryCreateCFProperty(platformExpert, kIOPlatformUUIDKey as CFString, kCFAllocatorDefault, 0).takeRetainedValue() as! String
+        return uuid.checksum(algorithm: .md5)!
+    }()
 
     /// The `macOSVersion` of the machine running Tuist, in the format major.minor.path, e.g: "10.15.7"
     public lazy var macOSVersion = """
