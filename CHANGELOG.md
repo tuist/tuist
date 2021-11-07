@@ -8,6 +8,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - **Breaking** Update logic to calculate deployment target for SwiftPackageManager packages not specifying it, and remove no longer used `SwiftPackageManagerDependencies.deploymentTargets` property [#3602](https://github.com/tuist/tuist/pull/3602) by [@danyf90](https://github.com/danyf90)
 - **Breaking** Update logic to calculate client ID starting from UUID instead of hostname, to avoid collisions [#3632](https://github.com/tuist/tuist/pull/3632) by [@danyf90](https://github.com/danyf90)
+- `Target`'s initializer now has `InfoPlist.default` set as the default value for the `infoPlist` argument [#3644](https://github.com/tuist/tuist/pull/3644) by [@hisaac](https://github.com/hisaac)
 
 ### Added
 
@@ -124,12 +125,12 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - **Breaking** Specifying custom build settings files for default configurations via `Settings(base:debug:release:)` has changed.
   - **Motivation:** To support the `CustomConfiguration` API simplification.
-  - **Migration:** 
-    Replace 
+  - **Migration:**
+    Replace
 
     ```swift
     let settings = Settings(
-        debug: Configuration(settings: ["setting": "debug"]), 
+        debug: Configuration(settings: ["setting": "debug"]),
         release: Configuration(settings: ["setting": "release"])
     )
     ```
@@ -138,19 +139,19 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
     ```swift
     let settings: Settings = .settings(
-        debug: ["setting": "debug"], 
+        debug: ["setting": "debug"],
         release: ["setting": "release"]
     )
     ```
 
 - **Breaking** Specifying xcconfig files for default configurations via `Settings(base:debug:release:)` has changed.
   - **Motivation:** To support the `CustomConfiguration` API simplification.
-  - **Migration:** 
-    Replace 
+  - **Migration:**
+    Replace
 
     ```swift
     let settings = Settings(
-        debug: Configuration(xcconfig: "configs/debug.xcconfig"), 
+        debug: Configuration(xcconfig: "configs/debug.xcconfig"),
         release: Configuration(xcconfig: "configs/release.xcconfig")
     )
     ```
