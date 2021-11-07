@@ -111,7 +111,7 @@ public struct Target: Codable, Equatable {
         productName: String? = nil,
         bundleId: String,
         deploymentTarget: DeploymentTarget? = nil,
-        infoPlist: InfoPlist,
+        infoPlist: InfoPlist = .default,
         sources: SourceFilesList? = nil,
         resources: ResourceFileElements? = nil,
         copyFiles: [CopyFilesAction]? = nil,
