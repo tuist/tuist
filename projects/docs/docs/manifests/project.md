@@ -134,7 +134,7 @@ Each target in the list of project targets can be initialized with the following
 | `productName`      | The built product name.                                                                                                                                                                            | `String`                                        | No       | `$(TARGET_NAME)` |
 | `deploymentTarget` | The minimum iOS version your product will support.                                                                                                                                                 | [#deployment-target](#deployment-target)        | No       |                  |
 | `bundleId`         | The product bundle identifier.                                                                                                                                                                     | `String`                                        | Yes      |                  |
-| `infoPlist`        | Relative path to the `Info.plist`                                                                                                                                                                  | [`InfoPlist`](#infoplist)                       | Yes      |                  |
+| `infoPlist`        | Relative path to the `Info.plist`                                                                                                                                                                  | [`InfoPlist`](#infoplist)                       | No       | `.default`       |
 | `resources`        | List of files to include in the resources build phase. Note that localizable files, `*.lproj`, are supported.                                                                                      | [`ResourceFileElements`](#resourcefileelements) | No       |                  |
 | `copyFiles`        | Copy files actions allow defining copy files build phases.                                                                                                                                         | [`[CopyFilesAction]`](#copy-files-action)       | No       |                  |
 | `headers`          | The target headers.                                                                                                                                                                                | [`Headers`](#headers)                           | No       |                  |
@@ -283,7 +283,8 @@ The `InfoPlist` model represents a target `Info.plist` file. It can have any of 
 | ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | `.file(path: Path)`                                  | The path to an existing Info.plist file.                                                                                        |
 | `.dictionary([String: InfoPlist.Value])`             | A dictionary with the Info.plist content. Tuist generates the Info.plist file at the generation time.                           |
-| `.extendingDefault(with: [String: InfoPlist.Value])` | It indicates Tuist to provide the default content for the target the InfoPlist belongs to, and extend it with the given values. |
+| `.default`                                           | Tells Tuist to provide the default content for the target the InfoPlist belongs to.                                             |
+| `.extendingDefault(with: [String: InfoPlist.Value])` | Tells Tuist to provide the default content for the target the InfoPlist belongs to, and extend it with the given values.        |
 
 :::note ExpressibleByStringLiteral
 The InfoPlist model conforms the ExpressibleByStringLiteral protocol, which means that it can be initialized with a String. In that case, the string is the path to the Info.plist file.
@@ -421,7 +422,7 @@ It represents the scheme action that runs the built products on the supported pl
 
 #### Test Action
 
-You can create a test action with either a set of test targets or test plans using the `.targets` or `.testPlans` static methods respectively. 
+You can create a test action with either a set of test targets or test plans using the `.targets` or `.testPlans` static methods respectively.
 
 When initializing it with a **set of targets**, the attributes you can pass to those methods are documented below:
 
