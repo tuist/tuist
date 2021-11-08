@@ -2,6 +2,7 @@ import DOT
 import Foundation
 import GraphViz
 import TSCBasic
+import TuistGraph
 import TuistPlugin
 import TuistSupport
 import XcodeProj
@@ -85,9 +86,10 @@ final class GraphServiceTests: TuistUnitTestCase {
             outputPath: temporaryPath
         )
         let got = try FileHandler.shared.readTextFile(graphPath)
-        let expected = "{\"packages\":[],\"workspace\":{\"path\":\"\\/\",\"schemes\":[],\"additionalFiles\":[],\"name\":\"test\",\"projects\":[],\"xcWorkspacePath\":\"\\/\"},\"targets\":[],\"path\":\"\\/\",\"dependencies\":[],\"name\":\"graph\",\"projects\":[]}"
+        
+        let result = try! JSONDecoder().decode(GraphOutputJSON.self, from: got.data(using: .utf8)!)
         // Then
-        XCTAssertEqual(got, expected)
+        XCTAssertEqual(result, GraphOutputJSON.init(name: "graph", path: "/", projects: [String: ProjectOutputJSON]()))
         XCTAssertPrinterOutputContains("""
         Deleting existing graph at \(graphPath.pathString)
         Graph exported to \(graphPath.pathString)
