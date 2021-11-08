@@ -8,7 +8,7 @@ module System
     if ARGV.include?("--verbose")
       status = Open3.popen2e(args.join(" ")) do |stdin, stdout_stderr, wait_thread|
         Thread.new do
-          stdout_stderr.each {|l| puts l }
+          stdout_stderr.each { |l| puts l }
         end
         stdin.close
         wait_thread.value
