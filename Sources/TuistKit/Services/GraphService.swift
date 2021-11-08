@@ -4,6 +4,7 @@ import GraphViz
 import TSCBasic
 import TuistCore
 import TuistGenerator
+import TuistGraph
 import TuistLoader
 import TuistPlugin
 import TuistSupport
@@ -11,10 +12,6 @@ import TuistSupport
 final class GraphService {
     private let graphVizMapper: GraphToGraphVizMapping
     private let manifestGraphLoader: ManifestGraphLoading
-    
-    private enum GraphServiceError: Error {
-        case withMessage(String)
-    }
 
     convenience init() {
         let manifestLoader = ManifestLoaderFactory()
@@ -62,13 +59,8 @@ final class GraphService {
             
             try export(graph: graphVizGraph, at: filePath, withFormat: format, layoutAlgorithm: layoutAlgorithm)
         case .json:
-            let jsonData = try JSONEncoder().encode(graph)
-            let jsonString = String(data: jsonData, encoding: .utf8)
-            guard let jsonString = jsonString else {
-                throw GraphServiceError.withMessage("failed to encode graph to JSON")
-            }
-            
-            try export(jsonContent: jsonString, at: filePath)
+            let outputGraph = GraphOutputJSON.from(graph)
+            try outputGraph.export(to: filePath)
         }
         
         logger.notice("Graph exported to \(filePath.pathString).", metadata: .success)
@@ -85,12 +77,8 @@ final class GraphService {
         case .png:
             try exportPNGRepresentation(from: graph, at: filePath, layoutAlgorithm: layoutAlgorithm)
         default:
-            throw GraphServiceError.withMessage("\(format.rawValue) is not a visual graph format to export")
+            throw GraphServiceError.invalidFormat(format.rawValue)
         }
-    }
-    
-    private func export(jsonContent: String, at filePath: AbsolutePath) throws {
-        try FileHandler.shared.write(jsonContent, path: filePath, atomically: true)
     }
 
     private func exportDOTRepresentation(from graphVizGraph: GraphViz.Graph, at filePath: AbsolutePath) throws {
@@ -119,5 +107,41 @@ final class GraphService {
         var env = System.shared.env
         env["HOMEBREW_NO_AUTO_UPDATE"] = "1"
         try System.shared.runAndPrint(["brew", "install", "graphviz"], verbose: false, environment: env)
+    }
+}
+
+private enum GraphServiceError: FatalError {
+    case invalidFormat(String)
+    case encodingError(String)
+    
+    var description: String {
+        switch self {
+        case .invalidFormat(let format):
+            return "\(format) is not valid for export"
+        case .encodingError(let format):
+            return "failed to encode graph to \(format)"
+        }
+    }
+    
+    var type: ErrorType {
+        switch self {
+        case .invalidFormat:
+            return .abort
+        case .encodingError:
+            return .abort
+        }
+    }
+}
+
+fileprivate extension GraphOutputJSON {
+
+    func export(to filePath: AbsolutePath) throws {
+        let jsonData = try JSONEncoder().encode(self)
+        let jsonString = String(data: jsonData, encoding: .utf8)
+        guard let jsonString = jsonString else {
+            throw GraphServiceError.encodingError(GraphFormat.json.rawValue)
+        }
+        
+        try FileHandler.shared.write(jsonString, path: filePath, atomically: true)
     }
 }
