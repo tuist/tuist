@@ -1,0 +1,124 @@
+import Foundation
+import TSCBasic
+
+public struct GraphOutputJSON: Codable, Equatable {
+    public var name: String
+    public var path: String
+    public var projects: [String: ProjectOutputJSON]
+    
+    public init(name: String, path: String, projects: [String: ProjectOutputJSON]) {
+        self.name = name
+        self.path = path
+        self.projects = projects
+    }
+    
+    public static func from(_ graph: TuistGraph.Graph) -> GraphOutputJSON {
+        var projects = [String: ProjectOutputJSON]()
+        for (_, project) in graph.projects {
+            // Convert packages.
+            var packages = [PackageOutputJSON]()
+            for package in project.packages {
+                switch package {
+                case .remote(let url, _):
+                    packages.append(PackageOutputJSON(kind: PackageOutputJSON.PackageKind.remote, path: url))
+                case .local(let path):
+                    packages.append(PackageOutputJSON(kind: PackageOutputJSON.PackageKind.local, path: path.pathString))
+                }
+            }
+            
+            // Convert custom schemes. These are the explicitly specified schemes not the default
+            // ones generated automatically for all the targets.
+            var schemes = [SchemeOutputJSON]()
+            for scheme in project.schemes {
+                var testTargets = [String]()
+                if let testAction = scheme.testAction {
+                    for testTarget in testAction.targets {
+                        testTargets.append(testTarget.target.name)
+                    }
+                }
+                schemes.append(SchemeOutputJSON(name: scheme.name, testActionTargets: testTargets))
+            }
+            
+            // Convert targets.
+            var targets = [TargetOutputJSON]()
+            for target in project.targets {
+                targets.append(TargetOutputJSON(name: target.name, product: target.product.rawValue))
+                
+                // For each target, a default scheme is generated. Include these in the schemes output.
+                // If the target's product is a testing one, include the target as test action.
+                switch target.product {
+                case .uiTests, .unitTests:
+                    schemes.append(SchemeOutputJSON(name: target.name, testActionTargets: [target.name]))
+                default:
+                    schemes.append(SchemeOutputJSON(name: target.name))
+                }
+                
+            }
+            
+            var projectJSON = ProjectOutputJSON(name: project.name, path: project.path.pathString)
+            if !packages.isEmpty {
+                projectJSON.packages = packages
+            }
+            if !schemes.isEmpty {
+                projectJSON.schemes = schemes
+            }
+            if !targets.isEmpty {
+                projectJSON.targets = targets
+            }
+            projects[project.path.pathString] = projectJSON
+        }
+        
+        return GraphOutputJSON(name: graph.name, path: graph.path.pathString, projects: projects)
+    }
+}
+
+public struct ProjectOutputJSON: Codable, Equatable {
+    public var name: String
+    public var path: String
+    public var packages: [PackageOutputJSON]?
+    public var targets: [TargetOutputJSON]?
+    public var schemes: [SchemeOutputJSON]?
+    
+    public init(name: String, path: String, packages: [PackageOutputJSON]? = nil, targets: [TargetOutputJSON]? = nil, schemes: [SchemeOutputJSON]? = nil) {
+        self.name = name
+        self.path = path
+        self.packages = packages
+        self.targets = targets
+        self.schemes = schemes
+    }
+}
+
+public struct PackageOutputJSON: Codable, Equatable {
+    public enum PackageKind: String, Codable {
+        case remote
+        case local
+    }
+    
+    public var kind: PackageKind
+    public var path: String
+    
+    public init(kind: PackageKind, path: String) {
+        self.kind = kind
+        self.path = path
+    }
+}
+
+public struct TargetOutputJSON: Codable, Equatable {
+    public var name: String
+    public var product: String
+    
+    public init(name: String, product: String) {
+        self.name = name
+        self.product = product
+    }
+}
+
+public struct SchemeOutputJSON: Codable, Equatable {
+    public var name: String
+    public var testActionTargets: [String]?
+    
+    public init(name: String, testActionTargets: [String]? = nil) {
+        self.name = name
+        self.testActionTargets = testActionTargets
+    }
+}
