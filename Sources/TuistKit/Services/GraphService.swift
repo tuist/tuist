@@ -12,24 +12,29 @@ import TuistSupport
 final class GraphService {
     private let graphVizMapper: GraphToGraphVizMapping
     private let manifestGraphLoader: ManifestGraphLoading
+    private let configLoader: ConfigLoading
 
     convenience init() {
         let manifestLoader = ManifestLoaderFactory()
             .createManifestLoader()
         let manifestGraphLoader = ManifestGraphLoader(manifestLoader: manifestLoader)
         let graphVizMapper = GraphToGraphVizMapper()
+        let configLoader = ConfigLoader()
         self.init(
             graphVizGenerator: graphVizMapper,
-            manifestGraphLoader: manifestGraphLoader
+            manifestGraphLoader: manifestGraphLoader,
+            configLoader: configLoader
         )
     }
 
     init(
         graphVizGenerator: GraphToGraphVizMapping,
-        manifestGraphLoader: ManifestGraphLoading
+        manifestGraphLoader: ManifestGraphLoading,
+        configLoader: ConfigLoading
     ) {
-        graphVizMapper = graphVizGenerator
+        self.graphVizMapper = graphVizGenerator
         self.manifestGraphLoader = manifestGraphLoader
+        self.configLoader = configLoader
     }
 
     func run(format: GraphFormat,
@@ -59,7 +64,9 @@ final class GraphService {
             
             try export(graph: graphVizGraph, at: filePath, withFormat: format, layoutAlgorithm: layoutAlgorithm)
         case .json:
-            let outputGraph = GraphOutputJSON.from(graph)
+            let config = try configLoader.loadConfig(path: path)
+            
+            let outputGraph = GraphOutputJSON.from(graph, withConfig: config)
             try outputGraph.export(to: filePath)
         }
         
