@@ -127,7 +127,7 @@ final class DumpServiceTests: TuistTestCase {
         )
         """
         try config.write(
-            toFile: tmpDir.appending(component: "Config.swift").pathString,
+            toFile: tmpDir.appending(components: "Tuist", "Config.swift").pathString,
             atomically: true,
             encoding: .utf8
         )
