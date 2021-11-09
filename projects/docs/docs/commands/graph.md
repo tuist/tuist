@@ -16,7 +16,7 @@ The command will output the dependency graph as an image, in the `png` format.
 You can also change the format to `dot` (see [DOT](<https://en.wikipedia.org/wiki/DOT_(graph_description_language)>))
 to get the raw contents of the graph.
 :::caution
-You can also change the format to `json` to export the project structure into a JSON file. The JSON schema is subject
+You can also change the format to `json` to export the graph as a JSON file. The JSON schema is subject
 to change and may be breaking across major versions.
 :::
 
