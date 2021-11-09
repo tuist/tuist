@@ -62,3 +62,40 @@ If you prefer the old style, without different colors and shapes, pass the `--si
 | `--path`                       | `-p`  | The path to the directory that contains the definition of the project.                                           |                                                                                                                                    | Current directory | No       |
 | `--output-path`                | `-o`  | The path to where the image will be exported. When not specified, it exports the image in the current directory. |                                                                                                                                    |                   | No       |
 | `--targets`                    | `-t`  | The path to where the image will be exported. When not specified, it exports the image in the current directory. | A list of targets to filter. Those and their dependent targets will be showed in the graph. If empty, every target will be showed. |                   | No       |
+
+#### JSON output schema
+
+When the `--format` argument is specified as `json`, the following JSON schema is output into the `graph.json` file.
+
+```
+{
+    "name": "NAME_OF_MANIFEST",
+    "path": "PATH_TO_MANIFEST_DIR",
+    "projects": {
+        "PATH_TO_PROJECT": {
+            "name": "NAME_OF_PROJECT",
+            "path": "PATH_TO_PROJECT",
+            "targets": [
+                {
+                    "name": "NAME_OF_TARGET",
+                    "product": "TYPE_OF_PRODUCT"
+                }
+            ],
+            "schemes": [
+                {
+                    "name": "NAME_OF_SCHEME",
+                    "testActionTargets": [
+                        "TEST_ACTION_TARGET"
+                    ]
+                }
+            ],
+            "packages": [
+                {
+                    "kind": "KIND_OF_PACKAGE_REMOTE_OR_LOCAL",
+                    "path": "PATH_OR_URL_OF_PACKAGE"
+                }
+            ]
+        }
+    }
+}
+```
