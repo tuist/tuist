@@ -25,10 +25,10 @@ protocol WorkspaceMapperFactorying {
 }
 
 final class WorkspaceMapperFactory: WorkspaceMapperFactorying {
-    private let projectMapperFactory: ProjectMapperFactorying
+    private let projectMapper: ProjectMapping
 
-    init(projectMapperFactory: ProjectMapperFactorying) {
-        self.projectMapperFactory = projectMapperFactory
+    init(projectMapper: ProjectMapping) {
+        self.projectMapper = projectMapper
     }
 
     func cache(config: Config, includedTargets: Set<String>) -> [WorkspaceMapping] {
@@ -56,7 +56,7 @@ final class WorkspaceMapperFactory: WorkspaceMapperFactorying {
         var mappers: [WorkspaceMapping] = []
 
         mappers.append(
-            ProjectWorkspaceMapper(mapper: SequentialProjectMapper(mappers: projectMapperFactory.default(config: config)))
+            ProjectWorkspaceMapper(mapper: projectMapper)
         )
 
         mappers.append(
