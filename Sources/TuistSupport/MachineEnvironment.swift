@@ -22,7 +22,12 @@ public class MachineEnvironment: MachineEnvironmentRetrieving {
         guard platformExpert != 0 else {
             fatalError("Couldn't obtain the platform expert")
         }
-        let uuid = IORegistryEntryCreateCFProperty(platformExpert, kIOPlatformUUIDKey as CFString, kCFAllocatorDefault, 0).takeRetainedValue() as! String
+        let uuid = IORegistryEntryCreateCFProperty(
+            platformExpert,
+            kIOPlatformUUIDKey as CFString,
+            kCFAllocatorDefault,
+            0
+        ).takeRetainedValue() as! String // swiftlint:disable:this force_cast
         return uuid.checksum(algorithm: .md5)!
     }()
 

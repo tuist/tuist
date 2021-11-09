@@ -19,6 +19,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Fix handling of `TUIST_CONFIG_COLOURED_OUTPUT` environment variable [#3631](https://github.com/tuist/tuist/pull/3631) by [@danyf90](https://github.com/danyf90)
+- Fix `tuist dump config` no longer requires to be executed inside the `Tuist` folder [#3647](https://github.com/tuist/tuist/pull/3647) by [@danyf90](https://github.com/danyf90)
 
 ## 2.1.1 - Patenipat
 
@@ -845,8 +846,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Fixed
 
-- Fix calculation of Settings hash related to Cache commands [#1869](Fix calculation of Settings hash related to Cache commands) by [@natanrolnik](https://github.com/natanrolnik)
-- Fixed handling of `.tuist_version` file if the file had a trailing line break [#1900](Allow trailing line break in `.tuist_version`) by [@kalkwarf](https://github.com/kalkwarf)
+- Fix calculation of Settings hash related to Cache commands [#1869](https://github.com/tuist/tuist/pull/1869) by [@natanrolnik](https://github.com/natanrolnik)
+- Fixed handling of `.tuist_version` file if the file had a trailing line break [#1900](https://github.com/tuist/tuist/pull/1900) by [@kalkwarf](https://github.com/kalkwarf)
 
 ## 1.20.0 - Heideberg
 
