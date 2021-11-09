@@ -12,29 +12,24 @@ import TuistSupport
 final class GraphService {
     private let graphVizMapper: GraphToGraphVizMapping
     private let manifestGraphLoader: ManifestGraphLoading
-    private let configLoader: ConfigLoading
 
     convenience init() {
         let manifestLoader = ManifestLoaderFactory()
             .createManifestLoader()
         let manifestGraphLoader = ManifestGraphLoader(manifestLoader: manifestLoader)
         let graphVizMapper = GraphToGraphVizMapper()
-        let configLoader = ConfigLoader()
         self.init(
             graphVizGenerator: graphVizMapper,
-            manifestGraphLoader: manifestGraphLoader,
-            configLoader: configLoader
+            manifestGraphLoader: manifestGraphLoader
         )
     }
 
     init(
         graphVizGenerator: GraphToGraphVizMapping,
-        manifestGraphLoader: ManifestGraphLoading,
-        configLoader: ConfigLoading
+        manifestGraphLoader: ManifestGraphLoading
     ) {
         self.graphVizMapper = graphVizGenerator
         self.manifestGraphLoader = manifestGraphLoader
-        self.configLoader = configLoader
     }
 
     func run(format: GraphFormat,
@@ -64,9 +59,7 @@ final class GraphService {
             
             try export(graph: graphVizGraph, at: filePath, withFormat: format, layoutAlgorithm: layoutAlgorithm)
         case .json:
-            let config = try configLoader.loadConfig(path: path)
-            
-            let outputGraph = GraphOutputJSON.from(graph, withConfig: config)
+            let outputGraph = GraphOutput.from(graph)
             try outputGraph.export(to: filePath)
         }
         
@@ -83,8 +76,8 @@ final class GraphService {
             try exportDOTRepresentation(from: graph, at: filePath)
         case .png:
             try exportPNGRepresentation(from: graph, at: filePath, layoutAlgorithm: layoutAlgorithm)
-        default:
-            throw GraphServiceError.invalidFormat(format.rawValue)
+        case .json:
+            throw GraphServiceError.bug("\(format.rawValue) is not valid for visual export")
         }
     }
 
@@ -118,13 +111,13 @@ final class GraphService {
 }
 
 private enum GraphServiceError: FatalError {
-    case invalidFormat(String)
+    case bug(String)
     case encodingError(String)
     
     var description: String {
         switch self {
-        case .invalidFormat(let format):
-            return "\(format) is not valid for export"
+        case .bug(let message):
+            return message
         case .encodingError(let format):
             return "failed to encode graph to \(format)"
         }
@@ -132,7 +125,7 @@ private enum GraphServiceError: FatalError {
     
     var type: ErrorType {
         switch self {
-        case .invalidFormat:
+        case .bug:
             return .abort
         case .encodingError:
             return .abort
@@ -140,7 +133,7 @@ private enum GraphServiceError: FatalError {
     }
 }
 
-fileprivate extension GraphOutputJSON {
+fileprivate extension GraphOutput {
 
     func export(to filePath: AbsolutePath) throws {
         let jsonData = try JSONEncoder().encode(self)

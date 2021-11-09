@@ -87,9 +87,9 @@ final class GraphServiceTests: TuistUnitTestCase {
         )
         let got = try FileHandler.shared.readTextFile(graphPath)
         
-        let result = try! JSONDecoder().decode(GraphOutputJSON.self, from: got.data(using: .utf8)!)
+        let result = try JSONDecoder().decode(GraphOutput.self, from: got.data(using: .utf8)!)
         // Then
-        XCTAssertEqual(result, GraphOutputJSON.init(name: "graph", path: "/", projects: [String: ProjectOutputJSON]()))
+        XCTAssertEqual(result, GraphOutput.init(name: "graph", path: "/", projects: [:]))
         XCTAssertPrinterOutputContains("""
         Deleting existing graph at \(graphPath.pathString)
         Graph exported to \(graphPath.pathString)
