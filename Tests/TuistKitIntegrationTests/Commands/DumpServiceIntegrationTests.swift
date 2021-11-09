@@ -126,6 +126,7 @@ final class DumpServiceTests: TuistTestCase {
             generationOptions: []
         )
         """
+        try fileHandler.createFolder(tmpDir.appending(component: "Tuist"))
         try config.write(
             toFile: tmpDir.appending(components: "Tuist", "Config.swift").pathString,
             atomically: true,
