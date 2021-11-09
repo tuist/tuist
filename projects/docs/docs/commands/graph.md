@@ -67,6 +67,39 @@ If you prefer the old style, without different colors and shapes, pass the `--si
 
 When the `--format` argument is specified as `json`, the following JSON schema is output into the `graph.json` file.
 
+| Key        | Description                                           |
+| `name`     | Name of the manifest.                                 |
+| `path`     | Absolute path to the manifest.                        |
+| `projects` | A map of project absolute paths to `Project` objects. |
+
+##### Project
+
+| Key        | Description                   |
+| `name`     | Name of the project.          |
+| `path`     | Absolute path to the project. |
+| `targets`  | A list of `Target` objects.   |
+| `schemes`  | A list of `Scheme` objects.   |
+| `packages` | A list of `Package` objects.  |
+
+##### Target
+
+| Key       | Description                                                                                                             |
+| `name`    | Name of the target.                                                                                                     |
+| `product` | The product type of the target. See (Product)[https://docs.tuist.io/manifests/project#product] for all possible values. |
+
+##### Scheme
+
+| Key                 | Description                                                     |
+| `name`              | Name of the scheme.                                             |
+| `testActionTargets` | A list of targets names that are tested as part of this scheme. |
+
+##### Package
+
+| Key    | Description                                                                                                      |
+| `kind` | The type of the package. See (Package)[https://docs.tuist.io/manifests/project#package] for all possible values. |
+| `path` | Absolute path to the package.                                                                                    |
+
+Sample JSON output:
 ```
 {
     "name": "NAME_OF_MANIFEST",
