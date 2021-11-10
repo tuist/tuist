@@ -74,7 +74,13 @@ final class CacheController: CacheControlling {
         self.cacheGraphLinter = cacheGraphLinter
     }
 
-    func cache(config: Config, path: AbsolutePath, cacheProfile: TuistGraph.Cache.Profile, includedTargets: Set<String>, dependenciesOnly: Bool) throws {
+    func cache(
+        config: Config,
+        path: AbsolutePath,
+        cacheProfile: TuistGraph.Cache.Profile,
+        includedTargets: Set<String>,
+        dependenciesOnly: Bool
+    ) throws {
         let generator = generatorFactory.cache(config: config, includedTargets: includedTargets.isEmpty ? nil : Set(includedTargets))
         let (_, graph) = try generator.generateWithGraph(path: path, projectOnly: false)
 
