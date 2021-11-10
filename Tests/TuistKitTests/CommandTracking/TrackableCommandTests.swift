@@ -9,7 +9,7 @@ import XCTest
 @testable import TuistKit
 @testable import TuistSupportTesting
 
-final class TrackableCommandTests: TuistUnitTestCase {
+final class TrackableCommandTests: TuistTestCase {
     private var subject: TrackableCommand!
     private var mockAsyncQueue: MockAsyncQueuer!
 
