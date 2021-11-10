@@ -14,6 +14,8 @@ loader.setup
 
 module Fourier
   class CLI < Thor
+    class_option :verbose, type: :boolean
+
     desc "test", "Run tests"
     subcommand "test", Commands::Test
 

@@ -9,54 +9,27 @@ import TuistGraph
 import TuistLoader
 import TuistSupport
 
-protocol FocusServiceProjectGeneratorFactorying {
-    func generator(sources: Set<String>, xcframeworks: Bool, cacheProfile: TuistGraph.Cache.Profile, ignoreCache: Bool) -> Generating
-}
-
-final class FocusServiceProjectGeneratorFactory: FocusServiceProjectGeneratorFactorying {
-    init() {}
-
-    func generator(sources: Set<String>, xcframeworks: Bool, cacheProfile: TuistGraph.Cache.Profile, ignoreCache: Bool) -> Generating {
-        let contentHasher = CacheContentHasher()
-        let graphMapperProvider = FocusGraphMapperProvider(
-            contentHasher: contentHasher,
-            cache: !ignoreCache,
-            cacheSources: sources,
-            cacheProfile: cacheProfile,
-            cacheOutputType: xcframeworks ? .xcframework : .framework
-        )
-        let projectMapperProvider = ProjectMapperProvider(contentHasher: contentHasher)
-        return Generator(
-            projectMapperProvider: projectMapperProvider,
-            graphMapperProvider: graphMapperProvider,
-            workspaceMapperProvider: WorkspaceMapperProvider(contentHasher: contentHasher),
-            manifestLoaderFactory: ManifestLoaderFactory()
-        )
-    }
-}
-
 final class FocusService {
     private let opener: Opening
-    private let projectGeneratorFactory: FocusServiceProjectGeneratorFactorying
+    private let generatorFactory: GeneratorFactorying
     private let configLoader: ConfigLoading
 
     init(
         configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
         opener: Opening = Opener(),
-        projectGeneratorFactory: FocusServiceProjectGeneratorFactorying = FocusServiceProjectGeneratorFactory()
+        generatorFactory: GeneratorFactorying = GeneratorFactory()
     ) {
         self.configLoader = configLoader
         self.opener = opener
-        self.projectGeneratorFactory = projectGeneratorFactory
+        self.generatorFactory = generatorFactory
     }
 
     func run(path: String?, sources: Set<String>, noOpen: Bool, xcframeworks: Bool, profile: String?, ignoreCache: Bool) throws {
         let path = self.path(path)
         let config = try configLoader.loadConfig(path: path)
-
         let cacheProfile = try CacheProfileResolver().resolveCacheProfile(named: profile, from: config)
-
-        let generator = projectGeneratorFactory.generator(
+        let generator = generatorFactory.focus(
+            config: config,
             sources: sources,
             xcframeworks: xcframeworks,
             cacheProfile: cacheProfile,

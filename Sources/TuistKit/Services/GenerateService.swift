@@ -5,39 +5,25 @@ import TuistGenerator
 import TuistLoader
 import TuistSupport
 
-protocol GenerateServiceProjectGeneratorFactorying {
-    func generator() -> Generating
-}
-
-final class GenerateServiceProjectGeneratorFactory: GenerateServiceProjectGeneratorFactorying {
-    func generator() -> Generating {
-        let contentHasher = CacheContentHasher()
-        let projectMapperProvider = ProjectMapperProvider(contentHasher: contentHasher)
-        return Generator(
-            projectMapperProvider: projectMapperProvider,
-            graphMapperProvider: GraphMapperProvider(),
-            workspaceMapperProvider: WorkspaceMapperProvider(contentHasher: contentHasher),
-            manifestLoaderFactory: ManifestLoaderFactory()
-        )
-    }
-}
-
 final class GenerateService {
     // MARK: - Attributes
 
     private let opener: Opening
     private let clock: Clock
-    private let projectGeneratorFactory: GenerateServiceProjectGeneratorFactorying
+    private let generatorFactory: GeneratorFactorying
+    private let configLoader: ConfigLoading
 
     // MARK: - Init
 
     init(clock: Clock = WallClock(),
          opener: Opening = Opener(),
-         projectGeneratorFactory: GenerateServiceProjectGeneratorFactorying = GenerateServiceProjectGeneratorFactory())
+         generatorFactory: GeneratorFactorying = GeneratorFactory(),
+         configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()))
     {
         self.clock = clock
         self.opener = opener
-        self.projectGeneratorFactory = projectGeneratorFactory
+        self.generatorFactory = generatorFactory
+        self.configLoader = configLoader
     }
 
     func run(path: String?,
@@ -46,7 +32,8 @@ final class GenerateService {
     {
         let timer = clock.startTimer()
         let path = self.path(path)
-        let generator = projectGeneratorFactory.generator()
+        let config = try configLoader.loadConfig(path: path)
+        let generator = generatorFactory.default(config: config)
 
         let generatedProjectPath = try generator.generate(path: path, projectOnly: projectOnly)
         if open {

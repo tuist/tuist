@@ -30,27 +30,18 @@ class Generator: Generating {
     private let swiftPackageManagerInteractor: TuistGenerator.SwiftPackageManagerInteracting = TuistGenerator.SwiftPackageManagerInteractor()
     private let signingInteractor: SigningInteracting = SigningInteractor()
     private let sideEffectDescriptorExecutor: SideEffectDescriptorExecuting
-    private let graphMapperProvider: GraphMapperProviding
-    private let projectMapperProvider: ProjectMapperProviding
-    private let workspaceMapperProvider: WorkspaceMapperProviding
+    private let graphMapper: GraphMapping
+    private let projectMapper: ProjectMapping
+    private let workspaceMapper: WorkspaceMapping
     private let manifestLoader: ManifestLoading
     private let pluginsService: PluginServicing
     private let configLoader: ConfigLoading
     private let dependenciesGraphController: DependenciesGraphControlling
 
-    convenience init(contentHasher: ContentHashing) {
-        self.init(
-            projectMapperProvider: ProjectMapperProvider(contentHasher: contentHasher),
-            graphMapperProvider: GraphMapperProvider(),
-            workspaceMapperProvider: WorkspaceMapperProvider(contentHasher: contentHasher),
-            manifestLoaderFactory: ManifestLoaderFactory()
-        )
-    }
-
     init(
-        projectMapperProvider: ProjectMapperProviding,
-        graphMapperProvider: GraphMapperProviding,
-        workspaceMapperProvider: WorkspaceMapperProviding,
+        projectMapper: ProjectMapping,
+        graphMapper: GraphMapping,
+        workspaceMapper: WorkspaceMapping,
         manifestLoaderFactory: ManifestLoaderFactory,
         dependenciesGraphController: DependenciesGraphControlling = DependenciesGraphController()
     ) {
@@ -60,9 +51,9 @@ class Generator: Generating {
             manifestLoader: manifestLoader
         )
         sideEffectDescriptorExecutor = SideEffectDescriptorExecutor()
-        self.graphMapperProvider = graphMapperProvider
-        self.projectMapperProvider = projectMapperProvider
-        self.workspaceMapperProvider = workspaceMapperProvider
+        self.graphMapper = graphMapper
+        self.projectMapper = projectMapper
+        self.workspaceMapper = workspaceMapper
         self.manifestLoader = manifestLoader
         pluginsService = PluginService(manifestLoader: manifestLoader)
         configLoader = ConfigLoader(
@@ -129,7 +120,6 @@ class Generator: Generating {
             dependenciesGraph.externalProjects.values
 
         // Apply any registered model mappers
-        let projectMapper = projectMapperProvider.mapper(config: config)
         let updatedModels = try models.map(projectMapper.map)
         let updatedProjects = updatedModels.map(\.0)
         let modelMapperSideEffects = updatedModels.flatMap(\.1)
@@ -142,9 +132,7 @@ class Generator: Generating {
         )
 
         // Apply graph mappers
-        let (updatedGraph, graphMapperSideEffects) = try graphMapperProvider
-            .mapper(config: config)
-            .map(graph: graph)
+        let (updatedGraph, graphMapperSideEffects) = try graphMapper.map(graph: graph)
 
         return (project, updatedGraph, modelMapperSideEffects + graphMapperSideEffects)
     }
@@ -267,7 +255,6 @@ class Generator: Generating {
         let models = (workspace: workspace, projects: projects)
 
         // Apply any registered model mappers
-        let workspaceMapper = workspaceMapperProvider.mapper(config: config)
         let (updatedModels, modelMapperSideEffects) = try workspaceMapper.map(
             workspace: .init(workspace: models.workspace, projects: models.projects)
         )
@@ -281,9 +268,7 @@ class Generator: Generating {
         graph.workspace = updatedModels.workspace
 
         // Apply graph mappers
-        var (updatedGraph, graphMapperSideEffects) = try graphMapperProvider
-            .mapper(config: config)
-            .map(graph: graph)
+        var (updatedGraph, graphMapperSideEffects) = try graphMapper.map(graph: graph)
 
         var updatedWorkspace = updatedGraph.workspace
         updatedWorkspace = updatedWorkspace.merging(projects: updatedGraph.projects.map(\.key))
@@ -323,7 +308,6 @@ class Generator: Generating {
         )
 
         // Apply model mappers
-        let workspaceMapper = workspaceMapperProvider.mapper(config: config)
         let (updatedModels, modelMapperSideEffects) = try workspaceMapper.map(
             workspace: .init(workspace: models.workspace, projects: models.projects)
         )
@@ -336,9 +320,7 @@ class Generator: Generating {
         )
 
         // Apply graph mappers
-        let (mappedGraph, graphMapperSideEffects) = try graphMapperProvider
-            .mapper(config: config)
-            .map(graph: graph)
+        let (mappedGraph, graphMapperSideEffects) = try graphMapper.map(graph: graph)
 
         return (mappedGraph, modelMapperSideEffects + graphMapperSideEffects)
     }

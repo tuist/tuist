@@ -13,6 +13,7 @@ import XCTest
 final class CachePrintHashesServiceTests: TuistUnitTestCase {
     var subject: CachePrintHashesService!
     var generator: MockGenerator!
+    var generatorFactory: MockGeneratorFactory!
     var cacheGraphContentHasher: MockCacheGraphContentHasher!
     var clock: Clock!
     var path: AbsolutePath!
@@ -21,7 +22,9 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
         path = AbsolutePath("/Test")
+        generatorFactory = MockGeneratorFactory()
         generator = MockGenerator()
+        generatorFactory.stubbedDefaultResult = generator
 
         cacheGraphContentHasher = MockCacheGraphContentHasher()
         clock = StubClock()
@@ -32,7 +35,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         }
 
         subject = CachePrintHashesService(
-            generator: generator,
+            generatorFactory: generatorFactory,
             cacheGraphContentHasher: cacheGraphContentHasher,
             clock: clock,
             configLoader: configLoader
@@ -41,6 +44,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
 
     override func tearDown() {
         generator = nil
+        generatorFactory = nil
         cacheGraphContentHasher = nil
         clock = nil
         subject = nil
@@ -50,7 +54,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
     func test_run_loads_the_graph() throws {
         // Given
         subject = CachePrintHashesService(
-            generator: generator,
+            generatorFactory: generatorFactory,
             cacheGraphContentHasher: cacheGraphContentHasher,
             clock: clock,
             configLoader: configLoader
@@ -66,7 +70,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
     func test_run_content_hasher_gets_correct_graph() throws {
         // Given
         subject = CachePrintHashesService(
-            generator: generator,
+            generatorFactory: generatorFactory,
             cacheGraphContentHasher: cacheGraphContentHasher,
             clock: clock,
             configLoader: configLoader
@@ -96,7 +100,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         }
 
         subject = CachePrintHashesService(
-            generator: generator,
+            generatorFactory: generatorFactory,
             cacheGraphContentHasher: cacheGraphContentHasher,
             clock: clock,
             configLoader: configLoader

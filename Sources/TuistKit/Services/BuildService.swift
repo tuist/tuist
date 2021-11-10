@@ -4,6 +4,7 @@ import TuistAutomation
 import TuistCache
 import TuistCore
 import TuistGraph
+import TuistLoader
 import TuistSupport
 
 enum BuildServiceError: FatalError {
@@ -34,18 +35,21 @@ enum BuildServiceError: FatalError {
 }
 
 final class BuildService {
-    private let generator: Generating
+    private let generatorFactory: GeneratorFactorying
     private let buildGraphInspector: BuildGraphInspecting
     private let targetBuilder: TargetBuilding
+    private let configLoader: ConfigLoading
 
     init(
-        generator: Generating = Generator(contentHasher: CacheContentHasher()),
+        generatorFactory: GeneratorFactorying = GeneratorFactory(),
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
-        targetBuilder: TargetBuilding = TargetBuilder()
+        targetBuilder: TargetBuilding = TargetBuilder(),
+        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader())
     ) {
-        self.generator = generator
+        self.generatorFactory = generatorFactory
         self.buildGraphInspector = buildGraphInspector
         self.targetBuilder = targetBuilder
+        self.configLoader = configLoader
     }
 
     func run(
@@ -57,6 +61,8 @@ final class BuildService {
         path: AbsolutePath
     ) throws {
         let graph: Graph
+        let config = try configLoader.loadConfig(path: path)
+        let generator = generatorFactory.default(config: config)
         if try (generate || buildGraphInspector.workspacePath(directory: path) == nil) {
             graph = try generator.generateWithGraph(path: path, projectOnly: false).1
         } else {
