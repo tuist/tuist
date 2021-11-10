@@ -19,7 +19,7 @@ let dependencies = Dependencies(
             .package(url: "https://github.com/krzyzanowskim/CryptoSwift.git", .upToNextMajor(from: "1.4.1")),
             .package(url: "https://github.com/tuist/GraphViz.git", .branch("tuist")),
             .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMajor(from: "0.4.3")),
-            .package(url: "https://github.com/SwiftGen/SwiftGen", .upToNextMajor(from: "6.5.1")),
+            .package(url: "https://github.com/SwiftGen/SwiftGen", .exact("6.5.0")),
             .package(url: "https://github.com/kylef/PathKit.git", .upToNextMajor(from: "1.0.0")),
         ],
         productTypes: ["RxSwift": .framework]
