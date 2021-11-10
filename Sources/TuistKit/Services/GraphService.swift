@@ -136,7 +136,9 @@ private enum GraphServiceError: FatalError {
 fileprivate extension GraphOutput {
 
     func export(to filePath: AbsolutePath) throws {
-        let jsonData = try JSONEncoder().encode(self)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .prettyPrinted, .withoutEscapingSlashes]
+        let jsonData = try encoder.encode(self)
         let jsonString = String(data: jsonData, encoding: .utf8)
         guard let jsonString = jsonString else {
             throw GraphServiceError.encodingError(GraphFormat.json.rawValue)
