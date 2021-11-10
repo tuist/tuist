@@ -130,8 +130,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
     // Predefined source directories, in order of preference.
     // https://github.com/apple/swift-package-manager/blob/751f0b2a00276be2c21c074f4b21d952eaabb93b/Sources/PackageLoading/PackageBuilder.swift#L488
     fileprivate static let predefinedSourceDirectories = ["Sources", "Source", "src", "srcs"]
-
-    let moduleMapGenerator: SwiftPackageManagerModuleMapGenerating
+    fileprivate let moduleMapGenerator: SwiftPackageManagerModuleMapGenerating
 
     public init(moduleMapGenerator: SwiftPackageManagerModuleMapGenerating = SwiftPackageManagerModuleMapGenerator()) {
         self.moduleMapGenerator = moduleMapGenerator
@@ -231,29 +230,16 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 )
             }
         }
-
-        let minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]
-        minDeploymentTargets = try Set(targetToPlatforms.values).reduce(into: [:]) { result, platform in
-            // Calculate the minimum deployment target for a given platform, by analyzing the corresponding XCTest framework using `vtool`
-            let sdk = TuistGraph.Platform(rawValue: platform.rawValue)!.xcodeSdkRoot
-            let sdkPlatformPath = try System.shared.capture("/usr/bin/xcrun", "--sdk", sdk, "--show-sdk-platform-path").spm_chomp()
-            let xcTestRelativePath = "Developer/Library/Frameworks/XCTest.framework/XCTest"
-            let sdkInfo = try System.shared.capture("/usr/bin/xcrun", "vtool", "-show-build", "\(sdkPlatformPath)/\(xcTestRelativePath)")
-            guard let fromMinVersion = sdkInfo.components(separatedBy: " version ").dropFirst().first.map({ String($0) }),
-                let minVersion = fromMinVersion.split(separator: "\n").first.map({ String($0) })
-            else {
-                throw PackageInfoMapperError.minDeploymentTargetParsingFailed(platform)
-            }
-
-            switch platform {
+        let minDeploymentTargets = Platform.oldestVersions.reduce(into: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]()) { acc, next in
+            switch next.key {
             case .iOS:
-                result[platform] = .iOS(targetVersion: minVersion, devices: [.iphone, .ipad])
+                acc[.iOS] = .iOS(targetVersion: next.value, devices: [.ipad, .iphone])
             case .macOS:
-                result[platform] = .macOS(targetVersion: minVersion)
-            case .watchOS:
-                result[platform] = .watchOS(targetVersion: minVersion)
+                acc[.macOS] = .macOS(targetVersion: next.value)
             case .tvOS:
-                result[platform] = .tvOS(targetVersion: minVersion)
+                acc[.tvOS] = .tvOS(targetVersion: next.value)
+            case .watchOS:
+                acc[.watchOS] = .watchOS(targetVersion: next.value)
             }
         }
 

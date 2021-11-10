@@ -97,23 +97,25 @@ extension PrintableString {
         }
 
         public var description: String {
+            guard Environment.shared.shouldOutputBeColoured else {
+                return unformatted
+            }
+
             switch self {
             case let .raw(string):
                 return string
-            case let .command(token):
-                return Environment.shared.shouldOutputBeColoured ? token.description.cyan() : token.description
-            case let .keystroke(token):
-                return Environment.shared.shouldOutputBeColoured ? token.description.cyan() : token.description
+            case let .command(token), let .keystroke(token):
+                return token.description.cyan()
             case let .bold(token):
-                return Environment.shared.shouldOutputBeColoured ? token.description.bold() : token.description
+                return token.description.bold()
             case let .error(token):
-                return Environment.shared.shouldOutputBeColoured ? token.description.red() : token.description
+                return token.description.red()
             case let .success(token):
-                return Environment.shared.shouldOutputBeColoured ? token.description.green() : token.description
+                return token.description.green()
             case let .warning(token):
-                return Environment.shared.shouldOutputBeColoured ? token.description.yellow() : token.description
+                return token.description.yellow()
             case let .info(token):
-                return Environment.shared.shouldOutputBeColoured ? token.description.lightBlue() : token.description
+                return token.description.lightBlue()
             }
         }
     }

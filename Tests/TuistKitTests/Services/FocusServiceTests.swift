@@ -12,42 +12,26 @@ import XCTest
 
 private typealias GeneratorParameters = (sources: Set<String>, xcframeworks: Bool, cacheProfile: TuistGraph.Cache.Profile, ignoreCache: Bool)
 
-final class MockFocusServiceProjectGeneratorFactory: FocusServiceProjectGeneratorFactorying {
-    var invokedGenerator = false
-    var invokedGeneratorCount = 0
-    fileprivate var invokedGeneratorParameters: GeneratorParameters?
-    fileprivate var invokedGeneratorParametersList = [GeneratorParameters]()
-    var stubbedGeneratorResult: Generating!
-
-    func generator(sources: Set<String>, xcframeworks: Bool, cacheProfile: TuistGraph.Cache.Profile, ignoreCache: Bool) -> Generating {
-        invokedGenerator = true
-        invokedGeneratorCount += 1
-        invokedGeneratorParameters = (sources, xcframeworks, cacheProfile, ignoreCache)
-        invokedGeneratorParametersList.append((sources, xcframeworks, cacheProfile, ignoreCache))
-        return stubbedGeneratorResult
-    }
-}
-
 final class FocusServiceTests: TuistUnitTestCase {
     var subject: FocusService!
     var opener: MockOpener!
     var generator: MockGenerator!
-    var projectGeneratorFactory: MockFocusServiceProjectGeneratorFactory!
+    var generatorFactory: MockGeneratorFactory!
 
     override func setUp() {
         super.setUp()
         opener = MockOpener()
         generator = MockGenerator()
-        projectGeneratorFactory = MockFocusServiceProjectGeneratorFactory()
-        projectGeneratorFactory.stubbedGeneratorResult = generator
-        subject = FocusService(opener: opener, projectGeneratorFactory: projectGeneratorFactory)
+        generatorFactory = MockGeneratorFactory()
+        generatorFactory.stubbedFocusResult = generator
+        subject = FocusService(opener: opener, generatorFactory: generatorFactory)
     }
 
     override func tearDown() {
         opener = nil
         generator = nil
         subject = nil
-        projectGeneratorFactory = nil
+        generatorFactory = nil
         super.tearDown()
     }
 

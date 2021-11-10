@@ -577,6 +577,24 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "neakor",
+      "name": "Yi Wang",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1827517?v=4",
+      "profile": "https://github.com/neakor",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "tosbaha",
+      "name": "Mustafa Dur",
+      "avatar_url": "https://avatars.githubusercontent.com/u/971530?v=4",
+      "profile": "https://www.mustafadur.com",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,
