@@ -131,13 +131,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
     // https://github.com/apple/swift-package-manager/blob/751f0b2a00276be2c21c074f4b21d952eaabb93b/Sources/PackageLoading/PackageBuilder.swift#L488
     fileprivate static let predefinedSourceDirectories = ["Sources", "Source", "src", "srcs"]
     fileprivate let moduleMapGenerator: SwiftPackageManagerModuleMapGenerating
-    fileprivate let minimumDeploymentTargetCalculator: MinimumDeploymentTargetCalculating
 
-    public init(moduleMapGenerator: SwiftPackageManagerModuleMapGenerating = SwiftPackageManagerModuleMapGenerator(),
-                minimumDeploymentTargetCalculator: MinimumDeploymentTargetCalculating = MinimumDeploymentTargetCalculator())
-    {
+    public init(moduleMapGenerator: SwiftPackageManagerModuleMapGenerating = SwiftPackageManagerModuleMapGenerator()) {
         self.moduleMapGenerator = moduleMapGenerator
-        self.minimumDeploymentTargetCalculator = minimumDeploymentTargetCalculator
     }
 
     /// Resolves all SwiftPackageManager dependencies.
@@ -234,10 +230,18 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 )
             }
         }
-        let minDeploymentTargets = try minimumDeploymentTargetCalculator.allPlatforms()
-            .reduce(into: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]()) { acc, next in
-                acc[next.key.descriptionPlatform] = next.value.descriptionDeploymentTarget
+        let minDeploymentTargets = Platform.oldestVersions.reduce(into: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]()) { acc, next in
+            switch next.key {
+            case .iOS:
+                acc[.iOS] = .iOS(targetVersion: next.value, devices: [.ipad, .iphone])
+            case .macOS:
+                acc[.macOS] = .macOS(targetVersion: next.value)
+            case .tvOS:
+                acc[.tvOS] = .tvOS(targetVersion: next.value)
+            case .watchOS:
+                acc[.watchOS] = .watchOS(targetVersion: next.value)
             }
+        }
 
         return .init(
             platformToMinDeploymentTarget: minDeploymentTargets,
