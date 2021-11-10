@@ -774,27 +774,6 @@ extension TuistGraph.Platform {
     }
 }
 
-extension TuistGraph.DeploymentTarget {
-    fileprivate var descriptionDeploymentTarget: ProjectDescription.DeploymentTarget {
-        switch self {
-        case let .iOS(version, deploymentDevice):
-            return .iOS(targetVersion: version, devices: deploymentDevice.descriptionDeploymentDevice)
-        case let .macOS(version):
-            return .macOS(targetVersion: version)
-        case let .tvOS(version):
-            return .tvOS(targetVersion: version)
-        case let .watchOS(version):
-            return .watchOS(targetVersion: version)
-        }
-    }
-}
-
-extension TuistGraph.DeploymentDevice {
-    fileprivate var descriptionDeploymentDevice: ProjectDescription.DeploymentDevice {
-        return .init(rawValue: rawValue)
-    }
-}
-
 extension PackageInfo.Platform {
     fileprivate func descriptionPlatform() throws -> ProjectDescription.Platform {
         switch platformName {
