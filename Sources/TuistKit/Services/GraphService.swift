@@ -77,7 +77,7 @@ final class GraphService {
         case .png:
             try exportPNGRepresentation(from: graph, at: filePath, layoutAlgorithm: layoutAlgorithm)
         case .json:
-            throw GraphServiceError.bug("\(format.rawValue) is not valid for visual export")
+            throw GraphServiceError.jsonNotValidForVisualExport
         }
     }
 
@@ -111,13 +111,13 @@ final class GraphService {
 }
 
 private enum GraphServiceError: FatalError {
-    case bug(String)
+    case jsonNotValidForVisualExport
     case encodingError(String)
     
     var description: String {
         switch self {
-        case .bug(let message):
-            return message
+        case .jsonNotValidForVisualExport:
+            return "json format is not valid for visual export"
         case .encodingError(let format):
             return "failed to encode graph to \(format)"
         }
@@ -125,7 +125,7 @@ private enum GraphServiceError: FatalError {
     
     var type: ErrorType {
         switch self {
-        case .bug:
+        case .jsonNotValidForVisualExport:
             return .abort
         case .encodingError:
             return .abort
