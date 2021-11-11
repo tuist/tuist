@@ -14,7 +14,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Schemes can be hidden from the dropdown menu `Scheme(hidden: true)` [#3598](https://github.com/tuist/tuist/pull/3598) by [@pepibumur](https://github.com/pepibumur)
 - Sort schemes alphabetically by default [#3598](https://github.com/tuist/tuist/pull/3598) by [@pepibumur](https://github.com/pepibumur)
-- Add automation to release [#3603](https://github.com/tuist/tuist/pull/3603/) by [@luispadron](https://github.com/luispadron)
+- Add automation to release [#3603](https://github.com/tuist/tuist/pull/3603) by [@luispadron](https://github.com/luispadron)
+- Focus on project targets when no targets are passed to `tuist focus` [#3654](https://github.com/tuist/tuist/pull/3654) by [@danyf90](https://github.com/danyf90)
 
 ### Fixed
 

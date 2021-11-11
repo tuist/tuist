@@ -9,9 +9,11 @@ import TuistSupport
 
 final class CacheWarmService {
     private let configLoader: ConfigLoading
+    private let manifestLoader: ManifestLoading
 
     init() {
         configLoader = ConfigLoader(manifestLoader: ManifestLoader())
+        manifestLoader = ManifestLoader()
     }
 
     func run(path: String?, profile: String?, xcframeworks: Bool, targets: Set<String>, dependenciesOnly: Bool) throws {
@@ -31,7 +33,7 @@ final class CacheWarmService {
             config: config,
             path: path,
             cacheProfile: profile,
-            includedTargets: targets,
+            includedTargets: targets.isEmpty ? try projectTargets(at: path) : targets,
             dependenciesOnly: dependenciesOnly
         )
     }
@@ -70,5 +72,10 @@ final class CacheWarmService {
             bundleArtifactBuilder: bundleBuilder,
             contentHasher: contentHasher
         )
+    }
+
+    private func projectTargets(at path: AbsolutePath) throws -> Set<String> {
+        let project = try manifestLoader.loadProject(at: path)
+        return Set(project.targets.map(\.name))
     }
 }
