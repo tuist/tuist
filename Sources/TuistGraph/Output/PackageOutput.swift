@@ -1,9 +1,9 @@
 import Foundation
 
-/// The structure defining the output schema of an Swift package.
+/// The structure defining the output schema of the Swift package.
 public struct PackageOutput: Codable, Equatable {
     
-    /// The type of Swift package.
+    /// The type of the Swift package.
     public enum PackageKind: String, Codable {
         case remote
         case local
@@ -19,15 +19,5 @@ public struct PackageOutput: Codable, Equatable {
     public init(kind: PackageKind, path: String) {
         self.kind = kind
         self.path = path
-    }
-    
-    /// Factory function to convert an internal graph package to the output type.
-    public static func from(_ package: Package) -> PackageOutput {
-        switch package {
-        case .remote(let url, _):
-            return PackageOutput(kind: PackageOutput.PackageKind.remote, path: url)
-        case .local(let path):
-            return PackageOutput(kind: PackageOutput.PackageKind.local, path: path.pathString)
-        }
     }
 }

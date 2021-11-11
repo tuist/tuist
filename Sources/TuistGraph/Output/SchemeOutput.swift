@@ -13,16 +13,4 @@ public struct SchemeOutput: Codable, Equatable {
         self.name = name
         self.testActionTargets = testActionTargets
     }
-    
-    /// Factory function to convert an internal graph scheme to the output type.
-    public static func from(_ scheme: Scheme) -> SchemeOutput {
-        var testTargets = [String]()
-        if let testAction = scheme.testAction {
-            for testTarget in testAction.targets {
-                testTargets.append(testTarget.target.name)
-            }
-        }
-
-        return SchemeOutput(name: scheme.name, testActionTargets: testTargets)
-    }
 }

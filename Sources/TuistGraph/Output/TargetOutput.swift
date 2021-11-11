@@ -13,9 +13,4 @@ public struct TargetOutput: Codable, Equatable {
         self.name = name
         self.product = product
     }
-    
-    /// Factory function to convert an internal graph target to the output type.
-    public static func from(_ target: Target) -> TargetOutput {
-        return TargetOutput(name: target.name, product: target.product.rawValue)
-    }
 }

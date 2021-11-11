@@ -30,13 +30,4 @@ public struct ProjectOutput: Codable, Equatable {
         self.targets = targets
         self.schemes = schemes
     }
-    
-    /// Factory function to convert an internal graph project to the output type.
-    public static func from(_ project: Project) -> ProjectOutput {
-        let packages = project.packages.reduce(into: [PackageOutput](), {$0.append(PackageOutput.from($1))})
-        let schemes = project.schemes.reduce(into: [SchemeOutput](), {$0.append(SchemeOutput.from($1))})
-        let targets = project.targets.reduce(into: [TargetOutput](), {$0.append(TargetOutput.from($1))})
-        
-        return ProjectOutput(name: project.name, path: project.path.pathString, packages: packages, targets: targets, schemes: schemes)
-    }
 }

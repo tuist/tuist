@@ -18,11 +18,4 @@ public struct GraphOutput: Codable, Equatable {
         self.path = path
         self.projects = projects
     }
-    
-    /// Factory function that converts the internal Graph model to the output model.
-    public static func from(_ graph: Graph) -> GraphOutput {
-        let projects = graph.projects.reduce(into: [String: ProjectOutput](), {$0[$1.key.pathString] = ProjectOutput.from($1.value)})
-        
-        return GraphOutput(name: graph.name, path: graph.path.pathString, projects: projects)
-    }
 }
