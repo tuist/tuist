@@ -8,7 +8,7 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class CleanServiceTests: TuistUnitTestCase {
-    var subject: CleanService!
+    private var subject: CleanService!
     private var cacheDirectoriesProvider: MockCacheDirectoriesProvider!
 
     override func setUp() {
@@ -37,7 +37,7 @@ final class CleanServiceTests: TuistUnitTestCase {
         cacheDirectoriesProvider.cacheDirectoryStub = cachePath
 
         // When
-        try subject.run(categories: [.builds, .tests])
+        try subject.run(categories: [.builds, .tests], path: nil)
 
         // Then
         let buildsExists = FileManager.default.fileExists(atPath: cachePaths[1].pathString)
@@ -57,9 +57,12 @@ final class CleanServiceTests: TuistUnitTestCase {
             XCTAssertTrue(correctlyCreated, "Test setup is not properly done. Folder \(path.pathString) should exist")
         }
         cacheDirectoriesProvider.cacheDirectoryStub = cachePath
+        let projectPath = try temporaryPath()
+        let dependenciesPath = projectPath.appending(components: Constants.tuistDirectoryName, Constants.DependenciesDirectory.name)
+        try fileHandler.createFolder(dependenciesPath)
 
         // When
-        try subject.run(categories: CacheCategory.allCases)
+        try subject.run(categories: CleanCategory.allCases, path: nil)
 
         // Then
         let buildsExists = FileManager.default.fileExists(atPath: cachePaths[1].pathString)
@@ -68,5 +71,9 @@ final class CleanServiceTests: TuistUnitTestCase {
         XCTAssertFalse(manifestsExists, "Cache folder at path \(cachePaths[2].pathString) should have been deleted by the test.")
         let testsExists = FileManager.default.fileExists(atPath: cachePaths[3].pathString)
         XCTAssertFalse(testsExists, "Cache folder at path \(cachePaths[3].pathString) should not have been deleted by the test.")
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: dependenciesPath.pathString),
+            "Cache folder at path \(dependenciesPath) should have been deleted by the test."
+        )
     }
 }

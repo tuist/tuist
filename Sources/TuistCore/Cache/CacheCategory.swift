@@ -1,5 +1,5 @@
 /// A cache category.
-public enum CacheCategory: String, CaseIterable, RawRepresentable {
+public enum CacheCategory: CaseIterable {
     /// The plugins cache.
     case plugins
 

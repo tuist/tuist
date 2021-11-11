@@ -9,7 +9,6 @@ struct DependenciesCommand: ParsableCommand {
             abstract: "A set of commands for dependencies' management.",
             subcommands: [
                 DependenciesUpdateCommand.self,
-                DependenciesCleanCommand.self,
             ]
         )
     }
