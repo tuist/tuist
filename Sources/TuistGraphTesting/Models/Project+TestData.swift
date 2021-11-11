@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TSCUtility
 @testable import TuistGraph
 
 public extension Project {
@@ -18,7 +19,8 @@ public extension Project {
         schemes: [Scheme] = [],
         ideTemplateMacros: IDETemplateMacros? = nil,
         additionalFiles: [FileElement] = [],
-        resourceSynthesizers: [ResourceSynthesizer] = []
+        resourceSynthesizers: [ResourceSynthesizer] = [],
+        lastUpgradeCheck: Version? = nil
     ) -> Project {
         Project(
             path: path,
@@ -35,7 +37,8 @@ public extension Project {
             schemes: schemes,
             ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles,
-            resourceSynthesizers: resourceSynthesizers
+            resourceSynthesizers: resourceSynthesizers,
+            lastUpgradeCheck: lastUpgradeCheck
         )
     }
 
@@ -54,7 +57,8 @@ public extension Project {
         schemes: [Scheme] = [],
         ideTemplateMacros: IDETemplateMacros? = nil,
         additionalFiles: [FileElement] = [],
-        resourceSynthesizers: [ResourceSynthesizer] = []
+        resourceSynthesizers: [ResourceSynthesizer] = [],
+        lastUpgradeCheck: Version? = nil
     ) -> Project {
         Project(
             path: path,
@@ -71,7 +75,8 @@ public extension Project {
             schemes: schemes,
             ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles,
-            resourceSynthesizers: resourceSynthesizers
+            resourceSynthesizers: resourceSynthesizers,
+            lastUpgradeCheck: lastUpgradeCheck
         )
     }
 }

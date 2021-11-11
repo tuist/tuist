@@ -52,6 +52,16 @@ let config = Config(
 )
 ```
 
+Additionally, you can specify a device and OS in a caching profile: 
+
+```swift
+let config = Config(
+    cache: .cache(profiles: [
+        .profile(name: "Simulator", configuration: "Debug", device: "iPhone 11 Pro", os: "15.0")
+    ])
+)
+```
+
 You can change the cache directory in `Config.swift`, for example:
 
 ```

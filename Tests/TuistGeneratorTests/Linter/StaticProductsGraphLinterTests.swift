@@ -17,9 +17,8 @@ class StaticProductsGraphLinterTests: XCTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
-
         subject = nil
+        super.tearDown()
     }
 
     func test_lint_whenPackageDependencyLinkedTwice() throws {

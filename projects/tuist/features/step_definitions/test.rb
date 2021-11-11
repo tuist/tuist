@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 require "xcodeproj"
 
 
@@ -21,6 +22,7 @@ Then(/^tuist tests the project$/) do
 end
 
 Then(/^tuist tests and cleans the project$/) do
+  require 'byebug'; byebug;
   system(@tuist, "test", "--clean", "--path", @dir)
   @workspace_path = Dir.glob(File.join(@dir, "Automation", "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, "Automation", "*.xcodeproj")).first

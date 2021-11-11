@@ -1,0 +1,70 @@
+name: Bug Report
+description: Create a report to help us improve
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to fill out this bug report!
+        
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Also tell us, what did you expect to happen?
+      placeholder: Tell us what you see!
+      value: A bug happened!
+    validations:
+      required: true
+
+  - type: textarea
+    id: how-to-reproduce-it
+    attributes:
+      label: How do we reproduce it?
+      description: It's important that you take the time to explain us how to reproduce it to be able to provide you with a solution faster.
+      placeholder: |
+        1. Create a project '...'
+        2. Run the command '....'
+        3. Get an error...
+      value: ""
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What were you expecting?
+      description: A clear and concise description of what you expected to happen.
+      value: ""
+    validations:
+      required: true
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Screenshots
+      description: If applicable, add screenshots to help explain your problem.
+      value: ""
+
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS Version
+      description: In which macOS version are you running Tuist?
+      placeholder: e.g. macOS 10.15
+    validations:
+      required: true
+
+  - type: input
+    id: tuist-version
+    attributes:
+      label: Tuist Version
+      description: Which version of Tuist are you using?
+      placeholder: e.g. 2.1.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional context
+      description: Add any other context about the problem here.

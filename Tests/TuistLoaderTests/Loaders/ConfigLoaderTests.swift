@@ -37,10 +37,10 @@ final class ConfigLoaderTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
         subject = nil
         manifestLoader.loadConfigStub = nil
         fileHandler.stubExists = nil
+        super.tearDown()
     }
 
     // MARK: - Tests

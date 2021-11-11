@@ -39,18 +39,18 @@ final class ProjectGroupsTests: XCTestCase {
             schemes: [],
             ideTemplateMacros: nil,
             additionalFiles: [],
-            resourceSynthesizers: []
+            resourceSynthesizers: [],
+            lastUpgradeCheck: nil
         )
         pbxproj = PBXProj()
     }
 
     override func tearDown() {
-        super.tearDown()
-
         pbxproj = nil
         project = nil
         sourceRootPath = nil
         subject = nil
+        super.tearDown()
     }
 
     func test_generate() {

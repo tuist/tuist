@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 require "octokit"
 
 module Fourier
@@ -11,7 +12,7 @@ module Fourier
         token = environment["GITHUB_TOKEN"]
         if token.nil?
           raise TokenNotFound, "GITHUB_TOKEN is not present in the environment and therefore"\
-          " an authenticated instance of GitHub client cannot be created."
+            " an authenticated instance of GitHub client cannot be created."
         end
 
         super(access_token: environment.fetch("GITHUB_TOKEN"))

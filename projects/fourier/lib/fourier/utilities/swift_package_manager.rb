@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 require "fileutils"
 
 module Fourier
@@ -20,10 +21,9 @@ module Fourier
             "xcodebuild",
             "-scheme", product,
             "-configuration", "Release",
-            "-sdk", "macosx",
+            "-destination", "platform=macosx",
             "BUILD_LIBRARY_FOR_DISTRIBUTION=YES",
             "ARCHS=arm64 x86_64",
-            "EXCLUDED_ARCHS=",
             "BUILD_DIR=#{swift_build_directory}",
             "clean", "build"
           )

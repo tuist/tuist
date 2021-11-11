@@ -8,7 +8,7 @@ import XCTest
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
 
-class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
+class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
     private var swiftPackageManagerController: MockSwiftPackageManagerController!
     private var subject: SwiftPackageManagerGraphGenerator!
     private var path: AbsolutePath { try! temporaryPath() }
@@ -18,11 +18,53 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
     override func setUp() {
         super.setUp()
         swiftPackageManagerController = MockSwiftPackageManagerController()
+
+        system.stubs["/usr/bin/xcrun --sdk iphoneos --show-sdk-platform-path"] = (
+            stderror: nil,
+            stdout: "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform\n",
+            exitstatus: 0
+        )
+        // swiftlint:disable line_length
+        system.stubs["/usr/bin/xcrun vtool -show-build /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest"] = (
+            stderror: nil,
+            stdout: """
+            /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture armv7):
+            Load command 8
+                  cmd LC_VERSION_MIN_IPHONEOS
+              cmdsize 16
+              version 9.0
+                  sdk 15.0
+            /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture armv7s):
+            Load command 8
+                  cmd LC_VERSION_MIN_IPHONEOS
+              cmdsize 16
+              version 9.0
+                  sdk 15.0
+            /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture arm64):
+            Load command 8
+                  cmd LC_VERSION_MIN_IPHONEOS
+              cmdsize 16
+              version 9.0
+                  sdk 15.0
+            /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture arm64e):
+            Load command 9
+                  cmd LC_BUILD_VERSION
+              cmdsize 32
+             platform IOS
+                minos 14.0
+                  sdk 15.0
+               ntools 1
+                 tool LD
+              version 711.0
+            """,
+            exitstatus: 0
+        )
+        // swiftlint:enable line_length
+
         subject = SwiftPackageManagerGraphGenerator(swiftPackageManagerController: swiftPackageManagerController)
     }
 
     override func tearDown() {
-        fileHandler = nil
         swiftPackageManagerController = nil
         subject = nil
         super.tearDown()
@@ -51,6 +93,12 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
     }
 
     func test_generate_google_measurement() throws {
+        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/nanopb/Sources/nanopb"))
+        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/GoogleUtilities/Sources/GULAppDelegateSwizzler"))
+        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/GoogleUtilities/Sources/GULNSData"))
+        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/GoogleUtilities/Sources/GULMethodSwizzler"))
+        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/GoogleUtilities/Sources/GULNetwork"))
+
         try checkGenerated(
             workspaceDependenciesJSON: """
             [
@@ -106,6 +154,10 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
     }
 
     func test_generate_test_local_path() throws {
+        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/ADependency/Sources/ALibrary"))
+        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/ADependency/Sources/ALibraryUtils"))
+        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/another-dependency/Sources/AnotherLibrary"))
+
         let testPath = AbsolutePath("/tmp/localPackage")
         try checkGenerated(
             workspaceDependenciesJSON: """
@@ -147,9 +199,6 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
                     return .test
                 }
             },
-            deploymentTargets: [
-                .iOS("13.0", [.iphone, .ipad]),
-            ],
             dependenciesGraph: DependenciesGraph.test(spmFolder: spmFolder, packageFolder: Path(testPath.pathString))
                 .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder))
                 .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder))
@@ -157,6 +206,11 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
     }
 
     func test_generate_test_local_location() throws {
+        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/ADependency/Sources/ALibrary"))
+        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/ADependency/Sources/ALibraryUtils"))
+        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/another-dependency/Sources/AnotherLibrary"))
+        try fileHandler.createFolder(AbsolutePath("/tmp/localPackage/Sources/TuistKit"))
+
         let testPath = AbsolutePath("/tmp/localPackage")
         try checkGenerated(
             workspaceDependenciesJSON: """
@@ -198,9 +252,6 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
                     return .test
                 }
             },
-            deploymentTargets: [
-                .iOS("13.0", [.iphone, .ipad]),
-            ],
             dependenciesGraph: DependenciesGraph.test(spmFolder: spmFolder, packageFolder: Path(testPath.pathString))
                 .merging(with: DependenciesGraph.aDependency(spmFolder: spmFolder))
                 .merging(with: DependenciesGraph.anotherDependency(spmFolder: spmFolder))
@@ -210,7 +261,6 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
     private func checkGenerated(
         workspaceDependenciesJSON: String,
         loadPackageInfoStub: @escaping (AbsolutePath) -> PackageInfo,
-        deploymentTargets: Set<TuistGraph.DeploymentTarget> = [],
         dependenciesGraph: TuistCore.DependenciesGraph
     ) throws {
         // Given
@@ -240,7 +290,6 @@ class SwiftPackageManagerGraphGeneratorTests: TuistTestCase {
                 "GULNetwork": .dynamicLibrary,
             ],
             platforms: [.iOS],
-            deploymentTargets: deploymentTargets,
             swiftToolsVersion: nil
         )
 

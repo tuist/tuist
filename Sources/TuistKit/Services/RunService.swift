@@ -5,6 +5,7 @@ import TuistAutomation
 import TuistCache
 import TuistCore
 import TuistGraph
+import TuistLoader
 import TuistSupport
 
 enum RunServiceError: FatalError {
@@ -39,21 +40,25 @@ enum RunServiceError: FatalError {
 }
 
 final class RunService {
-    private let generator: Generating
+    private let generatorFactory: GeneratorFactorying
     private let buildGraphInspector: BuildGraphInspecting
     private let targetBuilder: TargetBuilding
     private let targetRunner: TargetRunning
+    private let configLoader: ConfigLoading
 
     init(
-        generator: Generating = Generator(contentHasher: CacheContentHasher()),
+        generatorFactory: GeneratorFactorying = GeneratorFactory(),
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         targetBuilder: TargetBuilding = TargetBuilder(),
-        targetRunner: TargetRunning = TargetRunner()
+        targetRunner: TargetRunning = TargetRunner(),
+        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader())
+
     ) {
-        self.generator = generator
+        self.generatorFactory = generatorFactory
         self.buildGraphInspector = buildGraphInspector
         self.targetBuilder = targetBuilder
         self.targetRunner = targetRunner
+        self.configLoader = configLoader
     }
 
     // swiftlint:disable:next function_body_length
@@ -75,6 +80,8 @@ final class RunService {
         }
 
         let graph: Graph
+        let config = try self.configLoader.loadConfig(path: runPath)
+        let generator = generatorFactory.default(config: config)
         if try (generate || buildGraphInspector.workspacePath(directory: runPath) == nil) {
             logger.notice("Generating project for running", metadata: .section)
             graph = try generator.generateWithGraph(path: runPath, projectOnly: false).1

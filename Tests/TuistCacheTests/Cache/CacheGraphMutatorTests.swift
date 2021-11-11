@@ -27,9 +27,9 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
         xcframeworkLoader = nil
         subject = nil
+        super.tearDown()
     }
 
     // First scenario

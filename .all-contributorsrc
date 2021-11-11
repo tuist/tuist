@@ -550,6 +550,51 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "astromonkee",
+      "name": "Astromonkee",
+      "avatar_url": "https://avatars.githubusercontent.com/u/44421303?v=4",
+      "profile": "https://github.com/astromonkee",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "ezraberch",
+      "name": "ezraberch",
+      "avatar_url": "https://avatars.githubusercontent.com/u/49635435?v=4",
+      "profile": "https://github.com/ezraberch",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "cconstable",
+      "name": "Christopher Constable",
+      "avatar_url": "https://avatars.githubusercontent.com/u/564781?v=4",
+      "profile": "https://github.com/cconstable",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "neakor",
+      "name": "Yi Wang",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1827517?v=4",
+      "profile": "https://github.com/neakor",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "tosbaha",
+      "name": "Mustafa Dur",
+      "avatar_url": "https://avatars.githubusercontent.com/u/971530?v=4",
+      "profile": "https://www.mustafadur.com",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,

@@ -50,21 +50,11 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
         }
 
         let sanitizedModuleName = moduleName.replacingOccurrences(of: "-", with: "_")
-        let generatedModuleMapContent: String
         switch moduleMapType {
-        case .none, .header, .custom:
+        case .none, .header, .nestedHeader, .custom:
             return (type: moduleMapType, path: nil)
-        case .nestedHeader:
-            generatedModuleMapContent =
-                """
-                module \(sanitizedModuleName) {
-                    umbrella header "\(nestedUmbrellaHeaderPath.pathString)"
-                    export *
-                }
-
-                """
         case .directory:
-            generatedModuleMapContent =
+            let generatedModuleMapContent =
                 """
                 module \(sanitizedModuleName) {
                     umbrella "\(publicHeadersPath.pathString)"
@@ -72,11 +62,10 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
                 }
 
                 """
+            let generatedModuleMapPath = publicHeadersPath.appending(component: "\(moduleName).modulemap")
+            try FileHandler.shared.write(generatedModuleMapContent, path: generatedModuleMapPath, atomically: true)
+            return (type: moduleMapType, path: generatedModuleMapPath)
         }
-
-        let generatedModuleMapPath = publicHeadersPath.appending(component: "\(moduleName).modulemap")
-        try FileHandler.shared.write(generatedModuleMapContent, path: generatedModuleMapPath, atomically: true)
-        return (type: moduleMapType, path: generatedModuleMapPath)
     }
 
     static func customModuleMapPath(publicHeadersPath: AbsolutePath) throws -> AbsolutePath? {

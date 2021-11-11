@@ -6,7 +6,7 @@ on:
       - main
   pull_request:
     paths:
-      - .package.resolved
+      - Tuist/Dependencies/Lockfiles/Package.resolved
       - Package.resolved
       - Gemfile*
       - Package.swift
@@ -16,8 +16,8 @@ on:
       - .github/workflows/release-dry-run.yml
 
 env:
-  RUBY_VERSION: '3.0.1'
-  TUIST_CONFIG_STATS_OPT_OUT: true
+  RUBY_VERSION: '3.0.2'
+  TUIST_STATS_OPT_OUT: true
 
 jobs:
   bundle-all:
@@ -36,9 +36,9 @@ jobs:
       - uses: actions/cache@v2
         with:
           path: vendor/bundle
-          key: ${{ runner.os }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('**/Gemfile.lock') }}
           restore-keys: |
-            ${{ runner.os }}-gems-
+            ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
       - name: Bundle install
         run: |
           bundle config path vendor/bundle

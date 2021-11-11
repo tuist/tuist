@@ -37,6 +37,7 @@ final class BuildServiceErrorTests: TuistUnitTestCase {
 
 final class BuildServiceTests: TuistUnitTestCase {
     var generator: MockGenerator!
+    var generatorFactory: MockGeneratorFactory!
     var buildGraphInspector: MockBuildGraphInspector!
     var targetBuilder: MockTargetBuilder!
     var subject: BuildService!
@@ -44,21 +45,24 @@ final class BuildServiceTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
         generator = MockGenerator()
+        generatorFactory = MockGeneratorFactory()
+        generatorFactory.stubbedDefaultResult = generator
         buildGraphInspector = MockBuildGraphInspector()
         targetBuilder = MockTargetBuilder()
         subject = BuildService(
-            generator: generator,
+            generatorFactory: generatorFactory,
             buildGraphInspector: buildGraphInspector,
             targetBuilder: targetBuilder
         )
     }
 
     override func tearDown() {
-        super.tearDown()
         generator = nil
+        generatorFactory = nil
         buildGraphInspector = nil
         targetBuilder = nil
         subject = nil
+        super.tearDown()
     }
 
     func test_run_when_the_project_should_be_generated() throws {

@@ -20,7 +20,13 @@ public final class CacheProfileContentHasher: CacheProfileContentHashing {
     // MARK: - CacheProfileContentHashing
 
     public func hash(cacheProfile: TuistGraph.Cache.Profile) throws -> String {
-        let stringsToHash = [cacheProfile.name, cacheProfile.configuration]
+        var stringsToHash = [cacheProfile.name, cacheProfile.configuration]
+        if let device = cacheProfile.device {
+            stringsToHash.append(device)
+        }
+        if let os = cacheProfile.os {
+            stringsToHash.append(os.description)
+        }
         return try contentHasher.hash(stringsToHash)
     }
 }

@@ -10,7 +10,7 @@ public struct Cloud: Codable, Equatable {
 
     /// Cloud option.
     public enum Option: String, Codable, Equatable {
-        case insights
+        case analytics
     }
 
     /// The base URL that points to the Cloud server

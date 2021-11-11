@@ -60,6 +60,8 @@ final class SynthesizedResourceInterfacesGenerator: SynthesizedResourceInterface
             return try JSON.Parser()
         case .yaml:
             return try Yaml.Parser()
+        case .files:
+            return try Files.Parser()
         }
     }
 }

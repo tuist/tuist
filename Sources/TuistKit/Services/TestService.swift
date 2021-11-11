@@ -34,7 +34,7 @@ enum TestServiceError: FatalError {
 }
 
 final class TestService {
-    private let testServiceGeneratorFactory: TestServiceGeneratorFactorying
+    private let generatorFactory: GeneratorFactorying
     private let xcodebuildController: XcodeBuildControlling
     private let buildGraphInspector: BuildGraphInspecting
     private let simulatorController: SimulatorControlling
@@ -47,13 +47,13 @@ final class TestService {
         let testsCacheTemporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         self.init(
             testsCacheTemporaryDirectory: testsCacheTemporaryDirectory,
-            testServiceGeneratorFactory: TestServiceGeneratorFactory()
+            generatorFactory: GeneratorFactory()
         )
     }
 
     init(
         testsCacheTemporaryDirectory: TemporaryDirectory,
-        testServiceGeneratorFactory: TestServiceGeneratorFactorying,
+        generatorFactory: GeneratorFactorying,
         xcodebuildController: XcodeBuildControlling = XcodeBuildController(),
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         simulatorController: SimulatorControlling = SimulatorController(),
@@ -61,7 +61,7 @@ final class TestService {
         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory()
     ) {
         self.testsCacheTemporaryDirectory = testsCacheTemporaryDirectory
-        self.testServiceGeneratorFactory = testServiceGeneratorFactory
+        self.generatorFactory = generatorFactory
         self.xcodebuildController = xcodebuildController
         self.buildGraphInspector = buildGraphInspector
         self.simulatorController = simulatorController
@@ -93,7 +93,8 @@ final class TestService {
             try FileHandler.shared.createFolder(projectDirectory)
         }
 
-        let generator = testServiceGeneratorFactory.generator(
+        let generator = generatorFactory.test(
+            config: config,
             automationPath: Environment.shared.automationPath ?? projectDirectory,
             testsCacheDirectory: testsCacheTemporaryDirectory.path,
             skipUITests: skipUITests

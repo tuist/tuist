@@ -15,9 +15,8 @@ final class InfoPlistContentProviderTests: XCTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
-
         subject = nil
+        super.tearDown()
     }
 
     func test_content_wheniOSApp() {

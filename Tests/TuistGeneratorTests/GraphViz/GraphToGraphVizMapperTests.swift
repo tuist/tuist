@@ -17,8 +17,8 @@ final class GraphToGraphVizMapperTests: XCTestCase {
     }
 
     override func tearDown() {
-        super.tearDown()
         subject = nil
+        super.tearDown()
     }
 
     func test_map() throws {

@@ -1,4 +1,5 @@
 import TSCBasic
+import struct TSCUtility.Version
 import TuistCore
 import TuistGraph
 
@@ -11,8 +12,17 @@ public protocol CacheArtifactBuilding {
     /// - Parameters:
     ///   - projectTarget: Build target whether .xcworkspace or .xcodeproj
     ///   - configuration: The configuration that will be used when compiling the given target.
+    ///   - osVersion: The specific version of the OS that will be used when compiling the given target.
+    ///   - deviceName: The specific device that will be used when compiling the given target.
     ///   - into: The directory into which the output artifacts will be copied.
-    func build(scheme: Scheme, projectTarget: XcodeBuildTarget, configuration: String, into outputDirectory: AbsolutePath) throws
+    func build(
+        scheme: Scheme,
+        projectTarget: XcodeBuildTarget,
+        configuration: String,
+        osVersion: Version?,
+        deviceName: String?,
+        into outputDirectory: AbsolutePath
+    ) throws
 }
 
 extension CacheArtifactBuilding {

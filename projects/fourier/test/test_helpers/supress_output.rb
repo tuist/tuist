@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 module TestHelpers
   module SupressOutput
     def supressing_output

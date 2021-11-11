@@ -1,0 +1,57 @@
+name: Tuist Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version for the release (ex. x.x.x)
+        required: true
+      title:
+        description: Title for the release (ex. Chimera)
+        required: true
+
+env:
+  RUBY_VERSION: '3.0.2'
+  TUIST_STATS_OPT_OUT: true
+
+jobs:
+  release:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v2
+    - uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: ${{ env.RUBY_VERSION }}
+    - uses: actions/cache@v2
+      with:
+        path: vendor/bundle
+        key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
+    - name: Bundle install
+      run: |
+        bundle config path vendor/bundle
+        bundle install --jobs 4 --retry 3
+    - name: Update Tuist version
+      # This step updates the version in the Constants.swift file by replacing the current tag in Constants.swift with the tagged release.
+      # This step also updates the CHANGELOG.md to rename the Next section to the proper release version.
+      # We use a Regex from https://semver.org/ to replace the current version with the new one
+      run: |
+        VERSION_REGEX="(?P<major>0|[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)(?:-(?P<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+(?P<buildmetadata>[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?"
+        perl -pi -e 's/version = \"${ VERSION_REGEX }\"/version = \"${{ github.event.inputs.title }}\"/g' Sources/TuistSupport/Constants.swift
+        sed -i '' -e "s/## Next/## ${{ github.event.inputs.version }} - ${{ github.event.inputs.title }}\"/g" CHANGELOG.md
+    - name: Fourier releae
+      run: ./fourier release tuist ${{ github.event.inputs.version }}
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v1
+      with:
+        token: ${{ secrets.GH_RELEASE_TOKEN }}
+        files: build/*
+        name: ${{ github.event.inputs.version }} - ${{ github.event.inputs.title }}
+        tag_name: ${{ github.event.inputs.version }}
+    - name: Commit CHANGELOG and Constants update
+      uses: stefanzweifel/git-auto-commit-action@v4
+      with:
+        commit_message: "[CI] Update CHANGELOG and version for release ${{ github.event.inputs.version }}"
+        branch: main
+        file_pattern: CHANGELOG.md Sources/TuistSupport/Constants.swift

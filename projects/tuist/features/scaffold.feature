@@ -4,33 +4,33 @@ Feature: Scaffold a project using Tuist
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture ios_app_with_templates into the working directory
-    Then tuist scaffolds a custom template to TemplateProject named TemplateProject
-    Then content of a file named TemplateProject/custom.swift in a directory TemplateProject should be equal to // this is test TemplateProject content
-    Then content of a file named TemplateProject/generated.swift in a directory TemplateProject should be equal to:
+    Then tuist scaffolds a custom template named TemplateProject
+    Then content of a file named custom.swift in a directory TemplateProject should be equal to // this is test TemplateProject content
+    Then content of a file named generated.swift in a directory TemplateProject should be equal to:
       """
       // Generated file with platform: ios and name: TemplateProject
 
       """
-    Then tuist scaffolds a custom_using_filters template to TemplateProject named TemplateProject
-    Then content of a file named TemplateProject/custom.swift in a directory TemplateProject should be equal to // this is test TemplateProject content
-    Then content of a file named TemplateProject/generated.swift in a directory TemplateProject should be equal to:
+    Then tuist scaffolds a custom_using_filters template named TemplateProject
+    Then content of a file named custom.swift in a directory TemplateProject should be equal to // this is test TemplateProject content
+    Then content of a file named generated.swift in a directory TemplateProject should be equal to:
       """
       // Generated file with platform: iOS and snake case name: template_project
 
       """
-    Then tuist scaffolds a custom_using_copy_folder template to TemplateProject named TemplateProject
-    Then content of a file named TemplateProject/custom.swift in a directory TemplateProject should be equal to // this is test TemplateProject content
-    Then content of a file named TemplateProject/generated.swift in a directory TemplateProject should be equal to:
+    Then tuist scaffolds a custom_using_copy_folder template named TemplateProject
+    Then content of a file named custom.swift in a directory TemplateProject should be equal to // this is test TemplateProject content
+    Then content of a file named generated.swift in a directory TemplateProject should be equal to:
       """
       // Generated file with platform: ios and name: TemplateProject
 
       """
-    Then content of a file named TemplateProject/sourceFolder/file1.txt in a directory TemplateProject should be equal to:
+    Then content of a file named file1.txt in a directory TemplateProject/sourceFolder should be equal to:
       """
       Content of file 1
 
       """
-    Then content of a file named TemplateProject/sourceFolder/subFolder/file2.txt in a directory TemplateProject should be equal to:
+    Then content of a file named file2.txt in a directory TemplateProject/sourceFolder/subFolder should be equal to:
       """
       Content of file 2
 
@@ -41,17 +41,17 @@ Feature: Scaffold a project using Tuist
     And I have a working directory
     Then I copy the fixture app_with_plugins into the working directory
     # Local template plugin
-    Then tuist scaffolds a custom template to PluginTemplate named PluginTemplate
-    Then content of a file named PluginTemplate/custom.swift in a directory PluginTemplate should be equal to // this is test PluginTemplate content
-    Then content of a file named PluginTemplate/generated.swift in a directory PluginTemplate should be equal to:
+    Then tuist scaffolds a custom template named PluginTemplate
+    Then content of a file named custom.swift in a directory PluginTemplate should be equal to // this is test PluginTemplate content
+    Then content of a file named generated.swift in a directory PluginTemplate should be equal to:
       """
       // Generated file with platform: ios and name: PluginTemplate
 
       """
     # Remote template plugin
-    Then tuist scaffolds a custom_two template to PluginTemplate named PluginTemplate
-    Then content of a file named PluginTemplate/custom.swift in a directory PluginTemplate should be equal to // this is test PluginTemplate content
-    Then content of a file named PluginTemplate/generated.swift in a directory PluginTemplate should be equal to:
+    Then tuist scaffolds a custom_two template named PluginTemplate
+    Then content of a file named custom.swift in a directory PluginTemplate should be equal to // this is test PluginTemplate content
+    Then content of a file named generated.swift in a directory PluginTemplate should be equal to:
       """
       // Generated file with platform: ios and name: PluginTemplate
 

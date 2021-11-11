@@ -1,6 +1,7 @@
 import Foundation
 import RxSwift
 import TSCBasic
+import struct TSCUtility.Version
 import TuistCache
 import TuistCore
 import TuistGraph
@@ -25,7 +26,14 @@ public final class MockCacheArtifactBuilder: CacheArtifactBuilding {
     public var invokedBuildSchemeProjectParameters: (scheme: Scheme, projectTarget: XcodeBuildTarget, outputDirectory: AbsolutePath)?
     public var invokedBuildchemeProjectParametersList = [(scheme: Scheme, projectTarget: XcodeBuildTarget, outputDirectory: AbsolutePath)]()
     public var stubbedBuildSchemeProjectError: Error?
-    public func build(scheme: Scheme, projectTarget: XcodeBuildTarget, configuration _: String, into outputDirectory: AbsolutePath) throws {
+    public func build(
+        scheme: Scheme,
+        projectTarget: XcodeBuildTarget,
+        configuration _: String,
+        osVersion _: Version?,
+        deviceName _: String?,
+        into outputDirectory: AbsolutePath
+    ) throws {
         invokedBuildSchemeProject = true
         invokedBuildSchemeProjectCount += 1
         invokedBuildSchemeProjectParameters = (scheme, projectTarget, outputDirectory)

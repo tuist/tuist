@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 require "test_helper"
 require "json"
 
@@ -19,7 +20,7 @@ module Fourier
             "package": "Test",
             "state": { "revision": "bb23e73b193386909566a9ca20203e33a09af1cc" },
           }] } }
-          File.write(File.join(@tmp_dir, ".package.resolved"), tuist_lockfile.to_json)
+          File.write(File.join(@tmp_dir, "Tuist/Dependencies/Lockfiles/Package.resolved"), tuist_lockfile.to_json)
           File.write(File.join(@tmp_dir, "Package.resolved"), spm_lockfile.to_json)
 
           # When/then
@@ -44,7 +45,7 @@ module Fourier
             "package": "Other",
             "state": { "revision": "bb23e73b193386909566a9ca20203e33a09af1cc" },
           },] } }
-          File.write(File.join(@tmp_dir, ".package.resolved"), tuist_lockfile.to_json)
+          File.write(File.join(@tmp_dir, "Tuist/Dependencies/Lockfiles/Package.resolved"), tuist_lockfile.to_json)
           File.write(File.join(@tmp_dir, "Package.resolved"), spm_lockfile.to_json)
 
           # When/then
@@ -65,7 +66,7 @@ module Fourier
             "package": "Test",
             "state": { "revision": "8623e73b193386909566a9ca20203e33a09af142" },
           }] } }
-          File.write(File.join(@tmp_dir, ".package.resolved"), tuist_lockfile.to_json)
+          File.write(File.join(@tmp_dir, "Tuist/Dependencies/Lockfiles/Package.resolved"), tuist_lockfile.to_json)
           File.write(File.join(@tmp_dir, "Package.resolved"), spm_lockfile.to_json)
 
           # When/then

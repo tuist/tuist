@@ -9,3 +9,7 @@ public struct CloudResponse<T: Decodable>: Decodable {
         self.data = data
     }
 }
+
+public struct CloudEmptyResponse: Decodable {
+    public init() {}
+}
