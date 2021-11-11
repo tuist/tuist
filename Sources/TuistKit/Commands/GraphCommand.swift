@@ -31,7 +31,7 @@ struct GraphCommand: ParsableCommand, HasTrackableParameters {
 
     @Option(
         name: [.customShort("f"), .long],
-        help: "Available formats: dot, png"
+        help: "Available formats: dot, png, json"
     )
     var format: GraphFormat = .png
 
@@ -75,7 +75,7 @@ struct GraphCommand: ParsableCommand, HasTrackableParameters {
 }
 
 enum GraphFormat: String, ExpressibleByArgument {
-    case dot, png
+    case dot, png, json
 }
 
 extension GraphViz.LayoutAlgorithm: ExpressibleByArgument {}
