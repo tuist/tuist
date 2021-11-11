@@ -29,6 +29,10 @@ public struct TuistCommand: ParsableCommand {
             } else if let parsedArguments = try parse() {
                 var command = try parseAsRoot(parsedArguments)
                 try command.run()
+                // TODO: This is how we could run both tuistenv and tuist but not sure if it's a good idea
+                if command is UpdateCommand {
+                    try CommandRunner().run()
+                }
             } else {
                 try CommandRunner().run()
             }
