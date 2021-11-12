@@ -17,8 +17,8 @@ import XCTest
 
 final class CacheControllerTests: TuistUnitTestCase {
     var generator: MockGenerator!
+    var focusedGenerator: MockGenerator!
     var generatorFactory: MockGeneratorFactory!
-    var updatedGenerator: MockGenerator!
     var cacheGraphContentHasher: MockCacheGraphContentHasher!
     var artifactBuilder: MockCacheArtifactBuilder!
     var bundleArtifactBuilder: MockCacheArtifactBuilder!
@@ -27,14 +27,13 @@ final class CacheControllerTests: TuistUnitTestCase {
     var subject: CacheController!
     var config: Config!
     var cacheGraphLinter: MockCacheGraphLinter!
-    var focusServiceProjectGeneratorFactory: MockFocusServiceProjectGeneratorFactory!
-    var focusedGenerator: MockGenerator!
 
     override func setUp() {
         generatorFactory = MockGeneratorFactory()
         generator = MockGenerator()
+        focusedGenerator = MockGenerator()
         generatorFactory.stubbedCacheResult = generator
-        updatedGenerator = MockGenerator()
+        generatorFactory.stubbedFocusResult = focusedGenerator
         artifactBuilder = MockCacheArtifactBuilder()
         bundleArtifactBuilder = MockCacheArtifactBuilder()
         cache = MockCacheStorage()
@@ -42,17 +41,13 @@ final class CacheControllerTests: TuistUnitTestCase {
         cacheGraphContentHasher = MockCacheGraphContentHasher()
         config = .test()
         cacheGraphLinter = MockCacheGraphLinter()
-        focusServiceProjectGeneratorFactory = MockFocusServiceProjectGeneratorFactory()
-        focusedGenerator = MockGenerator()
-        focusServiceProjectGeneratorFactory.stubbedGeneratorResult = focusedGenerator
         subject = CacheController(
             cache: cache,
             artifactBuilder: artifactBuilder,
             bundleArtifactBuilder: bundleArtifactBuilder,
             generatorFactory: generatorFactory,
             cacheGraphContentHasher: cacheGraphContentHasher,
-            cacheGraphLinter: cacheGraphLinter,
-            focusServiceProjectGeneratorFactory: focusServiceProjectGeneratorFactory
+            cacheGraphLinter: cacheGraphLinter
         )
 
         super.setUp()
@@ -60,8 +55,8 @@ final class CacheControllerTests: TuistUnitTestCase {
 
     override func tearDown() {
         generator = nil
+        focusedGenerator = nil
         generatorFactory = nil
-        updatedGenerator = nil
         artifactBuilder = nil
         bundleArtifactBuilder = nil
         cacheGraphContentHasher = nil
@@ -69,8 +64,6 @@ final class CacheControllerTests: TuistUnitTestCase {
         cache = nil
         subject = nil
         config = nil
-        focusServiceProjectGeneratorFactory = nil
-        focusedGenerator = nil
         super.tearDown()
     }
 
@@ -119,10 +112,6 @@ final class CacheControllerTests: TuistUnitTestCase {
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
-        updatedGenerator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graph) in
-            XCTAssertEqual(loadPath, path)
-            return (xcworkspacePath, graph)
-        }
         focusedGenerator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graph) in
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
@@ -154,15 +143,6 @@ final class CacheControllerTests: TuistUnitTestCase {
         XCTAssertEqual(cacheGraphLinter.invokedLintCount, 1)
         XCTAssertEqual(artifactBuilder.invokedBuildSchemeProjectCount, 1)
         XCTAssertEqual(artifactBuilder.invokedBuildSchemeProjectParameters?.scheme, scheme)
-        XCTAssertEqual(
-            focusServiceProjectGeneratorFactory.invokedGeneratorParameters,
-            .init(
-                sources: Set(targetNames),
-                xcframeworks: true,
-                cacheProfile: .test(configuration: "Debug"),
-                ignoreCache: false
-            )
-        )
     }
 
     func test_cache_when_cache_fails_throws() throws {
@@ -207,10 +187,6 @@ final class CacheControllerTests: TuistUnitTestCase {
             return Set(arrayLiteral: .project)
         }
         generator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graph) in
-            XCTAssertEqual(loadPath, path)
-            return (xcworkspacePath, graph)
-        }
-        updatedGenerator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graph) in
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
@@ -286,10 +262,6 @@ final class CacheControllerTests: TuistUnitTestCase {
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
-        updatedGenerator.generateWithGraphStub = { _, _ in
-            XCTFail("Updated generator should not be invoked")
-            return (xcworkspacePath, graph)
-        }
         focusedGenerator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graph) in
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
@@ -362,10 +334,6 @@ final class CacheControllerTests: TuistUnitTestCase {
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
-        updatedGenerator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graph) in
-            XCTAssertEqual(loadPath, path)
-            return (xcworkspacePath, graph)
-        }
         focusedGenerator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graph) in
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
@@ -397,15 +365,6 @@ final class CacheControllerTests: TuistUnitTestCase {
         XCTAssertEqual(cacheGraphLinter.invokedLintCount, 1)
         XCTAssertEqual(artifactBuilder.invokedBuildSchemeProjectCount, 1)
         XCTAssertEqual(artifactBuilder.invokedBuildSchemeProjectParameters?.scheme, scheme)
-        XCTAssertEqual(
-            focusServiceProjectGeneratorFactory.invokedGeneratorParameters,
-            .init(
-                sources: [aTarget.name, bTarget.name],
-                xcframeworks: true,
-                cacheProfile: .test(configuration: "Debug"),
-                ignoreCache: false
-            )
-        )
     }
 
     func test_filtered_cache_builds_with_dependencies_only_and_caches_the_frameworks() throws {
