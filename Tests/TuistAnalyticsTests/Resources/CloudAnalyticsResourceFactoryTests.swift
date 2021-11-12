@@ -44,6 +44,6 @@ final class CloudAnalyticsResourceFactoryTests: TuistUnitTestCase {
         XCTAssertHTTPResourceMethod(got, "POST")
         XCTAssertHTTPResourcePath(got, path: "/api/analytics")
         XCTAssertHTTPResourceContainsHeader(got, header: "Content-Type", value: "application/json")
-        XCTAssertHTTPResourceURL(got, url: cloud.url)
+        XCTAssertHTTPResourceURL(got, url: URL(string: cloud.url.absoluteString + "/api/analytics?project_id=123")!)
     }
 }
