@@ -115,6 +115,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
     public func clean(dependenciesDirectory: AbsolutePath) throws {
         let pathsProvider = SwiftPackageManagerPathsProvider(dependenciesDirectory: dependenciesDirectory)
         try fileHandler.delete(pathsProvider.destinationSwiftPackageManagerDirectory)
+        try fileHandler.delete(pathsProvider.destinationPackageSwiftPath)
         try fileHandler.delete(pathsProvider.destinationPackageResolvedPath)
     }
 
@@ -158,6 +159,13 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         guard fileHandler.exists(pathsProvider.destinationBuildDirectory) else {
             throw SwiftPackageManagerInteractorError.buildDirectoryNotFound
         }
+        
+        if fileHandler.exists(pathsProvider.temporaryPackageSwiftPath) {
+            try copy(
+                from: pathsProvider.temporaryPackageSwiftPath,
+                to: pathsProvider.destinationPackageSwiftPath
+            )
+        }
 
         if fileHandler.exists(pathsProvider.temporaryPackageResolvedPath) {
             try copy(
@@ -187,6 +195,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
 
 private struct SwiftPackageManagerPathsProvider {
     let destinationSwiftPackageManagerDirectory: AbsolutePath
+    let destinationPackageSwiftPath: AbsolutePath
     let destinationPackageResolvedPath: AbsolutePath
     let destinationBuildDirectory: AbsolutePath
 
@@ -194,6 +203,9 @@ private struct SwiftPackageManagerPathsProvider {
     let temporaryPackageSwiftPath: AbsolutePath
 
     init(dependenciesDirectory: AbsolutePath) {
+        destinationPackageSwiftPath = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
+            .appending(component: Constants.DependenciesDirectory.packageSwiftName)
         destinationPackageResolvedPath = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
             .appending(component: Constants.DependenciesDirectory.packageResolvedName)
