@@ -51,8 +51,8 @@ final class CacheController: CacheControlling {
         cache: CacheStoring,
         artifactBuilder: CacheArtifactBuilding,
         bundleArtifactBuilder: CacheArtifactBuilding,
-        contentHasher: ContentHashing)
-    {
+        contentHasher: ContentHashing
+    ) {
         self.init(
             cache: cache,
             artifactBuilder: artifactBuilder,
