@@ -14,12 +14,9 @@ module Fourier
           dependencies = ["dependencies", "fetch"]
           Utilities::System.tuist(*dependencies)
 
-          cache_warm = ["cache", "warm", "--dependencies-only"]
-          Utilities::System.tuist(*cache_warm)
-
-          focus = ["focus"]
-          focus << "--no-open" if !open
-          Utilities::System.tuist(*focus)
+          generate = ["generate"]
+          generate << "--open" if open
+          Utilities::System.tuist(*generate)
         end
       end
     end
