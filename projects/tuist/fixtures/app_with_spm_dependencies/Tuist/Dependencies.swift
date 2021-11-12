@@ -13,9 +13,9 @@ let dependencies = Dependencies(
             .package(url: "https://github.com/Quick/Quick", .upToNextMajor(from: "4.0.0")),
             .package(url: "https://github.com/Quick/Nimble", .upToNextMajor(from: "9.0.0")),
         ],
-        productSettings: [
+        targetSettings: [
             "Quick": ["ENABLE_TESTING_SEARCH_PATHS": "YES"],
-            "Nimble": ["ENABLE_TESTING_SEARCH_PATHS": "YES"]
+            "Nimble": ["ENABLE_TESTING_SEARCH_PATHS": "YES"],
         ]
     ),
     platforms: [.iOS]
