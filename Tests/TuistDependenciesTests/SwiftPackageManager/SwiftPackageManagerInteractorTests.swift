@@ -62,11 +62,11 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             XCTAssertNil(version) // swift-tools-version is not specified
         }
 
-        swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms, productSettings, swiftToolsVersion in
+        swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms, targetSettings, swiftToolsVersion in
             XCTAssertEqual(path, swiftPackageManagerBuildDirectory)
             XCTAssertEqual(platforms, [.iOS])
             XCTAssertEqual(automaticProductType, [:])
-            XCTAssertEqual(productSettings, [:])
+            XCTAssertEqual(targetSettings, [:])
             XCTAssertNil(swiftToolsVersion)
             return .test()
         }
@@ -147,11 +147,11 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             XCTAssertEqual(version, swiftToolsVersion.description) // version should be equal to the version that has been specified
         }
 
-        swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms, productSettings, swiftVersion in
+        swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms, targetSettings, swiftVersion in
             XCTAssertEqual(path, swiftPackageManagerBuildDirectory)
             XCTAssertEqual(automaticProductType, [:])
             XCTAssertEqual(platforms, [.iOS])
-            XCTAssertEqual(productSettings, [:])
+            XCTAssertEqual(targetSettings, [:])
             XCTAssertEqual(swiftVersion, swiftToolsVersion)
             return .test()
         }
@@ -231,11 +231,11 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             XCTAssertNil(version) // swift-tools-version is not specified
         }
 
-        swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms, productSettings, swiftToolsVersion in
+        swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms, targetSettings, swiftToolsVersion in
             XCTAssertEqual(path, swiftPackageManagerBuildDirectory)
             XCTAssertEqual(automaticProductType, [:])
             XCTAssertEqual(platforms, [.iOS])
-            XCTAssertEqual(productSettings, [:])
+            XCTAssertEqual(targetSettings, [:])
             XCTAssertNil(swiftToolsVersion)
             return .test()
         }
