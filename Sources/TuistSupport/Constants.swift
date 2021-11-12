@@ -9,7 +9,7 @@ public enum Constants {
     public static let githubSlug = "tuist/tuist"
     public static let communityURL = "https://community.tuist.io"
     public static let backboneURL = URL(string: "https://backbone.tuist.io")!
-    public static let version = "2.0.2"
+    public static let version = "2.1.1"
     public static let bundleName: String = "tuist.zip"
     public static let trueValues: [String] = ["1", "true", "TRUE", "yes", "YES"]
     public static let tuistDirectoryName: String = "Tuist"
@@ -26,6 +26,11 @@ public enum Constants {
     public static let twitterHandle: String = "tuistio"
     public static let joinSlackURL: String = "https://slack.tuist.io/"
     public static let tuistGeneratedFileName = ".tuist-generated"
+
+    /// The cache version.
+    /// This should change only when it changes the logic to map a `TuistGraph.Target` to a cached build artifact.
+    /// Changing this results in changing the target hash and hence forcing a rebuild of its artifact.
+    public static let cacheVersion = "1.0.0"
 
     public enum Vendor {
         public static let swiftLint = "swiftlint"

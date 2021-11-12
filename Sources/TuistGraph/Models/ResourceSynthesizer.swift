@@ -20,6 +20,7 @@ public struct ResourceSynthesizer: Equatable, Hashable, Codable {
         case interfaceBuilder
         case json
         case yaml
+        case files
     }
 
     public init(

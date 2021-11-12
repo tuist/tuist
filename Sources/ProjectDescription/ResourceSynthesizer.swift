@@ -73,6 +73,7 @@ public struct ResourceSynthesizer: Codable, Equatable {
         case interfaceBuilder
         case json
         case yaml
+        case files
     }
 
     /// Default strings synthesizer defined in `Tuist/{ProjectName}` or tuist itself
@@ -256,6 +257,30 @@ public struct ResourceSynthesizer: Codable, Equatable {
             templateType: templateType,
             parser: .yaml,
             extensions: ["yml"]
+        )
+    }
+
+    /// Files synthesizer defined in a plugin
+    public static func files(plugin: String, extensions: Set<String>) -> Self {
+        .files(
+            templateType: .plugin(
+                name: plugin,
+                resourceName: "Files"
+            ),
+            extensions: extensions
+        )
+    }
+
+    /// Files synthesizer with a template defined in `Tuist/{ProjectName}`
+    public static func files(extensions: Set<String>) -> Self {
+        .files(templateType: .defaultTemplate(resourceName: "Files"), extensions: extensions)
+    }
+
+    private static func files(templateType: TemplateType, extensions: Set<String>) -> Self {
+        .init(
+            templateType: templateType,
+            parser: .files,
+            extensions: extensions
         )
     }
 

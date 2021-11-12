@@ -16,6 +16,47 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
 
+        system.stubs["/usr/bin/xcrun --sdk iphoneos --show-sdk-platform-path"] = (
+            stderror: nil,
+            stdout: "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform\n",
+            exitstatus: 0
+        )
+        // swiftlint:disable line_length
+        system.stubs["/usr/bin/xcrun vtool -show-build /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest"] = (
+            stderror: nil,
+            stdout: """
+            /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture armv7):
+            Load command 8
+                  cmd LC_VERSION_MIN_IPHONEOS
+              cmdsize 16
+              version 9.0
+                  sdk 15.0
+            /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture armv7s):
+            Load command 8
+                  cmd LC_VERSION_MIN_IPHONEOS
+              cmdsize 16
+              version 9.0
+                  sdk 15.0
+            /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture arm64):
+            Load command 8
+                  cmd LC_VERSION_MIN_IPHONEOS
+              cmdsize 16
+              version 9.0
+                  sdk 15.0
+            /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture arm64e):
+            Load command 9
+                  cmd LC_BUILD_VERSION
+              cmdsize 32
+             platform IOS
+                minos 14.0
+                  sdk 15.0
+               ntools 1
+                 tool LD
+              version 711.0
+            """,
+            exitstatus: 0
+        )
+        // swiftlint:enable line_length
         subject = PackageInfoMapper()
     }
 
@@ -26,7 +67,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     }
 
     func testPreprocess_whenProductContainsBinaryTarget_mapsToXcframework() throws {
-        let (targetToProducts, resolvedDependencies, externalDependencies) = try subject.preprocess(
+        let preprocessInfo = try subject.preprocess(
             packageInfos: [
                 "Package": .init(
                     products: [
@@ -43,23 +84,24 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             ],
             productToPackage: [:],
             packageToFolder: ["Package": "/Package"],
-            artifactsFolder: .init("/Artifacts/")
+            artifactsFolder: .init("/Artifacts/"),
+            platforms: [.iOS]
         )
 
         XCTAssertEqual(
-            targetToProducts,
+            preprocessInfo.targetToProducts,
             [
                 "Target_1": [.init(name: "Product1", type: .library(.automatic), targets: ["Target_1"])],
             ]
         )
         XCTAssertEqual(
-            resolvedDependencies,
+            preprocessInfo.targetToResolvedDependencies,
             [
                 "Target_1": [],
             ]
         )
         XCTAssertEqual(
-            externalDependencies,
+            preprocessInfo.productToExternalDependencies,
             [
                 "Product1": [.xcframework(path: "/Artifacts/Package/Target_1.xcframework")],
             ]
@@ -134,8 +176,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             basePath: basePath,
                             customSources: .init(
                                 globs: [basePath.appending(RelativePath("Package/Path/\(alternativeDefaultSource)/Target1/**")).pathString]
-                            ),
-                            sourcesPath: "\(alternativeDefaultSource)/Target1"
+                            )
                         ),
                     ]
                 )
@@ -233,8 +274,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         "com_example_target-1",
                         basePath: basePath,
                         customBundleID: "com.example.target-1",
-                        customSources: .init(globs: [basePath.appending(RelativePath("Package/Path/Sources/com.example.target-1/**")).pathString]),
-                        sourcesPath: "Sources/com.example.target-1/"
+                        customSources: .init(globs: [basePath.appending(RelativePath("Package/Path/Sources/com.example.target-1/**")).pathString])
                     ),
                 ]
             )
@@ -242,7 +282,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     }
 
     func testPreprocess_whenDependencyNameContainsDot_mapsToUnderscoreInTargetName() throws {
-        let (_, resolvedDependencies, _) = try subject.preprocess(
+        let preprocessInfo = try subject.preprocess(
             packageInfos: [
                 "Package": .init(
                     products: [
@@ -279,11 +319,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 "Package": "/Package",
                 "com.example.dep-1": "/com.example.dep-1",
             ],
-            artifactsFolder: .init("/Artifacts/")
+            artifactsFolder: .init("/Artifacts/"),
+            platforms: [.iOS]
         )
 
         XCTAssertEqual(
-            resolvedDependencies,
+            preprocessInfo.targetToResolvedDependencies,
             [
                 "Target_1": [.externalTargets(package: "com.example.dep-1", targets: ["com_example_dep-1"])],
                 "com.example.dep-1": [],
@@ -522,9 +563,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                                 ],
                                 tags: []
                             ),
-                        ],
-                        excludedResources: [
-                            "\(basePath.pathString)/Package/Path/Sources/Target1/AnotherOne/Resource/**",
                         ]
                     ),
                 ]
@@ -848,8 +886,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Custom/Path/Headers"],
                         ],
-                        moduleMap: "$(SRCROOT)/Custom/Path/Headers/module.modulemap",
-                        sourcesPath: "Custom/Path"
+                        moduleMap: "$(SRCROOT)/Custom/Path/Headers/module.modulemap"
                     ),
                 ]
             )
@@ -945,6 +982,36 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     }
 
     func testMap_whenIOSNotAvailable_takesOthers() throws {
+        system.stubs = [:]
+        system.stubs["/usr/bin/xcrun --sdk appletvos --show-sdk-platform-path"] = (
+            stderror: nil,
+            stdout: "/Applications/Xcode.app/Contents/Developer/Platforms/AppleTVOS.platform\n",
+            exitstatus: 0
+        )
+        // swiftlint:disable line_length
+        system.stubs["/usr/bin/xcrun vtool -show-build /Applications/Xcode.app/Contents/Developer/Platforms/AppleTVOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest"] = (
+            stderror: nil,
+            stdout: """
+            /Applications/Xcode.app/Contents/Developer/Platforms/AppleTVOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture arm64):
+            Load command 8
+                  cmd LC_VERSION_MIN_TVOS
+              cmdsize 16
+              version 9.0
+                  sdk 15.0
+            /Applications/Xcode.app/Contents/Developer/Platforms/AppleTVOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture arm64e):
+            Load command 9
+                  cmd LC_BUILD_VERSION
+               cmdsize 32
+              platform TVOS
+                 minos 14.0
+                   sdk 15.0
+                ntools 1
+                  tool LD
+               version 711.0
+            """,
+            exitstatus: 0
+        )
+        // swiftlint:enable line_length
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(RelativePath("Package/Path/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
@@ -972,7 +1039,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", basePath: basePath, platform: .tvOS),
+                    .test("Target1", basePath: basePath, platform: .tvOS, deploymentTarget: .tvOS(targetVersion: "9.0")),
                 ]
             )
         )
@@ -2029,23 +2096,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     }
 }
 
-private func defaultSpmResources(_ target: String, customPath: String? = nil) -> ResourceFileElements {
-    let fullPath: String
-    if let customPath = customPath {
-        fullPath = customPath
-    } else {
-        fullPath = "/Package/Path/Sources/\(target)"
-    }
-    return [
-        "\(fullPath)/**/*.xib",
-        "\(fullPath)/**/*.storyboard",
-        "\(fullPath)/**/*.xcdatamodeld",
-        "\(fullPath)/**/*.xcmappingmodel",
-        "\(fullPath)/**/*.xcassets",
-        "\(fullPath)/**/*.lproj",
-    ]
-}
-
 extension PackageInfoMapping {
     fileprivate func map(
         package: String,
@@ -2064,11 +2114,12 @@ extension PackageInfoMapping {
         }
 
         let artifactsFolder = basePath.appending(component: "artifacts")
-        let (targetToProducts, targetToResolvedDependencies, _) = try preprocess(
+        let preprocessInfo = try preprocess(
             packageInfos: packageInfos,
             productToPackage: productToPackage,
             packageToFolder: packageToFolder,
-            artifactsFolder: artifactsFolder
+            artifactsFolder: artifactsFolder,
+            platforms: platforms
         )
 
         return try map(
@@ -2077,10 +2128,10 @@ extension PackageInfoMapping {
             name: package,
             path: basePath.appending(component: package).appending(component: "Path"),
             productTypes: [:],
-            platforms: platforms,
-            deploymentTargets: [],
-            targetToProducts: targetToProducts,
-            targetToResolvedDependencies: targetToResolvedDependencies,
+            minDeploymentTargets: preprocessInfo.platformToMinDeploymentTarget,
+            targetToPlatform: preprocessInfo.targetToPlatform,
+            targetToProducts: preprocessInfo.targetToProducts,
+            targetToResolvedDependencies: preprocessInfo.targetToResolvedDependencies,
             packageToProject: Dictionary(uniqueKeysWithValues: packageInfos.keys.map {
                 ($0, basePath.appending(component: $0).appending(component: "Path"))
             }),
@@ -2139,32 +2190,14 @@ extension ProjectDescription.Target {
         basePath: AbsolutePath = "/",
         platform: ProjectDescription.Platform = .iOS,
         customBundleID: String? = nil,
-        deploymentTarget: ProjectDescription.DeploymentTarget? = nil,
+        deploymentTarget: ProjectDescription.DeploymentTarget = .iOS(targetVersion: "9.0", devices: [.iphone, .ipad]),
         customSources: SourceFilesList? = nil,
         resources: [ProjectDescription.ResourceFileElement] = [],
         headers: ProjectDescription.Headers? = nil,
         dependencies: [ProjectDescription.TargetDependency] = [],
         customSettings: ProjectDescription.SettingsDictionary = [:],
-        moduleMap: String? = nil,
-        excludedResources: [String] = [],
-        sourcesPath: String? = nil
+        moduleMap: String? = nil
     ) -> Self {
-        let defaultResourceBasePath: String
-        if let sourcesPath = sourcesPath {
-            let relativePath = RelativePath("Package/Path/\(sourcesPath)/**")
-            defaultResourceBasePath = basePath.appending(relativePath).pathString
-        } else {
-            defaultResourceBasePath = basePath.appending(RelativePath("Package/Path/Sources/\(name)/**")).pathString
-        }
-
-        let defaultResources = ["xib", "storyboard", "xcdatamodeld", "xcmappingmodel", "xcassets", "lproj"]
-            .map { file -> ProjectDescription.ResourceFileElement in
-                ResourceFileElement.glob(
-                    pattern: Path("\(defaultResourceBasePath)/*.\(file)"),
-                    excluding: excludedResources.map(Path.init(stringLiteral:))
-                )
-            }
-
         return .init(
             name: name,
             platform: platform,
@@ -2173,7 +2206,7 @@ extension ProjectDescription.Target {
             deploymentTarget: deploymentTarget,
             infoPlist: .default,
             sources: customSources ?? .init(globs: [basePath.appending(RelativePath("Package/Path/Sources/\(name)/**")).pathString]),
-            resources: ResourceFileElements(resources: resources + defaultResources),
+            resources: resources.isEmpty ? nil : ResourceFileElements(resources: resources),
             headers: headers,
             dependencies: dependencies,
             settings: DependenciesGraph.spmSettings(with: customSettings, moduleMap: moduleMap)

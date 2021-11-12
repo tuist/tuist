@@ -14,6 +14,15 @@ public enum Platform: String, CaseIterable, Codable {
         case .watchOS: return "watchOS"
         }
     }
+
+    /// A dictionary that contains the oldes supported version of each platform
+    /// https://github.com/apple/swift-package-manager/blob/5d3db35d1f388f4b0bb7e82f4cfa050103bb3e07/Sources/PackageModel/Platform.swift#L32-L42
+    public static var oldestVersions: [Platform: String] = [
+        .iOS: "9.0",
+        .tvOS: "9.0",
+        .macOS: "10.10",
+        .watchOS: "2.0",
+    ]
 }
 
 extension Platform {

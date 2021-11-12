@@ -88,9 +88,12 @@ Do you want to know more about what Tuist can offer you? Or perhaps want to cont
 
 ## Supported by great companies
 
-1Password supports this project by providing a team account to store sensitive like access tokens and passwords:
+1Password and Bugsnag support the project by giving us access to their service through an open-source program.
 
-<img width="100" src="assets/1Password.png"/>
+<div align="center">
+  <img width="70" src="assets/1Password.png" hspace="10"/>
+  <img width="200" src="https://images.typeform.com/images/QKuaAssrFCq7/image/default" hspace="10">
+</div>
 
 ## Contribute 👩‍💻
 
@@ -205,6 +208,11 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="http://twitter.com/codeOfRobin"><img src="https://avatars.githubusercontent.com/u/5009041?v=4" width="100px;" alt=""/><br /><sub><b>Robin Malhotra</b></sub></a></td>
     <td align="center"><a href="https://github.com/astromonkee"><img src="https://avatars.githubusercontent.com/u/44421303?v=4" width="100px;" alt=""/><br /><sub><b>Astromonkee</b></sub></a></td>
     <td align="center"><a href="https://github.com/ezraberch"><img src="https://avatars.githubusercontent.com/u/49635435?v=4" width="100px;" alt=""/><br /><sub><b>ezraberch</b></sub></a></td>
+    <td align="center"><a href="https://github.com/cconstable"><img src="https://avatars.githubusercontent.com/u/564781?v=4" width="100px;" alt=""/><br /><sub><b>Christopher Constable</b></sub></a></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="https://github.com/neakor"><img src="https://avatars.githubusercontent.com/u/1827517?v=4" width="100px;" alt=""/><br /><sub><b>Yi Wang</b></sub></a></td>
+    <td align="center"><a href="https://www.mustafadur.com"><img src="https://avatars.githubusercontent.com/u/971530?v=4" width="100px;" alt=""/><br /><sub><b>Mustafa Dur</b></sub></a></td>
   </tr>
 </table>
 

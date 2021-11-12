@@ -4,6 +4,39 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Changed
+
+- **Breaking** Update logic to calculate deployment target for SwiftPackageManager packages not specifying it, and remove no longer used `SwiftPackageManagerDependencies.deploymentTargets` property [#3602](https://github.com/tuist/tuist/pull/3602) by [@danyf90](https://github.com/danyf90)
+- **Breaking** Update logic to calculate client ID starting from UUID instead of hostname, to avoid collisions [#3632](https://github.com/tuist/tuist/pull/3632) by [@danyf90](https://github.com/danyf90)
+- `Target`'s initializer now has `InfoPlist.default` set as the default value for the `infoPlist` argument [#3644](https://github.com/tuist/tuist/pull/3644) by [@hisaac](https://github.com/hisaac)
+- Improve the `cache warm` command significantly by avoid recompiling already in-cache dependency targets [#3585](https://github.com/tuist/tuist/pull/3585) by [@danyf90](https://github.com/danyf90)
+
+### Added
+
+- Schemes can be hidden from the dropdown menu `Scheme(hidden: true)` [#3598](https://github.com/tuist/tuist/pull/3598) by [@pepibumur](https://github.com/pepibumur)
+- Sort schemes alphabetically by default [#3598](https://github.com/tuist/tuist/pull/3598) by [@pepibumur](https://github.com/pepibumur)
+- Add automation to release [#3603](https://github.com/tuist/tuist/pull/3603/) by [@luispadron](https://github.com/luispadron)
+- JSON format to `graph` command to support exporting a project's structure to a JSON file by [@neakor](https://github.com/neakor)
+
+### Fixed
+
+- Fix handling of `TUIST_CONFIG_COLOURED_OUTPUT` environment variable [#3631](https://github.com/tuist/tuist/pull/3631) by [@danyf90](https://github.com/danyf90)
+- Fix `tuist dump config` no longer requires to be executed inside the `Tuist` folder [#3647](https://github.com/tuist/tuist/pull/3647) by [@danyf90](https://github.com/danyf90)
+
+## 2.1.1 - Patenipat
+
+### Fixed
+
+- Fix SwiftPackageManager dependencies mapping when the dependency contains nested umbrella header [#3588](https://github.com/tuist/tuist/pull/3588) by [@danyf90](https://github.com/danyf90)
+- Revert [Swift Package Manager default resource handling](https://github.com/tuist/tuist/pull/3594) [#3594](https://github.com/tuist/tuist/pull/3594) by [@danyf90](https://github.com/danyf90)
+
+## 2.1.0 - Coloratura
+
+### Changed
+
+- Use cache version instead of Tuist version in target hash calculation [#3554](https://github.com/tuist/tuist/pull/3554) by [@danyf90](https://github.com/danyf90)
+- Perform remote cache download and upload concurrently [#3549](https://github.com/tuist/tuist/pull/3549) by [@danyf90](https://github.com/danyf90)
+
 ### Added
 
 - Add `analytics` option to `Config.Cloud` to enable sending analytics event to cloud backend [#3547](https://github.com/tuist/tuist/pull/3547) by [@danyf90](https://github.com/danyf90)
@@ -11,20 +44,19 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Add device and os options to caching profiles [#3546](https://github.com/tuist/tuist/pull/3546) by [@mollyIV](https://github.com/mollyIV)
 - Add support for configuring the `LastUpgradeCheck` of the `Xcode` project [#3561](https://github.com/tuist/tuist/pull/3561) by [@mollyIV](https://github.com/mollyIV)
 - Add arbitrarily high `LastUpgradeCheck` to SwiftPackageManager generated projects to disable warnings [#3569](https://github.com/tuist/tuist/pull/3569) by [@danyf90](https://github.com/danyf90)
-- Add `isCI` parameter to analytics events [#3568](https://github.com/tuist/tuist/pull/3568) by [@mollyIV](https://github.com/mollyIV).
-
-### Changed
-
-- Perform remote cache download and upload concurrently [#3549](https://github.com/tuist/tuist/pull/3549) by [@danyf90](https://github.com/danyf90)
-- Improve the cache warm command significantly by avoiding to recompile already in-cache dependency targets [#3585](https://github.com/tuist/tuist/pull/3585) by [@danyf90](https://github.com/danyf90)
+- Add `isCI` parameter to analytics events [#3568](https://github.com/tuist/tuist/pull/3568) by [@mollyIV](https://github.com/mollyIV)
+- Add Files Resource Synthesizer [#3584](https://github.com/tuist/tuist/pull/3584) by [@mollyIV](https://github.com/mollyIV)
+- Add support for additional files at the target level [#3579](https://github.com/tuist/tuist/pull/3579) by [@danyf90](https://github.com/danyf90)
 
 ### Fixed
 
+- Fix a focused project issue for which when focusing a tests target, cached resources are not linked to it. [#3571](https://github.com/tuist/tuist/pull/3571) by [@fila95](https://github.com/fila95)
 - Fix target caching resources linking for extensions. They are now considered `runnable` targrts (which they are) [#3570](https://github.com/tuist/tuist/pull/3570) by [@fila95](https://github.com/fila95)
 - Fix the way a target is known to be supporting resources, excluding `.commandLineTool`s. [#3572](https://github.com/tuist/tuist/pull/3572) by [@fila95](https://github.com/fila95)
 - Fix Swift Package Manager default resource handling [#3295](https://github.com/tuist/tuist/pull/3295) by [@mstfy](https://github.com/mstfy)
 - If present, use coloured output configuration from environment even if it's false [#3550](https://github.com/tuist/tuist/pull/3550) by [@danyf90](https://github.com/danyf90)
 - Fix `tuist generate` performance regression [#3562](https://github.com/tuist/tuist/pull/3562) by [@adellibovi](https://github.com/adellibovi)
+- Fix SwiftPackageManager dependencies mapping when the dependency contains nested umbrella header [#3588](https://github.com/tuist/tuist/pull/3588) by [@danyf90](https://github.com/danyf90)
 
 ### Removed
 
@@ -96,12 +128,12 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - **Breaking** Specifying custom build settings files for default configurations via `Settings(base:debug:release:)` has changed.
   - **Motivation:** To support the `CustomConfiguration` API simplification.
-  - **Migration:** 
-    Replace 
+  - **Migration:**
+    Replace
 
     ```swift
     let settings = Settings(
-        debug: Configuration(settings: ["setting": "debug"]), 
+        debug: Configuration(settings: ["setting": "debug"]),
         release: Configuration(settings: ["setting": "release"])
     )
     ```
@@ -110,19 +142,19 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
     ```swift
     let settings: Settings = .settings(
-        debug: ["setting": "debug"], 
+        debug: ["setting": "debug"],
         release: ["setting": "release"]
     )
     ```
 
 - **Breaking** Specifying xcconfig files for default configurations via `Settings(base:debug:release:)` has changed.
   - **Motivation:** To support the `CustomConfiguration` API simplification.
-  - **Migration:** 
-    Replace 
+  - **Migration:**
+    Replace
 
     ```swift
     let settings = Settings(
-        debug: Configuration(xcconfig: "configs/debug.xcconfig"), 
+        debug: Configuration(xcconfig: "configs/debug.xcconfig"),
         release: Configuration(xcconfig: "configs/release.xcconfig")
     )
     ```
@@ -816,8 +848,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Fixed
 
-- Fix calculation of Settings hash related to Cache commands [#1869](Fix calculation of Settings hash related to Cache commands) by [@natanrolnik](https://github.com/natanrolnik)
-- Fixed handling of `.tuist_version` file if the file had a trailing line break [#1900](Allow trailing line break in `.tuist_version`) by [@kalkwarf](https://github.com/kalkwarf)
+- Fix calculation of Settings hash related to Cache commands [#1869](https://github.com/tuist/tuist/pull/1869) by [@natanrolnik](https://github.com/natanrolnik)
+- Fixed handling of `.tuist_version` file if the file had a trailing line break [#1900](https://github.com/tuist/tuist/pull/1900) by [@kalkwarf](https://github.com/kalkwarf)
 
 ## 1.20.0 - Heideberg
 

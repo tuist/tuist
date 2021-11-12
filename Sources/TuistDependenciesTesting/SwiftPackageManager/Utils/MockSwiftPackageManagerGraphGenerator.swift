@@ -15,7 +15,6 @@ public final class MockSwiftPackageManagerGraphGenerator: SwiftPackageManagerGra
             AbsolutePath,
             [String: TuistGraph.Product],
             Set<TuistGraph.Platform>,
-            Set<TuistGraph.DeploymentTarget>,
             TSCUtility.Version?
         ) throws -> TuistCore.DependenciesGraph
     )?
@@ -24,10 +23,9 @@ public final class MockSwiftPackageManagerGraphGenerator: SwiftPackageManagerGra
         at path: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
         platforms: Set<TuistGraph.Platform>,
-        deploymentTargets: Set<TuistGraph.DeploymentTarget>,
         swiftToolsVersion: TSCUtility.Version?
     ) throws -> TuistCore.DependenciesGraph {
         invokedGenerate = true
-        return try generateStub?(path, productTypes, platforms, deploymentTargets, swiftToolsVersion) ?? .test()
+        return try generateStub?(path, productTypes, platforms, swiftToolsVersion) ?? .test()
     }
 }

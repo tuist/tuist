@@ -30,7 +30,7 @@ final class DumpService {
         case .workspace:
             encoded = try manifestLoader.loadWorkspace(at: projectPath)
         case .config:
-            encoded = try manifestLoader.loadConfig(at: projectPath)
+            encoded = try manifestLoader.loadConfig(at: projectPath.appending(component: "Tuist"))
         case .template:
             encoded = try manifestLoader.loadTemplate(at: projectPath)
         case .dependencies:

@@ -161,6 +161,9 @@ class ProjectFileElements {
             files.insert(configFilePath)
         }
 
+        // Additional files
+        files.formUnion(target.additionalFiles.map(\.path))
+
         // Elements
         var elements = Set<GroupFileElement>()
         elements.formUnion(files.map { GroupFileElement(path: $0, group: target.filesGroup) })

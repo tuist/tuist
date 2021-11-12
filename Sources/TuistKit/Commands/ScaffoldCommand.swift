@@ -29,7 +29,7 @@ struct ScaffoldCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "scaffold",
-            abstract: "Generates new project based on template",
+            abstract: "Generates new project based on a template",
             subcommands: [ListCommand.self]
         )
     }

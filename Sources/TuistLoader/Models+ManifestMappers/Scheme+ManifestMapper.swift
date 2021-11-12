@@ -12,6 +12,7 @@ extension TuistGraph.Scheme {
     static func from(manifest: ProjectDescription.Scheme, generatorPaths: GeneratorPaths) throws -> TuistGraph.Scheme {
         let name = manifest.name
         let shared = manifest.shared
+        let hidden = manifest.hidden
         let buildAction = try manifest.buildAction.map { try TuistGraph.BuildAction.from(
             manifest: $0,
             generatorPaths: generatorPaths
@@ -40,6 +41,7 @@ extension TuistGraph.Scheme {
         return Scheme(
             name: name,
             shared: shared,
+            hidden: hidden,
             buildAction: buildAction,
             testAction: testAction,
             runAction: runAction,

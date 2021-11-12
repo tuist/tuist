@@ -43,22 +43,22 @@ final class FocusServiceTests: TuistUnitTestCase {
     var subject: FocusService!
     var opener: MockOpener!
     var generator: MockGenerator!
-    var projectGeneratorFactory: MockFocusServiceProjectGeneratorFactory!
+    var generatorFactory: MockGeneratorFactory!
 
     override func setUp() {
         super.setUp()
         opener = MockOpener()
         generator = MockGenerator()
-        projectGeneratorFactory = MockFocusServiceProjectGeneratorFactory()
-        projectGeneratorFactory.stubbedGeneratorResult = generator
-        subject = FocusService(opener: opener, projectGeneratorFactory: projectGeneratorFactory)
+        generatorFactory = MockGeneratorFactory()
+        generatorFactory.stubbedFocusResult = generator
+        subject = FocusService(opener: opener, generatorFactory: generatorFactory)
     }
 
     override func tearDown() {
         opener = nil
         generator = nil
         subject = nil
-        projectGeneratorFactory = nil
+        generatorFactory = nil
         super.tearDown()
     }
 

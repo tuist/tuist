@@ -1,10 +1,16 @@
 [
   {
-    "dependenciesCount" : 1,
+    "linkedFrameworksCount" : 1,
+    "targetDependenciesNames" : [
+
+    ],
     "targetName" : "UIComponents"
   },
   {
-    "dependenciesCount" : 2,
+    "linkedFrameworksCount" : 1,
+    "targetDependenciesNames" : [
+      "UIComponents"
+    ],
     "targetName" : "UIComponentsTests"
   }
 ]

@@ -61,6 +61,7 @@ Currently, tuist has templates for these types of resources with the following i
 - Strings {TargetName}Assets `Strings+{TargetName}.swift`
 - Plists {NameOfPlist} `{NameOfPlist}.swift`
 - Fonts `Fonts+{TargetName}.swift`
+- Files `Files+{TargetName}.swift`
 
 So, for example if you have a target `MyFramework` with the following resources:
 
@@ -102,8 +103,9 @@ That means:
 - `interfaceBuilder`
 - `json`
 - `yaml`
+- `files`
 
-For `strings`, `plists`, `fonts`, and `assets` there are templates offered by tuist, to initialize eg. strings resource synthesizer (as described above):
+For `strings`, `plists`, `fonts`, `assets` and `files` there are templates offered by tuist, to initialize eg. strings resource synthesizer (as described above):
 
 ```swift
 .strings()
@@ -123,6 +125,7 @@ You can also use a local template. Just add it to `Tuist/ResourceSynthesizers/{n
 - `interfaceBuilder` => `InterfaceBuilder.stencil`
 - `json` => `JSON.stencil`
 - `yaml` => `YAML.stencil`
+- `files` => `Files.stencil`
 
 If a plugin offers a resource synthesizer template, you can also do:
 
