@@ -44,9 +44,6 @@ final class CacheController: CacheControlling {
     /// Cache graph linter.
     private let cacheGraphLinter: CacheGraphLinting
 
-    /// Focus service project generator factory.
-    private let focusServiceProjectGeneratorFactory: FocusServiceProjectGeneratorFactorying
-
     convenience init(
         cache: CacheStoring,
         artifactBuilder: CacheArtifactBuilding,
@@ -59,8 +56,7 @@ final class CacheController: CacheControlling {
             bundleArtifactBuilder: bundleArtifactBuilder,
             generatorFactory: GeneratorFactory(contentHasher: contentHasher),
             cacheGraphContentHasher: CacheGraphContentHasher(contentHasher: contentHasher),
-            cacheGraphLinter: CacheGraphLinter(),
-            focusServiceProjectGeneratorFactory: FocusServiceProjectGeneratorFactory()
+            cacheGraphLinter: CacheGraphLinter()
         )
     }
 
@@ -68,10 +64,9 @@ final class CacheController: CacheControlling {
         cache: CacheStoring,
         artifactBuilder: CacheArtifactBuilding,
         bundleArtifactBuilder: CacheArtifactBuilding,
-        projectGeneratorProvider: CacheControllerProjectGeneratorProviding,
+        generatorFactory: GeneratorFactorying,
         cacheGraphContentHasher: CacheGraphContentHashing,
-        cacheGraphLinter: CacheGraphLinting,
-        focusServiceProjectGeneratorFactory: FocusServiceProjectGeneratorFactorying
+        cacheGraphLinter: CacheGraphLinting
     ) {
         self.cache = cache
         self.generatorFactory = generatorFactory
@@ -79,7 +74,6 @@ final class CacheController: CacheControlling {
         self.bundleArtifactBuilder = bundleArtifactBuilder
         self.cacheGraphContentHasher = cacheGraphContentHasher
         self.cacheGraphLinter = cacheGraphLinter
-        self.focusServiceProjectGeneratorFactory = focusServiceProjectGeneratorFactory
     }
 
     func cache(
@@ -117,11 +111,14 @@ final class CacheController: CacheControlling {
 
         let targetsToBeCached = Set(hashesByTargetToBeCached.map(\.0.target.name))
         let xcframeworks = artifactBuilder.cacheOutputType == .xcframework
-        _ = try projectGeneratorProvider
-            .generator(includedTargets: targetsToBeCached)
-            .generateWithGraph(path: path, projectOnly: false)
-        let (projectPath, updatedGraph) = try focusServiceProjectGeneratorFactory
-            .generator(sources: targetsToBeCached, xcframeworks: xcframeworks, cacheProfile: cacheProfile, ignoreCache: false)
+        let (projectPath, updatedGraph) = try generatorFactory
+            .focus(
+                config: config,
+                sources: targetsToBeCached,
+                xcframeworks: xcframeworks,
+                cacheProfile: cacheProfile,
+                ignoreCache: false
+            )
             .generateWithGraph(path: path, projectOnly: false)
 
         logger.notice("Building cacheable targets")
