@@ -22,7 +22,7 @@ let dependencies = Dependencies(
             .package(url: "https://github.com/SwiftGen/SwiftGen", .exact("6.5.0")),
             .package(url: "https://github.com/kylef/PathKit.git", .upToNextMajor(from: "1.0.0")),
         ],
-        productTypes: ["RxSwift": .framework]
+        productTypes: ["RxSwift": .framework, "Checksum": .framework]
     ),
     platforms: [.macOS]
 )

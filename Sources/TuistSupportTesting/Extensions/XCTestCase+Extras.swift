@@ -260,7 +260,7 @@ public extension XCTestCase {
         file: StaticString = #file,
         line: UInt = #line
     ) -> T? {
-        guard let elementIndex = collection.firstIndex(where: { $0 is T }) else {
+        guard let elementIndex = collection.lastIndex(where: { $0 is T }) else {
             XCTFail("Didn't found an element of type \(String(describing: element))", file: file, line: line)
             return nil
         }
@@ -283,7 +283,7 @@ public extension XCTestCase {
             XCTFail("Didn't found an element of type \(String(describing: element))", file: file, line: line)
             return nil
         }
-        guard let afterElementIndex = collection.firstIndex(where: { $0 is U }) else {
+        guard let afterElementIndex = collection.lastIndex(where: { $0 is U }) else {
             XCTFail("Didn't found an element of type \(String(describing: before))", file: file, line: line)
             return nil
         }
