@@ -8,16 +8,22 @@ public struct SwiftPackageManagerDependencies: Equatable {
     /// The custom `Product` types to be used for SPM targets.
     public let productTypes: [String: Product]
 
+    /// The custom `Settings` to be applied to SPM targets
+    public let targetSettings: [String: SettingsDictionary]
+
     /// Initializes a new `SwiftPackageManagerDependencies` instance.
     /// - Parameters:
     ///    - packages: List of packages that will be installed using Swift Package Manager.
     ///    - productTypes: The custom `Product` types to be used for SPM targets.
+    ///    - targetSettings: The custom `SettingsDictionary` to be applied to denoted targets
     public init(
         _ packages: [Package],
-        productTypes: [String: Product]
+        productTypes: [String: Product],
+        targetSettings: [String: SettingsDictionary]
     ) {
         self.packages = packages
         self.productTypes = productTypes
+        self.targetSettings = targetSettings
     }
 }
 
