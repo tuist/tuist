@@ -31,7 +31,7 @@ struct PluginRunCommand: ParsableCommand {
     @Argument(
         help: "The arguments to pass to the plugin task."
     )
-    var arguments: [String]
+    var arguments: [String] = []
 
     func run() throws {
         try PluginRunService().run(

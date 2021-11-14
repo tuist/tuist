@@ -10,6 +10,8 @@ struct PluginCommand: ParsableCommand {
             subcommands: [
                 PluginArchiveCommannd.self,
                 PluginBuildCommand.self,
+                PluginRunCommand.self,
+                PluginTestCommand.self,
             ]
         )
     }

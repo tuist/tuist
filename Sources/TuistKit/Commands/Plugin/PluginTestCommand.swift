@@ -21,7 +21,7 @@ struct PluginTestCommand: ParsableCommand {
     @Option(
         help: "Test the specified products."
     )
-    var testProducts: [String]
+    var testProducts: [String] = []
 
     func run() throws {
         try PluginTestService().run(

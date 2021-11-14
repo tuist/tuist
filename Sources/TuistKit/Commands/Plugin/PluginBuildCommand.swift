@@ -26,12 +26,12 @@ struct PluginBuildCommand: ParsableCommand {
     @Option(
         help: "Build the specified targets."
     )
-    var targets: [String]
+    var targets: [String] = []
     
     @Option(
         help: "Build the specified products."
     )
-    var products: [String]
+    var products: [String] = []
 
     func run() throws {
         try PluginBuildService().run(
