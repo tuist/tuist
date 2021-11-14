@@ -8,8 +8,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - **Breaking** Update logic to calculate deployment target for SwiftPackageManager packages not specifying it, and remove no longer used `SwiftPackageManagerDependencies.deploymentTargets` property [#3602](https://github.com/tuist/tuist/pull/3602) by [@danyf90](https://github.com/danyf90)
 - **Breaking** Update logic to calculate client ID starting from UUID instead of hostname, to avoid collisions [#3632](https://github.com/tuist/tuist/pull/3632) by [@danyf90](https://github.com/danyf90)
-- `Target`'s initializer now has `InfoPlist.default` set as the default value for the `infoPlist` argument [#3644](https://github.com/tuist/tuist/pull/3644) by [@hisaac](https://github.com/hisaac)
 - **Breaking** Switch default value for `ENABLE_TESTING_SEARCH_PATHS` in SPM dependencies to `NO`. If a target requires it, you can set it using the `targetSettings` property in the `Dependencies.swift` file [#3632](https://github.com/tuist/tuist/pull/3653) by [@wattson12](https://github.com/wattson12)
+- `Target`'s initializer now has `InfoPlist.default` set as the default value for the `infoPlist` argument [#3644](https://github.com/tuist/tuist/pull/3644) by [@hisaac](https://github.com/hisaac)
 
 ### Added
 
