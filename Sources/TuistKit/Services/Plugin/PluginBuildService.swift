@@ -7,8 +7,8 @@ final class PluginBuildService {
         configuration: PluginCommand.PackageConfiguration,
         buildTests: Bool,
         showBinPath: Bool,
-        target: String?,
-        product: String?
+        targets: [String],
+        products: [String]
     ) throws {
         var buildCommand = [
             "swift", "build",
@@ -17,7 +17,7 @@ final class PluginBuildService {
         if let path = path {
             buildCommand += [
                 "--package-path",
-                AbsolutePath(path, relativeTo: FileHandler.shared.currentPath).pathString
+                path,
             ]
         }
         if buildTests {
@@ -30,14 +30,14 @@ final class PluginBuildService {
                 "--show-bin-path"
             )
         }
-        if let target = target {
+        targets.forEach {
             buildCommand += [
-                "--target", target,
+                "--target", $0,
             ]
         }
-        if let product = product {
+        products.forEach {
             buildCommand += [
-                "--product", product
+                "--product", $0
             ]
         }
         try System.shared.runAndPrint(buildCommand)
