@@ -671,7 +671,6 @@ extension ProjectDescription.Settings {
             "CLANG_ENABLE_OBJC_WEAK": "NO",
             "CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER": "NO",
             "ENABLE_STRICT_OBJC_MSGSEND": "NO",
-            "ENABLE_TESTING_SEARCH_PATHS": "YES",
             "FRAMEWORK_SEARCH_PATHS": ["$(inherited)", "$(PLATFORM_DIR)/Developer/Library/Frameworks"],
             "GCC_NO_COMMON_BLOCKS": "NO",
             "USE_HEADERMAP": "NO",
