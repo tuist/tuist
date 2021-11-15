@@ -10,6 +10,8 @@ import TuistSupport
 enum CarthageInteractorError: FatalError, Equatable {
     /// Thrown when Carthage cannot be found.
     case carthageNotFound
+    /// Thrown when `Cartfile` cannot be found in the temporary directory after Carthage installation
+    case cartfileNotFound
     /// Thrown when `Cartfile.resolved` cannot be found in temporary directory after Carthage installation.
     case cartfileResolvedNotFound
     /// Thrown when `Carthage/Build` directory cannot be found in temporary directory after Carthage installation.
@@ -18,7 +20,8 @@ enum CarthageInteractorError: FatalError, Equatable {
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .cartfileResolvedNotFound,
+        case .cartfileNotFound,
+             .cartfileResolvedNotFound,
              .buildDirectoryNotFound:
             return .bug
         case .carthageNotFound:
@@ -34,6 +37,8 @@ enum CarthageInteractorError: FatalError, Equatable {
             Carthage was not found in the environment.
             It's possible that the tool is not installed or hasn't been exposed to your environment."
             """
+        case .cartfileNotFound:
+            return "The Cartfile file was not found after resolving the dependencies using the Carthage."
         case .cartfileResolvedNotFound:
             return "The Cartfile.resolved lockfile was not found after resolving the dependencies using the Carthage."
         case .buildDirectoryNotFound:
@@ -124,7 +129,7 @@ public final class CarthageInteractor: CarthageInteracting {
         let cartfileResolvedPath = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
             .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
-
+        
         try FileHandler.shared.delete(carthageDirectory)
         try FileHandler.shared.delete(cartfileResolvedPath)
     }
@@ -153,12 +158,21 @@ public final class CarthageInteractor: CarthageInteracting {
 
     /// Saves lockfile resolved dependencies in `Tuist/Dependencies` directory.
     private func saveDependencies(pathsProvider: CarthagePathsProvider) throws {
+        guard FileHandler.shared.exists(pathsProvider.temporaryCartfilePath) else {
+            throw CarthageInteractorError.cartfileNotFound
+        }
+        
         guard FileHandler.shared.exists(pathsProvider.temporaryCartfileResolvedPath) else {
             throw CarthageInteractorError.cartfileResolvedNotFound
         }
         guard FileHandler.shared.exists(pathsProvider.destinationCarthageBuildDirectory) else {
             throw CarthageInteractorError.buildDirectoryNotFound
         }
+        
+        try copy(
+            from: pathsProvider.temporaryCartfilePath,
+            to: pathsProvider.destinationCartfilePath
+        )
 
         try copy(
             from: pathsProvider.temporaryCartfileResolvedPath,
@@ -187,6 +201,7 @@ public final class CarthageInteractor: CarthageInteracting {
 private struct CarthagePathsProvider {
     let dependenciesDirectory: AbsolutePath
 
+    let destinationCartfilePath: AbsolutePath
     let destinationCartfileResolvedPath: AbsolutePath
     let destinationCarthageDirectory: AbsolutePath
     let destinationCarthageBuildDirectory: AbsolutePath
@@ -197,6 +212,9 @@ private struct CarthagePathsProvider {
     init(dependenciesDirectory: AbsolutePath) {
         self.dependenciesDirectory = dependenciesDirectory
 
+        destinationCartfilePath = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
+            .appending(component: Constants.DependenciesDirectory.cartfileName)
         destinationCartfileResolvedPath = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
             .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)

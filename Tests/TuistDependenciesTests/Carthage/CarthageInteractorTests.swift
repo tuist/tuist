@@ -94,6 +94,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             carthageDirectory,
             [
                 "Build",
+                "Cartfile"
             ]
         )
         try XCTAssertDirectoryContentEqual(
@@ -201,6 +202,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
             carthageDirectory,
             [
                 "Build",
+                "Cartfile"
             ]
         )
         try XCTAssertDirectoryContentEqual(
@@ -313,6 +315,7 @@ private extension CarthageInteractorTests {
     func simulateCarthageOutput(at path: AbsolutePath) throws {
         try [
             "Cartfile.resolved",
+            "Carthage/Cartfile",
             "Carthage/Build/iOS/Moya.framework/Info.plist",
             "Carthage/Build/iOS/ReactiveMoya.framework/Info.plist",
             "Carthage/Build/iOS/RxMoya.framework/Info.plist",

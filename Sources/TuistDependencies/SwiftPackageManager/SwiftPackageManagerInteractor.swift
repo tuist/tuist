@@ -8,6 +8,8 @@ import TuistSupport
 // MARK: - Swift Package Manager Interactor Errors
 
 enum SwiftPackageManagerInteractorError: FatalError, Equatable {
+    /// Thrown when `Package.swift` cannot be found in temporary directory after `Swift Package Manager` installation.
+    case packageSwiftNotFound
     /// Thrown when `Package.resolved` cannot be found in temporary directory after `Swift Package Manager` installation.
     case packageResolvedNotFound
     /// Thrown when `.build` directory cannot be found in temporary directory after `Swift Package Manager` installation.
@@ -16,7 +18,8 @@ enum SwiftPackageManagerInteractorError: FatalError, Equatable {
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .packageResolvedNotFound,
+        case .packageSwiftNotFound,
+             .packageResolvedNotFound,
              .buildDirectoryNotFound:
             return .bug
         }
@@ -25,6 +28,8 @@ enum SwiftPackageManagerInteractorError: FatalError, Equatable {
     /// Error description.
     var description: String {
         switch self {
+        case .packageSwiftNotFound:
+            return "The Package.swift file was not found after resolving the dependencies using the Swift Package Manager."
         case .packageResolvedNotFound:
             return "The Package.resolved lockfile was not found after resolving the dependencies using the Swift Package Manager."
         case .buildDirectoryNotFound:
@@ -115,7 +120,6 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
     public func clean(dependenciesDirectory: AbsolutePath) throws {
         let pathsProvider = SwiftPackageManagerPathsProvider(dependenciesDirectory: dependenciesDirectory)
         try fileHandler.delete(pathsProvider.destinationSwiftPackageManagerDirectory)
-        try fileHandler.delete(pathsProvider.destinationPackageSwiftPath)
         try fileHandler.delete(pathsProvider.destinationPackageResolvedPath)
     }
 
@@ -155,6 +159,9 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
     private func saveDependencies(pathsProvider: SwiftPackageManagerPathsProvider, hasRemoteDependencies: Bool) throws {
         guard !hasRemoteDependencies || fileHandler.exists(pathsProvider.temporaryPackageResolvedPath) else {
             throw SwiftPackageManagerInteractorError.packageResolvedNotFound
+        }
+        guard fileHandler.exists(pathsProvider.temporaryPackageSwiftPath) else {
+            throw SwiftPackageManagerInteractorError.packageSwiftNotFound
         }
         guard fileHandler.exists(pathsProvider.destinationBuildDirectory) else {
             throw SwiftPackageManagerInteractorError.buildDirectoryNotFound
