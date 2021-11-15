@@ -64,7 +64,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMajor(from: "0.4.3")),
         .package(url: "https://github.com/maparoni/Zip.git", .revision("059e7346082d02de16220cd79df7db18ddeba8c3")),
         .package(url: "https://github.com/tuist/GraphViz.git", .branch("tuist")),
-        .package(url: "https://github.com/SwiftGen/SwiftGen", .upToNextMajor(from: "6.5.1")),
+        .package(url: "https://github.com/SwiftGen/SwiftGen", .exact("6.5.0")),
         .package(url: "https://github.com/SwiftGen/StencilSwiftKit.git", .upToNextMajor(from: "2.8.0")),
         .package(url: "https://github.com/FabrizioBrancati/Queuer.git", .upToNextMajor(from: "2.1.1")),
         .package(url: "https://github.com/CombineCommunity/CombineExt.git", .upToNextMajor(from: "1.3.0")),

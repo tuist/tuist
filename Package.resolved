@@ -213,8 +213,8 @@
         "repositoryURL": "https://github.com/SwiftGen/SwiftGen",
         "state": {
           "branch": null,
-          "revision": "d498d285867f42ef0c74c5ebd9ddced747831372",
-          "version": "6.5.1"
+          "revision": "3b26e254b095d44f3dad06110bcb948b318898d6",
+          "version": "6.5.0"
         }
       },
       {
