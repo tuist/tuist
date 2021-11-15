@@ -1456,14 +1456,14 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             )
         )
     }
-    
+
     func testMap_whenSettingsContainsCustomSettingsDictionary_mapsToCustomSettings() throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(RelativePath("Package/Path/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
-        
+
         let customSettings: TuistGraph.SettingsDictionary = ["CUSTOM_SETTING": .string("CUSTOM_VALUE")]
-        
+
         let targetSettings = ["Target1": customSettings]
 
         let project = try subject.map(
@@ -1489,19 +1489,21 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     swiftLanguageVersions: nil
                 ),
             ],
-            targetSettings:  targetSettings
+            targetSettings: targetSettings
         )
         XCTAssertEqual(
             project,
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1",
-                          basePath: basePath,
-                          customSettings: [
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        customSettings: [
                             "OTHER_LDFLAGS": ["key1", "key2", "key3"],
-                            "CUSTOM_SETTING": "CUSTOM_VALUE"
-                          ]),
+                            "CUSTOM_SETTING": "CUSTOM_VALUE",
+                        ]
+                    ),
                 ]
             )
         )

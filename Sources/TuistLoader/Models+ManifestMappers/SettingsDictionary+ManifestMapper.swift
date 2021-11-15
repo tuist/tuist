@@ -9,9 +9,9 @@ extension TuistGraph.SettingsDictionary {
     static func from(manifest: ProjectDescription.SettingsDictionary) -> TuistGraph.SettingsDictionary {
         return manifest.mapValues { value in
             switch value {
-            case .string(let stringValue):
+            case let .string(stringValue):
                 return TuistGraph.SettingValue.string(stringValue)
-            case .array(let arrayValue):
+            case let .array(arrayValue):
                 return TuistGraph.SettingValue.array(arrayValue)
             }
         }
