@@ -65,7 +65,7 @@ final class GraphServiceTests: TuistUnitTestCase {
         Graph exported to \(graphPath.pathString)
         """)
     }
-    
+
     func test_run_whenJson() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
@@ -86,10 +86,10 @@ final class GraphServiceTests: TuistUnitTestCase {
             outputPath: temporaryPath
         )
         let got = try FileHandler.shared.readTextFile(graphPath)
-        
+
         let result = try JSONDecoder().decode(GraphOutput.self, from: got.data(using: .utf8)!)
         // Then
-        XCTAssertEqual(result, GraphOutput.init(name: "graph", path: "/", projects: [:]))
+        XCTAssertEqual(result, GraphOutput(name: "graph", path: "/", projects: [:]))
         XCTAssertPrinterOutputContains("""
         Deleting existing graph at \(graphPath.pathString)
         Graph exported to \(graphPath.pathString)
