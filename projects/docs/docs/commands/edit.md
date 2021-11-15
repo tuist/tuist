@@ -26,3 +26,7 @@ tuist edit --permanent
 ```
 
 That will generate a `Manifest.xcodeproj` project that you can open manually.
+
+:::note Manifest.xcodeproj and version control
+The generated Xcode project has dependencies with the environment in which it runs and thus, we discourage including it in your [version control](https://en.wikipedia.org/wiki/Version_control) project.
+:::
