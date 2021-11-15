@@ -204,7 +204,7 @@ private struct SwiftPackageManagerPathsProvider {
 
     init(dependenciesDirectory: AbsolutePath) {
         destinationPackageSwiftPath = dependenciesDirectory
-            .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
+            .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
             .appending(component: Constants.DependenciesDirectory.packageSwiftName)
         destinationPackageResolvedPath = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)

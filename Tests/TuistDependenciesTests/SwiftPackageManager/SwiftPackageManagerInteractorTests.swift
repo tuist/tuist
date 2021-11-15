@@ -295,7 +295,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
 
         try createFiles([
-            "Dependencies/Lockfiles/Package.swift",
+            "Dependencies/SwiftPackageManager/Package.swift",
             "Dependencies/Lockfiles/Package.resolved",
             "Dependencies/Lockfiles/OtherLockfile.lock",
             "Dependencies/SwiftPackageManager/Info.plist",
