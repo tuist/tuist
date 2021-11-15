@@ -159,7 +159,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         guard fileHandler.exists(pathsProvider.destinationBuildDirectory) else {
             throw SwiftPackageManagerInteractorError.buildDirectoryNotFound
         }
-        
+
         if fileHandler.exists(pathsProvider.temporaryPackageSwiftPath) {
             try copy(
                 from: pathsProvider.temporaryPackageSwiftPath,
