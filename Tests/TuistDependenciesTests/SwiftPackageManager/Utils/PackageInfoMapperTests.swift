@@ -1456,6 +1456,56 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             )
         )
     }
+    
+    func testMap_whenSettingsContainsCustomSettingsDictionary_mapsToCustomSettings() throws {
+        let basePath = try temporaryPath()
+        let sourcesPath = basePath.appending(RelativePath("Package/Path/Sources/Target1"))
+        try fileHandler.createFolder(sourcesPath)
+        
+        let customSettings: TuistGraph.SettingsDictionary = ["CUSTOM_SETTING": .string("CUSTOM_VALUE")]
+        
+        let targetSettings = ["Target1": customSettings]
+
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1",
+                            settings: [
+                                .init(tool: .linker, name: .unsafeFlags, condition: nil, value: ["key1"]),
+                                .init(tool: .linker, name: .unsafeFlags, condition: nil, value: ["key2", "key3"]),
+                            ]
+                        ),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            targetSettings:  targetSettings
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test("Target1",
+                          basePath: basePath,
+                          customSettings: [
+                            "OTHER_LDFLAGS": ["key1", "key2", "key3"],
+                            "CUSTOM_SETTING": "CUSTOM_VALUE"
+                          ]),
+                ]
+            )
+        )
+    }
 
     func testMap_whenConditionalSetting_ignoresByPlatform() throws {
         let basePath = try temporaryPath()
@@ -2102,6 +2152,7 @@ extension PackageInfoMapping {
         basePath: AbsolutePath = "/",
         packageInfos: [String: PackageInfo] = [:],
         platforms: Set<TuistGraph.Platform> = [.iOS],
+        targetSettings: [String: TuistGraph.SettingsDictionary] = [:],
         swiftToolsVersion: TSCUtility.Version? = nil
     ) throws -> ProjectDescription.Project? {
         let productToPackage: [String: String] = packageInfos.reduce(into: [:]) { result, packageInfo in
@@ -2128,6 +2179,7 @@ extension PackageInfoMapping {
             name: package,
             path: basePath.appending(component: package).appending(component: "Path"),
             productTypes: [:],
+            targetSettings: targetSettings,
             minDeploymentTargets: preprocessInfo.platformToMinDeploymentTarget,
             targetToPlatform: preprocessInfo.targetToPlatform,
             targetToProducts: preprocessInfo.targetToProducts,

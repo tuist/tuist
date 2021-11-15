@@ -8,12 +8,19 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
     /// The custom `Product` type to be used for SPM targets.
     public let productTypes: [String: Product]
 
+    // Additional settings to be added to targets generated from SwiftPackageManager.
+    public let targetSettings: [String: SettingsDictionary]
+
     /// Creates `SwiftPackageManagerDependencies` instance.
     /// - Parameter packages: List of packages that will be installed using Swift Package Manager.
     /// - Parameter productTypes: The custom `Product` types to be used for SPM targets.
-    public init(_ packages: [Package], productTypes: [String: Product] = [:]) {
+    /// - Parameter targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
+    public init(_ packages: [Package],
+                productTypes: [String: Product] = [:],
+                targetSettings: [String: SettingsDictionary] = [:]) {
         self.packages = packages
         self.productTypes = productTypes
+        self.targetSettings = targetSettings
     }
 }
 
@@ -23,5 +30,6 @@ extension SwiftPackageManagerDependencies: ExpressibleByArrayLiteral {
     public init(arrayLiteral elements: Package...) {
         packages = elements
         productTypes = [:]
+        targetSettings = [:]
     }
 }
