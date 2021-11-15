@@ -15,8 +15,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Schemes can be hidden from the dropdown menu `Scheme(hidden: true)` [#3598](https://github.com/tuist/tuist/pull/3598) by [@pepibumur](https://github.com/pepibumur)
 - Sort schemes alphabetically by default [#3598](https://github.com/tuist/tuist/pull/3598) by [@pepibumur](https://github.com/pepibumur)
-- Add automation to release [#3603](https://github.com/tuist/tuist/pull/3603/) by [@luispadron](https://github.com/luispadron)
-- JSON format to `graph` command to support exporting a project's structure to a JSON file by [@neakor](https://github.com/neakor)
+- Add automation to release [#3603](https://github.com/tuist/tuist/pull/3603) by [@luispadron](https://github.com/luispadron)
+- JSON format to `graph` command to support exporting a project's structure to a JSON file [#3617](https://github.com/tuist/tuist/pull/3617) by [@neakor](https://github.com/neakor)
 
 ### Fixed
 
