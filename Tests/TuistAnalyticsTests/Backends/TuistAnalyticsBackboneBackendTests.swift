@@ -32,7 +32,7 @@ final class TuistAnalyticsBackboneBackendTests: TuistUnitTestCase {
 
         // Then
         XCTAssertHTTPResourceMethod(got, "POST")
-        XCTAssertHTTPResourceURL(got, url: Constants.backboneURL)
+        XCTAssertHTTPResourceURL(got, url: Constants.backboneURL.appendingPathComponent("command_events.json"))
         XCTAssertHTTPResourceContainsHeader(got, header: "Content-Type", value: "application/json")
     }
 

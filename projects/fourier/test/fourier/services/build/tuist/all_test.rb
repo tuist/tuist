@@ -11,6 +11,9 @@ module Fourier
             # Given
             Utilities::System
               .expects(:tuist)
+              .with("dependencies", "fetch")
+            Utilities::System
+              .expects(:tuist)
               .with("build", "--generate")
 
             # Then

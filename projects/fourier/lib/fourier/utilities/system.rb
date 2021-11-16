@@ -6,7 +6,7 @@ module Fourier
   module Utilities
     module System
       def self.system(*args)
-        Kernel.system(*args)
+        Kernel.system(*args) || exit(1)
       end
 
       def self.tuist(*args)

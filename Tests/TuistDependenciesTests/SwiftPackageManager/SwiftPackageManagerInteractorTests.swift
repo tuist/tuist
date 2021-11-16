@@ -48,7 +48,8 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             [
                 .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
             ],
-            productTypes: [:]
+            productTypes: [:],
+            targetSettings: [:]
         )
 
         swiftPackageManagerController.resolveStub = { path, printOutput in
@@ -61,10 +62,11 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             XCTAssertNil(version) // swift-tools-version is not specified
         }
 
-        swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms, swiftToolsVersion in
+        swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms, targetSettings, swiftToolsVersion in
             XCTAssertEqual(path, swiftPackageManagerBuildDirectory)
             XCTAssertEqual(platforms, [.iOS])
             XCTAssertEqual(automaticProductType, [:])
+            XCTAssertEqual(targetSettings, [:])
             XCTAssertNil(swiftToolsVersion)
             return .test()
         }
@@ -131,7 +133,8 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             [
                 .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
             ],
-            productTypes: [:]
+            productTypes: [:],
+            targetSettings: [:]
         )
 
         swiftPackageManagerController.resolveStub = { path, printOutput in
@@ -144,10 +147,11 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             XCTAssertEqual(version, swiftToolsVersion.description) // version should be equal to the version that has been specified
         }
 
-        swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms, swiftVersion in
+        swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms, targetSettings, swiftVersion in
             XCTAssertEqual(path, swiftPackageManagerBuildDirectory)
             XCTAssertEqual(automaticProductType, [:])
             XCTAssertEqual(platforms, [.iOS])
+            XCTAssertEqual(targetSettings, [:])
             XCTAssertEqual(swiftVersion, swiftToolsVersion)
             return .test()
         }
@@ -213,7 +217,8 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             [
                 .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
             ],
-            productTypes: [:]
+            productTypes: [:],
+            targetSettings: [:]
         )
 
         swiftPackageManagerController.updateStub = { path, printOutput in
@@ -226,10 +231,11 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             XCTAssertNil(version) // swift-tools-version is not specified
         }
 
-        swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms, swiftToolsVersion in
+        swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms, targetSettings, swiftToolsVersion in
             XCTAssertEqual(path, swiftPackageManagerBuildDirectory)
             XCTAssertEqual(automaticProductType, [:])
             XCTAssertEqual(platforms, [.iOS])
+            XCTAssertEqual(targetSettings, [:])
             XCTAssertNil(swiftToolsVersion)
             return .test()
         }
@@ -289,6 +295,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
 
         try createFiles([
+            "Dependencies/SwiftPackageManager/Package.swift",
             "Dependencies/Lockfiles/Package.resolved",
             "Dependencies/Lockfiles/OtherLockfile.lock",
             "Dependencies/SwiftPackageManager/Info.plist",
@@ -324,6 +331,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
 private extension SwiftPackageManagerInteractorTests {
     func simulateSPMOutput(at path: AbsolutePath) throws {
         try [
+            "Package.swift",
             "Package.resolved",
             ".build/manifest.db",
             ".build/workspace-state.json",
