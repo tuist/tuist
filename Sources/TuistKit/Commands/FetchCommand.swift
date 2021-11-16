@@ -23,13 +23,20 @@ struct FetchCommand: ParsableCommand {
     )
     var path: String?
     
+    @Flag(
+        name: .shortAndLong,
+        help: "Instead of simple fetch, update external content when available."
+    )
+    var update: Bool = false
+    
     @Argument(help: "Categories to be fetched.")
     var fetchCategories: [FetchCategory] = FetchCategory.allCases
 
     func run() throws {
         try FetchService().run(
             path: path,
-            fetchCategories: fetchCategories
+            fetchCategories: fetchCategories,
+            update: update
         )
     }
 }

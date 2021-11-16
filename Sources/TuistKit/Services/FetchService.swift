@@ -26,14 +26,22 @@ final class FetchService {
         self.converter = converter
     }
 
-    func run(path: String?, fetchCategories: [FetchCategory]) throws {
+    func run(
+        path: String?,
+        fetchCategories: [FetchCategory],
+        update: Bool
+    ) throws {
         let path = self.path(path)
         try fetchCategories.forEach {
             switch $0 {
             case .plugins:
                 try fetchPlugins(path: path)
             case .dependencies:
-                try fetchDependencies(path: path)
+                if update {
+                    try updateDependencies(path: path)
+                } else {
+                    try fetchDependencies(path: path)
+                }
             }
         }
     }
@@ -59,6 +67,36 @@ final class FetchService {
         try pluginService.fetchRemotePlugins(using: config)
         
         logger.info("Plugins resolved and fetched successfully.", metadata: .success)
+    }
+    
+    private func updateDependencies(path: AbsolutePath) throws {
+        guard FileHandler.shared.exists(
+            path.appending(components: Constants.tuistDirectoryName, Manifest.dependencies.fileName(path))
+        ) else {
+            return
+        }
+        
+        logger.info("Updating dependencies.", metadata: .section)
+
+        let dependencies = try dependenciesModelLoader.loadDependencies(at: path)
+
+        let config = try configLoader.loadConfig(path: path)
+        let swiftVersion = config.swiftVersion
+
+        let dependenciesManifest = try dependenciesController.update(
+            at: path,
+            dependencies: dependencies,
+            swiftVersion: swiftVersion
+        )
+
+        let dependenciesGraph = try converter.convert(manifest: dependenciesManifest, path: path)
+
+        try dependenciesController.save(
+            dependenciesGraph: dependenciesGraph,
+            to: path
+        )
+
+        logger.info("Dependencies updated successfully.", metadata: .success)
     }
     
     private func fetchDependencies(path: AbsolutePath) throws {

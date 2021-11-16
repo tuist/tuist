@@ -3,6 +3,8 @@ import TSCBasic
 import TSCUtility
 import TuistCore
 import TuistGraph
+import TuistSupport
+import TuistLoader
 import TuistGraphTesting
 import TuistCoreTesting
 import TuistDependenciesTesting
@@ -48,6 +50,61 @@ final class FetchServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
     
+    func test_run_when_updating_dependencies() throws {
+        // Given
+        let stubbedPath = try temporaryPath()
+        let stubbedDependencies = Dependencies(
+            carthage: .init(
+                [
+                    .git(path: "Dependency1", requirement: .exact("1.1.1")),
+                ]
+            ),
+            swiftPackageManager: .init(
+                [
+                    .remote(url: "Dependency1/Dependency1", requirement: .upToNextMajor("1.2.3")),
+                ],
+                productTypes: [:],
+                targetSettings: [:]
+            ),
+            platforms: [.iOS, .macOS]
+        )
+        dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
+
+        let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
+        configLoader.loadConfigStub = { _ in Config.test(swiftVersion: stubbedSwiftVersion) }
+
+        dependenciesController.updateStub = { path, dependencies, swiftVersion in
+            XCTAssertEqual(path, stubbedPath)
+            XCTAssertEqual(dependencies, stubbedDependencies)
+            XCTAssertEqual(swiftVersion, stubbedSwiftVersion)
+            return .none
+        }
+        dependenciesController.saveStub = { dependenciesGraph, path in
+            XCTAssertEqual(dependenciesGraph, .none)
+            XCTAssertEqual(path, stubbedPath)
+        }
+        
+        try fileHandler.touch(
+            stubbedPath.appending(
+                components: Constants.tuistDirectoryName, Manifest.dependencies.fileName(stubbedPath)
+            )
+        )
+
+        // When
+        try subject.run(
+            path: stubbedPath.pathString,
+            fetchCategories: [.dependencies],
+            update: true
+        )
+
+        // Then
+        XCTAssertTrue(dependenciesController.invokedUpdate)
+        XCTAssertTrue(dependenciesModelLoader.invokedLoadDependencies)
+        XCTAssertTrue(dependenciesController.invokedSave)
+
+        XCTAssertFalse(dependenciesController.invokedFetch)
+    }
+    
     func test_run_when_fetching_plugins() throws {
         // Given
         let config = Config.test(
@@ -64,7 +121,11 @@ final class FetchServiceTests: TuistUnitTestCase {
         }
         
         // When
-        try subject.run(path: nil, fetchCategories: [.plugins])
+        try subject.run(
+            path: nil,
+            fetchCategories: [.plugins],
+            update: false
+        )
         
         // Then
         XCTAssertEqual(
@@ -105,9 +166,19 @@ final class FetchServiceTests: TuistUnitTestCase {
             XCTAssertEqual(dependenciesGraph, .none)
             XCTAssertEqual(path, stubbedPath)
         }
+        
+        try fileHandler.touch(
+            stubbedPath.appending(
+                components: Constants.tuistDirectoryName, Manifest.dependencies.fileName(stubbedPath)
+            )
+        )
 
         // When
-        try subject.run(path: stubbedPath.pathString, fetchCategories: [.dependencies])
+        try subject.run(
+            path: stubbedPath.pathString,
+            fetchCategories: [.dependencies],
+            update: false
+        )
 
         // Then
         XCTAssertTrue(dependenciesModelLoader.invokedLoadDependencies)
