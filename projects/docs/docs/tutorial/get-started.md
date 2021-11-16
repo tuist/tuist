@@ -91,7 +91,7 @@ To edit your project you can open the relevant Tuist manifests using the command
 tuist edit
 ```
 
-The generated project will contain the `project.swift` file.
+The generated project will contain the `Project.swift` file and any other required manifest.
 
 ### Generating project
 
