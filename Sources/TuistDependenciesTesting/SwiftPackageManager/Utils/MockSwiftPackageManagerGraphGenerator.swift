@@ -24,7 +24,7 @@ public final class MockSwiftPackageManagerGraphGenerator: SwiftPackageManagerGra
         at path: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
         platforms: Set<TuistGraph.Platform>,
-        targetSettings: [String : TuistGraph.SettingsDictionary],
+        targetSettings: [String: TuistGraph.SettingsDictionary],
         swiftToolsVersion: TSCUtility.Version?
     ) throws -> TuistCore.DependenciesGraph {
         invokedGenerate = true

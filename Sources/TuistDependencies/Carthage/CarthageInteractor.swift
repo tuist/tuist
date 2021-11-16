@@ -129,7 +129,7 @@ public final class CarthageInteractor: CarthageInteracting {
         let cartfileResolvedPath = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
             .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
-        
+
         try FileHandler.shared.delete(carthageDirectory)
         try FileHandler.shared.delete(cartfileResolvedPath)
     }
@@ -161,14 +161,14 @@ public final class CarthageInteractor: CarthageInteracting {
         guard FileHandler.shared.exists(pathsProvider.temporaryCartfilePath) else {
             throw CarthageInteractorError.cartfileNotFound
         }
-        
+
         guard FileHandler.shared.exists(pathsProvider.temporaryCartfileResolvedPath) else {
             throw CarthageInteractorError.cartfileResolvedNotFound
         }
         guard FileHandler.shared.exists(pathsProvider.destinationCarthageBuildDirectory) else {
             throw CarthageInteractorError.buildDirectoryNotFound
         }
-        
+
         try copy(
             from: pathsProvider.temporaryCartfilePath,
             to: pathsProvider.destinationCartfilePath

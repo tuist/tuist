@@ -17,7 +17,8 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
     /// - Parameter targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
     public init(_ packages: [Package],
                 productTypes: [String: Product] = [:],
-                targetSettings: [String: SettingsDictionary] = [:]) {
+                targetSettings: [String: SettingsDictionary] = [:])
+    {
         self.packages = packages
         self.productTypes = productTypes
         self.targetSettings = targetSettings
