@@ -85,7 +85,7 @@ Since we are defining an Xcode project, most of the properties might be familiar
 
 ### Editing your project
 
-To edit your project you can open an XCode *Manifest* project using the command
+To edit your project you can open the relevant Tuist manifests using the command
 
 ```bash
 tuist edit
