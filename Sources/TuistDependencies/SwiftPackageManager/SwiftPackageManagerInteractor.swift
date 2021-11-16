@@ -8,6 +8,8 @@ import TuistSupport
 // MARK: - Swift Package Manager Interactor Errors
 
 enum SwiftPackageManagerInteractorError: FatalError, Equatable {
+    /// Thrown when `Package.swift` cannot be found in temporary directory after `Swift Package Manager` installation.
+    case packageSwiftNotFound
     /// Thrown when `Package.resolved` cannot be found in temporary directory after `Swift Package Manager` installation.
     case packageResolvedNotFound
     /// Thrown when `.build` directory cannot be found in temporary directory after `Swift Package Manager` installation.
@@ -16,7 +18,8 @@ enum SwiftPackageManagerInteractorError: FatalError, Equatable {
     /// Error type.
     var type: ErrorType {
         switch self {
-        case .packageResolvedNotFound,
+        case .packageSwiftNotFound,
+             .packageResolvedNotFound,
              .buildDirectoryNotFound:
             return .bug
         }
@@ -25,6 +28,8 @@ enum SwiftPackageManagerInteractorError: FatalError, Equatable {
     /// Error description.
     var description: String {
         switch self {
+        case .packageSwiftNotFound:
+            return "The Package.swift file was not found after resolving the dependencies using the Swift Package Manager."
         case .packageResolvedNotFound:
             return "The Package.resolved lockfile was not found after resolving the dependencies using the Swift Package Manager."
         case .buildDirectoryNotFound:
@@ -155,8 +160,18 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         guard !hasRemoteDependencies || fileHandler.exists(pathsProvider.temporaryPackageResolvedPath) else {
             throw SwiftPackageManagerInteractorError.packageResolvedNotFound
         }
+        guard fileHandler.exists(pathsProvider.temporaryPackageSwiftPath) else {
+            throw SwiftPackageManagerInteractorError.packageSwiftNotFound
+        }
         guard fileHandler.exists(pathsProvider.destinationBuildDirectory) else {
             throw SwiftPackageManagerInteractorError.buildDirectoryNotFound
+        }
+
+        if fileHandler.exists(pathsProvider.temporaryPackageSwiftPath) {
+            try copy(
+                from: pathsProvider.temporaryPackageSwiftPath,
+                to: pathsProvider.destinationPackageSwiftPath
+            )
         }
 
         if fileHandler.exists(pathsProvider.temporaryPackageResolvedPath) {
@@ -187,6 +202,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
 
 private struct SwiftPackageManagerPathsProvider {
     let destinationSwiftPackageManagerDirectory: AbsolutePath
+    let destinationPackageSwiftPath: AbsolutePath
     let destinationPackageResolvedPath: AbsolutePath
     let destinationBuildDirectory: AbsolutePath
 
@@ -194,6 +210,9 @@ private struct SwiftPackageManagerPathsProvider {
     let temporaryPackageSwiftPath: AbsolutePath
 
     init(dependenciesDirectory: AbsolutePath) {
+        destinationPackageSwiftPath = dependenciesDirectory
+            .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
+            .appending(component: Constants.DependenciesDirectory.packageSwiftName)
         destinationPackageResolvedPath = dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
             .appending(component: Constants.DependenciesDirectory.packageResolvedName)
