@@ -60,6 +60,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         "CODE_SIGN_IDENTITY": "iPhone Developer",
         "SWIFT_OPTIMIZATION_LEVEL": "-Onone",
         "TARGETED_DEVICE_FAMILY": "1,2",
+        "SWIFT_VERSION": "5.5",
     ]
 
     private let appTargetEssentialReleaseSettings: [String: SettingValue] = [
@@ -70,6 +71,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         "SDKROOT": "iphoneos",
         "CODE_SIGN_IDENTITY": "iPhone Developer",
         "SWIFT_OPTIMIZATION_LEVEL": "-Owholemodule",
+        "SWIFT_VERSION": "5.5",
     ]
 
     private let frameworkTargetEssentialDebugSettings: [String: SettingValue] = [
@@ -89,6 +91,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         "INSTALL_PATH": "$(LOCAL_LIBRARY_DIR)/Frameworks",
         "DYLIB_CURRENT_VERSION": "1",
         "DYLIB_COMPATIBILITY_VERSION": "1",
+        "SWIFT_VERSION": "5.5",
     ]
 
     private let frameworkTargetEssentialReleaseSettings: [String: SettingValue] = [
@@ -107,6 +110,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         "CODE_SIGN_IDENTITY": "",
         "SKIP_INSTALL": "YES",
         "DYLIB_CURRENT_VERSION": "1",
+        "SWIFT_VERSION": "5.5",
     ]
 
     private let testTargetEssentialDebugSettings: [String: SettingValue] = [
@@ -116,6 +120,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         "CODE_SIGN_IDENTITY": "iPhone Developer",
         "SWIFT_OPTIMIZATION_LEVEL": "-Onone",
         "TARGETED_DEVICE_FAMILY": "1,2",
+        "SWIFT_VERSION": "5.5",
     ]
 
     override func setUp() {
@@ -480,7 +485,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         XCTAssertNil(got["SWIFT_VERSION"])
     }
 
-    func testTargetSettings_whenEssentials_doesNotContainsSystemInferredSettings() throws {
+    func testTargetSettings_whenEssential_containsSystemInferredSettings() throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -500,7 +505,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertNil(got["SWIFT_VERSION"])
+        XCTAssertEqual(got["SWIFT_VERSION"], .string("5.0"))
     }
 
     func testTargetSettings_whenNone_doesNotContainsSystemInferredSettings() throws {

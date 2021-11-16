@@ -61,6 +61,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         "COMBINE_HIDPI_IMAGES",
         "ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES",
         "WRAPPER_EXTENSION",
+        "SWIFT_VERSION",
     ]
 
     /// Key is `Version` which describes from which version of Xcode are values available for
