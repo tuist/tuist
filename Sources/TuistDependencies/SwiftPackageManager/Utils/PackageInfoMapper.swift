@@ -710,12 +710,12 @@ extension ProjectDescription.Settings {
         if !linkerFlags.isEmpty {
             settingsDictionary["OTHER_LDFLAGS"] = .array(["$(inherited)"] + linkerFlags)
         }
-        
+
         if let settingsToOverride = targetSettings[target.name] {
             let projectDescriptionSettingsToOverride = ProjectDescription.SettingsDictionary.from(settingsDictionary: settingsToOverride)
             settingsDictionary.merge(projectDescriptionSettingsToOverride)
         }
-        
+
         return .settings(base: settingsDictionary)
     }
 
@@ -846,9 +846,9 @@ extension ProjectDescription.SettingsDictionary {
     fileprivate static func from(settingsDictionary: TuistGraph.SettingsDictionary) -> Self {
         return settingsDictionary.mapValues { value in
             switch value {
-            case .string(let stringValue):
+            case let .string(stringValue):
                 return ProjectDescription.SettingValue.string(stringValue)
-            case .array(let arrayValue):
+            case let .array(arrayValue):
                 return ProjectDescription.SettingValue.array(arrayValue)
             }
         }

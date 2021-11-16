@@ -295,6 +295,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
 
         try createFiles([
+            "Dependencies/SwiftPackageManager/Package.swift",
             "Dependencies/Lockfiles/Package.resolved",
             "Dependencies/Lockfiles/OtherLockfile.lock",
             "Dependencies/SwiftPackageManager/Info.plist",
@@ -330,6 +331,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
 private extension SwiftPackageManagerInteractorTests {
     func simulateSPMOutput(at path: AbsolutePath) throws {
         try [
+            "Package.swift",
             "Package.resolved",
             ".build/manifest.db",
             ".build/workspace-state.json",
