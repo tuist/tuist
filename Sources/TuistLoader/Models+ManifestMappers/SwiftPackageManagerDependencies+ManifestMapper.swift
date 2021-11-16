@@ -13,6 +13,8 @@ extension TuistGraph.SwiftPackageManagerDependencies {
     ) throws -> Self {
         let packages = try manifest.packages.map { try TuistGraph.Package.from(manifest: $0, generatorPaths: generatorPaths) }
         let productTypes = manifest.productTypes.mapValues { TuistGraph.Product.from(manifest: $0) }
-        return .init(packages, productTypes: productTypes)
+        let targetSettings = manifest.targetSettings.mapValues { TuistGraph.SettingsDictionary.from(manifest: $0) }
+
+        return .init(packages, productTypes: productTypes, targetSettings: targetSettings)
     }
 }

@@ -96,6 +96,7 @@ public protocol PackageInfoMapping {
     ///   - name: Name of the package
     ///   - path: Path of the package
     ///   - productTypes: Product type mapping
+    ///   - targetSettings: Settings to apply to denoted targets
     ///   - minDeploymentTargets: Minimum support deployment target per platform
     ///   - targetToPlatform: Mapping from a target name to its platform
     ///   - targetToProducts: Mapping from a target name to its products
@@ -109,6 +110,7 @@ public protocol PackageInfoMapping {
         name: String,
         path: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
+        targetSettings: [String: TuistGraph.SettingsDictionary],
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         targetToPlatform: [String: ProjectDescription.Platform],
         targetToProducts: [String: Set<PackageInfo.Product>],
@@ -230,7 +232,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 )
             }
         }
-        let minDeploymentTargets = Platform.oldestVersions.reduce(into: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]()) { acc, next in
+        let minDeploymentTargets = Platform.oldestVersions.reduce(
+            into: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]()) { acc, next in
             switch next.key {
             case .iOS:
                 acc[.iOS] = .iOS(targetVersion: next.value, devices: [.ipad, .iphone])
@@ -258,6 +261,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         name: String,
         path: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
+        targetSettings: [String: TuistGraph.SettingsDictionary],
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         targetToPlatform: [String: ProjectDescription.Platform],
         targetToProducts: [String: Set<PackageInfo.Product>],
@@ -276,6 +280,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 packageFolder: path,
                 packageToProject: packageToProject,
                 productTypes: productTypes,
+                targetSettings: targetSettings,
                 platforms: targetToPlatform,
                 minDeploymentTargets: minDeploymentTargets,
                 targetToResolvedDependencies: targetToResolvedDependencies,
@@ -311,6 +316,7 @@ extension ProjectDescription.Target {
         packageFolder: AbsolutePath,
         packageToProject: [String: AbsolutePath],
         productTypes: [String: TuistGraph.Product],
+        targetSettings: [String: TuistGraph.SettingsDictionary],
         platforms: [String: ProjectDescription.Platform],
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
@@ -358,7 +364,8 @@ extension ProjectDescription.Target {
             targetToResolvedDependencies: targetToResolvedDependencies,
             settings: target.settings,
             platform: platform,
-            moduleMap: moduleMap
+            moduleMap: moduleMap,
+            targetSettings: targetSettings
         )
 
         return ProjectDescription.Target(
@@ -587,7 +594,8 @@ extension ProjectDescription.Settings {
         targetToResolvedDependencies: [String: [PackageInfoMapper.ResolvedDependency]],
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         platform: ProjectDescription.Platform,
-        moduleMap: (type: ModuleMapType, path: AbsolutePath?)
+        moduleMap: (type: ModuleMapType, path: AbsolutePath?),
+        targetSettings: [String: TuistGraph.SettingsDictionary]
     ) throws -> Self? {
         var headerSearchPaths: [String] = []
         var defines: [String: String] = ["SWIFT_PACKAGE": "1"]
@@ -663,7 +671,6 @@ extension ProjectDescription.Settings {
             "CLANG_ENABLE_OBJC_WEAK": "NO",
             "CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER": "NO",
             "ENABLE_STRICT_OBJC_MSGSEND": "NO",
-            "ENABLE_TESTING_SEARCH_PATHS": "YES",
             "FRAMEWORK_SEARCH_PATHS": ["$(inherited)", "$(PLATFORM_DIR)/Developer/Library/Frameworks"],
             "GCC_NO_COMMON_BLOCKS": "NO",
             "USE_HEADERMAP": "NO",
@@ -702,6 +709,11 @@ extension ProjectDescription.Settings {
 
         if !linkerFlags.isEmpty {
             settingsDictionary["OTHER_LDFLAGS"] = .array(["$(inherited)"] + linkerFlags)
+        }
+
+        if let settingsToOverride = targetSettings[target.name] {
+            let projectDescriptionSettingsToOverride = ProjectDescription.SettingsDictionary.from(settingsDictionary: settingsToOverride)
+            settingsDictionary.merge(projectDescriptionSettingsToOverride)
         }
 
         return .settings(base: settingsDictionary)
@@ -826,6 +838,19 @@ extension ProjectDescription.Product {
             return .stickerPackExtension
         case .appClip:
             return .appClip
+        }
+    }
+}
+
+extension ProjectDescription.SettingsDictionary {
+    fileprivate static func from(settingsDictionary: TuistGraph.SettingsDictionary) -> Self {
+        return settingsDictionary.mapValues { value in
+            switch value {
+            case let .string(stringValue):
+                return ProjectDescription.SettingValue.string(stringValue)
+            case let .array(arrayValue):
+                return ProjectDescription.SettingValue.array(arrayValue)
+            }
         }
     }
 }

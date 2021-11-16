@@ -8,6 +8,7 @@ module Fourier
       class TuistTest < TestCase
         def test_calls_tuist_with_the_right_arguments
           # Given
+          Utilities::System.expects(:tuist).with("dependencies", "fetch")
           Utilities::System.expects(:tuist).with("generate")
 
           # When/Then
@@ -16,6 +17,7 @@ module Fourier
 
         def test_calls_tuist_with_the_right_arguments_when_open_is_true
           # Given
+          Utilities::System.expects(:tuist).with("dependencies", "fetch")
           Utilities::System.expects(:tuist).with("generate", "--open")
 
           # When/Then

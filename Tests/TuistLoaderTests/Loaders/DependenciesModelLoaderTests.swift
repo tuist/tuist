@@ -67,7 +67,8 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
                     .local(path: localSwiftPackagePath),
                     .remote(url: "RemoteUrl.com", requirement: .exact("1.2.3")),
                 ],
-                productTypes: [:]
+                productTypes: [:],
+                targetSettings: [:]
             ),
             platforms: [.iOS, .macOS]
         )

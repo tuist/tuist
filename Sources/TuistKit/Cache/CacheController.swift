@@ -77,7 +77,7 @@ final class CacheController: CacheControlling {
     }
 
     func cache(
-        config: Config, 
+        config: Config,
         path: AbsolutePath,
         cacheProfile: TuistGraph.Cache.Profile,
         includedTargets: Set<String>,

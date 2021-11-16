@@ -13,6 +13,9 @@ module Fourier
             # Given
             Utilities::System
               .expects(:tuist)
+              .with("dependencies", "fetch")
+            Utilities::System
+              .expects(:tuist)
               .with("test")
             Utilities::System
               .expects(:system)

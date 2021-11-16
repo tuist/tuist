@@ -48,7 +48,8 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
                     .local(path: localPackagePath),
                     .remote(url: "RemotePackage.com", requirement: .exact("1.2.3")),
                 ],
-                productTypes: [:]
+                productTypes: [:],
+                targetSettings: [:]
             ),
             platforms: [.iOS, .macOS, .tvOS]
         )
