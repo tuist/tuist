@@ -22,13 +22,13 @@ struct FetchCommand: ParsableCommand {
         completion: .directory
     )
     var path: String?
-    
+
     @Flag(
         name: .shortAndLong,
         help: "Instead of simple fetch, update external content when available."
     )
     var update: Bool = false
-    
+
     @Argument(help: "Categories to be fetched.")
     var fetchCategories: [FetchCategory] = FetchCategory.allCases
 

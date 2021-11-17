@@ -1,10 +1,10 @@
 import Foundation
 import TSCBasic
+import TuistCore
+import TuistDependencies
+import TuistLoader
 import TuistPlugin
 import TuistSupport
-import TuistLoader
-import TuistDependencies
-import TuistCore
 
 final class FetchService {
     private let pluginService: PluginServicing
@@ -12,7 +12,7 @@ final class FetchService {
     private let dependenciesController: DependenciesControlling
     private let dependenciesModelLoader: DependenciesModelLoading
     private let converter: ManifestModelConverting
-    
+
     init(
         pluginService: PluginServicing = PluginService(),
         configLoader: ConfigLoading = ConfigLoader(manifestLoader: CachedManifestLoader()),
@@ -42,7 +42,7 @@ final class FetchService {
             }
         }
     }
-    
+
     // MARK: - Helpers
 
     private func path(_ path: String?) -> AbsolutePath {
@@ -56,23 +56,23 @@ final class FetchService {
     private var currentPath: AbsolutePath {
         FileHandler.shared.currentPath
     }
-    
+
     private func fetchPlugins(path: AbsolutePath) throws {
         logger.info("Resolving and fetching plugins.", metadata: .section)
-        
+
         let config = try configLoader.loadConfig(path: path)
         try pluginService.fetchRemotePlugins(using: config)
-        
+
         logger.info("Plugins resolved and fetched successfully.", metadata: .success)
     }
-    
+
     private func fetchDependencies(path: AbsolutePath, update: Bool) throws {
         guard FileHandler.shared.exists(
             path.appending(components: Constants.tuistDirectoryName, Manifest.dependencies.fileName(path))
         ) else {
             return
         }
-        
+
         if update {
             logger.info("Updating dependencies.", metadata: .section)
         } else {
@@ -113,4 +113,3 @@ final class FetchService {
         }
     }
 }
-

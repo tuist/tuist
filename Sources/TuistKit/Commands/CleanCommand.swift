@@ -21,7 +21,7 @@ enum CleanCategory: String, CaseIterable, ExpressibleByArgument {
 
     /// The manifests cache
     case manifests
-    
+
     /// The dependencies cache
     case dependencies
 }
@@ -43,7 +43,7 @@ struct CleanCommand: ParsableCommand {
         completion: .directory
     )
     var path: String?
-    
+
     func run() throws {
         try CleanService().run(
             categories: cleanCategories,

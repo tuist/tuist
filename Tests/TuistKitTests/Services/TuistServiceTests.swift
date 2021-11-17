@@ -1,8 +1,8 @@
-import TuistSupport
-import TuistSupportTesting
+import TuistLoaderTesting
 import TuistPlugin
 import TuistPluginTesting
-import TuistLoaderTesting
+import TuistSupport
+import TuistSupportTesting
 import XCTest
 
 @testable import TuistKit
@@ -28,7 +28,7 @@ final class TuistServiceTests: TuistUnitTestCase {
         subject = nil
         super.tearDown()
     }
-    
+
     func test_run_when_command_not_found() throws {
         XCTAssertThrowsSpecific(
             try subject.run(["my-command"]),
@@ -47,17 +47,17 @@ final class TuistServiceTests: TuistUnitTestCase {
                 RemotePluginPaths(
                     repositoryPath: try self.temporaryPath(),
                     releasePath: pluginReleasePath
-                )
+                ),
             ]
         }
         system.succeedCommand("tuist-command-b")
-        
+
         // When/Then
         XCTAssertNoThrow(
             try subject.run(["command-b"])
         )
     }
-    
+
     func test_run_when_command_is_global() throws {
         // Given
         var whichCommand: String?
@@ -66,7 +66,7 @@ final class TuistServiceTests: TuistUnitTestCase {
             return ""
         }
         system.succeedCommand("tuist-my-command", "argument-one")
-        
+
         // When/Then
         XCTAssertNoThrow(
             try subject.run(["my-command", "argument-one"])

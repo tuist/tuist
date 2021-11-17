@@ -2,15 +2,15 @@ import Foundation
 import TSCBasic
 import TSCUtility
 import TuistCore
-import TuistGraph
-import TuistSupport
-import TuistLoader
-import TuistGraphTesting
 import TuistCoreTesting
 import TuistDependenciesTesting
+import TuistGraph
+import TuistGraphTesting
+import TuistLoader
 import TuistLoaderTesting
-import TuistSupportTesting
 import TuistPluginTesting
+import TuistSupport
+import TuistSupportTesting
 import XCTest
 
 @testable import TuistKit
@@ -49,7 +49,7 @@ final class FetchServiceTests: TuistUnitTestCase {
 
         super.tearDown()
     }
-    
+
     func test_run_when_updating_dependencies() throws {
         // Given
         let stubbedPath = try temporaryPath()
@@ -83,7 +83,7 @@ final class FetchServiceTests: TuistUnitTestCase {
             XCTAssertEqual(dependenciesGraph, .none)
             XCTAssertEqual(path, stubbedPath)
         }
-        
+
         try fileHandler.touch(
             stubbedPath.appending(
                 components: Constants.tuistDirectoryName, Manifest.dependencies.fileName(stubbedPath)
@@ -104,12 +104,12 @@ final class FetchServiceTests: TuistUnitTestCase {
 
         XCTAssertFalse(dependenciesController.invokedFetch)
     }
-    
+
     func test_run_when_fetching_plugins() throws {
         // Given
         let config = Config.test(
             plugins: [
-                .git(url: "url", gitReference: .tag("tag"))
+                .git(url: "url", gitReference: .tag("tag")),
             ]
         )
         configLoader.loadConfigStub = { _ in
@@ -119,14 +119,14 @@ final class FetchServiceTests: TuistUnitTestCase {
         pluginService.fetchRemotePluginsStub = { config in
             invokedConfig = config
         }
-        
+
         // When
         try subject.run(
             path: nil,
             fetchCategories: [.plugins],
             update: false
         )
-        
+
         // Then
         XCTAssertEqual(
             config, invokedConfig
@@ -166,7 +166,7 @@ final class FetchServiceTests: TuistUnitTestCase {
             XCTAssertEqual(dependenciesGraph, .none)
             XCTAssertEqual(path, stubbedPath)
         }
-        
+
         try fileHandler.touch(
             stubbedPath.appending(
                 components: Constants.tuistDirectoryName, Manifest.dependencies.fileName(stubbedPath)

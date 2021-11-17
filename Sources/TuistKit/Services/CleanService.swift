@@ -61,9 +61,9 @@ final class CleanService {
             }
         }
     }
-    
+
     // MARK: - Helpers
-    
+
     private func path(_ path: String?) -> AbsolutePath {
         if let path = path {
             return AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
@@ -71,7 +71,7 @@ final class CleanService {
             return FileHandler.shared.currentPath
         }
     }
-    
+
     private func cleanCacheCategory(
         _ cacheCategory: CacheCategory,
         cacheDirectoryProvider: CacheDirectoriesProviding
@@ -82,7 +82,7 @@ final class CleanService {
             logger.info("Successfully cleaned artifacts at path \(directory.pathString)", metadata: .success)
         }
     }
-    
+
     private func cleanDependencies(at path: AbsolutePath) throws {
         let dependenciesPath = path.appending(components: [Constants.tuistDirectoryName, Constants.DependenciesDirectory.name])
         if FileHandler.shared.exists(dependenciesPath) {

@@ -1,5 +1,5 @@
-import TuistSupport
 import TSCBasic
+import TuistSupport
 
 final class PluginRunService {
     func run(
@@ -12,12 +12,12 @@ final class PluginRunService {
     ) throws {
         var runCommand = [
             "swift", "run",
-            "--configuration", configuration.rawValue
+            "--configuration", configuration.rawValue,
         ]
         if let path = path {
             runCommand += [
                 "--package-path",
-                AbsolutePath(path, relativeTo: FileHandler.shared.currentPath).pathString
+                AbsolutePath(path, relativeTo: FileHandler.shared.currentPath).pathString,
             ]
         }
         if buildTests {

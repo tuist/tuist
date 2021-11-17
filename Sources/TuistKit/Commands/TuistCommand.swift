@@ -47,7 +47,7 @@ public struct TuistCommand: ParsableCommand {
         do {
             let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
             let isTuistCommand = Self.configuration.subcommands
-                .map({ $0._commandName })
+                .map { $0._commandName }
                 .contains(processedArguments.first ?? "")
             if isTuistCommand {
                 if processedArguments.first == ScaffoldCommand.configuration.commandName {
@@ -85,7 +85,7 @@ public struct TuistCommand: ParsableCommand {
             }
         }
     }
-    
+
     private static func executeTask(with processedArguments: [String]) throws {
         do {
             try TuistService().run(processedArguments)
@@ -97,7 +97,7 @@ public struct TuistCommand: ParsableCommand {
             }
         }
     }
-    
+
     private static func handleParseError(_ error: Error) -> Never {
         let exitCode = self.exitCode(for: error).rawValue
         if exitCode == 0 {
