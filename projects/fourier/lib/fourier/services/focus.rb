@@ -17,7 +17,7 @@ module Fourier
         Utilities::System.tuist(*cache_warm)
 
         focus = ["focus"]
-        generate << "#{target}" if target != nil
+        focus << "#{target}" if target != nil
         Utilities::System.tuist(*focus)
       end
     end
