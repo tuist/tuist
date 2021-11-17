@@ -15,10 +15,11 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
     /// - Parameter packages: List of packages that will be installed using Swift Package Manager.
     /// - Parameter productTypes: The custom `Product` types to be used for SPM targets.
     /// - Parameter targetSettings: Additional settings to be added to targets generated from SwiftPackageManager.
-    public init(_ packages: [Package],
-                productTypes: [String: Product] = [:],
-                targetSettings: [String: SettingsDictionary] = [:])
-    {
+    public init(
+        _ packages: [Package],
+        productTypes: [String: Product] = [:],
+        targetSettings: [String: SettingsDictionary] = [:]
+    ) {
         self.packages = packages
         self.productTypes = productTypes
         self.targetSettings = targetSettings
