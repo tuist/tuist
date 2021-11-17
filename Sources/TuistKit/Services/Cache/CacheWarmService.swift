@@ -5,15 +5,18 @@ import TuistCache
 import TuistCore
 import TuistGraph
 import TuistLoader
+import TuistPlugin
 import TuistSupport
 
 final class CacheWarmService {
     private let configLoader: ConfigLoading
     private let manifestLoader: ManifestLoading
+    private let pluginService: PluginServicing
 
     init() {
         configLoader = ConfigLoader(manifestLoader: ManifestLoader())
         manifestLoader = ManifestLoader()
+        pluginService = PluginService()
     }
 
     func run(path: String?, profile: String?, xcframeworks: Bool, targets: Set<String>, dependenciesOnly: Bool) throws {
@@ -33,7 +36,7 @@ final class CacheWarmService {
             config: config,
             path: path,
             cacheProfile: profile,
-            includedTargets: targets.isEmpty ? try projectTargets(at: path) : targets,
+            includedTargets: targets.isEmpty ? try projectTargets(at: path, config: config) : targets,
             dependenciesOnly: dependenciesOnly
         )
     }
@@ -74,7 +77,9 @@ final class CacheWarmService {
         )
     }
 
-    private func projectTargets(at path: AbsolutePath) throws -> Set<String> {
+    private func projectTargets(at path: AbsolutePath, config: Config) throws -> Set<String> {
+        let plugins = try pluginService.loadPlugins(using: config)
+        try manifestLoader.register(plugins: plugins)
         let project = try manifestLoader.loadProject(at: path)
         return Set(project.targets.map(\.name))
     }
