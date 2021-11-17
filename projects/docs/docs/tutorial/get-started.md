@@ -83,6 +83,16 @@ let project = Project(
 
 Since we are defining an Xcode project, most of the properties might be familiar to you. There are some that are available which are not used from the manifest that you've got generated. You can [check out](../manifests/project.md) the project reference to see all the public models that are available in the `ProjectDescription` framework.
 
+### Editing your project
+
+To edit your project you can open the relevant Tuist manifests using the command
+
+```bash
+tuist edit
+```
+
+The generated project will contain the `Project.swift` file and any other required manifest.
+
 ### Generating project
 
 We have the manifest and the project files, but something missing, the Xcode project. If we don't have an Xcode project, we can't use Xcode, because that's the format that Xcode expects. Fortunately, Tuist comes with a command to generate projects and workspaces from your manifest files. If we run the following command in the terminal:
