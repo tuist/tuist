@@ -63,7 +63,7 @@ final class FocusService {
         try manifestLoader.register(plugins: plugins)
         let projects: [AbsolutePath]
         if let workspace = try? manifestLoader.loadWorkspace(at: path) {
-            projects = workspace.projects.map { AbsolutePath($0.pathString) }
+            projects = workspace.projects.map { AbsolutePath(.current, .init($0.pathString)) }
         } else {
             projects = [path]
         }
