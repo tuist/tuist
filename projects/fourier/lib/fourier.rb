@@ -55,7 +55,7 @@ module Fourier
     end
 
     desc "focus", "Generate Tuist's project focusing on internal targets"
-    def focus()
+    def focus
       Services::Focus.call(target: nil)
     end
 
