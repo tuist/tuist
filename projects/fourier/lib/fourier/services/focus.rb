@@ -10,8 +10,8 @@ module Fourier
       end
 
       def call
-        dependencies = ["dependencies", "fetch"]
-        Utilities::System.tuist(*dependencies)
+        fetch = ["fetch"]
+        Utilities::System.tuist(*fetch)
 
         cache_warm = ["cache", "warm", "--dependencies-only"]
         Utilities::System.tuist(*cache_warm)
