@@ -4,6 +4,7 @@ import TuistPlugin
 import TuistSupport
 import TuistLoader
 import TuistDependencies
+import TuistCore
 
 final class FetchService {
     private let pluginService: PluginServicing
@@ -37,11 +38,7 @@ final class FetchService {
             case .plugins:
                 try fetchPlugins(path: path)
             case .dependencies:
-                if update {
-                    try updateDependencies(path: path)
-                } else {
-                    try fetchDependencies(path: path)
-                }
+                try fetchDependencies(path: path, update: update)
             }
         }
     }
@@ -69,25 +66,38 @@ final class FetchService {
         logger.info("Plugins resolved and fetched successfully.", metadata: .success)
     }
     
-    private func updateDependencies(path: AbsolutePath) throws {
+    private func fetchDependencies(path: AbsolutePath, update: Bool) throws {
         guard FileHandler.shared.exists(
             path.appending(components: Constants.tuistDirectoryName, Manifest.dependencies.fileName(path))
         ) else {
             return
         }
         
-        logger.info("Updating dependencies.", metadata: .section)
+        if update {
+            logger.info("Updating dependencies.", metadata: .section)
+        } else {
+            logger.info("Resolving and fetching dependencies.", metadata: .section)
+        }
 
         let dependencies = try dependenciesModelLoader.loadDependencies(at: path)
 
         let config = try configLoader.loadConfig(path: path)
         let swiftVersion = config.swiftVersion
 
-        let dependenciesManifest = try dependenciesController.update(
-            at: path,
-            dependencies: dependencies,
-            swiftVersion: swiftVersion
-        )
+        let dependenciesManifest: DependenciesGraph
+        if update {
+            dependenciesManifest = try dependenciesController.update(
+                at: path,
+                dependencies: dependencies,
+                swiftVersion: swiftVersion
+            )
+        } else {
+            dependenciesManifest = try dependenciesController.fetch(
+                at: path,
+                dependencies: dependencies,
+                swiftVersion: swiftVersion
+            )
+        }
 
         let dependenciesGraph = try converter.convert(manifest: dependenciesManifest, path: path)
 
@@ -96,37 +106,11 @@ final class FetchService {
             to: path
         )
 
-        logger.info("Dependencies updated successfully.", metadata: .success)
-    }
-    
-    private func fetchDependencies(path: AbsolutePath) throws {
-        guard FileHandler.shared.exists(
-            path.appending(components: Constants.tuistDirectoryName, Manifest.dependencies.fileName(path))
-        ) else {
-            return
+        if update {
+            logger.info("Dependencies updated successfully.", metadata: .success)
+        } else {
+            logger.info("Dependencies resolved and fetched successfully.", metadata: .success)
         }
-        
-        logger.info("Resolving and fetching dependencies.", metadata: .section)
-
-        let dependencies = try dependenciesModelLoader.loadDependencies(at: path)
-
-        let config = try configLoader.loadConfig(path: path)
-        let swiftVersion = config.swiftVersion
-
-        let dependenciesManifest = try dependenciesController.fetch(
-            at: path,
-            dependencies: dependencies,
-            swiftVersion: swiftVersion
-        )
-
-        let dependenciesGraph = try converter.convert(manifest: dependenciesManifest, path: path)
-
-        try dependenciesController.save(
-            dependenciesGraph: dependenciesGraph,
-            to: path
-        )
-
-        logger.info("Dependencies resolved and fetched successfully.", metadata: .success)
     }
 }
 
