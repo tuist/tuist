@@ -33,10 +33,6 @@ final class ProjectMapperFactory: ProjectMapperFactorying {
         self.contentHasher = contentHasher
     }
 
-    func cache(config: Config) -> [ProjectMapping] {
-        return self.default(config: config)
-    }
-
     func automation(config: Config, skipUITests: Bool) -> [ProjectMapping] {
         var mappers: [ProjectMapping] = []
         mappers += self.default(config: config)

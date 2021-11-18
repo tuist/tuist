@@ -83,7 +83,14 @@ final class CacheController: CacheControlling {
         includedTargets: Set<String>,
         dependenciesOnly: Bool
     ) throws {
-        let generator = generatorFactory.cache(config: config, includedTargets: includedTargets.isEmpty ? nil : Set(includedTargets))
+        let xcframeworks = artifactBuilder.cacheOutputType == .xcframework
+        let generator = generatorFactory.cache(
+            config: config,
+            includedTargets: includedTargets.isEmpty ? nil : Set(includedTargets),
+            focusedTargets: nil,
+            xcframeworks: xcframeworks,
+            cacheProfile: cacheProfile
+        )
         let (_, graph) = try generator.generateWithGraph(path: path, projectOnly: false)
 
         // Lint
@@ -110,14 +117,13 @@ final class CacheController: CacheControlling {
         logger.notice("Filtering cacheable targets")
 
         let targetsToBeCached = Set(hashesByTargetToBeCached.map(\.0.target.name))
-        let xcframeworks = artifactBuilder.cacheOutputType == .xcframework
         let (projectPath, updatedGraph) = try generatorFactory
-            .focus(
+            .cache(
                 config: config,
-                sources: targetsToBeCached,
+                includedTargets: targetsToBeCached,
+                focusedTargets: targetsToBeCached,
                 xcframeworks: xcframeworks,
-                cacheProfile: cacheProfile,
-                ignoreCache: false
+                cacheProfile: cacheProfile
             )
             .generateWithGraph(path: path, projectOnly: false)
 

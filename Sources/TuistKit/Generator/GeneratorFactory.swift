@@ -44,8 +44,16 @@ protocol GeneratorFactorying {
     /// Returns a generator that generates a cacheable project.
     /// - Parameter config: The project configuration.
     /// - Parameter includedTargets: The targets to cache. When nil, it caches all the cacheable targets.
+    /// - Parameter xcframeworks: Whether targets should be cached as xcframeworks.
+    /// - Parameter cacheProfile: The caching profile.
     /// - Returns: A Generator instance.
-    func cache(config: Config, includedTargets: Set<String>?) -> Generating
+    func cache(
+        config: Config,
+        includedTargets: Set<String>?,
+        focusedTargets: Set<String>?,
+        xcframeworks: Bool,
+        cacheProfile: TuistGraph.Cache.Profile
+    ) -> Generating
 }
 
 class GeneratorFactory: GeneratorFactorying {
@@ -112,13 +120,32 @@ class GeneratorFactory: GeneratorFactorying {
         )
     }
 
-    func cache(config: Config, includedTargets: Set<String>?) -> Generating {
+    func cache(
+        config: Config,
+        includedTargets: Set<String>?,
+        focusedTargets: Set<String>?,
+        xcframeworks: Bool,
+        cacheProfile: TuistGraph.Cache.Profile
+    ) -> Generating {
         let contentHasher = ContentHasher()
         let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
-        let projectMappers = projectMapperFactory.cache(config: config)
+        let projectMappers = projectMapperFactory.default(config: config)
         let workspaceMapperFactory = WorkspaceMapperFactory(projectMapper: SequentialProjectMapper(mappers: projectMappers))
         let graphMapperFactory = GraphMapperFactory(contentHasher: contentHasher)
-        let graphMappers = graphMapperFactory.cache(includedTargets: includedTargets)
+
+        let graphMappers: [GraphMapping]
+        if let focusedTargets = focusedTargets {
+            graphMappers = graphMapperFactory.focus(
+                config: config,
+                cache: true,
+                cacheSources: focusedTargets,
+                cacheProfile: cacheProfile,
+                cacheOutputType: xcframeworks ? .xcframework : .framework
+            ) + graphMapperFactory.cache(includedTargets: includedTargets)
+        } else {
+            graphMappers = graphMapperFactory.cache(includedTargets: includedTargets)
+        }
+
         let workspaceMappers = workspaceMapperFactory.cache(config: config, includedTargets: includedTargets ?? [])
         return Generator(
             projectMapper: SequentialProjectMapper(mappers: projectMappers),
