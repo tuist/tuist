@@ -32,12 +32,12 @@ One the cache is warmed, you can use the [focus](/commands/focus/) command to ge
 
 #### Arguments
 
-| Argument         | Short | Description                                                                                                                    | Default           | Required |
-| ---------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------ | ----------------- | -------- |
-| `--path`         | `-p`  | The path to the directory that contains the manifest file.                                                                     | Current directory | No       |
-| `--xcframeworks` | `-x`  | Cache the targets as .xcframeworks. It requires targets to be enabled for library distribution.                                | False             | No       |
-| `--profile`      | `-P`  | The name of the profile to be used when warming up the cache.                                                                  |                   | No       |
-| `--targets`      | `-t`  | A list of targets to cache. Those and their dependent targets will be cached. If empty, every cacheable target will be cached. | Empty list        | No       |
+| Argument         | Short | Description                                                                                                                    | Default                                         | Required |
+| ---------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- | -------- |
+| `--path`         | `-p`  | The path to the directory that contains the manifest file.                                                                     | Current directory                               | No       |
+| `--xcframeworks` | `-x`  | Cache the targets as .xcframeworks. It requires targets to be enabled for library distribution.                                | False                                           | No       |
+| `--profile`      | `-P`  | The name of the profile to be used when warming up the cache.                                                                  |                                                 | No       |
+|  No argument     |       | A list of targets to cache. Those and their dependent targets will be cached. If empty, every cacheable target will be cached. | Empty list, which means project defined targets | No       |
 
 #### Caching profile
 

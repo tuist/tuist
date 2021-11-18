@@ -233,7 +233,8 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
         }
         let minDeploymentTargets = Platform.oldestVersions.reduce(
-            into: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]()) { acc, next in
+            into: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget]()
+        ) { acc, next in
             switch next.key {
             case .iOS:
                 acc[.iOS] = .iOS(targetVersion: next.value, devices: [.ipad, .iphone])

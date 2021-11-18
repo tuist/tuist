@@ -9,24 +9,6 @@ import TuistGenerator
 import TuistLoader
 import TuistSupport
 
-enum FocusCommandError: FatalError {
-    case noSources
-
-    var description: String {
-        switch self {
-        case .noSources:
-            return "A list of targets is required: tuist focus MyTarget."
-        }
-    }
-
-    var type: ErrorType {
-        switch self {
-        case .noSources:
-            return .abort
-        }
-    }
-}
-
 /// The focus command generates the Xcode workspace and launches it on Xcode.
 struct FocusCommand: ParsableCommand, HasTrackableParameters {
     static var configuration: CommandConfiguration {
@@ -45,7 +27,11 @@ struct FocusCommand: ParsableCommand, HasTrackableParameters {
     )
     var path: String?
 
-    @Argument(help: "A list of targets in which you'd like to focus. Those and their dependant targets will be generated as sources.")
+    @Argument(help: """
+    A list of targets in which you'd like to focus. \
+    Those and their dependant targets will be generated as sources. \
+    If no target is specified, the project defined targets will be focused.
+    """)
     var sources: [String] = []
 
     @Flag(
@@ -73,9 +59,6 @@ struct FocusCommand: ParsableCommand, HasTrackableParameters {
     var ignoreCache: Bool = false
 
     func run() throws {
-        if sources.isEmpty {
-            throw FocusCommandError.noSources
-        }
         FocusCommand.analyticsDelegate?.willRun(withParameters: [
             "xcframeworks": String(xcframeworks),
             "no-cache": String(ignoreCache),
