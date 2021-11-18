@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 2.2.0 - Jinotaj
+
 ### Changed
 
 - **Breaking** Update logic to calculate deployment target for SwiftPackageManager packages not specifying it, and remove no longer used `SwiftPackageManagerDependencies.deploymentTargets` property [#3602](https://github.com/tuist/tuist/pull/3602) by [@danyf90](https://github.com/danyf90)
