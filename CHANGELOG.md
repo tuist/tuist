@@ -10,6 +10,14 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - **Breaking** Update logic to calculate client ID starting from UUID instead of hostname, to avoid collisions [#3632](https://github.com/tuist/tuist/pull/3632) by [@danyf90](https://github.com/danyf90)
 - **Breaking** Removed value for `ENABLE_TESTING_SEARCH_PATHS` in SPM dependencies. If a target requires a non-default value, you can set it using the `targetSettings` property in the `Dependencies.swift` file [#3632](https://github.com/tuist/tuist/pull/3653) by [@wattson12](https://github.com/wattson12)
 - `Target`'s initializer now has `InfoPlist.default` set as the default value for the `infoPlist` argument [#3644](https://github.com/tuist/tuist/pull/3644) by [@hisaac](https://github.com/hisaac)
+- Allow overriding `SWIFT_VERSION` [#3644](https://github.com/tuist/tuist/pull/3666) by [@kwridan](https://github.com/kwridan)
+  - The `SWIFT_VERSION` build setting is now part of the `.essential` [`DefaultSettings`](https://docs.tuist.io/manifests/project#defaultsettings)
+  - This algins its behavior with the rest of the default settings, and allows excluding it if necessary via:
+    - Specifying `DefaultSettings.none` for cases where `xcconfig` files are used to control all build settings
+    - Explicitly excluding it via:
+      - `DefaultSettings.recommended(excluding: ["SWIFT_VERSION])` 
+      - `DefaultSettings.essential(excluding: ["SWIFT_VERSION])`
+  - Additionally for convenience, Tuist will not set a `SWIFT_VERSION` target level setting if a project level setting already exists for it
 
 ### Added
 
