@@ -80,6 +80,8 @@ extension TuistGraph.Config.GenerationOption {
             return .disableShowEnvironmentVarsInScriptPhases
         case let .enableCodeCoverage(mode):
             return try .enableCodeCoverage(.from(manifest: mode, generatorPaths: generatorPaths))
+        case let .testingOptions(options):
+            return try .testingOptions(.from(manifest: options, generatorPaths: generatorPaths))
         case .resolveDependenciesWithSystemScm:
             return .resolveDependenciesWithSystemScm
         case .disablePackageVersionLocking:

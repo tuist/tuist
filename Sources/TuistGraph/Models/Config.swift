@@ -14,6 +14,7 @@ public struct Config: Equatable, Hashable {
         case disableSynthesizedResourceAccessors
         case disableShowEnvironmentVarsInScriptPhases
         case enableCodeCoverage(CodeCoverageMode)
+        case testingOptions(TestingOptions)
         case templateMacros(IDETemplateMacros)
         case resolveDependenciesWithSystemScm
         /// Disables locking Swift packages. This can speed up generation but does increase risk if packages are not locked
@@ -64,6 +65,15 @@ public struct Config: Equatable, Hashable {
         generationOptions.compactMap { option -> CodeCoverageMode? in
             switch option {
             case let .enableCodeCoverage(mode): return mode
+            default: return nil
+            }
+        }.first
+    }
+
+    public var testingOptions: TestingOptions? {
+        generationOptions.compactMap { option -> TestingOptions? in
+            switch option {
+            case let .testingOptions(options): return options
             default: return nil
             }
         }.first
