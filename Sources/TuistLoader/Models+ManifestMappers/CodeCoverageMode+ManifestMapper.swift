@@ -21,22 +21,3 @@ extension CodeCoverageMode {
         }
     }
 }
-
-extension TestingOptions {
-    static func from(
-        manifest: ProjectDescription.Config.GenerationOptions.TestingOptions,
-        generatorPaths _: GeneratorPaths
-    ) throws -> TestingOptions {
-        var options: TestingOptions = []
-
-        if manifest.contains(.parallelizable) {
-            options.insert(.parallelizable)
-        }
-
-        if manifest.contains(.randomExecutionOrdering) {
-            options.insert(.randomExecutionOrdering)
-        }
-
-        return options
-    }
-}
