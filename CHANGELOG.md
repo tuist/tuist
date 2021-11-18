@@ -6,6 +6,12 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
+- Focus on project targets when no targets are passed to `tuist focus` [#3654](https://github.com/tuist/tuist/pull/3654) by [@danyf90](https://github.com/danyf90)
+
+## 2.2.0 - Jinotaj
+
+### Changed
+
 - **Breaking** Update logic to calculate deployment target for SwiftPackageManager packages not specifying it, and remove no longer used `SwiftPackageManagerDependencies.deploymentTargets` property [#3602](https://github.com/tuist/tuist/pull/3602) by [@danyf90](https://github.com/danyf90)
 - **Breaking** Update logic to calculate client ID starting from UUID instead of hostname, to avoid collisions [#3632](https://github.com/tuist/tuist/pull/3632) by [@danyf90](https://github.com/danyf90)
 - **Breaking** Removed value for `ENABLE_TESTING_SEARCH_PATHS` in SPM dependencies. If a target requires a non-default value, you can set it using the `targetSettings` property in the `Dependencies.swift` file [#3632](https://github.com/tuist/tuist/pull/3653) by [@wattson12](https://github.com/wattson12)
@@ -17,7 +23,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Schemes can be hidden from the dropdown menu `Scheme(hidden: true)` [#3598](https://github.com/tuist/tuist/pull/3598) by [@pepibumur](https://github.com/pepibumur)
 - Sort schemes alphabetically by default [#3598](https://github.com/tuist/tuist/pull/3598) by [@pepibumur](https://github.com/pepibumur)
 - Add automation to release [#3603](https://github.com/tuist/tuist/pull/3603) by [@luispadron](https://github.com/luispadron)
-- JSON format to `graph` command to support exporting a project's structure to a JSON file [#3617](https://github.com/tuist/tuist/pull/3617) by [@neakor](https://github.com/neakor)
+- Support for `json` format in `graph` command [#3617](https://github.com/tuist/tuist/pull/3617) by [@neakor](https://github.com/neakor)
 
 ### Fixed
 

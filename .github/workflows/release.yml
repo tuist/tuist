@@ -16,7 +16,10 @@ env:
 
 jobs:
   release:
-    runs-on: macos-latest
+    runs-on: macOS-11
+    strategy:
+      matrix:
+        xcode: ['13.0']
     steps:
     - uses: actions/checkout@v2
     - uses: ruby/setup-ruby@v1
@@ -35,10 +38,8 @@ jobs:
     - name: Update Tuist version
       # This step updates the version in the Constants.swift file by replacing the current tag in Constants.swift with the tagged release.
       # This step also updates the CHANGELOG.md to rename the Next section to the proper release version.
-      # We use a Regex from https://semver.org/ to replace the current version with the new one
       run: |
-        VERSION_REGEX="(?P<major>0|[1-9]\d*)\.(?P<minor>0|[1-9]\d*)\.(?P<patch>0|[1-9]\d*)(?:-(?P<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(?:\+(?P<buildmetadata>[0-9a-zA-Z-]+(?:\.[0-9a-zA-Z-]+)*))?"
-        perl -pi -e 's/version = \"${ VERSION_REGEX }\"/version = \"${{ github.event.inputs.title }}\"/g' Sources/TuistSupport/Constants.swift
+        sed -i '' -e "s/version = \".*\"/version = \"${{ github.event.inputs.version }}\"/g" Sources/TuistSupport/Constants.swift
         sed -i '' -e "s/## Next/## ${{ github.event.inputs.version }} - ${{ github.event.inputs.title }}\"/g" CHANGELOG.md
     - name: Fourier releae
       run: ./fourier release tuist ${{ github.event.inputs.version }}

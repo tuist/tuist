@@ -41,6 +41,20 @@ tuist build # Builds your project
 
 [Check out](https://docs.tuist.io) the project "Get Started" guide to learn more about Tuist and all its features.
 
+## Sponsors
+
+The financial sustainability of the project is possible thanks to the ongoing contributions from our [GitHub Sponsors](https://github.com/sponsors/tuist) and [Open Collective Backers](https://opencollective.com/tuistapp). From them, we'd like to give a special mention to the following sponsors:
+
+### Silver sponsor: [stream](https://getstream.io/chat/sdk/ios/?utm_source=github&utm_medium=github_repo_content_ad&utm_content=Developer&utm_campaign=Github_Nov2021_iOSChatSDK)
+
+[Stream](https://getstream.io/chat/sdk/ios/?utm_source=github&utm_medium=github_repo_content_ad&utm_content=Developer&utm_campaign=Github_Nov2021_iOSChatSDK) is a helps build scalable in-app chat or activity feeds in days. Product teams trust Stream to launch faster, iterate more often, and ship a better user experience.
+
+<div>
+  <a href="https://getstream.io/chat/sdk/ios/?utm_source=github&utm_medium=github_repo_content_ad&utm_content=Developer&utm_campaign=Github_Nov2021_iOSChatSDK" target="_blank">
+    <img src="assets/companies/stream.svg" style="width: 100px" hspace="8"/>
+  </a>
+</div>
+
 ## Companies using Tuist
 
 <div align="center">
@@ -213,6 +227,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
   <tr>
     <td align="center"><a href="https://github.com/neakor"><img src="https://avatars.githubusercontent.com/u/1827517?v=4" width="100px;" alt=""/><br /><sub><b>Yi Wang</b></sub></a></td>
     <td align="center"><a href="https://www.mustafadur.com"><img src="https://avatars.githubusercontent.com/u/971530?v=4" width="100px;" alt=""/><br /><sub><b>Mustafa Dur</b></sub></a></td>
+    <td align="center"><a href="https://github.com/lucabartoletti"><img src="https://avatars.githubusercontent.com/u/838925?v=4" width="100px;" alt=""/><br /><sub><b>Luca Bartoletti</b></sub></a></td>
   </tr>
 </table>
 

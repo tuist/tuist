@@ -10,7 +10,15 @@ module Fourier
       end
 
       def call
-        Utilities::System.tuist("focus", target)
+        dependencies = ["dependencies", "fetch"]
+        Utilities::System.tuist(*dependencies)
+
+        cache_warm = ["cache", "warm", "--dependencies-only"]
+        Utilities::System.tuist(*cache_warm)
+
+        focus = ["focus"]
+        focus << "#{target}" if target != nil
+        Utilities::System.tuist(*focus)
       end
     end
   end

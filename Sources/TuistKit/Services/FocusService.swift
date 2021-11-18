@@ -7,21 +7,28 @@ import TuistCore
 import TuistGenerator
 import TuistGraph
 import TuistLoader
+import TuistPlugin
 import TuistSupport
 
 final class FocusService {
     private let opener: Opening
     private let generatorFactory: GeneratorFactorying
     private let configLoader: ConfigLoading
+    private let manifestLoader: ManifestLoading
+    private let pluginService: PluginServicing
 
     init(
         configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
+        manifestLoader: ManifestLoading = ManifestLoader(),
         opener: Opening = Opener(),
-        generatorFactory: GeneratorFactorying = GeneratorFactory()
+        generatorFactory: GeneratorFactorying = GeneratorFactory(),
+        pluginService: PluginServicing = PluginService()
     ) {
         self.configLoader = configLoader
+        self.manifestLoader = manifestLoader
         self.opener = opener
         self.generatorFactory = generatorFactory
+        self.pluginService = pluginService
     }
 
     func run(path: String?, sources: Set<String>, noOpen: Bool, xcframeworks: Bool, profile: String?, ignoreCache: Bool) throws {
@@ -30,7 +37,7 @@ final class FocusService {
         let cacheProfile = try CacheProfileResolver().resolveCacheProfile(named: profile, from: config)
         let generator = generatorFactory.focus(
             config: config,
-            sources: sources,
+            sources: sources.isEmpty ? try projectTargets(at: path, config: config) : sources,
             xcframeworks: xcframeworks,
             cacheProfile: cacheProfile,
             ignoreCache: ignoreCache
@@ -49,5 +56,18 @@ final class FocusService {
         } else {
             return FileHandler.shared.currentPath
         }
+    }
+
+    private func projectTargets(at path: AbsolutePath, config: Config) throws -> Set<String> {
+        let plugins = try pluginService.loadPlugins(using: config)
+        try manifestLoader.register(plugins: plugins)
+        let projects: [AbsolutePath]
+        if let workspace = try? manifestLoader.loadWorkspace(at: path) {
+            projects = workspace.projects.map { AbsolutePath(path, .init($0.pathString)) }
+        } else {
+            projects = [path]
+        }
+
+        return try Set(projects.flatMap { try manifestLoader.loadProject(at: $0).targets.map(\.name) })
     }
 }
