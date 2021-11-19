@@ -246,6 +246,7 @@ let package = Package(
             name: "TuistSupportTesting",
             dependencies: [
                 "TuistSupport",
+                "TuistGraph",
                 swiftToolsSupportDependency,
             ]
         ),
