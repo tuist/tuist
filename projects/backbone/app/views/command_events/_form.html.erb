@@ -1,0 +1,57 @@
+<%= form_with(model: command_event, local: true) do |form| %>
+  <% if command_event.errors.any? %>
+    <div id="error_explanation">
+      <h2><%= pluralize(command_event.errors.count, "error") %> prohibited this command_event from being saved:</h2>
+
+      <ul>
+        <% command_event.errors.full_messages.each do |message| %>
+          <li><%= message %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="field">
+    <%= form.label :name %>
+    <%= form.text_field :name %>
+  </div>
+
+  <div class="field">
+    <%= form.label :subcommand %>
+    <%= form.text_field :subcommand %>
+  </div>
+
+  <div class="field">
+    <%= form.label :params %>
+    <%= form.text_field :params %>
+  </div>
+
+  <div class="field">
+    <%= form.label :duration %>
+    <%= form.number_field :duration %>
+  </div>
+
+  <div class="field">
+    <%= form.label :client_id %>
+    <%= form.text_field :client_id %>
+  </div>
+
+  <div class="field">
+    <%= form.label :tuist_version %>
+    <%= form.text_field :tuist_version %>
+  </div>
+
+  <div class="field">
+    <%= form.label :swift_version %>
+    <%= form.text_field :swift_version %>
+  </div>
+
+  <div class="field">
+    <%= form.label :macos_version %>
+    <%= form.text_field :macos_version %>
+  </div>
+
+  <div class="actions">
+    <%= form.submit %>
+  </div>
+<% end %>

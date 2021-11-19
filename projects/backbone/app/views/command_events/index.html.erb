@@ -1,0 +1,41 @@
+<p id="notice"><%= notice %></p>
+
+<h1>Command Events</h1>
+
+<table>
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Subcommand</th>
+      <th>Params</th>
+      <th>Duration</th>
+      <th>Client</th>
+      <th>Tuist version</th>
+      <th>Swift version</th>
+      <th>Macos version</th>
+      <th colspan="3"></th>
+    </tr>
+  </thead>
+
+  <tbody>
+    <% @command_events.each do |command_event| %>
+      <tr>
+        <td><%= command_event.name %></td>
+        <td><%= command_event.subcommand %></td>
+        <td><%= command_event.params %></td>
+        <td><%= command_event.duration %></td>
+        <td><%= command_event.client_id %></td>
+        <td><%= command_event.tuist_version %></td>
+        <td><%= command_event.swift_version %></td>
+        <td><%= command_event.macos_version %></td>
+        <td><%= link_to 'Show', command_event %></td>
+        <td><%= link_to 'Edit', edit_command_event_path(command_event) %></td>
+        <td><%= link_to 'Destroy', command_event, method: :delete, data: { confirm: 'Are you sure?' } %></td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>
+
+<br>
+
+<%= link_to 'New Command Event', new_command_event_path %>
