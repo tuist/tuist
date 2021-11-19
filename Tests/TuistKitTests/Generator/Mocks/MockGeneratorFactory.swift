@@ -59,15 +59,33 @@ final class MockGeneratorFactory: GeneratorFactorying {
 
     var invokedCache = false
     var invokedCacheCount = 0
-    var invokedCacheParameters: (config: Config, includedTargets: Set<String>?)?
-    var invokedCacheParametersList = [(config: Config, includedTargets: Set<String>?)]()
+    var invokedCacheParameters: (
+        config: Config,
+        includedTargets: Set<String>?,
+        focusedTargets: Set<String>?,
+        xcframeworks: Bool,
+        cacheProfile: Cache.Profile
+    )?
+    var invokedCacheParametersList = [(
+        config: Config,
+        includedTargets: Set<String>?,
+        focusedTargets: Set<String>?,
+        xcframeworks: Bool,
+        cacheProfile: Cache.Profile
+    )]()
     var stubbedCacheResult: Generating!
 
-    func cache(config: Config, includedTargets: Set<String>?) -> Generating {
+    func cache(
+        config: Config,
+        includedTargets: Set<String>?,
+        focusedTargets: Set<String>?,
+        xcframeworks: Bool,
+        cacheProfile: Cache.Profile
+    ) -> Generating {
         invokedCache = true
         invokedCacheCount += 1
-        invokedCacheParameters = (config, includedTargets)
-        invokedCacheParametersList.append((config, includedTargets))
+        invokedCacheParameters = (config, includedTargets, focusedTargets, xcframeworks, cacheProfile)
+        invokedCacheParametersList.append((config, includedTargets, focusedTargets, xcframeworks, cacheProfile))
         return stubbedCacheResult
     }
 }
