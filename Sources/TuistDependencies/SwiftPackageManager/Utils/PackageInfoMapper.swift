@@ -96,6 +96,7 @@ public protocol PackageInfoMapping {
     ///   - name: Name of the package
     ///   - path: Path of the package
     ///   - productTypes: Product type mapping
+    ///   - baseSettings: Base settings
     ///   - targetSettings: Settings to apply to denoted targets
     ///   - minDeploymentTargets: Minimum support deployment target per platform
     ///   - targetToPlatform: Mapping from a target name to its platform
@@ -110,6 +111,7 @@ public protocol PackageInfoMapping {
         name: String,
         path: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
+        baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary],
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         targetToPlatform: [String: ProjectDescription.Platform],
@@ -262,6 +264,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         name: String,
         path: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
+        baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary],
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         targetToPlatform: [String: ProjectDescription.Platform],
@@ -281,6 +284,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 packageFolder: path,
                 packageToProject: packageToProject,
                 productTypes: productTypes,
+                baseSettings: baseSettings,
                 targetSettings: targetSettings,
                 platforms: targetToPlatform,
                 minDeploymentTargets: minDeploymentTargets,
@@ -317,6 +321,7 @@ extension ProjectDescription.Target {
         packageFolder: AbsolutePath,
         packageToProject: [String: AbsolutePath],
         productTypes: [String: TuistGraph.Product],
+        baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary],
         platforms: [String: ProjectDescription.Platform],
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
@@ -366,6 +371,7 @@ extension ProjectDescription.Target {
             settings: target.settings,
             platform: platform,
             moduleMap: moduleMap,
+            baseSettings: baseSettings,
             targetSettings: targetSettings
         )
 
@@ -596,6 +602,7 @@ extension ProjectDescription.Settings {
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         platform: ProjectDescription.Platform,
         moduleMap: (type: ModuleMapType, path: AbsolutePath?),
+        baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary]
     ) throws -> Self? {
         var headerSearchPaths: [String] = []
@@ -717,7 +724,7 @@ extension ProjectDescription.Settings {
             settingsDictionary.merge(projectDescriptionSettingsToOverride)
         }
 
-        return .settings(base: settingsDictionary)
+        return .from(settings: baseSettings, adding: settingsDictionary)
     }
 
     fileprivate struct PackageTarget: Hashable {
@@ -852,6 +859,53 @@ extension ProjectDescription.SettingsDictionary {
             case let .array(arrayValue):
                 return ProjectDescription.SettingValue.array(arrayValue)
             }
+        }
+    }
+}
+
+extension ProjectDescription.Settings {
+    fileprivate static func from(
+        settings: TuistGraph.Settings,
+        adding: ProjectDescription.SettingsDictionary
+    ) -> Self {
+        return .settings(
+            base: .from(settingsDictionary: settings.base).merging(adding, uniquingKeysWith: { $1 }),
+            configurations: settings.configurations.map { buildConfiguration, configuration in
+                .from(buildConfiguration: buildConfiguration, configuration: configuration)
+            },
+            defaultSettings: .from(defaultSettings: settings.defaultSettings)
+        )
+    }
+}
+
+extension ProjectDescription.Configuration {
+    fileprivate static func from(buildConfiguration: BuildConfiguration, configuration: TuistGraph.Configuration?) -> Self {
+        switch buildConfiguration.variant {
+        case .debug:
+            return .debug(
+                name: .configuration(buildConfiguration.name),
+                settings: .from(settingsDictionary: configuration?.settings ?? [:]),
+                xcconfig: .relativeToRoot("")
+            )
+        case .release:
+            return .release(
+                name: .configuration(buildConfiguration.name),
+                settings: .from(settingsDictionary: configuration?.settings ?? [:]),
+                xcconfig: .relativeToRoot("")
+            )
+        }
+    }
+}
+
+extension ProjectDescription.DefaultSettings {
+    fileprivate static func from(defaultSettings: TuistGraph.DefaultSettings) -> Self {
+        switch defaultSettings {
+        case let .recommended(excluding):
+            return .recommended(excluding: excluding)
+        case let .essential(excluding):
+            return .essential(excluding: excluding)
+        case .none:
+            return .none
         }
     }
 }

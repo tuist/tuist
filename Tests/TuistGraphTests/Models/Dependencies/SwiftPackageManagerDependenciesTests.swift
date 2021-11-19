@@ -11,6 +11,7 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
                 .remote(url: "url/url/url", requirement: .branch("branch")),
             ],
             productTypes: [:],
+            baseSettings: .init(configurations: [:]),
             targetSettings: [:]
         )
 
@@ -44,6 +45,7 @@ final class SwiftPackageManagerDependenciesTests: TuistUnitTestCase {
                 .local(path: "/path/path/path"),
             ],
             productTypes: [:],
+            baseSettings: .init(configurations: [:]),
             targetSettings: [:]
         )
 

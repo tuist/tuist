@@ -1457,7 +1457,64 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenSettingsContainsCustomSettingsDictionary_mapsToCustomSettings() throws {
+    func testMap_whenConfigurationContainsBaseSettingsDictionary_usesBaseSettings() throws {
+        let basePath = try temporaryPath()
+        let sourcesPath = basePath.appending(RelativePath("Package/Path/Sources/Target1"))
+        try fileHandler.createFolder(sourcesPath)
+
+        let customSettings: TuistGraph.SettingsDictionary = ["CUSTOM_SETTING": .string("CUSTOM_VALUE")]
+
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1",
+                            settings: [
+                                .init(tool: .linker, name: .unsafeFlags, condition: nil, value: ["key1"]),
+                                .init(tool: .linker, name: .unsafeFlags, condition: nil, value: ["key2", "key3"]),
+                            ]
+                        ),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            baseSettings: .init(
+                configurations: [
+                    .init(name: "Test", variant: .release): .init(
+                        settings: customSettings,
+                        xcconfig: sourcesPath.appending(component: "Config.xcconfigg")
+                    ),
+                ]
+            )
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        customSettings: [
+                            "OTHER_LDFLAGS": ["key1", "key2", "key3"],
+                            "CUSTOM_SETTING": "CUSTOM_VALUE",
+                        ]
+                    ),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenConfigurationContainsTargetSettingsDictionary_mapsToCustomSettings() throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(RelativePath("Package/Path/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
@@ -2154,6 +2211,7 @@ extension PackageInfoMapping {
         basePath: AbsolutePath = "/",
         packageInfos: [String: PackageInfo] = [:],
         platforms: Set<TuistGraph.Platform> = [.iOS],
+        baseSettings: TuistGraph.Settings = .init(configurations: [:]),
         targetSettings: [String: TuistGraph.SettingsDictionary] = [:],
         swiftToolsVersion: TSCUtility.Version? = nil
     ) throws -> ProjectDescription.Project? {
@@ -2181,6 +2239,7 @@ extension PackageInfoMapping {
             name: package,
             path: basePath.appending(component: package).appending(component: "Path"),
             productTypes: [:],
+            baseSettings: baseSettings,
             targetSettings: targetSettings,
             minDeploymentTargets: preprocessInfo.platformToMinDeploymentTarget,
             targetToPlatform: preprocessInfo.targetToPlatform,
@@ -2249,6 +2308,7 @@ extension ProjectDescription.Target {
         resources: [ProjectDescription.ResourceFileElement] = [],
         headers: ProjectDescription.Headers? = nil,
         dependencies: [ProjectDescription.TargetDependency] = [],
+        baseSettings: ProjectDescription.Settings = .settings(),
         customSettings: ProjectDescription.SettingsDictionary = [:],
         moduleMap: String? = nil
     ) -> Self {
@@ -2263,7 +2323,7 @@ extension ProjectDescription.Target {
             resources: resources.isEmpty ? nil : ResourceFileElements(resources: resources),
             headers: headers,
             dependencies: dependencies,
-            settings: DependenciesGraph.spmSettings(with: customSettings, moduleMap: moduleMap)
+            settings: DependenciesGraph.spmSettings(baseSettings: baseSettings, with: customSettings, moduleMap: moduleMap)
         )
     }
 }

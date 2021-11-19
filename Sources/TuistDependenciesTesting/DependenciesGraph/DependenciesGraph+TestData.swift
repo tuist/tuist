@@ -417,6 +417,7 @@ extension DependenciesGraph {
     }
 
     static func spmSettings(
+        baseSettings: Settings = .settings(),
         with customSettings: SettingsDictionary = [:],
         moduleMap: String? = nil
     ) -> Settings {
@@ -468,6 +469,10 @@ extension DependenciesGraph {
             settingsDictionary["OTHER_LDFLAGS"] = .array(["$(inherited)"] + linkerFlags)
         }
 
-        return .settings(base: settingsDictionary)
+        return .settings(
+            base: baseSettings.base.merging(settingsDictionary, uniquingKeysWith: { $1 }),
+            configurations: baseSettings.configurations,
+            defaultSettings: baseSettings.defaultSettings
+        )
     }
 }

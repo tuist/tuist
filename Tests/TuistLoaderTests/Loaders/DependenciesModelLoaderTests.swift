@@ -68,6 +68,7 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
                     .remote(url: "RemoteUrl.com", requirement: .exact("1.2.3")),
                 ],
                 productTypes: [:],
+                baseSettings: .init(configurations: [:]),
                 targetSettings: [:]
             ),
             platforms: [.iOS, .macOS]
