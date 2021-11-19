@@ -61,6 +61,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         "COMBINE_HIDPI_IMAGES",
         "ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES",
         "WRAPPER_EXTENSION",
+        "SWIFT_VERSION",
     ]
 
     /// Key is `Version` which describes from which version of Xcode are values available for
@@ -70,7 +71,23 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         ],
     ]
 
-    public init() {}
+    private let system: Systeming
+    private let xcodeController: XcodeControlling
+
+    public convenience init() {
+        self.init(
+            system: System.shared,
+            xcodeController: XcodeController.shared
+        )
+    }
+
+    public init(
+        system: Systeming,
+        xcodeController: XcodeControlling
+    ) {
+        self.system = system
+        self.xcodeController = xcodeController
+    }
 
     // MARK: - DefaultSettingsProviding
 
@@ -114,6 +131,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
             product: product,
             swift: true
         ).toSettings()
+        let targetSystemInferred = try systemInferredTargetSettings(for: project)
         let filter = try createFilter(
             defaultSettings: defaultSettings,
             essentialKeys: DefaultSettingsProvider.essentialTargetSettings,
@@ -123,6 +141,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         var settings: SettingsDictionary = [:]
         settingsHelper.extend(buildSettings: &settings, with: targetDefaultAll)
         settingsHelper.extend(buildSettings: &settings, with: targetDefaultVariant)
+        settingsHelper.extend(buildSettings: &settings, with: targetSystemInferred)
         return settings.filter(filter)
     }
 
@@ -136,7 +155,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         case let .essential(excludedKeys):
             return { key, _ in essentialKeys.contains(key) && !excludedKeys.contains(key) }
         case let .recommended(excludedKeys):
-            let xcodeVersion = try XcodeController.shared.selectedVersion()
+            let xcodeVersion = try xcodeController.selectedVersion()
             return { key, _ in
                 // Filter keys that are from higher Xcode version than current (otherwise return true)
                 !newXcodeKeys
@@ -147,6 +166,18 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         case .none:
             return { _, _ in false }
         }
+    }
+
+    private func systemInferredTargetSettings(for project: Project) throws -> SettingsDictionary {
+        var systemInferredSettings = SettingsDictionary()
+        // If swift version is already specified at the project level settings, there is no need to
+        // override it with an inferred version. This allows users to set `SWIFT_VERSION`
+        // at the project level and it automatically applying to all targets without it getting
+        // overwritten with an inferred version.
+        if project.settings.base["SWIFT_VERSION"] == nil {
+            systemInferredSettings["SWIFT_VERSION"] = .string(try system.swiftVersion())
+        }
+        return systemInferredSettings
     }
 }
 
