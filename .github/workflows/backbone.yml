@@ -61,16 +61,12 @@ jobs:
           cp config/database.yml.ci config/database.yml
           bundle exec rails db:create
           bundle exec rails db:schema:load
-        env:
-          RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
       - name: Increase watchers
         run: echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf && sudo sysctl -p
       - name: Test
         working-directory: projects/backbone
         run: |
           bundle exec rails test
-        env:
-          RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
   rubocop:
     name: Rubocop
     runs-on: ubuntu-latest
