@@ -36,6 +36,23 @@ protocol GeneratorFactorying {
         skipUITests: Bool
     ) -> Generating
 
+    /// Returns the generator for play projects.
+    /// - Parameter config: The project configuration.
+    /// - Parameter sources: The list of targets whose sources should be inclued.
+    /// - Parameter xcframeworks: Whether targets should be cached as xcframeworks.
+    /// - Parameter cacheProfile: The caching profile.
+    /// - Parameter ignoreCache: True to not include binaries from the cache.
+    /// - Parameter temporaryDirectory: The path to the temporary directory.
+    /// - Returns: The generator for focused projects.
+    func play(
+        config: Config,
+        sources: Set<String>,
+        xcframeworks: Bool,
+        cacheProfile: TuistGraph.Cache.Profile,
+        ignoreCache: Bool,
+        temporaryDirectory: AbsolutePath
+    ) -> Generating
+
     /// Returns the default generator.
     /// - Parameter config: The project configuration.
     /// - Returns: A Generator instance.
@@ -120,6 +137,39 @@ class GeneratorFactory: GeneratorFactorying {
         let graphMapperFactory = GraphMapperFactory(contentHasher: contentHasher)
         let graphMappers = graphMapperFactory.cache(includedTargets: includedTargets)
         let workspaceMappers = workspaceMapperFactory.cache(config: config, includedTargets: includedTargets ?? [])
+        return Generator(
+            projectMapper: SequentialProjectMapper(mappers: projectMappers),
+            graphMapper: SequentialGraphMapper(graphMappers),
+            workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
+            manifestLoaderFactory: ManifestLoaderFactory()
+        )
+    }
+
+    func play(
+        config: Config,
+        sources: Set<String>,
+        xcframeworks: Bool,
+        cacheProfile: TuistGraph.Cache.Profile,
+        ignoreCache: Bool,
+        temporaryDirectory: AbsolutePath
+    ) -> Generating {
+        let contentHasher = CacheContentHasher()
+        // TODO: Add support for multiple targets
+        let projectMapperFactory = ProjectMapperFactory(contentHasher: contentHasher)
+        let projectMappers = projectMapperFactory.default(config: config)
+        let graphMapperFactory = GraphMapperFactory(contentHasher: contentHasher)
+        let workspaceMapperFactory = WorkspaceMapperFactory(projectMapper: SequentialProjectMapper(mappers: projectMappers))
+
+        let graphMappers = graphMapperFactory.play(
+            config: config,
+            cache: !ignoreCache,
+            cacheSources: sources,
+            cacheProfile: cacheProfile,
+            cacheOutputType: xcframeworks ? .xcframework : .framework,
+            targetName: sources.first!,
+            temporaryDirectory: temporaryDirectory
+        )
+        let workspaceMappers = workspaceMapperFactory.default(config: config)
         return Generator(
             projectMapper: SequentialProjectMapper(mappers: projectMappers),
             graphMapper: SequentialGraphMapper(graphMappers),

@@ -30,6 +30,16 @@ protocol GraphMapperFactorying {
     /// Returns the default graph mapper that should be used from all the commands that require loading and processing the graph.
     /// - Returns: The default mapper.
     func `default`() -> [GraphMapping]
+
+    /// Returns the graph mapper for generating projects with a playground from a selected target
+    /// - Returns: A graph mapper.
+    func play(config: Config,
+              cache: Bool,
+              cacheSources: Set<String>,
+              cacheProfile: TuistGraph.Cache.Profile,
+              cacheOutputType: CacheOutputType,
+              targetName: String,
+              temporaryDirectory: AbsolutePath) -> [GraphMapping]
 }
 
 final class GraphMapperFactory: GraphMapperFactorying {
@@ -87,6 +97,30 @@ final class GraphMapperFactory: GraphMapperFactorying {
     func `default`() -> [GraphMapping] {
         var mappers: [GraphMapping] = []
         mappers.append(UpdateWorkspaceProjectsGraphMapper())
+        return mappers
+    }
+
+    func play(
+        config: Config,
+        cache: Bool,
+        cacheSources: Set<String>,
+        cacheProfile: TuistGraph.Cache.Profile,
+        cacheOutputType: CacheOutputType,
+        targetName: String,
+        temporaryDirectory: AbsolutePath
+    ) -> [GraphMapping] {
+        let focusMapper = focus(
+            config: config,
+            cache: cache,
+            cacheSources: cacheSources,
+            cacheProfile: cacheProfile,
+            cacheOutputType: cacheOutputType
+        )
+
+        // Cache
+        var mappers: [GraphMapping] = []
+        mappers.append(PlayGraphMapper(targetName: targetName, temporaryDirectory: temporaryDirectory))
+        mappers.append(contentsOf: focusMapper)
         return mappers
     }
 }
