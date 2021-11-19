@@ -26,6 +26,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Add automation to release [#3603](https://github.com/tuist/tuist/pull/3603) by [@luispadron](https://github.com/luispadron)
 - Focus on project targets when no targets are passed to `tuist focus` [#3654](https://github.com/tuist/tuist/pull/3654) by [@danyf90](https://github.com/danyf90)
 - Support for `json` format in `graph` command [#3617](https://github.com/tuist/tuist/pull/3617) by [@neakor](https://github.com/neakor)
+- Persist generated `Package.swift` and `Cartfile` [#3661](https://github.com/tuist/tuist/pull/3661) by [@thedavidharris](https://github.com/thedavidharris)
 
 ### Fixed
 
