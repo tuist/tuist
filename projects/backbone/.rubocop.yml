@@ -1,3 +1,4 @@
+inherit_from: ../../.rubocop.yml
 inherit_gem:
   rubocop-rails_config:
     - config/rails.yml
@@ -11,7 +12,7 @@ Layout/LineLength:
   Max: 200
 
 AllCops:
-  TargetRubyVersion: 2.5
+  TargetRubyVersion: 3.0.2
   DisplayCopNames: true
   DisplayStyleGuide: true
   Exclude:

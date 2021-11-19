@@ -24,6 +24,8 @@ gem "bugsnag", "~> 6.24"
 
 group :development, :test do
   gem "byebug", platforms: [:mri, :mingw, :x64_mingw]
+  gem "rubocop-minitest", "~> 0.16.0"
+  gem "rubocop-shopify", "~> 1.0"
 end
 
 group :development do
