@@ -1,0 +1,44 @@
+<p id="notice"><%= notice %></p>
+
+<p>
+  <strong>Name:</strong>
+  <%= @command_event.name %>
+</p>
+
+<p>
+  <strong>Subcommand:</strong>
+  <%= @command_event.subcommand %>
+</p>
+
+<p>
+  <strong>Params:</strong>
+  <%= @command_event.params %>
+</p>
+
+<p>
+  <strong>Duration:</strong>
+  <%= @command_event.duration %>
+</p>
+
+<p>
+  <strong>Client:</strong>
+  <%= @command_event.client_id %>
+</p>
+
+<p>
+  <strong>Tuist version:</strong>
+  <%= @command_event.tuist_version %>
+</p>
+
+<p>
+  <strong>Swift version:</strong>
+  <%= @command_event.swift_version %>
+</p>
+
+<p>
+  <strong>Macos version:</strong>
+  <%= @command_event.macos_version %>
+</p>
+
+<%= link_to 'Edit', edit_command_event_path(@command_event) %> |
+<%= link_to 'Back', command_events_path %>

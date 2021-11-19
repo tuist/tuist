@@ -1,0 +1,9 @@
+test:
+  adapter: postgresql
+  encoding: unicode
+  pool: 5
+  timeout: 5000
+  host: 127.0.0.1
+  username: postgres
+  password: postgres
+  database: backbone_test_db

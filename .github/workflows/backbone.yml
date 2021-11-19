@@ -1,0 +1,113 @@
+name: Backbone
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    paths:
+      - projects/backbone/**
+
+env:
+  RAILS_ENV: test
+  RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+  RUBY_VERSION: 3.0.2
+  NODE_VERSION: 14.17.6
+
+concurrency:
+  group: backbone-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:11-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:4.0.6
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+          bundler-cache: true
+      - name: Install dependencies
+        working-directory: projects/backbone
+        run: |
+          gem install bundler
+          bundle config path vendor/bundle
+          bundle install --jobs=4 --retry=3
+      - name: Set up database (to detect schema breaking changes)
+        working-directory: projects/backbone
+        run: |
+          cp config/database.yml.ci config/database.yml
+          bundle exec rails db:create
+          bundle exec rails db:schema:load
+        env:
+          RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+      - name: Increase watchers
+        run: echo fs.inotify.max_user_watches=524288 | sudo tee -a /etc/sysctl.conf && sudo sysctl -p
+      - name: Test
+        working-directory: projects/backbone
+        run: |
+          bundle exec rails test
+        env:
+          RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
+  rubocop:
+    name: Rubocop
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+          bundler-cache: true
+      - name: Install dependencies
+        working-directory: projects/backbone
+        run: |
+          gem install bundler
+          bundle config path vendor/bundle
+          bundle install --jobs=4 --retry=3
+      - name: Rubocop
+        working-directory: projects/backbone
+        run: |
+          bundle exec rubocop
+  assets_precompile:
+    name: Assets precompile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+          bundler-cache: true
+      - uses: actions/setup-node@v2
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+      - name: Install dependencies
+        working-directory: projects/backbone
+        run: |
+          gem install bundler
+          bundle config path vendor/bundle
+          bundle install --jobs=4 --retry=3
+          npm install
+      - name: Assets precompile
+        working-directory: projects/backbone
+        run: |
+          bundle exec rails assets:precompile

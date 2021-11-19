@@ -1,0 +1,21 @@
+inherit_gem:
+  rubocop-rails_config:
+    - config/rails.yml
+
+Style/ClassAndModuleChildren:
+  Enabled: false
+Style/RedundantBegin:
+  Enabled: false
+
+Layout/LineLength:
+  Max: 200
+
+AllCops:
+  TargetRubyVersion: 2.5
+  DisplayCopNames: true
+  DisplayStyleGuide: true
+  Exclude:
+    - node_modules/**/*
+    - vendor/**/*
+    - db/schema.rb
+    - bin/**/*

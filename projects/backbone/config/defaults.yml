@@ -1,0 +1,15 @@
+base_urls: &base_urls
+  app: http://127.0.0.1:3000
+default: &default
+  urls:
+    <<: *base_urls
+development: &development
+  <<: *default
+production:
+  <<: *default
+  urls:
+    <<: *base_urls
+    app: https://backbone.tuist.io
+  domain: tuist.io
+test:
+  <<: *development
