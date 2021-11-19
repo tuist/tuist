@@ -724,7 +724,7 @@ extension ProjectDescription.Settings {
             settingsDictionary.merge(projectDescriptionSettingsToOverride)
         }
 
-        return .from(settings: baseSettings, adding: settingsDictionary)
+        return .from(settings: baseSettings, adding: settingsDictionary, packageFolder: packageFolder)
     }
 
     fileprivate struct PackageTarget: Hashable {
@@ -866,33 +866,35 @@ extension ProjectDescription.SettingsDictionary {
 extension ProjectDescription.Settings {
     fileprivate static func from(
         settings: TuistGraph.Settings,
-        adding: ProjectDescription.SettingsDictionary
+        adding: ProjectDescription.SettingsDictionary,
+        packageFolder: AbsolutePath
     ) -> Self {
         return .settings(
             base: .from(settingsDictionary: settings.base).merging(adding, uniquingKeysWith: { $1 }),
-            configurations: settings.configurations.map { buildConfiguration, configuration in
-                .from(buildConfiguration: buildConfiguration, configuration: configuration)
-            },
+            configurations: settings.configurations
+                .map { buildConfiguration, configuration in
+                    .from(buildConfiguration: buildConfiguration, configuration: configuration, packageFolder: packageFolder)
+                }
+                .sorted { $0.name.rawValue < $1.name.rawValue },
             defaultSettings: .from(defaultSettings: settings.defaultSettings)
         )
     }
 }
 
 extension ProjectDescription.Configuration {
-    fileprivate static func from(buildConfiguration: BuildConfiguration, configuration: TuistGraph.Configuration?) -> Self {
+    fileprivate static func from(
+        buildConfiguration: BuildConfiguration,
+        configuration: TuistGraph.Configuration?,
+        packageFolder: AbsolutePath
+    ) -> Self {
+        let name = ConfigurationName(stringLiteral: buildConfiguration.name)
+        let settings = ProjectDescription.SettingsDictionary.from(settingsDictionary: configuration?.settings ?? [:])
+        let xcconfig = configuration?.xcconfig.map { Path.relativeToRoot($0.relative(to: packageFolder).pathString) }
         switch buildConfiguration.variant {
         case .debug:
-            return .debug(
-                name: .configuration(buildConfiguration.name),
-                settings: .from(settingsDictionary: configuration?.settings ?? [:]),
-                xcconfig: .relativeToRoot("")
-            )
+            return .debug(name: name, settings: settings, xcconfig: xcconfig)
         case .release:
-            return .release(
-                name: .configuration(buildConfiguration.name),
-                settings: .from(settingsDictionary: configuration?.settings ?? [:]),
-                xcconfig: .relativeToRoot("")
-            )
+            return .release(name: name, settings: settings, xcconfig: xcconfig)
         }
     }
 }

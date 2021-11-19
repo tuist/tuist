@@ -1462,8 +1462,6 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         let sourcesPath = basePath.appending(RelativePath("Package/Path/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
 
-        let customSettings: TuistGraph.SettingsDictionary = ["CUSTOM_SETTING": .string("CUSTOM_VALUE")]
-
         let project = try subject.map(
             package: "Package",
             basePath: basePath,
@@ -1489,9 +1487,13 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             ],
             baseSettings: .init(
                 configurations: [
-                    .init(name: "Test", variant: .release): .init(
-                        settings: customSettings,
-                        xcconfig: sourcesPath.appending(component: "Config.xcconfigg")
+                    .init(name: "Debug", variant: .debug): .init(
+                        settings: ["CUSTOM_SETTING_1": .string("CUSTOM_VALUE_1")],
+                        xcconfig: sourcesPath.appending(component: "Config.xcconfig")
+                    ),
+                    .init(name: "Release", variant: .release): .init(
+                        settings: ["CUSTOM_SETTING_2": .string("CUSTOM_VALUE_2")],
+                        xcconfig: sourcesPath.appending(component: "Config.xcconfig")
                     ),
                 ]
             )
@@ -1504,9 +1506,23 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
+                        baseSettings: .settings(
+                            configurations: [
+                                .debug(
+                                    name: "Debug",
+                                    settings: ["CUSTOM_SETTING_1": .string("CUSTOM_VALUE_1")],
+                                    xcconfig: .relativeToRoot("Sources/Target1/Config.xcconfig")
+                                ),
+                                .release(
+                                    name: "Release",
+                                    settings: ["CUSTOM_SETTING_2": .string("CUSTOM_VALUE_2")],
+                                    xcconfig: .relativeToRoot("Sources/Target1/Config.xcconfig")
+                                ),
+                            ],
+                            defaultSettings: .recommended
+                        ),
                         customSettings: [
                             "OTHER_LDFLAGS": ["key1", "key2", "key3"],
-                            "CUSTOM_SETTING": "CUSTOM_VALUE",
                         ]
                     ),
                 ]
@@ -2211,7 +2227,7 @@ extension PackageInfoMapping {
         basePath: AbsolutePath = "/",
         packageInfos: [String: PackageInfo] = [:],
         platforms: Set<TuistGraph.Platform> = [.iOS],
-        baseSettings: TuistGraph.Settings = .init(configurations: [:]),
+        baseSettings: TuistGraph.Settings = .default,
         targetSettings: [String: TuistGraph.SettingsDictionary] = [:],
         swiftToolsVersion: TSCUtility.Version? = nil
     ) throws -> ProjectDescription.Project? {
