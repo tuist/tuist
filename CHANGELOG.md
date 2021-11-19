@@ -8,6 +8,12 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Focus on project targets when no targets are passed to `tuist focus` [#3654](https://github.com/tuist/tuist/pull/3654) by [@danyf90](https://github.com/danyf90)
 
+## 2.2.1 - Weg
+
+### Fixed
+
+- Fixed compiled binary for older Xcode versions [#3675](https://github.com/tuist/tuist/pull/3675) by [@luispadron](https://github.com/luispadron)
+
 ## 2.2.0 - Jinotaj
 
 ### Changed
