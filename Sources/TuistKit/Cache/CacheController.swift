@@ -44,11 +44,12 @@ final class CacheController: CacheControlling {
     /// Cache graph linter.
     private let cacheGraphLinter: CacheGraphLinting
 
-    convenience init(cache: CacheStoring,
-                     artifactBuilder: CacheArtifactBuilding,
-                     bundleArtifactBuilder: CacheArtifactBuilding,
-                     contentHasher: ContentHashing)
-    {
+    convenience init(
+        cache: CacheStoring,
+        artifactBuilder: CacheArtifactBuilding,
+        bundleArtifactBuilder: CacheArtifactBuilding,
+        contentHasher: ContentHashing
+    ) {
         self.init(
             cache: cache,
             artifactBuilder: artifactBuilder,
@@ -59,13 +60,14 @@ final class CacheController: CacheControlling {
         )
     }
 
-    init(cache: CacheStoring,
-         artifactBuilder: CacheArtifactBuilding,
-         bundleArtifactBuilder: CacheArtifactBuilding,
-         generatorFactory: GeneratorFactorying,
-         cacheGraphContentHasher: CacheGraphContentHashing,
-         cacheGraphLinter: CacheGraphLinting)
-    {
+    init(
+        cache: CacheStoring,
+        artifactBuilder: CacheArtifactBuilding,
+        bundleArtifactBuilder: CacheArtifactBuilding,
+        generatorFactory: GeneratorFactorying,
+        cacheGraphContentHasher: CacheGraphContentHashing,
+        cacheGraphLinter: CacheGraphLinting
+    ) {
         self.cache = cache
         self.generatorFactory = generatorFactory
         self.artifactBuilder = artifactBuilder
@@ -81,7 +83,14 @@ final class CacheController: CacheControlling {
         includedTargets: Set<String>,
         dependenciesOnly: Bool
     ) throws {
-        let generator = generatorFactory.cache(config: config, includedTargets: includedTargets.isEmpty ? nil : Set(includedTargets))
+        let xcframeworks = artifactBuilder.cacheOutputType == .xcframework
+        let generator = generatorFactory.cache(
+            config: config,
+            includedTargets: includedTargets.isEmpty ? nil : Set(includedTargets),
+            focusedTargets: nil,
+            xcframeworks: xcframeworks,
+            cacheProfile: cacheProfile
+        )
         let (_, graph) = try generator.generateWithGraph(path: path, projectOnly: false)
 
         // Lint
@@ -107,9 +116,16 @@ final class CacheController: CacheControlling {
 
         logger.notice("Filtering cacheable targets")
 
-        let updatedGenerator = generatorFactory.cache(config: config, includedTargets: Set(hashesByTargetToBeCached.map { $0.0.target.name }))
-
-        let (projectPath, updatedGraph) = try updatedGenerator.generateWithGraph(path: path, projectOnly: false)
+        let targetsToBeCached = Set(hashesByTargetToBeCached.map(\.0.target.name))
+        let (projectPath, updatedGraph) = try generatorFactory
+            .cache(
+                config: config,
+                includedTargets: targetsToBeCached,
+                focusedTargets: targetsToBeCached,
+                xcframeworks: xcframeworks,
+                cacheProfile: cacheProfile
+            )
+            .generateWithGraph(path: path, projectOnly: false)
 
         logger.notice("Building cacheable targets")
 

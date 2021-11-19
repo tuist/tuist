@@ -14,11 +14,6 @@ protocol ProjectMapperFactorying {
     /// - Returns: A project mapper instance.
     func `default`(config: Config) -> [ProjectMapping]
 
-    /// Returns a project mapper for caching projects.
-    /// - Parameter config: The project configuration.
-    /// - Returns: An instance of a project mapper.
-    func cache(config: Config) -> [ProjectMapping]
-
     /// Returns a project mapper for automation.
     /// - Parameter config: The project configuration.
     /// - Parameter skipUITests: Whether UI tests should be skipped.
@@ -31,10 +26,6 @@ final class ProjectMapperFactory: ProjectMapperFactorying {
 
     init(contentHasher: ContentHashing = ContentHasher()) {
         self.contentHasher = contentHasher
-    }
-
-    func cache(config: Config) -> [ProjectMapping] {
-        return self.default(config: config)
     }
 
     func automation(config: Config, skipUITests: Bool) -> [ProjectMapping] {

@@ -17,8 +17,8 @@ import XCTest
 
 final class CacheControllerTests: TuistUnitTestCase {
     var generator: MockGenerator!
+    var focusedGenerator: MockGenerator!
     var generatorFactory: MockGeneratorFactory!
-    var updatedGenerator: MockGenerator!
     var cacheGraphContentHasher: MockCacheGraphContentHasher!
     var artifactBuilder: MockCacheArtifactBuilder!
     var bundleArtifactBuilder: MockCacheArtifactBuilder!
@@ -31,8 +31,9 @@ final class CacheControllerTests: TuistUnitTestCase {
     override func setUp() {
         generatorFactory = MockGeneratorFactory()
         generator = MockGenerator()
+        focusedGenerator = MockGenerator()
         generatorFactory.stubbedCacheResult = generator
-        updatedGenerator = MockGenerator()
+        generatorFactory.stubbedFocusResult = focusedGenerator
         artifactBuilder = MockCacheArtifactBuilder()
         bundleArtifactBuilder = MockCacheArtifactBuilder()
         cache = MockCacheStorage()
@@ -54,8 +55,8 @@ final class CacheControllerTests: TuistUnitTestCase {
 
     override func tearDown() {
         generator = nil
+        focusedGenerator = nil
         generatorFactory = nil
-        updatedGenerator = nil
         artifactBuilder = nil
         bundleArtifactBuilder = nil
         cacheGraphContentHasher = nil
@@ -111,7 +112,7 @@ final class CacheControllerTests: TuistUnitTestCase {
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
-        updatedGenerator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graph) in
+        focusedGenerator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graph) in
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
@@ -189,7 +190,7 @@ final class CacheControllerTests: TuistUnitTestCase {
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
-        updatedGenerator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graph) in
+        focusedGenerator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graph) in
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
@@ -261,8 +262,8 @@ final class CacheControllerTests: TuistUnitTestCase {
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
-        updatedGenerator.generateWithGraphStub = { _, _ in
-            XCTFail("Updated generator should not be invoked")
+        focusedGenerator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graph) in
+            XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
         cacheGraphContentHasher.contentHashesStub = { _, _, _, _ in
@@ -333,7 +334,7 @@ final class CacheControllerTests: TuistUnitTestCase {
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
-        updatedGenerator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graph) in
+        focusedGenerator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graph) in
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
