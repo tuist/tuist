@@ -15,6 +15,12 @@ export type Scalars = {
   Float: number;
 };
 
+export type Account = {
+  __typename?: 'Account';
+  id: Scalars['ID'];
+  name: Scalars['String'];
+};
+
 export type Mutation = {
   __typename?: 'Mutation';
   /** An example field added by the generator */
@@ -35,6 +41,8 @@ export type Project = {
 
 export type Query = {
   __typename?: 'Query';
+  /** Returns all tied accounts for the authenticated user */
+  accounts: Array<Account>;
   /** Returns the authenticated user */
   me: User;
   /** Returns all available organizations for the authenticated user */
@@ -57,10 +65,15 @@ export type MeQueryVariables = Exact<{ [key: string]: never; }>;
 
 export type MeQuery = { __typename?: 'Query', me: { __typename?: 'User', id: string, email: string, avatarUrl?: string | null | undefined } };
 
+export type MyAccountsQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type MyAccountsQuery = { __typename?: 'Query', accounts: Array<{ __typename?: 'Account', id: string, name: string }> };
+
 export type MyOrganizationsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type MyOrganizationsQuery = { __typename?: 'Query', organizations: Array<{ __typename?: 'Organization', id: string, name: string }> };
+export type MyOrganizationsQuery = { __typename?: 'Query', organizations: Array<{ __typename?: 'Organization', name: string }> };
 
 export type MyProjectsQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -104,10 +117,44 @@ export function useMeLazyQuery(baseOptions?: Apollo.LazyQueryHookOptions<MeQuery
 export type MeQueryHookResult = ReturnType<typeof useMeQuery>;
 export type MeLazyQueryHookResult = ReturnType<typeof useMeLazyQuery>;
 export type MeQueryResult = Apollo.QueryResult<MeQuery, MeQueryVariables>;
+export const MyAccountsDocument = gql`
+    query MyAccounts {
+  accounts {
+    id
+    name
+  }
+}
+    `;
+
+/**
+ * __useMyAccountsQuery__
+ *
+ * To run a query within a React component, call `useMyAccountsQuery` and pass it any options that fit your needs.
+ * When your component renders, `useMyAccountsQuery` returns an object from Apollo Client that contains loading, error, and data properties
+ * you can use to render your UI.
+ *
+ * @param baseOptions options that will be passed into the query, supported options are listed on: https://www.apollographql.com/docs/react/api/react-hooks/#options;
+ *
+ * @example
+ * const { data, loading, error } = useMyAccountsQuery({
+ *   variables: {
+ *   },
+ * });
+ */
+export function useMyAccountsQuery(baseOptions?: Apollo.QueryHookOptions<MyAccountsQuery, MyAccountsQueryVariables>) {
+        const options = {...defaultOptions, ...baseOptions}
+        return Apollo.useQuery<MyAccountsQuery, MyAccountsQueryVariables>(MyAccountsDocument, options);
+      }
+export function useMyAccountsLazyQuery(baseOptions?: Apollo.LazyQueryHookOptions<MyAccountsQuery, MyAccountsQueryVariables>) {
+          const options = {...defaultOptions, ...baseOptions}
+          return Apollo.useLazyQuery<MyAccountsQuery, MyAccountsQueryVariables>(MyAccountsDocument, options);
+        }
+export type MyAccountsQueryHookResult = ReturnType<typeof useMyAccountsQuery>;
+export type MyAccountsLazyQueryHookResult = ReturnType<typeof useMyAccountsLazyQuery>;
+export type MyAccountsQueryResult = Apollo.QueryResult<MyAccountsQuery, MyAccountsQueryVariables>;
 export const MyOrganizationsDocument = gql`
     query MyOrganizations {
   organizations {
-    id
     name
   }
 }

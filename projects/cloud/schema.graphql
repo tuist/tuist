@@ -1,3 +1,8 @@
+type Account {
+  id: ID!
+  name: String!
+}
+
 type Mutation {
   """
   An example field added by the generator
@@ -16,6 +21,11 @@ type Project {
 }
 
 type Query {
+  """
+  Returns all tied accounts for the authenticated user
+  """
+  accounts: [Account!]!
+
   """
   Returns the authenticated user
   """

@@ -22,7 +22,7 @@ class User < ApplicationRecord
     UserProjectsFetchService.call(user: self)
   end
 
-  # def accounts
-
-  # end
+  def accounts
+    UserAccountsFetchService.call(user: self)
+  end
 end

@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   Heading,
   TextContainer,
@@ -13,25 +13,42 @@ import {
   SelectOption,
 } from '@shopify/polaris';
 
-import { useMyOrganizationsQuery } from '@/graphql/types';
+import {
+  Account,
+  Project,
+  useMyAccountsQuery,
+} from '@/graphql/types';
 
 const NewProject = () => {
-  const [selected, setSelected] = useState('today');
+  const myAccounts = useMyAccountsQuery().data?.accounts ?? [];
+  const options: SelectOption[] = myAccounts.map((account) => {
+    return {
+      label: account.name,
+      value: account.id,
+    };
+  });
+
+  const [selectedProjectOwner, setSelectedProjectOwner] = useState<
+    Account['id'] | undefined
+  >(undefined);
+
+  useEffect(() => {
+    // Set default project owner as the first entry from the `myAccounts` array
+    if (selectedProjectOwner === undefined) {
+      setSelectedProjectOwner(myAccounts[0]?.id);
+    }
+  }, [myAccounts]);
 
   const handleSelectChange = useCallback(
-    (value) => setSelected(value),
+    (value) => setSelectedProjectOwner(value),
     [],
   );
 
-  const organizationOptions: SelectOption[] =
-    useMyOrganizationsQuery().data?.organizations.map(
-      (organization) => {
-        return {
-          label: organization.name,
-          value: organization.id,
-        };
-      },
-    ) ?? [];
+  const [projectName, setProjectName] = useState<Project['name']>('');
+  const handleProjectNameChange = useCallback(
+    (projectName) => setProjectName(projectName),
+    [],
+  );
 
   return (
     <Page title="New Project">
@@ -40,17 +57,24 @@ const NewProject = () => {
           <FormLayout>
             <Select
               label="Owner"
-              options={organizationOptions}
+              options={options}
               onChange={handleSelectChange}
-              value={selected}
+              value={selectedProjectOwner}
             />
             <TextField
-              type="email"
+              type="text"
               label="Project name"
-              onChange={() => {}}
-              autoComplete="email"
+              value={projectName}
+              onChange={handleProjectNameChange}
             />
-            <Button>Create project</Button>
+            <Button
+              disabled={
+                projectName.length === 0 ||
+                selectedProjectOwner === undefined
+              }
+            >
+              Create project
+            </Button>
           </FormLayout>
         </Card>
       </Layout>

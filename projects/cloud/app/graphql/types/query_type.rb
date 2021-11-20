@@ -26,5 +26,11 @@ module Types
     def organizations
       context[:current_user].organizations
     end
+
+    field :accounts, [AccountType], null: false,
+      description: "Returns all tied accounts for the authenticated user"
+    def accounts
+      context[:current_user].accounts
+    end
   end
 end
