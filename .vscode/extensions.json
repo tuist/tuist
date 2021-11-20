@@ -8,5 +8,6 @@
     "shopify.vscode-shadowenv",
     "editorconfig.editorconfig",
     "dracula-theme.theme-dracula",
+    "esbenp.prettier-vscode"
   ]
 }
