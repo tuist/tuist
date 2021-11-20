@@ -26,3 +26,5 @@ AllCops:
     - vendor/**/*
     - projects/website/node_modules/**/*
     - projects/tuist/fixtures/**/*
+    - projects/backbone/**/*
+    - projects/cloud/**/*
