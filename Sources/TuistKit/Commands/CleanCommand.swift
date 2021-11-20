@@ -3,27 +3,33 @@ import Foundation
 import TuistCore
 
 /// Category that can be cleaned
-enum CleanCategory: String, CaseIterable, ExpressibleByArgument {
-    /// The plugins cache.
-    case plugins
+enum CleanCategory: ExpressibleByArgument {
+    static let allCases = CacheCategory.allCases.map { .global($0) } + [Self.dependencies]
 
-    /// The build cache
-    case builds
+    /// The global cache
+    case global(CacheCategory)
 
-    /// The tests cache
-    case tests
-
-    /// The projects generated for automation tasks cache
-    case generatedAutomationProjects
-
-    /// The project description helpers cache
-    case projectDescriptionHelpers
-
-    /// The manifests cache
-    case manifests
-
-    /// The dependencies cache
+    /// The local dependencies cache
     case dependencies
+    
+    var defaultValueDescription: String {
+        switch self {
+        case let .global(cacheCategory):
+            return cacheCategory.rawValue
+        case .dependencies:
+            return "dependencies"
+        }
+    }
+    
+    init?(argument: String) {
+        if let cacheCategory = CacheCategory(rawValue: argument) {
+            self = .global(cacheCategory)
+        } else if argument == "dependencies" {
+            self = .dependencies
+        } else {
+            return nil
+        }
+    }
 }
 
 struct CleanCommand: ParsableCommand {

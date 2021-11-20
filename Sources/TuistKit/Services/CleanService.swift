@@ -26,34 +26,9 @@ final class CleanService {
 
         try categories.forEach {
             switch $0 {
-            case .plugins:
+            case let .global(cacheCategory):
                 try cleanCacheCategory(
-                    .plugins,
-                    cacheDirectoryProvider: cacheDirectoryProvider
-                )
-            case .builds:
-                try cleanCacheCategory(
-                    .builds,
-                    cacheDirectoryProvider: cacheDirectoryProvider
-                )
-            case .tests:
-                try cleanCacheCategory(
-                    .tests,
-                    cacheDirectoryProvider: cacheDirectoryProvider
-                )
-            case .generatedAutomationProjects:
-                try cleanCacheCategory(
-                    .generatedAutomationProjects,
-                    cacheDirectoryProvider: cacheDirectoryProvider
-                )
-            case .projectDescriptionHelpers:
-                try cleanCacheCategory(
-                    .projectDescriptionHelpers,
-                    cacheDirectoryProvider: cacheDirectoryProvider
-                )
-            case .manifests:
-                try cleanCacheCategory(
-                    .manifests,
+                    cacheCategory,
                     cacheDirectoryProvider: cacheDirectoryProvider
                 )
             case .dependencies:
