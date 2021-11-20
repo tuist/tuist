@@ -11,7 +11,7 @@ enum CleanCategory: ExpressibleByArgument {
 
     /// The local dependencies cache
     case dependencies
-    
+
     var defaultValueDescription: String {
         switch self {
         case let .global(cacheCategory):
@@ -20,7 +20,7 @@ enum CleanCategory: ExpressibleByArgument {
             return "dependencies"
         }
     }
-    
+
     init?(argument: String) {
         if let cacheCategory = CacheCategory(rawValue: argument) {
             self = .global(cacheCategory)
