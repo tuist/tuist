@@ -12,7 +12,7 @@
     "@types/actioncable": "^5.2.7",
     "actioncable": "^5.2.6",
     "add": "^2.0.6",
-    "autoprefixer": "^9.8.6",
+    "autoprefixer": "^9.8.8",
     "babel-plugin-transform-react-remove-prop-types": "^0.4.24",
     "chart.js": "^2.9.4",
     "chartkick": "^3.2.1",
