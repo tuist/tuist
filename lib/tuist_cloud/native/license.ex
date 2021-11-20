@@ -1,0 +1,11 @@
+defmodule TuistCloud.Native.License do
+  @moduledoc """
+  This module defines the metadata of a license
+  """
+  defstruct [:id, :features, :expiration_date]
+
+  def expired?(license) do
+    {:ok, expiration_date} = Date.from_iso8601(license.expiration_date)
+    Date.after?(TuistCloud.Date.utc_today(), expiration_date)
+  end
+end

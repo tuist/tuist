@@ -1,0 +1,8 @@
+[tools]
+"elixir" = "1.16.0"
+"flyctl" = "0.1.104"
+"erlang" = "26.2.1"
+"rust" = "1.77.2"
+
+[env]
+TUIST_CLOUD_HOSTED = 1

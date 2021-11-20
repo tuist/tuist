@@ -1,0 +1,35 @@
+{
+  "editor.formatOnSave": false,
+  "[yml]": {
+    "editor.formatOnSave": false
+  },
+  "[javascript]": {
+    "editor.formatOnSave": true
+  },
+  "[json]": {
+    "editor.formatOnSave": true
+  },
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "sorbet.enabled": true,
+  "files.exclude": {
+    "**/node_modules": true
+  },
+  "search.exclude": {
+    "phx/deps/**": true,
+  },
+  "emmet.includeLanguages": {
+    "html-eex": "html"
+  },
+  "[elixir]": {
+    "editor.defaultFormatter": "JakeBecker.elixir-ls"
+  },
+  "rust-analyzer.linkedProjects": [
+    "native/tuistcloud_native/Cargo.toml"
+  ],
+  "[rust]": {
+    "editor.defaultFormatter": "rust-lang.rust-analyzer"
+  },
+  "[phoenix-heex]": {
+    "editor.defaultFormatter": "JakeBecker.elixir-ls"
+  }
+}

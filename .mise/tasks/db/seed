@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# mise description="Seeds data into the database for local development"
+
+set -euo pipefail
+
+(cd $MISE_PROJECT_ROOT/phx && mix run priv/repo/seeds.exs)

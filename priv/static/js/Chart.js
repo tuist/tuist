@@ -1,0 +1,130 @@
+/**
+ * @module chart-l
+ * @description
+ * A reusable chart component.
+ */
+class ChartComponent extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+  }
+
+  connectedCallback() {
+    this.render();
+  }
+
+  render() {
+    function cssvar(name) {
+      return getComputedStyle(
+        document.documentElement,
+      ).getPropertyValue(name);
+    }
+
+    const chartDiv = document.createElement('div');
+    this.shadowRoot.appendChild(chartDiv);
+
+    const options = {
+      series: [this.data],
+      chart: {
+        height: '400px',
+        type: this.type,
+        toolbar: {
+          show: false,
+        },
+        zoom: {
+          enabled: false,
+        },
+      },
+      colors: [cssvar('--utility-brand-600')],
+      dataLabels: {
+        enabled: false,
+      },
+      fill: {
+        colors: [cssvar('--utility-brand-600')],
+        gradient: {
+          shade: 'dark',
+          type: 'vertical',
+          opacityFrom: 0.6,
+          opacityTo: 0,
+          stops: [0, 100],
+          colorStops: [],
+        },
+      },
+      grid: {
+        borderColor: cssvar('--border-tertiary'),
+      },
+      tooltip: {
+        intersect: false,
+      },
+      xaxis: {
+        categories: this.data.labels,
+        tickAmount:
+          this.data.labels.length > 12
+            ? this.data.labels.length / 2
+            : this.data.labels.length,
+        axisTicks: {
+          show: false,
+        },
+        axisBorder: {
+          show: false,
+        },
+        labels: {
+          style: {
+            colors: cssvar('--text-tertiary'),
+            cssClass: 'text-xs text--regular color--text-tertiary',
+          },
+        },
+      },
+      yaxis: {
+        min: 0,
+        max: this.maxYValue,
+        labels: {
+          formatter: this.yLabelFormatter,
+        },
+      },
+    };
+
+    var chart = new ApexCharts(chartDiv, options);
+    chart.render();
+  }
+
+  get data() {
+    return (
+      this.getAttribute('data') ?? {
+        data: [],
+        labels: [],
+        name: '',
+      }
+    );
+  }
+
+  set data(val) {
+    return this.setAttribute(val);
+  }
+
+  get yLabelFormatter() {
+    return this.getAttribute('yLabelFormatter') ?? ((val) => val);
+  }
+
+  set yLabelFormatter(val) {
+    return this.setAttribute(val);
+  }
+
+  get type() {
+    return this.getAttribute('type') || 'area';
+  }
+
+  set type(val) {
+    return this.setAttribute('type', val);
+  }
+
+  get maxYValue() {
+    return this.getAttribute('maxYValue') ?? undefined;
+  }
+
+  set maxYValue(val) {
+    return this.setAttribute('maxYValue', val);
+  }
+}
+
+customElements.define('chart-l', ChartComponent);

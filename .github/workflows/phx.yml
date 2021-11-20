@@ -1,0 +1,138 @@
+name: Phoenix
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+concurrency:
+  group: phoenix-${{ github.head_ref }}
+  cancel-in-progress: true
+
+env:
+  MIX_ENV: test
+  MASTER_KEY: ${{ secrets.MASTER_KEY }}
+  MISE_EXPERIMENTAL: 1
+
+jobs:
+  test:
+    name: Test
+    runs-on: 'blacksmith-4vcpu-ubuntu-2204'
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: timescale/timescaledb-ha:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - name: Restore Cache
+        uses: actions/cache@v3
+        id: mix-cache
+        with:
+          path: |
+            phx/deps
+            phx/_build
+            phx/_site
+          key: mix-${{ hashFiles('phx/mix.lock') }}
+      - name: Install dependencies
+        run: mix deps.get
+      - name: Create the database
+        run: mix ecto.create
+      # This is necessary because the migrations of Rails continue to be the source
+      # of truth for the current shape of the schema.
+      - name: Dump the initial database schema
+        run: mix ecto.load
+      - name: Run tests
+        run: mix test
+  credo:
+    name: Credo
+    runs-on: 'blacksmith-4vcpu-ubuntu-2204'
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+      - name: Restore Cache
+        uses: actions/cache@v3
+        id: mix-cache
+        with:
+          path: |
+            phx/deps
+            phx/_build
+            phx/_site
+          key: mix-${{ hashFiles('phx/mix.lock') }}
+      - name: Install dependencies
+        run: mix deps.get
+      - name: Run Credo
+        run: mix credo
+  format:
+    name: Format
+    runs-on: 'blacksmith-4vcpu-ubuntu-2204'
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4 # v4
+      - uses: jdx/mise-action@v2
+      - name: Restore Cache
+        uses: actions/cache@v3
+        id: mix-cache
+        with:
+          path: |
+            phx/deps
+            phx/_build
+            phx/_site
+          key: mix-${{ hashFiles('phx/mix.lock') }}
+      - name: Install dependencies
+        run: mix deps.get
+      - name: Check format
+        run: mix format --check-formatted
+  seed:
+    name: Seed
+    runs-on: 'blacksmith-4vcpu-ubuntu-2204'
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: timescale/timescaledb-ha:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4 # v4
+      - uses: jdx/mise-action@v2
+      - name: Restore Cache
+        uses: actions/cache@v3
+        id: mix-cache
+        with:
+          path: |
+            phx/deps
+            phx/_build
+            phx/_site
+          key: mix-${{ hashFiles('phx/mix.lock') }}
+      - name: Install dependencies
+        run: mix deps.get
+      - name: Create the database
+        run: mix ecto.create
+      # This is necessary because the migrations of Rails continue to be the source
+      # of truth for the current shape of the schema.
+      - name: Load the initial schema
+        run: mix ecto.load
+      - name: Run migrations
+        run: mix ecto.migrate
+      - name: Seed the database
+        run: mix run priv/repo/seeds.exs

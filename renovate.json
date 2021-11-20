@@ -1,0 +1,14 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "dependencyDashboard": false,
+  "extends": ["config:base"],
+  "enabledManagers": ["dockerfile", "mix"],
+  "packageRules": [
+    {
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "automerge": true,
+      "automergeType": "pr",
+      "labels": ["changelog:updated-dependencies"]
+    }
+  ]
+}

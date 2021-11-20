@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# mise description="Sets up the database"
+
+set -euo pipefail
+
+(cd $MISE_PROJECT_ROOT/phx && mix ecto.load)
+

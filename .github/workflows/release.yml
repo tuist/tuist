@@ -1,0 +1,97 @@
+name: Release
+
+on:
+  schedule:
+    # Every Monday at 11:00
+    - cron: '0 10 * * 1'
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: read
+  statuses: write
+  packages: write
+
+env:
+  MISE_EXPERIMENTAL: 1
+
+jobs:
+  release:
+    name: Release
+    runs-on: 'blacksmith-4vcpu-ubuntu-2204'
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@v2
+      - name: 'Get version'
+        id: version
+        run: |
+          version=$(.mise/tasks/generate-version)
+          echo "::set-output name=version::$version"
+      - id: last-release
+        uses: pozetroninc/github-action-get-latest-release@master
+        with:
+          owner: tuist
+          repo: cloud-on-premise
+          token: ${{ secrets.TUIST_CLOUD_RELEASE_TOKEN }}
+      - name: "Generate Changelog"
+        id: changelog
+        uses: mikepenz/release-changelog-builder-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          owner: "tuist"
+          repo: "cloud"
+          configuration: ".github/changelog-configuration.json"
+          fromTag: ${{ steps.last-release.outputs.release }}
+          toTag: "main"
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ghcr.io/tuist/cloud-on-premise
+          flavor: |
+            latest=true
+          tags: |
+            type=raw,value=${{ steps.version.outputs.version }}
+          labels: |
+            org.opencontainers.image.title=Tuist Cloud
+            org.opencontainers.image.vendor=Tuist GmbH
+            org.opencontainers.image.source=https://github.com/tuist/cloud-on-premise
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          build-args: |
+            TUIST_VERSION=${{ steps.version.outputs.version }}
+            MIX_ENV=prod
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          github-token: ${{ secrets.TUIST_CLOUD_RELEASE_TOKEN }}
+      - uses: stefanzweifel/git-auto-commit-action@v5
+        id: commit
+        with:
+          tagging_message: ${{ steps.version.outputs.version }}
+          commit_options: "--allow-empty"
+          commit_message: Release ${{ steps.version.outputs.version }}
+      - name: Create GitHub Release on tuist/cloud-on-premise
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: false
+          repository: tuist/cloud-on-premise
+          name: ${{ steps.version.outputs.version }}
+          tag_name: ${{ steps.version.outputs.version }}
+          body: ${{ steps.changelog.outputs.changelog }}
+          token: ${{ secrets.TUIST_CLOUD_RELEASE_TOKEN }}
+          target_commitish: ${{ steps.commit.outputs.commit_hash }}
+

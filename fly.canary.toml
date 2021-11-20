@@ -1,0 +1,60 @@
+app = "tuist-cloud-canary"
+primary_region = "atl"
+kill_signal = "SIGINT"
+kill_timeout = "5s"
+console_command = "/app/bin/rails console"
+
+[experimental]
+  auto_rollback = true
+
+[deploy]
+  release_command = '/app/bin/migrate'
+
+[env]
+  PORT = "8080"
+  MIX_ENV="can"
+  TUIST_APP_URL="https://cloud-canary.tuist.io"
+  TUIST_CLOUD_HOSTED="1"
+  TUIST_USE_SSL_FOR_DATABASE="1"
+  TUIST_DATABASE_POOL_SIZE="10"
+
+[[vm]]
+  cpu_kind = 'shared'
+  memory = "2048mb"
+  cpus = 2
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 8080
+  auto_stop_machines = false
+  auto_start_machines = false
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+    http_options = { h2_backend = true }
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 25
+    soft_limit = 20
+
+  [[services.http_checks]]
+    interval = 10000
+    grace_period = "10s"
+    method = "get"
+    path = "/ready"
+    protocol = "http"
+    timeout = 2000
+    tls_skip_verify = false
+    [services.http_checks.headers]
+
+[[statics]]
+  guest_path = "/app/public"
+  url_prefix = "/"

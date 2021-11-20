@@ -1,0 +1,21 @@
+{
+  "categories": [
+    {
+      "title": "### Changed",
+      "labels": ["changelog:changed"]
+    },
+    {
+      "title": "### Added",
+      "labels": ["changelog:added"]
+    },
+    {
+      "title": "### Fixed",
+      "labels": ["changelog:fixed"]
+    },
+    {
+      "title": "### Updated dependencies",
+      "labels": ["changelog:updated-dependencies"]
+    }
+  ],
+  "pr_template": "- ${{TITLE}} [#${{NUMBER}}](https://github.com/tuist/tuist/pull/${{NUMBER}}) by [@${{AUTHOR}}](https://github.com/${{AUTHOR}})"
+}

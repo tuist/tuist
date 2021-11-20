@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# mise description="Drops the database"
+
+set -euo pipefail
+
+(cd $MISE_PROJECT_ROOT/phx && mix ecto.drop)
+
