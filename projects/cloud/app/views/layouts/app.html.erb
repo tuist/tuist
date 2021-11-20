@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>TuistCloud</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+
+    <!-- ViteJS -->
+    <%= vite_client_tag %>
+    <%= vite_react_refresh_tag %>
+    <%= vite_javascript_tag 'app.tsx' %>
+
+    <!-- Stripe -->
+    <%= stripe_javascript_tag %>
+  </head>
+
+  <body>
+    <%= yield %>
+  </body>
+</html>

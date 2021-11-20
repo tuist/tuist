@@ -14,8 +14,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  RUBY_VERSION: '3.0.2'
-  NODE_VERSION: '14.17.6'
+  RUBY_VERSION: "3.0.2"
+  NODE_VERSION: "16.13.0"
 
 jobs:
   build:

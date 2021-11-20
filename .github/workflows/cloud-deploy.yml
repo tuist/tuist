@@ -1,0 +1,24 @@
+name: Cloud deploy
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: cloud-deploy-${{ github.head_ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy to Heroku
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - name: Deploy to Heroku
+        env:
+          CLOUD_HEROKU_API_TOKEN: ${{ secrets.CLOUD_HEROKU_API_TOKEN }}
+          CLOUD_HEROKU_APP_NAME: 'tuistcloud'
+        run: |
+          git remote add heroku https://heroku:$CLOUD_HEROKU_API_TOKEN@git.heroku.com/$CLOUD_HEROKU_APP_NAME.git
+          git push heroku  --force HEAD:main
