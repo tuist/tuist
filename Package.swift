@@ -240,6 +240,7 @@ let package = Package(
                 signalsDependency,
                 "Zip",
                 "Checksum",
+                "ProjectDescription",
             ]
         ),
         .target(
