@@ -42,8 +42,8 @@ export type MutationCreateProjectArgs = {
 
 export type Organization = {
   __typename?: 'Organization';
+  account: Account;
   id: Scalars['ID'];
-  name: Scalars['String'];
 };
 
 export type Project = {
@@ -94,7 +94,7 @@ export type MyAccountsQuery = { __typename?: 'Query', accounts: Array<{ __typena
 export type MyOrganizationsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type MyOrganizationsQuery = { __typename?: 'Query', organizations: Array<{ __typename?: 'Organization', name: string }> };
+export type MyOrganizationsQuery = { __typename?: 'Query', organizations: Array<{ __typename?: 'Organization', account: { __typename?: 'Account', name: string } }> };
 
 export type MyProjectsQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -212,7 +212,9 @@ export type MyAccountsQueryResult = Apollo.QueryResult<MyAccountsQuery, MyAccoun
 export const MyOrganizationsDocument = gql`
     query MyOrganizations {
   organizations {
-    name
+    account {
+      name
+    }
   }
 }
     `;
