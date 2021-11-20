@@ -4,8 +4,8 @@ require "slack-ruby-block-kit"
 
 class WeeklyDigestJob < ApplicationJob
   def perform(channel: "#general")
-    week_before_past = DateTime.now.last_week.last_week..DateTime.now.last_week.last_week.end_of_week
-    past_week = DateTime.now.last_week..DateTime.now.last_week.end_of_week
+    week_before_past = Time.now.last_week.last_week..Time.now.last_week.last_week.end_of_week
+    past_week = Time.now.last_week..Time.now.last_week.end_of_week
 
     generated_projects_week_before_past = CommandEvent.where(name: "generate", created_at: week_before_past).count
     generated_projects_past_week = CommandEvent.where(name: "generate", created_at: past_week).count
