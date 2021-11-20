@@ -1,6 +1,7 @@
 import { gql } from '@apollo/client';
 import * as Apollo from '@apollo/client';
 export type Maybe<T> = T | null;
+export type InputMaybe<T> = Maybe<T>;
 export type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
 export type MakeOptional<T, K extends keyof T> = Omit<T, K> & { [SubKey in K]?: Maybe<T[SubKey]> };
 export type MakeMaybe<T, K extends keyof T> = Omit<T, K> & { [SubKey in K]: Maybe<T[SubKey]> };
@@ -20,6 +21,12 @@ export type Mutation = {
   testField: Scalars['String'];
 };
 
+export type Organization = {
+  __typename?: 'Organization';
+  id: Scalars['ID'];
+  name: Scalars['String'];
+};
+
 export type Project = {
   __typename?: 'Project';
   id: Scalars['ID'];
@@ -30,6 +37,8 @@ export type Query = {
   __typename?: 'Query';
   /** Returns the authenticated user */
   me: User;
+  /** Returns all available organizations for the authenticated user */
+  organizations: Array<Organization>;
   /** Returns all available projects for the authenticated user */
   projects: Array<Project>;
 };
@@ -39,6 +48,7 @@ export type User = {
   avatarUrl?: Maybe<Scalars['String']>;
   email: Scalars['String'];
   id: Scalars['ID'];
+  organizations: Array<Organization>;
   projects: Array<Project>;
 };
 
@@ -46,6 +56,11 @@ export type MeQueryVariables = Exact<{ [key: string]: never; }>;
 
 
 export type MeQuery = { __typename?: 'Query', me: { __typename?: 'User', id: string, email: string, avatarUrl?: string | null | undefined } };
+
+export type MyOrganizationsQueryVariables = Exact<{ [key: string]: never; }>;
+
+
+export type MyOrganizationsQuery = { __typename?: 'Query', organizations: Array<{ __typename?: 'Organization', id: string, name: string }> };
 
 export type MyProjectsQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -89,6 +104,41 @@ export function useMeLazyQuery(baseOptions?: Apollo.LazyQueryHookOptions<MeQuery
 export type MeQueryHookResult = ReturnType<typeof useMeQuery>;
 export type MeLazyQueryHookResult = ReturnType<typeof useMeLazyQuery>;
 export type MeQueryResult = Apollo.QueryResult<MeQuery, MeQueryVariables>;
+export const MyOrganizationsDocument = gql`
+    query MyOrganizations {
+  organizations {
+    id
+    name
+  }
+}
+    `;
+
+/**
+ * __useMyOrganizationsQuery__
+ *
+ * To run a query within a React component, call `useMyOrganizationsQuery` and pass it any options that fit your needs.
+ * When your component renders, `useMyOrganizationsQuery` returns an object from Apollo Client that contains loading, error, and data properties
+ * you can use to render your UI.
+ *
+ * @param baseOptions options that will be passed into the query, supported options are listed on: https://www.apollographql.com/docs/react/api/react-hooks/#options;
+ *
+ * @example
+ * const { data, loading, error } = useMyOrganizationsQuery({
+ *   variables: {
+ *   },
+ * });
+ */
+export function useMyOrganizationsQuery(baseOptions?: Apollo.QueryHookOptions<MyOrganizationsQuery, MyOrganizationsQueryVariables>) {
+        const options = {...defaultOptions, ...baseOptions}
+        return Apollo.useQuery<MyOrganizationsQuery, MyOrganizationsQueryVariables>(MyOrganizationsDocument, options);
+      }
+export function useMyOrganizationsLazyQuery(baseOptions?: Apollo.LazyQueryHookOptions<MyOrganizationsQuery, MyOrganizationsQueryVariables>) {
+          const options = {...defaultOptions, ...baseOptions}
+          return Apollo.useLazyQuery<MyOrganizationsQuery, MyOrganizationsQueryVariables>(MyOrganizationsDocument, options);
+        }
+export type MyOrganizationsQueryHookResult = ReturnType<typeof useMyOrganizationsQuery>;
+export type MyOrganizationsLazyQueryHookResult = ReturnType<typeof useMyOrganizationsLazyQuery>;
+export type MyOrganizationsQueryResult = Apollo.QueryResult<MyOrganizationsQuery, MyOrganizationsQueryVariables>;
 export const MyProjectsDocument = gql`
     query MyProjects {
   projects {

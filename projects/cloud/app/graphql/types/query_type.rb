@@ -20,5 +20,11 @@ module Types
     def projects
       context[:current_user].projects
     end
+
+    field :organizations, [OrganizationType], null: false,
+      description: "Returns all available organizations for the authenticated user"
+    def organizations
+      context[:current_user].organizations
+    end
   end
 end

@@ -21,4 +21,8 @@ class User < ApplicationRecord
   def projects
     UserProjectsFetchService.call(user: self)
   end
+
+  # def accounts
+
+  # end
 end

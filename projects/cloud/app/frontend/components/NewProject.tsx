@@ -10,7 +10,10 @@ import {
   Page,
   Select,
   Button,
+  SelectOption,
 } from '@shopify/polaris';
+
+import { useMyOrganizationsQuery } from '@/graphql/types';
 
 const NewProject = () => {
   const [selected, setSelected] = useState('today');
@@ -20,11 +23,15 @@ const NewProject = () => {
     [],
   );
 
-  const options = [
-    { label: 'Today', value: 'today' },
-    { label: 'Yesterday', value: 'yesterday' },
-    { label: 'Last 7 days', value: 'lastWeek' },
-  ];
+  const organizationOptions: SelectOption[] =
+    useMyOrganizationsQuery().data?.organizations.map(
+      (organization) => {
+        return {
+          label: organization.name,
+          value: organization.id,
+        };
+      },
+    ) ?? [];
 
   return (
     <Page title="New Project">
@@ -33,7 +40,7 @@ const NewProject = () => {
           <FormLayout>
             <Select
               label="Owner"
-              options={options}
+              options={organizationOptions}
               onChange={handleSelectChange}
               value={selected}
             />

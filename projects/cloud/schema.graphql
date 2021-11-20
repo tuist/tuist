@@ -5,6 +5,11 @@ type Mutation {
   testField: String!
 }
 
+type Organization {
+  id: ID!
+  name: String!
+}
+
 type Project {
   id: ID!
   name: String!
@@ -17,6 +22,11 @@ type Query {
   me: User!
 
   """
+  Returns all available organizations for the authenticated user
+  """
+  organizations: [Organization!]!
+
+  """
   Returns all available projects for the authenticated user
   """
   projects: [Project!]!
@@ -26,5 +36,6 @@ type User {
   avatarUrl: String
   email: String!
   id: ID!
+  organizations: [Organization!]!
   projects: [Project!]!
 }

@@ -6,5 +6,6 @@ module Types
     field :email, String, null: false
     field :avatar_url, String, null: true
     field :projects, [ProjectType], null: false
+    field :organizations, [OrganizationType], null: false
   end
 end
