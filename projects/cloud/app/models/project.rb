@@ -2,5 +2,5 @@
 
 class Project < ApplicationRecord
   # Associations
-  belongs_to :account
+  belongs_to :account, optional: false
 end

@@ -16,8 +16,10 @@ import {
 import {
   Account,
   Project,
+  useCreateProjectMutation,
   useMyAccountsQuery,
 } from '@/graphql/types';
+import { useHistory } from 'react-router';
 
 const NewProject = () => {
   const myAccounts = useMyAccountsQuery().data?.accounts ?? [];
@@ -49,6 +51,14 @@ const NewProject = () => {
     (projectName) => setProjectName(projectName),
     [],
   );
+  const history = useHistory();
+  const [createProject] = useCreateProjectMutation({
+    onCompleted: ({ createProject }) => {
+      history.replace(
+        `${createProject.account.name}/${createProject.name}`,
+      );
+    },
+  });
 
   return (
     <Page title="New Project">
@@ -61,6 +71,7 @@ const NewProject = () => {
               onChange={handleSelectChange}
               value={selectedProjectOwner}
             />
+            {/* TODO: Only allow kebab-case names */}
             <TextField
               type="text"
               label="Project name"
@@ -72,6 +83,16 @@ const NewProject = () => {
                 projectName.length === 0 ||
                 selectedProjectOwner === undefined
               }
+              onClick={() => {
+                createProject({
+                  variables: {
+                    input: {
+                      accountId: selectedProjectOwner!,
+                      name: projectName,
+                    },
+                  },
+                });
+              }}
             >
               Create project
             </Button>
