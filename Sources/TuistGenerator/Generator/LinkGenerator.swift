@@ -208,6 +208,8 @@ final class LinkGenerator: LinkGenerating {
     ) throws {
         let embeddableFrameworks = graphTraverser.embeddableFrameworks(path: path, name: target.name).sorted()
 
+        guard !embeddableFrameworks.isEmpty else { return }
+
         let precompiledEmbedPhase = PBXShellScriptBuildPhase(name: "Embed Precompiled Frameworks")
         let embedPhase = PBXCopyFilesBuildPhase(
             dstPath: "",

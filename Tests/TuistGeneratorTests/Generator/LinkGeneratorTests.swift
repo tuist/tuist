@@ -97,6 +97,36 @@ final class LinkGeneratorTests: XCTestCase {
         ])
     }
 
+    func test_generateEmbedPhaseWithNoEmbeddableFrameworks() throws {
+        // Given
+        let dependencies: Set<GraphDependencyReference> = []
+        let pbxproj = PBXProj()
+        let (pbxTarget, target) = createTargets(product: .framework)
+        let fileElements = ProjectFileElements()
+        let wakaFile = PBXFileReference()
+        pbxproj.add(object: wakaFile)
+        fileElements.products["Test"] = wakaFile
+        let sourceRootPath = AbsolutePath("/")
+
+        let path = AbsolutePath("/path/")
+        let graphTraverser = MockGraphTraverser()
+        graphTraverser.stubbedEmbeddableFrameworksResult = dependencies
+
+        // When
+        try subject.generateEmbedPhase(
+            target: target,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            fileElements: fileElements,
+            sourceRootPath: sourceRootPath,
+            path: path,
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        XCTAssertNil(pbxTarget.embedFrameworksBuildPhases().first)
+    }
+
     func test_generateEmbedPhase_includesSymbols_when_nonTestTarget() throws {
         try Product.allCases.filter { !$0.testsBundle }.forEach { product in
             // Given
