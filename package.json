@@ -7,8 +7,8 @@
     "generate": "bin/rails graphql:schema:dump && graphql-codegen"
   },
   "devDependencies": {
-    "@bugsnag/js": "^7.13.3",
-    "@bugsnag/plugin-react": "^7.13.2",
+    "@bugsnag/js": "^7.14.0",
+    "@bugsnag/plugin-react": "^7.14.0",
     "@graphql-codegen/cli": "^2.3.0",
     "@graphql-codegen/typescript-operations": "^2.2.1",
     "@graphql-codegen/typescript-react-apollo": "^3.2.2",
