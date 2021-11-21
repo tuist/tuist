@@ -11,6 +11,7 @@ import {
   Select,
   Button,
   SelectOption,
+  Stack,
 } from '@shopify/polaris';
 
 import {
@@ -78,24 +79,35 @@ const NewProject = () => {
               value={projectName}
               onChange={handleProjectNameChange}
             />
-            <Button
-              disabled={
-                projectName.length === 0 ||
-                selectedProjectOwner === undefined
-              }
-              onClick={() => {
-                createProject({
-                  variables: {
-                    input: {
-                      accountId: selectedProjectOwner!,
-                      name: projectName,
+            <Stack>
+              <Button
+                primary
+                disabled={
+                  projectName.length === 0 ||
+                  selectedProjectOwner === undefined
+                }
+                onClick={() => {
+                  createProject({
+                    variables: {
+                      input: {
+                        accountId: selectedProjectOwner!,
+                        name: projectName,
+                      },
                     },
-                  },
-                });
-              }}
-            >
-              Create project
-            </Button>
+                  });
+                }}
+              >
+                Create project
+              </Button>
+              <Button
+                destructive
+                onClick={() => {
+                  history.goBack();
+                }}
+              >
+                Cancel
+              </Button>
+            </Stack>
           </FormLayout>
         </Card>
       </Layout>

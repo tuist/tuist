@@ -22,11 +22,13 @@ import {
   Button,
   Popover,
   ActionList,
+  ActionListItemDescriptor,
 } from '@shopify/polaris';
 import {
   ConversationMinor,
   HomeMajor,
   PackageMajor,
+  PlusMinor,
 } from '@shopify/polaris-icons';
 
 const RemoteCache = () => {
@@ -134,6 +136,16 @@ const Dashboard = ({ match, history }) => {
   );
 
   const myProjects = useMyProjectsQuery();
+  const myProjectsActions: ActionListItemDescriptor[] =
+    myProjects.data?.projects.map(({ name }) => {
+      return {
+        content: name,
+        onAction: () => {
+          history.push(`/${accountName}/${name}`);
+          toggleActive();
+        },
+      };
+    }) ?? [];
   const contextControlMarkup = (
     <div style={{ marginTop: '9px', marginLeft: '12px' }}>
       <Popover
@@ -141,17 +153,17 @@ const Dashboard = ({ match, history }) => {
         activator={activator}
         onClose={toggleActive}
       >
-        {/* TODO: Add actions */}
         <ActionList
-          items={myProjects.data?.projects.map(({ name }) => {
-            return {
-              content: name,
+          items={myProjectsActions.concat([
+            {
+              content: 'Create new project',
               onAction: () => {
-                history.push(`/${accountName}/${name}`);
+                history.push('/new');
                 toggleActive();
               },
-            };
-          })}
+              icon: PlusMinor,
+            },
+          ])}
         />
       </Popover>
     </div>
