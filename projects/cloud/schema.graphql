@@ -1,0 +1,30 @@
+type Mutation {
+  """
+  An example field added by the generator
+  """
+  testField: String!
+}
+
+type Project {
+  id: ID!
+  name: String!
+}
+
+type Query {
+  """
+  Returns the authenticated user
+  """
+  me: User!
+
+  """
+  Returns all available projects for the authenticated user
+  """
+  projects: [Project!]!
+}
+
+type User {
+  avatarUrl: String
+  email: String!
+  id: ID!
+  projects: [Project!]!
+}

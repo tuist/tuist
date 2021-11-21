@@ -14,8 +14,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  RUBY_VERSION: '3.0.2'
-  NODE_VERSION: '14.17.6'
+  RUBY_VERSION: "3.0.2"
+  NODE_VERSION: "16.13.0"
 
 jobs:
   build:
@@ -54,6 +54,6 @@ jobs:
           bundle install --jobs 4 --retry 3
       - name: Install NPM dependencies
         working-directory: projects/website
-        run: npm ci
+        run: CXXFLAGS="--std=c++14" npm install
       - name: Build
         run: ./fourier build web

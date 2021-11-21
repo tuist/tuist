@@ -97,7 +97,6 @@ final class ConfigGenerator: ConfigGenerating {
         let configurations = Dictionary(uniqueKeysWithValues: configurationsTuples)
         let nonEmptyConfigurations = !configurations.isEmpty ? configurations : Settings.default.configurations
         let orderedConfigurations = nonEmptyConfigurations.sortedByBuildConfigurationName()
-        let swiftVersion = try System.shared.swiftVersion()
         try orderedConfigurations.forEach {
             try generateTargetSettingsFor(
                 target: target,
@@ -108,7 +107,6 @@ final class ConfigGenerator: ConfigGenerating {
                 graphTraverser: graphTraverser,
                 pbxproj: pbxproj,
                 configurationList: configurationList,
-                swiftVersion: swiftVersion,
                 sourceRootPath: sourceRootPath
             )
         }
@@ -155,7 +153,6 @@ final class ConfigGenerator: ConfigGenerating {
                                            graphTraverser: GraphTraversing,
                                            pbxproj: PBXProj,
                                            configurationList: XCConfigurationList,
-                                           swiftVersion: String,
                                            sourceRootPath: AbsolutePath) throws
     {
         let settingsHelper = SettingsHelper()
@@ -168,7 +165,6 @@ final class ConfigGenerator: ConfigGenerating {
             buildSettings: &settings,
             target: target,
             graphTraverser: graphTraverser,
-            swiftVersion: swiftVersion,
             project: project,
             sourceRootPath: sourceRootPath
         )
@@ -194,14 +190,12 @@ final class ConfigGenerator: ConfigGenerating {
     private func updateTargetDerived(buildSettings settings: inout SettingsDictionary,
                                      target: Target,
                                      graphTraverser: GraphTraversing,
-                                     swiftVersion: String,
                                      project: Project,
                                      sourceRootPath: AbsolutePath)
     {
         settings.merge(
             generalTargetDerivedSettings(
                 target: target,
-                swiftVersion: swiftVersion,
                 sourceRootPath: sourceRootPath,
                 project: project
             )
@@ -213,7 +207,6 @@ final class ConfigGenerator: ConfigGenerating {
 
     private func generalTargetDerivedSettings(
         target: Target,
-        swiftVersion: String,
         sourceRootPath: AbsolutePath,
         project: Project
     ) -> SettingsDictionary {
@@ -235,10 +228,6 @@ final class ConfigGenerator: ConfigGenerating {
         }
         settings["SDKROOT"] = .string(target.platform.xcodeSdkRoot)
         settings["SUPPORTED_PLATFORMS"] = .string(target.platform.xcodeSupportedPlatforms)
-
-        if settings["SWIFT_VERSION"] == nil {
-            settings["SWIFT_VERSION"] = .string(swiftVersion)
-        }
 
         if target.product == .staticFramework {
             settings["MACH_O_TYPE"] = "staticlib"

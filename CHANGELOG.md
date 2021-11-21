@@ -18,6 +18,17 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Fixed compiled binary for older Xcode versions [#3675](https://github.com/tuist/tuist/pull/3675) by [@luispadron](https://github.com/luispadron)
 
+### Changed
+- Make the `cache warm` command significantly faster by avoid recompiling already in-cache dependency targets [#3585](https://github.com/tuist/tuist/pull/3585) by [@danyf90](https://github.com/danyf90)
+- Allow overriding `SWIFT_VERSION` [#3644](https://github.com/tuist/tuist/pull/3666) by [@kwridan](https://github.com/kwridan)
+  - The `SWIFT_VERSION` build setting is now part of the `.essential` [`DefaultSettings`](https://docs.tuist.io/manifests/project#defaultsettings)
+  - This algins its behavior with the rest of the default settings, and allows excluding it if necessary via:
+    - Specifying `DefaultSettings.none` for cases where `xcconfig` files are used to control all build settings
+    - Explicitly excluding it via:
+      - `DefaultSettings.recommended(excluding: ["SWIFT_VERSION])` 
+      - `DefaultSettings.essential(excluding: ["SWIFT_VERSION])`
+  - Additionally for convenience, Tuist will not set a `SWIFT_VERSION` target level setting if a project level setting already exists for it
+
 ## 2.2.0 - Jinotaj
 
 ### Changed
@@ -34,6 +45,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Sort schemes alphabetically by default [#3598](https://github.com/tuist/tuist/pull/3598) by [@pepibumur](https://github.com/pepibumur)
 - Add automation to release [#3603](https://github.com/tuist/tuist/pull/3603) by [@luispadron](https://github.com/luispadron)
 - Support for `json` format in `graph` command [#3617](https://github.com/tuist/tuist/pull/3617) by [@neakor](https://github.com/neakor)
+- Persist generated `Package.swift` and `Cartfile` [#3661](https://github.com/tuist/tuist/pull/3661) by [@thedavidharris](https://github.com/thedavidharris)
 
 ### Fixed
 

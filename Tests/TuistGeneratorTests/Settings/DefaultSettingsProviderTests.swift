@@ -60,6 +60,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         "CODE_SIGN_IDENTITY": "iPhone Developer",
         "SWIFT_OPTIMIZATION_LEVEL": "-Onone",
         "TARGETED_DEVICE_FAMILY": "1,2",
+        "SWIFT_VERSION": "5.5",
     ]
 
     private let appTargetEssentialReleaseSettings: [String: SettingValue] = [
@@ -70,6 +71,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         "SDKROOT": "iphoneos",
         "CODE_SIGN_IDENTITY": "iPhone Developer",
         "SWIFT_OPTIMIZATION_LEVEL": "-Owholemodule",
+        "SWIFT_VERSION": "5.5",
     ]
 
     private let frameworkTargetEssentialDebugSettings: [String: SettingValue] = [
@@ -89,6 +91,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         "INSTALL_PATH": "$(LOCAL_LIBRARY_DIR)/Frameworks",
         "DYLIB_CURRENT_VERSION": "1",
         "DYLIB_COMPATIBILITY_VERSION": "1",
+        "SWIFT_VERSION": "5.5",
     ]
 
     private let frameworkTargetEssentialReleaseSettings: [String: SettingValue] = [
@@ -107,6 +110,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         "CODE_SIGN_IDENTITY": "",
         "SKIP_INSTALL": "YES",
         "DYLIB_CURRENT_VERSION": "1",
+        "SWIFT_VERSION": "5.5",
     ]
 
     private let testTargetEssentialDebugSettings: [String: SettingValue] = [
@@ -116,11 +120,16 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         "CODE_SIGN_IDENTITY": "iPhone Developer",
         "SWIFT_OPTIMIZATION_LEVEL": "-Onone",
         "TARGETED_DEVICE_FAMILY": "1,2",
+        "SWIFT_VERSION": "5.5",
     ]
 
     override func setUp() {
         super.setUp()
-        subject = DefaultSettingsProvider()
+        system.swiftVersionStub = { "5.5" }
+        subject = DefaultSettingsProvider(
+            system: system,
+            xcodeController: xcodeController
+        )
     }
 
     override func tearDown() {
@@ -359,7 +368,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
 
         // Then
         XCTAssertSettings(got, containsAll: appTargetEssentialDebugSettings)
-        XCTAssertEqual(got.count, 9)
+        XCTAssertEqual(got.count, 10)
     }
 
     func testTargetSettings_inheritsProjectDefaultSettings_when_targetBuildSettings_are_nil() throws {
@@ -424,6 +433,104 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         XCTAssertTrue(got.keys.contains(where: { $0 == "ENABLE_PREVIEWS" }))
     }
 
+    func testTargetSettings_whenRecommended_containsSystemInferredSettings() throws {
+        // Given
+        let buildConfiguration: BuildConfiguration = .release
+        let settings = Settings(
+            base: [:],
+            configurations: [buildConfiguration: nil],
+            defaultSettings: .recommended
+        )
+        let target = Target.test(product: .app, settings: settings)
+        let project = Project.test()
+        system.swiftVersionStub = { "5.0" }
+
+        // When
+        let got = try subject.targetSettings(
+            target: target,
+            project: project,
+            buildConfiguration: buildConfiguration
+        )
+
+        // Then
+        XCTAssertEqual(got["SWIFT_VERSION"], .string("5.0"))
+    }
+
+    func testTargetSettings_whenRecommendedAndSpecifiedInProject_doesNotContainsSystemInferredSettings() throws {
+        // Given
+        let buildConfiguration: BuildConfiguration = .release
+        let settings = Settings(
+            base: [:],
+            configurations: [buildConfiguration: nil],
+            defaultSettings: .essential
+        )
+        let target = Target.test(product: .app, settings: settings)
+        let project = Project.test(
+            settings: .test(
+                base: [
+                    "SWIFT_VERSION": "5.1",
+                ]
+            )
+        )
+        system.swiftVersionStub = { "5.0" }
+
+        // When
+        let got = try subject.targetSettings(
+            target: target,
+            project: project,
+            buildConfiguration: buildConfiguration
+        )
+
+        // Then
+        XCTAssertNil(got["SWIFT_VERSION"])
+    }
+
+    func testTargetSettings_whenEssential_containsSystemInferredSettings() throws {
+        // Given
+        let buildConfiguration: BuildConfiguration = .release
+        let settings = Settings(
+            base: [:],
+            configurations: [buildConfiguration: nil],
+            defaultSettings: .essential
+        )
+        let target = Target.test(product: .app, settings: settings)
+        let project = Project.test()
+        system.swiftVersionStub = { "5.0" }
+
+        // When
+        let got = try subject.targetSettings(
+            target: target,
+            project: project,
+            buildConfiguration: buildConfiguration
+        )
+
+        // Then
+        XCTAssertEqual(got["SWIFT_VERSION"], .string("5.0"))
+    }
+
+    func testTargetSettings_whenNone_doesNotContainsSystemInferredSettings() throws {
+        // Given
+        let buildConfiguration: BuildConfiguration = .release
+        let settings = Settings(
+            base: [:],
+            configurations: [buildConfiguration: nil],
+            defaultSettings: .none
+        )
+        let target = Target.test(product: .app, settings: settings)
+        let project = Project.test()
+        system.swiftVersionStub = { "5.0" }
+
+        // When
+        let got = try subject.targetSettings(
+            target: target,
+            project: project,
+            buildConfiguration: buildConfiguration
+        )
+
+        // Then
+        XCTAssertNil(got["SWIFT_VERSION"])
+    }
+
     func testTargetSettings_whenRecommendedRelease_App() throws {
         // Given
         let buildConfiguration: BuildConfiguration = .release
@@ -445,7 +552,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
 
         // Then
         XCTAssertSettings(got, containsAll: appTargetEssentialReleaseSettings)
-        XCTAssertEqual(got.count, 8)
+        XCTAssertEqual(got.count, 9)
     }
 
     func testTargetSettings_whenRecommendedDebug_Framework() throws {
@@ -468,7 +575,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
 
         // Then
         XCTAssertSettings(got, containsAll: frameworkTargetEssentialDebugSettings)
-        XCTAssertEqual(got.count, 17)
+        XCTAssertEqual(got.count, 18)
     }
 
     func testTargetSettings_whenRecommendedRelease_Framework() throws {
@@ -491,7 +598,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
 
         // Then
         XCTAssertSettings(got, containsAll: frameworkTargetEssentialReleaseSettings)
-        XCTAssertEqual(got.count, 16)
+        XCTAssertEqual(got.count, 17)
     }
 
     func testTargetSettings_whenNoneDebug_Framework() throws {
