@@ -10,7 +10,7 @@
     "@bugsnag/js": "^7.13.3",
     "@bugsnag/plugin-react": "^7.13.2",
     "@graphql-codegen/cli": "^2.3.0",
-    "@graphql-codegen/typescript-operations": "^2.2.0",
+    "@graphql-codegen/typescript-operations": "^2.2.1",
     "@graphql-codegen/typescript-react-apollo": "^3.2.2",
     "@types/jest": "^27.0.2",
     "@types/react": "^17.0.35",
