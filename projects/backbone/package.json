@@ -7,7 +7,7 @@
     "@fortawesome/free-solid-svg-icons": "^5.15.4",
     "@fullhuman/postcss-purgecss": "^2.3.0",
     "@rails/actioncable": "^6.1.4",
-    "@rails/activestorage": "^6.0.0",
+    "@rails/activestorage": "^6.1.4",
     "@rails/ujs": "^6.0.0",
     "@types/actioncable": "^5.2.7",
     "actioncable": "^5.2.6",
