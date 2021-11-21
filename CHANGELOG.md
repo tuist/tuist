@@ -8,6 +8,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Focus on project targets when no targets are passed to `tuist focus` [#3654](https://github.com/tuist/tuist/pull/3654) by [@danyf90](https://github.com/danyf90)
 
+### Fixed
+
+- Fixed caching of targegts with `sdk` dependencies [#3681](https://github.com/tuist/tuist/pull/3681) by [@danyf90](https://github.com/danyf90)
+
 ## 2.2.1 - Weg
 
 ### Fixed
@@ -33,6 +37,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - **Breaking** Update logic to calculate client ID starting from UUID instead of hostname, to avoid collisions [#3632](https://github.com/tuist/tuist/pull/3632) by [@danyf90](https://github.com/danyf90)
 - **Breaking** Removed value for `ENABLE_TESTING_SEARCH_PATHS` in SPM dependencies. If a target requires a non-default value, you can set it using the `targetSettings` property in the `Dependencies.swift` file [#3632](https://github.com/tuist/tuist/pull/3653) by [@wattson12](https://github.com/wattson12)
 - `Target`'s initializer now has `InfoPlist.default` set as the default value for the `infoPlist` argument [#3644](https://github.com/tuist/tuist/pull/3644) by [@hisaac](https://github.com/hisaac)
+- Make the `cache warm` command significantly faster by avoid recompiling already in-cache dependency targets [#3585](https://github.com/tuist/tuist/pull/3585) by [@danyf90](https://github.com/danyf90)
 
 ### Added
 
