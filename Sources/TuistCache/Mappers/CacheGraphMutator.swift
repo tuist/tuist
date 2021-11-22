@@ -202,11 +202,11 @@ class CacheGraphMutator: CacheGraphMutating {
                 loadedPrecompiledArtifacts: &loadedPrecompiledArtifacts
             ).forEach { dependency in
                 switch dependency {
-                case .framework, .xcframework, .bundle:
+                case .framework, .xcframework, .bundle, .sdk:
                     var precompiledDependencies = graphDependencies[precompiledArtifact, default: Set()]
                     precompiledDependencies.insert(dependency)
                     graphDependencies[precompiledArtifact] = precompiledDependencies
-                default:
+                case .library, .packageProduct, .target:
                     // Static dependencies fall into this case.
                     // Those are now part of the precompiled (xc)framework and therefore we don't have to link against them.
                     break

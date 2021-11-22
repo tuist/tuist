@@ -166,7 +166,7 @@ GEM
     graphiql-rails (1.8.0)
       railties
       sprockets-rails
-    graphql (1.12.19)
+    graphql (1.12.20)
     graphql-schema_comparator (1.0.1)
       bundler (>= 1.14)
       graphql (~> 1.10)
@@ -387,7 +387,7 @@ GEM
       zeitwerk (~> 2.2)
     warden (1.2.9)
       rack (>= 2.0.9)
-    web-console (4.1.0)
+    web-console (4.2.0)
       actionview (>= 6.0.0)
       activemodel (>= 6.0.0)
       bindex (>= 0.4.0)

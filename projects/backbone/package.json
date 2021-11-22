@@ -2,17 +2,17 @@
   "name": "backbone",
   "private": true,
   "dependencies": {
-    "@babel/preset-react": "^7.12.1",
+    "@babel/preset-react": "^7.16.0",
     "@fortawesome/fontawesome-svg-core": "^1.2.36",
     "@fortawesome/free-solid-svg-icons": "^5.15.4",
     "@fullhuman/postcss-purgecss": "^2.3.0",
-    "@rails/actioncable": "^6.0.0",
-    "@rails/activestorage": "^6.0.0",
+    "@rails/actioncable": "^6.1.4",
+    "@rails/activestorage": "^6.1.4",
     "@rails/ujs": "^6.0.0",
     "@types/actioncable": "^5.2.7",
     "actioncable": "^5.2.6",
     "add": "^2.0.6",
-    "autoprefixer": "^9.8.6",
+    "autoprefixer": "^9.8.8",
     "babel-plugin-transform-react-remove-prop-types": "^0.4.24",
     "chart.js": "^2.9.4",
     "chartkick": "^3.2.1",
@@ -26,7 +26,7 @@
   },
   "version": "0.1.0",
   "devDependencies": {
-    "vite": "^2.5.10",
-    "vite-plugin-ruby": "^3.0.1"
+    "vite": "^2.6.14",
+    "vite-plugin-ruby": "^3.0.3"
   }
 }

@@ -7,16 +7,23 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Changed
 
 - Focus on project targets when no targets are passed to `tuist focus` [#3654](https://github.com/tuist/tuist/pull/3654) by [@danyf90](https://github.com/danyf90)
-
 - Make the `cache warm` command significantly faster by avoid recompiling already in-cache dependency targets [#3585](https://github.com/tuist/tuist/pull/3585) by [@danyf90](https://github.com/danyf90)
 - Allow overriding `SWIFT_VERSION` [#3644](https://github.com/tuist/tuist/pull/3666) by [@kwridan](https://github.com/kwridan)
   - The `SWIFT_VERSION` build setting is now part of the `.essential` [`DefaultSettings`](https://docs.tuist.io/manifests/project#defaultsettings)
-  - This algins its behavior with the rest of the default settings, and allows excluding it if necessary via:
+  - This aligns its behavior with the rest of the default settings, and allows excluding it if necessary via:
     - Specifying `DefaultSettings.none` for cases where `xcconfig` files are used to control all build settings
     - Explicitly excluding it via:
-      - `DefaultSettings.recommended(excluding: ["SWIFT_VERSION])` 
+      - `DefaultSettings.recommended(excluding: ["SWIFT_VERSION])`
       - `DefaultSettings.essential(excluding: ["SWIFT_VERSION])`
   - Additionally for convenience, Tuist will not set a `SWIFT_VERSION` target level setting if a project level setting already exists for it
+
+### Added
+
+- Add support for base settings for SwiftPackageManager generated targets. This allows to specify custom settings configurations. [#3683](https://github.com/tuist/tuist/pull/3683) by [@danyf90](https://github.com/danyf90)
+
+### Fixed
+
+- Fixed caching of targets with `sdk` dependencies [#3681](https://github.com/tuist/tuist/pull/3681) by [@danyf90](https://github.com/danyf90)
 
 ### Added
 
