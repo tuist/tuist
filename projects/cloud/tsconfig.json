@@ -4,6 +4,7 @@
     "skipLibCheck": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
+    "useDefineForClassFields": true,
     "lib": ["es6", "dom"],
     "module": "es6",
     "moduleResolution": "node",
