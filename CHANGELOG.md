@@ -25,7 +25,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Fixed caching of targets with `sdk` dependencies [#3681](https://github.com/tuist/tuist/pull/3681) by [@danyf90](https://github.com/danyf90)
 
-
 ## 2.2.1 - Weg
 
 ### Fixed
