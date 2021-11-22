@@ -19,6 +19,7 @@ import Devengo from '../../assets/devengo.svg'
 import FreeNow from '../../assets/freenow.svg'
 import Ackee from '../../assets/ackee.svg'
 import { lighten } from '@theme-ui/color'
+import stream from "../logos/stream.svg"
 
 const PressableButton = posed.div({
   hoverable: true,
@@ -1021,6 +1022,25 @@ const Sponsor = () => {
             </div>
           </div>
           <div sx={{ my: 3 }}></div>
+          <div className="flex flex-col items-center">
+            <h3
+              className="mt-2 text-3xl leading-8 font-bold tracking-tight sm:text-3xl sm:leading-10"
+              sx={{ color: 'text' }}
+            >
+              Silver Sponsors
+            </h3>
+            <p
+              className="mt-4 max-w-2xl text-xl leading-7 lg:mx-auto"
+              sx={{ color: 'gray' }}
+            >
+              We are honored to have the following organizations supporting the long-term financial sustainability of the project.
+            </p>
+            <div className="mt-8">
+              <a target="_blank" href="https://getstream.io/chat/sdk/ios/?utm_source=github&utm_medium=github_repo_content_ad&utm_content=Developer&utm_campaign=Github_Nov2021_iOSChatSDK">
+                <img className="w-28" src={stream}/>
+              </a>
+            </div>
+          </div>
         </div>
       </div>
     </div>
