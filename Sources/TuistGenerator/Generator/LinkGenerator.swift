@@ -208,19 +208,11 @@ final class LinkGenerator: LinkGenerating {
     ) throws {
         let embeddableFrameworks = graphTraverser.embeddableFrameworks(path: path, name: target.name).sorted()
 
-        guard !embeddableFrameworks.isEmpty else { return }
-
-        let precompiledEmbedPhase = PBXShellScriptBuildPhase(name: "Embed Precompiled Frameworks")
         let embedPhase = PBXCopyFilesBuildPhase(
             dstPath: "",
             dstSubfolderSpec: .frameworks,
             name: "Embed Frameworks"
         )
-        pbxproj.add(object: precompiledEmbedPhase)
-        pbxproj.add(object: embedPhase)
-
-        pbxTarget.buildPhases.append(precompiledEmbedPhase)
-        pbxTarget.buildPhases.append(embedPhase)
 
         var frameworkReferences: [GraphDependencyReference] = []
 
@@ -232,6 +224,7 @@ final class LinkGenerator: LinkGenerating {
                 // Do nothing
                 break
             case .bundle:
+                // Do nothing
                 break
             case let .xcframework(path, _, _, _):
                 guard let fileRef = fileElements.file(path: path) else {
@@ -260,9 +253,9 @@ final class LinkGenerator: LinkGenerating {
             }
         }
 
-        if frameworkReferences.isEmpty {
-            precompiledEmbedPhase.shellScript = "echo \"Skipping, nothing to be embedded.\""
-        } else {
+        if !frameworkReferences.isEmpty {
+            let precompiledEmbedPhase = PBXShellScriptBuildPhase(name: "Embed Precompiled Frameworks")
+
             let script = try embedScriptGenerator.script(
                 sourceRootPath: sourceRootPath,
                 frameworkReferences: frameworkReferences,
@@ -273,7 +266,13 @@ final class LinkGenerator: LinkGenerating {
             precompiledEmbedPhase.inputPaths = script.inputPaths
                 .map { "$(SRCROOT)/\($0.pathString)" }
             precompiledEmbedPhase.outputPaths = script.outputPaths
+
+            pbxproj.add(object: precompiledEmbedPhase)
+            pbxTarget.buildPhases.append(precompiledEmbedPhase)
         }
+
+        pbxproj.add(object: embedPhase)
+        pbxTarget.buildPhases.append(embedPhase)
     }
 
     func setupFrameworkSearchPath(

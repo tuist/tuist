@@ -99,7 +99,8 @@ final class LinkGeneratorTests: XCTestCase {
 
     func test_generateEmbedPhaseWithNoEmbeddableFrameworks() throws {
         // Given
-        let dependencies: Set<GraphDependencyReference> = []
+        var dependencies: Set<GraphDependencyReference> = []
+        dependencies.insert(GraphDependencyReference.product(target: "Test", productName: "Test.framework"))
         let pbxproj = PBXProj()
         let (pbxTarget, target) = createTargets(product: .framework)
         let fileElements = ProjectFileElements()
@@ -124,7 +125,19 @@ final class LinkGeneratorTests: XCTestCase {
         )
 
         // Then
-        XCTAssertNil(pbxTarget.embedFrameworksBuildPhases().first)
+        let scriptBuildPhase: PBXShellScriptBuildPhase? = pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase
+        XCTAssertNil(scriptBuildPhase)
+
+        let embedBuildPhase = try XCTUnwrap(pbxTarget.embedFrameworksBuildPhases().first)
+        XCTAssertEqual(embedBuildPhase.name, "Embed Frameworks")
+        XCTAssertEqual(embedBuildPhase.dstPath, "")
+        XCTAssertEqual(embedBuildPhase.dstSubfolderSpec, .frameworks)
+        XCTAssertEqual(embedBuildPhase.files?.map(\.file), [
+            wakaFile,
+        ])
+        XCTAssertEqual(embedBuildPhase.files?.compactMap { $0.settings as? [String: [String]] }, [
+            ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
+        ])
     }
 
     func test_generateEmbedPhase_includesSymbols_when_nonTestTarget() throws {
