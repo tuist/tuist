@@ -12,7 +12,7 @@ public struct RemotePluginPaths: Equatable, Hashable {
     public let repositoryPath: AbsolutePath
     /// Path to the downloaded release artifacts.
     public let releasePath: AbsolutePath?
-    
+
     public init(
         repositoryPath: AbsolutePath,
         releasePath: AbsolutePath?
@@ -25,7 +25,7 @@ public struct RemotePluginPaths: Equatable, Hashable {
 enum PluginServiceError: FatalError, Equatable {
     case missingRemotePlugins([String])
     case invalidURL(String)
-    
+
     var description: String {
         switch self {
         case let .missingRemotePlugins(plugins):
@@ -34,7 +34,7 @@ enum PluginServiceError: FatalError, Equatable {
             return "Invalid URL for the plugin's Github repository: \(url)."
         }
     }
-    
+
     var type: ErrorType {
         switch self {
         case .missingRemotePlugins:
@@ -71,7 +71,7 @@ public final class PluginService: PluginServicing {
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
     private let fileArchivingFactory: FileArchivingFactorying
     private let fileClient: FileClienting
-    
+
     /// Creates a `PluginService`.
     /// - Parameters:
     ///   - manifestLoader: A manifest loader for loading plugin manifests.
@@ -97,7 +97,7 @@ public final class PluginService: PluginServicing {
         self.fileArchivingFactory = fileArchivingFactory
         self.fileClient = fileClient
     }
-    
+
     public func fetchRemotePlugins(using config: Config) throws {
         try config.plugins
             .forEach { pluginLocation in
@@ -113,7 +113,7 @@ public final class PluginService: PluginServicing {
                 }
             }
     }
-    
+
     public func remotePluginPaths(using config: Config) throws -> [RemotePluginPaths] {
         return try config.plugins.compactMap { pluginLocation in
             switch pluginLocation {
@@ -143,11 +143,11 @@ public final class PluginService: PluginServicing {
             }
         }
     }
-    
+
     // swiftlint:disable:next function_body_length
     public func loadPlugins(using config: Config) throws -> Plugins {
         guard !config.plugins.isEmpty else { return .none }
-        
+
         let localPluginPaths: [AbsolutePath] = config.plugins
             .compactMap { pluginLocation in
                 switch pluginLocation {
@@ -159,7 +159,7 @@ public final class PluginService: PluginServicing {
                 }
             }
         let localPluginManifests = try localPluginPaths.map(manifestLoader.loadPlugin)
-        
+
         let remotePluginPaths = try self.remotePluginPaths(using: config)
         let remotePluginRepositoryPaths = remotePluginPaths.map(\.repositoryPath)
         let remotePluginManifests = try remotePluginRepositoryPaths
@@ -170,34 +170,34 @@ public final class PluginService: PluginServicing {
         if !missingRemotePlugins.isEmpty {
             throw PluginServiceError.missingRemotePlugins(missingRemotePlugins.map(\.0.name))
         }
-        
+
         let localProjectDescriptionHelperPlugins = zip(localPluginManifests, localPluginPaths)
             .compactMap { plugin, path -> ProjectDescriptionHelpersPlugin? in
                 projectDescriptionHelpersPlugin(name: plugin.name, pluginPath: path, location: .local)
             }
-        
+
         let remoteProjectDescriptionHelperPlugins = zip(remotePluginManifests, remotePluginRepositoryPaths)
             .compactMap { plugin, path -> ProjectDescriptionHelpersPlugin? in
                 projectDescriptionHelpersPlugin(name: plugin.name, pluginPath: path, location: .remote)
             }
-        
+
         let templatePaths = try pluginPaths.flatMap(templatePaths(pluginPath:))
         let resourceSynthesizerPlugins = zip(
             (localPluginManifests + remotePluginManifests).map(\.name),
             pluginPaths
                 .map { $0.appending(component: Constants.resourceSynthesizersDirectoryName) }
         )
-            .filter { _, path in FileHandler.shared.exists(path) }
-            .map(PluginResourceSynthesizer.init)
-        
+        .filter { _, path in FileHandler.shared.exists(path) }
+        .map(PluginResourceSynthesizer.init)
+
         let tasks = zip(
             (localPluginManifests + remotePluginManifests).map(\.name),
             pluginPaths
                 .map { $0.appending(component: Constants.tasksDirectoryName) }
         )
-            .filter { _, path in FileHandler.shared.exists(path) }
-            .map(PluginTasks.init)
-        
+        .filter { _, path in FileHandler.shared.exists(path) }
+        .map(PluginTasks.init)
+
         return Plugins(
             projectDescriptionHelpers: localProjectDescriptionHelperPlugins + remoteProjectDescriptionHelperPlugins,
             templatePaths: templatePaths,
@@ -205,7 +205,7 @@ public final class PluginService: PluginServicing {
             tasks: tasks
         )
     }
-    
+
     private func fetchRemotePlugin(
         url: String,
         gitReference: PluginLocation.GitReference,
@@ -232,7 +232,7 @@ public final class PluginService: PluginServicing {
             )
         }
     }
-    
+
     private func pluginCacheDirectory(
         url: String,
         gitId: String,
@@ -244,41 +244,41 @@ public final class PluginService: PluginServicing {
         return cacheDirectory
             .appending(component: fingerprint)
     }
-    
+
     /// Fetches the git plugins from the remote server and caches them in
     /// the Tuist cache with a unique fingerprint
     private func fetchGitPluginRepository(pluginCacheDirectory: AbsolutePath, url: String, gitId: String) throws {
         let pluginRepositoryDirectory = pluginCacheDirectory.appending(component: PluginServiceConstants.repository)
-        
+
         guard !fileHandler.exists(pluginRepositoryDirectory) else {
             logger.debug("Using cached git plugin \(url)")
             return
         }
-        
+
         logger.notice("Cloning plugin from \(url) @ \(gitId)", metadata: .subsection)
         try gitHandler.clone(url: url, to: pluginRepositoryDirectory)
         try gitHandler.checkout(id: gitId, in: pluginRepositoryDirectory)
     }
-    
+
     private func fetchGitPluginRelease(pluginCacheDirectory: AbsolutePath, url: String, gitTag: String) throws {
         let pluginRepositoryDirectory = pluginCacheDirectory.appending(component: PluginServiceConstants.repository)
         // If `Package.swift` exists for the plugin, a Github release should for the given `gitTag` should also exist
         guard FileHandler.shared.exists(pluginRepositoryDirectory.appending(component: Constants.DependenciesDirectory.packageSwiftName))
         else { return }
-        
+
         let pluginReleaseDirectory = pluginCacheDirectory.appending(component: PluginServiceConstants.release)
         guard !fileHandler.exists(pluginReleaseDirectory) else {
             logger.debug("Using cached git plugin release \(url)")
             return
         }
-        
+
         let plugin = try manifestLoader.loadPlugin(at: pluginRepositoryDirectory)
         guard
             let releaseURL = URL(string: url)?.appendingPathComponent("releases/download/\(gitTag)/\(plugin.name).tuist-plugin.zip")
         else { throw PluginServiceError.invalidURL(url) }
-        
+
         logger.debug("Cloning plugin release from \(url) @ \(gitTag)")
-        try FileHandler.shared.inTemporaryDirectory { temporaryDirectory in
+        try FileHandler.shared.inTemporaryDirectory { _ in
             // Download the release.
             // Currently, we assume the release path exists.
             let downloadPath = try fileClient.download(url: releaseURL)
@@ -290,7 +290,7 @@ public final class PluginService: PluginServicing {
                 try? FileHandler.shared.delete(downloadZipPath)
             }
             try FileHandler.shared.move(from: downloadPath, to: downloadZipPath)
-            
+
             // Unzip
             let fileUnarchiver = try fileArchivingFactory.makeFileUnarchiver(for: downloadZipPath)
             let unarchivedContents = try FileHandler.shared.contentsOfDirectory(
@@ -315,7 +315,7 @@ public final class PluginService: PluginServicing {
                 }
         }
     }
-    
+
     private func projectDescriptionHelpersPlugin(
         name: String,
         pluginPath: AbsolutePath,
@@ -325,7 +325,7 @@ public final class PluginService: PluginServicing {
         guard fileHandler.exists(helpersPath) else { return nil }
         return ProjectDescriptionHelpersPlugin(name: name, path: helpersPath, location: location)
     }
-    
+
     private func templatePaths(
         pluginPath: AbsolutePath
     ) throws -> [AbsolutePath] {

@@ -12,7 +12,7 @@ module Fourier
           .with("cache", "warm", "--dependencies-only")
         Utilities::System
           .expects(:tuist)
-          .with("dependencies", "fetch")
+          .with("fetch")
         target = "TuistSupport"
         Utilities::System
           .expects(:tuist)

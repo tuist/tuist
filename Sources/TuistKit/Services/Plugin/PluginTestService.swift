@@ -1,5 +1,5 @@
-import TuistSupport
 import TSCBasic
+import TuistSupport
 
 final class PluginTestService {
     func run(
@@ -10,12 +10,12 @@ final class PluginTestService {
     ) throws {
         var testCommand = [
             "swift", "test",
-            "--configuration", configuration.rawValue
+            "--configuration", configuration.rawValue,
         ]
         if let path = path {
             testCommand += [
                 "--package-path",
-                AbsolutePath(path, relativeTo: FileHandler.shared.currentPath).pathString
+                AbsolutePath(path, relativeTo: FileHandler.shared.currentPath).pathString,
             ]
         }
         if buildTests {

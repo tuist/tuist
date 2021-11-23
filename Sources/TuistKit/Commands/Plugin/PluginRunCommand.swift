@@ -12,22 +12,22 @@ struct PluginRunCommand: ParsableCommand {
 
     @OptionGroup()
     var pluginOptions: PluginCommand.PluginOptions
-    
+
     @Flag(
         help: "Build both source and test targets."
     )
     var buildTests = false
-    
+
     @Flag(
         help: "Skip building the test target."
     )
     var skipBuild = false
-    
+
     @Argument(
         help: "The plugin task to run."
     )
     var task: String
-    
+
     @Argument(
         help: "The arguments to pass to the plugin task."
     )

@@ -12,22 +12,22 @@ struct PluginBuildCommand: ParsableCommand {
 
     @OptionGroup()
     var pluginOptions: PluginCommand.PluginOptions
-    
+
     @Flag(
         help: "Build both source and test targets."
     )
     var buildTests = false
-    
+
     @Flag(
         help: "Print the binary output path."
     )
     var showBinPath = false
-    
+
     @Option(
         help: "Build the specified targets."
     )
     var targets: [String] = []
-    
+
     @Option(
         help: "Build the specified products."
     )
