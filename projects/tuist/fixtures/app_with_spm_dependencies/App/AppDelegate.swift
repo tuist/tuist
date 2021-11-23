@@ -1,5 +1,6 @@
 import Adjust
 import Alamofire
+import AppboyPushStory
 import Charts
 import ComposableArchitecture
 import FBSDKCoreKit
@@ -26,6 +27,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
         // Use Alamofire to make sure it links fine
         _ = AF.download("http://www.tuist.io")
+        
+        // Use AppboyPushStory to make sure it links fine
+        _ = ABKStoriesView(frame: .zero)
 
         // Use Charts to make sure it links fine
         _ = BarChartView()
