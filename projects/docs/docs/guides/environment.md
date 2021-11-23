@@ -33,19 +33,10 @@ func appName() -> String {
 
 Accessing variables returns an instance of type `Environment.Value?` which can take any of the following values:
 
-<EnumTable
-cases={[
-{
-case: '.boolean',
-description:
-'Used when the variable represents a boolean. The values 1, true, TRUE, yes and YES are casted to `true`, and 0, false, FALSE, no, and NO are casted to `false`',
-},
-{
-case: '.string',
-description: 'Used when the variable represents a string.',
-},
-]}
-/>
+| Case       | Description                                                                                                                                                     |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.boolean` | Used when the variable represents a boolean. The values 1, true, TRUE, yes and YES are casted to `true`, and 0, false, FALSE, no, and NO are casted to `false`. |
+| `.string`  | Used when the variable represents a string.                                                                                                                     |
 
 You can also retrieve the string or boolean Environment variable using either of the helper methods defined below, these methods require a default value to be passed to ensure the user gets consistent results each time. This avoids the need to define the function appName() defined above.
 
