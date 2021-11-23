@@ -330,6 +330,7 @@ public class GraphLinter: GraphLinting {
     static let validLinks: [LintableTarget: [LintableTarget]] = [
         // iOS products
         LintableTarget(platform: .iOS, product: .app): [
+            LintableTarget(platform: .macOS, product: .bundle),
             LintableTarget(platform: .iOS, product: .staticLibrary),
             LintableTarget(platform: .iOS, product: .dynamicLibrary),
             LintableTarget(platform: .iOS, product: .framework),
@@ -411,6 +412,7 @@ public class GraphLinter: GraphLinting {
         ],
         // macOS
         LintableTarget(platform: .macOS, product: .app): [
+            LintableTarget(platform: .macOS, product: .bundle),
             LintableTarget(platform: .macOS, product: .staticLibrary),
             LintableTarget(platform: .macOS, product: .dynamicLibrary),
             LintableTarget(platform: .macOS, product: .framework),
