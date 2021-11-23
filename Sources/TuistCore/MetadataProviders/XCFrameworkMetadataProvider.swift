@@ -92,7 +92,9 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider, XCF
 
         guard let library = libraries.first(where: {
             let hasValidArchitectures = !$0.architectures.filter(archs.contains).isEmpty
-            guard hasValidArchitectures, let binaryPath = try? path(for: $0, binaryName: $0.path.basenameWithoutExt, xcframeworkPath: xcframeworkPath) else {
+            guard hasValidArchitectures,
+                let binaryPath = try? path(for: $0, binaryName: $0.path.basenameWithoutExt, xcframeworkPath: xcframeworkPath)
+            else {
                 return false
             }
             guard FileHandler.shared.exists(binaryPath) else {
