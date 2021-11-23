@@ -60,7 +60,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         subject = nil
         super.tearDown()
     }
-    
+
     func test_remotePluginPaths() throws {
         // Given
         let pluginAGitURL = "https://url/to/repo/a.git"
@@ -88,10 +88,10 @@ final class PluginServiceTests: TuistUnitTestCase {
         try fileHandler.touch(
             pluginBDirectory.appending(components: PluginServiceConstants.release)
         )
-        
+
         // When
         let remotePluginPaths = try subject.remotePluginPaths(using: config)
-        
+
         // Then
         XCTAssertEqual(
             Set(remotePluginPaths),
@@ -111,7 +111,7 @@ final class PluginServiceTests: TuistUnitTestCase {
             ])
         )
     }
-    
+
     func test_fetchRemotePlugins_when_git_sha() throws {
         // Given
         let pluginGitURL = "https://url/to/repo.git"
@@ -119,7 +119,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginFingerprint = "\(pluginGitURL)-\(pluginGitSha)".md5
         let config = mockConfig(
             plugins: [
-                .git(url: pluginGitURL, gitReference: .sha(pluginGitSha))
+                .git(url: pluginGitURL, gitReference: .sha(pluginGitSha)),
             ]
         )
         var invokedCloneURL: String?
@@ -134,10 +134,10 @@ final class PluginServiceTests: TuistUnitTestCase {
             invokedCheckoutID = id
             invokedCheckoutPath = path
         }
-        
+
         // When
         try subject.fetchRemotePlugins(using: config)
-        
+
         // Then
         XCTAssertEqual(invokedCloneURL, pluginGitURL)
         XCTAssertEqual(
@@ -150,7 +150,7 @@ final class PluginServiceTests: TuistUnitTestCase {
             cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint, PluginServiceConstants.repository)
         )
     }
-    
+
     func test_fetchRemotePlugins_when_git_tag_and_repository_not_cached() throws {
         // Given
         let pluginGitURL = "https://url/to/repo.git"
@@ -158,7 +158,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginFingerprint = "\(pluginGitURL)-\(pluginGitTag)".md5
         let config = mockConfig(
             plugins: [
-                .git(url: pluginGitURL, gitReference: .tag(pluginGitTag))
+                .git(url: pluginGitURL, gitReference: .tag(pluginGitTag)),
             ]
         )
         var invokedCloneURL: String?
@@ -173,10 +173,10 @@ final class PluginServiceTests: TuistUnitTestCase {
             invokedCheckoutID = id
             invokedCheckoutPath = path
         }
-        
+
         // When
         try subject.fetchRemotePlugins(using: config)
-        
+
         // Then
         XCTAssertEqual(invokedCloneURL, pluginGitURL)
         XCTAssertEqual(
@@ -189,7 +189,7 @@ final class PluginServiceTests: TuistUnitTestCase {
             cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint, PluginServiceConstants.repository)
         )
     }
-    
+
     func test_fetchRemotePlugins_when_git_tag_and_repository_cached() throws {
         // Given
         let pluginGitURL = "https://url/to/repo.git"
@@ -197,10 +197,10 @@ final class PluginServiceTests: TuistUnitTestCase {
         let pluginFingerprint = "\(pluginGitURL)-\(pluginGitTag)".md5
         let config = mockConfig(
             plugins: [
-                .git(url: pluginGitURL, gitReference: .tag(pluginGitTag))
+                .git(url: pluginGitURL, gitReference: .tag(pluginGitTag)),
             ]
         )
-        
+
         let pluginDirectory = cacheDirectoriesProvider.cacheDirectory(for: .plugins)
             .appending(component: pluginFingerprint)
         let temporaryDirectory = try temporaryPath()
@@ -211,7 +211,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         )
         let commandPath = pluginDirectory.appending(components: PluginServiceConstants.release, "tuist-command")
         try fileHandler.touch(commandPath)
-        
+
         // When / Then
         try subject.fetchRemotePlugins(using: config)
     }

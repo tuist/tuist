@@ -6,7 +6,7 @@ public enum PluginLocation: Hashable, Equatable {
         case sha(String)
         case tag(String)
     }
-    
+
     /// An absolute path `String` to a directory a `Plugin` manifest.
     ///
     /// Example:

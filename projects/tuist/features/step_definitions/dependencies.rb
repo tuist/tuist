@@ -5,5 +5,5 @@ Then(/tuist fetches dependencies/) do
 end
 
 Then(/tuist updates dependencies/) do
-  system(@tuist, "dependencies", "update", "--path", @dir)
+  system(@tuist, "fetch", "dependencies", "--update", "--path", @dir)
 end

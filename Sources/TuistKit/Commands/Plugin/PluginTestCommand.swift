@@ -12,12 +12,12 @@ struct PluginTestCommand: ParsableCommand {
 
     @OptionGroup()
     var pluginOptions: PluginCommand.PluginOptions
-    
+
     @Flag(
         help: "Build both source and test targets."
     )
     var buildTests = false
-    
+
     @Option(
         help: "Test the specified products."
     )

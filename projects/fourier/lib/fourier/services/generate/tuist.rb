@@ -11,8 +11,8 @@ module Fourier
         end
 
         def call
-          dependencies = ["dependencies", "fetch"]
-          Utilities::System.tuist(*dependencies)
+          fetch = ["fetch"]
+          Utilities::System.tuist(*fetch)
 
           generate = ["generate"]
           generate << "--open" if open

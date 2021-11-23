@@ -1,5 +1,5 @@
-import TuistSupport
 import TSCBasic
+import TuistSupport
 
 final class PluginBuildService {
     func run(
@@ -12,7 +12,7 @@ final class PluginBuildService {
     ) throws {
         var buildCommand = [
             "swift", "build",
-            "--configuration", configuration.rawValue
+            "--configuration", configuration.rawValue,
         ]
         if let path = path {
             buildCommand += [
@@ -37,7 +37,7 @@ final class PluginBuildService {
         }
         products.forEach {
             buildCommand += [
-                "--product", $0
+                "--product", $0,
             ]
         }
         try System.shared.runAndPrint(buildCommand)

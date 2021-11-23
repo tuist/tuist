@@ -68,6 +68,10 @@ func targets() -> [Target] {
                 .external(name: "SwiftToolsSupport-auto"),
                 .external(name: "XcodeProj"),
                 .external(name: "Zip"),
+                .target(name: "ProjectDescription"),
+            ],
+            testingDependencies: [
+                .target(name: "TuistGraph"),
             ]
         ),
         Target.module(
