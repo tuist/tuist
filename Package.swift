@@ -240,12 +240,14 @@ let package = Package(
                 signalsDependency,
                 "Zip",
                 "Checksum",
+                "ProjectDescription",
             ]
         ),
         .target(
             name: "TuistSupportTesting",
             dependencies: [
                 "TuistSupport",
+                "TuistGraph",
                 swiftToolsSupportDependency,
             ]
         ),

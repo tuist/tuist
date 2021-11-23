@@ -1,18 +1,18 @@
 import Foundation
-import TuistSupport
-import TuistPlugin
 import TuistLoader
+import TuistPlugin
+import TuistSupport
 
 enum TuistServiceError: FatalError {
     case taskUnavailable
-    
+
     var type: ErrorType {
         switch self {
         case .taskUnavailable:
             return .abortSilent
         }
     }
-    
+
     var description: String {
         switch self {
         case .taskUnavailable:
@@ -24,7 +24,7 @@ enum TuistServiceError: FatalError {
 final class TuistService: NSObject {
     private let pluginService: PluginServicing
     private let configLoader: ConfigLoading
-    
+
     init(
         pluginService: PluginServicing = PluginService(),
         configLoader: ConfigLoading = ConfigLoader(manifestLoader: CachedManifestLoader())
@@ -32,12 +32,12 @@ final class TuistService: NSObject {
         self.pluginService = pluginService
         self.configLoader = configLoader
     }
-    
+
     func run(_ arguments: [String]) throws {
         var arguments = arguments
 
         let commandName = "tuist-\(arguments[0])"
-        
+
         let config = try configLoader.loadConfig(path: FileHandler.shared.currentPath)
         let pluginExecutables = try pluginService.remotePluginPaths(using: config)
             .compactMap(\.releasePath)

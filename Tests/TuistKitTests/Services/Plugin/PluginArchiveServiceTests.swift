@@ -51,7 +51,7 @@ final class PluginArchiveServiceTests: TuistUnitTestCase {
 
         // Then
         XCTAssertPrinterContains(
-            "No tasks found - make sure you have executable products with tuist- prefix defined in your manifest.",
+            "No tasks found - make sure you have executable products with `tuist-` prefix defined in your manifest.",
             at: .warning,
             ==
         )

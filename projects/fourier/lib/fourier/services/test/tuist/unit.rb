@@ -6,8 +6,8 @@ module Fourier
       module Tuist
         class Unit < Base
           def call
-            dependencies = ["dependencies", "fetch"]
-            Utilities::System.tuist(*dependencies)
+            fetch = ["fetch"]
+            Utilities::System.tuist(*fetch)
 
             Utilities::System.tuist("test")
             Dir.chdir(Constants::TUIST_DIRECTORY) do

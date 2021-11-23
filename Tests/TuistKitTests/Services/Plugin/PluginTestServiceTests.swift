@@ -20,7 +20,7 @@ final class PluginTestServiceTests: TuistUnitTestCase {
     func test_run_with_arguments() throws {
         // Given
         let path = try temporaryPath()
-        
+
         system.succeedCommand([
             "swift", "test",
             "--configuration", PluginCommand.PackageConfiguration.release.rawValue,
@@ -29,7 +29,7 @@ final class PluginTestServiceTests: TuistUnitTestCase {
             "--test-product", "MyProduct1",
             "--test-product", "MyProduct2",
         ])
-        
+
         // When / Then
         XCTAssertNoThrow(
             try subject.run(
@@ -40,7 +40,7 @@ final class PluginTestServiceTests: TuistUnitTestCase {
             )
         )
     }
-    
+
     func test_run_with_no_arguments() throws {
         // Given
         system.succeedCommand([

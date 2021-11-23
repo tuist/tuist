@@ -176,7 +176,7 @@ public protocol Systeming {
     /// - Returns: The output of running 'which' with the given tool name.
     /// - Throws: An error if which exits unsuccessfully.
     func which(_ name: String) throws -> String
-    
+
     /// Changes permissions for a given file at `path`
     /// - Parameters:
     ///     - mode: Defines user file mode.
@@ -694,7 +694,7 @@ public final class System: Systeming {
 
         return (stdOut, stdErr)
     }
-    
+
     public func chmod(
         _ mode: FileMode,
         path: AbsolutePath,
