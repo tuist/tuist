@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Fixed
+
+- Fixed handling of SPM binary dependencies with custom library names [#3718](https://github.com/tuist/tuist/issues/3718) by [@wattson12](https://github.com/wattson12)
+
 ## 2.3.0 - Bender
 
 ### Changed
@@ -27,7 +31,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Fixed caching of targets with `sdk` dependencies [#3681](https://github.com/tuist/tuist/pull/3681) by [@danyf90](https://github.com/danyf90)
-- Fixed handling of SPM binary dependencies with custom library names [#3718](https://github.com/tuist/tuist/issues/3718) by [@wattson12](https://github.com/wattson12)
 
 ## 2.2.1 - Weg
 
