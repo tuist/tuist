@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 2.3.0 - Bender
+
 ### Changed
 
 - Focus on project targets when no targets are passed to `tuist focus` [#3654](https://github.com/tuist/tuist/pull/3654) by [@danyf90](https://github.com/danyf90)
