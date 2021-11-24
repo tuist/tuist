@@ -1,0 +1,13 @@
+query Me {
+    me {
+        id
+        email
+        avatarUrl
+        lastVisitedProject {
+          slug
+        }
+        projects {
+          slug
+        }
+    }
+}
