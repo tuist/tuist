@@ -220,12 +220,6 @@ final class LinkGenerator: LinkGenerating {
             switch dependency {
             case .framework:
                 frameworkReferences.append(dependency)
-            case .library:
-                // Do nothing
-                break
-            case .bundle:
-                // Do nothing
-                break
             case let .xcframework(path, _, _, _):
                 guard let fileRef = fileElements.file(path: path) else {
                     throw LinkGeneratorError.missingReference(path: path)
@@ -236,9 +230,6 @@ final class LinkGenerator: LinkGenerating {
                 )
                 pbxproj.add(object: buildFile)
                 embedPhase.files?.append(buildFile)
-            case .sdk:
-                // Do nothing
-                break
             case let .product(target, _, platformFilter):
                 guard let fileRef = fileElements.product(target: target) else {
                     throw LinkGeneratorError.missingProduct(name: target)
@@ -250,6 +241,9 @@ final class LinkGenerator: LinkGenerating {
                 buildFile.platformFilter = platformFilter?.xcodeprojValue
                 pbxproj.add(object: buildFile)
                 embedPhase.files?.append(buildFile)
+            case .library, .bundle, .sdk:
+                // Do nothing
+                break
             }
         }
 
