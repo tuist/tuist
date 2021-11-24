@@ -51,6 +51,7 @@ export type Project = {
   account: Account;
   id: Scalars['ID'];
   name: Scalars['String'];
+  slug: Scalars['String'];
 };
 
 export type Query = {
@@ -70,6 +71,7 @@ export type User = {
   avatarUrl?: Maybe<Scalars['String']>;
   email: Scalars['String'];
   id: Scalars['ID'];
+  lastVisitedProject?: Maybe<Project>;
   organizations: Array<Organization>;
   projects: Array<Project>;
 };
@@ -84,7 +86,7 @@ export type CreateProjectMutation = { __typename?: 'Mutation', createProject: { 
 export type MeQueryVariables = Exact<{ [key: string]: never; }>;
 
 
-export type MeQuery = { __typename?: 'Query', me: { __typename?: 'User', id: string, email: string, avatarUrl?: string | null | undefined } };
+export type MeQuery = { __typename?: 'Query', me: { __typename?: 'User', id: string, email: string, avatarUrl?: string | null | undefined, lastVisitedProject?: { __typename?: 'Project', slug: string } | null | undefined, projects: Array<{ __typename?: 'Project', slug: string }> } };
 
 export type MyAccountsQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -144,6 +146,12 @@ export const MeDocument = gql`
     id
     email
     avatarUrl
+    lastVisitedProject {
+      slug
+    }
+    projects {
+      slug
+    }
   }
 }
     `;

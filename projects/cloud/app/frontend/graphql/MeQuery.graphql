@@ -3,5 +3,11 @@ query Me {
         id
         email
         avatarUrl
+        lastVisitedProject {
+          slug
+        }
+        projects {
+          slug
+        }
     }
 }

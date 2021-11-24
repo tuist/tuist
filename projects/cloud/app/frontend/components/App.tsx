@@ -2,16 +2,35 @@ import React from 'react';
 import GraphqlProvider from '@/networking/GraphqlProvider';
 import ErrorBoundary from '@/components/boundaries/ErrorBoundary';
 import '@shopify/polaris/dist/styles.css';
-import { BrowserRouter, Switch, Route } from 'react-router-dom';
+import { BrowserRouter, Switch, Route, useHistory, useLocation } from 'react-router-dom';
 import NoPageFound from './NoPageFound';
 import NewProject from './NewProject';
 import Dashboard from './Dashboard';
+import { useMeQuery } from '@/graphql/types';
 
 import { AppProvider } from '@shopify/polaris';
 
 const Routes = () => {
-  return (
-    <Switch>
+  const location = useLocation();
+  const history = useHistory();
+
+  const {data, loading, error} = useMeQuery();
+  if (loading) {
+    return <div>loading</div>
+  } else if (error) {
+    return <div>{JSON.stringify(error)}</div>
+  } else {
+    if (location.pathname == "/") {
+      const lastVisitedProject = data?.me.lastVisitedProject
+      const projects = data?.me.projects ?? []
+      const navigateToProjectPath = lastVisitedProject?.slug ?? projects[0]?.slug
+      if (navigateToProjectPath) {
+        history.push(`/${navigateToProjectPath}`);
+      } else {
+        history.push("/new");
+      }
+    }
+    return <Switch>
       <Route
         path="/:accountName/:projectName"
         component={Dashboard}
@@ -19,7 +38,7 @@ const Routes = () => {
       <Route path="/new" component={NewProject} />
       <Route component={NoPageFound} />
     </Switch>
-  );
+  }
 };
 
 const App = (): JSX.Element => {

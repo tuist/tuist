@@ -37,6 +37,7 @@ type Project {
   account: Account!
   id: ID!
   name: String!
+  slug: String!
 }
 
 type Query {
@@ -65,6 +66,7 @@ type User {
   avatarUrl: String
   email: String!
   id: ID!
+  lastVisitedProject: Project
   organizations: [Organization!]!
   projects: [Project!]!
 }

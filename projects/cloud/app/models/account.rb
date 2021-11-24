@@ -5,6 +5,7 @@ class Account < ApplicationRecord
 
   # Associations
   belongs_to :owner, polymorphic: true, optional: false
+  has_many :projects
 
   # Validations
   validates :name, exclusion: BLOCKLISTED_NAMES
