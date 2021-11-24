@@ -12,5 +12,6 @@ Rails.application.routes.draw do
 
   # React App
   root to: "application#app"
+
   get "/(*all)", to: "application#app"
 end
