@@ -5,7 +5,7 @@ require "test_helper"
 class UserTest < ActiveSupport::TestCase
   test "name's exclusion is validated" do
     # Given
-    subject = Account.new(name: Account::BLOCKLISTED_NAMES.first)
+    subject = Account.new(name: Defaults.fetch(:blocklisted_slug_keywords).first)
 
     # When
     subject.validate

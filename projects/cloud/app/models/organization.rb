@@ -5,4 +5,8 @@ class Organization < ApplicationRecord
 
   # Associations
   has_one :account, as: :owner, class_name: "Account", dependent: :destroy
+
+  def name
+    account.name
+  end
 end
