@@ -13,9 +13,6 @@ concurrency:
   group: cocoapods-interactor-${{ github.head_ref }}
   cancel-in-progress: true
 
-env:
-  RUBY_VERSION: '3.0.2'
-
 jobs:
   tests:
     name: Unit tests
