@@ -22,6 +22,8 @@ jobs:
         xcode: ['12.5.1']
     steps:
     - uses: actions/checkout@v2
+    - name: Select Xcode
+      run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
     - uses: ruby/setup-ruby@v1
       with:
         ruby-version: ${{ env.RUBY_VERSION }}
