@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Fixed
+
+- Add missing "Select Xcode" step to "Tuist release" GitHub action [#3731](https://github.com/tuist/tuist/pull/3731) by [@mikchmie](https://github.com/mikchmie)
+
 ## 2.3.0 - Bender
 
 ### Changed
