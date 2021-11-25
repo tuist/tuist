@@ -2,6 +2,35 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistGraph
+import TuistSupport
+
+enum ModuleMapMapperError: FatalError {
+    case invalidTargetDependency(sourceProject: AbsolutePath, sourceTarget: String, dependentTarget: String)
+    case invalidProjectTargetDependency(sourceProject: AbsolutePath, sourceTarget: String, dependentProject: AbsolutePath, dependentTarget: String)
+
+    /// Error type.
+    var type: ErrorType {
+        switch self {
+        case .invalidTargetDependency, .invalidProjectTargetDependency: return .abort
+        }
+    }
+
+    /// Error description.
+    var description: String {
+        switch self {
+        case let .invalidTargetDependency(sourceProject, sourceTarget, dependentTarget):
+            return """
+            Invalid target dependency for target \(sourceTarget) of project at path \(sourceProject.pathString): \
+            can't find target '\(dependentTarget)'
+            """
+        case let .invalidProjectTargetDependency(sourceProject, sourceTarget, dependentProject, dependentTarget):
+            return """
+            Invalid target dependency for target \(sourceTarget) of project at path \(sourceProject.pathString): \
+            can't find target '\(dependentTarget)' of project at path \(dependentProject.pathString)
+            """
+        }
+    }
+}
 
 /// Mapper that maps the `MODULE_MAP` build setting to the `-fmodule-map-file` compiler flags.
 /// It is required to avoid embedding the module map into the frameworks during cache operations, which would make the framework not portable, as
@@ -21,9 +50,9 @@ public final class ModuleMapMapper: WorkspaceMapping {
     public func map(workspace: WorkspaceWithProjects) throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
         let (projectsByPath, targetsByName) = Self.makeProjectsByPathWithTargetsByName(workspace: workspace)
         var targetToModuleMaps: [TargetID: Set<AbsolutePath>] = [:]
-        workspace.projects.forEach { project in
-            project.targets.forEach { target in
-                Self.dependenciesModuleMaps(
+        try workspace.projects.forEach { project in
+            try project.targets.forEach { target in
+                try Self.dependenciesModuleMaps(
                     workspace: workspace,
                     project: project,
                     target: target,
@@ -87,14 +116,14 @@ public final class ModuleMapMapper: WorkspaceMapping {
     /// Calculates the set of module maps to be linked to a given target and populates the `targetToModuleMaps` dictionary.
     /// Each target must link the module map of its direct and indirect dependencies.
     /// The `targetToModuleMaps` is also used as cache to avoid recomputing the set for already computed targets.
-    private static func dependenciesModuleMaps(
+    private static func dependenciesModuleMaps( // swiftlint:disable:this function_body_length
         workspace: WorkspaceWithProjects,
         project: Project,
         target: Target,
         targetToModuleMaps: inout [TargetID: Set<AbsolutePath>],
         projectsByPath: [AbsolutePath: Project],
         targetsByName: [String: Target]
-    ) {
+    ) throws {
         let targetID = TargetID(projectPath: project.path, targetName: target.name)
         if targetToModuleMaps[targetID] != nil {
             // already computed
@@ -107,16 +136,33 @@ public final class ModuleMapMapper: WorkspaceMapping {
             let dependentTarget: Target
             switch dependency {
             case let .target(name):
+                guard let dependentTargetFromName = targetsByName[name] else {
+                    throw ModuleMapMapperError.invalidTargetDependency(
+                        sourceProject: project.path,
+                        sourceTarget: target.name,
+                        dependentTarget: name
+                    )
+                }
                 dependentProject = project
-                dependentTarget = targetsByName[name]!
+                dependentTarget = dependentTargetFromName
             case let .project(name, path):
-                dependentProject = projectsByPath[path]!
-                dependentTarget = targetsByName[name]!
+                guard let dependentProjectFromPath = projectsByPath[path],
+                    let dependentTargetFromName = targetsByName[name]
+                else {
+                    throw ModuleMapMapperError.invalidProjectTargetDependency(
+                        sourceProject: project.path,
+                        sourceTarget: target.name,
+                        dependentProject: path,
+                        dependentTarget: name
+                    )
+                }
+                dependentProject = dependentProjectFromPath
+                dependentTarget = dependentTargetFromName
             case .framework, .xcframework, .library, .package, .sdk, .xctest:
                 continue
             }
 
-            Self.dependenciesModuleMaps(
+            try Self.dependenciesModuleMaps(
                 workspace: workspace,
                 project: dependentProject,
                 target: dependentTarget,
