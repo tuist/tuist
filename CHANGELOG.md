@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 2.3.1 - Avantgarde
+
 ### Fixed
 
 - Fix release process to make Tuist compatible again with Xcode 12.5 and above [#3731](https://github.com/tuist/tuist/pull/3731) by [@mikchmie](https://github.com/mikchmie)
