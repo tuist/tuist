@@ -7,16 +7,23 @@ module Fourier
   module Services
     module Update
       class Xcbeautify < Base
-        VERSION = "0.9.1"
+        VERSION = "0.10.1"
         SOURCE_TAR_URL = "https://github.com/thii/xcbeautify/archive/#{VERSION}.zip"
         OUTPUT_DIRECTORY = File.join(Constants::TUIST_VENDOR_DIRECTORY, "xcbeautify")
+
+        attr_reader :swift_build_directory
+
+        def initialize(swift_build_directory:)
+          @swift_build_directory = swift_build_directory
+          super()
+        end
 
         def call
           Dir.mktmpdir do |temporary_dir|
             Dir.mktmpdir do |temporary_output_directory|
               sources_zip_path = download(temporary_dir: temporary_dir)
               sources_path = extract(sources_zip_path)
-              build(sources_path, into: temporary_output_directory)
+              build(sources_path, into: temporary_output_directory, swift_build_directory: swift_build_directory)
               FileUtils.copy_entry(File.join(sources_path, "LICENSE"), File.join(temporary_output_directory, "LICENSE"))
               FileUtils.copy_entry(temporary_output_directory, OUTPUT_DIRECTORY, false, false, true)
               puts(::CLI::UI.fmt("{{success:xcbeautify built and vendored successfully.}}"))
@@ -39,13 +46,14 @@ module Fourier
             Dir.glob(File.join(content_path, "*/")).first
           end
 
-          def build(sources_path, into:)
+          def build(sources_path, into:, swift_build_directory:)
             puts("Building...")
             Utilities::SwiftPackageManager.build_fat_release_binary(
               path: sources_path,
               product: "xcbeautify",
               binary_name: "xcbeautify",
-              output_directory: into
+              output_directory: into,
+              swift_build_directory: swift_build_directory
             )
           end
       end

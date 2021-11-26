@@ -15,6 +15,7 @@ module Fourier
           supressing_output do
             # Given
             temporary_dir = File.join(@tmp_dir, "temporary_dir")
+            swift_build_directory = File.join(@tmp_dir, "swift_build_directory")
             temporary_output_directory = File.join(@tmp_dir, "temporary_output_directory")
             zip_path = File.join(temporary_dir, "xcbeautify.zip")
             content_path = File.join(temporary_dir, "content")
@@ -40,7 +41,8 @@ module Fourier
                 path: sources_path,
                 product: "xcbeautify",
                 binary_name: "xcbeautify",
-                output_directory: temporary_output_directory
+                output_directory: temporary_output_directory,
+                swift_build_directory: swift_build_directory
               )
             FileUtils
               .expects(:copy_entry)
@@ -50,7 +52,7 @@ module Fourier
               .with(temporary_output_directory, Xcbeautify::OUTPUT_DIRECTORY, false, false, true)
 
             # When/then
-            Update::Xcbeautify.call
+            Update::Xcbeautify.call(swift_build_directory: swift_build_directory)
           end
         end
       end
