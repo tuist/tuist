@@ -11,8 +11,10 @@ module Fourier
 
       desc "xcbeautify", "Update the vendored xcbeautify binary"
       def xcbeautify
-        puts(::CLI::UI.fmt("Updating {{info:xcbeautify}}"))
-        Services::Update::Xcbeautify.call
+        Dir.mktmpdir do |swift_build_directory|
+          puts(::CLI::UI.fmt("Updating {{info:xcbeautify}}"))
+          Services::Update::Xcbeautify.call(swift_build_directory: swift_build_directory)
+        end
       end
 
       desc "all", "Update all the vendored tools"

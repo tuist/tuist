@@ -13,7 +13,7 @@ module Fourier
           executable_path = File.join(gem_path, "exe/rubocop")
           Utilities::System
             .expects(:system)
-            .with(executable_path)
+            .with(executable_path, "-c", File.expand_path(".rubocop.yml", Constants::ROOT_DIRECTORY))
 
           # When/Then
           subject.call
@@ -26,7 +26,7 @@ module Fourier
           executable_path = File.join(gem_path, "exe/rubocop")
           Utilities::System
             .expects(:system)
-            .with(executable_path, "-A")
+            .with(executable_path, "-A", "-c", File.expand_path(".rubocop.yml", Constants::ROOT_DIRECTORY))
 
           # When/Then
           subject.call
