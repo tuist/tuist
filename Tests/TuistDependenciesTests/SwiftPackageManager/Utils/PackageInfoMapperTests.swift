@@ -71,10 +71,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageInfos: [
                 "Package": .init(
                     products: [
-                        .init(name: "Product1", type: .library(.automatic), targets: ["Target_1"]),
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target_1", "Target_2"]),
                     ],
                     targets: [
                         .test(name: "Target_1", type: .binary, url: "https://binary.target.com"),
+                        .test(name: "Target_2"),
                     ],
                     platforms: [],
                     cLanguageStandard: nil,
@@ -91,19 +92,24 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         XCTAssertEqual(
             preprocessInfo.targetToProducts,
             [
-                "Target_1": [.init(name: "Product1", type: .library(.automatic), targets: ["Target_1"])],
+                "Target_1": [.init(name: "Product1", type: .library(.automatic), targets: ["Target_1", "Target_2"])],
+                "Target_2": [.init(name: "Product1", type: .library(.automatic), targets: ["Target_1", "Target_2"])],
             ]
         )
         XCTAssertEqual(
             preprocessInfo.targetToResolvedDependencies,
             [
                 "Target_1": [],
+                "Target_2": [],
             ]
         )
         XCTAssertEqual(
             preprocessInfo.productToExternalDependencies,
             [
-                "Product1": [.xcframework(path: "/Artifacts/Package/Target_1.xcframework")],
+                "Product1": [
+                    .xcframework(path: "/Artifacts/Package/Target_1.xcframework"),
+                    .project(target: "Target_2", path: "/Package"),
+                ],
             ]
         )
     }
@@ -326,7 +332,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         XCTAssertEqual(
             preprocessInfo.targetToResolvedDependencies,
             [
-                "Target_1": [.externalTargets(package: "com.example.dep-1", targets: ["com_example_dep-1"])],
+                "Target_1": [.externalTarget(package: "com.example.dep-1", target: "com_example_dep-1")],
                 "com.example.dep-1": [],
             ]
         )
