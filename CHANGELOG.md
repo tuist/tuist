@@ -9,6 +9,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Improve error message in case `ModuleMapMapper` fails to retrieve a dependency [#3733](https://github.com/tuist/tuist/pull/3733) by [@danyf90](https://github.com/danyf90)
 - Fix resolution of external dependencies with products including binary targets [#3737](https://github.com/tuist/tuist/pull/3737) by [@danyf90](https://github.com/danyf90)
 
+### Changed
+- Update `swiftlint` to version `0.10.1` [#3744](https://github.com/tuist/tuist/pull/3744) by [@pepibumur](https://github.com/pepibumur)
+- Update `xcprettify` to version `0.45.0` [#3744](https://github.com/tuist/tuist/pull/3744) by [@pepibumur](https://github.com/pepibumur)
+
 ## 2.3.1 - Avantgarde
 
 ### Fixed
