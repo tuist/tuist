@@ -31,6 +31,10 @@ module Fourier
               build_tuist(output_directory: build_directory, swift_build_directory: swift_build_directory)
 
               FileUtils.cp_r(
+                File.expand_path("projects/cocoapods-interactor", Constants::ROOT_DIRECTORY),
+                File.expand_path("cocoapods-interactor", build_directory)
+              )
+              FileUtils.cp_r(
                 File.expand_path("projects/tuist/vendor", Constants::ROOT_DIRECTORY),
                 File.expand_path("vendor", build_directory)
               )
@@ -52,7 +56,8 @@ module Fourier
                   "ProjectAutomation.framework",
                   "ProjectAutomation.framework.dSYM",
                   "Templates",
-                  "vendor"
+                  "vendor",
+                  "cocoapods-interactor"
                 )
               end
             end
