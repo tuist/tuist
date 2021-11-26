@@ -1,0 +1,3 @@
+module CocoaPodsInteractor
+
+end

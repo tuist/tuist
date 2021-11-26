@@ -352,8 +352,5 @@ DEPENDENCIES
   xcodeproj (~> 1.19)
   zeitwerk (~> 2.4)
 
-RUBY VERSION
-   ruby 3.0.2p107
-
 BUNDLED WITH
    2.2.25
