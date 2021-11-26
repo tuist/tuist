@@ -29,13 +29,14 @@ final class DumpServiceTests: TuistUnitTestCase {
 
     func test_run_throws_when_file_doesnt_exist() throws {
         for manifest in DumpableManifest.allCases {
-            let tmpDir = try temporaryPath()
-            var expectedDirectory = tmpDir
+            let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
+            var expectedDirectory = tmpDir.path
             if manifest == .config {
                 expectedDirectory = expectedDirectory.appending(component: Constants.tuistDirectoryName)
+                try FileHandler.shared.createFolder(expectedDirectory)
             }
             XCTAssertThrowsSpecific(
-                try subject.run(path: tmpDir.pathString, manifest: manifest),
+                try subject.run(path: tmpDir.path.pathString, manifest: manifest),
                 ManifestLoaderError.manifestNotFound(manifest.manifest, expectedDirectory)
             )
         }
