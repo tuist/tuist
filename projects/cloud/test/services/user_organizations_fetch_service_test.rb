@@ -3,7 +3,7 @@
 require "test_helper"
 
 class UserOrganizationsFetchServiceTest < ActiveSupport::TestCase
-  def test_returns_user_organizations
+  test "test returns user organizations" do
     # Given
     user = User.create!(
       email: "tuist@tuist.io",
@@ -16,7 +16,7 @@ class UserOrganizationsFetchServiceTest < ActiveSupport::TestCase
       Organization.create!(),
     ]
     user.add_role(:user, organizations[0])
-    user.add_role(:user, organizations[2])
+    user.add_role(:admin, organizations[2])
 
     # When
     gotOrganizations = UserOrganizationsFetchService.call(user: user)
@@ -31,7 +31,7 @@ class UserOrganizationsFetchServiceTest < ActiveSupport::TestCase
     )
   end
 
-  def test_returns_no_organizations
+  test "test returns no organizations" do
     # Given
     user = User.create!(
       email: "tuist@tuist.io",

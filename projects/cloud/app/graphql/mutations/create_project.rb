@@ -1,12 +1,13 @@
 module Mutations
   class CreateProject < ::Mutations::BaseMutation
-    argument :account_id, ID, required: true
     argument :name, String, required: true
+    argument :account_id, ID, required: false
+    argument :organization_name, String, required: false
 
     type Types::ProjectType
 
-    def resolve(**attributes)
-      Project.create!(**attributes, token: Devise.friendly_token.first(8))
+    def resolve(attributes)
+      ProjectCreateService.call(creator: context[:current_user], **attributes)
     end
   end
 end

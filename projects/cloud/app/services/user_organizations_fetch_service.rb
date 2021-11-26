@@ -7,6 +7,6 @@ class UserOrganizationsFetchService < ApplicationService
   end
 
   def call
-    Organization.with_role(:user, @user)
+    Organization.with_roles([:user, :admin], @user)
   end
 end
