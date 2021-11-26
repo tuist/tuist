@@ -7,3 +7,4 @@ that your contributions are licensed under the MIT License.
 Before submitting the pull request, please make sure you have [tested your
 changes](https://docs.tuist.io/contributors/testing-strategy/)
 and that they follow the Tuist project [Manifesto](https://docs.tuist.io/contributors/manifesto/).
+Thanks for the contribution!
