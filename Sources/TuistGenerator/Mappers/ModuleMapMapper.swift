@@ -20,13 +20,15 @@ enum ModuleMapMapperError: FatalError {
         switch self {
         case let .invalidTargetDependency(sourceProject, sourceTarget, dependentTarget):
             return """
-            Invalid target dependency for target \(sourceTarget) of project at path \(sourceProject.pathString): \
-            can't find target '\(dependentTarget)'
+            Target '\(sourceTarget)' of the project at path '\(sourceProject.pathString)' \
+            depends on a target '\(dependentTarget)' that can't be found. \
+            Please make sure your project configuration is correct.
             """
         case let .invalidProjectTargetDependency(sourceProject, sourceTarget, dependentProject, dependentTarget):
             return """
-            Invalid target dependency for target \(sourceTarget) of project at path \(sourceProject.pathString): \
-            can't find target '\(dependentTarget)' of project at path \(dependentProject.pathString)
+            Target '\(sourceTarget)' of the project at path '\(sourceProject.pathString)' \
+            depends on a target '\(dependentTarget)' of the project at path '\(dependentProject.pathString)' that can't be found. \
+            Please make sure your project configuration is correct.
             """
         }
     }
