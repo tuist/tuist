@@ -37,7 +37,7 @@
     "vite-plugin-ruby": "^2.0.5"
   },
   "dependencies": {
-    "@apollo/client": "^3.4.17",
+    "@apollo/client": "^3.5.5",
     "@rails/ujs": "^6.1.4",
     "@shopify/polaris": "^6.6.0",
     "apollo-link": "^1.2.14",
