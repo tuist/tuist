@@ -100,6 +100,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
             ],
             productTypes: [:],
+            baseSettings: .default,
             targetSettings: [:]
         )
         let dependencies = Dependencies(
@@ -151,6 +152,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
             ],
             productTypes: [:],
+            baseSettings: .default,
             targetSettings: [:]
         )
         let dependencies = Dependencies(
@@ -215,6 +217,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
                     .remote(url: "Moya", requirement: .exact("2.3.4")),
                 ],
                 productTypes: [:],
+                baseSettings: .default,
                 targetSettings: [:]
             ),
             platforms: [.iOS]
@@ -259,7 +262,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         let dependencies = TuistGraph.Dependencies(
             carthage: .init([]),
-            swiftPackageManager: .init([], productTypes: [:], targetSettings: [:]),
+            swiftPackageManager: .init([], productTypes: [:], baseSettings: .default, targetSettings: [:]),
             platforms: []
         )
 
@@ -276,7 +279,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         let dependencies = TuistGraph.Dependencies(
             carthage: .init([]),
-            swiftPackageManager: .init([], productTypes: [:], targetSettings: [:]),
+            swiftPackageManager: .init([], productTypes: [:], baseSettings: .default, targetSettings: [:]),
             platforms: [.iOS]
         )
 
@@ -350,6 +353,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
             ],
             productTypes: [:],
+            baseSettings: .default,
             targetSettings: [:]
         )
         let dependencies = Dependencies(
@@ -400,6 +404,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
                 .remote(url: "Alamofire", requirement: .upToNextMajor("5.0.0")),
             ],
             productTypes: [:],
+            baseSettings: .default,
             targetSettings: [:]
         )
         let dependencies = Dependencies(
@@ -445,7 +450,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         let dependencies = TuistGraph.Dependencies(
             carthage: .init([]),
-            swiftPackageManager: .init([], productTypes: [:], targetSettings: [:]),
+            swiftPackageManager: .init([], productTypes: [:], baseSettings: .default, targetSettings: [:]),
             platforms: []
         )
 
@@ -462,7 +467,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         let dependencies = TuistGraph.Dependencies(
             carthage: .init([]),
-            swiftPackageManager: .init([], productTypes: [:], targetSettings: [:]),
+            swiftPackageManager: .init([], productTypes: [:], baseSettings: .default, targetSettings: [:]),
             platforms: [.iOS]
         )
 

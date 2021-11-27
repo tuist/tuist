@@ -10,6 +10,11 @@ module Fourier
       def fourier(test = nil)
         Services::Test::Fourier.call(test: test)
       end
+
+      desc "cocoapods-interactor TEST", "Run all the unit tests from the CocoaPods Interactor"
+      def cocoapods_interactor(test = nil)
+        Services::Test::CocoapodsInteractor.call(test: test)
+      end
     end
   end
 end

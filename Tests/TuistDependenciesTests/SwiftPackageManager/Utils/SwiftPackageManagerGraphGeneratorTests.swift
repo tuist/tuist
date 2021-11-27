@@ -290,6 +290,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
                 "GULNetwork": .dynamicLibrary,
             ],
             platforms: [.iOS],
+            baseSettings: .default,
             targetSettings: [:],
             swiftToolsVersion: nil
         )

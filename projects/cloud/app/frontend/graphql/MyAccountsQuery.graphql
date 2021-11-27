@@ -1,0 +1,6 @@
+query MyAccounts {
+  accounts {
+    id
+    name
+  }
+}

@@ -8,6 +8,9 @@ public struct SwiftPackageManagerDependencies: Equatable {
     /// The custom `Product` types to be used for SPM targets.
     public let productTypes: [String: Product]
 
+    // The base settings to be used for targets generated from SwiftPackageManager
+    public let baseSettings: Settings
+
     /// The custom `Settings` to be applied to SPM targets
     public let targetSettings: [String: SettingsDictionary]
 
@@ -15,14 +18,17 @@ public struct SwiftPackageManagerDependencies: Equatable {
     /// - Parameters:
     ///    - packages: List of packages that will be installed using Swift Package Manager.
     ///    - productTypes: The custom `Product` types to be used for SPM targets.
+    ///    - baseSettings: The base settings to be used for targets generated from SwiftPackageManager
     ///    - targetSettings: The custom `SettingsDictionary` to be applied to denoted targets
     public init(
         _ packages: [Package],
         productTypes: [String: Product],
+        baseSettings: Settings,
         targetSettings: [String: SettingsDictionary]
     ) {
         self.packages = packages
         self.productTypes = productTypes
+        self.baseSettings = baseSettings
         self.targetSettings = targetSettings
     }
 }

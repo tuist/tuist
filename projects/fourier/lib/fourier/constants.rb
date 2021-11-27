@@ -9,6 +9,7 @@ module Fourier
     TUIST_VENDOR_DIRECTORY = File.expand_path("projects/tuist/vendor", ROOT_DIRECTORY)
     FIXTUREGEN_DIRECTORY = File.expand_path("projects/fixturegen", ROOT_DIRECTORY)
     FOURIER_DIRECTORY = File.expand_path("projects/fourier", ROOT_DIRECTORY)
+    COCOAPODS_INTERACTOR_DIRECTORY = File.expand_path("projects/cocoapods-interactor", ROOT_DIRECTORY)
     TUISTBENCH_DIRECTORY = File.expand_path("projects/tuistbench", ROOT_DIRECTORY)
     WEBSITE_DIRECTORY = File.expand_path("projects/website", ROOT_DIRECTORY)
     DOCS_DIRECTORY = File.expand_path("projects/docs", ROOT_DIRECTORY)

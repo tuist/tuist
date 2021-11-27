@@ -71,10 +71,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             packageInfos: [
                 "Package": .init(
                     products: [
-                        .init(name: "Product1", type: .library(.automatic), targets: ["Target_1"]),
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target_1", "Target_2"]),
                     ],
                     targets: [
                         .test(name: "Target_1", type: .binary, url: "https://binary.target.com"),
+                        .test(name: "Target_2"),
                     ],
                     platforms: [],
                     cLanguageStandard: nil,
@@ -91,19 +92,24 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         XCTAssertEqual(
             preprocessInfo.targetToProducts,
             [
-                "Target_1": [.init(name: "Product1", type: .library(.automatic), targets: ["Target_1"])],
+                "Target_1": [.init(name: "Product1", type: .library(.automatic), targets: ["Target_1", "Target_2"])],
+                "Target_2": [.init(name: "Product1", type: .library(.automatic), targets: ["Target_1", "Target_2"])],
             ]
         )
         XCTAssertEqual(
             preprocessInfo.targetToResolvedDependencies,
             [
                 "Target_1": [],
+                "Target_2": [],
             ]
         )
         XCTAssertEqual(
             preprocessInfo.productToExternalDependencies,
             [
-                "Product1": [.xcframework(path: "/Artifacts/Package/Target_1.xcframework")],
+                "Product1": [
+                    .xcframework(path: "/Artifacts/Package/Target_1.xcframework"),
+                    .project(target: "Target_2", path: "/Package"),
+                ],
             ]
         )
     }
@@ -326,7 +332,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         XCTAssertEqual(
             preprocessInfo.targetToResolvedDependencies,
             [
-                "Target_1": [.externalTargets(package: "com.example.dep-1", targets: ["com_example_dep-1"])],
+                "Target_1": [.externalTarget(package: "com.example.dep-1", target: "com_example_dep-1")],
                 "com.example.dep-1": [],
             ]
         )
@@ -1457,7 +1463,80 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
         )
     }
 
-    func testMap_whenSettingsContainsCustomSettingsDictionary_mapsToCustomSettings() throws {
+    func testMap_whenConfigurationContainsBaseSettingsDictionary_usesBaseSettings() throws {
+        let basePath = try temporaryPath()
+        let sourcesPath = basePath.appending(RelativePath("Package/Path/Sources/Target1"))
+        try fileHandler.createFolder(sourcesPath)
+
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: ["Target1"]),
+                    ],
+                    targets: [
+                        .test(
+                            name: "Target1",
+                            settings: [
+                                .init(tool: .linker, name: .unsafeFlags, condition: nil, value: ["key1"]),
+                                .init(tool: .linker, name: .unsafeFlags, condition: nil, value: ["key2", "key3"]),
+                            ]
+                        ),
+                    ],
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            baseSettings: .init(
+                configurations: [
+                    .init(name: "Debug", variant: .debug): .init(
+                        settings: ["CUSTOM_SETTING_1": .string("CUSTOM_VALUE_1")],
+                        xcconfig: sourcesPath.appending(component: "Config.xcconfig")
+                    ),
+                    .init(name: "Release", variant: .release): .init(
+                        settings: ["CUSTOM_SETTING_2": .string("CUSTOM_VALUE_2")],
+                        xcconfig: sourcesPath.appending(component: "Config.xcconfig")
+                    ),
+                ]
+            )
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        baseSettings: .settings(
+                            configurations: [
+                                .debug(
+                                    name: "Debug",
+                                    settings: ["CUSTOM_SETTING_1": .string("CUSTOM_VALUE_1")],
+                                    xcconfig: .relativeToRoot("Sources/Target1/Config.xcconfig")
+                                ),
+                                .release(
+                                    name: "Release",
+                                    settings: ["CUSTOM_SETTING_2": .string("CUSTOM_VALUE_2")],
+                                    xcconfig: .relativeToRoot("Sources/Target1/Config.xcconfig")
+                                ),
+                            ],
+                            defaultSettings: .recommended
+                        ),
+                        customSettings: [
+                            "OTHER_LDFLAGS": ["key1", "key2", "key3"],
+                        ]
+                    ),
+                ]
+            )
+        )
+    }
+
+    func testMap_whenConfigurationContainsTargetSettingsDictionary_mapsToCustomSettings() throws {
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(RelativePath("Package/Path/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)
@@ -2154,6 +2233,7 @@ extension PackageInfoMapping {
         basePath: AbsolutePath = "/",
         packageInfos: [String: PackageInfo] = [:],
         platforms: Set<TuistGraph.Platform> = [.iOS],
+        baseSettings: TuistGraph.Settings = .default,
         targetSettings: [String: TuistGraph.SettingsDictionary] = [:],
         swiftToolsVersion: TSCUtility.Version? = nil
     ) throws -> ProjectDescription.Project? {
@@ -2181,6 +2261,7 @@ extension PackageInfoMapping {
             name: package,
             path: basePath.appending(component: package).appending(component: "Path"),
             productTypes: [:],
+            baseSettings: baseSettings,
             targetSettings: targetSettings,
             minDeploymentTargets: preprocessInfo.platformToMinDeploymentTarget,
             targetToPlatform: preprocessInfo.targetToPlatform,
@@ -2249,6 +2330,7 @@ extension ProjectDescription.Target {
         resources: [ProjectDescription.ResourceFileElement] = [],
         headers: ProjectDescription.Headers? = nil,
         dependencies: [ProjectDescription.TargetDependency] = [],
+        baseSettings: ProjectDescription.Settings = .settings(),
         customSettings: ProjectDescription.SettingsDictionary = [:],
         moduleMap: String? = nil
     ) -> Self {
@@ -2263,7 +2345,7 @@ extension ProjectDescription.Target {
             resources: resources.isEmpty ? nil : ResourceFileElements(resources: resources),
             headers: headers,
             dependencies: dependencies,
-            settings: DependenciesGraph.spmSettings(with: customSettings, moduleMap: moduleMap)
+            settings: DependenciesGraph.spmSettings(baseSettings: baseSettings, with: customSettings, moduleMap: moduleMap)
         )
     }
 }

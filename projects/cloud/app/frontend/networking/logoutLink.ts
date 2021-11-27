@@ -16,6 +16,7 @@ export const logoutIfError = (
 };
 
 const logoutLink = onError(({ networkError }) =>
+  // @ts-ignore
   logoutIfError(networkError),
 );
 

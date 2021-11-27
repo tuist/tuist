@@ -8,7 +8,7 @@ module Fourier
   module Services
     module Update
       class Swiftlint < Base
-        VERSION = "0.43.1"
+        VERSION = "0.45.0"
         PORTABLE_BINARY_URL = "https://github.com/realm/SwiftLint/releases/download/#{VERSION}/portable_swiftlint.zip"
         OUTPUT_DIRECTORY = File.join(Constants::TUIST_VENDOR_DIRECTORY, "swiftlint")
 

@@ -12,11 +12,10 @@
 
 4.times do |index|
   Faker::Config.random = Random.new(index)
-  Organization.create!
+  organization = Organization.create!
   Account.create!(
     name: Faker::Superhero.name,
-    owner_type: "organization",
-    owner_id: index
+    owner: organization
   )
 end
 
@@ -31,8 +30,7 @@ end
   )
   Account.create!(
     name: email.split(/@/, 2).first,
-    owner_type: "user",
-    owner_id: index
+    owner: user
   )
   organization = Organization.find(Faker::Number.between(from: 1, to: 4))
   user.add_role(:user, organization)

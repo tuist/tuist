@@ -108,6 +108,7 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
             at: pathsProvider.destinationBuildDirectory,
             productTypes: dependencies.productTypes,
             platforms: platforms,
+            baseSettings: dependencies.baseSettings,
             targetSettings: dependencies.targetSettings,
             swiftToolsVersion: swiftToolsVersion
         )

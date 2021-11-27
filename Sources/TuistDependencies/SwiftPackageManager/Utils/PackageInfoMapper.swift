@@ -96,6 +96,7 @@ public protocol PackageInfoMapping {
     ///   - name: Name of the package
     ///   - path: Path of the package
     ///   - productTypes: Product type mapping
+    ///   - baseSettings: Base settings
     ///   - targetSettings: Settings to apply to denoted targets
     ///   - minDeploymentTargets: Minimum support deployment target per platform
     ///   - targetToPlatform: Mapping from a target name to its platform
@@ -110,6 +111,7 @@ public protocol PackageInfoMapping {
         name: String,
         path: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
+        baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary],
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         targetToPlatform: [String: ProjectDescription.Platform],
@@ -209,15 +211,16 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
         let externalDependencies: [String: [ProjectDescription.TargetDependency]] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             try packageInfo.value.products.forEach { product in
-                result[product.name] = try product.targets.map { target in
-                    let resolvedDependency = ResolvedDependency.fromTarget(name: target, targetDependencyToFramework: targetDependencyToFramework)
-                    switch resolvedDependency {
-                    case let .xcframework(path):
-                        return .xcframework(path: path)
-                    case let .target(name):
-                        return .project(target: name, path: Path(packageToFolder[packageInfo.key]!.pathString))
-                    case .externalTargets:
-                        throw PackageInfoMapperError.unknownProductTarget(package: packageInfo.key, product: product.name, target: target)
+                result[product.name] = try product.targets.flatMap { target in
+                    try ResolvedDependency.fromTarget(name: target, targetDependencyToFramework: targetDependencyToFramework).map {
+                        switch $0 {
+                        case let .xcframework(path):
+                            return .xcframework(path: path)
+                        case let .target(name):
+                            return .project(target: name, path: Path(packageToFolder[packageInfo.key]!.pathString))
+                        case .externalTarget:
+                            throw PackageInfoMapperError.unknownProductTarget(package: packageInfo.key, product: product.name, target: target)
+                        }
                     }
                 }
             }
@@ -262,6 +265,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         name: String,
         path: AbsolutePath,
         productTypes: [String: TuistGraph.Product],
+        baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary],
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         targetToPlatform: [String: ProjectDescription.Platform],
@@ -281,6 +285,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 packageFolder: path,
                 packageToProject: packageToProject,
                 productTypes: productTypes,
+                baseSettings: baseSettings,
                 targetSettings: targetSettings,
                 platforms: targetToPlatform,
                 minDeploymentTargets: minDeploymentTargets,
@@ -317,6 +322,7 @@ extension ProjectDescription.Target {
         packageFolder: AbsolutePath,
         packageToProject: [String: AbsolutePath],
         productTypes: [String: TuistGraph.Product],
+        baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary],
         platforms: [String: ProjectDescription.Platform],
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
@@ -366,6 +372,7 @@ extension ProjectDescription.Target {
             settings: target.settings,
             platform: platform,
             moduleMap: moduleMap,
+            baseSettings: baseSettings,
             targetSettings: targetSettings
         )
 
@@ -538,14 +545,14 @@ extension ProjectDescription.TargetDependency {
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         packageToProject: [String: AbsolutePath]
     ) throws -> [Self] {
-        let targetDependencies = resolvedDependencies.flatMap { dependency -> [Self] in
+        let targetDependencies = resolvedDependencies.map { dependency -> Self in
             switch dependency {
             case let .target(name):
-                return [.target(name: name)]
+                return .target(name: name)
             case let .xcframework(path):
-                return [.xcframework(path: path)]
-            case let .externalTargets(project, targets):
-                return targets.map { .project(target: $0, path: Path(packageToProject[project]!.pathString)) }
+                return .xcframework(path: path)
+            case let .externalTarget(project, target):
+                return .project(target: target, path: Path(packageToProject[project]!.pathString))
             }
         }
 
@@ -596,6 +603,7 @@ extension ProjectDescription.Settings {
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
         platform: ProjectDescription.Platform,
         moduleMap: (type: ModuleMapType, path: AbsolutePath?),
+        baseSettings: TuistGraph.Settings,
         targetSettings: [String: TuistGraph.SettingsDictionary]
     ) throws -> Self? {
         var headerSearchPaths: [String] = []
@@ -717,7 +725,7 @@ extension ProjectDescription.Settings {
             settingsDictionary.merge(projectDescriptionSettingsToOverride)
         }
 
-        return .settings(base: settingsDictionary)
+        return .from(settings: baseSettings, adding: settingsDictionary, packageFolder: packageFolder)
     }
 
     fileprivate struct PackageTarget: Hashable {
@@ -745,11 +753,13 @@ extension ProjectDescription.Settings {
                             return []
                         }
                         return [PackageTarget(package: packageTarget.package, target: target)]
-                    case let .externalTargets(package, targets):
+                    case let .externalTarget(package, target):
                         guard let packageInfo = packageInfos[package] else { return [] }
-                        return packageInfo.targets.filter { targets.contains($0.name) }.map {
-                            return PackageTarget(package: package, target: $0)
-                        }
+                        return packageInfo.targets
+                            .filter { $0.name == target }
+                            .map {
+                                return PackageTarget(package: package, target: $0)
+                            }
                     case .xcframework:
                         return []
                     }
@@ -856,6 +866,55 @@ extension ProjectDescription.SettingsDictionary {
     }
 }
 
+extension ProjectDescription.Settings {
+    fileprivate static func from(
+        settings: TuistGraph.Settings,
+        adding: ProjectDescription.SettingsDictionary,
+        packageFolder: AbsolutePath
+    ) -> Self {
+        return .settings(
+            base: .from(settingsDictionary: settings.base).merging(adding, uniquingKeysWith: { $1 }),
+            configurations: settings.configurations
+                .map { buildConfiguration, configuration in
+                    .from(buildConfiguration: buildConfiguration, configuration: configuration, packageFolder: packageFolder)
+                }
+                .sorted { $0.name.rawValue < $1.name.rawValue },
+            defaultSettings: .from(defaultSettings: settings.defaultSettings)
+        )
+    }
+}
+
+extension ProjectDescription.Configuration {
+    fileprivate static func from(
+        buildConfiguration: BuildConfiguration,
+        configuration: TuistGraph.Configuration?,
+        packageFolder: AbsolutePath
+    ) -> Self {
+        let name = ConfigurationName(stringLiteral: buildConfiguration.name)
+        let settings = ProjectDescription.SettingsDictionary.from(settingsDictionary: configuration?.settings ?? [:])
+        let xcconfig = configuration?.xcconfig.map { Path.relativeToRoot($0.relative(to: packageFolder).pathString) }
+        switch buildConfiguration.variant {
+        case .debug:
+            return .debug(name: name, settings: settings, xcconfig: xcconfig)
+        case .release:
+            return .release(name: name, settings: settings, xcconfig: xcconfig)
+        }
+    }
+}
+
+extension ProjectDescription.DefaultSettings {
+    fileprivate static func from(defaultSettings: TuistGraph.DefaultSettings) -> Self {
+        switch defaultSettings {
+        case let .recommended(excluding):
+            return .recommended(excluding: excluding)
+        case let .essential(excluding):
+            return .essential(excluding: excluding)
+        case .none:
+            return .none
+        }
+    }
+}
+
 extension ProjectDescription.DeploymentTarget {
     fileprivate static func from(deploymentTarget: TuistGraph.DeploymentTarget) -> Self {
         switch deploymentTarget {
@@ -940,7 +999,7 @@ extension PackageInfoMapper {
     public enum ResolvedDependency: Equatable {
         case target(name: String)
         case xcframework(path: Path)
-        case externalTargets(package: String, targets: [String])
+        case externalTarget(package: String, target: String)
 
         fileprivate static func from(
             dependencies: [PackageInfo.Target.Dependency],
@@ -949,12 +1008,17 @@ extension PackageInfoMapper {
             productToPackage _: [String: String],
             targetDependencyToFramework: [String: Path]
         ) throws -> [ResolvedDependency] {
-            return try dependencies.map { dependency -> Self in
+            return try dependencies.flatMap { dependency -> [Self] in
                 switch dependency {
                 case let .target(name, _):
                     return Self.fromTarget(name: name, targetDependencyToFramework: targetDependencyToFramework)
                 case let .product(name, package, _):
-                    return try Self.fromProduct(package: package, product: name, packageInfos: packageInfos)
+                    return try Self.fromProduct(
+                        package: package,
+                        product: name,
+                        packageInfos: packageInfos,
+                        targetDependencyToFramework: targetDependencyToFramework
+                    )
                 case let .byName(name, _):
                     if packageInfo.targets.contains(where: { $0.name == name }) {
                         return Self.fromTarget(name: name, targetDependencyToFramework: targetDependencyToFramework)
@@ -963,30 +1027,42 @@ extension PackageInfoMapper {
                             throw PackageInfoMapperError.unknownByNameDependency(name)
                         }
 
-                        return try Self.fromProduct(package: packageNameAndInfo.key, product: name, packageInfos: packageInfos)
+                        return try Self.fromProduct(
+                            package: packageNameAndInfo.key,
+                            product: name,
+                            packageInfos: packageInfos,
+                            targetDependencyToFramework: targetDependencyToFramework
+                        )
                     }
                 }
             }
         }
 
-        fileprivate static func fromTarget(name: String, targetDependencyToFramework: [String: Path]) -> Self {
+        fileprivate static func fromTarget(name: String, targetDependencyToFramework: [String: Path]) -> [Self] {
             if let framework = targetDependencyToFramework[name] {
-                return .xcframework(path: framework)
+                return [.xcframework(path: framework)]
             } else {
-                return .target(name: PackageInfoMapper.sanitize(targetName: name))
+                return [.target(name: PackageInfoMapper.sanitize(targetName: name))]
             }
         }
 
         private static func fromProduct(
             package: String,
             product: String,
-            packageInfos: [String: PackageInfo]
-        ) throws -> Self {
+            packageInfos: [String: PackageInfo],
+            targetDependencyToFramework: [String: Path]
+        ) throws -> [Self] {
             guard let packageProduct = packageInfos[package]?.products.first(where: { $0.name == product }) else {
                 throw PackageInfoMapperError.unknownProductDependency(product, package)
             }
-            let targets = packageProduct.targets.map(PackageInfoMapper.sanitize(targetName:))
-            return .externalTargets(package: package, targets: targets)
+
+            return packageProduct.targets.map { name in
+                if let framework = targetDependencyToFramework[name] {
+                    return .xcframework(path: framework)
+                } else {
+                    return .externalTarget(package: package, target: PackageInfoMapper.sanitize(targetName: name))
+                }
+            }
         }
     }
 }
