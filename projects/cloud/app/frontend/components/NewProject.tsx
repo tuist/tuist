@@ -77,7 +77,7 @@ const NewProject = () => {
   const navigate = useNavigate();
   const [createProject] = useCreateProjectMutation({
     onCompleted: ({ createProject }) => {
-      navigate(createProject.slug);
+      navigate(`/${createProject.slug}`);
     },
   });
 

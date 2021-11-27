@@ -1,6 +1,7 @@
 type Account {
   id: ID!
   name: String!
+  owner: Owner!
 }
 
 """
@@ -34,6 +35,8 @@ type Organization {
   id: ID!
 }
 
+union Owner = Organization | User
+
 type Project {
   account: Account!
   id: ID!
@@ -56,6 +59,11 @@ type Query {
   Returns all available organizations for the authenticated user
   """
   organizations: [Organization!]!
+
+  """
+  Returns project for a given name and account name
+  """
+  project(accountName: String!, name: String!): Project
 
   """
   Returns all available projects for the authenticated user

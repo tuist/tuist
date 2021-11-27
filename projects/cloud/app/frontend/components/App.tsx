@@ -17,6 +17,7 @@ import Dashboard from './Dashboard';
 import Home from './Home';
 import { useMeQuery } from '@/graphql/types';
 import RemoteCache from './RemoteCache';
+import Organization from './Organization';
 
 import { AppProvider } from '@shopify/polaris';
 
@@ -46,6 +47,7 @@ const AppRoutes = () => {
         <Route path="/:accountName/:projectName" element={<Home />}>
           <Route path="" element={<Dashboard />} />
           <Route path="remote-cache" element={<RemoteCache />} />
+          <Route path="organization" element={<Organization />} />
         </Route>
         <Route path="/new" element={<NewProject />} />
         <Route element={<NoPageFound />} />
