@@ -8,5 +8,6 @@ module Types
     field :last_visited_project, ProjectType, null: true
     field :projects, [ProjectType], null: false
     field :organizations, [OrganizationType], null: false
+    field :account, AccountType, null: false
   end
 end

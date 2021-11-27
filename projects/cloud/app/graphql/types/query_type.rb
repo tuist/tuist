@@ -38,8 +38,16 @@ module Types
       argument :name, String, required: true
       argument :account_name, String, required: true
     end
-  def project(name:, account_name:)
-    ProjectFetchService.call(name: name, account_name: account_name)
-  end
+    def project(name:, account_name:)
+      ProjectFetchService.call(name: name, account_name: account_name)
+    end
+
+    field :organization, OrganizationType, null: true,
+      description: "Returns organization for a given name" do
+      argument :name, String, required: true
+    end
+    def organization(name:)
+      OrganizationFetchService.call(name: name)
+    end
   end
 end

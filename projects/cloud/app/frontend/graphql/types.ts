@@ -46,6 +46,7 @@ export type Organization = {
   __typename?: 'Organization';
   account: Account;
   id: Scalars['ID'];
+  users: Array<User>;
 };
 
 export type Owner = Organization | User;
@@ -64,12 +65,19 @@ export type Query = {
   accounts: Array<Account>;
   /** Returns the authenticated user */
   me: User;
+  /** Returns organization for a given name */
+  organization?: Maybe<Organization>;
   /** Returns all available organizations for the authenticated user */
   organizations: Array<Organization>;
   /** Returns project for a given name and account name */
   project?: Maybe<Project>;
   /** Returns all available projects for the authenticated user */
   projects: Array<Project>;
+};
+
+
+export type QueryOrganizationArgs = {
+  name: Scalars['String'];
 };
 
 
@@ -80,6 +88,7 @@ export type QueryProjectArgs = {
 
 export type User = {
   __typename?: 'User';
+  account: Account;
   avatarUrl?: Maybe<Scalars['String']>;
   email: Scalars['String'];
   id: Scalars['ID'];
@@ -109,6 +118,13 @@ export type MyOrganizationsQueryVariables = Exact<{ [key: string]: never; }>;
 
 
 export type MyOrganizationsQuery = { __typename?: 'Query', organizations: Array<{ __typename?: 'Organization', account: { __typename?: 'Account', name: string } }> };
+
+export type OrganizationQueryVariables = Exact<{
+  name: Scalars['String'];
+}>;
+
+
+export type OrganizationQuery = { __typename?: 'Query', organization?: { __typename?: 'Organization', users: Array<{ __typename?: 'User', email: string, avatarUrl?: string | null | undefined, account: { __typename?: 'Account', name: string } }> } | null | undefined };
 
 export type ProjectQueryVariables = Exact<{
   name: Scalars['String'];
@@ -266,6 +282,47 @@ export function useMyOrganizationsLazyQuery(baseOptions?: Apollo.LazyQueryHookOp
 export type MyOrganizationsQueryHookResult = ReturnType<typeof useMyOrganizationsQuery>;
 export type MyOrganizationsLazyQueryHookResult = ReturnType<typeof useMyOrganizationsLazyQuery>;
 export type MyOrganizationsQueryResult = Apollo.QueryResult<MyOrganizationsQuery, MyOrganizationsQueryVariables>;
+export const OrganizationDocument = gql`
+    query Organization($name: String!) {
+  organization(name: $name) {
+    users {
+      email
+      avatarUrl
+      account {
+        name
+      }
+    }
+  }
+}
+    `;
+
+/**
+ * __useOrganizationQuery__
+ *
+ * To run a query within a React component, call `useOrganizationQuery` and pass it any options that fit your needs.
+ * When your component renders, `useOrganizationQuery` returns an object from Apollo Client that contains loading, error, and data properties
+ * you can use to render your UI.
+ *
+ * @param baseOptions options that will be passed into the query, supported options are listed on: https://www.apollographql.com/docs/react/api/react-hooks/#options;
+ *
+ * @example
+ * const { data, loading, error } = useOrganizationQuery({
+ *   variables: {
+ *      name: // value for 'name'
+ *   },
+ * });
+ */
+export function useOrganizationQuery(baseOptions: Apollo.QueryHookOptions<OrganizationQuery, OrganizationQueryVariables>) {
+        const options = {...defaultOptions, ...baseOptions}
+        return Apollo.useQuery<OrganizationQuery, OrganizationQueryVariables>(OrganizationDocument, options);
+      }
+export function useOrganizationLazyQuery(baseOptions?: Apollo.LazyQueryHookOptions<OrganizationQuery, OrganizationQueryVariables>) {
+          const options = {...defaultOptions, ...baseOptions}
+          return Apollo.useLazyQuery<OrganizationQuery, OrganizationQueryVariables>(OrganizationDocument, options);
+        }
+export type OrganizationQueryHookResult = ReturnType<typeof useOrganizationQuery>;
+export type OrganizationLazyQueryHookResult = ReturnType<typeof useOrganizationLazyQuery>;
+export type OrganizationQueryResult = Apollo.QueryResult<OrganizationQuery, OrganizationQueryVariables>;
 export const ProjectDocument = gql`
     query Project($name: String!, $accountName: String!) {
   project(name: $name, accountName: $accountName) {

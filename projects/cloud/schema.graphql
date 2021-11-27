@@ -33,6 +33,7 @@ type Mutation {
 type Organization {
   account: Account!
   id: ID!
+  users: [User!]!
 }
 
 union Owner = Organization | User
@@ -56,6 +57,11 @@ type Query {
   me: User!
 
   """
+  Returns organization for a given name
+  """
+  organization(name: String!): Organization
+
+  """
   Returns all available organizations for the authenticated user
   """
   organizations: [Organization!]!
@@ -72,6 +78,7 @@ type Query {
 }
 
 type User {
+  account: Account!
   avatarUrl: String
   email: String!
   id: ID!

@@ -11,6 +11,6 @@ class ProjectFetchService < ApplicationService
 
   def call
     account = Account.find_by(name: account_name)
-    Project.find_by(account_id: account.id)
+    Project.find_by(account_id: account.id, name: name)
   end
 end
