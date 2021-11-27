@@ -27,7 +27,7 @@ final class DumpServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    private func assertLoadingRaisesWhenManifestNotFound(manifest: DumpableManifest) {
+    private func assertLoadingRaisesWhenManifestNotFound(manifest: DumpableManifest) throws {
         let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
         var expectedDirectory = tmpDir.path
         if manifest == .config {
@@ -41,27 +41,27 @@ final class DumpServiceTests: TuistUnitTestCase {
     }
 
     func test_run_throws_when_project_and_file_doesnt_exist() throws {
-        assertLoadingRaisesWhenManifestNotFound(manifest: .project)
+        try assertLoadingRaisesWhenManifestNotFound(manifest: .project)
     }
 
     func test_run_throws_when_workspace_and_file_doesnt_exist() throws {
-        assertLoadingRaisesWhenManifestNotFound(manifest: .workspace)
+        try assertLoadingRaisesWhenManifestNotFound(manifest: .workspace)
     }
 
     func test_run_throws_when_config_and_file_doesnt_exist() throws {
-        assertLoadingRaisesWhenManifestNotFound(manifest: .config)
+        try assertLoadingRaisesWhenManifestNotFound(manifest: .config)
     }
 
     func test_run_throws_when_template_and_file_doesnt_exist() throws {
-        assertLoadingRaisesWhenManifestNotFound(manifest: .template)
+        try assertLoadingRaisesWhenManifestNotFound(manifest: .template)
     }
 
     func test_run_throws_when_dependencies_and_file_doesnt_exist() throws {
-        assertLoadingRaisesWhenManifestNotFound(manifest: .dependencies)
+        try assertLoadingRaisesWhenManifestNotFound(manifest: .dependencies)
     }
 
     func test_run_throws_when_plugin_and_file_doesnt_exist() throws {
-        assertLoadingRaisesWhenManifestNotFound(manifest: .plugin)
+        try assertLoadingRaisesWhenManifestNotFound(manifest: .plugin)
     }
 
     func test_run_throws_when_the_manifest_loading_fails() throws {
