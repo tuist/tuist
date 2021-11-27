@@ -97,6 +97,49 @@ final class LinkGeneratorTests: XCTestCase {
         ])
     }
 
+    func test_generateEmbedPhaseWithNoEmbeddableFrameworks() throws {
+        // Given
+        var dependencies: Set<GraphDependencyReference> = []
+        dependencies.insert(GraphDependencyReference.product(target: "Test", productName: "Test.framework"))
+        let pbxproj = PBXProj()
+        let (pbxTarget, target) = createTargets(product: .framework)
+        let fileElements = ProjectFileElements()
+        let wakaFile = PBXFileReference()
+        pbxproj.add(object: wakaFile)
+        fileElements.products["Test"] = wakaFile
+        let sourceRootPath = AbsolutePath("/")
+
+        let path = AbsolutePath("/path/")
+        let graphTraverser = MockGraphTraverser()
+        graphTraverser.stubbedEmbeddableFrameworksResult = dependencies
+
+        // When
+        try subject.generateEmbedPhase(
+            target: target,
+            pbxTarget: pbxTarget,
+            pbxproj: pbxproj,
+            fileElements: fileElements,
+            sourceRootPath: sourceRootPath,
+            path: path,
+            graphTraverser: graphTraverser
+        )
+
+        // Then
+        let scriptBuildPhase: PBXShellScriptBuildPhase? = pbxTarget.buildPhases.first as? PBXShellScriptBuildPhase
+        XCTAssertNil(scriptBuildPhase)
+
+        let embedBuildPhase = try XCTUnwrap(pbxTarget.embedFrameworksBuildPhases().first)
+        XCTAssertEqual(embedBuildPhase.name, "Embed Frameworks")
+        XCTAssertEqual(embedBuildPhase.dstPath, "")
+        XCTAssertEqual(embedBuildPhase.dstSubfolderSpec, .frameworks)
+        XCTAssertEqual(embedBuildPhase.files?.map(\.file), [
+            wakaFile,
+        ])
+        XCTAssertEqual(embedBuildPhase.files?.compactMap { $0.settings as? [String: [String]] }, [
+            ["ATTRIBUTES": ["CodeSignOnCopy", "RemoveHeadersOnCopy"]],
+        ])
+    }
+
     func test_generateEmbedPhase_includesSymbols_when_nonTestTarget() throws {
         try Product.allCases.filter { !$0.testsBundle }.forEach { product in
             // Given

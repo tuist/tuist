@@ -208,17 +208,11 @@ final class LinkGenerator: LinkGenerating {
     ) throws {
         let embeddableFrameworks = graphTraverser.embeddableFrameworks(path: path, name: target.name).sorted()
 
-        let precompiledEmbedPhase = PBXShellScriptBuildPhase(name: "Embed Precompiled Frameworks")
         let embedPhase = PBXCopyFilesBuildPhase(
             dstPath: "",
             dstSubfolderSpec: .frameworks,
             name: "Embed Frameworks"
         )
-        pbxproj.add(object: precompiledEmbedPhase)
-        pbxproj.add(object: embedPhase)
-
-        pbxTarget.buildPhases.append(precompiledEmbedPhase)
-        pbxTarget.buildPhases.append(embedPhase)
 
         var frameworkReferences: [GraphDependencyReference] = []
 
@@ -226,11 +220,6 @@ final class LinkGenerator: LinkGenerating {
             switch dependency {
             case .framework:
                 frameworkReferences.append(dependency)
-            case .library:
-                // Do nothing
-                break
-            case .bundle:
-                break
             case let .xcframework(path, _, _, _):
                 guard let fileRef = fileElements.file(path: path) else {
                     throw LinkGeneratorError.missingReference(path: path)
@@ -241,9 +230,6 @@ final class LinkGenerator: LinkGenerating {
                 )
                 pbxproj.add(object: buildFile)
                 embedPhase.files?.append(buildFile)
-            case .sdk:
-                // Do nothing
-                break
             case let .product(target, _, platformFilter):
                 guard let fileRef = fileElements.product(target: target) else {
                     throw LinkGeneratorError.missingProduct(name: target)
@@ -255,12 +241,15 @@ final class LinkGenerator: LinkGenerating {
                 buildFile.platformFilter = platformFilter?.xcodeprojValue
                 pbxproj.add(object: buildFile)
                 embedPhase.files?.append(buildFile)
+            case .library, .bundle, .sdk:
+                // Do nothing
+                break
             }
         }
 
-        if frameworkReferences.isEmpty {
-            precompiledEmbedPhase.shellScript = "echo \"Skipping, nothing to be embedded.\""
-        } else {
+        if !frameworkReferences.isEmpty {
+            let precompiledEmbedPhase = PBXShellScriptBuildPhase(name: "Embed Precompiled Frameworks")
+
             let script = try embedScriptGenerator.script(
                 sourceRootPath: sourceRootPath,
                 frameworkReferences: frameworkReferences,
@@ -271,7 +260,13 @@ final class LinkGenerator: LinkGenerating {
             precompiledEmbedPhase.inputPaths = script.inputPaths
                 .map { "$(SRCROOT)/\($0.pathString)" }
             precompiledEmbedPhase.outputPaths = script.outputPaths
+
+            pbxproj.add(object: precompiledEmbedPhase)
+            pbxTarget.buildPhases.append(precompiledEmbedPhase)
         }
+
+        pbxproj.add(object: embedPhase)
+        pbxTarget.buildPhases.append(embedPhase)
     }
 
     func setupFrameworkSearchPath(
