@@ -27,19 +27,41 @@ final class DumpServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_run_throws_when_file_doesnt_exist() throws {
-        for manifest in DumpableManifest.allCases {
-            let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
-            var expectedDirectory = tmpDir.path
-            if manifest == .config {
-                expectedDirectory = expectedDirectory.appending(component: Constants.tuistDirectoryName)
-                try FileHandler.shared.createFolder(expectedDirectory)
-            }
-            XCTAssertThrowsSpecific(
-                try subject.run(path: tmpDir.path.pathString, manifest: manifest),
-                ManifestLoaderError.manifestNotFound(manifest.manifest, expectedDirectory)
-            )
+    private func assertLoadingRaisesWhenManifestNotFound(manifest: DumpableManifest) {
+        let tmpDir = try TemporaryDirectory(removeTreeOnDeinit: true)
+        var expectedDirectory = tmpDir.path
+        if manifest == .config {
+            expectedDirectory = expectedDirectory.appending(component: Constants.tuistDirectoryName)
+            try FileHandler.shared.createFolder(expectedDirectory)
         }
+        XCTAssertThrowsSpecific(
+            try subject.run(path: tmpDir.path.pathString, manifest: manifest),
+            ManifestLoaderError.manifestNotFound(manifest.manifest, expectedDirectory)
+        )
+    }
+
+    func test_run_throws_when_project_and_file_doesnt_exist() throws {
+        assertLoadingRaisesWhenManifestNotFound(manifest: .project)
+    }
+
+    func test_run_throws_when_workspace_and_file_doesnt_exist() throws {
+        assertLoadingRaisesWhenManifestNotFound(manifest: .workspace)
+    }
+
+    func test_run_throws_when_config_and_file_doesnt_exist() throws {
+        assertLoadingRaisesWhenManifestNotFound(manifest: .config)
+    }
+
+    func test_run_throws_when_template_and_file_doesnt_exist() throws {
+        assertLoadingRaisesWhenManifestNotFound(manifest: .template)
+    }
+
+    func test_run_throws_when_dependencies_and_file_doesnt_exist() throws {
+        assertLoadingRaisesWhenManifestNotFound(manifest: .dependencies)
+    }
+
+    func test_run_throws_when_plugin_and_file_doesnt_exist() throws {
+        assertLoadingRaisesWhenManifestNotFound(manifest: .plugin)
     }
 
     func test_run_throws_when_the_manifest_loading_fails() throws {
