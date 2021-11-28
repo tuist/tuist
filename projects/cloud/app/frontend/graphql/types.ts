@@ -45,6 +45,7 @@ export type MutationCreateProjectArgs = {
 export type Organization = {
   __typename?: 'Organization';
   account: Account;
+  admins: Array<User>;
   id: Scalars['ID'];
   users: Array<User>;
 };
@@ -124,7 +125,9 @@ export type OrganizationQueryVariables = Exact<{
 }>;
 
 
-export type OrganizationQuery = { __typename?: 'Query', organization?: { __typename?: 'Organization', users: Array<{ __typename?: 'User', email: string, avatarUrl?: string | null | undefined, account: { __typename?: 'Account', name: string } }> } | null | undefined };
+export type OrganizationQuery = { __typename?: 'Query', organization?: { __typename?: 'Organization', users: Array<{ __typename?: 'User', email: string, avatarUrl?: string | null | undefined, account: { __typename?: 'Account', name: string } }>, admins: Array<{ __typename?: 'User', email: string, avatarUrl?: string | null | undefined, account: { __typename?: 'Account', name: string } }> } | null | undefined };
+
+export type UserBasicInfoFragment = { __typename?: 'User', email: string, avatarUrl?: string | null | undefined, account: { __typename?: 'Account', name: string } };
 
 export type ProjectQueryVariables = Exact<{
   name: Scalars['String'];
@@ -134,7 +137,15 @@ export type ProjectQueryVariables = Exact<{
 
 export type ProjectQuery = { __typename?: 'Query', project?: { __typename?: 'Project', account: { __typename?: 'Account', owner: { __typename?: 'Organization', id: string } | { __typename?: 'User', id: string } } } | null | undefined };
 
-
+export const UserBasicInfoFragmentDoc = gql`
+    fragment UserBasicInfo on User {
+  email
+  avatarUrl
+  account {
+    name
+  }
+}
+    `;
 export const CreateProjectDocument = gql`
     mutation CreateProject($input: CreateProjectInput!) {
   createProject(input: $input) {
@@ -286,15 +297,14 @@ export const OrganizationDocument = gql`
     query Organization($name: String!) {
   organization(name: $name) {
     users {
-      email
-      avatarUrl
-      account {
-        name
-      }
+      ...UserBasicInfo
+    }
+    admins {
+      ...UserBasicInfo
     }
   }
 }
-    `;
+    ${UserBasicInfoFragmentDoc}`;
 
 /**
  * __useOrganizationQuery__

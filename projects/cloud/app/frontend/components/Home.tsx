@@ -205,7 +205,7 @@ const Home = () => {
       accountName: accountName ?? '',
     },
   });
-  console.log(project.data?.project?.account.owner);
+
   if (
     project.data?.project?.account.owner.__typename === 'Organization'
   ) {
