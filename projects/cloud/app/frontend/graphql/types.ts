@@ -152,6 +152,7 @@ export type OrganizationQueryVariables = Exact<{
   name: Scalars['String'];
 }>;
 
+export type OrganizationQuery = { __typename?: 'Query', organization?: { __typename?: 'Organization', users: Array<{ __typename?: 'User', email: string, avatarUrl?: string | null | undefined, account: { __typename?: 'Account', name: string } }>, admins: Array<{ __typename?: 'User', email: string, avatarUrl?: string | null | undefined, account: { __typename?: 'Account', name: string } }> } | null | undefined };
 
 export type OrganizationQuery = { __typename?: 'Query', organization?: { __typename?: 'Organization', id: string, users: Array<{ __typename?: 'User', id: string, email: string, avatarUrl?: string | null | undefined, account: { __typename?: 'Account', name: string } }>, admins: Array<{ __typename?: 'User', id: string, email: string, avatarUrl?: string | null | undefined, account: { __typename?: 'Account', name: string } }> } | null | undefined };
 
