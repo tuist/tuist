@@ -1,9 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  Heading,
-  TextContainer,
   Card,
-  List,
   FormLayout,
   TextField,
   Layout,
@@ -20,7 +17,7 @@ import {
   useCreateProjectMutation,
   useMyAccountsQuery,
 } from '@/graphql/types';
-import { useHistory } from 'react-router';
+import { useNavigate } from 'react-router-dom';
 
 const NewProject = () => {
   const myAccounts = useMyAccountsQuery().data?.accounts ?? [];
@@ -77,10 +74,10 @@ const NewProject = () => {
     [],
   );
 
-  const history = useHistory();
+  const navigate = useNavigate();
   const [createProject] = useCreateProjectMutation({
     onCompleted: ({ createProject }) => {
-      history.replace(createProject.slug);
+      navigate(`/${createProject.slug}`);
     },
   });
 
@@ -147,7 +144,7 @@ const NewProject = () => {
               <Button
                 destructive
                 onClick={() => {
-                  history.goBack();
+                  navigate(-1);
                 }}
               >
                 Cancel
