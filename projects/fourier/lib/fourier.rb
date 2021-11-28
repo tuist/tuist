@@ -50,13 +50,8 @@ module Fourier
     subcommand "encrypt", Commands::Encrypt
 
     desc "focus TARGET", "Generate Tuist's project focusing on the target TARGET"
-    def focus(target)
+    def focus(target = nil)
       Services::Focus.call(target: target)
-    end
-
-    desc "focus", "Generate Tuist's project focusing on internal targets"
-    def focus
-      Services::Focus.call(target: nil)
     end
 
     desc "tuist", "Runs Tuist"
