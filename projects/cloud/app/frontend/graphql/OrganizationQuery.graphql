@@ -1,0 +1,18 @@
+query Organization($name: String!) {
+  organization(name: $name) {
+    users {
+      ...UserBasicInfo
+    }
+    admins {
+      ...UserBasicInfo
+    }
+  }
+}
+
+fragment UserBasicInfo on User {
+    email
+    avatarUrl
+    account {
+      name
+    }
+}

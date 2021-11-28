@@ -7,6 +7,7 @@ query Me {
           slug
         }
         projects {
+          name
           slug
         }
     }
