@@ -39,7 +39,8 @@ public protocol Environmenting: AnyObject {
 
 /// Local environment controller.
 public class Environment: Environmenting {
-    public static var shared: Environmenting = Environment()
+    public static var shared: Environmenting { environment }
+    private static let environment = Environment()
 
     /// Returns the default local directory.
     static let defaultDirectory = AbsolutePath(URL(fileURLWithPath: NSHomeDirectory()).path).appending(component: ".tuist")
@@ -68,17 +69,15 @@ public class Environment: Environmenting {
     init(directory: AbsolutePath, fileHandler: FileHandling) {
         self.directory = directory
         self.fileHandler = fileHandler
-        setup()
     }
 
     // MARK: - EnvironmentControlling
 
     /// Sets up the local environment.
-    private func setup() {
-        [directory, versionsDirectory].forEach {
-            if !fileHandler.exists($0) {
-                // swiftlint:disable:next force_try
-                try! fileHandler.createFolder($0)
+    public static func bootstrap() throws {
+        try [environment.directory, environment.versionsDirectory].forEach {
+            if !environment.fileHandler.exists($0) {
+                try environment.fileHandler.createFolder($0)
             }
         }
     }
