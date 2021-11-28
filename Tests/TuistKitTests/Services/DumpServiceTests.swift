@@ -32,7 +32,9 @@ final class DumpServiceTests: TuistUnitTestCase {
             var expectedDirectory = tmpDir
             if manifest == .config {
                 expectedDirectory = expectedDirectory.appending(component: Constants.tuistDirectoryName)
-                try fileHandler.createFolder(expectedDirectory)
+                if !fileHandler.exists(expectedDirectory) {
+                    try fileHandler.createFolder(expectedDirectory)
+                }
             }
             XCTAssertThrowsSpecific(
                 try subject.run(path: tmpDir.pathString, manifest: manifest),
