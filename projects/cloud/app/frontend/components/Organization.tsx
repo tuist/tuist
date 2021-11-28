@@ -11,29 +11,21 @@ import {
   Button,
 } from '@shopify/polaris';
 import { useParams } from 'react-router';
-import {
-  Role,
-  Organization as _,
-  useChangeUserRoleMutation,
-  useOrganizationQuery,
-  useMeQuery,
-} from '@/graphql/types';
+import { useOrganizationQuery } from '@/graphql/types';
+
+enum Role {
+  admin = 'Admin',
+  user = 'User',
+}
 
 interface User {
-  id: string;
   email: string;
   name: string;
   avatarUrl: string | undefined;
   role: Role;
 }
 
-const UserRolePopover = ({
-  user,
-  organizationId,
-}: {
-  user: User;
-  organizationId: string;
-}) => {
+const UserRolePopover = ({ user }: { user: User }) => {
   // TODO: Enable actually changing the role
   const [isRolePopoverActive, setRolePopoverActive] = useState(false);
   const toggleRolePopoverActive = useCallback(
