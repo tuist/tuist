@@ -13,6 +13,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Update `swiftlint` to version `0.10.1` [#3744](https://github.com/tuist/tuist/pull/3744) by [@pepibumur](https://github.com/pepibumur)
 - Update `xcprettify` to version `0.45.0` [#3744](https://github.com/tuist/tuist/pull/3744) by [@pepibumur](https://github.com/pepibumur)
 
+### Added
+
+- Add `uiTests` target support for `tvOS`. [#3756](https://github.com/tuist/tuist/pull/3756) by [@sujata23](https://github.com/sujata23)
+
 ## 2.3.1 - Avantgarde
 
 ### Fixed
