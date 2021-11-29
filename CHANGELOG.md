@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 2.3.2 - Discoteque
+
 ### Fixed
 
 - Improve error message in case `ModuleMapMapper` fails to retrieve a dependency [#3733](https://github.com/tuist/tuist/pull/3733) by [@danyf90](https://github.com/danyf90)
