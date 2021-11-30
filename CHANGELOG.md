@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Fixed
+
+- Fix default template to work with `tvos` platform [#3759](https://github.com/tuist/tuist/pull/3759) by [@ezraberch](https://github.com/ezraberch)
+
 ## 2.3.2 - Discoteque
 
 ### Fixed
