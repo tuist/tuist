@@ -604,6 +604,15 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "sujata23",
+      "name": "Sujata Chakraborty",
+      "avatar_url": "https://avatars.githubusercontent.com/u/1849089?v=4",
+      "profile": "https://github.com/sujata23",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
