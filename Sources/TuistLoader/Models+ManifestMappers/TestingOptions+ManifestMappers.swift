@@ -2,11 +2,23 @@ import Foundation
 import ProjectDescription
 import TuistGraph
 
-extension TestingOptions {
+extension AutogenerationOptions {
+    static func from(manifest: ProjectDescription.Config.GenerationOptions.AutogenerationOptions) throws -> AutogenerationOptions {
+        switch manifest {
+        case .disabled:
+            return .disabled
+        case let .enabled(options):
+            return
+            try .enabled(.from(manifest: options))
+        }
+    }
+}
+
+extension AutogenerationOptions.TestingOptions {
     static func from(
-        manifest: ProjectDescription.Config.GenerationOptions.TestingOptions
-    ) throws -> TestingOptions {
-        var options: TestingOptions = []
+        manifest: ProjectDescription.Config.GenerationOptions.AutogenerationOptions.TestingOptions
+    ) throws -> AutogenerationOptions.TestingOptions {
+        var options: AutogenerationOptions.TestingOptions = []
 
         if manifest.contains(.parallelizable) {
             options.insert(.parallelizable)
