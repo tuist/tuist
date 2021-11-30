@@ -6,7 +6,7 @@ let project = Project(
         Target(
             name: "App",
             platform: .tvOS,
-            product: .framework,
+            product: .app,
             bundleId: "io.tuist.App",
             deploymentTarget: .tvOS(targetVersion: "14.0"),
             infoPlist: .default,
