@@ -14,7 +14,6 @@ final class CocoaPodsInteractor {
 
     func run() throws {
         let path = try binaryLocator.cocoapodsInteractorPath()
-        print(path)
         try System.shared.runAndPrint(path.pathString)
     }
 }

@@ -10,7 +10,7 @@ import XCTest
 @testable import TuistDependenciesTesting
 @testable import TuistSupportTesting
 
-final class CocoaPodsInteractorTests: TuistUnitTestCase {
+final class CocoaPodsInteractorTests: TuistTestCase {
     var subject: CocoaPodsInteractor!
 
     override func setUp() {
