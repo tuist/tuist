@@ -45,7 +45,7 @@ Scenario: The project is a macOS app with extensions (macos_app_with_extensions)
     Then tuist generates the project
     Then I should be able to build for macOS the scheme App
 
-Scenario: The project is an tvOS application with UItests (tvos_app_with_uitest)
+Scenario: The project is an tvOS application with UITests (tvos_app_with_uitest)
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture tvos_app_with_uitest into the working directory
