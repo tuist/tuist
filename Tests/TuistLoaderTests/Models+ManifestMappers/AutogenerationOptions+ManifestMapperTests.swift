@@ -25,25 +25,25 @@ final class AutogenerationOptionsManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(TuistGraph.Config.GenerationOption.autogenerationOptions(.disabled), got)
     }
 
-//    func test_from_returnsTheCorrectValue_whenManifestIncludesAllOptions() throws {
-//        // Given
-//        let manifest: Manifest = [.parallelizable, .randomExecutionOrdering]
-//
-//        // When
-//        let got = try TuistGraph.TestingOptions.from(manifest: manifest)
-//
-//        // Then
-//        XCTAssertEqual([.parallelizable, .randomExecutionOrdering], got)
-//    }
-//
-//    func test_from_returnsTheCorrectValue_whenManifestIsEmpty() throws {
-//        // Given
-//        let manifest: Manifest = []
-//
-//        // When
-//        let got = try TuistGraph.TestingOptions.from(manifest: manifest)
-//
-//        // Then
-//        XCTAssertEqual([], got)
-//    }
+    func test_from_returnsTheCorrectValue_whenManifestIncludesAllOptions() throws {
+        // Given
+        let manifest: Manifest = .enabled([.parallelizable, .randomExecutionOrdering])
+
+        // When
+        let got = try TuistGraph.AutogenerationOptions.from(manifest: manifest)
+
+        // Then
+        XCTAssertEqual(.enabled([.parallelizable, .randomExecutionOrdering]), got)
+    }
+
+    func test_from_returnsTheCorrectValue_whenManifestIsEmpty() throws {
+        // Given
+        let manifest: Manifest = .enabled([])
+
+        // When
+        let got = try TuistGraph.AutogenerationOptions.from(manifest: manifest)
+
+        // Then
+        XCTAssertEqual(.enabled([]), got)
+    }
 }

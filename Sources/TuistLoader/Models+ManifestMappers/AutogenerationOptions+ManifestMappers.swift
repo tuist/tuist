@@ -8,8 +8,7 @@ extension AutogenerationOptions {
         case .disabled:
             return .disabled
         case let .enabled(options):
-            return
-            try .enabled(.from(manifest: options))
+            return .enabled(try .from(manifest: options))
         }
     }
 }
