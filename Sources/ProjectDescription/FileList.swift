@@ -4,15 +4,21 @@ public struct FileList: Codable, Equatable {
     /// List glob patterns.
     public let globs: [Path]
 
+    /// Relative glob patterns for excluded files.
+    public let excluding: [Path]
+
     /// Initializes the files list with the glob patterns.
     ///
-    /// - Parameter globs: Glob patterns.
-    public init(globs: [Path]) {
+    ///   - glob: Relative glob pattern.
+    ///   - excluding: Relative glob patterns for excluded files.
+    public init(globs: [Path],
+                excluding: [Path]? = nil) {
         self.globs = globs
+        self.excluding = excluding ?? []
     }
 
     public static func == (lhs: FileList, rhs: FileList) -> Bool {
-        lhs.globs == rhs.globs
+        lhs.globs == rhs.globs && lhs.excluding == rhs.globs
     }
 }
 
