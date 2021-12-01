@@ -2,8 +2,9 @@ import Foundation
 import TuistCore
 import TuistCoreTesting
 import TuistGraph
-import XcodeProj
 import XCTest
+import XcodeProj
+
 @testable import TuistGenerator
 
 final class SettingsHelpersTests: XCTestCase {
@@ -67,12 +68,20 @@ final class SettingsHelpersTests: XCTestCase {
         settings["B"] = "B_VALUE"
 
         // When
-        subject.extend(buildSettings: &settings, with: ["A": "$(inherited) A_VALUE_2", "C": "C_VALUE"])
+        subject.extend(
+            buildSettings: &settings,
+            with: ["A": "$(inherited) A_VALUE_2", "C": "C_VALUE"]
+        )
 
         // Then
-        XCTAssertEqual(settings, ["A": ["$(inherited) A_VALUE_2", "A_VALUE"],
-                                  "B": "B_VALUE",
-                                  "C": "C_VALUE"])
+        XCTAssertEqual(
+            settings,
+            [
+                "A": ["$(inherited) A_VALUE_2", "A_VALUE"],
+                "B": "B_VALUE",
+                "C": "C_VALUE",
+            ]
+        )
     }
 
     func testExtend_whenArraySettings() {
@@ -81,10 +90,16 @@ final class SettingsHelpersTests: XCTestCase {
         settings["B"] = "B_VALUE"
 
         // When
-        subject.extend(buildSettings: &settings, with: ["A": ["$(inherited)", "A_VALUE_2"], "C": "C_VALUE"])
+        subject.extend(
+            buildSettings: &settings,
+            with: ["A": ["$(inherited)", "A_VALUE_2"], "C": "C_VALUE"]
+        )
 
         // Then
-        XCTAssertEqual(settings, ["A": ["$(inherited)", "A_VALUE", "A_VALUE_2"], "B": "B_VALUE", "C": "C_VALUE"])
+        XCTAssertEqual(
+            settings,
+            ["A": ["$(inherited)", "A_VALUE", "A_VALUE_2"], "B": "B_VALUE", "C": "C_VALUE"]
+        )
     }
 
     func testNotExtend_whenExistingSettingsAndNewWithSameValues() {
@@ -148,18 +163,26 @@ final class SettingsHelpersTests: XCTestCase {
         settings["A"] = ["A_VALUE"]
 
         // When
-        subject.extend(buildSettings: &settings, with: ["A": ["$(inherited)", "A_VALUE_2", "A_VALUE_3"]])
+        subject.extend(
+            buildSettings: &settings,
+            with: ["A": ["$(inherited)", "A_VALUE_2", "A_VALUE_3"]]
+        )
 
         // Then
         XCTAssertEqual(settings, ["A": ["$(inherited)", "A_VALUE", "A_VALUE_2", "A_VALUE_3"]])
     }
 
-    func testExtend_whenExistingSettingsArrayAndNewWithInheritedDeclarationAndArrayWithInheritedDeclaration() {
+    func
+        testExtend_whenExistingSettingsArrayAndNewWithInheritedDeclarationAndArrayWithInheritedDeclaration()
+    {
         // Given
         settings["A"] = ["$(inherited)", "A_VALUE"]
 
         // When
-        subject.extend(buildSettings: &settings, with: ["A": ["$(inherited)", "A_VALUE_2", "A_VALUE_3"]])
+        subject.extend(
+            buildSettings: &settings,
+            with: ["A": ["$(inherited)", "A_VALUE_2", "A_VALUE_3"]]
+        )
 
         // Then
         XCTAssertEqual(settings, ["A": ["$(inherited)", "A_VALUE", "A_VALUE_2", "A_VALUE_3"]])
@@ -173,20 +196,38 @@ final class SettingsHelpersTests: XCTestCase {
 
     func testSettingsProviderProduct() {
         XCTAssertEqual(subject.settingsProviderProduct(.test(product: .app)), .application)
-        XCTAssertEqual(subject.settingsProviderProduct(.test(product: .dynamicLibrary)), .dynamicLibrary)
-        XCTAssertEqual(subject.settingsProviderProduct(.test(product: .staticLibrary)), .staticLibrary)
-        XCTAssertEqual(subject.settingsProviderProduct(.test(product: .staticFramework)), .framework)
+        XCTAssertEqual(
+            subject.settingsProviderProduct(.test(product: .dynamicLibrary)),
+            .dynamicLibrary
+        )
+        XCTAssertEqual(
+            subject.settingsProviderProduct(.test(product: .staticLibrary)),
+            .staticLibrary
+        )
+        XCTAssertEqual(
+            subject.settingsProviderProduct(.test(product: .staticFramework)),
+            .framework
+        )
         XCTAssertEqual(subject.settingsProviderProduct(.test(product: .framework)), .framework)
         XCTAssertEqual(subject.settingsProviderProduct(.test(product: .unitTests)), .unitTests)
         XCTAssertEqual(subject.settingsProviderProduct(.test(product: .uiTests)), .uiTests)
         XCTAssertEqual(subject.settingsProviderProduct(.test(product: .appClip)), .application)
-        XCTAssertEqual(subject.settingsProviderProduct(.test(product: .appExtension)), .appExtension)
-        XCTAssertEqual(subject.settingsProviderProduct(.test(product: .messagesExtension)), .appExtension)
+        XCTAssertEqual(
+            subject.settingsProviderProduct(.test(product: .appExtension)),
+            .appExtension
+        )
+        XCTAssertEqual(
+            subject.settingsProviderProduct(.test(product: .messagesExtension)),
+            .appExtension
+        )
         XCTAssertNil(subject.settingsProviderProduct(.test(product: .bundle)))
     }
 
     func testVariant() {
         XCTAssertEqual(subject.variant(BuildConfiguration(name: "Test", variant: .debug)), .debug)
-        XCTAssertEqual(subject.variant(BuildConfiguration(name: "Test", variant: .release)), .release)
+        XCTAssertEqual(
+            subject.variant(BuildConfiguration(name: "Test", variant: .release)),
+            .release
+        )
     }
 }

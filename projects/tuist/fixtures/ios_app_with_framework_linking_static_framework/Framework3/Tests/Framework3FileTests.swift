@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Framework3
 
 class Framework3Tests: XCTestCase {

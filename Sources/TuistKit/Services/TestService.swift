@@ -2,13 +2,14 @@ import Foundation
 import RxBlocking
 import RxSwift
 import TSCBasic
-import struct TSCUtility.Version
 import TuistAutomation
 import TuistCache
 import TuistCore
 import TuistGraph
 import TuistLoader
 import TuistSupport
+
+import struct TSCUtility.Version
 
 enum TestServiceError: FatalError {
     case schemeNotFound(scheme: String, existing: [String])
@@ -18,7 +19,8 @@ enum TestServiceError: FatalError {
     var description: String {
         switch self {
         case let .schemeNotFound(scheme, existing):
-            return "Couldn't find scheme \(scheme). The available schemes are: \(existing.joined(separator: ", "))."
+            return
+                "Couldn't find scheme \(scheme). The available schemes are: \(existing.joined(separator: ", "))."
         case let .schemeWithoutTestableTargets(scheme):
             return "The scheme \(scheme) cannot be built because it contains no buildable targets."
         }
@@ -58,7 +60,8 @@ final class TestService {
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         simulatorController: SimulatorControlling = SimulatorController(),
         contentHasher: ContentHashing = ContentHasher(),
-        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory()
+        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring =
+            CacheDirectoriesProviderFactory()
     ) {
         self.testsCacheTemporaryDirectory = testsCacheTemporaryDirectory
         self.generatorFactory = generatorFactory
@@ -85,10 +88,14 @@ final class TestService {
         let manifestLoader = manifestLoaderFactory.createManifestLoader()
         let configLoader = ConfigLoader(manifestLoader: manifestLoader)
         let config = try configLoader.loadConfig(path: path)
-        let cacheDirectoriesProvider = try cacheDirectoryProviderFactory.cacheDirectories(config: config)
+        let cacheDirectoriesProvider = try cacheDirectoryProviderFactory.cacheDirectories(
+            config: config
+        )
 
-        let projectDirectory = cacheDirectoriesProvider.cacheDirectory(for: .generatedAutomationProjects)
-            .appending(component: "\(try contentHasher.hash(path.pathString))")
+        let projectDirectory = cacheDirectoriesProvider.cacheDirectory(
+            for: .generatedAutomationProjects
+        )
+        .appending(component: "\(try contentHasher.hash(path.pathString))")
         if !FileHandler.shared.exists(projectDirectory) {
             try FileHandler.shared.createFolder(projectDirectory)
         }
@@ -107,8 +114,9 @@ final class TestService {
         let graphTraverser = GraphTraverser(graph: graph)
         let version = osVersion?.version()
 
-        let testableSchemes = buildGraphInspector.testableSchemes(graphTraverser: graphTraverser) +
-            buildGraphInspector.projectSchemes(graphTraverser: graphTraverser)
+        let testableSchemes =
+            buildGraphInspector.testableSchemes(graphTraverser: graphTraverser)
+            + buildGraphInspector.projectSchemes(graphTraverser: graphTraverser)
         logger.log(
             level: .debug,
             "Found the following testable schemes: \(Set(testableSchemes.map(\.name)).joined(separator: ", "))"
@@ -143,10 +151,12 @@ final class TestService {
                 )
             }
         } else {
-            let testSchemes: [Scheme] = buildGraphInspector.projectSchemes(graphTraverser: graphTraverser)
-                .filter {
-                    $0.testAction.map { !$0.targets.isEmpty } ?? false
-                }
+            let testSchemes: [Scheme] = buildGraphInspector.projectSchemes(
+                graphTraverser: graphTraverser
+            )
+            .filter {
+                $0.testAction.map { !$0.targets.isEmpty } ?? false
+            }
 
             if testSchemes.isEmpty {
                 logger.log(level: .info, "There are no tests to run, finishing early")
@@ -168,14 +178,17 @@ final class TestService {
             if !FileHandler.shared.exists(
                 cacheDirectoriesProvider.cacheDirectory(for: .tests)
             ) {
-                try FileHandler.shared.createFolder(cacheDirectoriesProvider.cacheDirectory(for: .tests))
+                try FileHandler.shared.createFolder(
+                    cacheDirectoriesProvider.cacheDirectory(for: .tests)
+                )
             }
 
             // Saving hashes from `testsCacheTemporaryDirectory` to `testsCacheDirectory` after all the tests have run successfully
             try FileHandler.shared
                 .contentsOfDirectory(testsCacheTemporaryDirectory.path)
                 .forEach { hashPath in
-                    let destination = cacheDirectoriesProvider.cacheDirectory(for: .tests).appending(component: hashPath.basename)
+                    let destination = cacheDirectoriesProvider.cacheDirectory(for: .tests)
+                        .appending(component: hashPath.basename)
                     guard !FileHandler.shared.exists(destination) else { return }
                     try FileHandler.shared.move(
                         from: hashPath,
@@ -199,7 +212,12 @@ final class TestService {
         resultBundlePath: AbsolutePath?
     ) throws {
         logger.log(level: .notice, "Testing scheme \(scheme.name)", metadata: .section)
-        guard let buildableTarget = buildGraphInspector.testableTarget(scheme: scheme, graphTraverser: graphTraverser) else {
+        guard
+            let buildableTarget = buildGraphInspector.testableTarget(
+                scheme: scheme,
+                graphTraverser: graphTraverser
+            )
+        else {
             throw TestServiceError.schemeWithoutTestableTargets(scheme: scheme.name)
         }
 
@@ -243,7 +261,8 @@ final class TestService {
             if let deploymentTarget = target.deploymentTarget {
                 minVersion = deploymentTarget.version.version()
             } else {
-                minVersion = scheme.targetDependencies()
+                minVersion =
+                    scheme.targetDependencies()
                     .flatMap {
                         graphTraverser
                             .directLocalTargetDependencies(path: $0.projectPath, name: $0.name)

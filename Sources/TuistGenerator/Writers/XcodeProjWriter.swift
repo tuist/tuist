@@ -16,7 +16,9 @@ public final class XcodeProjWriter: XcodeProjWriting {
         /// The execution context to use when writing
         /// the project descriptors within a workspace descriptor
         public var projectDescriptorWritingContext: ExecutionContext
-        public init(projectDescriptorWritingContext: ExecutionContext) {
+        public init(
+            projectDescriptorWritingContext: ExecutionContext
+        ) {
             self.projectDescriptorWritingContext = projectDescriptorWritingContext
         }
 
@@ -28,9 +30,11 @@ public final class XcodeProjWriter: XcodeProjWriting {
     private let config: Config
     private let sideEffectDescriptorExecutor: SideEffectDescriptorExecuting
 
-    public init(sideEffectDescriptorExecutor: SideEffectDescriptorExecuting = SideEffectDescriptorExecutor(),
-                config: Config = .default)
-    {
+    public init(
+        sideEffectDescriptorExecutor: SideEffectDescriptorExecuting =
+            SideEffectDescriptorExecutor(),
+        config: Config = .default
+    ) {
         self.sideEffectDescriptorExecutor = sideEffectDescriptorExecutor
         self.config = config
     }
@@ -40,9 +44,12 @@ public final class XcodeProjWriter: XcodeProjWriting {
     }
 
     public func write(workspace: WorkspaceDescriptor) throws {
-        let allSchemes = workspace.schemeDescriptors + workspace.projectDescriptors.flatMap { $0.schemeDescriptors }
+        let allSchemes =
+            workspace.schemeDescriptors
+            + workspace.projectDescriptors.flatMap { $0.schemeDescriptors }
         let schemesOrderHint = schemesOrderHint(schemes: allSchemes)
-        try workspace.projectDescriptors.forEach(context: config.projectDescriptorWritingContext) { projectDescriptor in
+        try workspace.projectDescriptors.forEach(context: config.projectDescriptorWritingContext) {
+            projectDescriptor in
             try self.write(project: projectDescriptor, schemesOrderHint: schemesOrderHint)
         }
         try workspace.xcworkspace.write(path: workspace.xcworkspacePath.path, override: true)
@@ -64,7 +71,8 @@ public final class XcodeProjWriter: XcodeProjWriting {
     // MARK: - Private
 
     private func write(project: ProjectDescriptor, schemesOrderHint: [String: Int]?) throws {
-        let schemesOrderHint = schemesOrderHint ?? self.schemesOrderHint(schemes: project.schemeDescriptors)
+        let schemesOrderHint =
+            schemesOrderHint ?? self.schemesOrderHint(schemes: project.schemeDescriptors)
 
         // XcodeProj can manage writing of shared schemes, we have to manually manage the user schemes
         let project = enrichingXcodeProjWithSharedSchemes(descriptor: project)
@@ -74,7 +82,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
         try writeSchemes(
             schemeDescriptors: project.userSchemeDescriptors,
             xccontainerPath: project.xcodeprojPath,
-            wipeSharedSchemesBeforeWriting: false // Since we are only writing user schemes
+            wipeSharedSchemesBeforeWriting: false  // Since we are only writing user schemes
         )
         try writeXCSchemeManagement(
             schemes: project.schemeDescriptors,
@@ -102,7 +110,9 @@ public final class XcodeProjWriter: XcodeProjWriting {
         return sortedSchemes.reduceWithIndex(into: [String: Int]()) { $0[$1.xcScheme.name] = $2 }
     }
 
-    private func enrichingXcodeProjWithSharedSchemes(descriptor: ProjectDescriptor) -> ProjectDescriptor {
+    private func enrichingXcodeProjWithSharedSchemes(
+        descriptor: ProjectDescriptor
+    ) -> ProjectDescriptor {
         // XcodeProj.sharedData manages writing / replacing of shared schemes
         let xcodeProj = descriptor.xcodeProj
         let sharedData = xcodeProj.sharedData ?? XCSharedData(schemes: [])
@@ -140,8 +150,11 @@ public final class XcodeProjWriter: XcodeProjWriting {
             try FileHandler.shared.delete(xcschememanagementPath)
         }
         try FileHandler.shared.createFolder(xcschememanagementPath.parentDirectory)
-        try XCSchemeManagement(schemeUserState: userStateSchemes, suppressBuildableAutocreation: nil)
-            .write(path: xcschememanagementPath.path)
+        try XCSchemeManagement(
+            schemeUserState: userStateSchemes,
+            suppressBuildableAutocreation: nil
+        )
+        .write(path: xcschememanagementPath.path)
     }
 
     private func write(
@@ -164,12 +177,12 @@ public final class XcodeProjWriter: XcodeProjWriting {
     }
 }
 
-private extension ProjectDescriptor {
-    var sharedSchemeDescriptors: [SchemeDescriptor] {
+extension ProjectDescriptor {
+    fileprivate var sharedSchemeDescriptors: [SchemeDescriptor] {
         schemeDescriptors.filter { $0.shared }
     }
 
-    var userSchemeDescriptors: [SchemeDescriptor] {
+    fileprivate var userSchemeDescriptors: [SchemeDescriptor] {
         schemeDescriptors.filter { !$0.shared }
     }
 }

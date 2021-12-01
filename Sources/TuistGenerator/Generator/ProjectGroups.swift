@@ -35,12 +35,13 @@ class ProjectGroups {
 
     // MARK: - Init
 
-    private init(main: PBXGroup,
-                 projectGroups: [(name: String, group: PBXGroup)],
-                 products: PBXGroup,
-                 frameworks: PBXGroup,
-                 pbxproj: PBXProj)
-    {
+    private init(
+        main: PBXGroup,
+        projectGroups: [(name: String, group: PBXGroup)],
+        products: PBXGroup,
+        frameworks: PBXGroup,
+        pbxproj: PBXProj
+    ) {
         sortedMain = main
         self.projectGroups = Dictionary(uniqueKeysWithValues: projectGroups)
         self.products = products
@@ -63,11 +64,14 @@ class ProjectGroups {
         return group
     }
 
-    static func generate(project: Project,
-                         pbxproj: PBXProj) -> ProjectGroups
-    {
+    static func generate(
+        project: Project,
+        pbxproj: PBXProj
+    ) -> ProjectGroups {
         /// Main
-        let projectRelativePath = project.sourceRootPath.relative(to: project.xcodeProjPath.parentDirectory).pathString
+        let projectRelativePath = project.sourceRootPath.relative(
+            to: project.xcodeProjPath.parentDirectory
+        ).pathString
         let textSettings = project.options.textSettings
         let mainGroup = PBXGroup(
             children: [],

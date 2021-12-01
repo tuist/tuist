@@ -50,13 +50,15 @@ final class LintProjectServiceTests: TuistUnitTestCase {
 
         // Then
         let expectedPath = fileHandler.currentPath.appending(component: "relative")
-        XCTAssertPrinterOutputContains("""
-        Loading the dependency graph at \(expectedPath)
-        Running linters
-        Linting the environment
-        Linting the loaded dependency graph
-        No linting issues found
-        """)
+        XCTAssertPrinterOutputContains(
+            """
+            Loading the dependency graph at \(expectedPath)
+            Running linters
+            Linting the environment
+            Linting the loaded dependency graph
+            No linting issues found
+            """
+        )
     }
 
     func test_run_when_there_are_no_issues() throws {
@@ -67,13 +69,15 @@ final class LintProjectServiceTests: TuistUnitTestCase {
         try subject.run(path: lintPath.pathString)
 
         // Then
-        XCTAssertPrinterOutputContains("""
-        Loading the dependency graph at \(lintPath)
-        Running linters
-        Linting the environment
-        Linting the loaded dependency graph
-        No linting issues found
-        """)
+        XCTAssertPrinterOutputContains(
+            """
+            Loading the dependency graph at \(lintPath)
+            Running linters
+            Linting the environment
+            Linting the loaded dependency graph
+            No linting issues found
+            """
+        )
     }
 
     func test_run_when_linting_fails() throws {
@@ -84,15 +88,19 @@ final class LintProjectServiceTests: TuistUnitTestCase {
 
         // Then
         XCTAssertThrowsSpecific(try subject.run(path: lintPath.pathString), LintingError())
-        XCTAssertPrinterOutputContains("""
-        Loading the dependency graph at \(lintPath)
-        Running linters
-        Linting the environment
-        Linting the loaded dependency graph
-        """)
-        XCTAssertPrinterErrorContains("""
-        environment
-        graph
-        """)
+        XCTAssertPrinterOutputContains(
+            """
+            Loading the dependency graph at \(lintPath)
+            Running linters
+            Linting the environment
+            Linting the loaded dependency graph
+            """
+        )
+        XCTAssertPrinterErrorContains(
+            """
+            environment
+            graph
+            """
+        )
     }
 }

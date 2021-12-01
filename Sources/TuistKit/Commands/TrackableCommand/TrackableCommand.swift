@@ -60,7 +60,9 @@ public class TrackableCommand: TrackableParametersDelegate {
         trackedParameters = parameters
     }
 
-    private func extractCommandName(from configuration: CommandConfiguration) -> (name: String, subcommand: String?) {
+    private func extractCommandName(
+        from configuration: CommandConfiguration
+    ) -> (name: String, subcommand: String?) {
         let name: String
         let subcommand: String?
         if let superCommandName = configuration._superCommandName {

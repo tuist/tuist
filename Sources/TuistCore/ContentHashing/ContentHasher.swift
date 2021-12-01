@@ -11,7 +11,9 @@ public final class ContentHasher: ContentHashing {
     private let fileHandler: FileHandling
     private let filesFilter = HashingFilesFilter()
 
-    public init(fileHandler: FileHandling = FileHandler.shared) {
+    public init(
+        fileHandler: FileHandling = FileHandler.shared
+    ) {
         self.fileHandler = fileHandler
     }
 

@@ -11,7 +11,7 @@ let project = Project(
             infoPlist: "Config/App-Info.plist",
             sources: "Sources/**",
             dependencies: [
-                .project(target: "Framework1-iOS", path: "../Framework1"),
+                .project(target: "Framework1-iOS", path: "../Framework1")
             ]
         ),
         Target(
@@ -22,7 +22,7 @@ let project = Project(
             infoPlist: "Config/AppTests-Info.plist",
             sources: "Tests/**",
             dependencies: [
-                .target(name: "App"),
+                .target(name: "App")
             ]
         ),
         Target(
@@ -33,7 +33,7 @@ let project = Project(
             infoPlist: "Config/AppTests-Info.plist",
             sources: "UITests/**",
             dependencies: [
-                .target(name: "App"),
+                .target(name: "App")
             ]
         ),
     ]

@@ -36,6 +36,11 @@ final class SettingsManifestMapperTests: TuistUnitTestCase {
         let model = try TuistGraph.Settings.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
-        XCTAssertSettingsMatchesManifest(settings: model, matches: manifest, at: temporaryPath, generatorPaths: generatorPaths)
+        XCTAssertSettingsMatchesManifest(
+            settings: model,
+            matches: manifest,
+            at: temporaryPath,
+            generatorPaths: generatorPaths
+        )
     }
 }

@@ -10,11 +10,15 @@ public enum CompatibleXcodeVersions: Equatable, Hashable, ExpressibleByArrayLite
 
     // MARK: - ExpressibleByArrayLiteral
 
-    public init(arrayLiteral elements: [String]) {
+    public init(
+        arrayLiteral elements: [String]
+    ) {
         self = .list(elements)
     }
 
-    public init(arrayLiteral elements: String...) {
+    public init(
+        arrayLiteral elements: String...
+    ) {
         self = .list(elements)
     }
 }

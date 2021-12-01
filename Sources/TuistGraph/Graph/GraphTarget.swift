@@ -1,7 +1,9 @@
 import Foundation
 import TSCBasic
 
-public struct GraphTarget: Equatable, Hashable, Comparable, CustomDebugStringConvertible, CustomStringConvertible, Codable {
+public struct GraphTarget: Equatable, Hashable, Comparable, CustomDebugStringConvertible,
+    CustomStringConvertible, Codable
+{
     /// Path to the directory that contains the project where the target is defined.
     public let path: AbsolutePath
 
@@ -11,7 +13,11 @@ public struct GraphTarget: Equatable, Hashable, Comparable, CustomDebugStringCon
     /// Project that contains the target.
     public let project: Project
 
-    public init(path: AbsolutePath, target: Target, project: Project) {
+    public init(
+        path: AbsolutePath,
+        target: Target,
+        project: Project
+    ) {
         self.path = path
         self.target = target
         self.project = project

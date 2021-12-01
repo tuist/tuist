@@ -7,9 +7,9 @@ import TuistLoader
 import TuistPlugin
 import TuistPluginTesting
 import TuistSupport
+import TuistTasksTesting
 import XCTest
 
-import TuistTasksTesting
 @testable import TuistCoreTesting
 @testable import TuistGeneratorTesting
 @testable import TuistKit
@@ -23,7 +23,10 @@ final class ProjectEditorErrorTests: TuistUnitTestCase {
     }
 
     func test_description() {
-        XCTAssertEqual(ProjectEditorError.noEditableFiles(AbsolutePath.root).description, "There are no editable files at \(AbsolutePath.root.pathString)")
+        XCTAssertEqual(
+            ProjectEditorError.noEditableFiles(AbsolutePath.root).description,
+            "There are no editable files at \(AbsolutePath.root.pathString)"
+        )
     }
 }
 
@@ -36,7 +39,8 @@ final class ProjectEditorTests: TuistUnitTestCase {
     private var writer: MockXcodeProjWriter!
     private var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
     private var projectDescriptionHelpersBuilder: MockProjectDescriptionHelpersBuilder!
-    private var projectDescriptionHelpersBuilderFactory: MockProjectDescriptionHelpersBuilderFactory!
+    private var projectDescriptionHelpersBuilderFactory:
+        MockProjectDescriptionHelpersBuilderFactory!
     private var tasksLocator: MockTasksLocator!
     private var subject: ProjectEditor!
 
@@ -51,7 +55,9 @@ final class ProjectEditorTests: TuistUnitTestCase {
         templatesDirectoryLocator = MockTemplatesDirectoryLocator()
         projectDescriptionHelpersBuilder = MockProjectDescriptionHelpersBuilder()
         projectDescriptionHelpersBuilderFactory = MockProjectDescriptionHelpersBuilderFactory()
-        projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilderStub = { _ in self.projectDescriptionHelpersBuilder }
+        projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilderStub = { _ in
+            self.projectDescriptionHelpersBuilder
+        }
         tasksLocator = MockTasksLocator()
 
         subject = ProjectEditor(
@@ -93,7 +99,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
             ManifestFilesLocator.ProjectManifest(
                 manifest: .project,
                 path: directory.appending(component: "Project.swift")
-            ),
+            )
         ]
         let tuistPath = AbsolutePath(ProcessInfo.processInfo.arguments.first!)
         let configPath = directory.appending(components: "Tuist", "Config.swift")
@@ -137,7 +143,12 @@ final class ProjectEditorTests: TuistUnitTestCase {
         }
 
         // When
-        try _ = subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test())
+        try _ = subject.edit(
+            at: directory,
+            in: directory,
+            onlyCurrentDirectory: false,
+            plugins: .test()
+        )
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
@@ -174,7 +185,13 @@ final class ProjectEditorTests: TuistUnitTestCase {
         // Then
         XCTAssertThrowsSpecific(
             // When
-            try subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test()), ProjectEditorError.noEditableFiles(directory)
+            try subject.edit(
+                at: directory,
+                in: directory,
+                onlyCurrentDirectory: false,
+                plugins: .test()
+            ),
+            ProjectEditorError.noEditableFiles(directory)
         )
     }
 
@@ -196,7 +213,12 @@ final class ProjectEditorTests: TuistUnitTestCase {
         }
 
         // When
-        try _ = subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test())
+        try _ = subject.edit(
+            at: directory,
+            in: directory,
+            onlyCurrentDirectory: false,
+            plugins: .test()
+        )
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
@@ -204,7 +226,10 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEqual(mapArgs?.tuistPath, tuistPath)
         XCTAssertEqual(mapArgs?.sourceRootPath, directory)
         XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath)
-        XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.path), [pluginManifest].map(\.parentDirectory))
+        XCTAssertEqual(
+            mapArgs?.editablePluginManifests.map(\.path),
+            [pluginManifest].map(\.parentDirectory)
+        )
         XCTAssertEqual(mapArgs?.pluginProjectDescriptionHelpersModule, [])
     }
 
@@ -231,7 +256,12 @@ final class ProjectEditorTests: TuistUnitTestCase {
         }
 
         // When
-        try _ = subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test())
+        try _ = subject.edit(
+            at: directory,
+            in: directory,
+            onlyCurrentDirectory: false,
+            plugins: .test()
+        )
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
@@ -239,7 +269,10 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEqual(mapArgs?.tuistPath, tuistPath)
         XCTAssertEqual(mapArgs?.sourceRootPath, directory)
         XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath)
-        XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.path).sorted(), pluginManifests.map(\.parentDirectory))
+        XCTAssertEqual(
+            mapArgs?.editablePluginManifests.map(\.path).sorted(),
+            pluginManifests.map(\.parentDirectory)
+        )
         XCTAssertEqual(mapArgs?.pluginProjectDescriptionHelpersModule, [])
     }
 
@@ -254,12 +287,14 @@ final class ProjectEditorTests: TuistUnitTestCase {
             ManifestFilesLocator.ProjectManifest(
                 manifest: .project,
                 path: directory.appending(component: "Project.swift")
-            ),
+            )
         ]
 
         // Local plugin
         let pluginDirectory = directory.appending(component: "Plugin")
-        let pluginHelpersDirectory = pluginDirectory.appending(component: "ProjectDescriptionHelpers")
+        let pluginHelpersDirectory = pluginDirectory.appending(
+            component: "ProjectDescriptionHelpers"
+        )
         try FileHandler.shared.createFolder(pluginDirectory)
         try FileHandler.shared.createFolder(pluginHelpersDirectory)
         let pluginManifestPath = pluginDirectory.appending(component: "Plugin.swift")
@@ -279,9 +314,14 @@ final class ProjectEditorTests: TuistUnitTestCase {
 
         // When
         let plugins = Plugins.test(projectDescriptionHelpers: [
-            .init(name: "LocalPlugin", path: pluginManifestPath, location: .local),
+            .init(name: "LocalPlugin", path: pluginManifestPath, location: .local)
         ])
-        try _ = subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: plugins)
+        try _ = subject.edit(
+            at: directory,
+            in: directory,
+            onlyCurrentDirectory: false,
+            plugins: plugins
+        )
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
@@ -290,7 +330,10 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEqual(mapArgs?.sourceRootPath, directory)
         XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath)
         XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.name), ["LocalPlugin"])
-        XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.path), [pluginManifestPath].map(\.parentDirectory))
+        XCTAssertEqual(
+            mapArgs?.editablePluginManifests.map(\.path),
+            [pluginManifestPath].map(\.parentDirectory)
+        )
         XCTAssertEqual(mapArgs?.pluginProjectDescriptionHelpersModule, [])
     }
 
@@ -298,7 +341,9 @@ final class ProjectEditorTests: TuistUnitTestCase {
         // Given
         let rootPath = try temporaryPath()
         let editingPath = rootPath.appending(component: "Editing")
-        let projectDescriptionPath = editingPath.appending(component: "ProjectDescription.framework")
+        let projectDescriptionPath = editingPath.appending(
+            component: "ProjectDescription.framework"
+        )
         let graph = Graph.test(name: "Edit")
 
         // Project
@@ -306,7 +351,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
             ManifestFilesLocator.ProjectManifest(
                 manifest: .project,
                 path: editingPath.appending(component: "Project.swift")
-            ),
+            )
         ]
 
         // Local plugin
@@ -326,10 +371,15 @@ final class ProjectEditorTests: TuistUnitTestCase {
 
         // When
         let plugins = Plugins.test(projectDescriptionHelpers: [
-            .init(name: "LocalPlugin", path: pluginManifestPath, location: .local),
+            .init(name: "LocalPlugin", path: pluginManifestPath, location: .local)
         ])
 
-        try _ = subject.edit(at: editingPath, in: editingPath, onlyCurrentDirectory: false, plugins: plugins)
+        try _ = subject.edit(
+            at: editingPath,
+            in: editingPath,
+            onlyCurrentDirectory: false,
+            plugins: plugins
+        )
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
@@ -338,7 +388,10 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEqual(mapArgs?.sourceRootPath, editingPath)
         XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath)
         XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.name), ["LocalPlugin"])
-        XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.path), [pluginManifestPath].map(\.parentDirectory))
+        XCTAssertEqual(
+            mapArgs?.editablePluginManifests.map(\.path),
+            [pluginManifestPath].map(\.parentDirectory)
+        )
         XCTAssertEqual(mapArgs?.pluginProjectDescriptionHelpersModule, [])
     }
 
@@ -353,7 +406,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
             ManifestFilesLocator.ProjectManifest(
                 manifest: .project,
                 path: directory.appending(component: "Project.swift")
-            ),
+            )
         ]
         let tuistPath = AbsolutePath(ProcessInfo.processInfo.arguments.first!)
 
@@ -373,9 +426,18 @@ final class ProjectEditorTests: TuistUnitTestCase {
 
         // When
         let plugins = Plugins.test(projectDescriptionHelpers: [
-            .init(name: "RemotePlugin", path: AbsolutePath("/Some/Path/To/Plugin"), location: .remote),
+            .init(
+                name: "RemotePlugin",
+                path: AbsolutePath("/Some/Path/To/Plugin"),
+                location: .remote
+            )
         ])
-        try _ = subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: plugins)
+        try _ = subject.edit(
+            at: directory,
+            in: directory,
+            onlyCurrentDirectory: false,
+            plugins: plugins
+        )
 
         // Then
         XCTAssertEqual(projectEditorMapper.mapArgs.count, 1)
@@ -386,7 +448,12 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEmpty(try XCTUnwrap(mapArgs?.editablePluginManifests))
         XCTAssertEqual(
             mapArgs?.pluginProjectDescriptionHelpersModule,
-            [ProjectDescriptionHelpersModule(name: "RemotePlugin", path: AbsolutePath("/Some/Path/To/Plugin"))]
+            [
+                ProjectDescriptionHelpersModule(
+                    name: "RemotePlugin",
+                    path: AbsolutePath("/Some/Path/To/Plugin")
+                )
+            ]
         )
     }
 }

@@ -4,6 +4,7 @@ import TuistCoreTesting
 import TuistGraph
 import TuistGraphTesting
 import XCTest
+
 @testable import TuistGenerator
 
 final class InfoPlistContentProviderTests: XCTestCase {
@@ -31,30 +32,33 @@ final class InfoPlistContentProviderTests: XCTestCase {
         )
 
         // Then
-        assertEqual(got, [
-            "CFBundleName": "$(PRODUCT_NAME)",
-            "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
-            "UIRequiredDeviceCapabilities": ["armv7"],
-            "UISupportedInterfaceOrientations": [
-                "UIInterfaceOrientationPortrait",
-                "UIInterfaceOrientationLandscapeLeft",
-                "UIInterfaceOrientationLandscapeRight",
-            ],
-            "CFBundleShortVersionString": "1.0",
-            "LSRequiresIPhoneOS": true,
-            "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
-            "CFBundlePackageType": "APPL",
-            "UISupportedInterfaceOrientations~ipad": [
-                "UIInterfaceOrientationPortrait",
-                "UIInterfaceOrientationPortraitUpsideDown",
-                "UIInterfaceOrientationLandscapeLeft",
-                "UIInterfaceOrientationLandscapeRight",
-            ],
-            "CFBundleVersion": "1",
-            "ExtraAttribute": "Value",
-            "CFBundleExecutable": "$(EXECUTABLE_NAME)",
-            "CFBundleInfoDictionaryVersion": "6.0",
-        ])
+        assertEqual(
+            got,
+            [
+                "CFBundleName": "$(PRODUCT_NAME)",
+                "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
+                "UIRequiredDeviceCapabilities": ["armv7"],
+                "UISupportedInterfaceOrientations": [
+                    "UIInterfaceOrientationPortrait",
+                    "UIInterfaceOrientationLandscapeLeft",
+                    "UIInterfaceOrientationLandscapeRight",
+                ],
+                "CFBundleShortVersionString": "1.0",
+                "LSRequiresIPhoneOS": true,
+                "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
+                "CFBundlePackageType": "APPL",
+                "UISupportedInterfaceOrientations~ipad": [
+                    "UIInterfaceOrientationPortrait",
+                    "UIInterfaceOrientationPortraitUpsideDown",
+                    "UIInterfaceOrientationLandscapeLeft",
+                    "UIInterfaceOrientationLandscapeRight",
+                ],
+                "CFBundleVersion": "1",
+                "ExtraAttribute": "Value",
+                "CFBundleExecutable": "$(EXECUTABLE_NAME)",
+                "CFBundleInfoDictionaryVersion": "6.0",
+            ]
+        )
     }
 
     func test_content_whenMacosApp() {
@@ -69,22 +73,25 @@ final class InfoPlistContentProviderTests: XCTestCase {
         )
 
         // Then
-        assertEqual(got, [
-            "CFBundleIconFile": "",
-            "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
-            "CFBundlePackageType": "APPL",
-            "NSHumanReadableCopyright": "Copyright ©. All rights reserved.",
-            "NSMainStoryboardFile": "Main",
-            "NSPrincipalClass": "NSApplication",
-            "CFBundleShortVersionString": "1.0",
-            "CFBundleName": "$(PRODUCT_NAME)",
-            "CFBundleInfoDictionaryVersion": "6.0",
-            "CFBundleVersion": "1",
-            "CFBundleExecutable": "$(EXECUTABLE_NAME)",
-            "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
-            "ExtraAttribute": "Value",
-            "LSMinimumSystemVersion": "$(MACOSX_DEPLOYMENT_TARGET)",
-        ])
+        assertEqual(
+            got,
+            [
+                "CFBundleIconFile": "",
+                "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
+                "CFBundlePackageType": "APPL",
+                "NSHumanReadableCopyright": "Copyright ©. All rights reserved.",
+                "NSMainStoryboardFile": "Main",
+                "NSPrincipalClass": "NSApplication",
+                "CFBundleShortVersionString": "1.0",
+                "CFBundleName": "$(PRODUCT_NAME)",
+                "CFBundleInfoDictionaryVersion": "6.0",
+                "CFBundleVersion": "1",
+                "CFBundleExecutable": "$(EXECUTABLE_NAME)",
+                "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
+                "ExtraAttribute": "Value",
+                "LSMinimumSystemVersion": "$(MACOSX_DEPLOYMENT_TARGET)",
+            ]
+        )
     }
 
     func test_content_whenMacosFramework() {
@@ -99,18 +106,21 @@ final class InfoPlistContentProviderTests: XCTestCase {
         )
 
         // Then
-        assertEqual(got, [
-            "CFBundleShortVersionString": "1.0",
-            "CFBundleExecutable": "$(EXECUTABLE_NAME)",
-            "CFBundleVersion": "1",
-            "NSHumanReadableCopyright": "Copyright ©. All rights reserved.",
-            "CFBundleInfoDictionaryVersion": "6.0",
-            "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
-            "ExtraAttribute": "Value",
-            "CFBundlePackageType": "FMWK",
-            "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
-            "CFBundleName": "$(PRODUCT_NAME)",
-        ])
+        assertEqual(
+            got,
+            [
+                "CFBundleShortVersionString": "1.0",
+                "CFBundleExecutable": "$(EXECUTABLE_NAME)",
+                "CFBundleVersion": "1",
+                "NSHumanReadableCopyright": "Copyright ©. All rights reserved.",
+                "CFBundleInfoDictionaryVersion": "6.0",
+                "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
+                "ExtraAttribute": "Value",
+                "CFBundlePackageType": "FMWK",
+                "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
+                "CFBundleName": "$(PRODUCT_NAME)",
+            ]
+        )
     }
 
     func test_content_whenMacosStaticLibrary() {
@@ -155,16 +165,19 @@ final class InfoPlistContentProviderTests: XCTestCase {
         )
 
         // Then
-        assertEqual(got, [
-            "CFBundlePackageType": "BNDL",
-            "ExtraAttribute": "Value",
-            "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
-            "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
-            "CFBundleShortVersionString": "1.0",
-            "CFBundleVersion": "1",
-            "CFBundleInfoDictionaryVersion": "6.0",
-            "CFBundleName": "$(PRODUCT_NAME)",
-        ])
+        assertEqual(
+            got,
+            [
+                "CFBundlePackageType": "BNDL",
+                "ExtraAttribute": "Value",
+                "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
+                "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
+                "CFBundleShortVersionString": "1.0",
+                "CFBundleVersion": "1",
+                "CFBundleInfoDictionaryVersion": "6.0",
+                "CFBundleName": "$(PRODUCT_NAME)",
+            ]
+        )
     }
 
     func test_contentPackageType() {
@@ -182,7 +195,10 @@ final class InfoPlistContentProviderTests: XCTestCase {
         assertPackageType(content(for: .test(product: .bundle)), "BNDL")
         assertPackageType(content(for: .test(product: .framework)), "FMWK")
         assertPackageType(content(for: .test(product: .staticFramework)), "FMWK")
-        assertPackageType(content(for: .test(product: .watch2App)), "$(PRODUCT_BUNDLE_PACKAGE_TYPE)")
+        assertPackageType(
+            content(for: .test(product: .watch2App)),
+            "$(PRODUCT_BUNDLE_PACKAGE_TYPE)"
+        )
         assertPackageType(content(for: .test(product: .appClip)), "APPL")
     }
 
@@ -198,7 +214,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
             product: .app,
             bundleId: "io.tuist.my.app.id",
             dependencies: [
-                .target(name: watchApp.name),
+                .target(name: watchApp.name)
             ]
         )
         let project = Project.test(targets: [
@@ -211,30 +227,33 @@ final class InfoPlistContentProviderTests: XCTestCase {
             project: project,
             target: watchApp,
             extendedWith: [
-                "ExtraAttribute": "Value",
+                "ExtraAttribute": "Value"
             ]
         )
 
         // Then
-        assertEqual(got, [
-            "CFBundleName": "$(PRODUCT_NAME)",
-            "CFBundleShortVersionString": "1.0",
-            "CFBundlePackageType": "$(PRODUCT_BUNDLE_PACKAGE_TYPE)",
-            "UISupportedInterfaceOrientations": [
-                "UIInterfaceOrientationPortrait",
-                "UIInterfaceOrientationPortraitUpsideDown",
-            ],
-            "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
-            "CFBundleInfoDictionaryVersion": "6.0",
-            "CFBundleVersion": "1",
-            "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
-            "CFBundleExecutable": "$(EXECUTABLE_NAME)",
-            "CFBundleDisplayName": "MyWatchApp",
-            "WKWatchKitApp": true,
-            "WKCompanionAppBundleIdentifier": "io.tuist.my.app.id",
-            "ExtraAttribute": "Value",
+        assertEqual(
+            got,
+            [
+                "CFBundleName": "$(PRODUCT_NAME)",
+                "CFBundleShortVersionString": "1.0",
+                "CFBundlePackageType": "$(PRODUCT_BUNDLE_PACKAGE_TYPE)",
+                "UISupportedInterfaceOrientations": [
+                    "UIInterfaceOrientationPortrait",
+                    "UIInterfaceOrientationPortraitUpsideDown",
+                ],
+                "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
+                "CFBundleInfoDictionaryVersion": "6.0",
+                "CFBundleVersion": "1",
+                "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
+                "CFBundleExecutable": "$(EXECUTABLE_NAME)",
+                "CFBundleDisplayName": "MyWatchApp",
+                "WKWatchKitApp": true,
+                "WKCompanionAppBundleIdentifier": "io.tuist.my.app.id",
+                "ExtraAttribute": "Value",
 
-        ])
+            ]
+        )
     }
 
     func test_content_whenWatchOSAppExtension() {
@@ -249,7 +268,7 @@ final class InfoPlistContentProviderTests: XCTestCase {
             product: .watch2App,
             bundleId: "io.tuist.my.app.id.mywatchapp",
             dependencies: [
-                .target(name: watchAppExtension.name),
+                .target(name: watchAppExtension.name)
             ]
         )
         let project = Project.test(targets: [
@@ -262,63 +281,79 @@ final class InfoPlistContentProviderTests: XCTestCase {
             project: project,
             target: watchAppExtension,
             extendedWith: [
-                "ExtraAttribute": "Value",
+                "ExtraAttribute": "Value"
             ]
         )
 
         // Then
-        assertEqual(got, [
-            "CFBundleName": "$(PRODUCT_NAME)",
-            "CFBundleShortVersionString": "1.0",
-            "CFBundlePackageType": "$(PRODUCT_BUNDLE_PACKAGE_TYPE)",
-            "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
-            "CFBundleInfoDictionaryVersion": "6.0",
-            "CFBundleVersion": "1",
-            "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
-            "CFBundleExecutable": "$(EXECUTABLE_NAME)",
-            "CFBundleDisplayName": "MyWatchAppExtension",
-            "NSExtension": [
-                "NSExtensionAttributes": [
-                    "WKAppBundleIdentifier": "io.tuist.my.app.id.mywatchapp",
+        assertEqual(
+            got,
+            [
+                "CFBundleName": "$(PRODUCT_NAME)",
+                "CFBundleShortVersionString": "1.0",
+                "CFBundlePackageType": "$(PRODUCT_BUNDLE_PACKAGE_TYPE)",
+                "CFBundleIdentifier": "$(PRODUCT_BUNDLE_IDENTIFIER)",
+                "CFBundleInfoDictionaryVersion": "6.0",
+                "CFBundleVersion": "1",
+                "CFBundleDevelopmentRegion": "$(DEVELOPMENT_LANGUAGE)",
+                "CFBundleExecutable": "$(EXECUTABLE_NAME)",
+                "CFBundleDisplayName": "MyWatchAppExtension",
+                "NSExtension": [
+                    "NSExtensionAttributes": [
+                        "WKAppBundleIdentifier": "io.tuist.my.app.id.mywatchapp"
+                    ],
+                    "NSExtensionPointIdentifier": "com.apple.watchkit",
                 ],
-                "NSExtensionPointIdentifier": "com.apple.watchkit",
-            ],
-            "WKExtensionDelegateClassName": "$(PRODUCT_MODULE_NAME).ExtensionDelegate",
-            "ExtraAttribute": "Value",
-        ])
+                "WKExtensionDelegateClassName": "$(PRODUCT_MODULE_NAME).ExtensionDelegate",
+                "ExtraAttribute": "Value",
+            ]
+        )
     }
 
     // MARK: - Helpers
 
-    fileprivate func assertPackageType(_ lhs: [String: Any]?,
-                                       _ packageType: String?,
-                                       file: StaticString = #file,
-                                       line: UInt = #line)
-    {
+    fileprivate func assertPackageType(
+        _ lhs: [String: Any]?,
+        _ packageType: String?,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) {
         let value = lhs?["CFBundlePackageType"] as? String
 
         if let packageType = packageType {
-            XCTAssertEqual(value, packageType, "Expected package type \(packageType) but got \(value ?? "")", file: file, line: line)
+            XCTAssertEqual(
+                value,
+                packageType,
+                "Expected package type \(packageType) but got \(value ?? "")",
+                file: file,
+                line: line
+            )
         } else {
-            XCTAssertNil(value, "Expected package type to be nil and got \(value ?? "")", file: file, line: line)
+            XCTAssertNil(
+                value,
+                "Expected package type to be nil and got \(value ?? "")",
+                file: file,
+                line: line
+            )
         }
     }
 
-    fileprivate func assertEqual(_ lhs: [String: Any]?,
-                                 _ rhs: [String: Any],
-                                 file: StaticString = #file,
-                                 line: UInt = #line)
-    {
+    fileprivate func assertEqual(
+        _ lhs: [String: Any]?,
+        _ rhs: [String: Any],
+        file: StaticString = #file,
+        line: UInt = #line
+    ) {
         let lhsNSDictionary = NSDictionary(dictionary: lhs ?? [:])
         let rhsNSDictionary = NSDictionary(dictionary: rhs)
         let message = """
 
-        The dictionary:
-        \(lhs ?? [:])
+            The dictionary:
+            \(lhs ?? [:])
 
-        Is not equal to the expected dictionary:
-        \(rhs)
-        """
+            Is not equal to the expected dictionary:
+            \(rhs)
+            """
 
         XCTAssertTrue(lhsNSDictionary.isEqual(rhsNSDictionary), message, file: file, line: line)
     }

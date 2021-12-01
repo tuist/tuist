@@ -10,7 +10,10 @@ struct CleanCommand: ParsableCommand {
         )
     }
 
-    @Argument(help: "The cache categories to be cleaned. If no category is specified, the whole cache is cleaned.")
+    @Argument(
+        help:
+            "The cache categories to be cleaned. If no category is specified, the whole cache is cleaned."
+    )
     var cacheCategories: [CacheCategory] = CacheCategory.allCases
 
     func run() throws {

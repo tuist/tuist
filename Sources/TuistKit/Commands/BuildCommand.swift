@@ -13,7 +13,8 @@ struct BuildCommand: ParsableCommand {
     }
 
     @Argument(
-        help: "The scheme to be built. By default it builds all the buildable schemes of the project in the current directory."
+        help:
+            "The scheme to be built. By default it builds all the buildable schemes of the project in the current directory."
     )
     var scheme: String?
 
@@ -59,7 +60,9 @@ struct BuildCommand: ParsableCommand {
             generate: generate,
             clean: clean,
             configuration: configuration,
-            buildOutputPath: buildOutputPath.map { AbsolutePath($0, relativeTo: FileHandler.shared.currentPath) },
+            buildOutputPath: buildOutputPath.map {
+                AbsolutePath($0, relativeTo: FileHandler.shared.currentPath)
+            },
             path: absolutePath
         )
     }

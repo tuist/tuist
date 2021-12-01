@@ -14,9 +14,10 @@ final class GenerateCommand {
 
     private let fileSystem: FileSystem
 
-    init(fileSystem: FileSystem,
-         parser: ArgumentParser)
-    {
+    init(
+        fileSystem: FileSystem,
+        parser: ArgumentParser
+    ) {
         self.fileSystem = fileSystem
 
         pathArgument = parser.add(
@@ -59,7 +60,8 @@ final class GenerateCommand {
         try generator.generate(at: path)
     }
 
-    private func determineFixturePath(using arguments: ArgumentParser.Result) throws -> AbsolutePath {
+    private func determineFixturePath(using arguments: ArgumentParser.Result) throws -> AbsolutePath
+    {
         guard let currentPath = fileSystem.currentWorkingDirectory else {
             throw GenerateCommandError.invalidPath
         }

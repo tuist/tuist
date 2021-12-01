@@ -21,10 +21,20 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try TuistGraph.CoreDataModel.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try TuistGraph.CoreDataModel.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths
+        )
 
         // Then
-        XCTAssertTrue(try coreDataModel(model, matches: manifest, at: temporaryPath, generatorPaths: generatorPaths))
+        XCTAssertTrue(
+            try coreDataModel(
+                model,
+                matches: manifest,
+                at: temporaryPath,
+                generatorPaths: generatorPaths
+            )
+        )
     }
 
     func test_from_getsCurrentVersionFrom_file_xccurrentversion() throws {
@@ -32,18 +42,34 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
 
-        try FileManager.default.createDirectory(at: temporaryPath.appending(component: "model.xcdatamodeld").asURL, withIntermediateDirectories: false)
+        try FileManager.default.createDirectory(
+            at: temporaryPath.appending(component: "model.xcdatamodeld").asURL,
+            withIntermediateDirectories: false
+        )
         try createVersionFile(xcVersion: xcVersionDataString(), temporaryPath: temporaryPath)
 
         let manifestWithoutCurrentVersion = ProjectDescription.CoreDataModel("model.xcdatamodeld")
 
         // When
-        let model = try TuistGraph.CoreDataModel.from(manifest: manifestWithoutCurrentVersion, generatorPaths: generatorPaths)
+        let model = try TuistGraph.CoreDataModel.from(
+            manifest: manifestWithoutCurrentVersion,
+            generatorPaths: generatorPaths
+        )
 
-        let manifestWithCurrentVersionExplicitly = ProjectDescription.CoreDataModel("model.xcdatamodeld", currentVersion: "83")
+        let manifestWithCurrentVersionExplicitly = ProjectDescription.CoreDataModel(
+            "model.xcdatamodeld",
+            currentVersion: "83"
+        )
 
         // Then
-        XCTAssertTrue(try coreDataModel(model, matches: manifestWithCurrentVersionExplicitly, at: temporaryPath, generatorPaths: generatorPaths))
+        XCTAssertTrue(
+            try coreDataModel(
+                model,
+                matches: manifestWithCurrentVersionExplicitly,
+                at: temporaryPath,
+                generatorPaths: generatorPaths
+            )
+        )
     }
 
     func test_from_getsCurrentVersionFrom_file_xccurrentversion_butCannotFindVersion() throws {
@@ -51,15 +77,25 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
 
-        try FileManager.default.createDirectory(at: temporaryPath.appending(component: "model.xcdatamodeld").asURL, withIntermediateDirectories: false)
-        try createVersionFile(xcVersion: "Let's say that apple changes the format without telling anyone, being typical Apple.", temporaryPath: temporaryPath)
+        try FileManager.default.createDirectory(
+            at: temporaryPath.appending(component: "model.xcdatamodeld").asURL,
+            withIntermediateDirectories: false
+        )
+        try createVersionFile(
+            xcVersion:
+                "Let's say that apple changes the format without telling anyone, being typical Apple.",
+            temporaryPath: temporaryPath
+        )
 
         // When
         let manifestWithoutCurrentVersion = ProjectDescription.CoreDataModel("model.xcdatamodeld")
 
         // Then
         XCTAssertThrowsError(
-            try TuistGraph.CoreDataModel.from(manifest: manifestWithoutCurrentVersion, generatorPaths: generatorPaths)
+            try TuistGraph.CoreDataModel.from(
+                manifest: manifestWithoutCurrentVersion,
+                generatorPaths: generatorPaths
+            )
         )
     }
 
@@ -85,7 +121,8 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
     }
 
     private func createVersionFile(xcVersion: String, temporaryPath: AbsolutePath) throws {
-        let urlToCurrentVersion = temporaryPath.appending(RelativePath("model.xcdatamodeld")).appending(component: ".xccurrentversion")
+        let urlToCurrentVersion = temporaryPath.appending(RelativePath("model.xcdatamodeld"))
+            .appending(component: ".xccurrentversion")
         let data = try XCTUnwrap(xcVersion.data(using: .utf8))
         try data.write(to: urlToCurrentVersion.asURL)
     }

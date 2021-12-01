@@ -12,7 +12,8 @@ enum FocusTargetsGraphMapperError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .missingTargets(missingTargets: missingTargets, availableTargets: availableTargets):
-            return "Targets \(missingTargets.joined(separator: ", ")) cannot be found. Available targets are \(availableTargets.joined(separator: ", "))"
+            return
+                "Targets \(missingTargets.joined(separator: ", ")) cannot be found. Available targets are \(availableTargets.joined(separator: ", "))"
         }
     }
 
@@ -70,15 +71,16 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
         )
     }
 
-    init(config: Config,
-         cache: CacheStoring,
-         cacheGraphContentHasher: CacheGraphContentHashing,
-         sources: Set<String>,
-         cacheProfile: TuistGraph.Cache.Profile,
-         cacheOutputType: CacheOutputType,
-         cacheGraphMutator: CacheGraphMutating = CacheGraphMutator(),
-         queue: DispatchQueue = TargetsToCacheBinariesGraphMapper.dispatchQueue())
-    {
+    init(
+        config: Config,
+        cache: CacheStoring,
+        cacheGraphContentHasher: CacheGraphContentHashing,
+        sources: Set<String>,
+        cacheProfile: TuistGraph.Cache.Profile,
+        cacheOutputType: CacheOutputType,
+        cacheGraphMutator: CacheGraphMutating = CacheGraphMutator(),
+        queue: DispatchQueue = TargetsToCacheBinariesGraphMapper.dispatchQueue()
+    ) {
         self.config = config
         self.cache = cache
         self.cacheGraphContentHasher = cacheGraphContentHasher
@@ -105,7 +107,9 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
                 availableTargets: availableTargets.sorted()
             )
         }
-        let single = hashes(graph: graph).flatMap { self.map(graph: graph, hashes: $0, sources: self.sources) }
+        let single = hashes(graph: graph).flatMap {
+            self.map(graph: graph, hashes: $0, sources: self.sources)
+        }
         return try (single.toBlocking().single(), [])
     }
 
@@ -113,7 +117,12 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
 
     private static func dispatchQueue() -> DispatchQueue {
         let qos: DispatchQoS = .userInitiated
-        return DispatchQueue(label: "io.tuist.generator-cache-mapper.\(qos)", qos: qos, attributes: [], target: nil)
+        return DispatchQueue(
+            label: "io.tuist.generator-cache-mapper.\(qos)",
+            qos: qos,
+            attributes: [],
+            target: nil
+        )
     }
 
     private func hashes(graph: Graph) -> Single<[GraphTarget: String]> {
@@ -134,7 +143,11 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
         .subscribeOn(ConcurrentDispatchQueueScheduler(queue: queue))
     }
 
-    private func map(graph: Graph, hashes: [GraphTarget: String], sources: Set<String>) -> Single<Graph> {
+    private func map(
+        graph: Graph,
+        hashes: [GraphTarget: String],
+        sources: Set<String>
+    ) -> Single<Graph> {
         fetch(hashes: hashes).map { xcframeworkPaths in
             try self.cacheGraphMutator.map(
                 graph: graph,
@@ -145,13 +158,16 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
     }
 
     private func fetch(hashes: [GraphTarget: String]) -> Single<[GraphTarget: AbsolutePath]> {
-        return Single
+        return
+            Single
             .zip(
                 hashes.map(context: .concurrent) { target, hash in
                     self.cache.exists(name: target.target.name, hash: hash)
                         .flatMap { (exists) -> Single<(target: GraphTarget, path: AbsolutePath?)> in
                             guard exists else { return Single.just((target: target, path: nil)) }
-                            return self.cache.fetch(name: target.target.name, hash: hash).map { (target: target, path: $0) }
+                            return self.cache.fetch(name: target.target.name, hash: hash).map {
+                                (target: target, path: $0)
+                            }
                         }
                 }
             )

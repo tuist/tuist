@@ -25,9 +25,9 @@ enum VersionProviderError: FatalError {
             return "Error decoding the response from \(url.absoluteString) as an utf8 string."
         case let .responseError(url, content, statusCode):
             return """
-            The request to \(url.absoluteString) return an unsuccessful response with status code \(statusCode) and error body:
-            \(content)
-            """
+                The request to \(url.absoluteString) return an unsuccessful response with status code \(statusCode) and error body:
+                \(content)
+                """
         }
     }
 
@@ -42,7 +42,9 @@ enum VersionProviderError: FatalError {
 class VersionProvider: VersionProviding {
     let requestDispatcher: HTTPRequestDispatching
 
-    init(requestDispatcher: HTTPRequestDispatching = HTTPRequestDispatcher()) {
+    init(
+        requestDispatcher: HTTPRequestDispatching = HTTPRequestDispatcher()
+    ) {
         self.requestDispatcher = requestDispatcher
     }
 
@@ -75,7 +77,7 @@ class VersionProvider: VersionProviding {
     fileprivate func parseVersionsFromChangelog(_ changelog: String) throws -> [Version] {
         let regex = try NSRegularExpression(pattern: "##\\s+([0-9]+.[0-9]+.[0-9]+)", options: [])
         let changelogRange = NSRange(
-            changelog.startIndex ..< changelog.endIndex,
+            changelog.startIndex..<changelog.endIndex,
             in: changelog
         )
         let matches = regex.matches(in: changelog, options: [], range: changelogRange)

@@ -1,8 +1,9 @@
 import Foundation
+
 @testable import TuistGraph
 
-public extension TextSettings {
-    static func test(
+extension TextSettings {
+    public static func test(
         usesTabs: Bool? = true,
         indentWidth: UInt? = 2,
         tabWidth: UInt? = 2,

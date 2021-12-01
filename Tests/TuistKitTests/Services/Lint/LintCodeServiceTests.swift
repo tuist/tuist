@@ -56,14 +56,21 @@ final class LintCodeServiceTests: TuistUnitTestCase {
                     target01.name: target01,
                     target02.name: target02,
                     target03.name: target03,
-                ],
+                ]
             ]
         )
         let fakeNoExistTargetName = "Target_999"
         manifestGraphLoader.stubLoadGraph = graph
 
         // When
-        XCTAssertThrowsSpecific(try subject.run(path: project.path.pathString, targetName: fakeNoExistTargetName, strict: false), LintCodeServiceError.targetNotFound(fakeNoExistTargetName))
+        XCTAssertThrowsSpecific(
+            try subject.run(
+                path: project.path.pathString,
+                targetName: fakeNoExistTargetName,
+                strict: false
+            ),
+            LintCodeServiceError.targetNotFound(fakeNoExistTargetName)
+        )
     }
 
     func test_run_throws_an_error_when_target_to_lint_has_no_sources() throws {
@@ -79,13 +86,20 @@ final class LintCodeServiceTests: TuistUnitTestCase {
                     target01.name: target01,
                     target02.name: target02,
                     target03.name: target03,
-                ],
+                ]
             ]
         )
         manifestGraphLoader.stubLoadGraph = graph
 
         // When
-        XCTAssertThrowsSpecific(try subject.run(path: project.path.pathString, targetName: target01.name, strict: false), LintCodeServiceError.lintableFilesForTargetNotFound(target01.name))
+        XCTAssertThrowsSpecific(
+            try subject.run(
+                path: project.path.pathString,
+                targetName: target01.name,
+                strict: false
+            ),
+            LintCodeServiceError.lintableFilesForTargetNotFound(target01.name)
+        )
     }
 
     func test_run_throws_an_error_when_code_liner_throws_error() throws {
@@ -95,7 +109,10 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         codeLinter.stubbedLintError = fakeError
 
         // When
-        XCTAssertThrowsSpecific(try subject.run(path: project.path.pathString, targetName: nil, strict: false), fakeError)
+        XCTAssertThrowsSpecific(
+            try subject.run(path: project.path.pathString, targetName: nil, strict: false),
+            fakeError
+        )
     }
 
     func test_run_lint_workspace() throws {
@@ -120,7 +137,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         let target03 = Target.test(
             name: "Target3",
             sources: [
-                SourceFile(path: "/target03/file1.swift", compilerFlags: nil),
+                SourceFile(path: "/target03/file1.swift", compilerFlags: nil)
             ]
         )
         let graph = Graph.test(
@@ -131,7 +148,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
                     target01.name: target01,
                     target02.name: target02,
                     target03.name: target03,
-                ],
+                ]
             ]
         )
         manifestGraphLoader.stubLoadGraph = graph
@@ -157,10 +174,12 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         XCTAssertEqual(invokedLintParameters?.path, project.path)
         XCTAssertEqual(invokedLintParameters?.strict, false)
 
-        XCTAssertPrinterOutputContains("""
-        Loading the dependency graph at \(workspace.path)
-        Running code linting
-        """)
+        XCTAssertPrinterOutputContains(
+            """
+            Loading the dependency graph at \(workspace.path)
+            Running code linting
+            """
+        )
     }
 
     func test_run_lint_project() throws {
@@ -184,7 +203,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         let target03 = Target.test(
             name: "Target3",
             sources: [
-                SourceFile(path: "/target03/file1.swift", compilerFlags: nil),
+                SourceFile(path: "/target03/file1.swift", compilerFlags: nil)
             ]
         )
         let graph = Graph.test(
@@ -194,7 +213,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
                     target01.name: target01,
                     target02.name: target02,
                     target03.name: target03,
-                ],
+                ]
             ]
         )
         manifestGraphLoader.stubLoadGraph = graph
@@ -220,10 +239,12 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         XCTAssertEqual(invokedLintParameters?.path, project.path)
         XCTAssertEqual(invokedLintParameters?.strict, false)
 
-        XCTAssertPrinterOutputContains("""
-        Loading the dependency graph at \(project.path)
-        Running code linting
-        """)
+        XCTAssertPrinterOutputContains(
+            """
+            Loading the dependency graph at \(project.path)
+            Running code linting
+            """
+        )
     }
 
     func test_run_lint_project_strict() throws {
@@ -247,7 +268,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         let target03 = Target.test(
             name: "Target3",
             sources: [
-                SourceFile(path: "/target03/file1.swift", compilerFlags: nil),
+                SourceFile(path: "/target03/file1.swift", compilerFlags: nil)
             ]
         )
         let graph = Graph.test(
@@ -257,7 +278,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
                     target01.name: target01,
                     target02.name: target02,
                     target03.name: target03,
-                ],
+                ]
             ]
         )
         manifestGraphLoader.stubLoadGraph = graph
@@ -283,10 +304,12 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         XCTAssertEqual(invokedLintParameters?.path, project.path)
         XCTAssertEqual(invokedLintParameters?.strict, true)
 
-        XCTAssertPrinterOutputContains("""
-        Loading the dependency graph at \(project.path)
-        Running code linting
-        """)
+        XCTAssertPrinterOutputContains(
+            """
+            Loading the dependency graph at \(project.path)
+            Running code linting
+            """
+        )
     }
 
     func test_run_lint_target() throws {
@@ -311,7 +334,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         let target03 = Target.test(
             name: "Target3",
             sources: [
-                SourceFile(path: "/target03/file1.swift", compilerFlags: nil),
+                SourceFile(path: "/target03/file1.swift", compilerFlags: nil)
             ]
         )
         let graph = Graph.test(
@@ -322,7 +345,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
                     target01.name: target01,
                     target02.name: target02,
                     target03.name: target03,
-                ],
+                ]
             ]
         )
         manifestGraphLoader.stubLoadGraph = graph
@@ -334,16 +357,21 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         let invokedLintParameters = codeLinter.invokedLintParameters
 
         XCTAssertEqual(codeLinter.invokedLintCount, 1)
-        XCTAssertEqual(invokedLintParameters?.sources, [
-            "/target01/file1.swift",
-            "/target01/file2.swift",
-        ])
+        XCTAssertEqual(
+            invokedLintParameters?.sources,
+            [
+                "/target01/file1.swift",
+                "/target01/file2.swift",
+            ]
+        )
         XCTAssertEqual(invokedLintParameters?.path, workspace.path)
         XCTAssertEqual(invokedLintParameters?.strict, false)
 
-        XCTAssertPrinterOutputContains("""
-        Loading the dependency graph at \(workspace.path)
-        Running code linting
-        """)
+        XCTAssertPrinterOutputContains(
+            """
+            Loading the dependency graph at \(workspace.path)
+            Running code linting
+            """
+        )
     }
 }

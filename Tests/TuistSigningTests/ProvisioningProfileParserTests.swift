@@ -1,5 +1,6 @@
 import TSCBasic
 import XCTest
+
 @testable import TuistSigning
 @testable import TuistSupportTesting
 
@@ -60,8 +61,8 @@ final class ProvisioningProfileParserTests: TuistUnitTestCase {
     }
 }
 
-private extension String {
-    static func testProvisioningProfile(
+extension String {
+    fileprivate static func testProvisioningProfile(
         name: String,
         uuid: String,
         teamId: String,

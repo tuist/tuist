@@ -13,7 +13,9 @@ public final class SettingsContentHasher: SettingsContentHashing {
 
     // MARK: - Init
 
-    public init(contentHasher: ContentHashing) {
+    public init(
+        contentHasher: ContentHashing
+    ) {
         self.contentHasher = contentHasher
     }
 
@@ -41,7 +43,8 @@ public final class SettingsContentHasher: SettingsContentHashing {
     }
 
     private func hash(_ settingsDictionary: SettingsDictionary) throws -> String {
-        let sortedAndNormalizedSettings = settingsDictionary
+        let sortedAndNormalizedSettings =
+            settingsDictionary
             .sorted(by: { $0.0 < $1.0 })
             .map { "\($0):\($1.normalize())" }.joined(separator: "-")
         return try contentHasher.hash(sortedAndNormalizedSettings)

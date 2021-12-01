@@ -1,8 +1,10 @@
 import Foundation
 import TSCBasic
-import struct TSCUtility.Version
 import TuistSupport
 import XCTest
+
+import struct TSCUtility.Version
+
 @testable import TuistEnvKit
 @testable import TuistSupportTesting
 
@@ -45,8 +47,12 @@ final class VersionsControllerTests: TuistUnitTestCase {
     }
 
     func test_versions() throws {
-        try FileHandler.shared.createFolder(environment.versionsDirectory.appending(component: "3.2.1"))
-        try FileHandler.shared.createFolder(environment.versionsDirectory.appending(component: "ref"))
+        try FileHandler.shared.createFolder(
+            environment.versionsDirectory.appending(component: "3.2.1")
+        )
+        try FileHandler.shared.createFolder(
+            environment.versionsDirectory.appending(component: "ref")
+        )
 
         let versions = subject.versions()
 
@@ -75,16 +81,19 @@ final class VersionsControllerTests: TuistUnitTestCase {
         let results = subject.semverVersions()
 
         // Then
-        XCTAssertEqual(results, [
-            Version(0, 9, 0),
-            Version(0, 12, 0),
-            Version(0, 12, 9),
-            Version(0, 12, 12),
-            Version(1, 0, 0),
-            Version(1, 9, 0),
-            Version(1, 12, 0),
-            Version(2, 18, 0),
-            Version(12, 2, 0),
-        ])
+        XCTAssertEqual(
+            results,
+            [
+                Version(0, 9, 0),
+                Version(0, 12, 0),
+                Version(0, 12, 9),
+                Version(0, 12, 12),
+                Version(1, 0, 0),
+                Version(1, 9, 0),
+                Version(1, 12, 0),
+                Version(2, 18, 0),
+                Version(12, 2, 0),
+            ]
+        )
     }
 }

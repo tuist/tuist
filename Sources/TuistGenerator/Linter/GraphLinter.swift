@@ -1,12 +1,16 @@
 import Foundation
-import struct TSCUtility.Version
 import TuistCore
 import TuistGraph
 import TuistSupport
 
+import struct TSCUtility.Version
+
 public protocol GraphLinting: AnyObject {
     func lint(graphTraverser: GraphTraversing) -> [LintingIssue]
-    func lintCodeCoverageMode(_ mode: CodeCoverageMode?, graphTraverser: GraphTraversing) -> [LintingIssue]
+    func lintCodeCoverageMode(
+        _ mode: CodeCoverageMode?,
+        graphTraverser: GraphTraversing
+    ) -> [LintingIssue]
 }
 
 // swiftlint:disable type_body_length
@@ -27,9 +31,10 @@ public class GraphLinter: GraphLinting {
         )
     }
 
-    init(projectLinter: ProjectLinting,
-         staticProductsLinter: StaticProductsGraphLinting)
-    {
+    init(
+        projectLinter: ProjectLinting,
+        staticProductsLinter: StaticProductsGraphLinting
+    ) {
         self.projectLinter = projectLinter
         self.staticProductsLinter = staticProductsLinter
     }
@@ -38,9 +43,11 @@ public class GraphLinter: GraphLinting {
 
     public func lint(graphTraverser: GraphTraversing) -> [LintingIssue] {
         var issues: [LintingIssue] = []
-        issues.append(contentsOf: graphTraverser.projects.flatMap { project -> [LintingIssue] in
-            projectLinter.lint(project.value)
-        })
+        issues.append(
+            contentsOf: graphTraverser.projects.flatMap { project -> [LintingIssue] in
+                projectLinter.lint(project.value)
+            }
+        )
         issues.append(contentsOf: lintDependencies(graphTraverser: graphTraverser))
         issues.append(contentsOf: lintMismatchingConfigurations(graphTraverser: graphTraverser))
         issues.append(contentsOf: lintWatchBundleIndentifiers(graphTraverser: graphTraverser))
@@ -49,28 +56,41 @@ public class GraphLinter: GraphLinting {
         return issues
     }
 
-    public func lintCodeCoverageMode(_ mode: CodeCoverageMode?, graphTraverser: GraphTraversing) -> [LintingIssue] {
+    public func lintCodeCoverageMode(
+        _ mode: CodeCoverageMode?,
+        graphTraverser: GraphTraversing
+    ) -> [LintingIssue] {
         switch mode {
         case .none, .all: return []
         case .relevant:
-            let targets = graphTraverser.workspace.codeCoverageTargets(mode: mode, projects: Array(graphTraverser.projects.values))
+            let targets = graphTraverser.workspace.codeCoverageTargets(
+                mode: mode,
+                projects: Array(graphTraverser.projects.values)
+            )
 
             if targets.isEmpty {
                 return [
                     LintingIssue(
-                        reason: "Cannot find any any targets configured for code coverage, perhaps you wanted to use `CodeCoverageMode.all`?",
+                        reason:
+                            "Cannot find any any targets configured for code coverage, perhaps you wanted to use `CodeCoverageMode.all`?",
                         severity: .warning
-                    ),
+                    )
                 ]
             }
 
             return []
         case let .targets(targets):
             if targets.isEmpty {
-                return [LintingIssue(reason: "List of targets for code coverage is empty", severity: .warning)]
+                return [
+                    LintingIssue(
+                        reason: "List of targets for code coverage is empty",
+                        severity: .warning
+                    )
+                ]
             }
 
-            let nonExistingTargets = targets
+            let nonExistingTargets =
+                targets
                 .filter { target in
                     graphTraverser.target(
                         path: target.projectPath,
@@ -81,7 +101,10 @@ public class GraphLinter: GraphLinting {
             guard !nonExistingTargets.isEmpty else { return [] }
 
             return nonExistingTargets.map {
-                LintingIssue(reason: "Target '\($0.name)' at '\($0.projectPath)' doesn't exist", severity: .error)
+                LintingIssue(
+                    reason: "Target '\($0.name)' at '\($0.projectPath)' doesn't exist",
+                    severity: .error
+                )
             }
         }
     }
@@ -90,19 +113,31 @@ public class GraphLinter: GraphLinting {
 
     func lintDependencies(graphTraverser: GraphTraversing) -> [LintingIssue] {
         var issues: [LintingIssue] = []
-        let dependencyIssues = graphTraverser.dependencies.flatMap { (fromDependency, toDependencies) -> [LintingIssue] in
+        let dependencyIssues = graphTraverser.dependencies.flatMap {
+            (fromDependency, toDependencies) -> [LintingIssue] in
             toDependencies.flatMap { (toDependency) -> [LintingIssue] in
-                guard case let GraphDependency.target(fromTargetName, fromTargetPath) = fromDependency else { return [] }
-                guard case let GraphDependency.target(toTargetName, toTargetPath) = toDependency else { return [] }
-                guard let fromTarget = graphTraverser.target(path: fromTargetPath, name: fromTargetName) else { return [] }
-                guard let toTarget = graphTraverser.target(path: toTargetPath, name: toTargetName) else { return [] }
+                guard
+                    case let GraphDependency.target(fromTargetName, fromTargetPath) = fromDependency
+                else { return [] }
+                guard case let GraphDependency.target(toTargetName, toTargetPath) = toDependency
+                else { return [] }
+                guard
+                    let fromTarget = graphTraverser.target(
+                        path: fromTargetPath,
+                        name: fromTargetName
+                    )
+                else { return [] }
+                guard let toTarget = graphTraverser.target(path: toTargetPath, name: toTargetName)
+                else { return [] }
                 return lintDependency(from: fromTarget, to: toTarget)
             }
         }
 
         issues.append(contentsOf: dependencyIssues)
         issues.append(contentsOf: staticProductsLinter.lint(graphTraverser: graphTraverser))
-        issues.append(contentsOf: lintPrecompiledFrameworkDependencies(graphTraverser: graphTraverser))
+        issues.append(
+            contentsOf: lintPrecompiledFrameworkDependencies(graphTraverser: graphTraverser)
+        )
         issues.append(contentsOf: lintPackageDependencies(graphTraverser: graphTraverser))
         issues.append(contentsOf: lintAppClip(graphTraverser: graphTraverser))
 
@@ -122,14 +157,16 @@ public class GraphLinter: GraphLinting {
         )
 
         if !GraphLinter.validLinks.keys.contains(fromTarget) {
-            let reason = "Target \(from.target.name) has a platform '\(from.target.platform)' and product '\(from.target.product)' invalid or not supported yet."
+            let reason =
+                "Target \(from.target.name) has a platform '\(from.target.platform)' and product '\(from.target.product)' invalid or not supported yet."
             let issue = LintingIssue(reason: reason, severity: .error)
             issues.append(issue)
         }
         let supportedTargets = GraphLinter.validLinks[fromTarget]
 
         if supportedTargets == nil || supportedTargets?.contains(toTarget) == false {
-            let reason = "Target \(from.target.name) has a dependency with target \(to.target.name) of type \(to.target.product) for platform '\(to.target.platform)' which is invalid or not supported yet."
+            let reason =
+                "Target \(from.target.name) has a dependency with target \(to.target.name) of type \(to.target.product) for platform '\(to.target.platform)' which is invalid or not supported yet."
             let issue = LintingIssue(reason: reason, severity: .error)
             issues.append(issue)
         }
@@ -145,7 +182,10 @@ public class GraphLinter: GraphLinting {
         }
 
         let projectBuildConfigurations = graphTraverser.projects.compactMap { project in
-            (name: project.value.name, buildConfigurations: Set(project.value.settings.configurations.keys))
+            (
+                name: project.value.name,
+                buildConfigurations: Set(project.value.settings.configurations.keys)
+            )
         }
 
         let mismatchingBuildConfigurations = projectBuildConfigurations.filter {
@@ -155,7 +195,8 @@ public class GraphLinter: GraphLinting {
         return mismatchingBuildConfigurations.map {
             let expectedConfigurations = knownConfigurations.sorted()
             let configurations = $0.buildConfigurations.sorted()
-            let reason = "The project '\($0.name)' has missing or mismatching configurations. It has \(configurations), other projects have \(expectedConfigurations)"
+            let reason =
+                "The project '\($0.name)' has missing or mismatching configurations. It has \(configurations), other projects have \(expectedConfigurations)"
             return LintingIssue(
                 reason: reason,
                 severity: .warning
@@ -178,7 +219,8 @@ public class GraphLinter: GraphLinting {
         }
 
         if version.major < 11 {
-            let reason = "The project contains package dependencies but the selected version of Xcode is not compatible. Need at least 11 but got \(version)"
+            let reason =
+                "The project contains package dependencies but the selected version of Xcode is not compatible. Need at least 11 but got \(version)"
             return [LintingIssue(reason: reason, severity: .error)]
         }
 
@@ -189,15 +231,19 @@ public class GraphLinter: GraphLinting {
         let apps = graphTraverser.apps()
 
         let issues = apps.flatMap { app -> [LintingIssue] in
-            let appClips = graphTraverser.directLocalTargetDependencies(path: app.path, name: app.target.name)
-                .filter { $0.target.product == .appClip }
+            let appClips = graphTraverser.directLocalTargetDependencies(
+                path: app.path,
+                name: app.target.name
+            )
+            .filter { $0.target.product == .appClip }
 
             if appClips.count > 1 {
                 return [
                     LintingIssue(
-                        reason: "\(app) cannot depend on more than one app clip: \(appClips.map(\.target.name).sorted().listed())",
+                        reason:
+                            "\(app) cannot depend on more than one app clip: \(appClips.map(\.target.name).sorted().listed())",
                         severity: .error
-                    ),
+                    )
                 ]
             }
 
@@ -209,25 +255,39 @@ public class GraphLinter: GraphLinting {
         return issues
     }
 
-    private func lintPrecompiledFrameworkDependencies(graphTraverser: GraphTraversing) -> [LintingIssue] {
+    private func lintPrecompiledFrameworkDependencies(
+        graphTraverser: GraphTraversing
+    ) -> [LintingIssue] {
         let frameworks = graphTraverser.precompiledFrameworksPaths()
 
-        return frameworks
+        return
+            frameworks
             .filter { !FileHandler.shared.exists($0) }
-            .map { LintingIssue(reason: "Framework not found at path \($0.pathString)", severity: .error) }
+            .map {
+                LintingIssue(
+                    reason: "Framework not found at path \($0.pathString)",
+                    severity: .error
+                )
+            }
     }
 
     private func lintWatchBundleIndentifiers(graphTraverser: GraphTraversing) -> [LintingIssue] {
         let apps = graphTraverser.apps()
 
         let issues = apps.flatMap { app -> [LintingIssue] in
-            let watchApps = graphTraverser.directLocalTargetDependencies(path: app.path, name: app.target.name)
-                .filter { $0.target.product == .watch2App }
+            let watchApps = graphTraverser.directLocalTargetDependencies(
+                path: app.path,
+                name: app.target.name
+            )
+            .filter { $0.target.product == .watch2App }
 
             return watchApps.flatMap { watchApp -> [LintingIssue] in
                 let watchAppIssues = lint(watchApp: watchApp, parentApp: app)
-                let watchExtensions = graphTraverser.directLocalTargetDependencies(path: watchApp.path, name: watchApp.target.name)
-                    .filter { $0.target.product == .watch2Extension }
+                let watchExtensions = graphTraverser.directLocalTargetDependencies(
+                    path: watchApp.path,
+                    name: watchApp.target.name
+                )
+                .filter { $0.target.product == .watch2Extension }
 
                 let watchExtensionIssues = watchExtensions.flatMap { watchExtension in
                     lint(watchExtension: watchExtension, parentWatchApp: watchApp)
@@ -242,9 +302,12 @@ public class GraphLinter: GraphLinting {
     private func lint(watchApp: GraphTarget, parentApp: GraphTarget) -> [LintingIssue] {
         guard watchApp.target.bundleId.hasPrefix(parentApp.target.bundleId) else {
             return [
-                LintingIssue(reason: """
-                Watch app '\(watchApp.target.name)' bundleId: \(watchApp.target.bundleId) isn't prefixed with its parent's app '\(parentApp.target.bundleId)' bundleId '\(parentApp.target.bundleId)'
-                """, severity: .error),
+                LintingIssue(
+                    reason: """
+                        Watch app '\(watchApp.target.name)' bundleId: \(watchApp.target.bundleId) isn't prefixed with its parent's app '\(parentApp.target.bundleId)' bundleId '\(parentApp.target.bundleId)'
+                        """,
+                    severity: .error
+                )
             ]
         }
         return []
@@ -253,9 +316,12 @@ public class GraphLinter: GraphLinting {
     private func lint(watchExtension: GraphTarget, parentWatchApp: GraphTarget) -> [LintingIssue] {
         guard watchExtension.target.bundleId.hasPrefix(parentWatchApp.target.bundleId) else {
             return [
-                LintingIssue(reason: """
-                Watch extension '\(watchExtension.target.name)' bundleId: \(watchExtension.target.bundleId) isn't prefixed with its parent's watch app '\(parentWatchApp.target.bundleId)' bundleId '\(parentWatchApp.target.bundleId)'
-                """, severity: .error),
+                LintingIssue(
+                    reason: """
+                        Watch extension '\(watchExtension.target.name)' bundleId: \(watchExtension.target.bundleId) isn't prefixed with its parent's watch app '\(parentWatchApp.target.bundleId)' bundleId '\(parentWatchApp.target.bundleId)'
+                        """,
+                    severity: .error
+                )
             ]
         }
         return []
@@ -266,17 +332,33 @@ public class GraphLinter: GraphLinting {
 
         if !appClip.target.bundleId.hasPrefix(parentApp.target.bundleId) {
             foundIssues.append(
-                LintingIssue(reason: """
-                AppClip '\(appClip.target.name)' bundleId: \(appClip.target.bundleId) isn't prefixed with its parent's app '\(parentApp.target.name)' bundleId '\(parentApp.target.bundleId)'
-                """, severity: .error))
+                LintingIssue(
+                    reason: """
+                        AppClip '\(appClip.target.name)' bundleId: \(appClip.target.bundleId) isn't prefixed with its parent's app '\(parentApp.target.name)' bundleId '\(parentApp.target.bundleId)'
+                        """,
+                    severity: .error
+                )
+            )
         }
 
         if let entitlements = appClip.target.entitlements {
             if !FileHandler.shared.exists(entitlements) {
-                foundIssues.append(LintingIssue(reason: "The entitlements at path '\(entitlements)' referenced by target does not exist", severity: .error))
+                foundIssues.append(
+                    LintingIssue(
+                        reason:
+                            "The entitlements at path '\(entitlements)' referenced by target does not exist",
+                        severity: .error
+                    )
+                )
             }
         } else {
-            foundIssues.append(LintingIssue(reason: "An AppClip '\(appClip.target.name)' requires its Parent Application Identifiers Entitlement to be set", severity: .error))
+            foundIssues.append(
+                LintingIssue(
+                    reason:
+                        "An AppClip '\(appClip.target.name)' requires its Parent Application Identifiers Entitlement to be set",
+                    severity: .error
+                )
+            )
         }
 
         return foundIssues
@@ -311,13 +393,16 @@ public class GraphLinter: GraphLinting {
         return duplicateBundleIdLintingIssue(for: bundleIds)
     }
 
-    private func duplicateBundleIdLintingIssue(for targets: [BundleIdKey: [String]]) -> [LintingIssue] {
+    private func duplicateBundleIdLintingIssue(
+        for targets: [BundleIdKey: [String]]
+    ) -> [LintingIssue] {
         targets.compactMap { bundleIdKey, targetNames in
             guard targetNames.count > 1 else {
                 return nil
             }
 
-            let reason = "The bundle identifier '\(bundleIdKey.bundleId)' is being used by multiple targets: \(targetNames.sorted().listed())."
+            let reason =
+                "The bundle identifier '\(bundleIdKey.bundleId)' is being used by multiple targets: \(targetNames.sorted().listed())."
             return LintingIssue(reason: reason, severity: .warning)
         }.sorted(by: { $0.reason < $1.reason })
     }
@@ -340,7 +425,7 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .stickerPackExtension),
             LintableTarget(platform: .watchOS, product: .watch2App),
             LintableTarget(platform: .iOS, product: .appClip),
-//            LintableTarget(platform: .watchOS, product: .watchApp),
+            //            LintableTarget(platform: .watchOS, product: .watchApp),
         ],
         LintableTarget(platform: .iOS, product: .staticLibrary): [
             LintableTarget(platform: .iOS, product: .staticLibrary),
@@ -394,11 +479,11 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .iOS, product: .framework),
         ],
         //        LintableTarget(platform: .iOS, product: .messagesApplication): [
-//            LintableTarget(platform: .iOS, product: .messagesExtension),
-//            LintableTarget(platform: .iOS, product: .staticLibrary),
-//            LintableTarget(platform: .iOS, product: .dynamicLibrary),
-//            LintableTarget(platform: .iOS, product: .framework),
-//        ],
+        //            LintableTarget(platform: .iOS, product: .messagesExtension),
+        //            LintableTarget(platform: .iOS, product: .staticLibrary),
+        //            LintableTarget(platform: .iOS, product: .dynamicLibrary),
+        //            LintableTarget(platform: .iOS, product: .framework),
+        //        ],
         LintableTarget(platform: .iOS, product: .messagesExtension): [
             LintableTarget(platform: .iOS, product: .staticLibrary),
             LintableTarget(platform: .iOS, product: .dynamicLibrary),
@@ -514,14 +599,14 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .tvOS, product: .staticFramework),
         ],
         // watchOS
-//        LintableTarget(platform: .watchOS, product: .watchApp): [
-//            LintableTarget(platform: .watchOS, product: .staticLibrary),
-//            LintableTarget(platform: .watchOS, product: .dynamicLibrary),
-//            LintableTarget(platform: .watchOS, product: .framework),
-//            LintableTarget(platform: .watchOS, product: .watchExtension),
-//        ],
+        //        LintableTarget(platform: .watchOS, product: .watchApp): [
+        //            LintableTarget(platform: .watchOS, product: .staticLibrary),
+        //            LintableTarget(platform: .watchOS, product: .dynamicLibrary),
+        //            LintableTarget(platform: .watchOS, product: .framework),
+        //            LintableTarget(platform: .watchOS, product: .watchExtension),
+        //        ],
         LintableTarget(platform: .watchOS, product: .watch2App): [
-            LintableTarget(platform: .watchOS, product: .watch2Extension),
+            LintableTarget(platform: .watchOS, product: .watch2Extension)
         ],
         LintableTarget(platform: .watchOS, product: .staticLibrary): [
             LintableTarget(platform: .watchOS, product: .staticLibrary),
@@ -545,10 +630,10 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .watchOS, product: .bundle),
         ],
         //        LintableTarget(platform: .watchOS, product: .watchExtension): [
-//            LintableTarget(platform: .watchOS, product: .staticLibrary),
-//            LintableTarget(platform: .watchOS, product: .dynamicLibrary),
-//            LintableTarget(platform: .watchOS, product: .framework),
-//        ],
+        //            LintableTarget(platform: .watchOS, product: .staticLibrary),
+        //            LintableTarget(platform: .watchOS, product: .dynamicLibrary),
+        //            LintableTarget(platform: .watchOS, product: .framework),
+        //        ],
         LintableTarget(platform: .watchOS, product: .watch2Extension): [
             LintableTarget(platform: .watchOS, product: .staticLibrary),
             LintableTarget(platform: .watchOS, product: .dynamicLibrary),

@@ -21,8 +21,8 @@ enum CarthageInteractorError: FatalError, Equatable {
     var type: ErrorType {
         switch self {
         case .cartfileNotFound,
-             .cartfileResolvedNotFound,
-             .buildDirectoryNotFound:
+            .cartfileResolvedNotFound,
+            .buildDirectoryNotFound:
             return .bug
         case .carthageNotFound:
             return .abort
@@ -34,15 +34,18 @@ enum CarthageInteractorError: FatalError, Equatable {
         switch self {
         case .carthageNotFound:
             return """
-            Carthage was not found in the environment.
-            It's possible that the tool is not installed or hasn't been exposed to your environment."
-            """
+                Carthage was not found in the environment.
+                It's possible that the tool is not installed or hasn't been exposed to your environment."
+                """
         case .cartfileNotFound:
-            return "The Cartfile file was not found after resolving the dependencies using the Carthage."
+            return
+                "The Cartfile file was not found after resolving the dependencies using the Carthage."
         case .cartfileResolvedNotFound:
-            return "The Cartfile.resolved lockfile was not found after resolving the dependencies using the Carthage."
+            return
+                "The Cartfile.resolved lockfile was not found after resolving the dependencies using the Carthage."
         case .buildDirectoryNotFound:
-            return "The Carthage/Build directory was not found after resolving the dependencies using the Carthage."
+            return
+                "The Carthage/Build directory was not found after resolving the dependencies using the Carthage."
         }
     }
 }
@@ -115,7 +118,8 @@ public final class CarthageInteractor: CarthageInteracting {
 
         try saveDependencies(pathsProvider: pathsProvider)
 
-        let dependenciesGraph = try carthageGraphGenerator
+        let dependenciesGraph =
+            try carthageGraphGenerator
             .generate(at: pathsProvider.destinationCarthageBuildDirectory)
 
         logger.info("Carthage dependencies installed successfully.", metadata: .subsection)
@@ -124,9 +128,11 @@ public final class CarthageInteractor: CarthageInteracting {
     }
 
     public func clean(dependenciesDirectory: AbsolutePath) throws {
-        let carthageDirectory = dependenciesDirectory
+        let carthageDirectory =
+            dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
-        let cartfileResolvedPath = dependenciesDirectory
+        let cartfileResolvedPath =
+            dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
             .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
 
@@ -137,7 +143,10 @@ public final class CarthageInteractor: CarthageInteracting {
     // MARK: - Installation
 
     /// Loads lockfile and dependencies into working directory if they had been saved before.
-    private func loadDependencies(pathsProvider: CarthagePathsProvider, dependencies: TuistGraph.CarthageDependencies) throws {
+    private func loadDependencies(
+        pathsProvider: CarthagePathsProvider,
+        dependencies: TuistGraph.CarthageDependencies
+    ) throws {
         // copy `Cartfile.resolved` directory from previous run if exist
         if FileHandler.shared.exists(pathsProvider.destinationCartfileResolvedPath) {
             try copy(
@@ -209,23 +218,31 @@ private struct CarthagePathsProvider {
     let temporaryCartfilePath: AbsolutePath
     let temporaryCartfileResolvedPath: AbsolutePath
 
-    init(dependenciesDirectory: AbsolutePath) {
+    init(
+        dependenciesDirectory: AbsolutePath
+    ) {
         self.dependenciesDirectory = dependenciesDirectory
 
-        destinationCartfilePath = dependenciesDirectory
+        destinationCartfilePath =
+            dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
             .appending(component: Constants.DependenciesDirectory.cartfileName)
-        destinationCartfileResolvedPath = dependenciesDirectory
+        destinationCartfileResolvedPath =
+            dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
             .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
-        destinationCarthageDirectory = dependenciesDirectory
+        destinationCarthageDirectory =
+            dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
-        destinationCarthageBuildDirectory = destinationCarthageDirectory
+        destinationCarthageBuildDirectory =
+            destinationCarthageDirectory
             .appending(component: "Build")
 
-        temporaryCartfilePath = dependenciesDirectory
+        temporaryCartfilePath =
+            dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.cartfileName)
-        temporaryCartfileResolvedPath = dependenciesDirectory
+        temporaryCartfileResolvedPath =
+            dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.cartfileResolvedName)
     }
 }

@@ -10,7 +10,10 @@ extension TuistGraph.Package {
     /// - Parameters:
     ///   - manifest: Manifest representation of Package.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.Package, generatorPaths: GeneratorPaths) throws -> TuistGraph.Package {
+    static func from(
+        manifest: ProjectDescription.Package,
+        generatorPaths: GeneratorPaths
+    ) throws -> TuistGraph.Package {
         switch manifest {
         case let .local(path: local):
             return .local(path: try generatorPaths.resolve(path: local))

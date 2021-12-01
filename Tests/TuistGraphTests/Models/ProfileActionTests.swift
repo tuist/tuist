@@ -15,13 +15,13 @@ final class ProfileActionTests: TuistUnitTestCase {
             ),
             arguments: .init(
                 environment: [
-                    "key": "value",
+                    "key": "value"
                 ],
                 launchArguments: [
                     .init(
                         name: "name",
                         isEnabled: false
-                    ),
+                    )
                 ]
             )
         )

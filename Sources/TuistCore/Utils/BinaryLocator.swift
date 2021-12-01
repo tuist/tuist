@@ -21,8 +21,8 @@ enum BinaryLocatorError: FatalError, Equatable {
     var type: ErrorType {
         switch self {
         case .swiftLintNotFound,
-             .xcbeautifyNotFound,
-             .cocoapodsInteractorNotFound:
+            .xcbeautifyNotFound,
+            .cocoapodsInteractorNotFound:
             return .bug
         }
     }
@@ -72,7 +72,9 @@ public final class BinaryLocator: BinaryLocating {
                 .removingLastComponent()
                 .appending(RelativePath("projects/cocoapods-interactor/bin/cocoapods-interactor"))
         #else
-            let path = AbsolutePath(Bundle(for: BinaryLocator.self).bundleURL.path).appending(RelativePath("cocoapods-interactor/bin/cocoapods-interactor"))
+            let path = AbsolutePath(Bundle(for: BinaryLocator.self).bundleURL.path).appending(
+                RelativePath("cocoapods-interactor/bin/cocoapods-interactor")
+            )
         #endif
         guard FileHandler.shared.exists(path) else {
             throw BinaryLocatorError.cocoapodsInteractorNotFound

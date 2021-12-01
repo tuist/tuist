@@ -8,7 +8,8 @@ struct MigrationSettingsToXCConfigCommand: ParsableCommand {
         CommandConfiguration(
             commandName: "settings-to-xcconfig",
             _superCommandName: "migration",
-            abstract: "It extracts the build settings from a project or a target into an xcconfig file."
+            abstract:
+                "It extracts the build settings from a project or a target into an xcconfig file."
         )
     }
 
@@ -28,7 +29,8 @@ struct MigrationSettingsToXCConfigCommand: ParsableCommand {
 
     @Option(
         name: .shortAndLong,
-        help: "The name of the target whose build settings will be extracted. When not passed, it extracts the build settings of the project.",
+        help:
+            "The name of the target whose build settings will be extracted. When not passed, it extracts the build settings of the project.",
         completion: .default
     )
     var target: String?

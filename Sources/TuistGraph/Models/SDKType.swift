@@ -5,7 +5,8 @@ public enum SDKType: String, CaseIterable, Equatable {
     case library = "tbd"
 
     public static var supportedTypesDescription: String {
-        let supportedTypes = allCases
+        let supportedTypes =
+            allCases
             .map { ".\($0.rawValue)" }
             .joined(separator: ", ")
         return "[\(supportedTypes)]"

@@ -46,7 +46,7 @@ final class AutomationPathWorkspaceMapperTests: TuistUnitTestCase {
             workspace: WorkspaceWithProjects(
                 workspace: workspace,
                 projects: [
-                    project,
+                    project
                 ]
             )
         )
@@ -68,7 +68,7 @@ final class AutomationPathWorkspaceMapperTests: TuistUnitTestCase {
                     sourceRootPath: workspaceDirectory,
                     xcodeProjPath: workspaceDirectory.appending(component: "A.xcodeproj"),
                     name: "A"
-                ),
+                )
             ]
         )
         XCTAssertEqual(
@@ -79,7 +79,7 @@ final class AutomationPathWorkspaceMapperTests: TuistUnitTestCase {
                         path: workspaceDirectory,
                         state: .present
                     )
-                ),
+                )
             ]
         )
     }

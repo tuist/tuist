@@ -2,32 +2,54 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistGraph
+
 @testable import TuistKit
 
 final class MockGeneratorFactory: GeneratorFactorying {
     var invokedFocus = false
     var invokedFocusCount = 0
-    var invokedFocusParameters: (config: Config, sources: Set<String>, xcframeworks: Bool, cacheProfile: TuistGraph.Cache.Profile, ignoreCache: Bool)?
-    var invokedFocusParametersList = [(config: Config, sources: Set<String>, xcframeworks: Bool, cacheProfile: TuistGraph.Cache.Profile, ignoreCache: Bool)]()
+    var invokedFocusParameters:
+        (
+            config: Config, sources: Set<String>, xcframeworks: Bool,
+            cacheProfile: TuistGraph.Cache.Profile, ignoreCache: Bool
+        )?
+    var invokedFocusParametersList = [
+        (
+            config: Config, sources: Set<String>, xcframeworks: Bool,
+            cacheProfile: TuistGraph.Cache.Profile, ignoreCache: Bool
+        )
+    ]()
     var stubbedFocusResult: Generating!
 
-    func focus(config: Config,
-               sources: Set<String>,
-               xcframeworks: Bool,
-               cacheProfile: TuistGraph.Cache.Profile,
-               ignoreCache: Bool) -> Generating
-    {
+    func focus(
+        config: Config,
+        sources: Set<String>,
+        xcframeworks: Bool,
+        cacheProfile: TuistGraph.Cache.Profile,
+        ignoreCache: Bool
+    ) -> Generating {
         invokedFocus = true
         invokedFocusCount += 1
         invokedFocusParameters = (config, sources, xcframeworks, cacheProfile, ignoreCache)
-        invokedFocusParametersList.append((config, sources, xcframeworks, cacheProfile, ignoreCache))
+        invokedFocusParametersList.append(
+            (config, sources, xcframeworks, cacheProfile, ignoreCache)
+        )
         return stubbedFocusResult
     }
 
     var invokedTest = false
     var invokedTestCount = 0
-    var invokedTestParameters: (config: Config, automationPath: AbsolutePath, testsCacheDirectory: AbsolutePath, skipUITests: Bool)?
-    var invokedTestParametersList = [(config: Config, automationPath: AbsolutePath, testsCacheDirectory: AbsolutePath, skipUITests: Bool)]()
+    var invokedTestParameters:
+        (
+            config: Config, automationPath: AbsolutePath, testsCacheDirectory: AbsolutePath,
+            skipUITests: Bool
+        )?
+    var invokedTestParametersList = [
+        (
+            config: Config, automationPath: AbsolutePath, testsCacheDirectory: AbsolutePath,
+            skipUITests: Bool
+        )
+    ]()
     var stubbedTestResult: Generating!
 
     func test(
@@ -59,20 +81,23 @@ final class MockGeneratorFactory: GeneratorFactorying {
 
     var invokedCache = false
     var invokedCacheCount = 0
-    var invokedCacheParameters: (
-        config: Config,
-        includedTargets: Set<String>?,
-        focusedTargets: Set<String>?,
-        xcframeworks: Bool,
-        cacheProfile: Cache.Profile
-    )?
-    var invokedCacheParametersList = [(
-        config: Config,
-        includedTargets: Set<String>?,
-        focusedTargets: Set<String>?,
-        xcframeworks: Bool,
-        cacheProfile: Cache.Profile
-    )]()
+    var invokedCacheParameters:
+        (
+            config: Config,
+            includedTargets: Set<String>?,
+            focusedTargets: Set<String>?,
+            xcframeworks: Bool,
+            cacheProfile: Cache.Profile
+        )?
+    var invokedCacheParametersList = [
+        (
+            config: Config,
+            includedTargets: Set<String>?,
+            focusedTargets: Set<String>?,
+            xcframeworks: Bool,
+            cacheProfile: Cache.Profile
+        )
+    ]()
     var stubbedCacheResult: Generating!
 
     func cache(
@@ -84,8 +109,12 @@ final class MockGeneratorFactory: GeneratorFactorying {
     ) -> Generating {
         invokedCache = true
         invokedCacheCount += 1
-        invokedCacheParameters = (config, includedTargets, focusedTargets, xcframeworks, cacheProfile)
-        invokedCacheParametersList.append((config, includedTargets, focusedTargets, xcframeworks, cacheProfile))
+        invokedCacheParameters = (
+            config, includedTargets, focusedTargets, xcframeworks, cacheProfile
+        )
+        invokedCacheParametersList.append(
+            (config, includedTargets, focusedTargets, xcframeworks, cacheProfile)
+        )
         return stubbedCacheResult
     }
 }

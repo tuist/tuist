@@ -31,23 +31,33 @@ final class BundleService {
     private let versionsController: VersionsControlling
     private let installer: Installing
 
-    init(versionsController: VersionsControlling = VersionsController(),
-         installer: Installing = Installer())
-    {
+    init(
+        versionsController: VersionsControlling = VersionsController(),
+        installer: Installing = Installer()
+    ) {
         self.versionsController = versionsController
         self.installer = installer
     }
 
     func run() throws {
-        let versionFilePath = FileHandler.shared.currentPath.appending(component: Constants.versionFileName)
-        let binFolderPath = FileHandler.shared.currentPath.appending(component: Constants.binFolderName)
+        let versionFilePath = FileHandler.shared.currentPath.appending(
+            component: Constants.versionFileName
+        )
+        let binFolderPath = FileHandler.shared.currentPath.appending(
+            component: Constants.binFolderName
+        )
 
         if !FileHandler.shared.exists(versionFilePath) {
             throw BundleServiceError.missingVersionFile(FileHandler.shared.currentPath)
         }
 
-        let version = try String(contentsOf: versionFilePath.url).trimmingCharacters(in: .whitespacesAndNewlines)
-        logger.notice("Bundling the version \(version) in the directory \(binFolderPath.pathString)", metadata: .section)
+        let version = try String(contentsOf: versionFilePath.url).trimmingCharacters(
+            in: .whitespacesAndNewlines
+        )
+        logger.notice(
+            "Bundling the version \(version) in the directory \(binFolderPath.pathString)",
+            metadata: .section
+        )
 
         let versionPath = versionsController.path(version: version)
 
@@ -63,6 +73,9 @@ final class BundleService {
         }
         try FileHandler.shared.copy(from: versionPath, to: binFolderPath)
 
-        logger.notice("tuist bundled successfully at \(binFolderPath.pathString)", metadata: .success)
+        logger.notice(
+            "tuist bundled successfully at \(binFolderPath.pathString)",
+            metadata: .success
+        )
     }
 }

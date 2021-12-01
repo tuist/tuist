@@ -24,8 +24,8 @@ public struct CarthageDependencies: Equatable {
 
 // MARK: - CarthageDependencies.Dependency
 
-public extension CarthageDependencies {
-    enum Dependency: Equatable {
+extension CarthageDependencies {
+    public enum Dependency: Equatable {
         case github(path: String, requirement: Requirement)
         case git(path: String, requirement: Requirement)
         case binary(path: String, requirement: Requirement)
@@ -46,8 +46,8 @@ public extension CarthageDependencies {
 
 // MARK: - CarthageDependencies.Requirement
 
-public extension CarthageDependencies {
-    enum Requirement: Equatable {
+extension CarthageDependencies {
+    public enum Requirement: Equatable {
         case exact(String)
         case upToNext(String)
         case atLeast(String)

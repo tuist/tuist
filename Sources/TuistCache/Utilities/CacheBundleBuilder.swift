@@ -2,10 +2,11 @@ import Foundation
 import RxBlocking
 import RxSwift
 import TSCBasic
-import struct TSCUtility.Version
 import TuistCore
 import TuistGraph
 import TuistSupport
+
+import struct TSCUtility.Version
 
 public final class CacheBundleBuilder: CacheArtifactBuilding {
     public var cacheOutputType: CacheOutputType = .bundle
@@ -18,7 +19,8 @@ public final class CacheBundleBuilder: CacheArtifactBuilding {
     public init(
         xcodeBuildController: XcodeBuildControlling,
         simulatorController: SimulatorControlling = SimulatorController(),
-        xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating = XcodeProjectBuildDirectoryLocator(),
+        xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating =
+            XcodeProjectBuildDirectoryLocator(),
         developerEnvironment: DeveloperEnvironmenting = DeveloperEnvironment.shared
     ) {
         self.simulatorController = simulatorController
@@ -64,11 +66,12 @@ public final class CacheBundleBuilder: CacheArtifactBuilding {
 
     // MARK: - Fileprivate
 
-    fileprivate func arguments(platform: Platform,
-                               configuration: String,
-                               osVersion: Version?,
-                               deviceName: String?) throws -> [XcodeBuildArgument]
-    {
+    fileprivate func arguments(
+        platform: Platform,
+        configuration: String,
+        osVersion: Version?,
+        deviceName: String?
+    ) throws -> [XcodeBuildArgument] {
         return try simulatorController.destination(
             for: platform,
             version: osVersion,
@@ -85,10 +88,11 @@ public final class CacheBundleBuilder: CacheArtifactBuilding {
         .single()
     }
 
-    fileprivate func xcodebuild(projectTarget: XcodeBuildTarget,
-                                scheme: String,
-                                arguments: [XcodeBuildArgument]) throws
-    {
+    fileprivate func xcodebuild(
+        projectTarget: XcodeBuildTarget,
+        scheme: String,
+        arguments: [XcodeBuildArgument]
+    ) throws {
         _ = try xcodeBuildController.build(
             projectTarget,
             scheme: scheme,
@@ -101,12 +105,16 @@ public final class CacheBundleBuilder: CacheArtifactBuilding {
         .last()
     }
 
-    fileprivate func exportBundles(from buildDirectory: AbsolutePath,
-                                   into outputDirectory: AbsolutePath) throws
-    {
+    fileprivate func exportBundles(
+        from buildDirectory: AbsolutePath,
+        into outputDirectory: AbsolutePath
+    ) throws {
         let bundles = FileHandler.shared.glob(buildDirectory, glob: "*.bundle")
         try bundles.forEach { bundle in
-            try FileHandler.shared.copy(from: bundle, to: outputDirectory.appending(component: bundle.basename))
+            try FileHandler.shared.copy(
+                from: bundle,
+                to: outputDirectory.appending(component: bundle.basename)
+            )
         }
     }
 }

@@ -47,7 +47,8 @@ enum GraphLoadingError: FatalError, Equatable {
             return message
         case let .circularDependency(nodes):
             let nodeDescriptions = nodes.map { "\($0.path):\($0.name)" }
-            return "Found circular dependency between targets: \(nodeDescriptions.joined(separator: " -> "))"
+            return
+                "Found circular dependency between targets: \(nodeDescriptions.joined(separator: " -> "))"
         }
     }
 }

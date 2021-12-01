@@ -21,13 +21,16 @@ enum FileClientError: LocalizedError, FatalError {
                 output.append(": \(error.localizedDescription)")
             }
         case let .invalidResponse(urlRequest, path):
-            output = "Received unexpected response from the network with \(urlRequest.descriptionForError)"
+            output =
+                "Received unexpected response from the network with \(urlRequest.descriptionForError)"
             output.append(pathSubstring(path))
         case let .serverSideError(request, response, path):
-            output = "Got error code: \(response.statusCode) returned by the server after performing \(request.descriptionForError)"
+            output =
+                "Got error code: \(response.statusCode) returned by the server after performing \(request.descriptionForError)"
             output.append(pathSubstring(path))
         case let .noLocalURL(request):
-            output = "Could not locate file on disk the downloaded file after performing \(request.descriptionForError)"
+            output =
+                "Could not locate file on disk the downloaded file after performing \(request.descriptionForError)"
         }
 
         return output
@@ -61,11 +64,13 @@ public class FileClient: FileClienting {
     // MARK: - Attributes
 
     let session: URLSession
-    private let successStatusCodeRange = 200 ..< 300
+    private let successStatusCodeRange = 200..<300
 
     // MARK: - Init
 
-    public init(session: URLSession = URLSession.shared) {
+    public init(
+        session: URLSession = URLSession.shared
+    ) {
         self.session = session
     }
 
@@ -89,7 +94,9 @@ public class FileClient: FileClienting {
                         if self.successStatusCodeRange.contains(response.statusCode) {
                             observer(.success(true))
                         } else {
-                            observer(.error(FileClientError.serverSideError(request, response, file)))
+                            observer(
+                                .error(FileClientError.serverSideError(request, response, file))
+                            )
                         }
                     } else {
                         observer(.error(FileClientError.invalidResponse(request, file)))
@@ -118,7 +125,10 @@ public class FileClient: FileClienting {
 
     private func dispatchDownload(request: URLRequest) -> Single<URL> {
         Single.create { observer in
-            let task = self.session.downloadTask(with: request) { localURL, response, networkError in
+            let task = self.session.downloadTask(with: request) {
+                localURL,
+                response,
+                networkError in
                 if let networkError = networkError {
                     observer(.error(FileClientError.urlSessionError(networkError, nil)))
                 } else if let response = response as? HTTPURLResponse {

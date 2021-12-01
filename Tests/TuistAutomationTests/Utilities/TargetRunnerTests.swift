@@ -1,10 +1,11 @@
 import RxSwift
 import TSCBasic
-import struct TSCUtility.Version
 import TuistCore
 import TuistGraph
 import TuistSupport
 import XCTest
+
+import struct TSCUtility.Version
 
 @testable import TuistAutomation
 @testable import TuistAutomationTesting
@@ -18,14 +19,19 @@ final class TargetRunnerErrorTests: XCTestCase {
             "The runnable product was expected but not found at /path/to/product."
         )
         XCTAssertEqual(
-            TargetRunnerError.runningNotSupported(target: .test(platform: .iOS, product: .app)).description,
+            TargetRunnerError.runningNotSupported(target: .test(platform: .iOS, product: .app))
+                .description,
             "Cannot run Target - the platform iOS and product type app are not currently supported."
         )
     }
 
     func test_type() {
         XCTAssertEqual(TargetRunnerError.runnableNotFound(path: "/path").type, .bug)
-        XCTAssertEqual(TargetRunnerError.runningNotSupported(target: .test(platform: .iOS, product: .app)).type, .abort)
+        XCTAssertEqual(
+            TargetRunnerError.runningNotSupported(target: .test(platform: .iOS, product: .app))
+                .type,
+            .abort
+        )
     }
 }
 
@@ -157,9 +163,19 @@ final class TargetRunnerTests: TuistUnitTestCase {
         xcodeProjectBuildDirectoryLocator.locateStub = { _, _, _ in outputPath }
         xcodeBuildController.showBuildSettingsStub = { _, _, _ in
             let settings = ["PRODUCT_BUNDLE_IDENTIFIER": bundleId]
-            return .just([graphTarget.target.name: XcodeBuildSettings(settings, target: graphTarget.target.name, configuration: "Debug")])
+            return .just([
+                graphTarget.target.name: XcodeBuildSettings(
+                    settings,
+                    target: graphTarget.target.name,
+                    configuration: "Debug"
+                )
+            ])
         }
-        simulatorController.findAvailableDeviceStub = { _platform, _version, _minVersion, _deviceName in
+        simulatorController.findAvailableDeviceStub = {
+            _platform,
+            _version,
+            _minVersion,
+            _deviceName in
             XCTAssertEqual(_platform, .iOS)
             XCTAssertEqual(_version, version)
             XCTAssertEqual(_minVersion, minVersion)

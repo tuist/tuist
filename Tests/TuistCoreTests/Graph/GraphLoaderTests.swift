@@ -42,9 +42,12 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(graph.workspace, workspace)
-        XCTAssertEqual(graph.projects, [
-            "/A": projectA,
-        ])
+        XCTAssertEqual(
+            graph.projects,
+            [
+                "/A": projectA
+            ]
+        )
         XCTAssertTrue(graph.targets.isEmpty)
         XCTAssertTrue(graph.dependencies.isEmpty)
     }
@@ -67,10 +70,13 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(graph.workspace, workspace)
-        XCTAssertEqual(graph.projects, [
-            "/A": projectA,
-            "/B": projectB,
-        ])
+        XCTAssertEqual(
+            graph.projects,
+            [
+                "/A": projectA,
+                "/B": projectB,
+            ]
+        )
         XCTAssertTrue(graph.targets.isEmpty)
         XCTAssertTrue(graph.dependencies.isEmpty)
     }
@@ -95,19 +101,28 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(graph.workspace, workspace.replacing(projects: ["/A", "/B"]))
-        XCTAssertEqual(graph.projects, [
-            "/A": projectA,
-            "/B": projectB,
-        ])
-        XCTAssertEqual(graph.targets, [
-            "/A": ["A": targetA],
-            "/B": ["B": targetB],
-        ])
-        XCTAssertEqual(graph.dependencies, [
-            .target(name: "A", path: "/A"): Set([
-                .target(name: "B", path: "/B"),
-            ]),
-        ])
+        XCTAssertEqual(
+            graph.projects,
+            [
+                "/A": projectA,
+                "/B": projectB,
+            ]
+        )
+        XCTAssertEqual(
+            graph.targets,
+            [
+                "/A": ["A": targetA],
+                "/B": ["B": targetB],
+            ]
+        )
+        XCTAssertEqual(
+            graph.dependencies,
+            [
+                .target(name: "A", path: "/A"): Set([
+                    .target(name: "B", path: "/B")
+                ])
+            ]
+        )
     }
 
     // MARK: - Load Project
@@ -129,9 +144,12 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(loadedProject, projectA)
-        XCTAssertEqual(graph.projects, [
-            "/A": projectA,
-        ])
+        XCTAssertEqual(
+            graph.projects,
+            [
+                "/A": projectA
+            ]
+        )
         XCTAssertTrue(graph.targets.isEmpty)
         XCTAssertTrue(graph.dependencies.isEmpty)
     }
@@ -155,27 +173,42 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(loadedProject, projectA)
-        XCTAssertEqual(graph.projects, [
-            "/A": projectA,
-            "/B": projectB,
-        ])
-        XCTAssertEqual(graph.targets, [
-            "/A": ["A": targetA],
-            "/B": ["B": targetB],
-        ])
-        XCTAssertEqual(graph.dependencies, [
-            .target(name: "A", path: "/A"): Set([
-                .target(name: "B", path: "/B"),
-            ]),
-        ])
+        XCTAssertEqual(
+            graph.projects,
+            [
+                "/A": projectA,
+                "/B": projectB,
+            ]
+        )
+        XCTAssertEqual(
+            graph.targets,
+            [
+                "/A": ["A": targetA],
+                "/B": ["B": targetB],
+            ]
+        )
+        XCTAssertEqual(
+            graph.dependencies,
+            [
+                .target(name: "A", path: "/A"): Set([
+                    .target(name: "B", path: "/B")
+                ])
+            ]
+        )
     }
 
     // MARK: - Frameworks
 
     func test_loadWorkspace_frameworkDependency() throws {
         // Given
-        let targetA = Target.test(name: "A", dependencies: [.framework(path: "/Frameworks/F1.framework")])
-        let targetB = Target.test(name: "B", dependencies: [.framework(path: "/Frameworks/F2.framework")])
+        let targetA = Target.test(
+            name: "A",
+            dependencies: [.framework(path: "/Frameworks/F1.framework")]
+        )
+        let targetB = Target.test(
+            name: "B",
+            dependencies: [.framework(path: "/Frameworks/F2.framework")]
+        )
         let projectA = Project.test(path: "/A", name: "A", targets: [targetA])
         let projectB = Project.test(path: "/B", name: "B", targets: [targetB])
         let workspace = Workspace.test(path: "/", name: "Workspace", projects: ["/A", "/B"])
@@ -207,36 +240,45 @@ final class GraphLoaderTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(graph.dependencies, [
-            .target(name: "A", path: "/A"): Set([
-                .framework(
-                    path: "/Frameworks/F1.framework",
-                    binaryPath: "/Frameworks/F1.framework/F1",
-                    dsymPath: nil,
-                    bcsymbolmapPaths: [],
-                    linking: .dynamic,
-                    architectures: [.arm64],
-                    isCarthage: false
-                ),
-            ]),
-            .target(name: "B", path: "/B"): Set([
-                .framework(
-                    path: "/Frameworks/F2.framework",
-                    binaryPath: "/Frameworks/F2.framework/F2",
-                    dsymPath: nil,
-                    bcsymbolmapPaths: [],
-                    linking: .static,
-                    architectures: [.x8664],
-                    isCarthage: false
-                ),
-            ]),
-        ])
+        XCTAssertEqual(
+            graph.dependencies,
+            [
+                .target(name: "A", path: "/A"): Set([
+                    .framework(
+                        path: "/Frameworks/F1.framework",
+                        binaryPath: "/Frameworks/F1.framework/F1",
+                        dsymPath: nil,
+                        bcsymbolmapPaths: [],
+                        linking: .dynamic,
+                        architectures: [.arm64],
+                        isCarthage: false
+                    )
+                ]),
+                .target(name: "B", path: "/B"): Set([
+                    .framework(
+                        path: "/Frameworks/F2.framework",
+                        binaryPath: "/Frameworks/F2.framework/F2",
+                        dsymPath: nil,
+                        bcsymbolmapPaths: [],
+                        linking: .static,
+                        architectures: [.x8664],
+                        isCarthage: false
+                    )
+                ]),
+            ]
+        )
     }
 
     func test_loadWorkspace_frameworkDependencyReferencedMultipleTimes() throws {
         // Given
-        let targetA = Target.test(name: "A", dependencies: [.framework(path: "/Frameworks/F.framework")])
-        let targetB = Target.test(name: "B", dependencies: [.framework(path: "/Frameworks/F.framework")])
+        let targetA = Target.test(
+            name: "A",
+            dependencies: [.framework(path: "/Frameworks/F.framework")]
+        )
+        let targetB = Target.test(
+            name: "B",
+            dependencies: [.framework(path: "/Frameworks/F.framework")]
+        )
         let projectA = Project.test(path: "/A", name: "A", targets: [targetA])
         let projectB = Project.test(path: "/B", name: "B", targets: [targetB])
         let workspace = Workspace.test(path: "/", name: "Workspace", projects: ["/A", "/B"])
@@ -270,30 +312,43 @@ final class GraphLoaderTests: TuistUnitTestCase {
             architectures: [.arm64],
             isCarthage: false
         )
-        XCTAssertEqual(graph.dependencies, [
-            .target(name: "A", path: "/A"): Set([
-                frameworkDependency,
-            ]),
-            .target(name: "B", path: "/B"): Set([
-                frameworkDependency,
-            ]),
-        ])
+        XCTAssertEqual(
+            graph.dependencies,
+            [
+                .target(name: "A", path: "/A"): Set([
+                    frameworkDependency
+                ]),
+                .target(name: "B", path: "/B"): Set([
+                    frameworkDependency
+                ]),
+            ]
+        )
     }
 
     // MARK: - Libraries
 
     func test_loadWorkspace_libraryDependency() throws {
         // Given
-        let targetA = Target.test(name: "A", dependencies: [
-            .library(path: "/libs/lib1/libL1.dylib", publicHeaders: "/libs/lib1/include", swiftModuleMap: nil),
-        ])
-        let targetB = Target.test(name: "B", dependencies: [
-            .library(
-                path: "/libs/lib2/libL2.a",
-                publicHeaders: "/libs/lib2/include",
-                swiftModuleMap: "/libs/lib2.swiftmodule"
-            ),
-        ])
+        let targetA = Target.test(
+            name: "A",
+            dependencies: [
+                .library(
+                    path: "/libs/lib1/libL1.dylib",
+                    publicHeaders: "/libs/lib1/include",
+                    swiftModuleMap: nil
+                )
+            ]
+        )
+        let targetB = Target.test(
+            name: "B",
+            dependencies: [
+                .library(
+                    path: "/libs/lib2/libL2.a",
+                    publicHeaders: "/libs/lib2/include",
+                    swiftModuleMap: "/libs/lib2.swiftmodule"
+                )
+            ]
+        )
         let projectA = Project.test(path: "/A", name: "A", targets: [targetA])
         let projectB = Project.test(path: "/B", name: "B", targets: [targetB])
         let workspace = Workspace.test(path: "/", name: "Workspace", projects: ["/A", "/B"])
@@ -325,33 +380,39 @@ final class GraphLoaderTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(graph.dependencies, [
-            .target(name: "A", path: "/A"): Set([
-                .library(
-                    path: "/libs/lib1/libL1.dylib",
-                    publicHeaders: "/libs/lib1/include",
-                    linking: .dynamic,
-                    architectures: [.arm64],
-                    swiftModuleMap: nil
-                ),
-            ]),
-            .target(name: "B", path: "/B"): Set([
-                .library(
-                    path: "/libs/lib2/libL2.a",
-                    publicHeaders: "/libs/lib2/include",
-                    linking: .static,
-                    architectures: [.x8664],
-                    swiftModuleMap: "/libs/lib2.swiftmodule"
-                ),
-            ]),
-        ])
+        XCTAssertEqual(
+            graph.dependencies,
+            [
+                .target(name: "A", path: "/A"): Set([
+                    .library(
+                        path: "/libs/lib1/libL1.dylib",
+                        publicHeaders: "/libs/lib1/include",
+                        linking: .dynamic,
+                        architectures: [.arm64],
+                        swiftModuleMap: nil
+                    )
+                ]),
+                .target(name: "B", path: "/B"): Set([
+                    .library(
+                        path: "/libs/lib2/libL2.a",
+                        publicHeaders: "/libs/lib2/include",
+                        linking: .static,
+                        architectures: [.x8664],
+                        swiftModuleMap: "/libs/lib2.swiftmodule"
+                    )
+                ]),
+            ]
+        )
     }
 
     // MARK: - XCFrameworks
 
     func test_loadWorkspace_xcframeworkDependency() throws {
         // Given
-        let targetA = Target.test(name: "A", dependencies: [.xcframework(path: "/XCFrameworks/XF1.xcframework")])
+        let targetA = Target.test(
+            name: "A",
+            dependencies: [.xcframework(path: "/XCFrameworks/XF1.xcframework")]
+        )
         let projectA = Project.test(path: "/A", name: "A", targets: [targetA])
         let workspace = Workspace.test(path: "/", name: "Workspace", projects: ["/A"])
 
@@ -370,29 +431,38 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let graph = try subject.loadWorkspace(
             workspace: workspace,
             projects: [
-                projectA,
+                projectA
             ]
         )
 
         // Then
-        XCTAssertEqual(graph.dependencies, [
-            .target(name: "A", path: "/A"): Set([
-                .xcframework(
-                    path: "/XCFrameworks/XF1.xcframework",
-                    infoPlist: .test(),
-                    primaryBinaryPath: "/XCFrameworks/XF1.xcframework/ios-arm64/XF1",
-                    linking: .dynamic
-                ),
-            ]),
-        ])
+        XCTAssertEqual(
+            graph.dependencies,
+            [
+                .target(name: "A", path: "/A"): Set([
+                    .xcframework(
+                        path: "/XCFrameworks/XF1.xcframework",
+                        infoPlist: .test(),
+                        primaryBinaryPath: "/XCFrameworks/XF1.xcframework/ios-arm64/XF1",
+                        linking: .dynamic
+                    )
+                ])
+            ]
+        )
     }
 
     // MARK: - SDKs
 
     func test_loadWorkspace_sdkDependency() throws {
         // Given
-        let targetA = Target.test(name: "A", dependencies: [.sdk(name: "libc++.tbd", status: .required)])
-        let targetB = Target.test(name: "B", dependencies: [.sdk(name: "SwiftUI.framework", status: .optional)])
+        let targetA = Target.test(
+            name: "A",
+            dependencies: [.sdk(name: "libc++.tbd", status: .required)]
+        )
+        let targetB = Target.test(
+            name: "B",
+            dependencies: [.sdk(name: "SwiftUI.framework", status: .optional)]
+        )
         let targetC = Target.test(name: "C", dependencies: [.xctest])
         let projectA = Project.test(path: "/A", name: "A", targets: [targetA, targetB, targetC])
         let workspace = Workspace.test(path: "/", name: "Workspace", projects: ["/A"])
@@ -402,61 +472,94 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let graph = try subject.loadWorkspace(
             workspace: workspace,
             projects: [
-                projectA,
+                projectA
             ]
         )
 
         // Then
-        XCTAssertEqual(graph.dependencies, [
-            .target(name: "A", path: "/A"): Set([
-                .sdk(
-                    name: "libc++.tbd",
-                    path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/usr/lib/libc++.tbd",
-                    status: .required,
-                    source: .system
-                ),
-            ]),
-            .target(name: "B", path: "/A"): Set([
-                .sdk(
-                    name: "SwiftUI.framework",
-                    path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/SwiftUI.framework",
-                    status: .optional,
-                    source: .system
-                ),
-            ]),
-            .target(name: "C", path: "/A"): Set([
-                .sdk(
-                    name: "XCTest.framework",
-                    path: "/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework",
-                    status: .required,
-                    source: .developer
-                ),
-            ]),
-        ])
+        XCTAssertEqual(
+            graph.dependencies,
+            [
+                .target(name: "A", path: "/A"): Set([
+                    .sdk(
+                        name: "libc++.tbd",
+                        path:
+                            "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/usr/lib/libc++.tbd",
+                        status: .required,
+                        source: .system
+                    )
+                ]),
+                .target(name: "B", path: "/A"): Set([
+                    .sdk(
+                        name: "SwiftUI.framework",
+                        path:
+                            "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/SwiftUI.framework",
+                        status: .optional,
+                        source: .system
+                    )
+                ]),
+                .target(name: "C", path: "/A"): Set([
+                    .sdk(
+                        name: "XCTest.framework",
+                        path:
+                            "/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework",
+                        status: .required,
+                        source: .developer
+                    )
+                ]),
+            ]
+        )
     }
 
     // MARK: - Packages
 
     func test_loadWorkspace_packages() throws {
         // Given
-        let targetA = Target.test(name: "A", dependencies: [
-            .package(product: "PackageLibraryA1"),
-        ])
-        let targetB = Target.test(name: "B", dependencies: [
-            .package(product: "PackageLibraryA2"),
-        ])
-        let targetC = Target.test(name: "C", dependencies: [
-            .package(product: "PackageLibraryB"),
-        ])
-        let projectA = Project.test(path: "/A", name: "A", targets: [targetA], packages: [
-            .local(path: "/Packages/PackageLibraryA"),
-        ])
-        let projectB = Project.test(path: "/B", name: "B", targets: [targetB], packages: [
-            .local(path: "/Packages/PackageLibraryA"),
-        ])
-        let projectC = Project.test(path: "/C", name: "C", targets: [targetC], packages: [
-            .remote(url: "https://example.com/package-library-b", requirement: .branch("testing")),
-        ])
+        let targetA = Target.test(
+            name: "A",
+            dependencies: [
+                .package(product: "PackageLibraryA1")
+            ]
+        )
+        let targetB = Target.test(
+            name: "B",
+            dependencies: [
+                .package(product: "PackageLibraryA2")
+            ]
+        )
+        let targetC = Target.test(
+            name: "C",
+            dependencies: [
+                .package(product: "PackageLibraryB")
+            ]
+        )
+        let projectA = Project.test(
+            path: "/A",
+            name: "A",
+            targets: [targetA],
+            packages: [
+                .local(path: "/Packages/PackageLibraryA")
+            ]
+        )
+        let projectB = Project.test(
+            path: "/B",
+            name: "B",
+            targets: [targetB],
+            packages: [
+                .local(path: "/Packages/PackageLibraryA")
+            ]
+        )
+        let projectC = Project.test(
+            path: "/C",
+            name: "C",
+            targets: [targetC],
+            packages: [
+                .remote(
+                    url: "https://example.com/package-library-b",
+                    requirement: .branch("testing")
+                )
+            ]
+        )
         let workspace = Workspace.test(path: "/", name: "Workspace", projects: ["/A", "/B", "/C"])
 
         let subject = makeSubject()
@@ -476,22 +579,33 @@ final class GraphLoaderTests: TuistUnitTestCase {
         // Note: the following is a reflection of the current implementation
         // which has a few limitation / bugs when it comes to identifying the same
         // package referenced by multiple projects/
-        XCTAssertEqual(graph.packages, [
-            "/A": ["/Packages/PackageLibraryA": .local(path: "/Packages/PackageLibraryA")],
-            "/B": ["/Packages/PackageLibraryA": .local(path: "/Packages/PackageLibraryA")],
-            "/C": ["https://example.com/package-library-b": .remote(url: "https://example.com/package-library-b", requirement: .branch("testing"))],
-        ])
-        XCTAssertEqual(graph.dependencies, [
-            .target(name: "A", path: "/A"): Set([
-                .packageProduct(path: "/A", product: "PackageLibraryA1"),
-            ]),
-            .target(name: "B", path: "/B"): Set([
-                .packageProduct(path: "/B", product: "PackageLibraryA2"),
-            ]),
-            .target(name: "C", path: "/C"): Set([
-                .packageProduct(path: "/C", product: "PackageLibraryB"),
-            ]),
-        ])
+        XCTAssertEqual(
+            graph.packages,
+            [
+                "/A": ["/Packages/PackageLibraryA": .local(path: "/Packages/PackageLibraryA")],
+                "/B": ["/Packages/PackageLibraryA": .local(path: "/Packages/PackageLibraryA")],
+                "/C": [
+                    "https://example.com/package-library-b": .remote(
+                        url: "https://example.com/package-library-b",
+                        requirement: .branch("testing")
+                    )
+                ],
+            ]
+        )
+        XCTAssertEqual(
+            graph.dependencies,
+            [
+                .target(name: "A", path: "/A"): Set([
+                    .packageProduct(path: "/A", product: "PackageLibraryA1")
+                ]),
+                .target(name: "B", path: "/B"): Set([
+                    .packageProduct(path: "/B", product: "PackageLibraryA2")
+                ]),
+                .target(name: "C", path: "/C"): Set([
+                    .packageProduct(path: "/C", product: "PackageLibraryB")
+                ]),
+            ]
+        )
     }
 
     // MARK: - Dependency Cycle
@@ -509,7 +623,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
             try subject.loadProject(
                 at: "/A",
                 projects: [
-                    project,
+                    project
                 ]
             ),
             GraphLoadingError.circularDependency([
@@ -673,7 +787,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
             try subject.loadWorkspace(
                 workspace: workspace,
                 projects: [
-                    projectA,
+                    projectA
                 ]
             ),
             GraphLoadingError.missingProject("/Missing")
@@ -682,7 +796,10 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
     func test_loadWorkspace_missingProjectReferenceInDependency() throws {
         // Given
-        let targetA = Target.test(name: "A", dependencies: [.project(target: "Missing", path: "/Missing")])
+        let targetA = Target.test(
+            name: "A",
+            dependencies: [.project(target: "Missing", path: "/Missing")]
+        )
         let projectA = Project.test(path: "/A", name: "A", targets: [targetA])
         let workspace = Workspace.test(path: "/", name: "Workspace", projects: ["/A"])
         let subject = makeSubject()
@@ -692,7 +809,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
             try subject.loadWorkspace(
                 workspace: workspace,
                 projects: [
-                    projectA,
+                    projectA
                 ]
             ),
             GraphLoadingError.missingProject("/Missing")
@@ -711,7 +828,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
             try subject.loadWorkspace(
                 workspace: workspace,
                 projects: [
-                    projectA,
+                    projectA
                 ]
             ),
             GraphLoadingError.targetNotFound("Missing", "/A")
@@ -720,7 +837,10 @@ final class GraphLoaderTests: TuistUnitTestCase {
 
     func test_loadWorkspace_missingTargetReferenceInOtherProject() throws {
         // Given
-        let targetA = Target.test(name: "A", dependencies: [.project(target: "Missing", path: "/B")])
+        let targetA = Target.test(
+            name: "A",
+            dependencies: [.project(target: "Missing", path: "/B")]
+        )
         let projectA = Project.test(path: "/A", name: "A", targets: [targetA])
         let projectB = Project.test(path: "/B", name: "B", targets: [])
         let workspace = Workspace.test(path: "/", name: "Workspace", projects: ["/A", "/B"])
@@ -818,8 +938,8 @@ final class GraphLoaderTests: TuistUnitTestCase {
     }
 }
 
-private extension GraphLoadingError {
-    var isCycleError: Bool {
+extension GraphLoadingError {
+    fileprivate var isCycleError: Bool {
         switch self {
         case .circularDependency:
             return true

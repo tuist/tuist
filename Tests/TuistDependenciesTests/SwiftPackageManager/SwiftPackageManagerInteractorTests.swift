@@ -36,17 +36,25 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
     func test_install_when_shouldNotBeUpdated() throws {
         // Given
         let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
-        let dependenciesDirectory = rootPath
+        let dependenciesDirectory =
+            rootPath
             .appending(component: Constants.DependenciesDirectory.name)
-        let lockfilesDirectory = dependenciesDirectory
+        let lockfilesDirectory =
+            dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
-        let swiftPackageManagerDirectory = dependenciesDirectory
+        let swiftPackageManagerDirectory =
+            dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
-        let swiftPackageManagerBuildDirectory = swiftPackageManagerDirectory.appending(component: ".build")
+        let swiftPackageManagerBuildDirectory = swiftPackageManagerDirectory.appending(
+            component: ".build"
+        )
 
         let dependencies = SwiftPackageManagerDependencies(
             [
-                .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
+                .remote(
+                    url: "https://github.com/Alamofire/Alamofire.git",
+                    requirement: .upToNextMajor("5.2.0")
+                )
             ],
             productTypes: [:],
             baseSettings: .default,
@@ -60,10 +68,16 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         }
         swiftPackageManagerController.setToolsVersionStub = { path, version in
             XCTAssertEqual(path, swiftPackageManagerDirectory)
-            XCTAssertNil(version) // swift-tools-version is not specified
+            XCTAssertNil(version)  // swift-tools-version is not specified
         }
 
-        swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms, baseSettings, targetSettings, swiftToolsVersion in
+        swiftPackageManagerGraphGenerator.generateStub = {
+            path,
+            automaticProductType,
+            platforms,
+            baseSettings,
+            targetSettings,
+            swiftToolsVersion in
             XCTAssertEqual(path, swiftPackageManagerBuildDirectory)
             XCTAssertEqual(platforms, [.iOS])
             XCTAssertEqual(automaticProductType, [:])
@@ -94,13 +108,13 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         try XCTAssertDirectoryContentEqual(
             lockfilesDirectory,
             [
-                Constants.DependenciesDirectory.packageResolvedName,
+                Constants.DependenciesDirectory.packageResolvedName
             ]
         )
         try XCTAssertDirectoryContentEqual(
             swiftPackageManagerDirectory,
             [
-                ".build",
+                ".build"
             ]
         )
         try XCTAssertDirectoryContentEqual(
@@ -122,18 +136,26 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
     func test_install_when_shouldNotBeUpdated_and_swiftToolsVersionPassed() throws {
         // Given
         let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
-        let dependenciesDirectory = rootPath
+        let dependenciesDirectory =
+            rootPath
             .appending(component: Constants.DependenciesDirectory.name)
-        let lockfilesDirectory = dependenciesDirectory
+        let lockfilesDirectory =
+            dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
-        let swiftPackageManagerDirectory = dependenciesDirectory
+        let swiftPackageManagerDirectory =
+            dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
-        let swiftPackageManagerBuildDirectory = swiftPackageManagerDirectory.appending(component: ".build")
+        let swiftPackageManagerBuildDirectory = swiftPackageManagerDirectory.appending(
+            component: ".build"
+        )
 
         let swiftToolsVersion = TSCUtility.Version(5, 3, 0)
         let dependencies = SwiftPackageManagerDependencies(
             [
-                .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
+                .remote(
+                    url: "https://github.com/Alamofire/Alamofire.git",
+                    requirement: .upToNextMajor("5.2.0")
+                )
             ],
             productTypes: [:],
             baseSettings: .default,
@@ -147,10 +169,16 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         }
         swiftPackageManagerController.setToolsVersionStub = { path, version in
             XCTAssertEqual(path, swiftPackageManagerDirectory)
-            XCTAssertEqual(version, swiftToolsVersion.description) // version should be equal to the version that has been specified
+            XCTAssertEqual(version, swiftToolsVersion.description)  // version should be equal to the version that has been specified
         }
 
-        swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms, baseSettings, targetSettings, swiftVersion in
+        swiftPackageManagerGraphGenerator.generateStub = {
+            path,
+            automaticProductType,
+            platforms,
+            baseSettings,
+            targetSettings,
+            swiftVersion in
             XCTAssertEqual(path, swiftPackageManagerBuildDirectory)
             XCTAssertEqual(automaticProductType, [:])
             XCTAssertEqual(platforms, [.iOS])
@@ -181,13 +209,13 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         try XCTAssertDirectoryContentEqual(
             lockfilesDirectory,
             [
-                Constants.DependenciesDirectory.packageResolvedName,
+                Constants.DependenciesDirectory.packageResolvedName
             ]
         )
         try XCTAssertDirectoryContentEqual(
             swiftPackageManagerDirectory,
             [
-                ".build",
+                ".build"
             ]
         )
         try XCTAssertDirectoryContentEqual(
@@ -209,17 +237,25 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
     func test_install_when_shouldBeUpdated() throws {
         // Given
         let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
-        let dependenciesDirectory = rootPath
+        let dependenciesDirectory =
+            rootPath
             .appending(component: Constants.DependenciesDirectory.name)
-        let lockfilesDirectory = dependenciesDirectory
+        let lockfilesDirectory =
+            dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
-        let swiftPackageManagerDirectory = dependenciesDirectory
+        let swiftPackageManagerDirectory =
+            dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
-        let swiftPackageManagerBuildDirectory = swiftPackageManagerDirectory.appending(component: ".build")
+        let swiftPackageManagerBuildDirectory = swiftPackageManagerDirectory.appending(
+            component: ".build"
+        )
 
         let dependencies = SwiftPackageManagerDependencies(
             [
-                .remote(url: "https://github.com/Alamofire/Alamofire.git", requirement: .upToNextMajor("5.2.0")),
+                .remote(
+                    url: "https://github.com/Alamofire/Alamofire.git",
+                    requirement: .upToNextMajor("5.2.0")
+                )
             ],
             productTypes: [:],
             baseSettings: .default,
@@ -233,10 +269,16 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         }
         swiftPackageManagerController.setToolsVersionStub = { path, version in
             XCTAssertEqual(path, swiftPackageManagerDirectory)
-            XCTAssertNil(version) // swift-tools-version is not specified
+            XCTAssertNil(version)  // swift-tools-version is not specified
         }
 
-        swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms, baseSettings, targetSettings, swiftToolsVersion in
+        swiftPackageManagerGraphGenerator.generateStub = {
+            path,
+            automaticProductType,
+            platforms,
+            baseSettings,
+            targetSettings,
+            swiftToolsVersion in
             XCTAssertEqual(path, swiftPackageManagerBuildDirectory)
             XCTAssertEqual(automaticProductType, [:])
             XCTAssertEqual(platforms, [.iOS])
@@ -267,13 +309,13 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         try XCTAssertDirectoryContentEqual(
             lockfilesDirectory,
             [
-                Constants.DependenciesDirectory.packageResolvedName,
+                Constants.DependenciesDirectory.packageResolvedName
             ]
         )
         try XCTAssertDirectoryContentEqual(
             swiftPackageManagerDirectory,
             [
-                ".build",
+                ".build"
             ]
         )
         try XCTAssertDirectoryContentEqual(
@@ -295,9 +337,11 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
     func test_clean() throws {
         // Given
         let rootPath = try temporaryPath()
-        let dependenciesDirectory = rootPath
+        let dependenciesDirectory =
+            rootPath
             .appending(component: Constants.DependenciesDirectory.name)
-        let lockfilesDirectory = dependenciesDirectory
+        let lockfilesDirectory =
+            dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
 
         try createFiles([
@@ -322,7 +366,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         try XCTAssertDirectoryContentEqual(
             lockfilesDirectory,
             [
-                "OtherLockfile.lock",
+                "OtherLockfile.lock"
             ]
         )
 
@@ -334,8 +378,8 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
 
 // MARK: - Helpers
 
-private extension SwiftPackageManagerInteractorTests {
-    func simulateSPMOutput(at path: AbsolutePath) throws {
+extension SwiftPackageManagerInteractorTests {
+    fileprivate func simulateSPMOutput(at path: AbsolutePath) throws {
         try [
             "Package.swift",
             "Package.resolved",

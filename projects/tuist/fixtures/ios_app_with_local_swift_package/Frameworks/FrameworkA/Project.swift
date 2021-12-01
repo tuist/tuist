@@ -6,14 +6,16 @@ let project = Project(
         .package(path: "../../Packages/PackageA")
     ],
     targets: [
-        Target(name: "FrameworkA",
-               platform: .iOS,
-               product: .staticFramework,
-               bundleId: "io.tuist.FrameworkA",
-               infoPlist: "Config/FrameworkA-Info.plist",
-               sources: "Sources/**",
-               dependencies: [
-                   .package(product: "LibraryA"),
-        ]),
+        Target(
+            name: "FrameworkA",
+            platform: .iOS,
+            product: .staticFramework,
+            bundleId: "io.tuist.FrameworkA",
+            infoPlist: "Config/FrameworkA-Info.plist",
+            sources: "Sources/**",
+            dependencies: [
+                .package(product: "LibraryA")
+            ]
+        )
     ]
 )

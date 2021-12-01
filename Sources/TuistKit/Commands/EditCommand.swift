@@ -22,7 +22,8 @@ struct EditCommand: ParsableCommand {
 
     @Flag(
         name: [.long, .customShort("P")],
-        help: "It creates the project in the current directory or the one indicated by -p and doesn't block the process"
+        help:
+            "It creates the project in the current directory or the one indicated by -p and doesn't block the process"
     )
     var permanent: Bool = false
 

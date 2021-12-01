@@ -1,4 +1,3 @@
-
 import Danger
 
 // This should fail to build if it

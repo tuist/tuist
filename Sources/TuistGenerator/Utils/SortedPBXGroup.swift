@@ -7,7 +7,7 @@ class SortedPBXGroup {
 
     var wrappedValue: PBXGroup {
         get {
-            value.childGroups.forEach(sort) // We preserve the order of the root level groups and files
+            value.childGroups.forEach(sort)  // We preserve the order of the root level groups and files
             return value
         }
         set {
@@ -15,7 +15,9 @@ class SortedPBXGroup {
         }
     }
 
-    init(wrappedValue: PBXGroup) {
+    init(
+        wrappedValue: PBXGroup
+    ) {
         value = wrappedValue
     }
 
@@ -35,14 +37,14 @@ class SortedPBXGroup {
     }
 }
 
-private extension PBXGroup {
-    var childGroups: [PBXGroup] {
+extension PBXGroup {
+    fileprivate var childGroups: [PBXGroup] {
         children.compactMap { $0 as? PBXGroup }
     }
 }
 
-private extension PBXFileElement {
-    func getSortOrder() -> Int {
+extension PBXFileElement {
+    fileprivate func getSortOrder() -> Int {
         switch self {
         case is PBXGroup:
             return -1
@@ -51,11 +53,12 @@ private extension PBXFileElement {
         }
     }
 
-    static func sortByNameThenPath(_ lhs: PBXFileElement, _ rhs: PBXFileElement) -> Bool {
+    fileprivate static func sortByNameThenPath(_ lhs: PBXFileElement, _ rhs: PBXFileElement) -> Bool
+    {
         lhs.namePathSortString.localizedStandardCompare(rhs.namePathSortString) == .orderedAscending
     }
 
-    var namePathSortString: String {
+    fileprivate var namePathSortString: String {
         "\(name ?? path ?? "")\t\(name ?? "")\t\(path ?? "")"
     }
 }

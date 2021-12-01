@@ -230,7 +230,7 @@ final class TaskServiceTests: TuistUnitTestCase {
                 templatePaths: [],
                 resourceSynthesizers: [],
                 tasks: [
-                    PluginTasks(name: "Plugins", path: tasksDirectory),
+                    PluginTasks(name: "Plugins", path: tasksDirectory)
                 ]
             )
         }
@@ -258,13 +258,13 @@ final class TaskServiceTests: TuistUnitTestCase {
     }
 
     private static let taskContent = """
-                   import ProjectAutomation
-                   import Foundation
+                       import ProjectAutomation
+                       import Foundation
 
-                   let task = Task(
-                       options: [.option("option-a"), .option("option-b")]
-                   ) { options in
-                        // some task code
-                   }
-    """
+                       let task = Task(
+                           options: [.option("option-a"), .option("option-b")]
+                       ) { options in
+                            // some task code
+                       }
+        """
 }

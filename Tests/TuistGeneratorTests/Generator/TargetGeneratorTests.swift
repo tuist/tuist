@@ -4,8 +4,9 @@ import TuistCore
 import TuistCoreTesting
 import TuistGraph
 import TuistGraphTesting
-import XcodeProj
 import XCTest
+import XcodeProj
+
 @testable import TuistGenerator
 
 final class TargetGeneratorTests: XCTestCase {
@@ -118,12 +119,12 @@ final class TargetGeneratorTests: XCTestCase {
                 path: [
                     targetA.name: targetA,
                     targetB.name: targetB,
-                ],
+                ]
             ],
             dependencies: [
                 .target(name: targetA.name, path: path): [
-                    .target(name: targetB.name, path: path),
-                ],
+                    .target(name: targetB.name, path: path)
+                ]
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -140,9 +141,12 @@ final class TargetGeneratorTests: XCTestCase {
         )
 
         // Then
-        XCTAssertEqual(nativeTargetA.dependencies.map(\.name), [
-            "TargetB",
-        ])
+        XCTAssertEqual(
+            nativeTargetA.dependencies.map(\.name),
+            [
+                "TargetB"
+            ]
+        )
     }
 
     func test_generateTarget_actions() throws {
@@ -165,7 +169,12 @@ final class TargetGeneratorTests: XCTestCase {
                 ),
             ]
         )
-        let project = Project.test(path: path, sourceRootPath: path, xcodeProjPath: path.appending(component: "Project.xcodeproj"), targets: [target])
+        let project = Project.test(
+            path: path,
+            sourceRootPath: path,
+            xcodeProjPath: path.appending(component: "Project.xcodeproj"),
+            targets: [target]
+        )
         let groups = ProjectGroups.generate(
             project: project,
             pbxproj: pbxproj

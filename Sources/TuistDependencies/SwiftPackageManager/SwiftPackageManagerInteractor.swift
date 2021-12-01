@@ -19,8 +19,8 @@ enum SwiftPackageManagerInteractorError: FatalError, Equatable {
     var type: ErrorType {
         switch self {
         case .packageSwiftNotFound,
-             .packageResolvedNotFound,
-             .buildDirectoryNotFound:
+            .packageResolvedNotFound,
+            .buildDirectoryNotFound:
             return .bug
         }
     }
@@ -29,11 +29,14 @@ enum SwiftPackageManagerInteractorError: FatalError, Equatable {
     var description: String {
         switch self {
         case .packageSwiftNotFound:
-            return "The Package.swift file was not found after resolving the dependencies using the Swift Package Manager."
+            return
+                "The Package.swift file was not found after resolving the dependencies using the Swift Package Manager."
         case .packageResolvedNotFound:
-            return "The Package.resolved lockfile was not found after resolving the dependencies using the Swift Package Manager."
+            return
+                "The Package.resolved lockfile was not found after resolving the dependencies using the Swift Package Manager."
         case .buildDirectoryNotFound:
-            return "The .build directory was not found after resolving the dependencies using the Swift Package Manager"
+            return
+                "The .build directory was not found after resolving the dependencies using the Swift Package Manager"
         }
     }
 }
@@ -70,10 +73,12 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
 
     public init(
         fileHandler: FileHandling = FileHandler.shared,
-        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
-        swiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGenerating = SwiftPackageManagerGraphGenerator(
-            swiftPackageManagerController: SwiftPackageManagerController()
-        )
+        swiftPackageManagerController: SwiftPackageManagerControlling =
+            SwiftPackageManagerController(),
+        swiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGenerating =
+            SwiftPackageManagerGraphGenerator(
+                swiftPackageManagerController: SwiftPackageManagerController()
+            )
     ) {
         self.fileHandler = fileHandler
         self.swiftPackageManagerController = swiftPackageManagerController
@@ -89,14 +94,26 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
     ) throws -> TuistCore.DependenciesGraph {
         logger.info("Installing Swift Package Manager dependencies.", metadata: .subsection)
 
-        let pathsProvider = SwiftPackageManagerPathsProvider(dependenciesDirectory: dependenciesDirectory)
+        let pathsProvider = SwiftPackageManagerPathsProvider(
+            dependenciesDirectory: dependenciesDirectory
+        )
 
-        try loadDependencies(pathsProvider: pathsProvider, dependencies: dependencies, swiftToolsVersion: swiftToolsVersion)
+        try loadDependencies(
+            pathsProvider: pathsProvider,
+            dependencies: dependencies,
+            swiftToolsVersion: swiftToolsVersion
+        )
 
         if shouldUpdate {
-            try swiftPackageManagerController.update(at: pathsProvider.destinationSwiftPackageManagerDirectory, printOutput: true)
+            try swiftPackageManagerController.update(
+                at: pathsProvider.destinationSwiftPackageManagerDirectory,
+                printOutput: true
+            )
         } else {
-            try swiftPackageManagerController.resolve(at: pathsProvider.destinationSwiftPackageManagerDirectory, printOutput: true)
+            try swiftPackageManagerController.resolve(
+                at: pathsProvider.destinationSwiftPackageManagerDirectory,
+                printOutput: true
+            )
         }
 
         try saveDependencies(
@@ -113,13 +130,18 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
             swiftToolsVersion: swiftToolsVersion
         )
 
-        logger.info("Swift Package Manager dependencies installed successfully.", metadata: .subsection)
+        logger.info(
+            "Swift Package Manager dependencies installed successfully.",
+            metadata: .subsection
+        )
 
         return dependenciesGraph
     }
 
     public func clean(dependenciesDirectory: AbsolutePath) throws {
-        let pathsProvider = SwiftPackageManagerPathsProvider(dependenciesDirectory: dependenciesDirectory)
+        let pathsProvider = SwiftPackageManagerPathsProvider(
+            dependenciesDirectory: dependenciesDirectory
+        )
         try fileHandler.delete(pathsProvider.destinationSwiftPackageManagerDirectory)
         try fileHandler.delete(pathsProvider.destinationPackageResolvedPath)
     }
@@ -143,7 +165,11 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         // create `Package.swift`
         let packageManifestPath = pathsProvider.temporaryPackageSwiftPath
         try fileHandler.createFolder(packageManifestPath.removingLastComponent())
-        try fileHandler.write(dependencies.manifestValue(), path: packageManifestPath, atomically: true)
+        try fileHandler.write(
+            dependencies.manifestValue(),
+            path: packageManifestPath,
+            atomically: true
+        )
 
         // set `swift-tools-version` in `Package.swift`
         try swiftPackageManagerController.setToolsVersion(
@@ -157,8 +183,13 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
     }
 
     /// Saves lockfile resolved dependencies in `Tuist/Dependencies` directory.
-    private func saveDependencies(pathsProvider: SwiftPackageManagerPathsProvider, hasRemoteDependencies: Bool) throws {
-        guard !hasRemoteDependencies || fileHandler.exists(pathsProvider.temporaryPackageResolvedPath) else {
+    private func saveDependencies(
+        pathsProvider: SwiftPackageManagerPathsProvider,
+        hasRemoteDependencies: Bool
+    ) throws {
+        guard
+            !hasRemoteDependencies || fileHandler.exists(pathsProvider.temporaryPackageResolvedPath)
+        else {
             throw SwiftPackageManagerInteractorError.packageResolvedNotFound
         }
         guard fileHandler.exists(pathsProvider.temporaryPackageSwiftPath) else {
@@ -210,20 +241,29 @@ private struct SwiftPackageManagerPathsProvider {
     let temporaryPackageResolvedPath: AbsolutePath
     let temporaryPackageSwiftPath: AbsolutePath
 
-    init(dependenciesDirectory: AbsolutePath) {
-        destinationPackageSwiftPath = dependenciesDirectory
+    init(
+        dependenciesDirectory: AbsolutePath
+    ) {
+        destinationPackageSwiftPath =
+            dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
             .appending(component: Constants.DependenciesDirectory.packageSwiftName)
-        destinationPackageResolvedPath = dependenciesDirectory
+        destinationPackageResolvedPath =
+            dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
             .appending(component: Constants.DependenciesDirectory.packageResolvedName)
-        destinationSwiftPackageManagerDirectory = dependenciesDirectory
+        destinationSwiftPackageManagerDirectory =
+            dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.swiftPackageManagerDirectoryName)
-        destinationBuildDirectory = destinationSwiftPackageManagerDirectory.appending(component: ".build")
+        destinationBuildDirectory = destinationSwiftPackageManagerDirectory.appending(
+            component: ".build"
+        )
 
-        temporaryPackageResolvedPath = destinationSwiftPackageManagerDirectory
+        temporaryPackageResolvedPath =
+            destinationSwiftPackageManagerDirectory
             .appending(component: Constants.DependenciesDirectory.packageResolvedName)
-        temporaryPackageSwiftPath = destinationSwiftPackageManagerDirectory
+        temporaryPackageSwiftPath =
+            destinationSwiftPackageManagerDirectory
             .appending(component: Constants.DependenciesDirectory.packageSwiftName)
     }
 }

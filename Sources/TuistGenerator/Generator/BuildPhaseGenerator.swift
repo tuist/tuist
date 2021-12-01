@@ -11,7 +11,8 @@ enum BuildPhaseGenerationError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .missingFileReference(path):
-            return "Trying to add a file at path \(path.pathString) to a build phase that hasn't been added to the project."
+            return
+                "Trying to add a file at path \(path.pathString) to a build phase that hasn't been added to the project."
         }
     }
 
@@ -31,12 +32,14 @@ enum BuildPhaseGenerationError: FatalError, Equatable {
 }
 
 protocol BuildPhaseGenerating: AnyObject {
-    func generateBuildPhases(path: AbsolutePath,
-                             target: Target,
-                             graphTraverser: GraphTraversing,
-                             pbxTarget: PBXTarget,
-                             fileElements: ProjectFileElements,
-                             pbxproj: PBXProj) throws
+    func generateBuildPhases(
+        path: AbsolutePath,
+        target: Target,
+        graphTraverser: GraphTraversing,
+        pbxTarget: PBXTarget,
+        fileElements: ProjectFileElements,
+        pbxproj: PBXProj
+    ) throws
 
     /// Generates target actions
     ///
@@ -46,10 +49,12 @@ protocol BuildPhaseGenerating: AnyObject {
     ///   - pbxproj: PBXProj instance.
     ///   - sourceRootPath: Path to the directory that will contain the generated project.
     /// - Throws: An error if the script phase can't be generated.
-    func generateScripts(_ scripts: [TargetScript],
-                         pbxTarget: PBXTarget,
-                         pbxproj: PBXProj,
-                         sourceRootPath: AbsolutePath) throws
+    func generateScripts(
+        _ scripts: [TargetScript],
+        pbxTarget: PBXTarget,
+        pbxproj: PBXProj,
+        sourceRootPath: AbsolutePath
+    ) throws
 }
 
 // swiftlint:disable:next type_body_length
@@ -57,13 +62,14 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
     // MARK: - Attributes
 
     // swiftlint:disable:next function_body_length
-    func generateBuildPhases(path: AbsolutePath,
-                             target: Target,
-                             graphTraverser: GraphTraversing,
-                             pbxTarget: PBXTarget,
-                             fileElements: ProjectFileElements,
-                             pbxproj: PBXProj) throws
-    {
+    func generateBuildPhases(
+        path: AbsolutePath,
+        target: Target,
+        graphTraverser: GraphTraversing,
+        pbxTarget: PBXTarget,
+        fileElements: ProjectFileElements,
+        pbxproj: PBXProj
+    ) throws {
         if target.shouldIncludeHeadersBuildPhase, let headers = target.headers {
             try generateHeadersBuildPhase(
                 headers: headers,
@@ -133,20 +139,25 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         )
     }
 
-    func generateScripts(_ scripts: [TargetScript],
-                         pbxTarget: PBXTarget,
-                         pbxproj: PBXProj,
-                         sourceRootPath: AbsolutePath) throws
-    {
+    func generateScripts(
+        _ scripts: [TargetScript],
+        pbxTarget: PBXTarget,
+        pbxproj: PBXProj,
+        sourceRootPath: AbsolutePath
+    ) throws {
         try scripts.forEach { script in
             let buildPhase = try PBXShellScriptBuildPhase(
                 files: [],
                 name: script.name,
                 inputPaths: script.inputPaths.map { $0.relative(to: sourceRootPath).pathString },
                 outputPaths: script.outputPaths.map { $0.relative(to: sourceRootPath).pathString },
-                inputFileListPaths: script.inputFileListPaths.map { $0.relative(to: sourceRootPath).pathString }, // swiftlint:disable:this line_length
+                inputFileListPaths: script.inputFileListPaths.map {
+                    $0.relative(to: sourceRootPath).pathString
+                },  // swiftlint:disable:this line_length
 
-                outputFileListPaths: script.outputFileListPaths.map { $0.relative(to: sourceRootPath).pathString }, // swiftlint:disable:this line_length
+                outputFileListPaths: script.outputFileListPaths.map {
+                    $0.relative(to: sourceRootPath).pathString
+                },  // swiftlint:disable:this line_length
 
                 shellPath: script.shellPath,
                 shellScript: script.shellScript(sourceRootPath: sourceRootPath),
@@ -165,10 +176,11 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         }
     }
 
-    func generateRawScriptBuildPhases(_ rawScriptBuildPhases: [RawScriptBuildPhase],
-                                      pbxTarget: PBXTarget,
-                                      pbxproj: PBXProj)
-    {
+    func generateRawScriptBuildPhases(
+        _ rawScriptBuildPhases: [RawScriptBuildPhase],
+        pbxTarget: PBXTarget,
+        pbxproj: PBXProj
+    ) {
         rawScriptBuildPhases.forEach { script in
             let buildPhase = PBXShellScriptBuildPhase(
                 files: [],
@@ -182,12 +194,13 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         }
     }
 
-    func generateSourcesBuildPhase(files: [SourceFile],
-                                   coreDataModels: [CoreDataModel],
-                                   pbxTarget: PBXTarget,
-                                   fileElements: ProjectFileElements,
-                                   pbxproj: PBXProj) throws
-    {
+    func generateSourcesBuildPhase(
+        files: [SourceFile],
+        coreDataModels: [CoreDataModel],
+        pbxTarget: PBXTarget,
+        fileElements: ProjectFileElements,
+        pbxproj: PBXProj
+    ) throws {
         let sourcesBuildPhase = PBXSourcesBuildPhase()
         pbxproj.add(object: sourcesBuildPhase)
         pbxTarget.buildPhases.append(sourcesBuildPhase)
@@ -217,7 +230,7 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             var settings: [String: Any]?
             if let compilerFlags = buildFile.compilerFlags {
                 settings = [
-                    "COMPILER_FLAGS": compilerFlags,
+                    "COMPILER_FLAGS": compilerFlags
                 ]
             }
 
@@ -238,20 +251,23 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             }
         }
 
-        pbxBuildFiles.append(contentsOf: generateCoreDataModels(
-            coreDataModels: coreDataModels,
-            fileElements: fileElements,
-            pbxproj: pbxproj
-        ))
+        pbxBuildFiles.append(
+            contentsOf: generateCoreDataModels(
+                coreDataModels: coreDataModels,
+                fileElements: fileElements,
+                pbxproj: pbxproj
+            )
+        )
         pbxBuildFiles.forEach { pbxproj.add(object: $0) }
         sourcesBuildPhase.files = pbxBuildFiles
     }
 
-    func generateHeadersBuildPhase(headers: Headers,
-                                   pbxTarget: PBXTarget,
-                                   fileElements: ProjectFileElements,
-                                   pbxproj: PBXProj) throws
-    {
+    func generateHeadersBuildPhase(
+        headers: Headers,
+        pbxTarget: PBXTarget,
+        fileElements: ProjectFileElements,
+        pbxproj: PBXProj
+    ) throws {
         let headersBuildPhase = PBXHeadersBuildPhase()
         pbxproj.add(object: headersBuildPhase)
         pbxTarget.buildPhases.append(headersBuildPhase)
@@ -265,38 +281,44 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             }
             return PBXBuildFile(file: fileReference, settings: settings)
         }
-        let pbxBuildFiles = try headers.private.sorted().map { try addHeader($0, "private") } +
-            headers.public.sorted().map { try addHeader($0, "public") } +
-            headers.project.sorted().map { try addHeader($0, nil) }
+        let pbxBuildFiles =
+            try headers.private.sorted().map { try addHeader($0, "private") }
+            + headers.public.sorted().map { try addHeader($0, "public") }
+            + headers.project.sorted().map { try addHeader($0, nil) }
 
         pbxBuildFiles.forEach { pbxproj.add(object: $0) }
         headersBuildPhase.files = pbxBuildFiles
     }
 
-    func generateResourcesBuildPhase(path: AbsolutePath,
-                                     target: Target,
-                                     graphTraverser: GraphTraversing,
-                                     pbxTarget: PBXTarget,
-                                     fileElements: ProjectFileElements,
-                                     pbxproj: PBXProj) throws
-    {
+    func generateResourcesBuildPhase(
+        path: AbsolutePath,
+        target: Target,
+        graphTraverser: GraphTraversing,
+        pbxTarget: PBXTarget,
+        fileElements: ProjectFileElements,
+        pbxproj: PBXProj
+    ) throws {
         let resourcesBuildPhase = PBXResourcesBuildPhase()
         pbxproj.add(object: resourcesBuildPhase)
         pbxTarget.buildPhases.append(resourcesBuildPhase)
 
         var pbxBuildFiles = [PBXBuildFile]()
 
-        pbxBuildFiles.append(contentsOf: try generateResourcesBuildFile(
-            files: target.resources,
-            fileElements: fileElements
-        ))
+        pbxBuildFiles.append(
+            contentsOf: try generateResourcesBuildFile(
+                files: target.resources,
+                fileElements: fileElements
+            )
+        )
 
-        try pbxBuildFiles.append(contentsOf: generateResourceBundle(
-            path: path,
-            target: target,
-            graphTraverser: graphTraverser,
-            fileElements: fileElements
-        ))
+        try pbxBuildFiles.append(
+            contentsOf: generateResourceBundle(
+                path: path,
+                target: target,
+                graphTraverser: graphTraverser,
+                fileElements: fileElements
+            )
+        )
 
         if !target.supportsSources {
             // CoreData models are typically added to the sources build phase
@@ -311,22 +333,25 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             //
             // - Note: Technically, CoreData models can be added a sources build phase in a `.bundle`
             // but that will result in the `.bundle` having an executable, which is not valid on iOS.
-            pbxBuildFiles.append(contentsOf: generateCoreDataModels(
-                coreDataModels: target.coreDataModels,
-                fileElements: fileElements,
-                pbxproj: pbxproj
-            ))
+            pbxBuildFiles.append(
+                contentsOf: generateCoreDataModels(
+                    coreDataModels: target.coreDataModels,
+                    fileElements: fileElements,
+                    pbxproj: pbxproj
+                )
+            )
         }
 
         pbxBuildFiles.forEach { pbxproj.add(object: $0) }
         resourcesBuildPhase.files = pbxBuildFiles
     }
 
-    func generateCopyFilesBuildPhases(target: Target,
-                                      pbxTarget: PBXTarget,
-                                      fileElements: ProjectFileElements,
-                                      pbxproj: PBXProj) throws
-    {
+    func generateCopyFilesBuildPhases(
+        target: Target,
+        pbxTarget: PBXTarget,
+        fileElements: ProjectFileElements,
+        pbxproj: PBXProj
+    ) throws {
         try target.copyFiles.forEach { action in
             let copyFilesPhase = PBXCopyFilesBuildPhase(
                 dstPath: action.subpath,
@@ -371,7 +396,8 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             let pathString = buildFilePath.pathString
             let isLocalized = pathString.contains(".lproj/")
             let isLproj = buildFilePath.extension == "lproj"
-            let isWithinAssets = pathString.contains(".xcassets/") || pathString.contains(".scnassets/")
+            let isWithinAssets =
+                pathString.contains(".xcassets/") || pathString.contains(".scnassets/")
 
             /// Assets that are part of a .xcassets or .scnassets folder
             /// are not added individually. The whole folder is added
@@ -383,7 +409,8 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
             var element: (element: PBXFileElement, path: AbsolutePath)?
 
             if isLocalized {
-                guard let (group, path) = fileElements.variantGroup(containing: buildFilePath) else {
+                guard let (group, path) = fileElements.variantGroup(containing: buildFilePath)
+                else {
                     throw BuildPhaseGenerationError.missingFileReference(buildFilePath)
                 }
 
@@ -412,10 +439,11 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         return pbxBuildFiles
     }
 
-    private func generateCoreDataModels(coreDataModels: [CoreDataModel],
-                                        fileElements: ProjectFileElements,
-                                        pbxproj: PBXProj) -> [PBXBuildFile]
-    {
+    private func generateCoreDataModels(
+        coreDataModels: [CoreDataModel],
+        fileElements: ProjectFileElements,
+        pbxproj: PBXProj
+    ) -> [PBXBuildFile] {
         let coreDataModels = coreDataModels.sorted { $0.path < $1.path }
         return coreDataModels.map {
             self.generateCoreDataModel(
@@ -426,10 +454,11 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         }
     }
 
-    private func generateCoreDataModel(coreDataModel: CoreDataModel,
-                                       fileElements: ProjectFileElements,
-                                       pbxproj _: PBXProj) -> PBXBuildFile
-    {
+    private func generateCoreDataModel(
+        coreDataModel: CoreDataModel,
+        fileElements: ProjectFileElements,
+        pbxproj _: PBXProj
+    ) -> PBXBuildFile {
         let currentVersion = coreDataModel.currentVersion
         let path = coreDataModel.path
         let currentVersionPath = path.appending(component: "\(currentVersion).xcdatamodel")
@@ -448,7 +477,8 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         graphTraverser: GraphTraversing,
         fileElements: ProjectFileElements
     ) throws -> [PBXBuildFile] {
-        let bundles = graphTraverser
+        let bundles =
+            graphTraverser
             .resourceBundleDependencies(path: path, name: target.name)
             .sorted()
         let fileReferences = bundles.compactMap { dependency -> PBXFileReference? in
@@ -467,39 +497,51 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         }
     }
 
-    func generateAppExtensionsBuildPhase(path: AbsolutePath,
-                                         target: Target,
-                                         graphTraverser: GraphTraversing,
-                                         pbxTarget: PBXTarget,
-                                         fileElements: ProjectFileElements,
-                                         pbxproj: PBXProj) throws
-    {
-        let appExtensions = graphTraverser.appExtensionDependencies(path: path, name: target.name).sorted()
+    func generateAppExtensionsBuildPhase(
+        path: AbsolutePath,
+        target: Target,
+        graphTraverser: GraphTraversing,
+        pbxTarget: PBXTarget,
+        fileElements: ProjectFileElements,
+        pbxproj: PBXProj
+    ) throws {
+        let appExtensions = graphTraverser.appExtensionDependencies(path: path, name: target.name)
+            .sorted()
         guard !appExtensions.isEmpty else { return }
         var pbxBuildFiles = [PBXBuildFile]()
 
-        let appExtensionsBuildPhase = PBXCopyFilesBuildPhase(dstSubfolderSpec: .plugins, name: "Embed App Extensions")
+        let appExtensionsBuildPhase = PBXCopyFilesBuildPhase(
+            dstSubfolderSpec: .plugins,
+            name: "Embed App Extensions"
+        )
         pbxproj.add(object: appExtensionsBuildPhase)
         pbxTarget.buildPhases.append(appExtensionsBuildPhase)
 
         let refs = appExtensions.compactMap { fileElements.product(target: $0.target.name) }
 
         refs.forEach {
-            let pbxBuildFile = PBXBuildFile(file: $0, settings: ["ATTRIBUTES": ["RemoveHeadersOnCopy"]])
+            let pbxBuildFile = PBXBuildFile(
+                file: $0,
+                settings: ["ATTRIBUTES": ["RemoveHeadersOnCopy"]]
+            )
             pbxBuildFiles.append(pbxBuildFile)
         }
         pbxBuildFiles.forEach { pbxproj.add(object: $0) }
         appExtensionsBuildPhase.files = pbxBuildFiles
     }
 
-    func generateEmbedWatchBuildPhase(path: AbsolutePath,
-                                      target: Target,
-                                      graphTraverser: GraphTraversing,
-                                      pbxTarget: PBXTarget,
-                                      fileElements: ProjectFileElements,
-                                      pbxproj: PBXProj) throws
-    {
-        let targetDependencies = graphTraverser.directLocalTargetDependencies(path: path, name: target.name).sorted()
+    func generateEmbedWatchBuildPhase(
+        path: AbsolutePath,
+        target: Target,
+        graphTraverser: GraphTraversing,
+        pbxTarget: PBXTarget,
+        fileElements: ProjectFileElements,
+        pbxproj: PBXProj
+    ) throws {
+        let targetDependencies = graphTraverser.directLocalTargetDependencies(
+            path: path,
+            name: target.name
+        ).sorted()
         let watchApps = targetDependencies.filter { $0.target.product == .watch2App }
         guard !watchApps.isEmpty else { return }
         var pbxBuildFiles = [PBXBuildFile]()
@@ -515,25 +557,30 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         let refs = watchApps.compactMap { fileElements.product(target: $0.target.name) }
 
         refs.forEach {
-            let pbxBuildFile = PBXBuildFile(file: $0, settings: ["ATTRIBUTES": ["RemoveHeadersOnCopy"]])
+            let pbxBuildFile = PBXBuildFile(
+                file: $0,
+                settings: ["ATTRIBUTES": ["RemoveHeadersOnCopy"]]
+            )
             pbxBuildFiles.append(pbxBuildFile)
         }
         pbxBuildFiles.forEach { pbxproj.add(object: $0) }
         embedWatchAppBuildPhase.files = pbxBuildFiles
     }
 
-    func generateEmbedAppClipsBuildPhase(path: AbsolutePath,
-                                         target: Target,
-                                         graphTraverser: GraphTraversing,
-                                         pbxTarget: PBXTarget,
-                                         fileElements: ProjectFileElements,
-                                         pbxproj: PBXProj) throws
-    {
+    func generateEmbedAppClipsBuildPhase(
+        path: AbsolutePath,
+        target: Target,
+        graphTraverser: GraphTraversing,
+        pbxTarget: PBXTarget,
+        fileElements: ProjectFileElements,
+        pbxproj: PBXProj
+    ) throws {
         guard target.product == .app else {
             return
         }
 
-        guard let appClips = graphTraverser.appClipDependencies(path: path, name: target.name) else {
+        guard let appClips = graphTraverser.appClipDependencies(path: path, name: target.name)
+        else {
             return
         }
         var pbxBuildFiles = [PBXBuildFile]()
@@ -548,7 +595,10 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
 
         let refs = fileElements.product(target: appClips.target.name)
 
-        let pbxBuildFile = PBXBuildFile(file: refs, settings: ["ATTRIBUTES": ["RemoveHeadersOnCopy"]])
+        let pbxBuildFile = PBXBuildFile(
+            file: refs,
+            settings: ["ATTRIBUTES": ["RemoveHeadersOnCopy"]]
+        )
         pbxBuildFiles.append(pbxBuildFile)
         pbxBuildFiles.forEach { pbxproj.add(object: $0) }
         embedAppClipsBuildPhase.files = pbxBuildFiles

@@ -11,7 +11,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
     ///
     /// Build settings for action build and target "Tuist Mac":
     /// Build settings for action test and target TuistTests:
-    private static let targetSettingsRegex = try! NSRegularExpression( // swiftlint:disable:this force_try
+    private static let targetSettingsRegex = try! NSRegularExpression(  // swiftlint:disable:this force_try
         pattern: "^Build settings for action (?:\\S+) and target \\\"?([^\":]+)\\\"?:$",
         options: [.caseInsensitive, .anchorsMatchLines]
     )
@@ -26,18 +26,20 @@ public final class XcodeBuildController: XcodeBuildControlling {
         )
     }
 
-    init(formatter: Formatting,
-         environment: Environmenting)
-    {
+    init(
+        formatter: Formatting,
+        environment: Environmenting
+    ) {
         self.formatter = formatter
         self.environment = environment
     }
 
-    public func build(_ target: XcodeBuildTarget,
-                      scheme: String,
-                      clean: Bool = false,
-                      arguments: [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>>
-    {
+    public func build(
+        _ target: XcodeBuildTarget,
+        scheme: String,
+        clean: Bool = false,
+        arguments: [XcodeBuildArgument]
+    ) -> Observable<SystemEvent<XcodeBuildOutput>> {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
         // Action
@@ -105,12 +107,13 @@ public final class XcodeBuildController: XcodeBuildControlling {
         return run(command: command, isVerbose: environment.isVerbose)
     }
 
-    public func archive(_ target: XcodeBuildTarget,
-                        scheme: String,
-                        clean: Bool,
-                        archivePath: AbsolutePath,
-                        arguments: [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>>
-    {
+    public func archive(
+        _ target: XcodeBuildTarget,
+        scheme: String,
+        clean: Bool,
+        archivePath: AbsolutePath,
+        arguments: [XcodeBuildArgument]
+    ) -> Observable<SystemEvent<XcodeBuildOutput>> {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
         // Action
@@ -134,7 +137,10 @@ public final class XcodeBuildController: XcodeBuildControlling {
         return run(command: command, isVerbose: environment.isVerbose)
     }
 
-    public func createXCFramework(frameworks: [AbsolutePath], output: AbsolutePath) -> Observable<SystemEvent<XcodeBuildOutput>> {
+    public func createXCFramework(
+        frameworks: [AbsolutePath],
+        output: AbsolutePath
+    ) -> Observable<SystemEvent<XcodeBuildOutput>> {
         var command = ["/usr/bin/xcrun", "xcodebuild", "-create-xcframework"]
         command.append(contentsOf: frameworks.flatMap { ["-framework", $0.pathString] })
         command.append(contentsOf: ["-output", output.pathString])
@@ -142,11 +148,15 @@ public final class XcodeBuildController: XcodeBuildControlling {
         return run(command: command, isVerbose: environment.isVerbose)
     }
 
-    public func showBuildSettings(_ target: XcodeBuildTarget,
-                                  scheme: String,
-                                  configuration: String) -> Single<[String: XcodeBuildSettings]>
-    {
-        var command = ["/usr/bin/xcrun", "xcodebuild", "archive", "-showBuildSettings", "-skipUnavailableActions"]
+    public func showBuildSettings(
+        _ target: XcodeBuildTarget,
+        scheme: String,
+        configuration: String
+    ) -> Single<[String: XcodeBuildSettings]> {
+        var command = [
+            "/usr/bin/xcrun", "xcodebuild", "archive", "-showBuildSettings",
+            "-skipUnavailableActions",
+        ]
 
         // Configuration
         command.append(contentsOf: ["-configuration", configuration])
@@ -164,7 +174,10 @@ public final class XcodeBuildController: XcodeBuildControlling {
             // can sometimes hang indefinitely on projects that don't
             // share any schemes, so automatically bail out if it looks
             // like that's happening.
-            .timeout(DispatchTimeInterval.seconds(20), scheduler: ConcurrentDispatchQueueScheduler(queue: .global()))
+            .timeout(
+                DispatchTimeInterval.seconds(20),
+                scheduler: ConcurrentDispatchQueueScheduler(queue: .global())
+            )
             .retry(5)
             .flatMap { string -> Observable<XcodeBuildSettings> in
                 Observable.create { (observer) -> Disposable in
@@ -173,7 +186,11 @@ public final class XcodeBuildController: XcodeBuildControlling {
 
                     let flushTarget = { () -> Void in
                         if let currentTarget = currentTarget {
-                            let buildSettings = XcodeBuildSettings(currentSettings, target: currentTarget, configuration: configuration)
+                            let buildSettings = XcodeBuildSettings(
+                                currentSettings,
+                                target: currentTarget,
+                                configuration: configuration
+                            )
                             observer.onNext(buildSettings)
                         }
 
@@ -182,7 +199,10 @@ public final class XcodeBuildController: XcodeBuildControlling {
                     }
 
                     string.enumerateLines { line, _ in
-                        if let result = XcodeBuildController.targetSettingsRegex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) {
+                        if let result = XcodeBuildController.targetSettingsRegex.firstMatch(
+                            in: line,
+                            range: NSRange(line.startIndex..., in: line)
+                        ) {
                             let targetRange = Range(result.range(at: 1), in: line)!
 
                             flushTarget()
@@ -191,7 +211,8 @@ public final class XcodeBuildController: XcodeBuildControlling {
                         }
 
                         let trimSet = CharacterSet.whitespacesAndNewlines
-                        let components = line
+                        let components =
+                            line
                             .split(maxSplits: 1) { $0 == "=" }
                             .map { $0.trimmingCharacters(in: trimSet) }
 
@@ -205,15 +226,21 @@ public final class XcodeBuildController: XcodeBuildControlling {
                     return Disposables.create()
                 }
             }
-            .reduce([String: XcodeBuildSettings](), accumulator: { (acc, buildSettings) -> [String: XcodeBuildSettings] in
-                var acc = acc
-                acc[buildSettings.target] = buildSettings
-                return acc
-            })
+            .reduce(
+                [String: XcodeBuildSettings](),
+                accumulator: { (acc, buildSettings) -> [String: XcodeBuildSettings] in
+                    var acc = acc
+                    acc[buildSettings.target] = buildSettings
+                    return acc
+                }
+            )
             .asSingle()
     }
 
-    fileprivate func run(command: [String], isVerbose: Bool) -> Observable<SystemEvent<XcodeBuildOutput>> {
+    fileprivate func run(
+        command: [String],
+        isVerbose: Bool
+    ) -> Observable<SystemEvent<XcodeBuildOutput>> {
         if isVerbose {
             return run(command: command)
         } else {
@@ -227,14 +254,20 @@ public final class XcodeBuildController: XcodeBuildControlling {
             .flatMap { event -> Observable<SystemEvent<XcodeBuildOutput>> in
                 switch event {
                 case let .standardError(errorData):
-                    guard let line = String(data: errorData, encoding: .utf8) else { return Observable.empty() }
-                    let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
+                    guard let line = String(data: errorData, encoding: .utf8) else {
+                        return Observable.empty()
+                    }
+                    let output = line.split(separator: "\n").map {
+                        line -> SystemEvent<XcodeBuildOutput> in
                         SystemEvent.standardError(XcodeBuildOutput(raw: "\(String(line))\n"))
                     }
                     return Observable.from(output)
                 case let .standardOutput(outputData):
-                    guard let line = String(data: outputData, encoding: .utf8) else { return Observable.empty() }
-                    let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
+                    guard let line = String(data: outputData, encoding: .utf8) else {
+                        return Observable.empty()
+                    }
+                    let output = line.split(separator: "\n").map {
+                        line -> SystemEvent<XcodeBuildOutput> in
                         SystemEvent.standardOutput(XcodeBuildOutput(raw: "\(String(line))\n"))
                     }
                     return Observable.from(output)
@@ -242,19 +275,28 @@ public final class XcodeBuildController: XcodeBuildControlling {
             }
     }
 
-    fileprivate func run(command: [String], pipedToArguments: [String]) -> Observable<SystemEvent<XcodeBuildOutput>> {
+    fileprivate func run(
+        command: [String],
+        pipedToArguments: [String]
+    ) -> Observable<SystemEvent<XcodeBuildOutput>> {
         System.shared.observable(command, pipedToArguments: pipedToArguments)
             .flatMap { event -> Observable<SystemEvent<XcodeBuildOutput>> in
                 switch event {
                 case let .standardError(errorData):
-                    guard let line = String(data: errorData, encoding: .utf8) else { return Observable.empty() }
-                    let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
+                    guard let line = String(data: errorData, encoding: .utf8) else {
+                        return Observable.empty()
+                    }
+                    let output = line.split(separator: "\n").map {
+                        line -> SystemEvent<XcodeBuildOutput> in
                         SystemEvent.standardError(XcodeBuildOutput(raw: "\(String(line))\n"))
                     }
                     return Observable.from(output)
                 case let .standardOutput(outputData):
-                    guard let line = String(data: outputData, encoding: .utf8) else { return Observable.empty() }
-                    let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
+                    guard let line = String(data: outputData, encoding: .utf8) else {
+                        return Observable.empty()
+                    }
+                    let output = line.split(separator: "\n").map {
+                        line -> SystemEvent<XcodeBuildOutput> in
                         SystemEvent.standardOutput(XcodeBuildOutput(raw: "\(String(line))\n"))
                     }
                     return Observable.from(output)

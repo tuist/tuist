@@ -109,18 +109,19 @@ public struct TargetScript: Equatable, Codable {
     ///   - basedOnDependencyAnalysis: Whether to skip running this script in incremental builds
     ///   - runForInstallBuildsOnly: Whether this script only runs on install builds (default is false)
     ///   - shellPath: The path to the shell which shall execute this script. Default is `/bin/sh`.
-    public init(name: String,
-                order: Order,
-                script: Script = .embedded(""),
-                inputPaths: [AbsolutePath] = [],
-                inputFileListPaths: [AbsolutePath] = [],
-                outputPaths: [AbsolutePath] = [],
-                outputFileListPaths: [AbsolutePath] = [],
-                showEnvVarsInLog: Bool = true,
-                basedOnDependencyAnalysis: Bool? = nil,
-                runForInstallBuildsOnly: Bool = false,
-                shellPath: String = "/bin/sh")
-    {
+    public init(
+        name: String,
+        order: Order,
+        script: Script = .embedded(""),
+        inputPaths: [AbsolutePath] = [],
+        inputFileListPaths: [AbsolutePath] = [],
+        outputPaths: [AbsolutePath] = [],
+        outputFileListPaths: [AbsolutePath] = [],
+        showEnvVarsInLog: Bool = true,
+        basedOnDependencyAnalysis: Bool? = nil,
+        runForInstallBuildsOnly: Bool = false,
+        shellPath: String = "/bin/sh"
+    ) {
         self.name = name
         self.order = order
         self.script = script
@@ -161,7 +162,9 @@ extension TargetScript.Script {
         case args
     }
 
-    public init(from decoder: Decoder) throws {
+    public init(
+        from decoder: Decoder
+    ) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
         switch kind {

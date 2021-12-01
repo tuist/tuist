@@ -1,8 +1,10 @@
 import Foundation
 import ProjectDescription
 import TSCBasic
-import struct TuistGraph.Plugins
 import TuistSupport
+
+import struct TuistGraph.Plugins
+
 @testable import TuistLoader
 @testable import TuistSupportTesting
 
@@ -48,7 +50,8 @@ public final class MockManifestLoader: ManifestLoading {
 
     func manifestPath(at path: AbsolutePath, manifest: Manifest) throws -> AbsolutePath {
         manifestPathCount += 1
-        return try manifestPathStub?(path, manifest) ?? TemporaryDirectory(removeTreeOnDeinit: true).path
+        return try manifestPathStub?(path, manifest)
+            ?? TemporaryDirectory(removeTreeOnDeinit: true).path
     }
 
     public func loadConfig(at path: AbsolutePath) throws -> Config {

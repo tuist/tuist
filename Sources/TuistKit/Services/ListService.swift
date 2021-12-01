@@ -55,15 +55,18 @@ class ListService {
         }
     }
 
-    private func string(for templates: [PrintableTemplate],
-                        in format: ListService.OutputFormat) throws -> String
-    {
+    private func string(
+        for templates: [PrintableTemplate],
+        in format: ListService.OutputFormat
+    ) throws -> String {
         switch format {
         case .table:
-            let textTable = TextTable<PrintableTemplate> { [
-                TextTable.Column(title: "Name", value: $0.name),
-                TextTable.Column(title: "Description", value: $0.description),
-            ] }
+            let textTable = TextTable<PrintableTemplate> {
+                [
+                    TextTable.Column(title: "Name", value: $0.name),
+                    TextTable.Column(title: "Description", value: $0.description),
+                ]
+            }
             return textTable.render(templates)
 
         case .json:
@@ -84,7 +87,9 @@ class ListService {
         at path: AbsolutePath,
         plugins: Plugins
     ) throws -> [AbsolutePath] {
-        let templateRelativeDirectories = try templatesDirectoryLocator.templateDirectories(at: path)
+        let templateRelativeDirectories = try templatesDirectoryLocator.templateDirectories(
+            at: path
+        )
         let templatePluginDirectories = plugins.templateDirectories
         return templateRelativeDirectories + templatePluginDirectories
     }

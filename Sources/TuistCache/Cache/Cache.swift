@@ -17,7 +17,9 @@ public final class Cache: CacheStoring {
 
     /// Initializes the cache with its attributes.
     /// - Parameter storageProvider: An instance that returns the storages to be used.
-    public init(storageProvider: CacheStorageProviding) {
+    public init(
+        storageProvider: CacheStorageProviding
+    ) {
         self.storageProvider = storageProvider
     }
 
@@ -36,7 +38,8 @@ public final class Cache: CacheStoring {
     }
 
     public func fetch(name: String, hash: String) -> Single<AbsolutePath> {
-        return storages
+        return
+            storages
             .reduce(nil) { (result, next) -> Single<AbsolutePath> in
                 if let result = result {
                     return result.catchError { _ in next.fetch(name: name, hash: hash) }

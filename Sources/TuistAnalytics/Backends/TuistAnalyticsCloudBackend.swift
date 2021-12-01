@@ -11,7 +11,9 @@ class TuistAnalyticsCloudBackend: TuistAnalyticsBackend {
     let resourceFactory: CloudAnalyticsResourceFactorying
     let client: CloudClienting
 
-    public convenience init(config: Cloud) {
+    public convenience init(
+        config: Cloud
+    ) {
         self.init(
             config: config,
             resourceFactory: CloudAnalyticsResourceFactory(cloudConfig: config),
@@ -19,10 +21,11 @@ class TuistAnalyticsCloudBackend: TuistAnalyticsBackend {
         )
     }
 
-    public init(config: Cloud,
-                resourceFactory: CloudAnalyticsResourceFactorying,
-                client: CloudClienting)
-    {
+    public init(
+        config: Cloud,
+        resourceFactory: CloudAnalyticsResourceFactorying,
+        client: CloudClienting
+    ) {
         self.config = config
         self.resourceFactory = resourceFactory
         self.client = client
@@ -32,7 +35,8 @@ class TuistAnalyticsCloudBackend: TuistAnalyticsBackend {
         guard config.options.contains(.analytics) else { return .just(()) }
 
         let resource = try resourceFactory.create(commandEvent: commandEvent)
-        return client
+        return
+            client
             .request(resource)
             .flatMap { _, _ in .just(()) }
     }

@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistSupportTesting
 import XCTest
+
 @testable import TuistGraph
 
 final class SettingsTests: XCTestCase {
@@ -16,7 +17,10 @@ final class SettingsTests: XCTestCase {
     func testXcconfigs() {
         // Given
         let configurations: [BuildConfiguration: Configuration?] = [
-            BuildConfiguration(name: "D", variant: .debug): Configuration(settings: [:], xcconfig: AbsolutePath("/D")),
+            BuildConfiguration(name: "D", variant: .debug): Configuration(
+                settings: [:],
+                xcconfig: AbsolutePath("/D")
+            ),
             .release("C"): nil,
             .debug("A"): Configuration(settings: [:], xcconfig: AbsolutePath("/A")),
             .release("B"): Configuration(settings: [:], xcconfig: AbsolutePath("/B")),

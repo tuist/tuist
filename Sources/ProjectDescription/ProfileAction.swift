@@ -5,10 +5,11 @@ public struct ProfileAction: Equatable, Codable {
     public let executable: TargetReference?
     public let arguments: Arguments?
 
-    init(configuration: ConfigurationName = .release,
-         executable: TargetReference? = nil,
-         arguments: Arguments? = nil)
-    {
+    init(
+        configuration: ConfigurationName = .release,
+        executable: TargetReference? = nil,
+        arguments: Arguments? = nil
+    ) {
         self.configuration = configuration
         self.executable = executable
         self.arguments = arguments
@@ -20,10 +21,11 @@ public struct ProfileAction: Equatable, Codable {
     ///   - executable: Profiled executable.
     ///   - arguments: Arguments to pass when launching the executable.
     /// - Returns: Initialized profile action.
-    public static func profileAction(configuration: ConfigurationName = .release,
-                                     executable: TargetReference? = nil,
-                                     arguments: Arguments? = nil) -> ProfileAction
-    {
+    public static func profileAction(
+        configuration: ConfigurationName = .release,
+        executable: TargetReference? = nil,
+        arguments: Arguments? = nil
+    ) -> ProfileAction {
         return ProfileAction(
             configuration: configuration,
             executable: executable,

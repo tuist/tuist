@@ -6,6 +6,7 @@ import TuistCoreTesting
 import TuistGraph
 import TuistSupport
 import XCTest
+
 @testable import TuistCache
 @testable import TuistSupportTesting
 
@@ -33,15 +34,16 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    private func makeTargetScript(name: String = "1",
-                                  order: TargetScript.Order = .pre,
-                                  tool: String = "tool1",
-                                  arguments: [String] = ["arg1", "arg2"],
-                                  inputPaths: [AbsolutePath] = [AbsolutePath("/inputPaths1")],
-                                  inputFileListPaths: [AbsolutePath] = [AbsolutePath("/inputFileListPaths1")],
-                                  outputPaths: [AbsolutePath] = [AbsolutePath("/outputPaths1")],
-                                  outputFileListPaths: [AbsolutePath] = [AbsolutePath("/outputFileListPaths1")]) -> TargetScript
-    {
+    private func makeTargetScript(
+        name: String = "1",
+        order: TargetScript.Order = .pre,
+        tool: String = "tool1",
+        arguments: [String] = ["arg1", "arg2"],
+        inputPaths: [AbsolutePath] = [AbsolutePath("/inputPaths1")],
+        inputFileListPaths: [AbsolutePath] = [AbsolutePath("/inputFileListPaths1")],
+        outputPaths: [AbsolutePath] = [AbsolutePath("/outputPaths1")],
+        outputFileListPaths: [AbsolutePath] = [AbsolutePath("/outputFileListPaths1")]
+    ) -> TargetScript {
         TargetScript(
             name: name,
             order: order,
@@ -62,24 +64,28 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         let outputPaths1 = "outputPaths1-hash"
         let outputFileListPaths1 = "outputFileListPaths1-hash"
         mockContentHasher.stubHashForPath[AbsolutePath("/inputPaths1")] = inputPaths1Hash
-        mockContentHasher.stubHashForPath[AbsolutePath("/inputFileListPaths1")] = inputFileListPaths1
+        mockContentHasher.stubHashForPath[AbsolutePath("/inputFileListPaths1")] =
+            inputFileListPaths1
         mockContentHasher.stubHashForPath[AbsolutePath("/outputPaths1")] = outputPaths1
-        mockContentHasher.stubHashForPath[AbsolutePath("/outputFileListPaths1")] = outputFileListPaths1
+        mockContentHasher.stubHashForPath[AbsolutePath("/outputFileListPaths1")] =
+            outputFileListPaths1
         let targetScript = makeTargetScript()
 
         // When
         _ = try subject.hash(targetScripts: [targetScript])
 
         // Then
-        let expected = [inputPaths1Hash,
-                        inputFileListPaths1,
-                        outputPaths1,
-                        outputFileListPaths1,
-                        "1",
-                        "tool1",
-                        "pre",
-                        "arg1",
-                        "arg2"]
+        let expected = [
+            inputPaths1Hash,
+            inputFileListPaths1,
+            outputPaths1,
+            outputFileListPaths1,
+            "1",
+            "tool1",
+            "pre",
+            "arg1",
+            "arg2",
+        ]
         XCTAssertEqual(mockContentHasher.hashStringsSpy, expected)
     }
 
@@ -90,9 +96,11 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         let outputPaths1 = "outputPaths1-hash"
         let outputFileListPaths1 = "outputFileListPaths1-hash"
         mockContentHasher.stubHashForPath[AbsolutePath("/inputPaths1")] = inputPaths1Hash
-        mockContentHasher.stubHashForPath[AbsolutePath("/inputFileListPaths1")] = inputFileListPaths1
+        mockContentHasher.stubHashForPath[AbsolutePath("/inputFileListPaths1")] =
+            inputFileListPaths1
         mockContentHasher.stubHashForPath[AbsolutePath("/outputPaths1")] = outputPaths1
-        mockContentHasher.stubHashForPath[AbsolutePath("/outputFileListPaths1")] = outputFileListPaths1
+        mockContentHasher.stubHashForPath[AbsolutePath("/outputFileListPaths1")] =
+            outputFileListPaths1
         let targetScript = makeTargetScript()
 
         // When
@@ -120,9 +128,11 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         let outputPaths2 = "outputPaths2-hash"
         let outputFileListPaths2 = "outputFileListPaths2-hash"
         mockContentHasher.stubHashForPath[AbsolutePath("/inputPaths2")] = inputPaths2Hash
-        mockContentHasher.stubHashForPath[AbsolutePath("/inputFileListPaths2")] = inputFileListPaths2
+        mockContentHasher.stubHashForPath[AbsolutePath("/inputFileListPaths2")] =
+            inputFileListPaths2
         mockContentHasher.stubHashForPath[AbsolutePath("/outputPaths2")] = outputPaths2
-        mockContentHasher.stubHashForPath[AbsolutePath("/outputFileListPaths2")] = outputFileListPaths2
+        mockContentHasher.stubHashForPath[AbsolutePath("/outputFileListPaths2")] =
+            outputFileListPaths2
         let targetScript = makeTargetScript(
             name: "2",
             order: .post,
@@ -137,14 +147,16 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         _ = try subject.hash(targetScripts: [targetScript])
 
         // Then
-        let expected = [inputPaths2Hash,
-                        inputFileListPaths2,
-                        outputPaths2,
-                        outputFileListPaths2,
-                        "2",
-                        "tool2",
-                        "post",
-                        "arg1", "arg2"]
+        let expected = [
+            inputPaths2Hash,
+            inputFileListPaths2,
+            outputPaths2,
+            outputFileListPaths2,
+            "2",
+            "tool2",
+            "post",
+            "arg1", "arg2",
+        ]
         XCTAssertEqual(mockContentHasher.hashStringsSpy, expected)
     }
 }

@@ -66,7 +66,10 @@ final class CloudSessionServiceTests: TuistUnitTestCase {
         }
 
         // Then
-        XCTAssertThrowsSpecific(try subject.printSession(), CloudSessionServiceError.missingCloudURL)
+        XCTAssertThrowsSpecific(
+            try subject.printSession(),
+            CloudSessionServiceError.missingCloudURL
+        )
     }
 
     func test_printSession() throws {

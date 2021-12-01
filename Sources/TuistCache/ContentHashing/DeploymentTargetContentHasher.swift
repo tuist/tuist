@@ -13,7 +13,9 @@ public final class DeploymentTargetContentHasher: DeploymentTargetContentHashing
 
     // MARK: - Init
 
-    public init(contentHasher: ContentHashing) {
+    public init(
+        contentHasher: ContentHashing
+    ) {
         self.contentHasher = contentHasher
     }
 

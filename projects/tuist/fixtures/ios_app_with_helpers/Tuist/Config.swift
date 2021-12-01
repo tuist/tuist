@@ -1,4 +1,3 @@
 import ProjectDescription
 
-let config = Config(generationOptions: [
-])
+let config = Config(generationOptions: [])

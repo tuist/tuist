@@ -6,6 +6,6 @@ let project = Project(
     targets: [
         .framework(
             name: "FrameworkB"
-        ),
+        )
     ]
 )

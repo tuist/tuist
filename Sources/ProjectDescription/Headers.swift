@@ -11,10 +11,11 @@ public struct Headers: Codable, Equatable {
     /// Relative path to project headers.
     public let project: FileList?
 
-    public init(public: FileList? = nil,
-                private: FileList? = nil,
-                project: FileList? = nil)
-    {
+    public init(
+        public: FileList? = nil,
+        private: FileList? = nil,
+        project: FileList? = nil
+    ) {
         self.public = `public`
         self.private = `private`
         self.project = project

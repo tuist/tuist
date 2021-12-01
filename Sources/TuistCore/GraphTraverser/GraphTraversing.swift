@@ -83,7 +83,10 @@ public protocol GraphTraversing {
     /// - Parameters:
     ///   - path: Path to the directory where the project that defines the target is located.
     ///   - name: Name of the target.
-    func resourceBundleDependencies(path: AbsolutePath, name: String) -> Set<GraphDependencyReference>
+    func resourceBundleDependencies(
+        path: AbsolutePath,
+        name: String
+    ) -> Set<GraphDependencyReference>
 
     /// Returns the list of test targets that depend on the one with the given name at the given path.
     /// - Parameters:
@@ -113,13 +116,19 @@ public protocol GraphTraversing {
     /// - Parameters:
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.
-    func linkableDependencies(path: AbsolutePath, name: String) throws -> Set<GraphDependencyReference>
+    func linkableDependencies(
+        path: AbsolutePath,
+        name: String
+    ) throws -> Set<GraphDependencyReference>
 
     /// Given a project directory and a target name, it returns the list of dependencies that need to be added to the searchable path from the target.
     /// - Parameters:
     ///   - path: Path to the directory that contains the project.
     ///   - name: Target name.
-    func searchablePathDependencies(path: AbsolutePath, name: String) throws -> Set<GraphDependencyReference>
+    func searchablePathDependencies(
+        path: AbsolutePath,
+        name: String
+    ) throws -> Set<GraphDependencyReference>
 
     /// Given a project directory and a target name, it returns a list of dependencies that need to be included in a copy files build phase
     ///
@@ -172,8 +181,8 @@ public protocol GraphTraversing {
     func dependsOnXCTest(path: AbsolutePath, name: String) -> Bool
 }
 
-public extension GraphTraversing {
-    func apps() -> Set<GraphTarget> {
+extension GraphTraversing {
+    public func apps() -> Set<GraphTarget> {
         targets(product: .app)
     }
 }

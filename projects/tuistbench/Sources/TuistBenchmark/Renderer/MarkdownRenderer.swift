@@ -2,32 +2,38 @@ import Foundation
 
 final class MarkdownRenderer: Renderer {
     private let deltaThreshold: TimeInterval
-    init(deltaThreshold: TimeInterval) {
+    init(
+        deltaThreshold: TimeInterval
+    ) {
         self.deltaThreshold = deltaThreshold
     }
 
     func render(results: [MeasureResult]) {
         let rows = results.flatMap(render)
 
-        print("""
+        print(
+            """
 
-        | Fixture            | Cold | Warm |
-        | ------------------ | ---- | ---- |
-        \(rows.joined(separator: "\n"))
+            | Fixture            | Cold | Warm |
+            | ------------------ | ---- | ---- |
+            \(rows.joined(separator: "\n"))
 
-        """)
+            """
+        )
     }
 
     func render(results: [BenchmarkResult]) {
         let rows = results.flatMap(render)
 
-        print("""
+        print(
+            """
 
-        | Fixture         | New    | Old  | Delta    |
-        | --------------- | ------ | ---- | -------- |
-        \(rows.joined(separator: "\n"))
+            | Fixture         | New    | Old  | Delta    |
+            | --------------- | ------ | ---- | -------- |
+            \(rows.joined(separator: "\n"))
 
-        """)
+            """
+        )
     }
 
     private func render(result: MeasureResult) -> [String] {
@@ -35,7 +41,7 @@ final class MarkdownRenderer: Renderer {
         let warm = format(result.warmRuns.average())
 
         return [
-            "| \(result.fixture)  | \(cold)s  | \(warm)s |",
+            "| \(result.fixture)  | \(cold)s  | \(warm)s |"
         ]
     }
 

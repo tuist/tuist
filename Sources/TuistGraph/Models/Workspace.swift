@@ -85,7 +85,10 @@ extension Workspace {
         )
     }
 
-    public func codeCoverageTargets(mode: CodeCoverageMode?, projects: [Project]) -> [TargetReference] {
+    public func codeCoverageTargets(
+        mode: CodeCoverageMode?,
+        projects: [Project]
+    ) -> [TargetReference] {
         switch mode {
         case .all, .none: return []
         case let .targets(targets): return targets

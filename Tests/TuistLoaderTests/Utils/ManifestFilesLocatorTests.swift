@@ -23,14 +23,18 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
     func test_locateProjectManifests_returns_all_manifest_no_workspace_given_child_path() throws {
         // Given
         let tuistManifestSignature = "import ProjectDescription"
-        let paths = try createFiles([
-            "Module/Project.swift",
-            "Project.swift",
-            "Tuist/Config.swift",
-        ], content: tuistManifestSignature)
+        let paths = try createFiles(
+            [
+                "Module/Project.swift",
+                "Project.swift",
+                "Tuist/Config.swift",
+            ],
+            content: tuistManifestSignature
+        )
 
         // When
-        let manifests = subject
+        let manifests =
+            subject
             .locateProjectManifests(at: paths.first!, excluding: [], onlyCurrentDirectory: false)
             .sorted(by: { $0.path < $1.path })
 
@@ -53,14 +57,18 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
     func test_locateProjectManifests_returns_all_manifest_with_workspace_given_child_path() throws {
         // Given
         let tuistManifestSignature = "import ProjectDescription"
-        let paths = try createFiles([
-            "Module/Project.swift",
-            "Workspace.swift",
-            "Tuist/Config.swift",
-        ], content: tuistManifestSignature)
+        let paths = try createFiles(
+            [
+                "Module/Project.swift",
+                "Workspace.swift",
+                "Tuist/Config.swift",
+            ],
+            content: tuistManifestSignature
+        )
 
         // When
-        let manifests = subject
+        let manifests =
+            subject
             .locateProjectManifests(at: paths.first!, excluding: [], onlyCurrentDirectory: false)
             .sorted(by: { $0.path < $1.path })
 
@@ -80,7 +88,10 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         )
     }
 
-    func test_locateProjectManifests_returns_only_manifest_in_locating_path_when_only_current_directory() throws {
+    func
+        test_locateProjectManifests_returns_only_manifest_in_locating_path_when_only_current_directory()
+        throws
+    {
         // Given
         let paths = try createFiles([
             "Workspace.swift",
@@ -89,8 +100,13 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         ])
 
         // When
-        let manifests = subject
-            .locateProjectManifests(at: paths.first!.parentDirectory, excluding: [], onlyCurrentDirectory: true)
+        let manifests =
+            subject
+            .locateProjectManifests(
+                at: paths.first!.parentDirectory,
+                excluding: [],
+                onlyCurrentDirectory: true
+            )
             .sorted(by: { $0.path < $1.path })
 
         // Then
@@ -100,7 +116,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
                 ManifestFilesLocator.ProjectManifest(
                     manifest: Manifest.workspace,
                     path: paths[0]
-                ),
+                )
             ]
         )
     }
@@ -108,15 +124,23 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
     func test_locateProjectManifests_falls_back_to_locatingPath_given_no_root_path() throws {
         // Given
         let tuistManifestSignature = "import ProjectDescription"
-        let paths = try createFiles([
-            "A/Project.swift",
-            "B/Workspace.swift",
-            "C/Project.swift",
-        ], content: tuistManifestSignature)
+        let paths = try createFiles(
+            [
+                "A/Project.swift",
+                "B/Workspace.swift",
+                "C/Project.swift",
+            ],
+            content: tuistManifestSignature
+        )
 
         // When
-        let manifests = subject
-            .locateProjectManifests(at: try temporaryPath(), excluding: [], onlyCurrentDirectory: false)
+        let manifests =
+            subject
+            .locateProjectManifests(
+                at: try temporaryPath(),
+                excluding: [],
+                onlyCurrentDirectory: false
+            )
             .sorted(by: { $0.path < $1.path })
 
         // Then
@@ -142,20 +166,28 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
     func test_locateProjectManifests_excludes_paths() throws {
         // Given
         let tuistManifestSignature = "import ProjectDescription"
-        let paths = try createFiles([
-            "A/Project.swift",
-            "B/Workspace.swift",
-            "C/Project.swift",
-            "DirName/ExcludeMe/D/Project.swift",
-            "ExcludeMe/Workspace.swift",
-        ], content: tuistManifestSignature)
+        let paths = try createFiles(
+            [
+                "A/Project.swift",
+                "B/Workspace.swift",
+                "C/Project.swift",
+                "DirName/ExcludeMe/D/Project.swift",
+                "ExcludeMe/Workspace.swift",
+            ],
+            content: tuistManifestSignature
+        )
         let excluding = [
-            "**/ExcludeMe/**",
+            "**/ExcludeMe/**"
         ]
 
         // When
-        let manifests = subject
-            .locateProjectManifests(at: try temporaryPath(), excluding: excluding, onlyCurrentDirectory: false)
+        let manifests =
+            subject
+            .locateProjectManifests(
+                at: try temporaryPath(),
+                excluding: excluding,
+                onlyCurrentDirectory: false
+            )
             .sorted(by: { $0.path < $1.path })
 
         // Then
@@ -178,23 +210,34 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         )
     }
 
-    func test_locateProjectManifests_excludes_paths_when_fell_back_to_locatingPath_given_no_root_path() throws {
+    func
+        test_locateProjectManifests_excludes_paths_when_fell_back_to_locatingPath_given_no_root_path()
+        throws
+    {
         // Given
         let tuistManifestSignature = "import ProjectDescription"
-        let paths = try createFiles([
-            "A/Project.swift",
-            "B/Workspace.swift",
-            "C/Project.swift",
-            "DirName/ExcludeMe/D/Project.swift",
-            "ExcludeMe/Workspace.swift",
-        ], content: tuistManifestSignature)
+        let paths = try createFiles(
+            [
+                "A/Project.swift",
+                "B/Workspace.swift",
+                "C/Project.swift",
+                "DirName/ExcludeMe/D/Project.swift",
+                "ExcludeMe/Workspace.swift",
+            ],
+            content: tuistManifestSignature
+        )
         let excluding = [
-            "**/ExcludeMe/**",
+            "**/ExcludeMe/**"
         ]
 
         // When
-        let manifests = subject
-            .locateProjectManifests(at: try temporaryPath(), excluding: excluding, onlyCurrentDirectory: false)
+        let manifests =
+            subject
+            .locateProjectManifests(
+                at: try temporaryPath(),
+                excluding: excluding,
+                onlyCurrentDirectory: false
+            )
             .sorted(by: { $0.path < $1.path })
 
         // Then
@@ -220,17 +263,21 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
     func test_locatePluginManifests_returns_all_plugins_when_given_root_path() throws {
         // Given
         let tuistManifestSignature = "import ProjectDescription"
-        let paths = try createFiles([
-            "Plugin.swift",
-            "A/Plugin.swift",
-            "B/Plugin.swift",
-            "B/C/Plugin.swift",
-        ], content: tuistManifestSignature)
+        let paths = try createFiles(
+            [
+                "Plugin.swift",
+                "A/Plugin.swift",
+                "B/Plugin.swift",
+                "B/C/Plugin.swift",
+            ],
+            content: tuistManifestSignature
+        )
 
         // When
-        let manifests = subject
+        let manifests =
+            subject
             .locatePluginManifests(
-                at: paths[0], // Plugin.swift
+                at: paths[0],  // Plugin.swift
                 excluding: [],
                 onlyCurrentDirectory: false
             )
@@ -240,15 +287,17 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         XCTAssertEqual(
             manifests,
             [
-                paths[1], // A/Plugin.swift
-                paths[3], // B/C/Plugin.swift
-                paths[2], // B/Plugin.swift
-                paths[0], // Plugin.swift
+                paths[1],  // A/Plugin.swift
+                paths[3],  // B/C/Plugin.swift
+                paths[2],  // B/Plugin.swift
+                paths[0],  // Plugin.swift
             ]
         )
     }
 
-    func test_locatePluginManifests_returns_only_plugin_in_cwdir_when_only_current_directory() throws {
+    func test_locatePluginManifests_returns_only_plugin_in_cwdir_when_only_current_directory()
+        throws
+    {
         // Given
         let paths = try createFiles([
             "Plugin.swift",
@@ -259,7 +308,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
 
         // When
         let manifests = subject.locatePluginManifests(
-            at: paths[0].parentDirectory, // Plugin.swift's parent directory
+            at: paths[0].parentDirectory,  // Plugin.swift's parent directory
             excluding: [],
             onlyCurrentDirectory: true
         )
@@ -268,7 +317,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         XCTAssertEqual(
             manifests,
             [
-                paths[0], // Plugin.swift
+                paths[0]  // Plugin.swift
             ]
         )
     }
@@ -276,32 +325,39 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
     func test_locatePluginManifests_returns_plugin_when_given_child_path() throws {
         // Given
         let tuistManifestSignature = "import ProjectDescription"
-        let paths = try createFiles([
-            "A/Plugin.swift",
-            "A/Helpers/Helper.swift",
-        ], content: tuistManifestSignature)
+        let paths = try createFiles(
+            [
+                "A/Plugin.swift",
+                "A/Helpers/Helper.swift",
+            ],
+            content: tuistManifestSignature
+        )
 
         // When
         let manifests = subject.locatePluginManifests(
-            at: paths[1], // A/Helpers/Helper.swift
+            at: paths[1],  // A/Helpers/Helper.swift
             excluding: [],
             onlyCurrentDirectory: false
         )
 
         // Then
-        XCTAssertEqual(manifests[0], paths[0]) // A/Plugin.swift
+        XCTAssertEqual(manifests[0], paths[0])  // A/Plugin.swift
     }
 
     func test_locatePluginManifests_falls_back_to_locatingPath_when_no_root_path() throws {
         // Given
         let tuistManifestSignature = "import ProjectDescription"
-        let paths = try createFiles([
-            "A/Plugin.swift",
-            "B/Plugin.swift",
-        ], content: tuistManifestSignature)
+        let paths = try createFiles(
+            [
+                "A/Plugin.swift",
+                "B/Plugin.swift",
+            ],
+            content: tuistManifestSignature
+        )
 
         // When
-        let manifests = subject
+        let manifests =
+            subject
             .locatePluginManifests(
                 at: try temporaryPath(),
                 excluding: [],
@@ -322,22 +378,26 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
     func test_locatePluginManifests_excludes_paths() throws {
         // Given
         let tuistManifestSignature = "import ProjectDescription"
-        let paths = try createFiles([
-            "Plugin.swift",
-            "A/Plugin.swift",
-            "B/Plugin.swift",
-            "B/C/Plugin.swift",
-            "DirName/ExcludeMe/D/Plugin.swift",
-            "ExcludeMe/Plugin.swift",
-        ], content: tuistManifestSignature)
+        let paths = try createFiles(
+            [
+                "Plugin.swift",
+                "A/Plugin.swift",
+                "B/Plugin.swift",
+                "B/C/Plugin.swift",
+                "DirName/ExcludeMe/D/Plugin.swift",
+                "ExcludeMe/Plugin.swift",
+            ],
+            content: tuistManifestSignature
+        )
         let excluding = [
-            "**/ExcludeMe/**",
+            "**/ExcludeMe/**"
         ]
 
         // When
-        let manifests = subject
+        let manifests =
+            subject
             .locatePluginManifests(
-                at: paths[0], // Plugin.swift
+                at: paths[0],  // Plugin.swift
                 excluding: excluding,
                 onlyCurrentDirectory: false
             )
@@ -347,29 +407,36 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
         XCTAssertEqual(
             manifests,
             [
-                paths[1], // A/Plugin.swift
-                paths[3], // B/C/Plugin.swift
-                paths[2], // B/Plugin.swift
-                paths[0], // Plugin.swift
+                paths[1],  // A/Plugin.swift
+                paths[3],  // B/C/Plugin.swift
+                paths[2],  // B/Plugin.swift
+                paths[0],  // Plugin.swift
             ]
         )
     }
 
-    func test_locatePluginManifests_excludes_paths_when_fell_back_to_locatingPath_when_no_root_path() throws {
+    func
+        test_locatePluginManifests_excludes_paths_when_fell_back_to_locatingPath_when_no_root_path()
+        throws
+    {
         // Given
         let tuistManifestSignature = "import ProjectDescription"
-        let paths = try createFiles([
-            "A/Plugin.swift",
-            "B/Plugin.swift",
-            "DirName/ExcludeMe/D/Plugin.swift",
-            "ExcludeMe/Plugin.swift",
-        ], content: tuistManifestSignature)
+        let paths = try createFiles(
+            [
+                "A/Plugin.swift",
+                "B/Plugin.swift",
+                "DirName/ExcludeMe/D/Plugin.swift",
+                "ExcludeMe/Plugin.swift",
+            ],
+            content: tuistManifestSignature
+        )
         let excluding = [
-            "**/ExcludeMe/**",
+            "**/ExcludeMe/**"
         ]
 
         // When
-        let manifests = subject
+        let manifests =
+            subject
             .locatePluginManifests(
                 at: try temporaryPath(),
                 excluding: excluding,
@@ -428,7 +495,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
             "File02.swift",
             "Tuist/Config.swift",
         ])
-        let locatingPath = paths[5] // "Module02/Subdir01/File01.swift"
+        let locatingPath = paths[5]  // "Module02/Subdir01/File01.swift"
 
         // When
         let configPath = subject.locateConfig(at: locatingPath)
@@ -476,7 +543,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
             "File01.swift",
             "File02.swift",
         ])
-        let locatingPath = paths[5] // "Module02/Subdir01/File01.swift"
+        let locatingPath = paths[5]  // "Module02/Subdir01/File01.swift"
 
         // When
         let configPath = subject.locateConfig(at: locatingPath)
@@ -526,7 +593,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
             "File02.swift",
             "Tuist/Dependencies.swift",
         ])
-        let locatingPath = paths[5] // "Module02/Subdir01/File01.swift"
+        let locatingPath = paths[5]  // "Module02/Subdir01/File01.swift"
 
         // When
         let dependenciesPath = subject.locateDependencies(at: locatingPath)
@@ -574,7 +641,7 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
             "File01.swift",
             "File02.swift",
         ])
-        let locatingPath = paths[5] // "Module02/Subdir01/File01.swift"
+        let locatingPath = paths[5]  // "Module02/Subdir01/File01.swift"
 
         // When
         let dependenciesPath = subject.locateDependencies(at: locatingPath)
@@ -586,13 +653,21 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
     func test_locateProjectManifests_returns_all_manifest_containing_manifest_signature() throws {
         // Given
         let tuistManifestSignature = "import ProjectDescription"
-        let correctPaths = try createFiles([
-            "Module/Project.swift",
-        ], content: tuistManifestSignature)
+        let correctPaths = try createFiles(
+            [
+                "Module/Project.swift"
+            ],
+            content: tuistManifestSignature
+        )
 
         // When
-        let correctManifest = subject
-            .locateProjectManifests(at: try temporaryPath(), excluding: [], onlyCurrentDirectory: false)
+        let correctManifest =
+            subject
+            .locateProjectManifests(
+                at: try temporaryPath(),
+                excluding: [],
+                onlyCurrentDirectory: false
+            )
             .first
 
         // Then
@@ -607,13 +682,21 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
 
     func test_locateProjectManifests_returns_all_manifest_containing_empty_files() throws {
         // Given
-        let correctPaths = try createFiles([
-            "Module/Project.swift",
-        ], content: "")
+        let correctPaths = try createFiles(
+            [
+                "Module/Project.swift"
+            ],
+            content: ""
+        )
 
         // When
-        let correctManifest = subject
-            .locateProjectManifests(at: try temporaryPath(), excluding: [], onlyCurrentDirectory: false)
+        let correctManifest =
+            subject
+            .locateProjectManifests(
+                at: try temporaryPath(),
+                excluding: [],
+                onlyCurrentDirectory: false
+            )
             .first
 
         // Then
@@ -628,14 +711,22 @@ final class ManifestFilesLocatorTests: TuistUnitTestCase {
 
     func test_locateProjectManifests_returns_no_manifest_containing_no_manifest_signature() throws {
         // Given
-        try createFiles([
-            "Incorrect/Project.swift",
-        ], content: "import AnythingElse")
+        try createFiles(
+            [
+                "Incorrect/Project.swift"
+            ],
+            content: "import AnythingElse"
+        )
 
         // When
 
-        let incorrectManifest = subject
-            .locateProjectManifests(at: try temporaryPath(), excluding: [], onlyCurrentDirectory: false)
+        let incorrectManifest =
+            subject
+            .locateProjectManifests(
+                at: try temporaryPath(),
+                excluding: [],
+                onlyCurrentDirectory: false
+            )
             .first
 
         // Then

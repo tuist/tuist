@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import TuistGraph
 @testable import TuistSupportTesting
 
@@ -8,12 +9,12 @@ final class CarthageDependenciesTests: TuistUnitTestCase {
         // Given
         let carthageDependencies: CarthageDependencies = .init(
             [
-                .github(path: "Dependency/Dependency", requirement: .exact("1.1.1")),
+                .github(path: "Dependency/Dependency", requirement: .exact("1.1.1"))
             ]
         )
         let expected = """
-        github "Dependency/Dependency" == 1.1.1
-        """
+            github "Dependency/Dependency" == 1.1.1
+            """
 
         // When
         let got = carthageDependencies.cartfileValue()
@@ -31,19 +32,25 @@ final class CarthageDependenciesTests: TuistUnitTestCase {
                 .git(path: "Foo/Bar", requirement: .atLeast("1.0.1")),
                 .github(path: "Qwerty/bar", requirement: .branch("develop")),
                 .github(path: "XYZ/Bar", requirement: .upToNext("1.1.1")),
-                .binary(path: "https://my.domain.com/release/MyFramework.json", requirement: .upToNext("1.0.1")),
-                .binary(path: "file:///some/local/path/MyFramework.json", requirement: .atLeast("1.1.0")),
+                .binary(
+                    path: "https://my.domain.com/release/MyFramework.json",
+                    requirement: .upToNext("1.0.1")
+                ),
+                .binary(
+                    path: "file:///some/local/path/MyFramework.json",
+                    requirement: .atLeast("1.1.0")
+                ),
             ]
         )
         let expected = """
-        github "Dependency/Dependency" == 2.1.1
-        github "XYZ/Foo" "revision"
-        git "Foo/Bar" >= 1.0.1
-        github "Qwerty/bar" "develop"
-        github "XYZ/Bar" ~> 1.1.1
-        binary "https://my.domain.com/release/MyFramework.json" ~> 1.0.1
-        binary "file:///some/local/path/MyFramework.json" >= 1.1.0
-        """
+            github "Dependency/Dependency" == 2.1.1
+            github "XYZ/Foo" "revision"
+            git "Foo/Bar" >= 1.0.1
+            github "Qwerty/bar" "develop"
+            github "XYZ/Bar" ~> 1.1.1
+            binary "https://my.domain.com/release/MyFramework.json" ~> 1.0.1
+            binary "file:///some/local/path/MyFramework.json" >= 1.1.0
+            """
 
         // When
         let got = carthageDependencies.cartfileValue()
@@ -56,7 +63,10 @@ final class CarthageDependenciesTests: TuistUnitTestCase {
 
     func test_dependency_cartfileValue_github() {
         // Given
-        let origin: CarthageDependencies.Dependency = .github(path: "Alamofire/Alamofire", requirement: .exact("1.2.3"))
+        let origin: CarthageDependencies.Dependency = .github(
+            path: "Alamofire/Alamofire",
+            requirement: .exact("1.2.3")
+        )
         let expected = #"github "Alamofire/Alamofire" == 1.2.3"#
 
         // When
@@ -68,8 +78,12 @@ final class CarthageDependenciesTests: TuistUnitTestCase {
 
     func test_dependency_cartfileValue_git() {
         // Given
-        let origin: CarthageDependencies.Dependency = .git(path: "https://enterprise.local/desktop/git-error-translations2.git", requirement: .atLeast("5.4.3"))
-        let expected = #"git "https://enterprise.local/desktop/git-error-translations2.git" >= 5.4.3"#
+        let origin: CarthageDependencies.Dependency = .git(
+            path: "https://enterprise.local/desktop/git-error-translations2.git",
+            requirement: .atLeast("5.4.3")
+        )
+        let expected =
+            #"git "https://enterprise.local/desktop/git-error-translations2.git" >= 5.4.3"#
 
         // When
         let got = origin.cartfileValue
@@ -80,7 +94,10 @@ final class CarthageDependenciesTests: TuistUnitTestCase {
 
     func test_dependency_cartfileValue_binary() {
         // Given
-        let origin: CarthageDependencies.Dependency = .binary(path: "file:///some/local/path/MyFramework.json", requirement: .upToNext("5.0.0"))
+        let origin: CarthageDependencies.Dependency = .binary(
+            path: "file:///some/local/path/MyFramework.json",
+            requirement: .upToNext("5.0.0")
+        )
         let expected = #"binary "file:///some/local/path/MyFramework.json" ~> 5.0.0"#
 
         // When

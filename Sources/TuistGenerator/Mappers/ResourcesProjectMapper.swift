@@ -21,7 +21,8 @@ public class ResourcesProjectMapper: ProjectMapping {
         return (project.with(targets: targets), sideEffects)
     }
 
-    public func mapTarget(_ target: Target, project: Project) -> ([Target], [SideEffectDescriptor]) {
+    public func mapTarget(_ target: Target, project: Project) -> ([Target], [SideEffectDescriptor])
+    {
         if target.resources.isEmpty, target.coreDataModels.isEmpty { return ([target], []) }
         var additionalTargets: [Target] = []
         var sideEffects: [SideEffectDescriptor] = []
@@ -50,7 +51,11 @@ public class ResourcesProjectMapper: ProjectMapping {
         }
 
         if target.supportsSources {
-            let (filePath, fileDescriptors) = synthesizedFile(bundleName: bundleName, target: target, project: project)
+            let (filePath, fileDescriptors) = synthesizedFile(
+                bundleName: bundleName,
+                target: target,
+                project: project
+            )
             modifiedTarget.sources.append(SourceFile(path: filePath, compilerFlags: nil))
             sideEffects.append(contentsOf: fileDescriptors)
         }
@@ -58,7 +63,11 @@ public class ResourcesProjectMapper: ProjectMapping {
         return ([modifiedTarget] + additionalTargets, sideEffects)
     }
 
-    func synthesizedFile(bundleName: String, target: Target, project: Project) -> (AbsolutePath, [SideEffectDescriptor]) {
+    func synthesizedFile(
+        bundleName: String,
+        target: Target,
+        project: Project
+    ) -> (AbsolutePath, [SideEffectDescriptor]) {
         let filePath = project.path
             .appending(component: Constants.DerivedDirectory.name)
             .appending(component: Constants.DerivedDirectory.sources)
@@ -69,85 +78,88 @@ public class ResourcesProjectMapper: ProjectMapping {
             bundleName: bundleName,
             target: target
         )
-        return (filePath, [.file(.init(path: filePath, contents: content.data(using: .utf8), state: .present))])
+        return (
+            filePath,
+            [.file(.init(path: filePath, contents: content.data(using: .utf8), state: .present))]
+        )
     }
 
     // swiftlint:disable:next function_body_length
     static func fileContent(targetName: String, bundleName: String, target: Target) -> String {
         if !target.supportsResources {
             return """
-            // swiftlint:disable all
-            // swift-format-ignore-file
-            // swiftformat:disable all
-            import Foundation
+                // swiftlint:disable all
+                // swift-format-ignore-file
+                // swiftformat:disable all
+                import Foundation
 
-            // MARK: - Swift Bundle Accessor
+                // MARK: - Swift Bundle Accessor
 
-            private class BundleFinder {}
+                private class BundleFinder {}
 
-            extension Foundation.Bundle {
-                /// Since \(targetName) is a \(target.product), the bundle for classes within this module can be used directly.
-                static var module: Bundle = {
-                    let bundleName = "\(bundleName)"
+                extension Foundation.Bundle {
+                    /// Since \(targetName) is a \(target.product), the bundle for classes within this module can be used directly.
+                    static var module: Bundle = {
+                        let bundleName = "\(bundleName)"
 
-                    let candidates = [
-                        Bundle.main.resourceURL,
-                        Bundle(for: BundleFinder.self).resourceURL,
-                        Bundle.main.bundleURL,
-                    ]
+                        let candidates = [
+                            Bundle.main.resourceURL,
+                            Bundle(for: BundleFinder.self).resourceURL,
+                            Bundle.main.bundleURL,
+                        ]
 
-                    for candidate in candidates {
-                        let bundlePath = candidate?.appendingPathComponent(bundleName + ".bundle")
-                        if let bundle = bundlePath.flatMap(Bundle.init(url:)) {
-                            return bundle
+                        for candidate in candidates {
+                            let bundlePath = candidate?.appendingPathComponent(bundleName + ".bundle")
+                            if let bundle = bundlePath.flatMap(Bundle.init(url:)) {
+                                return bundle
+                            }
                         }
-                    }
-                    fatalError("unable to find bundle named \(bundleName)")
-                }()
-            }
+                        fatalError("unable to find bundle named \(bundleName)")
+                    }()
+                }
 
-            // MARK: - Objective-C Bundle Accessor
+                // MARK: - Objective-C Bundle Accessor
 
-            @objc
-            public class \(targetName.camelized.uppercasingFirst)Resources: NSObject {
-               @objc public class var bundle: Bundle {
-                     return .module
-               }
-            }
-            // swiftlint:enable all
-            // swiftformat:enable all
+                @objc
+                public class \(targetName.camelized.uppercasingFirst)Resources: NSObject {
+                   @objc public class var bundle: Bundle {
+                         return .module
+                   }
+                }
+                // swiftlint:enable all
+                // swiftformat:enable all
 
-            """
+                """
         } else {
             return """
-            // swiftlint:disable all
-            // swift-format-ignore-file
-            // swiftformat:disable all
-            import Foundation
+                // swiftlint:disable all
+                // swift-format-ignore-file
+                // swiftformat:disable all
+                import Foundation
 
-            // MARK: - Swift Bundle Accessor
+                // MARK: - Swift Bundle Accessor
 
-            private class BundleFinder {}
+                private class BundleFinder {}
 
-            extension Foundation.Bundle {
-                /// Since \(targetName) is a \(target.product), the bundle containing the resources is copied into the final product.
-                static var module: Bundle = {
-                    return Bundle(for: BundleFinder.self)
-                }()
-            }
+                extension Foundation.Bundle {
+                    /// Since \(targetName) is a \(target.product), the bundle containing the resources is copied into the final product.
+                    static var module: Bundle = {
+                        return Bundle(for: BundleFinder.self)
+                    }()
+                }
 
-            // MARK: - Objective-C Bundle Accessor
+                // MARK: - Objective-C Bundle Accessor
 
-            @objc
-            public class \(targetName.camelized.uppercasingFirst)Resources: NSObject {
-               @objc public class var bundle: Bundle {
-                     return .module
-               }
-            }
-            // swiftlint:enable all
-            // swiftformat:enable all
+                @objc
+                public class \(targetName.camelized.uppercasingFirst)Resources: NSObject {
+                   @objc public class var bundle: Bundle {
+                         return .module
+                   }
+                }
+                // swiftlint:enable all
+                // swiftformat:enable all
 
-            """
+                """
         }
     }
 }

@@ -7,7 +7,9 @@ public struct AnalyzeAction: Equatable, Codable {
 
     // MARK: - Init
 
-    public init(configurationName: String) {
+    public init(
+        configurationName: String
+    ) {
         self.configurationName = configurationName
     }
 }

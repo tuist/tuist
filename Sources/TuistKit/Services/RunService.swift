@@ -1,12 +1,13 @@
 import Foundation
 import TSCBasic
-import struct TSCUtility.Version
 import TuistAutomation
 import TuistCache
 import TuistCore
 import TuistGraph
 import TuistLoader
 import TuistSupport
+
+import struct TSCUtility.Version
 
 enum RunServiceError: FatalError {
     case schemeNotFound(scheme: String, existing: [String])
@@ -17,7 +18,8 @@ enum RunServiceError: FatalError {
     var description: String {
         switch self {
         case let .schemeNotFound(scheme, existing):
-            return "Couldn't find scheme \(scheme). The available schemes are: \(existing.joined(separator: ", "))."
+            return
+                "Couldn't find scheme \(scheme). The available schemes are: \(existing.joined(separator: ", "))."
         case let .schemeWithoutRunnableTarget(scheme):
             return "The scheme \(scheme) cannot be run because it contains no runnable target."
         case let .invalidVersion(version):
@@ -30,8 +32,8 @@ enum RunServiceError: FatalError {
     var type: ErrorType {
         switch self {
         case .schemeNotFound,
-             .schemeWithoutRunnableTarget,
-             .invalidVersion:
+            .schemeWithoutRunnableTarget,
+            .invalidVersion:
             return .abort
         case .workspaceNotFound:
             return .bug
@@ -96,13 +98,23 @@ final class RunService {
         let graphTraverser = GraphTraverser(graph: graph)
         let runnableSchemes = buildGraphInspector.runnableSchemes(graphTraverser: graphTraverser)
 
-        logger.debug("Found the following runnable schemes: \(runnableSchemes.map(\.name).joined(separator: ", "))")
+        logger.debug(
+            "Found the following runnable schemes: \(runnableSchemes.map(\.name).joined(separator: ", "))"
+        )
 
         guard let scheme = runnableSchemes.first(where: { $0.name == schemeName }) else {
-            throw RunServiceError.schemeNotFound(scheme: schemeName, existing: runnableSchemes.map(\.name))
+            throw RunServiceError.schemeNotFound(
+                scheme: schemeName,
+                existing: runnableSchemes.map(\.name)
+            )
         }
 
-        guard let graphTarget = buildGraphInspector.runnableTarget(scheme: scheme, graphTraverser: graphTraverser) else {
+        guard
+            let graphTarget = buildGraphInspector.runnableTarget(
+                scheme: scheme,
+                graphTraverser: graphTraverser
+            )
+        else {
             throw RunServiceError.schemeWithoutRunnableTarget(scheme: scheme.name)
         }
 
@@ -121,7 +133,8 @@ final class RunService {
         if let deploymentTarget = graphTarget.target.deploymentTarget {
             minVersion = deploymentTarget.version.version()
         } else {
-            minVersion = scheme.targetDependencies()
+            minVersion =
+                scheme.targetDependencies()
                 .flatMap {
                     graphTraverser
                         .directLocalTargetDependencies(path: $0.projectPath, name: $0.name)
@@ -133,12 +146,13 @@ final class RunService {
                 .first
         }
 
-        let version: Version? = try version.map { versionString in
-            guard let version = versionString.version() else {
-                throw RunServiceError.invalidVersion(versionString)
-            }
-            return version
-        } ?? nil
+        let version: Version? =
+            try version.map { versionString in
+                guard let version = versionString.version() else {
+                    throw RunServiceError.invalidVersion(versionString)
+                }
+                return version
+            } ?? nil
 
         try targetRunner.runTarget(
             graphTarget,

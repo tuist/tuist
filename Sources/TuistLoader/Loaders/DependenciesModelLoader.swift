@@ -17,7 +17,9 @@ public protocol DependenciesModelLoading {
 public class DependenciesModelLoader: DependenciesModelLoading {
     private let manifestLoader: ManifestLoading
 
-    public init(manifestLoader: ManifestLoading = ManifestLoader()) {
+    public init(
+        manifestLoader: ManifestLoading = ManifestLoader()
+    ) {
         self.manifestLoader = manifestLoader
     }
 

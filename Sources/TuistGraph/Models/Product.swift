@@ -115,8 +115,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
     /// Returns true if the target can be ran.
     public var runnable: Bool {
         switch self {
-        case
-            .app,
+        case .app,
             .appClip,
             .commandLineTool,
             .watch2App,
@@ -126,8 +125,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
             .tvTopShelfExtension,
             .watch2Extension:
             return true
-        case
-            .bundle,
+        case .bundle,
             .dynamicLibrary,
             .framework,
             .staticFramework,
@@ -164,10 +162,7 @@ public enum Product: String, CustomStringConvertible, CaseIterable, Codable {
             // base.append(.tvIntentsExtension)
         }
 
-        if platform == .macOS ||
-            platform == .tvOS ||
-            platform == .iOS
-        {
+        if platform == .macOS || platform == .tvOS || platform == .iOS {
             base.append(.unitTests)
             base.append(.uiTests)
         }

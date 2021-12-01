@@ -1,4 +1,5 @@
 import TSCBasic
+
 @testable import TuistSigning
 
 public final class MockSigningCipher: SigningCiphering {

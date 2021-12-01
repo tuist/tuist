@@ -8,7 +8,8 @@ struct MigrationCheckEmptyBuildSettingsCommand: ParsableCommand {
         CommandConfiguration(
             commandName: "check-empty-settings",
             _superCommandName: "migration",
-            abstract: "It checks if the build settings of a project or target are empty. Otherwise it exits unsuccessfully."
+            abstract:
+                "It checks if the build settings of a project or target are empty. Otherwise it exits unsuccessfully."
         )
     }
 
@@ -21,7 +22,8 @@ struct MigrationCheckEmptyBuildSettingsCommand: ParsableCommand {
 
     @Option(
         name: .shortAndLong,
-        help: "The name of the target whose build settings will be checked. When not passed, it checks the build settings of the project."
+        help:
+            "The name of the target whose build settings will be checked. When not passed, it checks the build settings of the project."
     )
     var target: String?
 

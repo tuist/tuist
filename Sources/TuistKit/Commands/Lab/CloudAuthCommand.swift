@@ -7,7 +7,8 @@ struct CloudAuthCommand: ParsableCommand {
         CommandConfiguration(
             commandName: "auth",
             _superCommandName: "cloud",
-            abstract: "Authenticates the user on the server with the URL defined in the Config.swift file"
+            abstract:
+                "Authenticates the user on the server with the URL defined in the Config.swift file"
         )
     }
 

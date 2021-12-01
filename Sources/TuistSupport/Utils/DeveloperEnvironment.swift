@@ -22,7 +22,9 @@ public final class DeveloperEnvironment: DeveloperEnvironmenting {
         self.init(fileHandler: FileHandler())
     }
 
-    private init(fileHandler: FileHandling) {
+    private init(
+        fileHandler: FileHandling
+    ) {
         self.fileHandler = fileHandler
     }
 
@@ -34,11 +36,17 @@ public final class DeveloperEnvironment: DeveloperEnvironmenting {
             return _derivedDataDirectory
         }
         let location: AbsolutePath
-        if let customLocation = try? System.shared.capture("/usr/bin/defaults", "read", "com.apple.dt.Xcode IDECustomDerivedDataLocation") {
+        if let customLocation = try? System.shared.capture(
+            "/usr/bin/defaults",
+            "read",
+            "com.apple.dt.Xcode IDECustomDerivedDataLocation"
+        ) {
             location = AbsolutePath(customLocation.chomp())
         } else {
             // Default location
-            location = fileHandler.homeDirectory.appending(RelativePath("Library/Developer/Xcode/DerivedData/"))
+            location = fileHandler.homeDirectory.appending(
+                RelativePath("Library/Developer/Xcode/DerivedData/")
+            )
         }
         _derivedDataDirectory = location
         return location

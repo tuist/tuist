@@ -16,11 +16,12 @@ final class Updater: Updating {
 
     // MARK: - Init
 
-    init(versionsController: VersionsControlling = VersionsController(),
-         installer: Installing = Installer(),
-         envUpdater: EnvUpdating = EnvUpdater(),
-         versionProvider: VersionProviding = VersionProvider())
-    {
+    init(
+        versionsController: VersionsControlling = VersionsController(),
+        installer: Installing = Installer(),
+        envUpdater: EnvUpdating = EnvUpdater(),
+        versionProvider: VersionProviding = VersionProvider()
+    ) {
         self.versionsController = versionsController
         self.installer = installer
         self.envUpdater = envUpdater
@@ -34,7 +35,8 @@ final class Updater: Updating {
             logger.info("Updating tuistenv", metadata: .section)
             try? self.envUpdater.update()
         }
-        guard let highestRemoteVersion = try versionProvider.latestVersion().toBlocking().first else {
+        guard let highestRemoteVersion = try versionProvider.latestVersion().toBlocking().first
+        else {
             logger.warning("No remote versions found")
             return
         }
@@ -47,7 +49,9 @@ final class Updater: Updating {
                 try installer.install(version: highestRemoteVersion.description)
             }
         } else {
-            logger.notice("No local versions available. Installing the latest version \(highestRemoteVersion)")
+            logger.notice(
+                "No local versions available. Installing the latest version \(highestRemoteVersion)"
+            )
             try installer.install(version: highestRemoteVersion.description)
         }
     }

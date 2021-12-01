@@ -18,7 +18,10 @@ public struct BuildConfiguration: Codable {
     public let name: String
     public let variant: Variant
 
-    public init(name: String, variant: Variant) {
+    public init(
+        name: String,
+        variant: Variant
+    ) {
         self.name = name
         self.variant = variant
     }

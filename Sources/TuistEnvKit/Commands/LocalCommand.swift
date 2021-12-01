@@ -8,7 +8,8 @@ struct LocalCommand: ParsableCommand {
         CommandConfiguration(
             commandName: "local",
             // swiftlint:disable:next line_length
-            abstract: "Creates a .tuist-version file to pin the tuist version that should be used in the current directory. If the version is not specified, it prints the local versions"
+            abstract:
+                "Creates a .tuist-version file to pin the tuist version that should be used in the current directory. If the version is not specified, it prints the local versions"
         )
     }
 

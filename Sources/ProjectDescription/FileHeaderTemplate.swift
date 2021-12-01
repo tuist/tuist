@@ -20,23 +20,31 @@ public enum FileHeaderTemplate: Codable, Equatable, ExpressibleByStringInterpola
     case string(String)
 
     /// Creates file template as `.string(value)`
-    public init(stringLiteral value: String) {
+    public init(
+        stringLiteral value: String
+    ) {
         self = .string(value)
     }
 
-    public init(from decoder: Decoder) throws {
+    public init(
+        from decoder: Decoder
+    ) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         if container.allKeys.contains(.file), try container.decodeNil(forKey: .file) == false {
             var associatedValues = try container.nestedUnkeyedContainer(forKey: .file)
             let path = try associatedValues.decode(Path.self)
             self = .file(path)
-        } else if container.allKeys.contains(.string), try container.decodeNil(forKey: .string) == false {
+        } else if container.allKeys.contains(.string),
+            try container.decodeNil(forKey: .string) == false
+        {
             var associatedValues = try container.nestedUnkeyedContainer(forKey: .string)
             let string = try associatedValues.decode(String.self)
             self = .string(string)
         } else {
-            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown enum case"))
+            throw DecodingError.dataCorrupted(
+                .init(codingPath: decoder.codingPath, debugDescription: "Unknown enum case")
+            )
         }
     }
 

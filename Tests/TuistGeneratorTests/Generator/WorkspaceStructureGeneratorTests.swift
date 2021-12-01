@@ -5,6 +5,7 @@ import TuistGraph
 import TuistGraphTesting
 import TuistSupport
 import XCTest
+
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
@@ -40,16 +41,27 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         )
 
         // Then
-        XCTAssertEqual(structure.contents, [
-            .group("Modules", "/path/to/workspace/Modules", [
-                .project("/path/to/workspace/Modules/A/Project.xcodeproj"),
-                .project("/path/to/workspace/Modules/B/Project.xcodeproj"),
-                .group("Sub", "/path/to/workspace/Modules/Sub", [
-                    .project("/path/to/workspace/Modules/Sub/C/Project.xcodeproj"),
-                    .project("/path/to/workspace/Modules/Sub/D/Project.xcodeproj"),
-                ]),
-            ]),
-        ])
+        XCTAssertEqual(
+            structure.contents,
+            [
+                .group(
+                    "Modules",
+                    "/path/to/workspace/Modules",
+                    [
+                        .project("/path/to/workspace/Modules/A/Project.xcodeproj"),
+                        .project("/path/to/workspace/Modules/B/Project.xcodeproj"),
+                        .group(
+                            "Sub",
+                            "/path/to/workspace/Modules/Sub",
+                            [
+                                .project("/path/to/workspace/Modules/Sub/C/Project.xcodeproj"),
+                                .project("/path/to/workspace/Modules/Sub/D/Project.xcodeproj"),
+                            ]
+                        ),
+                    ]
+                )
+            ]
+        )
     }
 
     func test_generateStructure_projectsAndFiles() throws {
@@ -79,22 +91,41 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         )
 
         // Then
-        XCTAssertEqual(structure.contents, [
-            .group("Documentation", "/path/to/workspace/Documentation", [
-                .file("/path/to/workspace/Documentation/README.md"),
-                .group("generate", "/path/to/workspace/Documentation/generate", [
-                    .file("/path/to/workspace/Documentation/generate/guide.md"),
-                ]),
-                .group("setup", "/path/to/workspace/Documentation/setup", [
-                    .file("/path/to/workspace/Documentation/setup/usage.md"),
-                ]),
-            ]),
-            .group("Modules", "/path/to/workspace/Modules", [
-                .project("/path/to/workspace/Modules/A/Project.xcodeproj"),
-                .project("/path/to/workspace/Modules/B/Project.xcodeproj"),
-            ]),
-            .file("/path/to/workspace/README.md"),
-        ])
+        XCTAssertEqual(
+            structure.contents,
+            [
+                .group(
+                    "Documentation",
+                    "/path/to/workspace/Documentation",
+                    [
+                        .file("/path/to/workspace/Documentation/README.md"),
+                        .group(
+                            "generate",
+                            "/path/to/workspace/Documentation/generate",
+                            [
+                                .file("/path/to/workspace/Documentation/generate/guide.md")
+                            ]
+                        ),
+                        .group(
+                            "setup",
+                            "/path/to/workspace/Documentation/setup",
+                            [
+                                .file("/path/to/workspace/Documentation/setup/usage.md")
+                            ]
+                        ),
+                    ]
+                ),
+                .group(
+                    "Modules",
+                    "/path/to/workspace/Modules",
+                    [
+                        .project("/path/to/workspace/Modules/A/Project.xcodeproj"),
+                        .project("/path/to/workspace/Modules/B/Project.xcodeproj"),
+                    ]
+                ),
+                .file("/path/to/workspace/README.md"),
+            ]
+        )
     }
 
     func test_generateStructure_folderReferences() throws {
@@ -105,7 +136,7 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         ])
 
         try createFiles([
-            "/path/to/workspace/README.md",
+            "/path/to/workspace/README.md"
         ])
 
         let additionalFiles: [FileElement] = [
@@ -124,13 +155,20 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         )
 
         // Then
-        XCTAssertEqual(structure.contents, [
-            .group("Documentation", "/path/to/workspace/Documentation", [
-                .folderReference("/path/to/workspace/Documentation/Guides"),
-                .folderReference("/path/to/workspace/Documentation/Proposals"),
-            ]),
-            .file("/path/to/workspace/README.md"),
-        ])
+        XCTAssertEqual(
+            structure.contents,
+            [
+                .group(
+                    "Documentation",
+                    "/path/to/workspace/Documentation",
+                    [
+                        .folderReference("/path/to/workspace/Documentation/Guides"),
+                        .folderReference("/path/to/workspace/Documentation/Proposals"),
+                    ]
+                ),
+                .file("/path/to/workspace/README.md"),
+            ]
+        )
     }
 
     func test_generateStructure_collapseDirectories() throws {
@@ -160,14 +198,25 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         )
 
         // Then
-        XCTAssertEqual(structure.contents, [
-            .group("Documentation", "/path/to/workspace/Documentation", [
-                .file("/path/to/workspace/Documentation/README.md"),
-                .group("setup", "/path/to/workspace/Documentation/setup", [
-                    .file("/path/to/workspace/Documentation/setup/usage.md"),
-                ]),
-            ]),
-        ])
+        XCTAssertEqual(
+            structure.contents,
+            [
+                .group(
+                    "Documentation",
+                    "/path/to/workspace/Documentation",
+                    [
+                        .file("/path/to/workspace/Documentation/README.md"),
+                        .group(
+                            "setup",
+                            "/path/to/workspace/Documentation/setup",
+                            [
+                                .file("/path/to/workspace/Documentation/setup/usage.md")
+                            ]
+                        ),
+                    ]
+                )
+            ]
+        )
     }
 
     func test_generateStructure_excludesFolders() throws {
@@ -218,20 +267,23 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         )
 
         // Then
-        XCTAssertEqual(structure.contents, [
-            .file("/path/to/workspace/Pods.xcodeproj"),
-            .file("/path/to/workspace/Testing.playground"),
-        ])
+        XCTAssertEqual(
+            structure.contents,
+            [
+                .file("/path/to/workspace/Pods.xcodeproj"),
+                .file("/path/to/workspace/Testing.playground"),
+            ]
+        )
     }
 
     func test_generateStructure_projectsAndFilesOverlap() throws {
         // Given
         let xcodeProjPaths = try createFolders([
-            "/path/to/workspace/Modules/A/Project.xcodeproj",
+            "/path/to/workspace/Modules/A/Project.xcodeproj"
         ])
 
         let files: [FileElement] = [
-            .folderReference(path: "/path/to/workspace/Modules/A"),
+            .folderReference(path: "/path/to/workspace/Modules/A")
         ]
         let workspace = Workspace.test(
             additionalFiles: files
@@ -246,22 +298,29 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         )
 
         // Then
-        XCTAssertEqual(structure.contents, [
-            .group("Modules", "/path/to/workspace/Modules", [
-                .project("/path/to/workspace/Modules/A/Project.xcodeproj"),
-                .folderReference("/path/to/workspace/Modules/A"),
-            ]),
-        ])
+        XCTAssertEqual(
+            structure.contents,
+            [
+                .group(
+                    "Modules",
+                    "/path/to/workspace/Modules",
+                    [
+                        .project("/path/to/workspace/Modules/A/Project.xcodeproj"),
+                        .folderReference("/path/to/workspace/Modules/A"),
+                    ]
+                )
+            ]
+        )
     }
 
     func test_generateStructure_projectsAndNestedFiles() throws {
         // Given
         let xcodeProjPaths = try createFolders([
-            "/path/to/workspace/Modules/A/Project.xcodeproj",
+            "/path/to/workspace/Modules/A/Project.xcodeproj"
         ])
 
         let files = try createFiles([
-            "/path/to/workspace/Modules/A/README.md",
+            "/path/to/workspace/Modules/A/README.md"
         ])
 
         let workspace = Workspace.test(additionalFiles: files.map { .file(path: $0) })
@@ -275,14 +334,25 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         )
 
         // Then
-        XCTAssertEqual(structure.contents, [
-            .group("Modules", "/path/to/workspace/Modules", [
-                .project("/path/to/workspace/Modules/A/Project.xcodeproj"),
-                .group("A", "/path/to/workspace/Modules/A", [
-                    .file("/path/to/workspace/Modules/A/README.md"),
-                ]),
-            ]),
-        ])
+        XCTAssertEqual(
+            structure.contents,
+            [
+                .group(
+                    "Modules",
+                    "/path/to/workspace/Modules",
+                    [
+                        .project("/path/to/workspace/Modules/A/Project.xcodeproj"),
+                        .group(
+                            "A",
+                            "/path/to/workspace/Modules/A",
+                            [
+                                .file("/path/to/workspace/Modules/A/README.md")
+                            ]
+                        ),
+                    ]
+                )
+            ]
+        )
     }
 
     // MARK: - Helpers
@@ -347,12 +417,20 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         }
 
         func inTemporaryDirectory(_: (AbsolutePath) throws -> Void) throws {}
-        func inTemporaryDirectory(removeOnCompletion _: Bool, _: (AbsolutePath) throws -> Void) throws {}
-        func inTemporaryDirectory<Result>(_ closure: (AbsolutePath) throws -> Result) throws -> Result {
+        func inTemporaryDirectory(
+            removeOnCompletion _: Bool,
+            _: (AbsolutePath) throws -> Void
+        ) throws {}
+        func inTemporaryDirectory<Result>(
+            _ closure: (AbsolutePath) throws -> Result
+        ) throws -> Result {
             try closure(currentPath)
         }
 
-        func inTemporaryDirectory<Result>(removeOnCompletion _: Bool, _ closure: (AbsolutePath) throws -> Result) throws -> Result {
+        func inTemporaryDirectory<Result>(
+            removeOnCompletion _: Bool,
+            _ closure: (AbsolutePath) throws -> Result
+        ) throws -> Result {
             try closure(currentPath)
         }
 
@@ -396,7 +474,8 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
             cache[path] == .folder
         }
 
-        func locateDirectoryTraversingParents(from _: AbsolutePath, path _: String) -> AbsolutePath? {
+        func locateDirectoryTraversingParents(from _: AbsolutePath, path _: String) -> AbsolutePath?
+        {
             nil
         }
 
@@ -431,16 +510,19 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
         }
 
         func changeExtension(path: AbsolutePath, to newExtension: String) throws -> AbsolutePath {
-            path.removingLastComponent().appending(component: "\(path.basenameWithoutExt).\(newExtension)")
+            path.removingLastComponent().appending(
+                component: "\(path.basenameWithoutExt).\(newExtension)"
+            )
         }
     }
 }
 
 extension WorkspaceStructure.Element {
-    static func group(_ name: String,
-                      _ path: AbsolutePath,
-                      _ contents: [WorkspaceStructure.Element]) -> WorkspaceStructure.Element
-    {
+    static func group(
+        _ name: String,
+        _ path: AbsolutePath,
+        _ contents: [WorkspaceStructure.Element]
+    ) -> WorkspaceStructure.Element {
         .group(name: name, path: path, contents: contents)
     }
 

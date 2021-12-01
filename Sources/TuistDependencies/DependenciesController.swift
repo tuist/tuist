@@ -9,7 +9,11 @@ import TuistSupport
 
 enum DependenciesControllerError: FatalError, Equatable {
     /// Thrown when the same dependency is defined more than once.
-    case duplicatedDependency(String, [ProjectDescription.TargetDependency], [ProjectDescription.TargetDependency])
+    case duplicatedDependency(
+        String,
+        [ProjectDescription.TargetDependency],
+        [ProjectDescription.TargetDependency]
+    )
 
     /// Thrown when the same project is defined more than once.
     case duplicatedProject(Path, ProjectDescription.Project, ProjectDescription.Project)
@@ -30,18 +34,19 @@ enum DependenciesControllerError: FatalError, Equatable {
         switch self {
         case let .duplicatedDependency(name, first, second):
             return """
-            The \(name) dependency is defined twice across different dependency managers:
-            First: \(first)
-            Second: \(second)
-            """
+                The \(name) dependency is defined twice across different dependency managers:
+                First: \(first)
+                Second: \(second)
+                """
         case let .duplicatedProject(name, first, second):
             return """
-            The \(name) project is defined twice across different dependency managers:
-            First: \(first)
-            Second: \(second)
-            """
+                The \(name) project is defined twice across different dependency managers:
+                First: \(first)
+                Second: \(second)
+                """
         case .noPlatforms:
-            return "Platforms were not determined. Select platforms in `Dependencies.swift` manifest file."
+            return
+                "Platforms were not determined. Select platforms in `Dependencies.swift` manifest file."
         }
     }
 }
@@ -94,7 +99,8 @@ public final class DependenciesController: DependenciesControlling {
 
     public init(
         carthageInteractor: CarthageInteracting = CarthageInteractor(),
-        swiftPackageManagerInteractor: SwiftPackageManagerInteracting = SwiftPackageManagerInteractor(),
+        swiftPackageManagerInteractor: SwiftPackageManagerInteracting =
+            SwiftPackageManagerInteractor(),
         dependenciesGraphController: DependenciesGraphControlling = DependenciesGraphController()
     ) {
         self.carthageInteractor = carthageInteractor
@@ -154,7 +160,8 @@ public final class DependenciesController: DependenciesControlling {
             """
         )
 
-        let dependenciesDirectory = path
+        let dependenciesDirectory =
+            path
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
         let platforms = dependencies.platforms
@@ -165,7 +172,9 @@ public final class DependenciesController: DependenciesControlling {
 
         var dependenciesGraph = TuistCore.DependenciesGraph.none
 
-        if let carthageDependencies = dependencies.carthage, !carthageDependencies.dependencies.isEmpty {
+        if let carthageDependencies = dependencies.carthage,
+            !carthageDependencies.dependencies.isEmpty
+        {
             let carthageDependenciesGraph = try carthageInteractor.install(
                 dependenciesDirectory: dependenciesDirectory,
                 dependencies: carthageDependencies,
@@ -177,7 +186,9 @@ public final class DependenciesController: DependenciesControlling {
             try carthageInteractor.clean(dependenciesDirectory: dependenciesDirectory)
         }
 
-        if let swiftPackageManagerDependencies = dependencies.swiftPackageManager, !swiftPackageManagerDependencies.packages.isEmpty {
+        if let swiftPackageManagerDependencies = dependencies.swiftPackageManager,
+            !swiftPackageManagerDependencies.packages.isEmpty
+        {
             let swiftPackageManagerDependenciesGraph = try swiftPackageManagerInteractor.install(
                 dependenciesDirectory: dependenciesDirectory,
                 dependencies: swiftPackageManagerDependencies,
@@ -185,7 +196,9 @@ public final class DependenciesController: DependenciesControlling {
                 shouldUpdate: shouldUpdate,
                 swiftToolsVersion: swiftVersion
             )
-            dependenciesGraph = try dependenciesGraph.merging(with: swiftPackageManagerDependenciesGraph)
+            dependenciesGraph = try dependenciesGraph.merging(
+                with: swiftPackageManagerDependenciesGraph
+            )
         } else {
             try swiftPackageManagerInteractor.clean(dependenciesDirectory: dependenciesDirectory)
         }
@@ -196,20 +209,35 @@ public final class DependenciesController: DependenciesControlling {
 
 extension TuistCore.DependenciesGraph {
     public func merging(with other: Self) throws -> Self {
-        let mergedExternalDependencies = try other.externalDependencies.reduce(into: externalDependencies) { result, entry in
+        let mergedExternalDependencies = try other.externalDependencies.reduce(
+            into: externalDependencies
+        ) { result, entry in
             if let alreadyPresent = result[entry.key] {
-                throw DependenciesControllerError.duplicatedDependency(entry.key, alreadyPresent, entry.value)
+                throw DependenciesControllerError.duplicatedDependency(
+                    entry.key,
+                    alreadyPresent,
+                    entry.value
+                )
             }
 
             result[entry.key] = entry.value
         }
-        let mergedExternalProjects = try other.externalProjects.reduce(into: externalProjects) { result, entry in
+        let mergedExternalProjects = try other.externalProjects.reduce(into: externalProjects) {
+            result,
+            entry in
             if let alreadyPresent = result[entry.key] {
-                throw DependenciesControllerError.duplicatedProject(entry.key, alreadyPresent, entry.value)
+                throw DependenciesControllerError.duplicatedProject(
+                    entry.key,
+                    alreadyPresent,
+                    entry.value
+                )
             }
 
             result[entry.key] = entry.value
         }
-        return .init(externalDependencies: mergedExternalDependencies, externalProjects: mergedExternalProjects)
+        return .init(
+            externalDependencies: mergedExternalDependencies,
+            externalProjects: mergedExternalProjects
+        )
     }
 }

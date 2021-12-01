@@ -40,7 +40,10 @@ protocol Carthaging {
 final class Carthage: Carthaging {
     /// Regex used to match and extract information from the lines in the Cartfile.resolved file.
     // swiftlint:disable:next force_try
-    static let resolvedLineRegex = try! NSRegularExpression(pattern: "(github|git|binary) \"([^\"]+)\" \"([^\"]+)\"", options: [])
+    static let resolvedLineRegex = try! NSRegularExpression(
+        pattern: "(github|git|binary) \"([^\"]+)\" \"([^\"]+)\"",
+        options: []
+    )
 
     /// Bootstraps the dependencies in the given directory.
     ///
@@ -109,18 +112,27 @@ final class Carthage: Carthaging {
             )
         ).forEach { match in
             let dependencyNameRange = match.range(at: 2)
-            var dependencyName = String(cartfileResolvedNSString.substring(with: dependencyNameRange).split(separator: "/").last!)
+            var dependencyName = String(
+                cartfileResolvedNSString.substring(with: dependencyNameRange).split(separator: "/")
+                    .last!
+            )
 
             let dependencyTypeRange = match.range(at: 1)
-            let dependencyType = DependencyType(rawValue: cartfileResolvedNSString.substring(with: dependencyTypeRange))
+            let dependencyType = DependencyType(
+                rawValue: cartfileResolvedNSString.substring(with: dependencyTypeRange)
+            )
             if dependencyType == .binary {
                 dependencyName = (dependencyName as NSString).deletingPathExtension
             }
 
             let dependencyRevisionRange = match.range(at: 3)
-            let dependencyRevision = cartfileResolvedNSString.substring(with: dependencyRevisionRange)
+            let dependencyRevision = cartfileResolvedNSString.substring(
+                with: dependencyRevisionRange
+            )
 
-            let dependencyVersionFilePath = path.appending(RelativePath("Carthage/Build/.\(dependencyName).version"))
+            let dependencyVersionFilePath = path.appending(
+                RelativePath("Carthage/Build/.\(dependencyName).version")
+            )
 
             // We consider missing dependencies outdated
             if !FileHandler.shared.exists(dependencyVersionFilePath) {
@@ -129,7 +141,10 @@ final class Carthage: Carthaging {
             }
 
             let dependencyVersionData = try Data(contentsOf: dependencyVersionFilePath.url)
-            let dependencyVersionFile = try jsonDecoder.decode(CarthageVersionFile.self, from: dependencyVersionData)
+            let dependencyVersionFile = try jsonDecoder.decode(
+                CarthageVersionFile.self,
+                from: dependencyVersionData
+            )
 
             if dependencyVersionFile.commitish != dependencyRevision {
                 outdated.append(dependencyName)

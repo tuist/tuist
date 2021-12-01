@@ -2,7 +2,7 @@ import ProjectDescription
 
 let config = Config(
     plugins: [
-        .local(path: "//LocalPlugin"),
+        .local(path: "//LocalPlugin")
     ],
     generationOptions: []
 )

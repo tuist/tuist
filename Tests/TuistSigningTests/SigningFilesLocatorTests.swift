@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistSupport
 import XCTest
+
 @testable import TuistCoreTesting
 @testable import TuistSigning
 @testable import TuistSupportTesting
@@ -26,7 +27,10 @@ final class SigningFilesLocatorTests: TuistUnitTestCase {
         // Given
         let rootDirectory = try temporaryPath()
         rootDirectoryLocator.locateStub = rootDirectory
-        let signingDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+        let signingDirectory = rootDirectory.appending(
+            components: Constants.tuistDirectoryName,
+            Constants.signingDirectoryName
+        )
         try fileHandler.createFolder(signingDirectory)
         let expectedFileNames = ["file.cer.encrypted", "file2.cer.encrypted"]
         try (["file", "file.txt", "file.encrypted"] + expectedFileNames)
@@ -45,7 +49,10 @@ final class SigningFilesLocatorTests: TuistUnitTestCase {
         // Given
         let rootDirectory = try temporaryPath()
         rootDirectoryLocator.locateStub = rootDirectory
-        let signingDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+        let signingDirectory = rootDirectory.appending(
+            components: Constants.tuistDirectoryName,
+            Constants.signingDirectoryName
+        )
         try fileHandler.createFolder(signingDirectory)
         let expectedFileNames = ["file.p12.encrypted", "file2.p12.encrypted"]
         try (["file", "file.txt", "file.encrypted"] + expectedFileNames)
@@ -64,7 +71,10 @@ final class SigningFilesLocatorTests: TuistUnitTestCase {
         // Given
         let rootDirectory = try temporaryPath()
         rootDirectoryLocator.locateStub = rootDirectory
-        let expectedSigningDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+        let expectedSigningDirectory = rootDirectory.appending(
+            components: Constants.tuistDirectoryName,
+            Constants.signingDirectoryName
+        )
         try fileHandler.createFolder(expectedSigningDirectory)
 
         // When
@@ -78,7 +88,10 @@ final class SigningFilesLocatorTests: TuistUnitTestCase {
         // Given
         let rootDirectory = try temporaryPath()
         rootDirectoryLocator.locateStub = rootDirectory
-        let signingDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+        let signingDirectory = rootDirectory.appending(
+            components: Constants.tuistDirectoryName,
+            Constants.signingDirectoryName
+        )
         try fileHandler.createFolder(signingDirectory)
         let expectedFileNames = ["file.mobileprovision"]
         try (["file.cer", "file.cer.encrypted"] + expectedFileNames)
@@ -97,7 +110,10 @@ final class SigningFilesLocatorTests: TuistUnitTestCase {
         // Given
         let rootDirectory = try temporaryPath()
         rootDirectoryLocator.locateStub = rootDirectory
-        let signingDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+        let signingDirectory = rootDirectory.appending(
+            components: Constants.tuistDirectoryName,
+            Constants.signingDirectoryName
+        )
         try fileHandler.createFolder(signingDirectory)
         let expectedFileNames = ["file.cer"]
         try (["file.mobileprovision", "file.cer.encrypted"] + expectedFileNames)
@@ -116,7 +132,10 @@ final class SigningFilesLocatorTests: TuistUnitTestCase {
         // Given
         let rootDirectory = try temporaryPath()
         rootDirectoryLocator.locateStub = rootDirectory
-        let signingDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+        let signingDirectory = rootDirectory.appending(
+            components: Constants.tuistDirectoryName,
+            Constants.signingDirectoryName
+        )
         try fileHandler.createFolder(signingDirectory)
         let expectedFileNames = ["file.p12"]
         try (["file.mobileprovision", "file.p12.encrypted"] + expectedFileNames)

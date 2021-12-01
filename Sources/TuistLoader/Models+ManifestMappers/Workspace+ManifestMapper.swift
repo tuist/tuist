@@ -18,12 +18,15 @@ extension TuistGraph.Workspace {
     ) throws -> TuistGraph.Workspace {
         func globProjects(_ path: Path) throws -> [AbsolutePath] {
             let resolvedPath = try generatorPaths.resolve(path: path)
-            let projects = FileHandler.shared.glob(AbsolutePath.root, glob: String(resolvedPath.pathString.dropFirst()))
-                .lazy
-                .filter(FileHandler.shared.isFolder)
-                .filter {
-                    manifestLoader.manifests(at: $0).contains(.project)
-                }
+            let projects = FileHandler.shared.glob(
+                AbsolutePath.root,
+                glob: String(resolvedPath.pathString.dropFirst())
+            )
+            .lazy
+            .filter(FileHandler.shared.isFolder)
+            .filter {
+                manifestLoader.manifests(at: $0).contains(.project)
+            }
 
             if projects.isEmpty {
                 // FIXME: This should be done in a linter.
@@ -38,9 +41,13 @@ extension TuistGraph.Workspace {
             try TuistGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths)
         }
 
-        let schemes = try manifest.schemes.map { try TuistGraph.Scheme.from(manifest: $0, generatorPaths: generatorPaths) }
+        let schemes = try manifest.schemes.map {
+            try TuistGraph.Scheme.from(manifest: $0, generatorPaths: generatorPaths)
+        }
 
-        let ideTemplateMacros = try manifest.fileHeaderTemplate.map { try IDETemplateMacros.from(manifest: $0, generatorPaths: generatorPaths) }
+        let ideTemplateMacros = try manifest.fileHeaderTemplate.map {
+            try IDETemplateMacros.from(manifest: $0, generatorPaths: generatorPaths)
+        }
 
         return TuistGraph.Workspace(
             path: path,

@@ -62,7 +62,9 @@ extension AbsolutePath {
     /// Returns true if the path is a package, recognized by having a UTI `com.apple.package`
     public var isPackage: Bool {
         let ext = URL(fileURLWithPath: pathString).pathExtension as CFString
-        guard let uti = UTTypeCreatePreferredIdentifierForTag(kUTTagClassFilenameExtension, ext, nil) else { return false }
+        guard
+            let uti = UTTypeCreatePreferredIdentifierForTag(kUTTagClassFilenameExtension, ext, nil)
+        else { return false }
         return UTTypeConformsTo(uti.takeRetainedValue(), kUTTypePackage)
     }
 
@@ -122,7 +124,7 @@ extension AbsolutePath {
             return self
         }
 
-        return AbsolutePath(components[0 ..< index].joined(separator: "/"))
+        return AbsolutePath(components[0..<index].joined(separator: "/"))
     }
 
     /// Returns the hash of the file the path points to.
@@ -132,7 +134,9 @@ extension AbsolutePath {
 }
 
 extension AbsolutePath: ExpressibleByStringLiteral {
-    public init(stringLiteral value: String) {
+    public init(
+        stringLiteral value: String
+    ) {
         self = AbsolutePath(value)
     }
 }

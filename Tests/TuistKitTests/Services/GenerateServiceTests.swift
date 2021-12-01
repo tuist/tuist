@@ -3,8 +3,9 @@ import TSCBasic
 import TuistCore
 import TuistLoader
 import TuistSupport
-import XcodeProj
 import XCTest
+import XcodeProj
+
 @testable import TuistCoreTesting
 @testable import TuistKit
 @testable import TuistLoaderTesting
@@ -65,7 +66,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
         // Given
         clock.assertOnUnexpectedCalls = true
         clock.primedTimers = [
-            0.234,
+            0.234
         ]
 
         // When
@@ -132,10 +133,13 @@ final class GenerateServiceTests: TuistUnitTestCase {
         }
 
         // Then
-        XCTAssertEqual(generator.generateCalls.map(\.projectOnly), [
-            true,
-            false,
-        ])
+        XCTAssertEqual(
+            generator.generateCalls.map(\.projectOnly),
+            [
+                true,
+                false,
+            ]
+        )
     }
 
     func test_run_fatalErrors_when_theworkspaceGenerationFails() throws {
@@ -153,10 +157,11 @@ final class GenerateServiceTests: TuistUnitTestCase {
 }
 
 extension GenerateService {
-    func testRun(path: String? = nil,
-                 projectOnly: Bool = false,
-                 open: Bool = false) throws
-    {
+    func testRun(
+        path: String? = nil,
+        projectOnly: Bool = false,
+        open: Bool = false
+    ) throws {
         try run(
             path: path,
             projectOnly: projectOnly,

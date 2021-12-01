@@ -2,8 +2,7 @@ import TapestryDescription
 
 let config = TapestryConfig(
     release: Release(
-        actions:
-        [
+        actions: [
             .pre(tool: "git", arguments: ["checkout", "main"]),
             .pre(tool: "git", arguments: ["pull"]),
             .pre(tool: "bundle", arguments: ["install"]),
@@ -24,7 +23,7 @@ let config = TapestryConfig(
             ),
         ],
         add: [
-            "CHANGELOG.md",
+            "CHANGELOG.md"
         ],
         commitMessage: "Version \(Argument.version)",
         push: true

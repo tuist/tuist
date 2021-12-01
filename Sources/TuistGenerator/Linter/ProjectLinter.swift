@@ -18,11 +18,12 @@ class ProjectLinter: ProjectLinting {
 
     // MARK: - Init
 
-    init(targetLinter: TargetLinting = TargetLinter(),
-         settingsLinter: SettingsLinting = SettingsLinter(),
-         schemeLinter: SchemeLinting = SchemeLinter(),
-         packageLinter: PackageLinting = PackageLinter())
-    {
+    init(
+        targetLinter: TargetLinting = TargetLinter(),
+        settingsLinter: SettingsLinting = SettingsLinter(),
+        schemeLinter: SchemeLinting = SchemeLinter(),
+        packageLinter: PackageLinting = PackageLinter()
+    ) {
         self.targetLinter = targetLinter
         self.settingsLinter = settingsLinter
         self.schemeLinter = schemeLinter
@@ -62,7 +63,8 @@ class ProjectLinter: ProjectLinting {
             .keys
         if !duplicatedTargets.isEmpty {
             let issue = LintingIssue(
-                reason: "Targets \(duplicatedTargets.joined(separator: ", ")) from project at \(project.path.pathString) have duplicates.",
+                reason:
+                    "Targets \(duplicatedTargets.joined(separator: ", ")) from project at \(project.path.pathString) have duplicates.",
                 severity: .error
             )
             issues.append(issue)
@@ -86,7 +88,8 @@ class ProjectLinter: ProjectLinting {
             let optionsNames = duplicatedOptions.map { $0.name }
 
             let issue = LintingIssue(
-                reason: "Options \"\(optionsNames.joined(separator: ", "))\" from project at \(project.path.pathString) have duplicates.",
+                reason:
+                    "Options \"\(optionsNames.joined(separator: ", "))\" from project at \(project.path.pathString) have duplicates.",
                 severity: .error
             )
             issues.append(issue)

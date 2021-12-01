@@ -1,4 +1,5 @@
 import Foundation
+
 import struct TSCUtility.Version
 
 extension String {
@@ -24,10 +25,10 @@ extension String {
     public func chomp(separator: String? = nil) -> String {
         func scrub(_ separator: String) -> String {
             var e = endIndex
-            while String(self[startIndex ..< e]).hasSuffix(separator), e > startIndex {
+            while String(self[startIndex..<e]).hasSuffix(separator), e > startIndex {
                 e = index(before: e)
             }
-            return String(self[startIndex ..< e])
+            return String(self[startIndex..<e])
         }
 
         if let separator = separator {
@@ -72,7 +73,8 @@ extension String {
     public func nsRange(from range: Range<String.Index>) -> NSRange? {
         guard
             let from = range.lowerBound.samePosition(in: utf16),
-            let to = range.upperBound.samePosition(in: utf16) else { return nil }
+            let to = range.upperBound.samePosition(in: utf16)
+        else { return nil }
 
         return NSRange(
             location: utf16.distance(from: utf16.startIndex, to: from),
@@ -134,7 +136,8 @@ extension String {
         let acronymPattern = "([A-Z]+)([A-Z][a-z]|[0-9])"
         let normalPattern = "([a-z0-9])([A-Z])"
         return processCamelCaseRegex(pattern: acronymPattern, separator: separator)?
-            .processCamelCaseRegex(pattern: normalPattern, separator: separator)?.lowercased() ?? lowercased()
+            .processCamelCaseRegex(pattern: normalPattern, separator: separator)?.lowercased()
+            ?? lowercased()
     }
 
     private func processCamelCaseRegex(
@@ -143,7 +146,12 @@ extension String {
     ) -> String? {
         let regex = try? NSRegularExpression(pattern: pattern, options: [])
         let range = NSRange(location: 0, length: count)
-        return regex?.stringByReplacingMatches(in: self, options: [], range: range, withTemplate: "$1\(separator)$2")
+        return regex?.stringByReplacingMatches(
+            in: self,
+            options: [],
+            range: range,
+            withTemplate: "$1\(separator)$2"
+        )
     }
 
     // MARK: - Shell
@@ -187,19 +195,19 @@ extension String {
 
     private func mustBeEscaped(_ codeUnit: UInt8) -> Bool {
         switch codeUnit {
-        case UInt8(ascii: "a") ... UInt8(ascii: "z"),
-             UInt8(ascii: "A") ... UInt8(ascii: "Z"),
-             UInt8(ascii: "0") ... UInt8(ascii: "9"),
-             UInt8(ascii: "-"),
-             UInt8(ascii: "_"),
-             UInt8(ascii: "/"),
-             UInt8(ascii: ":"),
-             UInt8(ascii: "@"),
-             UInt8(ascii: "%"),
-             UInt8(ascii: "+"),
-             UInt8(ascii: "="),
-             UInt8(ascii: "."),
-             UInt8(ascii: ","):
+        case UInt8(ascii: "a")...UInt8(ascii: "z"),
+            UInt8(ascii: "A")...UInt8(ascii: "Z"),
+            UInt8(ascii: "0")...UInt8(ascii: "9"),
+            UInt8(ascii: "-"),
+            UInt8(ascii: "_"),
+            UInt8(ascii: "/"),
+            UInt8(ascii: ":"),
+            UInt8(ascii: "@"),
+            UInt8(ascii: "%"),
+            UInt8(ascii: "+"),
+            UInt8(ascii: "="),
+            UInt8(ascii: "."),
+            UInt8(ascii: ","):
             return false
         default:
             return true
@@ -207,13 +215,13 @@ extension String {
     }
 }
 
-public extension Array where Element: CustomStringConvertible {
+extension Array where Element: CustomStringConvertible {
     /// Returns a sentence listing the elements contained in the array.
     /// ["Framework"] results in "Framework"
     /// ["Framework", "App"] results in "Framework and App"
     /// ["Framework", "App", "Tests"] results in "Framework, App, and Tests"
     /// - Returns: <#description#>
-    func listed() -> String {
+    public func listed() -> String {
         let listFormatter = ListFormatter()
         listFormatter.locale = Locale(identifier: "en-US")
         return listFormatter.string(from: self) ?? ""

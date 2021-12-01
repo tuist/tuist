@@ -1,10 +1,11 @@
 import Foundation
 import TSCBasic
 import TSCUtility
+
 @testable import TuistGraph
 
-public extension Project {
-    static func test(
+extension Project {
+    public static func test(
         path: AbsolutePath = AbsolutePath("/Project"),
         sourceRootPath: AbsolutePath = AbsolutePath("/Project"),
         xcodeProjPath: AbsolutePath = AbsolutePath("/Project/Project.xcodeproj"),
@@ -42,7 +43,7 @@ public extension Project {
         )
     }
 
-    static func empty(
+    public static func empty(
         path: AbsolutePath = AbsolutePath("/test/"),
         sourceRootPath: AbsolutePath = AbsolutePath("/test/"),
         xcodeProjPath: AbsolutePath = AbsolutePath("/test/text.xcodeproj"),

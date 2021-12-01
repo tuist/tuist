@@ -55,10 +55,11 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
     ///   - targetGenerator: Generator for the project targets.
     ///   - configGenerator: Generator for the project configuration.
     ///   - schemeDescriptorsGenerator: Generator for the project schemes.
-    init(targetGenerator: TargetGenerating = TargetGenerator(),
-         configGenerator: ConfigGenerating = ConfigGenerator(),
-         schemeDescriptorsGenerator: SchemeDescriptorsGenerating = SchemeDescriptorsGenerator())
-    {
+    init(
+        targetGenerator: TargetGenerating = TargetGenerator(),
+        configGenerator: ConfigGenerating = ConfigGenerator(),
+        schemeDescriptorsGenerator: SchemeDescriptorsGenerating = SchemeDescriptorsGenerator()
+    ) {
         self.targetGenerator = targetGenerator
         self.configGenerator = configGenerator
         self.schemeDescriptorsGenerator = schemeDescriptorsGenerator
@@ -67,9 +68,10 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
     // MARK: - ProjectGenerating
 
     // swiftlint:disable:next function_body_length
-    func generate(project: Project,
-                  graphTraverser: GraphTraversing) throws -> ProjectDescriptor
-    {
+    func generate(
+        project: Project,
+        graphTraverser: GraphTraversing
+    ) throws -> ProjectDescriptor {
         logger.notice("Generating project \(project.name)")
 
         let selfRef = XCWorkspaceDataFileRef(location: .`self`(""))
@@ -90,7 +92,11 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             groups: groups,
             pbxproj: pbxproj
         )
-        let configurationList = try configGenerator.generateProjectConfig(project: project, pbxproj: pbxproj, fileElements: fileElements)
+        let configurationList = try configGenerator.generateProjectConfig(
+            project: project,
+            pbxproj: pbxproj,
+            fileElements: fileElements
+        )
         let pbxProject = try generatePbxproject(
             project: project,
             projectFileElements: fileElements,
@@ -144,12 +150,13 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
 
     // MARK: - Fileprivate
 
-    private func generatePbxproject(project: Project,
-                                    projectFileElements: ProjectFileElements,
-                                    configurationList: XCConfigurationList,
-                                    groups: ProjectGroups,
-                                    pbxproj: PBXProj) throws -> PBXProject
-    {
+    private func generatePbxproject(
+        project: Project,
+        projectFileElements: ProjectFileElements,
+        configurationList: XCConfigurationList,
+        groups: ProjectGroups,
+        pbxproj: PBXProj
+    ) throws -> PBXProject {
         let defaultRegions = ["en", "Base"]
         let knownRegions = Set(defaultRegions + projectFileElements.knownRegions).sorted()
         let developmentRegion = project.developmentRegion ?? Xcode.Default.developmentRegion
@@ -174,12 +181,13 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         return pbxProject
     }
 
-    private func generateTargets(project: Project,
-                                 pbxproj: PBXProj,
-                                 pbxProject: PBXProject,
-                                 fileElements: ProjectFileElements,
-                                 graphTraverser: GraphTraversing) throws -> [String: PBXNativeTarget]
-    {
+    private func generateTargets(
+        project: Project,
+        pbxproj: PBXProj,
+        pbxProject: PBXProject,
+        fileElements: ProjectFileElements,
+        graphTraverser: GraphTraversing
+    ) throws -> [String: PBXNativeTarget] {
         var nativeTargets: [String: PBXNativeTarget] = [:]
         try project.targets.forEach { target in
             let nativeTarget = try targetGenerator.generateTarget(
@@ -205,21 +213,26 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         return nativeTargets
     }
 
-    private func generateTestTargetIdentity(project _: Project,
-                                            pbxproj: PBXProj,
-                                            pbxProject: PBXProject)
-    {
+    private func generateTestTargetIdentity(
+        project _: Project,
+        pbxproj: PBXProj,
+        pbxProject: PBXProject
+    ) {
         func testTargetName(_ target: PBXTarget) -> String? {
-            guard let buildConfigurations = target.buildConfigurationList?.buildConfigurations else {
+            guard let buildConfigurations = target.buildConfigurationList?.buildConfigurations
+            else {
                 return nil
             }
 
-            return buildConfigurations
+            return
+                buildConfigurations
                 .compactMap { $0.buildSettings["TEST_TARGET_NAME"] as? String }
                 .first
         }
 
-        let testTargets = pbxproj.nativeTargets.filter { $0.productType == .uiTestBundle || $0.productType == .unitTestBundle }
+        let testTargets = pbxproj.nativeTargets.filter {
+            $0.productType == .uiTestBundle || $0.productType == .unitTestBundle
+        }
 
         for testTarget in testTargets {
             guard let name = testTargetName(testTarget) else {
@@ -238,7 +251,11 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         }
     }
 
-    private func generateSwiftPackageReferences(project: Project, pbxproj: PBXProj, pbxProject: PBXProject) throws {
+    private func generateSwiftPackageReferences(
+        project: Project,
+        pbxproj: PBXProj,
+        pbxProject: PBXProject
+    ) throws {
         var packageReferences: [String: XCRemoteSwiftPackageReference] = [:]
 
         for package in project.packages {
@@ -292,7 +309,9 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
         return attributes
     }
 
-    private func determineProjectConstants(graphTraverser: GraphTraversing) throws -> ProjectConstants {
+    private func determineProjectConstants(
+        graphTraverser: GraphTraversing
+    ) throws -> ProjectConstants {
         if graphTraverser.hasPackages {
             return .xcode11
         } else {

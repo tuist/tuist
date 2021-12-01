@@ -19,7 +19,10 @@ final class CodeCoverageManifestMapperTests: TuistUnitTestCase {
         let manifest = Manifest.all
 
         // When
-        let got = try TuistGraph.CodeCoverageMode.from(manifest: manifest, generatorPaths: generatorPaths)
+        let got = try TuistGraph.CodeCoverageMode.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths
+        )
 
         // Then
         XCTAssertEqual(.all, got)
@@ -32,7 +35,10 @@ final class CodeCoverageManifestMapperTests: TuistUnitTestCase {
         let manifest = Manifest.relevant
 
         // When
-        let got = try TuistGraph.CodeCoverageMode.from(manifest: manifest, generatorPaths: generatorPaths)
+        let got = try TuistGraph.CodeCoverageMode.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths
+        )
 
         // Then
         XCTAssertEqual(.relevant, got)
@@ -46,7 +52,10 @@ final class CodeCoverageManifestMapperTests: TuistUnitTestCase {
         let manifest = Manifest.targets([targetRef])
 
         // When
-        let got = try TuistGraph.CodeCoverageMode.from(manifest: manifest, generatorPaths: generatorPaths)
+        let got = try TuistGraph.CodeCoverageMode.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths
+        )
 
         // Then
         XCTAssertEqual(
@@ -55,7 +64,7 @@ final class CodeCoverageManifestMapperTests: TuistUnitTestCase {
                 TargetReference(
                     projectPath: try generatorPaths.resolveSchemeActionProjectPath(nil),
                     name: "Target"
-                ),
+                )
             ])
         )
     }

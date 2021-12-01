@@ -4,8 +4,8 @@ import TuistCoreTesting
 import TuistGraph
 import TuistLoaderTesting
 import TuistSupport
-import XcodeProj
 import XCTest
+import XcodeProj
 
 @testable import TuistGenerator
 @testable import TuistSupport
@@ -21,7 +21,7 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
         var capturedUserSchemes = [[XCScheme]]()
 
         // When
-        try (0 ..< 10).forEach { _ in
+        try (0..<10).forEach { _ in
             let subject = DescriptorGenerator()
             let writer = XcodeProjWriter()
             let config = TestModelGenerator.WorkspaceConfig(
@@ -57,9 +57,15 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
 
         // Then
         let unstableProjects = capturedProjects.dropFirst().filter { $0 != capturedProjects.first }
-        let unstableWorkspaces = capturedWorkspaces.dropFirst().filter { $0 != capturedWorkspaces.first }
-        let unstableSharedSchemes = capturedSharedSchemes.dropFirst().filter { $0 != capturedSharedSchemes.first }
-        let unstableUserSchemes = capturedUserSchemes.dropFirst().filter { $0 != capturedUserSchemes.first }
+        let unstableWorkspaces = capturedWorkspaces.dropFirst().filter {
+            $0 != capturedWorkspaces.first
+        }
+        let unstableSharedSchemes = capturedSharedSchemes.dropFirst().filter {
+            $0 != capturedSharedSchemes.first
+        }
+        let unstableUserSchemes = capturedUserSchemes.dropFirst().filter {
+            $0 != capturedUserSchemes.first
+        }
 
         XCTAssertEqual(unstableProjects.count, 0)
         XCTAssertEqual(unstableWorkspaces.count, 0)
@@ -84,7 +90,10 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
         try findSchemes(in: workspace, relativePath: RelativePath("xcuserdata"))
     }
 
-    private func findSchemes(in workspace: XCWorkspace, relativePath: RelativePath) throws -> [XCScheme] {
+    private func findSchemes(
+        in workspace: XCWorkspace,
+        relativePath: RelativePath
+    ) throws -> [XCScheme] {
         let temporaryPath = try self.temporaryPath()
         let projectsPaths = workspace.projectPaths.map { temporaryPath.appending(RelativePath($0)) }
         let parentDir = projectsPaths.map { $0.appending(relativePath) }

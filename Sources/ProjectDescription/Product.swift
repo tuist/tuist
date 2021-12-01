@@ -16,13 +16,13 @@ public enum Product: String, Codable, Equatable {
 
     // Not supported yet
     case appExtension = "app_extension"
-//    case watchApp
+    //    case watchApp
     case watch2App
-//    case watchExtension
+    //    case watchExtension
     case watch2Extension
     case tvTopShelfExtension
-//    case tvIntentsExtension
-//    case messagesApplication
+    //    case tvIntentsExtension
+    //    case messagesApplication
     case messagesExtension
     case stickerPackExtension = "sticker_pack_extension"
 }

@@ -8,8 +8,9 @@ import TuistSupport
 final class CleanService {
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
     init(
-        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory())
-    {
+        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring =
+            CacheDirectoriesProviderFactory()
+    ) {
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
     }
 
@@ -19,13 +20,18 @@ final class CleanService {
         let manifestLoader = manifestLoaderFactory.createManifestLoader()
         let configLoader = ConfigLoader(manifestLoader: manifestLoader)
         let config = try configLoader.loadConfig(path: path)
-        let cacheDirectoryProvider = try cacheDirectoryProviderFactory.cacheDirectories(config: config)
+        let cacheDirectoryProvider = try cacheDirectoryProviderFactory.cacheDirectories(
+            config: config
+        )
 
         for category in categories {
             let directory = cacheDirectoryProvider.cacheDirectory(for: category)
             if FileHandler.shared.exists(directory) {
                 try FileHandler.shared.delete(directory)
-                logger.info("Successfully cleaned artifacts at path \(directory.pathString)", metadata: .success)
+                logger.info(
+                    "Successfully cleaned artifacts at path \(directory.pathString)",
+                    metadata: .success
+                )
             }
         }
     }

@@ -4,16 +4,19 @@ import TSCBasic
 import TuistGraph
 
 extension TuistGraph.ProfileAction {
-    static func from(manifest: ProjectDescription.ProfileAction,
-                     generatorPaths: GeneratorPaths) throws -> TuistGraph.ProfileAction
-    {
+    static func from(
+        manifest: ProjectDescription.ProfileAction,
+        generatorPaths: GeneratorPaths
+    ) throws -> TuistGraph.ProfileAction {
         let configurationName = manifest.configuration.rawValue
         let arguments = manifest.arguments.map { TuistGraph.Arguments.from(manifest: $0) }
 
         var executableResolved: TuistGraph.TargetReference?
         if let executable = manifest.executable {
             executableResolved = TargetReference(
-                projectPath: try generatorPaths.resolveSchemeActionProjectPath(executable.projectPath),
+                projectPath: try generatorPaths.resolveSchemeActionProjectPath(
+                    executable.projectPath
+                ),
                 name: executable.targetName
             )
         }

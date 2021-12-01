@@ -11,7 +11,8 @@ public enum TargetError: FatalError, Equatable {
     public var description: String {
         switch self {
         case let .invalidSourcesGlob(targetName: targetName, invalidGlobs: invalidGlobs):
-            return "The target \(targetName) has the following invalid source files globs:\n" + invalidGlobs.invalidGlobsDescription
+            return "The target \(targetName) has the following invalid source files globs:\n"
+                + invalidGlobs.invalidGlobsDescription
         }
     }
 }
@@ -37,7 +38,9 @@ extension Target {
         } else if !FileHandler.shared.isFolder(path) {
             return true
             // We filter out folders that are not Xcode supported bundles such as .app or .framework.
-        } else if let `extension` = path.extension, Target.validFolderExtensions.contains(`extension`) {
+        } else if let `extension` = path.extension,
+            Target.validFolderExtensions.contains(`extension`)
+        {
             return true
         } else {
             return false
@@ -47,7 +50,10 @@ extension Target {
     /// This method unfolds the source file globs subtracting the paths that are excluded and ignoring
     /// the files that don't have a supported source extension.
     /// - Parameter sources: List of source file glob to be unfolded.
-    public static func sources(targetName: String, sources: [SourceFileGlob]) throws -> [TuistGraph.SourceFile] {
+    public static func sources(
+        targetName: String,
+        sources: [SourceFileGlob]
+    ) throws -> [TuistGraph.SourceFile] {
         var sourceFiles: [AbsolutePath: TuistGraph.SourceFile] = [:]
         var invalidGlobs: [InvalidGlob] = []
 
@@ -75,12 +81,20 @@ extension Target {
             Set(paths)
                 .subtracting(excluded)
                 .filter { path in
-                    if let `extension` = path.extension, Target.validSourceExtensions.contains(`extension`) {
+                    if let `extension` = path.extension,
+                        Target.validSourceExtensions.contains(`extension`)
+                    {
                         return true
                     }
                     return false
                 }
-                .forEach { sourceFiles[$0] = SourceFile(path: $0, compilerFlags: source.compilerFlags, codeGen: source.codeGen) }
+                .forEach {
+                    sourceFiles[$0] = SourceFile(
+                        path: $0,
+                        compilerFlags: source.compilerFlags,
+                        codeGen: source.codeGen
+                    )
+                }
         }
 
         if !invalidGlobs.isEmpty {

@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+
 import struct TSCUtility.Version
 
 public struct Cache: Equatable, Hashable {
@@ -33,7 +34,10 @@ public struct Cache: Equatable, Hashable {
     public let profiles: [Profile]
     public let path: AbsolutePath?
 
-    public init(profiles: [Profile], path: AbsolutePath?) {
+    public init(
+        profiles: [Profile],
+        path: AbsolutePath?
+    ) {
         self.profiles = profiles
         self.path = path
     }

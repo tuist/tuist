@@ -15,21 +15,23 @@ final class GenerateService {
 
     // MARK: - Init
 
-    init(clock: Clock = WallClock(),
-         opener: Opening = Opener(),
-         generatorFactory: GeneratorFactorying = GeneratorFactory(),
-         configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()))
-    {
+    init(
+        clock: Clock = WallClock(),
+        opener: Opening = Opener(),
+        generatorFactory: GeneratorFactorying = GeneratorFactory(),
+        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader())
+    ) {
         self.clock = clock
         self.opener = opener
         self.generatorFactory = generatorFactory
         self.configLoader = configLoader
     }
 
-    func run(path: String?,
-             projectOnly: Bool,
-             open: Bool) throws
-    {
+    func run(
+        path: String?,
+        projectOnly: Bool,
+        open: Bool
+    ) throws {
         let timer = clock.startTimer()
         let path = self.path(path)
         let config = try configLoader.loadConfig(path: path)

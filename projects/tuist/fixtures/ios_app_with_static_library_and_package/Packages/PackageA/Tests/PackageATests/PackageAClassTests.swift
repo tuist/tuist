@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import PackageA
 
 final class PackageAClassTests: XCTestCase {
@@ -7,6 +8,6 @@ final class PackageAClassTests: XCTestCase {
     }
 
     static var allTests = [
-        ("testExample", testExample),
+        ("testExample", testExample)
     ]
 }

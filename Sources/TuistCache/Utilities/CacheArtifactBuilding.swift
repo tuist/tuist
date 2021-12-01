@@ -1,7 +1,8 @@
 import TSCBasic
-import struct TSCUtility.Version
 import TuistCore
 import TuistGraph
+
+import struct TSCUtility.Version
 
 public protocol CacheArtifactBuilding {
     /// Returns the type of artifact that the concrete builder processes.

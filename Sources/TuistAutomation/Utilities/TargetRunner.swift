@@ -1,9 +1,10 @@
 import RxBlocking
 import TSCBasic
-import struct TSCUtility.Version
 import TuistCore
 import TuistGraph
 import TuistSupport
+
+import struct TSCUtility.Version
 
 public protocol TargetRunning {
     /// Runs a provided target.
@@ -49,7 +50,8 @@ public enum TargetRunnerError: Equatable, FatalError {
     public var description: String {
         switch self {
         case let .runningNotSupported(target):
-            return "Cannot run \(target.name) - the platform \(target.platform.caseValue) and product type \(target.product.caseValue) are not currently supported."
+            return
+                "Cannot run \(target.name) - the platform \(target.platform.caseValue) and product type \(target.product.caseValue) are not currently supported."
         case let .runnableNotFound(path):
             return "The runnable product was expected but not found at \(path)."
         }
@@ -63,7 +65,8 @@ public final class TargetRunner: TargetRunning {
 
     public init(
         xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
-        xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating = XcodeProjectBuildDirectoryLocator(),
+        xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating =
+            XcodeProjectBuildDirectoryLocator(),
         simulatorController: SimulatorControlling = SimulatorController()
     ) {
         self.xcodeBuildController = xcodeBuildController
@@ -83,13 +86,17 @@ public final class TargetRunner: TargetRunning {
     ) throws {
         try assertCanRunTarget(target.target)
 
-        let configuration = configuration ?? target.project.settings.defaultDebugBuildConfiguration()?.name ?? BuildConfiguration.debug.name
+        let configuration =
+            configuration ?? target.project.settings.defaultDebugBuildConfiguration()?.name
+            ?? BuildConfiguration.debug.name
         let xcodeBuildDirectory = try xcodeProjectBuildDirectoryLocator.locate(
             platform: target.target.platform,
             projectPath: workspacePath,
             configuration: configuration
         )
-        let runnablePath = xcodeBuildDirectory.appending(component: target.target.productNameWithExtension)
+        let runnablePath = xcodeBuildDirectory.appending(
+            component: target.target.productNameWithExtension
+        )
         guard FileHandler.shared.exists(runnablePath) else {
             throw TargetRunnerError.runnableNotFound(path: runnablePath.pathString)
         }
@@ -118,7 +125,7 @@ public final class TargetRunner: TargetRunning {
     public func assertCanRunTarget(_ target: Target) throws {
         switch (target.platform, target.product) {
         case (.macOS, .commandLineTool),
-             (_, .app):
+            (_, .app):
             break
         default:
             throw TargetRunnerError.runningNotSupported(target: target)
@@ -143,19 +150,37 @@ public final class TargetRunner: TargetRunning {
         deviceName: String?,
         arguments: [String]
     ) throws {
-        let settings = try xcodeBuildController
-            .showBuildSettings(.workspace(workspacePath), scheme: schemeName, configuration: configuration)
+        let settings =
+            try xcodeBuildController
+            .showBuildSettings(
+                .workspace(workspacePath),
+                scheme: schemeName,
+                configuration: configuration
+            )
             .toBlocking()
             .single()
-        let bundleId = settings[target.target.name]?.productBundleIdentifier ?? target.target.bundleId
-        let simulator = try simulatorController
-            .findAvailableDevice(platform: platform, version: version, minVersion: minVersion, deviceName: deviceName)
+        let bundleId =
+            settings[target.target.name]?.productBundleIdentifier ?? target.target.bundleId
+        let simulator =
+            try simulatorController
+            .findAvailableDevice(
+                platform: platform,
+                version: version,
+                minVersion: minVersion,
+                deviceName: deviceName
+            )
             .toBlocking()
             .single()
 
-        logger.debug("Running app \(appPath.pathString) with arguments [\(arguments.joined(separator: ", "))]")
+        logger.debug(
+            "Running app \(appPath.pathString) with arguments [\(arguments.joined(separator: ", "))]"
+        )
         logger.notice("Running app \(bundleId) on \(simulator.device.name)", metadata: .section)
         try simulatorController.installApp(at: appPath, device: simulator.device)
-        try simulatorController.launchApp(bundleId: bundleId, device: simulator.device, arguments: arguments)
+        try simulatorController.launchApp(
+            bundleId: bundleId,
+            device: simulator.device,
+            arguments: arguments
+        )
     }
 }

@@ -1,4 +1,5 @@
 import TSCBasic
+
 @testable import TuistSigning
 
 final class MockSecurityController: SecurityControlling {

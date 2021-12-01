@@ -54,9 +54,15 @@ public protocol FileHandling: AnyObject {
     func determineTemporaryDirectory() throws -> AbsolutePath
     func temporaryDirectory() throws -> AbsolutePath
     func inTemporaryDirectory(_ closure: (AbsolutePath) throws -> Void) throws
-    func inTemporaryDirectory(removeOnCompletion: Bool, _ closure: (AbsolutePath) throws -> Void) throws
+    func inTemporaryDirectory(
+        removeOnCompletion: Bool,
+        _ closure: (AbsolutePath) throws -> Void
+    ) throws
     func inTemporaryDirectory<Result>(_ closure: (AbsolutePath) throws -> Result) throws -> Result
-    func inTemporaryDirectory<Result>(removeOnCompletion: Bool, _ closure: (AbsolutePath) throws -> Result) throws -> Result
+    func inTemporaryDirectory<Result>(
+        removeOnCompletion: Bool,
+        _ closure: (AbsolutePath) throws -> Result
+    ) throws -> Result
     func write(_ content: String, path: AbsolutePath, atomically: Bool) throws
     func locateDirectoryTraversingParents(from: AbsolutePath, path: String) -> AbsolutePath?
     func locateDirectory(_ path: String, traversingFrom from: AbsolutePath) -> AbsolutePath?
@@ -86,7 +92,9 @@ public class FileHandler: FileHandling {
     /// Initializes the file handler with its attributes.
     ///
     /// - Parameter fileManager: File manager instance.
-    init(fileManager: FileManager = .default) {
+    init(
+        fileManager: FileManager = .default
+    ) {
         self.fileManager = fileManager
     }
 
@@ -128,11 +136,16 @@ public class FileHandler: FileHandling {
         try determineTempDirectory()
     }
 
-    public func inTemporaryDirectory<Result>(_ closure: (AbsolutePath) throws -> Result) throws -> Result {
+    public func inTemporaryDirectory<Result>(
+        _ closure: (AbsolutePath) throws -> Result
+    ) throws -> Result {
         try withTemporaryDirectory(removeTreeOnDeinit: true, closure)
     }
 
-    public func inTemporaryDirectory(removeOnCompletion: Bool, _ closure: (AbsolutePath) throws -> Void) throws {
+    public func inTemporaryDirectory(
+        removeOnCompletion: Bool,
+        _ closure: (AbsolutePath) throws -> Void
+    ) throws {
         try withTemporaryDirectory(removeTreeOnDeinit: removeOnCompletion, closure)
     }
 
@@ -140,7 +153,10 @@ public class FileHandler: FileHandling {
         try withTemporaryDirectory(removeTreeOnDeinit: true, closure)
     }
 
-    public func inTemporaryDirectory<Result>(removeOnCompletion: Bool, _ closure: (AbsolutePath) throws -> Result) throws -> Result {
+    public func inTemporaryDirectory<Result>(
+        removeOnCompletion: Bool,
+        _ closure: (AbsolutePath) throws -> Result
+    ) throws -> Result {
         try withTemporaryDirectory(removeTreeOnDeinit: removeOnCompletion, closure)
     }
 
@@ -195,7 +211,8 @@ public class FileHandler: FileHandling {
         } catch {}
     }
 
-    public func locateDirectory(_ path: String, traversingFrom from: AbsolutePath) -> AbsolutePath? {
+    public func locateDirectory(_ path: String, traversingFrom from: AbsolutePath) -> AbsolutePath?
+    {
         logger.debug("Traversing \(from) to locate \(path)")
         let extendedPath = from.appending(RelativePath(path))
         if exists(extendedPath) {
@@ -247,7 +264,8 @@ public class FileHandler: FileHandling {
         return exists && isDirectory.boolValue
     }
 
-    public func locateDirectoryTraversingParents(from: AbsolutePath, path: String) -> AbsolutePath? {
+    public func locateDirectoryTraversingParents(from: AbsolutePath, path: String) -> AbsolutePath?
+    {
         logger.debug("Traversing \(from) to locate \(path)")
 
         let configPath = from.appending(component: path)
@@ -266,7 +284,10 @@ public class FileHandler: FileHandling {
     }
 
     public func createSymbolicLink(at path: AbsolutePath, destination: AbsolutePath) throws {
-        try fileManager.createSymbolicLink(atPath: path.pathString, withDestinationPath: destination.pathString)
+        try fileManager.createSymbolicLink(
+            atPath: path.pathString,
+            withDestinationPath: destination.pathString
+        )
     }
 
     public func resolveSymlinks(_ path: AbsolutePath) -> AbsolutePath {
@@ -308,18 +329,24 @@ public class FileHandler: FileHandling {
 
     public func fileSize(path: AbsolutePath) throws -> UInt64 {
         let attr = try fileManager.attributesOfItem(atPath: path.pathString)
-        guard let size = attr[FileAttributeKey.size] as? UInt64 else { throw FileHandlerError.unreachableFileSize(path) }
+        guard let size = attr[FileAttributeKey.size] as? UInt64 else {
+            throw FileHandlerError.unreachableFileSize(path)
+        }
         return size
     }
 
     // MARK: - Extension
 
-    public func changeExtension(path: AbsolutePath, to fileExtension: String) throws -> AbsolutePath {
+    public func changeExtension(path: AbsolutePath, to fileExtension: String) throws -> AbsolutePath
+    {
         guard isFolder(path) == false else { throw FileHandlerError.expectedAFile(path) }
-        let sanitizedExtension = fileExtension.starts(with: ".") ? String(fileExtension.dropFirst()) : fileExtension
+        let sanitizedExtension =
+            fileExtension.starts(with: ".") ? String(fileExtension.dropFirst()) : fileExtension
         guard path.extension != sanitizedExtension else { return path }
 
-        let newPath = path.removingLastComponent().appending(component: "\(path.basenameWithoutExt).\(sanitizedExtension)")
+        let newPath = path.removingLastComponent().appending(
+            component: "\(path.basenameWithoutExt).\(sanitizedExtension)"
+        )
         try move(from: path, to: newPath)
         return newPath
     }

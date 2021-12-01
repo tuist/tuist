@@ -4,6 +4,7 @@ import TSCBasic
 import TuistGraph
 import TuistSupport
 import XCTest
+
 @testable import TuistCoreTesting
 @testable import TuistLoader
 @testable import TuistLoaderTesting
@@ -72,15 +73,18 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         let result = try subject.loadConfig(path: path)
 
         // Then
-        XCTAssertEqual(result, TuistGraph.Config(
-            compatibleXcodeVersions: .all,
-            cloud: nil,
-            cache: nil,
-            swiftVersion: nil,
-            plugins: [],
-            generationOptions: [.developmentRegion("fr")],
-            path: path
-        ))
+        XCTAssertEqual(
+            result,
+            TuistGraph.Config(
+                compatibleXcodeVersions: .all,
+                cloud: nil,
+                cache: nil,
+                swiftVersion: nil,
+                plugins: [],
+                generationOptions: [.developmentRegion("fr")],
+                path: path
+            )
+        )
     }
 
     func test_loadConfig_loadConfigError() throws {
@@ -115,15 +119,18 @@ final class ConfigLoaderTests: TuistUnitTestCase {
         let result = try subject.loadConfig(path: "/project/Module/A/")
 
         // Then
-        XCTAssertEqual(result, TuistGraph.Config(
-            compatibleXcodeVersions: .all,
-            cloud: nil,
-            cache: nil,
-            swiftVersion: nil,
-            plugins: [],
-            generationOptions: [.developmentRegion("fr")],
-            path: "/project/Tuist/Config.swift"
-        ))
+        XCTAssertEqual(
+            result,
+            TuistGraph.Config(
+                compatibleXcodeVersions: .all,
+                cloud: nil,
+                cache: nil,
+                swiftVersion: nil,
+                plugins: [],
+                generationOptions: [.developmentRegion("fr")],
+                path: "/project/Tuist/Config.swift"
+            )
+        )
     }
 
     // MARK: - Helpers

@@ -80,7 +80,10 @@ final class CacheTests: TuistUnitTestCase {
             XCTFail("Second cache should not be checked if first hits")
             throw TestError("")
         }
-        XCTAssertEqual(try subject.fetch(name: "targetName", hash: "1234").toBlocking().single(), "/Absolute/Path")
+        XCTAssertEqual(
+            try subject.fetch(name: "targetName", hash: "1234").toBlocking().single(),
+            "/Absolute/Path"
+        )
     }
 
     func test_fetch_when_in_second_cache_checks_both_and_returns_path() {
@@ -94,7 +97,10 @@ final class CacheTests: TuistUnitTestCase {
             XCTAssertEqual(hash, "1234")
             return "/Absolute/Path"
         }
-        XCTAssertEqual(try subject.fetch(name: "targetName", hash: "1234").toBlocking().single(), "/Absolute/Path")
+        XCTAssertEqual(
+            try subject.fetch(name: "targetName", hash: "1234").toBlocking().single(),
+            "/Absolute/Path"
+        )
     }
 
     func test_fetch_when_not_in_cache_checks_both_and_throws() {

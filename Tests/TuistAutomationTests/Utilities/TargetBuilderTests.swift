@@ -23,8 +23,14 @@ final class TargetBuilderErrorTests: XCTestCase {
     }
 
     func test_errorType() {
-        XCTAssertEqual(TargetBuilderError.schemeWithoutBuildableTargets(scheme: "MyScheme").type, .abort)
-        XCTAssertEqual(TargetBuilderError.buildProductsNotFound(path: "/path/to/products").type, .bug)
+        XCTAssertEqual(
+            TargetBuilderError.schemeWithoutBuildableTargets(scheme: "MyScheme").type,
+            .abort
+        )
+        XCTAssertEqual(
+            TargetBuilderError.buildProductsNotFound(path: "/path/to/products").type,
+            .bug
+        )
     }
 }
 
@@ -99,7 +105,12 @@ final class TargetBuilderTests: TuistUnitTestCase {
             Observable.just(.standardOutput(.init(raw: "success")))
         }
 
-        let xcodeBuildPath = path.appending(components: "Xcode", "DerivedData", "MyProject-hash", "Debug")
+        let xcodeBuildPath = path.appending(
+            components: "Xcode",
+            "DerivedData",
+            "MyProject-hash",
+            "Debug"
+        )
         xcodeProjectBuildDirectoryLocator.locateStub = { _, _, _ in xcodeBuildPath }
         try createFiles([
             "Xcode/DerivedData/MyProject-hash/Debug/App.app",
@@ -123,7 +134,8 @@ final class TargetBuilderTests: TuistUnitTestCase {
         )
 
         XCTAssertEqual(
-            try fileHandler.contentsOfDirectory(buildOutputPath.appending(component: "Debug")).sorted(),
+            try fileHandler.contentsOfDirectory(buildOutputPath.appending(component: "Debug"))
+                .sorted(),
             [
                 buildOutputPath.appending(components: "Debug", "App.app"),
                 buildOutputPath.appending(components: "Debug", "App.swiftmodule"),
@@ -143,7 +155,12 @@ final class TargetBuilderTests: TuistUnitTestCase {
             Observable.just(.standardOutput(.init(raw: "success")))
         }
 
-        let xcodeBuildPath = path.appending(components: "Xcode", "DerivedData", "MyProject-hash", configuration)
+        let xcodeBuildPath = path.appending(
+            components: "Xcode",
+            "DerivedData",
+            "MyProject-hash",
+            configuration
+        )
         xcodeProjectBuildDirectoryLocator.locateStub = { _, _, _ in xcodeBuildPath }
         try createFiles([
             "Xcode/DerivedData/MyProject-hash/\(configuration)/App.app",
@@ -167,7 +184,8 @@ final class TargetBuilderTests: TuistUnitTestCase {
         )
 
         XCTAssertEqual(
-            try fileHandler.contentsOfDirectory(buildOutputPath.appending(component: configuration)).sorted(),
+            try fileHandler.contentsOfDirectory(buildOutputPath.appending(component: configuration))
+                .sorted(),
             [
                 buildOutputPath.appending(components: configuration, "App.app"),
                 buildOutputPath.appending(components: configuration, "App.swiftmodule"),

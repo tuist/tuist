@@ -10,10 +10,11 @@ public struct CoreDataModel: Equatable, Codable {
 
     // MARK: - Init
 
-    public init(path: AbsolutePath,
-                versions: [AbsolutePath],
-                currentVersion: String)
-    {
+    public init(
+        path: AbsolutePath,
+        versions: [AbsolutePath],
+        currentVersion: String
+    ) {
         self.path = path
         self.versions = versions
         self.currentVersion = currentVersion

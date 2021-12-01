@@ -49,12 +49,12 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
         let stubbedDependencies = Dependencies(
             carthage: .init(
                 [
-                    .github(path: "Dependency1", requirement: .exact("1.1.1")),
+                    .github(path: "Dependency1", requirement: .exact("1.1.1"))
                 ]
             ),
             swiftPackageManager: .init(
                 [
-                    .remote(url: "Dependency1/Dependency1", requirement: .upToNextMajor("1.2.3")),
+                    .remote(url: "Dependency1/Dependency1", requirement: .upToNextMajor("1.2.3"))
                 ],
                 productTypes: [:],
                 baseSettings: .default,

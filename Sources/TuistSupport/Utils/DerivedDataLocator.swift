@@ -35,7 +35,7 @@ internal class XcodeProjectPathHasher {
 
         // Split 16 bytes into two chunks of 8 bytes each.
         let partitions = stride(from: 0, to: digest.count, by: 8).map {
-            Array(digest[$0 ..< Swift.min($0 + 8, digest.count)])
+            Array(digest[$0..<Swift.min($0 + 8, digest.count)])
         }
 
         guard
@@ -46,7 +46,9 @@ internal class XcodeProjectPathHasher {
         }
 
         // We would need to reverse the bytes, so we just read them in big endian.
-        var startValue = UInt64(bigEndian: Data(firstHalf).withUnsafeBytes { $0.load(as: UInt64.self) })
+        var startValue = UInt64(
+            bigEndian: Data(firstHalf).withUnsafeBytes { $0.load(as: UInt64.self) }
+        )
 
         for index in stride(from: 13, through: 0, by: -1) {
             // Take the startValue % 26 to restrict to alphabetic characters and add 'a' scalar value (97).
@@ -56,7 +58,9 @@ internal class XcodeProjectPathHasher {
         }
 
         // We would need to reverse the bytes, so we just read them in big endian.
-        startValue = UInt64(bigEndian: Data(secondHalf).withUnsafeBytes { $0.load(as: UInt64.self) })
+        startValue = UInt64(
+            bigEndian: Data(secondHalf).withUnsafeBytes { $0.load(as: UInt64.self) }
+        )
 
         for index in stride(from: 27, through: 14, by: -1) {
             // Take the startValue % 26 to restrict to alphabetic characters and add 'a' scalar value (97).

@@ -39,7 +39,9 @@ public final class XCFrameworkLoader: XCFrameworkLoading {
 
     /// Initializes the loader with its attributes.
     /// - Parameter xcframeworkMetadataProvider: xcframework metadata provider.
-    init(xcframeworkMetadataProvider: XCFrameworkMetadataProviding) {
+    init(
+        xcframeworkMetadataProvider: XCFrameworkMetadataProviding
+    ) {
         self.xcframeworkMetadataProvider = xcframeworkMetadataProvider
     }
 

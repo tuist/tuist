@@ -1,6 +1,8 @@
 import Foundation
 
-public struct SimulatorRuntimeVersion: CustomStringConvertible, Hashable, ExpressibleByStringLiteral, Comparable, Decodable {
+public struct SimulatorRuntimeVersion: CustomStringConvertible, Hashable,
+    ExpressibleByStringLiteral, Comparable, Decodable
+{
     // MARK: - Attributes
 
     public let major: Int
@@ -9,13 +11,19 @@ public struct SimulatorRuntimeVersion: CustomStringConvertible, Hashable, Expres
 
     // MARK: - Constructors
 
-    init(major: Int, minor: Int? = nil, patch: Int? = nil) {
+    init(
+        major: Int,
+        minor: Int? = nil,
+        patch: Int? = nil
+    ) {
         self.major = major
         self.minor = minor
         self.patch = patch
     }
 
-    public init(from decoder: Decoder) throws {
+    public init(
+        from decoder: Decoder
+    ) throws {
         let container = try decoder.singleValueContainer()
         self.init(stringLiteral: try container.decode(String.self))
     }
@@ -50,9 +58,7 @@ public struct SimulatorRuntimeVersion: CustomStringConvertible, Hashable, Expres
     // MARK: - Equatable
 
     public static func == (lhs: SimulatorRuntimeVersion, rhs: SimulatorRuntimeVersion) -> Bool {
-        lhs.major == rhs.major &&
-            lhs.minor == rhs.minor &&
-            lhs.patch == rhs.patch
+        lhs.major == rhs.major && lhs.minor == rhs.minor && lhs.patch == rhs.patch
     }
 
     // MARK: - Comparable
@@ -78,7 +84,9 @@ public struct SimulatorRuntimeVersion: CustomStringConvertible, Hashable, Expres
 
     // MARK: - ExpressibleByStringLiteral
 
-    public init(stringLiteral value: String) {
+    public init(
+        stringLiteral value: String
+    ) {
         let components = value.split(separator: ".")
 
         // Major

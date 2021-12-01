@@ -3,6 +3,7 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 import XCTest
+
 @testable import TuistCoreTesting
 @testable import TuistSigning
 @testable import TuistSigningTesting
@@ -66,8 +67,12 @@ final class SigningInteractorTests: TuistUnitTestCase {
 
         let rootDirectory = try temporaryPath()
         rootDirectoryLocator.locateStub = rootDirectory
-        let keychainDirectory = rootDirectory
-            .appending(components: Constants.DerivedDirectory.name, Constants.DerivedDirectory.signingKeychain)
+        let keychainDirectory =
+            rootDirectory
+            .appending(
+                components: Constants.DerivedDirectory.name,
+                Constants.DerivedDirectory.signingKeychain
+            )
 
         var receivedKeychainDirectory: AbsolutePath?
         var receivedMasterKey: String?
@@ -99,8 +104,12 @@ final class SigningInteractorTests: TuistUnitTestCase {
 
         let rootDirectory = try temporaryPath()
         rootDirectoryLocator.locateStub = rootDirectory
-        let keychainDirectory = rootDirectory
-            .appending(components: Constants.DerivedDirectory.name, Constants.DerivedDirectory.signingKeychain)
+        let keychainDirectory =
+            rootDirectory
+            .appending(
+                components: Constants.DerivedDirectory.name,
+                Constants.DerivedDirectory.signingKeychain
+            )
 
         var receivedKeychainDirectory: AbsolutePath?
         var receivedMasterKey: String?
@@ -131,8 +140,12 @@ final class SigningInteractorTests: TuistUnitTestCase {
 
         let rootDirectory = try temporaryPath()
         rootDirectoryLocator.locateStub = rootDirectory
-        let keychainDirectory = rootDirectory
-            .appending(components: Constants.DerivedDirectory.name, Constants.DerivedDirectory.signingKeychain)
+        let keychainDirectory =
+            rootDirectory
+            .appending(
+                components: Constants.DerivedDirectory.name,
+                Constants.DerivedDirectory.signingKeychain
+            )
 
         var receivedKeychainDirectory: AbsolutePath?
         var receivedMasterKey: String?
@@ -213,7 +226,10 @@ final class SigningInteractorTests: TuistUnitTestCase {
         let targetName = "target"
         let configuration = "configuration"
         let expectedCertificate = Certificate.test(name: "certA")
-        let expectedProvisioningProfile = ProvisioningProfile.test(name: "profileA", developerCertificateFingerprints: ["fingerprint"])
+        let expectedProvisioningProfile = ProvisioningProfile.test(
+            name: "profileA",
+            developerCertificateFingerprints: ["fingerprint"]
+        )
         signingMatcher.matchStub = { _ in
             (
                 certificates: [
@@ -224,7 +240,7 @@ final class SigningInteractorTests: TuistUnitTestCase {
                     targetName: [
                         configuration: expectedProvisioningProfile,
                         "some-other-config": ProvisioningProfile.test(),
-                    ],
+                    ]
                 ]
             )
         }
@@ -236,12 +252,15 @@ final class SigningInteractorTests: TuistUnitTestCase {
                     BuildConfiguration(
                         name: configuration,
                         variant: .debug
-                    ): Configuration.test(),
+                    ): Configuration.test()
                 ]
             )
         )
         let project = Project.test(targets: [target])
-        let graph = Graph.test(projects: [project.path: project], targets: [project.path: [target.name: target]])
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [project.path: [target.name: target]]
+        )
         let graphTraverser = GraphTraverser(graph: graph)
 
         var installedCertificates: [Certificate] = []

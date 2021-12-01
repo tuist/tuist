@@ -48,7 +48,9 @@ final class TestServiceTests: TuistUnitTestCase {
             buildGraphInspector: buildGraphInspector,
             simulatorController: simulatorController,
             contentHasher: contentHasher,
-            cacheDirectoryProviderFactory: MockCacheDirectoriesProviderFactory(provider: mockCacheDirectoriesProvider)
+            cacheDirectoryProviderFactory: MockCacheDirectoriesProviderFactory(
+                provider: mockCacheDirectoriesProvider
+            )
         )
     }
 
@@ -79,7 +81,9 @@ final class TestServiceTests: TuistUnitTestCase {
         let gotPath = generatorFactory.invokedTestParametersList.first?.automationPath
         XCTAssertEqual(
             gotPath,
-            cacheDirectoriesProvider.cacheDirectory(for: .generatedAutomationProjects).appending(component: "test-hash")
+            cacheDirectoriesProvider.cacheDirectory(for: .generatedAutomationProjects).appending(
+                component: "test-hash"
+            )
         )
     }
 
@@ -142,7 +146,7 @@ final class TestServiceTests: TuistUnitTestCase {
         // Given
         buildGraphInspector.testableSchemesStub = { _ in
             [
-                Scheme.test(name: "TestScheme"),
+                Scheme.test(name: "TestScheme")
             ]
         }
         buildGraphInspector.projectSchemesStub = { _ in
@@ -180,10 +184,14 @@ final class TestServiceTests: TuistUnitTestCase {
             ]
         )
         XCTAssertTrue(
-            fileHandler.exists(cacheDirectoriesProvider.cacheDirectory(for: .tests).appending(component: "A"))
+            fileHandler.exists(
+                cacheDirectoriesProvider.cacheDirectory(for: .tests).appending(component: "A")
+            )
         )
         XCTAssertTrue(
-            fileHandler.exists(cacheDirectoriesProvider.cacheDirectory(for: .tests).appending(component: "B"))
+            fileHandler.exists(
+                cacheDirectoriesProvider.cacheDirectory(for: .tests).appending(component: "B")
+            )
         )
     }
 
@@ -191,7 +199,7 @@ final class TestServiceTests: TuistUnitTestCase {
         // Given
         buildGraphInspector.projectSchemesStub = { _ in
             [
-                Scheme.test(name: "ProjectScheme"),
+                Scheme.test(name: "ProjectScheme")
             ]
         }
         generator.generateWithGraphStub = { path, _ in
@@ -216,11 +224,13 @@ final class TestServiceTests: TuistUnitTestCase {
         XCTAssertEqual(
             testedSchemes,
             [
-                "ProjectScheme",
+                "ProjectScheme"
             ]
         )
         XCTAssertFalse(
-            fileHandler.exists(cacheDirectoriesProvider.cacheDirectory(for: .tests).appending(component: "A"))
+            fileHandler.exists(
+                cacheDirectoriesProvider.cacheDirectory(for: .tests).appending(component: "A")
+            )
         )
     }
 
@@ -262,7 +272,7 @@ final class TestServiceTests: TuistUnitTestCase {
         }
         buildGraphInspector.projectSchemesStub = { _ in
             [
-                Scheme.test(name: "ProjectScheme"),
+                Scheme.test(name: "ProjectScheme")
             ]
         }
 
@@ -315,8 +325,8 @@ final class TestServiceTests: TuistUnitTestCase {
 
 // MARK: - Helpers
 
-private extension TestService {
-    func testRun(
+extension TestService {
+    fileprivate func testRun(
         schemeName: String? = nil,
         clean: Bool = false,
         configuration: String? = nil,

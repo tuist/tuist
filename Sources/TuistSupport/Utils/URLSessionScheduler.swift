@@ -13,7 +13,8 @@ public enum URLSessionSchedulerError: FatalError {
     public var description: String {
         switch self {
         case let .httpError(status, response, request):
-            return "We got an error \(status) from the request \(response.url!) \(request.httpMethod!)"
+            return
+                "We got an error \(status) from the request \(response.url!) \(request.httpMethod!)"
         }
     }
 }
@@ -46,7 +47,9 @@ public final class URLSessionScheduler: URLSessionScheduling {
     ///
     /// - Parameter session: url session.
     /// - Parameter requestTimeout: request timeout.
-    public init(requestTimeout: Double = URLSessionScheduler.defaultRequestTimeout) {
+    public init(
+        requestTimeout: Double = URLSessionScheduler.defaultRequestTimeout
+    ) {
         let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = requestTimeout
         session = URLSession(configuration: configuration)
@@ -76,11 +79,15 @@ public final class URLSessionScheduler: URLSessionScheduling {
                     if !statusCode.isClientError, !statusCode.isServerError {
                         subscriber(.success(data ?? Data()))
                     } else {
-                        subscriber(.error(URLSessionSchedulerError.httpError(
-                            status: statusCode,
-                            response: response!,
-                            request: request
-                        )))
+                        subscriber(
+                            .error(
+                                URLSessionSchedulerError.httpError(
+                                    status: statusCode,
+                                    response: response!,
+                                    request: request
+                                )
+                            )
+                        )
                     }
                 }
             }

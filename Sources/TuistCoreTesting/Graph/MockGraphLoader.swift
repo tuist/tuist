@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistGraph
+
 @testable import TuistGraphTesting
 
 public final class MockGraphLoader: GraphLoading {

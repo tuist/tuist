@@ -22,7 +22,13 @@ final class HTTPClientErrorTests: XCTestCase {
         let url = URL.test()
 
         // Then
-        XCTAssertEqual(HTTPClientError.clientError(url, error).description, "The request to \(url.absoluteString) errored with: \(error.localizedDescription)")
-        XCTAssertEqual(HTTPClientError.noData(url).description, "The request to \(url.absoluteString) returned no data")
+        XCTAssertEqual(
+            HTTPClientError.clientError(url, error).description,
+            "The request to \(url.absoluteString) errored with: \(error.localizedDescription)"
+        )
+        XCTAssertEqual(
+            HTTPClientError.noData(url).description,
+            "The request to \(url.absoluteString) returned no data"
+        )
     }
 }

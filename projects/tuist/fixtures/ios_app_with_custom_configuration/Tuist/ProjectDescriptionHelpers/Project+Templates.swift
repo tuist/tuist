@@ -16,7 +16,7 @@ extension Project {
                     dependencies: dependencies,
                     resources: ["Resources/**"]
                 ),
-                .test(name: name)
+                .test(name: name),
             ],
             schemes: [
                 .scheme(
@@ -42,7 +42,7 @@ extension Project {
                     product: .framework,
                     dependencies: dependencies
                 ),
-                .test(name: name)
+                .test(name: name),
             ],
             schemes: [
                 .scheme(
@@ -55,8 +55,8 @@ extension Project {
     }
 }
 
-public extension Target {
-    static func main(
+extension Target {
+    public static func main(
         name: String,
         product: Product,
         dependencies: [TargetDependency],
@@ -75,7 +75,7 @@ public extension Target {
         )
     }
 
-    static func test(
+    public static func test(
         name: String
     ) -> Target {
         return Target(
@@ -113,7 +113,7 @@ extension Scheme {
             projectPath: nil,
             target: testTargetName
         )
-        
+
         return Scheme(
             name: name,
             shared: true,
@@ -163,7 +163,7 @@ extension Settings {
                         "-DRELEASE_MARCO"
                     ]
                 ]
-            )
+            ),
         ],
         defaultSettings: .recommended
     )

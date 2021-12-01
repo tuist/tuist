@@ -5,8 +5,9 @@ import TuistCoreTesting
 import TuistGraph
 import TuistGraphTesting
 import TuistSupport
-import XcodeProj
 import XCTest
+import XcodeProj
+
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
@@ -28,11 +29,14 @@ final class WorkspaceGeneratorIntegrationTests: TuistTestCase {
     func test_generate_stressTest() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
-        let projects: [AbsolutePath: Project] = (0 ..< 20).reduce(into: [:]) { acc, index in
+        let projects: [AbsolutePath: Project] = (0..<20).reduce(into: [:]) { acc, index in
             let path = temporaryPath.appending(component: "Project\(index)")
             acc[path] = Project.test(
                 path: path,
-                xcodeProjPath: temporaryPath.appending(components: "Project\(index)", "Project.xcodeproj"),
+                xcodeProjPath: temporaryPath.appending(
+                    components: "Project\(index)",
+                    "Project.xcodeproj"
+                ),
                 name: "Test",
                 settings: .default,
                 targets: [Target.test(name: "Project\(index)_Target")]
@@ -48,7 +52,7 @@ final class WorkspaceGeneratorIntegrationTests: TuistTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When / Then
-        try (0 ..< 50).forEach { _ in
+        try (0..<50).forEach { _ in
             _ = try subject.generate(graphTraverser: graphTraverser)
         }
     }

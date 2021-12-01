@@ -5,22 +5,29 @@ public struct HTTPResource<T, E: Error>: Equatable, Hashable, CustomStringConver
     public let parse: (Data, HTTPURLResponse) throws -> T
     public let parseError: (Data, HTTPURLResponse) throws -> E
 
-    public init(request: @escaping () -> URLRequest,
-                parse: @escaping (Data, HTTPURLResponse) throws -> T,
-                parseError: @escaping (Data, HTTPURLResponse) throws -> E)
-    {
+    public init(
+        request: @escaping () -> URLRequest,
+        parse: @escaping (Data, HTTPURLResponse) throws -> T,
+        parseError: @escaping (Data, HTTPURLResponse) throws -> E
+    ) {
         self.request = request
         self.parse = parse
         self.parseError = parseError
     }
 
     public func withURL(_ url: URL) -> HTTPResource<T, E> {
-        HTTPResource(request: {
-            URLRequest(url: url)
-        }, parse: parse, parseError: parseError)
+        HTTPResource(
+            request: {
+                URLRequest(url: url)
+            },
+            parse: parse,
+            parseError: parseError
+        )
     }
 
-    public func mappingRequest(_ requestMapper: @escaping (URLRequest) throws -> URLRequest) throws -> HTTPResource<T, E> {
+    public func mappingRequest(
+        _ requestMapper: @escaping (URLRequest) throws -> URLRequest
+    ) throws -> HTTPResource<T, E> {
         let request = try requestMapper(self.request())
         return HTTPResource(
             request: { request },

@@ -5,8 +5,8 @@ import TSCBasic
 import TuistGraph
 import TuistPlugin
 import TuistSupport
-import XcodeProj
 import XCTest
+import XcodeProj
 
 @testable import TuistCoreTesting
 @testable import TuistKit
@@ -60,10 +60,12 @@ final class GraphServiceTests: TuistUnitTestCase {
         let expected = "graph { }"
         // Then
         XCTAssertEqual(got, expected)
-        XCTAssertPrinterOutputContains("""
-        Deleting existing graph at \(graphPath.pathString)
-        Graph exported to \(graphPath.pathString)
-        """)
+        XCTAssertPrinterOutputContains(
+            """
+            Deleting existing graph at \(graphPath.pathString)
+            Graph exported to \(graphPath.pathString)
+            """
+        )
     }
 
     func test_run_whenJson() throws {
@@ -90,9 +92,11 @@ final class GraphServiceTests: TuistUnitTestCase {
         let result = try JSONDecoder().decode(GraphOutput.self, from: got.data(using: .utf8)!)
         // Then
         XCTAssertEqual(result, GraphOutput(name: "graph", path: "/", projects: [:]))
-        XCTAssertPrinterOutputContains("""
-        Deleting existing graph at \(graphPath.pathString)
-        Graph exported to \(graphPath.pathString)
-        """)
+        XCTAssertPrinterOutputContains(
+            """
+            Deleting existing graph at \(graphPath.pathString)
+            Graph exported to \(graphPath.pathString)
+            """
+        )
     }
 }

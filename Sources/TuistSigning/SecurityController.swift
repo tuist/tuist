@@ -24,17 +24,31 @@ final class SecurityController: SecurityControlling {
             try importToKeychain(at: certificate.privateKey, keychainPath: keychainPath)
             logger.debug("Imported certificate private key at \(certificate.privateKey.pathString)")
         } else {
-            logger.debug("Skipping importing certificate at \(certificate.publicKey.pathString) because it is already present")
+            logger.debug(
+                "Skipping importing certificate at \(certificate.publicKey.pathString) because it is already present"
+            )
         }
     }
 
     func createKeychain(at path: AbsolutePath, password: String) throws {
-        try System.shared.run("/usr/bin/security", "create-keychain", "-p", password, path.pathString)
+        try System.shared.run(
+            "/usr/bin/security",
+            "create-keychain",
+            "-p",
+            password,
+            path.pathString
+        )
         logger.debug("Created keychain at \(path.pathString)")
     }
 
     func unlockKeychain(at path: AbsolutePath, password: String) throws {
-        try System.shared.run("/usr/bin/security", "unlock-keychain", "-p", password, path.pathString)
+        try System.shared.run(
+            "/usr/bin/security",
+            "unlock-keychain",
+            "-p",
+            password,
+            path.pathString
+        )
         logger.debug("Unlocked keychain at \(path.pathString)")
     }
 
@@ -45,7 +59,10 @@ final class SecurityController: SecurityControlling {
 
     // MARK: - Helpers
 
-    private func certificateExists(_ certificate: Certificate, keychainPath: AbsolutePath) throws -> Bool {
+    private func certificateExists(
+        _ certificate: Certificate,
+        keychainPath: AbsolutePath
+    ) throws -> Bool {
         do {
             let existingCertificates = try System.shared.capture(
                 "/usr/bin/security",
@@ -64,11 +81,16 @@ final class SecurityController: SecurityControlling {
     private func importToKeychain(at path: AbsolutePath, keychainPath: AbsolutePath) throws {
         try System.shared.run(
             "/usr/bin/security",
-            "import", path.pathString,
-            "-P", "",
-            "-T", "/usr/bin/codesign",
-            "-T", "/usr/bin/security",
-            "-k", keychainPath.pathString
+            "import",
+            path.pathString,
+            "-P",
+            "",
+            "-T",
+            "/usr/bin/codesign",
+            "-T",
+            "/usr/bin/security",
+            "-k",
+            keychainPath.pathString
         )
     }
 }

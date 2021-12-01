@@ -1,5 +1,6 @@
 import TSCBasic
 import TuistGraph
+
 @testable import TuistDependencies
 
 // MARK: - Test package
@@ -275,7 +276,7 @@ extension PackageInfo {
     static var test: PackageInfo {
         return .init(
             products: [
-                .init(name: "Tuist", type: .library(.static), targets: ["Tuist"]),
+                .init(name: "Tuist", type: .library(.static), targets: ["Tuist"])
             ],
             targets: [
                 .init(
@@ -283,31 +284,75 @@ extension PackageInfo {
                     path: "customPath",
                     url: nil,
                     sources: [
-                        "customSources",
+                        "customSources"
                     ],
                     resources: [
-                        .init(rule: .copy, path: "resources"),
+                        .init(rule: .copy, path: "resources")
                     ],
                     exclude: [
-                        "excluded/sources",
+                        "excluded/sources"
                     ],
                     dependencies: [
                         .target(name: "TuistKit", condition: nil),
-                        .product(name: "ALibrary", package: "a-dependency", condition: .init(platformNames: ["ios"], config: nil)),
+                        .product(
+                            name: "ALibrary",
+                            package: "a-dependency",
+                            condition: .init(platformNames: ["ios"], config: nil)
+                        ),
                     ],
                     publicHeadersPath: "custom/Public/Headers/Path",
                     type: .regular,
                     settings: [
-                        .init(tool: .c, name: .headerSearchPath, condition: nil, value: ["cSearchPath"]),
-                        .init(tool: .cxx, name: .headerSearchPath, condition: nil, value: ["cxxSearchPath"]),
-                        .init(tool: .c, name: .unsafeFlags, condition: nil, value: ["CUSTOM_C_FLAG"]),
-                        .init(tool: .cxx, name: .unsafeFlags, condition: nil, value: ["CUSTOM_CXX_FLAG"]),
-                        .init(tool: .swift, name: .unsafeFlags, condition: nil, value: ["CUSTOM_SWIFT_FLAG1", "CUSTOM_SWIFT_FLAG2"]),
+                        .init(
+                            tool: .c,
+                            name: .headerSearchPath,
+                            condition: nil,
+                            value: ["cSearchPath"]
+                        ),
+                        .init(
+                            tool: .cxx,
+                            name: .headerSearchPath,
+                            condition: nil,
+                            value: ["cxxSearchPath"]
+                        ),
+                        .init(
+                            tool: .c,
+                            name: .unsafeFlags,
+                            condition: nil,
+                            value: ["CUSTOM_C_FLAG"]
+                        ),
+                        .init(
+                            tool: .cxx,
+                            name: .unsafeFlags,
+                            condition: nil,
+                            value: ["CUSTOM_CXX_FLAG"]
+                        ),
+                        .init(
+                            tool: .swift,
+                            name: .unsafeFlags,
+                            condition: nil,
+                            value: ["CUSTOM_SWIFT_FLAG1", "CUSTOM_SWIFT_FLAG2"]
+                        ),
                         .init(tool: .c, name: .define, condition: nil, value: ["C_DEFINE=C_VALUE"]),
-                        .init(tool: .cxx, name: .define, condition: nil, value: ["CXX_DEFINE=CXX_VALUE"]),
+                        .init(
+                            tool: .cxx,
+                            name: .define,
+                            condition: nil,
+                            value: ["CXX_DEFINE=CXX_VALUE"]
+                        ),
                         .init(tool: .swift, name: .define, condition: nil, value: ["SWIFT_DEFINE"]),
-                        .init(tool: .linker, name: .linkedFramework, condition: .init(platformNames: ["watchos"], config: nil), value: ["WatchKit"]),
-                        .init(tool: .swift, name: .define, condition: .init(platformNames: ["tvos"], config: nil), value: ["SWIFT_TVOS_DEFINE"]),
+                        .init(
+                            tool: .linker,
+                            name: .linkedFramework,
+                            condition: .init(platformNames: ["watchos"], config: nil),
+                            value: ["WatchKit"]
+                        ),
+                        .init(
+                            tool: .swift,
+                            name: .define,
+                            condition: .init(platformNames: ["tvos"], config: nil),
+                            value: ["SWIFT_TVOS_DEFINE"]
+                        ),
                     ],
                     checksum: nil
                 ),
@@ -319,7 +364,11 @@ extension PackageInfo {
                     resources: [],
                     exclude: [],
                     dependencies: [
-                        .product(name: "AnotherLibrary", package: "another-dependency", condition: nil),
+                        .product(
+                            name: "AnotherLibrary",
+                            package: "another-dependency",
+                            condition: nil
+                        )
                     ],
                     publicHeadersPath: nil,
                     type: .regular,
@@ -370,7 +419,11 @@ extension PackageInfo {
     static var aDependency: PackageInfo {
         return .init(
             products: [
-                .init(name: "ALibrary", type: .library(.automatic), targets: ["ALibrary", "ALibraryUtils"]),
+                .init(
+                    name: "ALibrary",
+                    type: .library(.automatic),
+                    targets: ["ALibrary", "ALibraryUtils"]
+                )
             ],
             targets: [
                 .init(
@@ -381,7 +434,7 @@ extension PackageInfo {
                     resources: [],
                     exclude: [],
                     dependencies: [
-                        .byName(name: "ALibraryUtils", condition: nil),
+                        .byName(name: "ALibraryUtils", condition: nil)
                     ],
                     publicHeadersPath: nil,
                     type: .regular,
@@ -412,7 +465,11 @@ extension PackageInfo {
     static var anotherDependency: PackageInfo {
         return .init(
             products: [
-                .init(name: "AnotherLibrary", type: .library(.automatic), targets: ["AnotherLibrary"]),
+                .init(
+                    name: "AnotherLibrary",
+                    type: .library(.automatic),
+                    targets: ["AnotherLibrary"]
+                )
             ],
             targets: [
                 .init(
@@ -427,7 +484,7 @@ extension PackageInfo {
                     type: .regular,
                     settings: [],
                     checksum: nil
-                ),
+                )
             ],
             platforms: [
                 .init(platformName: "ios", version: "13.0", options: []),
@@ -568,7 +625,7 @@ extension PackageInfo {
     static var alamofire: PackageInfo {
         return .init(
             products: [
-                .init(name: "Alamofire", type: .library(.automatic), targets: ["Alamofire"]),
+                .init(name: "Alamofire", type: .library(.automatic), targets: ["Alamofire"])
             ],
             targets: [
                 .init(
@@ -590,7 +647,7 @@ extension PackageInfo {
                                 config: nil
                             ),
                             value: ["CFNetwork"]
-                        ),
+                        )
                     ],
                     checksum: nil
                 ),
@@ -602,7 +659,7 @@ extension PackageInfo {
                     resources: [],
                     exclude: [],
                     dependencies: [
-                        .byName(name: "Alamofire", condition: nil),
+                        .byName(name: "Alamofire", condition: nil)
                     ],
                     publicHeadersPath: nil,
                     type: .test,
@@ -937,8 +994,16 @@ extension PackageInfo {
                     exclude: [],
                     dependencies: [
                         .byName(name: "GoogleAppMeasurement", condition: nil),
-                        .product(name: "GULAppDelegateSwizzler", package: "GoogleUtilities", condition: nil),
-                        .product(name: "GULMethodSwizzler", package: "GoogleUtilities", condition: nil),
+                        .product(
+                            name: "GULAppDelegateSwizzler",
+                            package: "GoogleUtilities",
+                            condition: nil
+                        ),
+                        .product(
+                            name: "GULMethodSwizzler",
+                            package: "GoogleUtilities",
+                            condition: nil
+                        ),
                         .product(name: "GULNSData", package: "GoogleUtilities", condition: nil),
                         .product(name: "GULNetwork", package: "GoogleUtilities", condition: nil),
                         .product(name: "nanopb", package: "nanopb", condition: nil),
@@ -976,7 +1041,8 @@ extension PackageInfo {
                 .init(
                     name: "GoogleAppMeasurement",
                     path: nil,
-                    url: "https://dl.google.com/firebase/ios/swiftpm/8.0.0/GoogleAppMeasurement.zip",
+                    url:
+                        "https://dl.google.com/firebase/ios/swiftpm/8.0.0/GoogleAppMeasurement.zip",
                     sources: nil,
                     resources: [],
                     exclude: [],
@@ -995,8 +1061,16 @@ extension PackageInfo {
                     exclude: [],
                     dependencies: [
                         .byName(name: "GoogleAppMeasurementWithoutAdIdSupport", condition: nil),
-                        .product(name: "GULAppDelegateSwizzler", package: "GoogleUtilities", condition: nil),
-                        .product(name: "GULMethodSwizzler", package: "GoogleUtilities", condition: nil),
+                        .product(
+                            name: "GULAppDelegateSwizzler",
+                            package: "GoogleUtilities",
+                            condition: nil
+                        ),
+                        .product(
+                            name: "GULMethodSwizzler",
+                            package: "GoogleUtilities",
+                            condition: nil
+                        ),
                         .product(name: "GULNSData", package: "GoogleUtilities", condition: nil),
                         .product(name: "GULNetwork", package: "GoogleUtilities", condition: nil),
                         .product(name: "nanopb", package: "nanopb", condition: nil),
@@ -1034,7 +1108,8 @@ extension PackageInfo {
                 .init(
                     name: "GoogleAppMeasurementWithoutAdIdSupport",
                     path: nil,
-                    url: "https://dl.google.com/firebase/ios/swiftpm/8.0.0/GoogleAppMeasurementWithoutAdIdSupport.zip",
+                    url:
+                        "https://dl.google.com/firebase/ios/swiftpm/8.0.0/GoogleAppMeasurementWithoutAdIdSupport.zip",
                     sources: nil,
                     resources: [],
                     exclude: [],
@@ -1046,7 +1121,7 @@ extension PackageInfo {
                 ),
             ],
             platforms: [
-                .init(platformName: "ios", version: "10.0", options: []),
+                .init(platformName: "ios", version: "10.0", options: [])
             ],
             cLanguageStandard: "c99",
             cxxLanguageStandard: "gnu++14",
@@ -1057,8 +1132,16 @@ extension PackageInfo {
     static var googleUtilities: PackageInfo {
         return .init(
             products: [
-                .init(name: "GULAppDelegateSwizzler", type: .library(.automatic), targets: ["GULAppDelegateSwizzler"]),
-                .init(name: "GULMethodSwizzler", type: .library(.automatic), targets: ["GULMethodSwizzler"]),
+                .init(
+                    name: "GULAppDelegateSwizzler",
+                    type: .library(.automatic),
+                    targets: ["GULAppDelegateSwizzler"]
+                ),
+                .init(
+                    name: "GULMethodSwizzler",
+                    type: .library(.automatic),
+                    targets: ["GULMethodSwizzler"]
+                ),
                 .init(name: "GULNSData", type: .library(.automatic), targets: ["GULNSData"]),
                 .init(name: "GULNetwork", type: .library(.automatic), targets: ["GULNetwork"]),
             ],
@@ -1117,7 +1200,7 @@ extension PackageInfo {
                 ),
             ],
             platforms: [
-                .init(platformName: "ios", version: "10.0", options: []),
+                .init(platformName: "ios", version: "10.0", options: [])
             ],
             cLanguageStandard: nil,
             cxxLanguageStandard: nil,
@@ -1128,7 +1211,7 @@ extension PackageInfo {
     static var nanopb: PackageInfo {
         return .init(
             products: [
-                .init(name: "nanopb", type: .library(.automatic), targets: ["nanopb"]),
+                .init(name: "nanopb", type: .library(.automatic), targets: ["nanopb"])
             ],
             targets: [
                 .init(
@@ -1143,10 +1226,10 @@ extension PackageInfo {
                     type: .regular,
                     settings: [],
                     checksum: nil
-                ),
+                )
             ],
             platforms: [
-                .init(platformName: "ios", version: "10.0", options: []),
+                .init(platformName: "ios", version: "10.0", options: [])
             ],
             cLanguageStandard: nil,
             cxxLanguageStandard: nil,

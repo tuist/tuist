@@ -1,12 +1,12 @@
 import Foundation
 import TSCBasic
-
 import TuistSupport
 
 extension Xcode {
-    static func test(path: AbsolutePath = AbsolutePath("/Applications/Xcode.app"),
-                     infoPlist: Xcode.InfoPlist = .test()) -> Xcode
-    {
+    static func test(
+        path: AbsolutePath = AbsolutePath("/Applications/Xcode.app"),
+        infoPlist: Xcode.InfoPlist = .test()
+    ) -> Xcode {
         Xcode(path: path, infoPlist: infoPlist)
     }
 }

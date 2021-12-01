@@ -9,12 +9,15 @@ extension TuistGraph.TestableTarget {
     /// - Parameters:
     ///   - manifest: Manifest representation of testable target model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.TestableTarget,
-                     generatorPaths: GeneratorPaths) throws -> TuistGraph.TestableTarget
-    {
+    static func from(
+        manifest: ProjectDescription.TestableTarget,
+        generatorPaths: GeneratorPaths
+    ) throws -> TuistGraph.TestableTarget {
         TestableTarget(
             target: TuistGraph.TargetReference(
-                projectPath: try generatorPaths.resolveSchemeActionProjectPath(manifest.target.projectPath),
+                projectPath: try generatorPaths.resolveSchemeActionProjectPath(
+                    manifest.target.projectPath
+                ),
                 name: manifest.target.targetName
             ),
             skipped: manifest.isSkipped,

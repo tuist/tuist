@@ -16,7 +16,9 @@ public class EnvironmentLinter: EnvironmentLinting {
     private let rootDirectoryLocator: RootDirectoryLocating
 
     /// Default constructor.
-    public init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {
+    public init(
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
+    ) {
         self.rootDirectoryLocator = rootDirectoryLocator
     }
 
@@ -36,7 +38,10 @@ public class EnvironmentLinter: EnvironmentLinting {
     /// - Returns: An array with a linting issue if the selected version is not compatible.
     /// - Throws: An error if there's an error obtaining the selected Xcode version.
     func lintXcodeVersion(config: Config) throws -> [LintingIssue] {
-        guard case let CompatibleXcodeVersions.list(compatibleVersions) = config.compatibleXcodeVersions else {
+        guard
+            case let CompatibleXcodeVersions.list(compatibleVersions) = config
+                .compatibleXcodeVersions
+        else {
             return []
         }
 
@@ -48,7 +53,8 @@ public class EnvironmentLinter: EnvironmentLinting {
 
         if !compatibleVersions.contains(version) {
             let versions = compatibleVersions.joined(separator: ", ")
-            let message = "The project, which only supports the versions of Xcode \(versions), is not compatible with your selected version of Xcode, \(version)"
+            let message =
+                "The project, which only supports the versions of Xcode \(versions), is not compatible with your selected version of Xcode, \(version)"
             return [LintingIssue(reason: message, severity: .error)]
         } else {
             return []
@@ -63,7 +69,9 @@ public class EnvironmentLinter: EnvironmentLinting {
             return []
         }
 
-        let tuistDirectoryPath = rootDirectoryPath.appending(RelativePath("\(Constants.tuistDirectoryName)"))
+        let tuistDirectoryPath = rootDirectoryPath.appending(
+            RelativePath("\(Constants.tuistDirectoryName)")
+        )
         guard configPath.removingLastComponent() == tuistDirectoryPath else {
             let message = "`Config.swift` manifest file is not located at `Tuist` directory"
             return [LintingIssue(reason: message, severity: .warning)]

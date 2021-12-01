@@ -4,6 +4,7 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 import XCTest
+
 @testable import TuistKit
 @testable import TuistMigrationTesting
 @testable import TuistSupportTesting
@@ -15,7 +16,9 @@ final class MigrationCheckEmptyBuildSettingsServiceTests: TuistUnitTestCase {
     override func setUp() {
         super.setUp()
         emptyBuildSettingsChecker = MockEmptyBuildSettingsChecker()
-        subject = MigrationCheckEmptyBuildSettingsService(emptyBuildSettingsChecker: emptyBuildSettingsChecker)
+        subject = MigrationCheckEmptyBuildSettingsService(
+            emptyBuildSettingsChecker: emptyBuildSettingsChecker
+        )
     }
 
     override func tearDown() {
@@ -32,7 +35,10 @@ final class MigrationCheckEmptyBuildSettingsServiceTests: TuistUnitTestCase {
         try subject.run(xcodeprojPath: xcodeprojPath, target: target)
 
         // Then
-        XCTAssertEqual(emptyBuildSettingsChecker.invokedCheckParameters?.xcodeprojPath, xcodeprojPath)
+        XCTAssertEqual(
+            emptyBuildSettingsChecker.invokedCheckParameters?.xcodeprojPath,
+            xcodeprojPath
+        )
         XCTAssertEqual(emptyBuildSettingsChecker.invokedCheckParameters?.targetName, target)
     }
 
@@ -44,6 +50,9 @@ final class MigrationCheckEmptyBuildSettingsServiceTests: TuistUnitTestCase {
         emptyBuildSettingsChecker.stubbedCheckError = error
 
         // When
-        XCTAssertThrowsSpecific(try subject.run(xcodeprojPath: xcodeprojPath, target: target), error)
+        XCTAssertThrowsSpecific(
+            try subject.run(xcodeprojPath: xcodeprojPath, target: target),
+            error
+        )
     }
 }

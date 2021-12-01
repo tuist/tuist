@@ -23,10 +23,14 @@ final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
     func test_locate_when_a_templates_and_git_directory_exists() throws {
         // Given
         let temporaryDirectory = try temporaryPath()
-        try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/Templates", "this/.git"])
+        try createFolders([
+            "this/is/a/very/nested/directory", "this/is/Tuist/Templates", "this/.git",
+        ])
 
         // When
-        let got = subject.locateUserTemplates(at: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory")))
+        let got = subject.locateUserTemplates(
+            at: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory"))
+        )
 
         // Then
         XCTAssertEqual(got, temporaryDirectory.appending(RelativePath("this/is/Tuist/Templates")))
@@ -38,7 +42,9 @@ final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
         try createFolders(["this/is/a/very/nested/directory", "this/is/Tuist/Templates"])
 
         // When
-        let got = subject.locateUserTemplates(at: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory")))
+        let got = subject.locateUserTemplates(
+            at: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory"))
+        )
 
         // Then
         XCTAssertEqual(got, temporaryDirectory.appending(RelativePath("this/is/Tuist/Templates")))
@@ -50,7 +56,9 @@ final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
         try createFolders(["this/is/a/very/nested/directory", "this/.git", "this/Tuist/Templates"])
 
         // When
-        let got = subject.locateUserTemplates(at: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory")))
+        let got = subject.locateUserTemplates(
+            at: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory"))
+        )
 
         // Then
         XCTAssertEqual(got, temporaryDirectory.appending(RelativePath("this/Tuist/Templates")))
@@ -71,9 +79,12 @@ final class TemplatesDirectoryLocatorIntegrationTests: TuistTestCase {
         }
 
         // Then
-        XCTAssertEqual(got, [
-            "this/is/Tuist/Templates",
-            "this/is/a/very/nested/Tuist/Templates",
-        ].map { temporaryDirectory.appending(RelativePath($0)) })
+        XCTAssertEqual(
+            got,
+            [
+                "this/is/Tuist/Templates",
+                "this/is/a/very/nested/Tuist/Templates",
+            ].map { temporaryDirectory.appending(RelativePath($0)) }
+        )
     }
 }

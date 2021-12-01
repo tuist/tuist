@@ -13,7 +13,8 @@ struct TestCommand: ParsableCommand {
     }
 
     @Argument(
-        help: "The scheme to be tested. By default it tests all the testable targets of the project in the current directory."
+        help:
+            "The scheme to be tested. By default it tests all the testable targets of the project in the current directory."
     )
     var scheme: String?
 

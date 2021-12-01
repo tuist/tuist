@@ -7,8 +7,8 @@ let project = Project(
         .framework(
             name: "FrameworkA",
             dependencies: [
-                .project(target: "FrameworkB", path: "//FrameworkB"),
+                .project(target: "FrameworkB", path: "//FrameworkB")
             ]
-        ),
+        )
     ]
 )

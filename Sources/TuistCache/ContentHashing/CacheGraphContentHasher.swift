@@ -54,7 +54,13 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
         let graphTraverser = GraphTraverser(graph: graph)
         return try graphContentHasher.contentHashes(
             for: graph,
-            filter: { filterHashTarget($0, graphTraverser: graphTraverser, excludedTargets: excludedTargets) },
+            filter: {
+                filterHashTarget(
+                    $0,
+                    graphTraverser: graphTraverser,
+                    excludedTargets: excludedTargets
+                )
+            },
             additionalStrings: [
                 cacheProfileContentHasher.hash(cacheProfile: cacheProfile),
                 cacheOutputType.description,
@@ -72,8 +78,8 @@ public final class CacheGraphContentHasher: CacheGraphContentHashing {
         let product = target.target.product
         let name = target.target.name
 
-        return CacheGraphContentHasher.cachableProducts.contains(product) &&
-            !excludedTargets.contains(name) &&
-            !graphTraverser.dependsOnXCTest(path: target.path, name: name)
+        return CacheGraphContentHasher.cachableProducts.contains(product)
+            && !excludedTargets.contains(name)
+            && !graphTraverser.dependsOnXCTest(path: target.path, name: name)
     }
 }

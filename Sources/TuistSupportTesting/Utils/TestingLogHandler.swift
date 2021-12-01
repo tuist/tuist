@@ -15,13 +15,17 @@ public struct TestingLogHandler: LogHandler {
         }
     }
 
-    private static var collectionQueue = DispatchQueue(label: "io.tuist.tuistTestingSupport.logging")
+    private static var collectionQueue = DispatchQueue(
+        label: "io.tuist.tuistTestingSupport.logging"
+    )
     private static var collectedLogs: [Logger.Level: [String]] = [:]
 
     public var logLevel: Logger.Level
     public let label: String
 
-    public init(label: String) {
+    public init(
+        label: String
+    ) {
         self.label = label
         logLevel = .trace
     }
@@ -30,7 +34,9 @@ public struct TestingLogHandler: LogHandler {
         level: Logger.Level,
         message: Logger.Message,
         metadata _: Logger.Metadata?,
-        file _: String, function _: String, line _: UInt
+        file _: String,
+        function _: String,
+        line _: UInt
     ) {
         TestingLogHandler.collectionQueue.async {
             TestingLogHandler.collectedLogs[level, default: []].append(message.description)

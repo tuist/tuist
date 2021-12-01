@@ -14,9 +14,13 @@ public final class AutomationPathWorkspaceMapper: WorkspaceMapping {
         self.workspaceDirectory = workspaceDirectory
     }
 
-    public func map(workspace: WorkspaceWithProjects) throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
+    public func map(
+        workspace: WorkspaceWithProjects
+    ) throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
         var workspace = workspace
-        workspace.workspace.xcWorkspacePath = workspaceDirectory.appending(component: "\(workspace.workspace.name).xcworkspace")
+        workspace.workspace.xcWorkspacePath = workspaceDirectory.appending(
+            component: "\(workspace.workspace.name).xcworkspace"
+        )
         let mappedProjects = try workspace.projects.map(map(project:))
         workspace.projects = mappedProjects.map(\.0)
         return (
@@ -27,7 +31,7 @@ public final class AutomationPathWorkspaceMapper: WorkspaceMapping {
                         path: workspaceDirectory,
                         state: .present
                     )
-                ),
+                )
             ] + mappedProjects.flatMap(\.1)
         )
     }

@@ -5,6 +5,7 @@ import TuistGraph
 import TuistGraphTesting
 import TuistSupport
 import XCTest
+
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 @testable import TuistSupportTesting
@@ -26,7 +27,8 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_lintXcodeVersion_returnsALintingIssue_when_theVersionsOfXcodeAreIncompatible() throws {
+    func test_lintXcodeVersion_returnsALintingIssue_when_theVersionsOfXcodeAreIncompatible() throws
+    {
         // Given
         let config = Config.test(compatibleXcodeVersions: .list(["3.2.1"]))
         xcodeController.selectedStub = .success(Xcode.test(infoPlist: .test(version: "4.3.2")))
@@ -35,7 +37,8 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
         let got = try subject.lintXcodeVersion(config: config)
 
         // Then
-        let expectedMessage = "The project, which only supports the versions of Xcode 3.2.1, is not compatible with your selected version of Xcode, 4.3.2"
+        let expectedMessage =
+            "The project, which only supports the versions of Xcode 3.2.1, is not compatible with your selected version of Xcode, 4.3.2"
         XCTAssertTrue(got.contains(LintingIssue(reason: expectedMessage, severity: .error)))
     }
 
@@ -74,7 +77,8 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
         }
     }
 
-    func test_lintConfigPath_returnsALintingIssue_when_configManifestIsNotLocatedAtTuistDirectory() {
+    func test_lintConfigPath_returnsALintingIssue_when_configManifestIsNotLocatedAtTuistDirectory()
+    {
         // Given
         let fakeRoot = AbsolutePath("/root")
         rootDirectoryLocator.locateStub = fakeRoot
@@ -90,12 +94,15 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
         XCTAssertTrue(got.contains(LintingIssue(reason: expectedMessage, severity: .warning)))
     }
 
-    func test_lintConfigPath_doesntReturnALintingIssue_when_configManifestIsLocatedAtTuistDirectory() {
+    func
+        test_lintConfigPath_doesntReturnALintingIssue_when_configManifestIsLocatedAtTuistDirectory()
+    {
         // Given
         let fakeRoot = AbsolutePath("/root")
         rootDirectoryLocator.locateStub = fakeRoot
 
-        let configPath = fakeRoot
+        let configPath =
+            fakeRoot
             .appending(RelativePath("\(Constants.tuistDirectoryName)"))
             .appending(RelativePath("Config.swift"))
         let config = Config.test(path: configPath)

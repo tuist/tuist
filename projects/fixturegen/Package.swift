@@ -6,14 +6,17 @@ import PackageDescription
 let package = Package(
     name: "FixtureGenerator",
     platforms: [
-        .macOS(.v10_13),
+        .macOS(.v10_13)
     ],
     products: [
-        .executable(name: "fixturegen", targets: ["FixtureGenerator"]),
+        .executable(name: "fixturegen", targets: ["FixtureGenerator"])
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
-        .package(url: "https://github.com/apple/swift-tools-support-core", .upToNextMinor(from: "0.2.0")),
+        .package(
+            url: "https://github.com/apple/swift-tools-support-core",
+            .upToNextMinor(from: "0.2.0")
+        )
     ],
     targets: [
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.
@@ -21,8 +24,8 @@ let package = Package(
         .target(
             name: "FixtureGenerator",
             dependencies: [
-                .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core"),
+                .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core")
             ]
-        ),
+        )
     ]
 )

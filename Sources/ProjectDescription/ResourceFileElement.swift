@@ -36,7 +36,9 @@ public enum ResourceFileElement: Codable, Equatable {
         case tags
     }
 
-    public init(from decoder: Decoder) throws {
+    public init(
+        from decoder: Decoder
+    ) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let type = try container.decode(TypeName.self, forKey: .type)
         let tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
@@ -67,7 +69,9 @@ public enum ResourceFileElement: Codable, Equatable {
 }
 
 extension ResourceFileElement: ExpressibleByStringInterpolation {
-    public init(stringLiteral value: String) {
+    public init(
+        stringLiteral value: String
+    ) {
         self = .glob(pattern: Path(value))
     }
 }

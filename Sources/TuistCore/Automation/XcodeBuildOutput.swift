@@ -8,7 +8,9 @@ public struct XcodeBuildOutput: Equatable {
     /// Initializes the output with its arguments.
     /// - Parameters:
     ///   - raw: Output as xcodebuild returns it.
-    public init(raw: String) {
+    public init(
+        raw: String
+    ) {
         self.raw = raw
     }
 }

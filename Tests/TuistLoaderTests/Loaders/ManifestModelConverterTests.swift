@@ -39,12 +39,17 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         let manifest = ProjectManifest.test(name: "SomeProject")
         let manifestLoader = makeManifestLoader(with: [
-            temporaryPath: manifest,
+            temporaryPath: manifest
         ])
         let subject = makeSubject(with: manifestLoader)
 
         // When
-        let model = try subject.convert(manifest: manifest, path: temporaryPath, plugins: .none, externalDependencies: [:])
+        let model = try subject.convert(
+            manifest: manifest,
+            path: temporaryPath,
+            plugins: .none,
+            externalDependencies: [:]
+        )
 
         // Then
         XCTAssertEqual(model.name, "SomeProject")
@@ -64,12 +69,17 @@ class ManifestModelConverterTests: TuistUnitTestCase {
             ]
         )
         let manifestLoader = makeManifestLoader(with: [
-            temporaryPath: manifest,
+            temporaryPath: manifest
         ])
         let subject = makeSubject(with: manifestLoader)
 
         // When
-        let model = try subject.convert(manifest: manifest, path: temporaryPath, plugins: .none, externalDependencies: [:])
+        let model = try subject.convert(
+            manifest: manifest,
+            path: temporaryPath,
+            plugins: .none,
+            externalDependencies: [:]
+        )
 
         // Then
         XCTAssertEqual(model.targets.count, 2)
@@ -97,16 +107,21 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         let manifest = ProjectManifest.test(
             name: "SomeProject",
             additionalFiles: [
-                "Documentation/**/*.md",
+                "Documentation/**/*.md"
             ]
         )
         let manifestLoader = makeManifestLoader(with: [
-            temporaryPath: manifest,
+            temporaryPath: manifest
         ])
         let subject = makeSubject(with: manifestLoader)
 
         // When
-        let model = try subject.convert(manifest: manifest, path: temporaryPath, plugins: .none, externalDependencies: [:])
+        let model = try subject.convert(
+            manifest: manifest,
+            path: temporaryPath,
+            plugins: .none,
+            externalDependencies: [:]
+        )
 
         // Then
         XCTAssertEqual(model.additionalFiles, files.map { .file(path: $0) })
@@ -116,21 +131,26 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try self.temporaryPath()
         let files = try createFolders([
-            "Stubs",
+            "Stubs"
         ])
         let manifest = ProjectManifest.test(
             name: "SomeProject",
             additionalFiles: [
-                .folderReference(path: "Stubs"),
+                .folderReference(path: "Stubs")
             ]
         )
         let manifestLoader = makeManifestLoader(with: [
-            temporaryPath: manifest,
+            temporaryPath: manifest
         ])
         let subject = makeSubject(with: manifestLoader)
 
         // When
-        let model = try subject.convert(manifest: manifest, path: temporaryPath, plugins: .none, externalDependencies: [:])
+        let model = try subject.convert(
+            manifest: manifest,
+            path: temporaryPath,
+            plugins: .none,
+            externalDependencies: [:]
+        )
 
         // Then
         XCTAssertEqual(model.additionalFiles, files.map { .folderReference(path: $0) })
@@ -143,16 +163,21 @@ class ManifestModelConverterTests: TuistUnitTestCase {
             name: "SomeProject",
             organizationName: "SomeOrganization",
             additionalFiles: [
-                .folderReference(path: "Stubs"),
+                .folderReference(path: "Stubs")
             ]
         )
         let manifestLoader = makeManifestLoader(with: [
-            temporaryPath: manifest,
+            temporaryPath: manifest
         ])
         let subject = makeSubject(with: manifestLoader)
 
         // When
-        let model = try subject.convert(manifest: manifest, path: temporaryPath, plugins: .none, externalDependencies: [:])
+        let model = try subject.convert(
+            manifest: manifest,
+            path: temporaryPath,
+            plugins: .none,
+            externalDependencies: [:]
+        )
 
         // Then
         XCTAssertEqual(model.organizationName, "SomeOrganization")
@@ -163,7 +188,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         let manifest = WorkspaceManifest.test(name: "SomeWorkspace")
         let manifestLoader = makeManifestLoader(with: [
-            temporaryPath: manifest,
+            temporaryPath: manifest
         ])
         let subject = makeSubject(with: manifestLoader)
 
@@ -185,7 +210,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
 
         let manifest = WorkspaceManifest.test(name: "SomeWorkspace", projects: ["A", "B"])
         let manifests = [
-            temporaryPath: manifest,
+            temporaryPath: manifest
         ]
 
         let manifestLoader = makeManifestLoader(with: manifests, projects: projects)
@@ -217,7 +242,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         )
 
         let manifestLoader = makeManifestLoader(with: [
-            temporaryPath: manifest,
+            temporaryPath: manifest
         ])
 
         let subject = makeSubject(with: manifestLoader)
@@ -240,11 +265,11 @@ class ManifestModelConverterTests: TuistUnitTestCase {
             name: "SomeWorkspace",
             projects: [],
             additionalFiles: [
-                .folderReference(path: "Documentation"),
+                .folderReference(path: "Documentation")
             ]
         )
         let manifestLoader = makeManifestLoader(with: [
-            temporaryPath: manifest,
+            temporaryPath: manifest
         ])
         let subject = makeSubject(with: manifestLoader)
 
@@ -253,9 +278,12 @@ class ManifestModelConverterTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(model.name, "SomeWorkspace")
-        XCTAssertEqual(model.additionalFiles, [
-            .folderReference(path: temporaryPath.appending(RelativePath("Documentation"))),
-        ])
+        XCTAssertEqual(
+            model.additionalFiles,
+            [
+                .folderReference(path: temporaryPath.appending(RelativePath("Documentation")))
+            ]
+        )
     }
 
     func test_loadWorkspace_withInvalidProjectsPaths() throws {
@@ -263,7 +291,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         let manifest = WorkspaceManifest.test(name: "SomeWorkspace", projects: ["A", "B"])
         let manifestLoader = makeManifestLoader(with: [
-            temporaryPath: manifest,
+            temporaryPath: manifest
         ])
         let subject = makeSubject(with: manifestLoader)
 
@@ -271,10 +299,12 @@ class ManifestModelConverterTests: TuistUnitTestCase {
         let model = try subject.convert(manifest: manifest, path: temporaryPath)
 
         // Then
-        XCTAssertPrinterOutputContains("""
-        No projects found at: A
-        No projects found at: B
-        """)
+        XCTAssertPrinterOutputContains(
+            """
+            No projects found at: A
+            No projects found at: B
+            """
+        )
         XCTAssertEqual(model.projects, [])
     }
 

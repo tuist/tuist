@@ -9,13 +9,13 @@ final class ArgumentsTests: TuistUnitTestCase {
         // Given
         let subject = Arguments(
             environment: [
-                "key": "value",
+                "key": "value"
             ],
             launchArguments: [
                 .init(
                     name: "name",
                     isEnabled: true
-                ),
+                )
             ]
         )
 

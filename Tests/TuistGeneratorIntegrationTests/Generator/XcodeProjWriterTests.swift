@@ -1,11 +1,11 @@
-
 import Foundation
 import TSCBasic
 import TuistCore
 import TuistGeneratorTesting
 import TuistSupport
-import XcodeProj
 import XCTest
+import XcodeProj
+
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
@@ -41,10 +41,12 @@ final class XcodeProjWriterTests: TuistTestCase {
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
         let filePath = path.appending(component: "MyFile")
         let contents = "Testing".data(using: .utf8)!
-        let sideEffect = SideEffectDescriptor.file(.init(
-            path: filePath,
-            contents: contents
-        ))
+        let sideEffect = SideEffectDescriptor.file(
+            .init(
+                path: filePath,
+                contents: contents
+            )
+        )
         let descriptor = ProjectDescriptor.test(
             path: path,
             xcodeprojPath: xcodeProjPath,
@@ -97,7 +99,7 @@ final class XcodeProjWriterTests: TuistTestCase {
         )
 
         // When
-        try (0 ..< 2).forEach { _ in
+        try (0..<2).forEach { _ in
             try subject.write(project: descriptor)
         }
 
@@ -131,10 +133,13 @@ final class XcodeProjWriterTests: TuistTestCase {
         // Then
         let fileHandler = FileHandler.shared
         let schemes = fileHandler.glob(xcodeProjPath, glob: "**/*.xcscheme").map(\.basename)
-        XCTAssertEqual(schemes, [
-            "SchemeA.xcscheme",
-            "SchemeC.xcscheme",
-        ])
+        XCTAssertEqual(
+            schemes,
+            [
+                "SchemeA.xcscheme",
+                "SchemeC.xcscheme",
+            ]
+        )
     }
 
     func test_generate_preservesProjectUserSchemes() throws {
@@ -162,10 +167,13 @@ final class XcodeProjWriterTests: TuistTestCase {
         // Then
         let fileHandler = FileHandler.shared
         let schemes = fileHandler.glob(xcodeProjPath, glob: "**/*.xcscheme").map(\.basename)
-        XCTAssertEqual(schemes, [
-            "UserSchemeA.xcscheme",
-            "UserSchemeB.xcscheme",
-        ])
+        XCTAssertEqual(
+            schemes,
+            [
+                "UserSchemeA.xcscheme",
+                "UserSchemeB.xcscheme",
+            ]
+        )
     }
 
     func test_generate_replacesWorkspaceSharedSchemes() throws {
@@ -194,10 +202,13 @@ final class XcodeProjWriterTests: TuistTestCase {
         // Then
         let fileHandler = FileHandler.shared
         let schemes = fileHandler.glob(xcworkspacePath, glob: "**/*.xcscheme").map(\.basename)
-        XCTAssertEqual(schemes, [
-            "SchemeA.xcscheme",
-            "SchemeC.xcscheme",
-        ])
+        XCTAssertEqual(
+            schemes,
+            [
+                "SchemeA.xcscheme",
+                "SchemeC.xcscheme",
+            ]
+        )
     }
 
     func test_generate_preservesWorkspaceUserSchemes() throws {
@@ -225,10 +236,13 @@ final class XcodeProjWriterTests: TuistTestCase {
         // Then
         let fileHandler = FileHandler.shared
         let schemes = fileHandler.glob(xcworkspacePath, glob: "**/*.xcscheme").map(\.basename)
-        XCTAssertEqual(schemes, [
-            "UserSchemeA.xcscheme",
-            "UserSchemeB.xcscheme",
-        ])
+        XCTAssertEqual(
+            schemes,
+            [
+                "UserSchemeA.xcscheme",
+                "UserSchemeB.xcscheme",
+            ]
+        )
     }
 
     func test_generate_local_scheme() throws {
@@ -236,7 +250,11 @@ final class XcodeProjWriterTests: TuistTestCase {
         let path = try temporaryPath()
         let xcodeProjPath = path.appending(component: "Project.xcodeproj")
         let userScheme = SchemeDescriptor.test(name: "UserScheme", shared: false)
-        let descriptor = ProjectDescriptor.test(path: path, xcodeprojPath: xcodeProjPath, schemes: [userScheme])
+        let descriptor = ProjectDescriptor.test(
+            path: path,
+            xcodeprojPath: xcodeProjPath,
+            schemes: [userScheme]
+        )
 
         // When
         try subject.write(project: descriptor)
@@ -244,10 +262,17 @@ final class XcodeProjWriterTests: TuistTestCase {
         // Then
         let fileHandler = FileHandler.shared
         let username = NSUserName()
-        let schemesPath = xcodeProjPath.appending(components: "xcuserdata", "\(username).xcuserdatad", "xcschemes")
+        let schemesPath = xcodeProjPath.appending(
+            components: "xcuserdata",
+            "\(username).xcuserdatad",
+            "xcschemes"
+        )
         let schemes = fileHandler.glob(schemesPath, glob: "*.xcscheme").map(\.basename)
-        XCTAssertEqual(schemes, [
-            "UserScheme.xcscheme",
-        ])
+        XCTAssertEqual(
+            schemes,
+            [
+                "UserScheme.xcscheme"
+            ]
+        )
     }
 }

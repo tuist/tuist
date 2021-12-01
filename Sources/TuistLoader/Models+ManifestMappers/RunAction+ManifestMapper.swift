@@ -9,23 +9,33 @@ extension TuistGraph.RunAction {
     /// - Parameters:
     ///   - manifest: Manifest representation of  the settings.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.RunAction,
-                     generatorPaths: GeneratorPaths) throws -> TuistGraph.RunAction
-    {
+    static func from(
+        manifest: ProjectDescription.RunAction,
+        generatorPaths: GeneratorPaths
+    ) throws -> TuistGraph.RunAction {
         let configurationName = manifest.configuration.rawValue
         let arguments = manifest.arguments.map { TuistGraph.Arguments.from(manifest: $0) }
 
         var executableResolved: TuistGraph.TargetReference?
         if let executable = manifest.executable {
             executableResolved = TargetReference(
-                projectPath: try generatorPaths.resolveSchemeActionProjectPath(executable.projectPath),
+                projectPath: try generatorPaths.resolveSchemeActionProjectPath(
+                    executable.projectPath
+                ),
                 name: executable.targetName
             )
         }
 
-        let options = try TuistGraph.RunActionOptions.from(manifest: manifest.options, generatorPaths: generatorPaths)
+        let options = try TuistGraph.RunActionOptions.from(
+            manifest: manifest.options,
+            generatorPaths: generatorPaths
+        )
 
-        let diagnosticsOptions = Set(manifest.diagnosticsOptions.map { TuistGraph.SchemeDiagnosticsOption.from(manifest: $0) })
+        let diagnosticsOptions = Set(
+            manifest.diagnosticsOptions.map {
+                TuistGraph.SchemeDiagnosticsOption.from(manifest: $0)
+            }
+        )
 
         return TuistGraph.RunAction(
             configurationName: configurationName,

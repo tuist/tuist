@@ -7,7 +7,10 @@ class Generator {
     private let sourceTemplate: SourceTemplate
     private let manifestTemplate: ManifestTemplate
 
-    init(fileSystem: FileSystem, config: GeneratorConfig) {
+    init(
+        fileSystem: FileSystem,
+        config: GeneratorConfig
+    ) {
         self.fileSystem = fileSystem
         self.config = config
 
@@ -17,7 +20,7 @@ class Generator {
 
     func generate(at path: AbsolutePath) throws {
         let rootPath = path
-        let projects = (1 ... config.projects).map { "Project\($0)" }
+        let projects = (1...config.projects).map { "Project\($0)" }
 
         try fileSystem.createDirectory(rootPath)
         try initWorkspaceManifest(
@@ -34,10 +37,11 @@ class Generator {
         }
     }
 
-    private func initWorkspaceManifest(at path: AbsolutePath,
-                                       name: String,
-                                       projects: [String]) throws
-    {
+    private func initWorkspaceManifest(
+        at path: AbsolutePath,
+        name: String,
+        projects: [String]
+    ) throws {
         let manifestPath = path.appending(component: "Workspace.swift")
 
         let manifest = manifestTemplate.generate(
@@ -50,11 +54,12 @@ class Generator {
         )
     }
 
-    private func initProject(at path: AbsolutePath,
-                             name: String) throws
-    {
+    private func initProject(
+        at path: AbsolutePath,
+        name: String
+    ) throws {
         let projectPath = path.appending(component: name)
-        let targets = (1 ... config.targets).map { "Target\($0)" }
+        let targets = (1...config.targets).map { "Target\($0)" }
 
         try fileSystem.createDirectory(projectPath)
         try initProjectManifest(at: projectPath, name: name, targets: targets)
@@ -64,10 +69,11 @@ class Generator {
         }
     }
 
-    private func initProjectManifest(at path: AbsolutePath,
-                                     name: String,
-                                     targets: [String]) throws
-    {
+    private func initProjectManifest(
+        at path: AbsolutePath,
+        name: String,
+        targets: [String]
+    ) throws {
         let manifestPath = path.appending(component: "Project.swift")
 
         let manifest = manifestTemplate.generate(
@@ -91,7 +97,7 @@ class Generator {
         let sourcesPath = path.appending(component: "Sources")
 
         try fileSystem.createDirectory(sourcesPath)
-        try (1 ... config.sources).forEach {
+        try (1...config.sources).forEach {
             let sourceName = "Source\($0).swift"
             let source = sourceTemplate.generate(frameworkName: targetName, number: $0)
             try fileSystem.writeFileContents(

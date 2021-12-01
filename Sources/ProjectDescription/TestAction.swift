@@ -29,16 +29,17 @@ public struct TestAction: Equatable, Codable {
     /// Diagnostics options.
     public let diagnosticsOptions: [SchemeDiagnosticsOption]
 
-    private init(testPlans: [Path]?,
-                 targets: [TestableTarget],
-                 arguments: Arguments?,
-                 configuration: ConfigurationName,
-                 expandVariableFromTarget: TargetReference?,
-                 preActions: [ExecutionAction],
-                 postActions: [ExecutionAction],
-                 options: TestActionOptions,
-                 diagnosticsOptions: [SchemeDiagnosticsOption])
-    {
+    private init(
+        testPlans: [Path]?,
+        targets: [TestableTarget],
+        arguments: Arguments?,
+        configuration: ConfigurationName,
+        expandVariableFromTarget: TargetReference?,
+        preActions: [ExecutionAction],
+        postActions: [ExecutionAction],
+        options: TestActionOptions,
+        diagnosticsOptions: [SchemeDiagnosticsOption]
+    ) {
         self.testPlans = testPlans
         self.targets = targets
         self.arguments = arguments
@@ -61,15 +62,16 @@ public struct TestAction: Equatable, Codable {
     ///   - options: Test options.
     ///   - diagnosticsOptions: Diagnostics options.
     /// - Returns: An initialized test action.
-    public static func targets(_ targets: [TestableTarget],
-                               arguments: Arguments? = nil,
-                               configuration: ConfigurationName = .debug,
-                               expandVariableFromTarget: TargetReference? = nil,
-                               preActions: [ExecutionAction] = [],
-                               postActions: [ExecutionAction] = [],
-                               options: TestActionOptions = .options(),
-                               diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker]) -> Self
-    {
+    public static func targets(
+        _ targets: [TestableTarget],
+        arguments: Arguments? = nil,
+        configuration: ConfigurationName = .debug,
+        expandVariableFromTarget: TargetReference? = nil,
+        preActions: [ExecutionAction] = [],
+        postActions: [ExecutionAction] = [],
+        options: TestActionOptions = .options(),
+        diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker]
+    ) -> Self {
         Self(
             testPlans: nil,
             targets: targets,
@@ -90,11 +92,12 @@ public struct TestAction: Equatable, Codable {
     ///   - preActions: Actions to execute before running the tests.
     ///   - postActions: Actions to execute after running the tests.
     /// - Returns: An initialized test action.
-    public static func testPlans(_ testPlans: [Path],
-                                 configuration: ConfigurationName = .debug,
-                                 preActions: [ExecutionAction] = [],
-                                 postActions: [ExecutionAction] = []) -> Self
-    {
+    public static func testPlans(
+        _ testPlans: [Path],
+        configuration: ConfigurationName = .debug,
+        preActions: [ExecutionAction] = [],
+        postActions: [ExecutionAction] = []
+    ) -> Self {
         Self(
             testPlans: testPlans,
             targets: [],

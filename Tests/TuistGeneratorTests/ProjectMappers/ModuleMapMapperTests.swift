@@ -32,30 +32,34 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                 "OTHER_SWIFT_FLAGS": "Other",
             ]),
             dependencies: [
-                .project(target: "B1", path: projectBPath),
+                .project(target: "B1", path: projectBPath)
             ]
         )
         let projectA = Project.test(
             path: projectAPath,
             name: "A",
             targets: [
-                targetA,
+                targetA
             ]
         )
 
         let targetB1 = Target.test(
             name: "B1",
             settings: .test(base: [
-                "MODULEMAP_FILE": .string(projectBPath.appending(components: "B1", "B1.module").pathString),
+                "MODULEMAP_FILE": .string(
+                    projectBPath.appending(components: "B1", "B1.module").pathString
+                )
             ]),
             dependencies: [
-                .target(name: "B2"),
+                .target(name: "B2")
             ]
         )
         let targetB2 = Target.test(
             name: "B2",
             settings: .test(base: [
-                "MODULEMAP_FILE": .string(projectBPath.appending(components: "B2", "B2.module").pathString),
+                "MODULEMAP_FILE": .string(
+                    projectBPath.appending(components: "B2", "B2.module").pathString
+                )
             ])
         )
         let projectB = Project.test(
@@ -96,25 +100,29 @@ final class ModuleMapMapperTests: TuistUnitTestCase {
                 ]),
             ]),
             dependencies: [
-                .project(target: "B1", path: projectBPath),
+                .project(target: "B1", path: projectBPath)
             ]
         )
         let mappedProjectA = Project.test(
             path: projectAPath,
             name: "A",
             targets: [
-                mappedTargetA,
+                mappedTargetA
             ]
         )
 
         let mappedTargetB1 = Target.test(
             name: "B1",
             settings: .test(base: [
-                "OTHER_CFLAGS": .array(["$(inherited)", "-fmodule-map-file=$(SRCROOT)/B2/B2.module"]),
-                "OTHER_SWIFT_FLAGS": .array(["$(inherited)", "-Xcc", "-fmodule-map-file=$(SRCROOT)/B2/B2.module"]),
+                "OTHER_CFLAGS": .array([
+                    "$(inherited)", "-fmodule-map-file=$(SRCROOT)/B2/B2.module",
+                ]),
+                "OTHER_SWIFT_FLAGS": .array([
+                    "$(inherited)", "-Xcc", "-fmodule-map-file=$(SRCROOT)/B2/B2.module",
+                ]),
             ]),
             dependencies: [
-                .target(name: "B2"),
+                .target(name: "B2")
             ]
         )
         let mappedTargetB2 = Target.test(

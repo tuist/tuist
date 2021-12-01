@@ -16,7 +16,7 @@ final class ProjectDevelopmentRegionMapperTests: TuistUnitTestCase {
         super.setUp()
 
         config = TuistGraph.Config.test(generationOptions: [
-            .developmentRegion("en"),
+            .developmentRegion("en")
         ])
         subject = ProjectDevelopmentRegionMapper(config: config)
     }

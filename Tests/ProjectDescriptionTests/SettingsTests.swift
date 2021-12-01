@@ -34,16 +34,27 @@ final class SettingsTests: XCTestCase {
         // Then
         let decoded = try decoder.decode(Settings.self, from: data)
         XCTAssertEqual(decoded, subject)
-        XCTAssertEqual(decoded.configurations.map(\.name), [
-            "Debug",
-            "Release",
-        ])
+        XCTAssertEqual(
+            decoded.configurations.map(\.name),
+            [
+                "Debug",
+                "Release",
+            ]
+        )
     }
 
     func test_codable_config_with_exclusions() throws {
         // Given
-        let recommendedSubject = Settings(base: [:], configurations: [], defaultSettings: .recommended(excluding: ["someRecommendedKey", "anotherKey"]))
-        let essentialSubject = Settings(base: [:], configurations: [], defaultSettings: .essential(excluding: ["someEssentialKey", "anotherKey"]))
+        let recommendedSubject = Settings(
+            base: [:],
+            configurations: [],
+            defaultSettings: .recommended(excluding: ["someRecommendedKey", "anotherKey"])
+        )
+        let essentialSubject = Settings(
+            base: [:],
+            configurations: [],
+            defaultSettings: .essential(excluding: ["someEssentialKey", "anotherKey"])
+        )
 
         // Then
         XCTAssertCodable(recommendedSubject)
@@ -54,9 +65,17 @@ final class SettingsTests: XCTestCase {
         // Given
         let configurations: [Configuration] = [
             .debug(name: .debug),
-            .debug(name: "CustomDebug", settings: ["CUSTOM_FLAG": .string("Debug")], xcconfig: "debug.xcconfig"),
+            .debug(
+                name: "CustomDebug",
+                settings: ["CUSTOM_FLAG": .string("Debug")],
+                xcconfig: "debug.xcconfig"
+            ),
             .release(name: .release),
-            .release(name: "CustomRelease", settings: ["CUSTOM_FLAG": .string("Release")], xcconfig: "release.xcconfig"),
+            .release(
+                name: "CustomRelease",
+                settings: ["CUSTOM_FLAG": .string("Release")],
+                xcconfig: "release.xcconfig"
+            ),
         ]
         let subject: Settings = .settings(
             base: ["base": .string("base")],
@@ -69,12 +88,15 @@ final class SettingsTests: XCTestCase {
         // Then
         let decoded = try decoder.decode(Settings.self, from: data)
         XCTAssertEqual(decoded, subject)
-        XCTAssertEqual(decoded.configurations.map(\.name), [
-            "Debug",
-            "CustomDebug",
-            "Release",
-            "CustomRelease",
-        ])
+        XCTAssertEqual(
+            decoded.configurations.map(\.name),
+            [
+                "Debug",
+                "CustomDebug",
+                "Release",
+                "CustomRelease",
+            ]
+        )
     }
 
     func test_settingsDictionary_chainingMultipleValues() {
@@ -90,19 +112,22 @@ final class SettingsTests: XCTestCase {
             .bitcodeEnabled(true)
 
         /// Then
-        XCTAssertEqual(settings, [
-            "CODE_SIGN_IDENTITY": "Apple Development",
-            "CURRENT_PROJECT_VERSION": "999",
-            "CODE_SIGN_STYLE": "Automatic",
-            "DEVELOPMENT_TEAM": "123ABC",
-            "VERSIONING_SYSTEM": "apple-generic",
-            "VERSION_INFO_STRING": "NLR",
-            "VERSION_INFO_PREFIX": "A_Prefix",
-            "VERSION_INFO_SUFFIX": "A_Suffix",
-            "SWIFT_VERSION": "5.2.1",
-            "OTHER_SWIFT_FLAGS": "first second third",
-            "ENABLE_BITCODE": "YES",
-        ])
+        XCTAssertEqual(
+            settings,
+            [
+                "CODE_SIGN_IDENTITY": "Apple Development",
+                "CURRENT_PROJECT_VERSION": "999",
+                "CODE_SIGN_STYLE": "Automatic",
+                "DEVELOPMENT_TEAM": "123ABC",
+                "VERSIONING_SYSTEM": "apple-generic",
+                "VERSION_INFO_STRING": "NLR",
+                "VERSION_INFO_PREFIX": "A_Prefix",
+                "VERSION_INFO_SUFFIX": "A_Suffix",
+                "SWIFT_VERSION": "5.2.1",
+                "OTHER_SWIFT_FLAGS": "first second third",
+                "ENABLE_BITCODE": "YES",
+            ]
+        )
     }
 
     func test_settingsDictionary_codeSignManual() {
@@ -111,11 +136,14 @@ final class SettingsTests: XCTestCase {
             .manualCodeSigning(identity: "Apple Distribution", provisioningProfileSpecifier: "ABC")
 
         /// Then
-        XCTAssertEqual(settings, [
-            "CODE_SIGN_STYLE": "Manual",
-            "CODE_SIGN_IDENTITY": "Apple Distribution",
-            "PROVISIONING_PROFILE_SPECIFIER": "ABC",
-        ])
+        XCTAssertEqual(
+            settings,
+            [
+                "CODE_SIGN_STYLE": "Manual",
+                "CODE_SIGN_IDENTITY": "Apple Distribution",
+                "PROVISIONING_PROFILE_SPECIFIER": "ABC",
+            ]
+        )
     }
 
     func test_settingsDictionary_SwiftCompilationMode() {
@@ -124,18 +152,24 @@ final class SettingsTests: XCTestCase {
             .swiftCompilationMode(.singlefile)
 
         /// Then
-        XCTAssertEqual(settings1, [
-            "SWIFT_COMPILATION_MODE": "singlefile",
-        ])
+        XCTAssertEqual(
+            settings1,
+            [
+                "SWIFT_COMPILATION_MODE": "singlefile"
+            ]
+        )
 
         /// Given/When
         let settings2 = SettingsDictionary()
             .swiftCompilationMode(.wholemodule)
 
         /// Then
-        XCTAssertEqual(settings2, [
-            "SWIFT_COMPILATION_MODE": "wholemodule",
-        ])
+        XCTAssertEqual(
+            settings2,
+            [
+                "SWIFT_COMPILATION_MODE": "wholemodule"
+            ]
+        )
     }
 
     func test_settingsDictionary_SwiftOptimizationLevel() {
@@ -144,26 +178,35 @@ final class SettingsTests: XCTestCase {
             .swiftOptimizationLevel(.o)
 
         /// Then
-        XCTAssertEqual(settings1, [
-            "SWIFT_OPTIMIZATION_LEVEL": "-O",
-        ])
+        XCTAssertEqual(
+            settings1,
+            [
+                "SWIFT_OPTIMIZATION_LEVEL": "-O"
+            ]
+        )
 
         /// Given/When
         let settings2 = SettingsDictionary()
             .swiftOptimizationLevel(.oNone)
 
         /// Then
-        XCTAssertEqual(settings2, [
-            "SWIFT_OPTIMIZATION_LEVEL": "-Onone",
-        ])
+        XCTAssertEqual(
+            settings2,
+            [
+                "SWIFT_OPTIMIZATION_LEVEL": "-Onone"
+            ]
+        )
 
         /// Given/When
         let settings3 = SettingsDictionary()
             .swiftOptimizationLevel(.oSize)
 
         /// Then
-        XCTAssertEqual(settings3, [
-            "SWIFT_OPTIMIZATION_LEVEL": "-Osize",
-        ])
+        XCTAssertEqual(
+            settings3,
+            [
+                "SWIFT_OPTIMIZATION_LEVEL": "-Osize"
+            ]
+        )
     }
 }

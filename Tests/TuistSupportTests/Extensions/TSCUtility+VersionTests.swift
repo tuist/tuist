@@ -1,5 +1,6 @@
 import TSCUtility
 import XCTest
+
 @testable import TuistSupport
 
 final class TSCUtilityVersionTests: XCTestCase {

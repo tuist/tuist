@@ -10,8 +10,16 @@ public final class IDETemplateMacrosMapper: ProjectMapping, WorkspaceMapping {
         (project, try sideEffects(for: project.ideTemplateMacros, to: project.xcodeProjPath))
     }
 
-    public func map(workspace: WorkspaceWithProjects) throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
-        (workspace, try sideEffects(for: workspace.workspace.ideTemplateMacros, to: workspace.workspace.xcWorkspacePath))
+    public func map(
+        workspace: WorkspaceWithProjects
+    ) throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
+        (
+            workspace,
+            try sideEffects(
+                for: workspace.workspace.ideTemplateMacros,
+                to: workspace.workspace.xcWorkspacePath
+            )
+        )
     }
 
     private func sideEffects(
@@ -24,10 +32,12 @@ public final class IDETemplateMacrosMapper: ProjectMapping, WorkspaceMapping {
         let data = try encoder.encode(ideTemplateMacros)
 
         return [
-            .file(FileDescriptor(
-                path: path.appending(RelativePath("xcshareddata/IDETemplateMacros.plist")),
-                contents: data
-            )),
+            .file(
+                FileDescriptor(
+                    path: path.appending(RelativePath("xcshareddata/IDETemplateMacros.plist")),
+                    contents: data
+                )
+            )
         ]
     }
 }

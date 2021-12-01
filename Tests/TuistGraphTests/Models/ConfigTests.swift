@@ -20,7 +20,7 @@ final class ConfigTests: XCTestCase {
                 swiftVersion: nil,
                 plugins: [],
                 generationOptions: [
-                    .enableCodeCoverage(mode),
+                    .enableCodeCoverage(mode)
                 ],
                 path: nil
             )

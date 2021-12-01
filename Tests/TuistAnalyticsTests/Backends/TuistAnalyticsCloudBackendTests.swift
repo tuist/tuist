@@ -3,8 +3,8 @@ import TuistCloud
 import TuistCore
 import TuistGraph
 import TuistSupport
-
 import XCTest
+
 @testable import TuistAnalytics
 @testable import TuistCoreTesting
 @testable import TuistSupportTesting

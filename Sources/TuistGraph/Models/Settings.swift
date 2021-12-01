@@ -3,15 +3,20 @@ import TSCBasic
 
 public typealias SettingsDictionary = [String: SettingValue]
 
-public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral, Equatable, Codable {
+public enum SettingValue: ExpressibleByStringLiteral, ExpressibleByArrayLiteral, Equatable, Codable
+{
     case string(String)
     case array([String])
 
-    public init(stringLiteral value: String) {
+    public init(
+        stringLiteral value: String
+    ) {
         self = .string(value)
     }
 
-    public init(arrayLiteral elements: String...) {
+    public init(
+        arrayLiteral elements: String...
+    ) {
         self = .array(elements)
     }
 
@@ -36,7 +41,10 @@ public struct Configuration: Equatable, Codable {
 
     // MARK: - Init
 
-    public init(settings: SettingsDictionary = [:], xcconfig: AbsolutePath? = nil) {
+    public init(
+        settings: SettingsDictionary = [:],
+        xcconfig: AbsolutePath? = nil
+    ) {
         self.settings = settings
         self.xcconfig = xcconfig
     }
@@ -83,10 +91,11 @@ public struct Settings: Equatable, Codable {
 
     // MARK: - Init
 
-    public init(base: SettingsDictionary = [:],
-                configurations: [BuildConfiguration: Configuration?],
-                defaultSettings: DefaultSettings = .recommended)
-    {
+    public init(
+        base: SettingsDictionary = [:],
+        configurations: [BuildConfiguration: Configuration?],
+        defaultSettings: DefaultSettings = .recommended
+    ) {
         self.base = base
         self.configurations = configurations
         self.defaultSettings = defaultSettings
@@ -115,7 +124,9 @@ extension Settings {
         let debugConfigurations = configurations.keys
             .filter { $0.variant == .debug }
             .sorted()
-        let defaultConfiguration = debugConfigurations.first(where: { $0 == BuildConfiguration.debug })
+        let defaultConfiguration = debugConfigurations.first(where: {
+            $0 == BuildConfiguration.debug
+        })
         return defaultConfiguration ?? debugConfigurations.first
     }
 
@@ -126,13 +137,17 @@ extension Settings {
         let releaseConfigurations = configurations.keys
             .filter { $0.variant == .release }
             .sorted()
-        let defaultConfiguration = releaseConfigurations.first(where: { $0 == BuildConfiguration.release })
+        let defaultConfiguration = releaseConfigurations.first(where: {
+            $0 == BuildConfiguration.release
+        })
         return defaultConfiguration ?? releaseConfigurations.first
     }
 }
 
 extension Dictionary where Key == BuildConfiguration, Value == Configuration? {
-    public func sortedByBuildConfigurationName() -> [(key: BuildConfiguration, value: Configuration?)] {
+    public func sortedByBuildConfigurationName() -> [(
+        key: BuildConfiguration, value: Configuration?
+    )] {
         sorted(by: { first, second -> Bool in first.key < second.key })
     }
 
@@ -170,7 +185,9 @@ extension SettingValue {
         case array
     }
 
-    public init(from decoder: Decoder) throws {
+    public init(
+        from decoder: Decoder
+    ) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
         switch kind {
@@ -210,7 +227,9 @@ extension DefaultSettings {
         case excluding
     }
 
-    public init(from decoder: Decoder) throws {
+    public init(
+        from decoder: Decoder
+    ) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
         switch kind {

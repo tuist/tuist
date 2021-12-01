@@ -21,13 +21,18 @@ public enum DeploymentTarget: Codable, Hashable {
         case deploymentDevices
     }
 
-    public init(from decoder: Decoder) throws {
+    public init(
+        from decoder: Decoder
+    ) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
         switch kind {
         case .iOS:
             let version = try container.decode(String.self, forKey: .version)
-            let deploymentDevices = try container.decode(DeploymentDevice.self, forKey: .deploymentDevices)
+            let deploymentDevices = try container.decode(
+                DeploymentDevice.self,
+                forKey: .deploymentDevices
+            )
             self = .iOS(targetVersion: version, devices: deploymentDevices)
         case .macOS:
             let version = try container.decode(String.self, forKey: .version)

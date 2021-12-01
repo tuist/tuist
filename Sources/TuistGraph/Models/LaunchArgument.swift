@@ -8,7 +8,10 @@ public struct LaunchArgument: Equatable, Codable {
 
     // MARK: - Init
 
-    public init(name: String, isEnabled: Bool) {
+    public init(
+        name: String,
+        isEnabled: Bool
+    ) {
         self.name = name
         self.isEnabled = isEnabled
     }

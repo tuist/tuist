@@ -6,11 +6,12 @@ public struct BuildAction: Equatable, Codable {
     public let postActions: [ExecutionAction]
     public let runPostActionsOnFailure: Bool
 
-    public init(targets: [TargetReference],
-                preActions: [ExecutionAction] = [],
-                postActions: [ExecutionAction] = [],
-                runPostActionsOnFailure: Bool = false)
-    {
+    public init(
+        targets: [TargetReference],
+        preActions: [ExecutionAction] = [],
+        postActions: [ExecutionAction] = [],
+        runPostActionsOnFailure: Bool = false
+    ) {
         self.targets = targets
         self.preActions = preActions
         self.postActions = postActions
@@ -24,11 +25,12 @@ public struct BuildAction: Equatable, Codable {
     ///   - postActions: Actions to run after building.
     ///   - runPostActionsOnFailure: Whether pre and post actions should run on failure.
     /// - Returns: Initialized build action.
-    public static func buildAction(targets: [TargetReference],
-                                   preActions: [ExecutionAction] = [],
-                                   postActions: [ExecutionAction] = [],
-                                   runPostActionsOnFailure: Bool = false) -> BuildAction
-    {
+    public static func buildAction(
+        targets: [TargetReference],
+        preActions: [ExecutionAction] = [],
+        postActions: [ExecutionAction] = [],
+        runPostActionsOnFailure: Bool = false
+    ) -> BuildAction {
         return BuildAction(
             targets: targets,
             preActions: preActions,

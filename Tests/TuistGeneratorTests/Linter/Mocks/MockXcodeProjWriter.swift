@@ -1,4 +1,5 @@
 import Foundation
+
 @testable import TuistGenerator
 
 class MockXcodeProjWriter: XcodeProjWriting {

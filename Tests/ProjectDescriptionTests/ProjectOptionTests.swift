@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import ProjectDescription
 
 final class ProjectOptionTests: XCTestCase {

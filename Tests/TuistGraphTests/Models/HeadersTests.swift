@@ -9,13 +9,13 @@ final class HeadersTests: TuistUnitTestCase {
         // Given
         let subject = Headers(
             public: [
-                "/path/to/public/header",
+                "/path/to/public/header"
             ],
             private: [
-                "/path/to/private/header",
+                "/path/to/private/header"
             ],
             project: [
-                "/path/to/project/header",
+                "/path/to/project/header"
             ]
         )
 

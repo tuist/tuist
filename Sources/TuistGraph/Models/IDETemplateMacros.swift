@@ -7,7 +7,9 @@ public struct IDETemplateMacros: Codable, Hashable {
 
     public let fileHeader: String?
 
-    public init(fileHeader: String?) {
+    public init(
+        fileHeader: String?
+    ) {
         self.fileHeader = fileHeader.map(Self.normalize)
     }
 

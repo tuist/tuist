@@ -51,7 +51,8 @@ struct ExecService {
     ) throws {
         let path = self.path(path)
         let taskPath = try task(with: taskName, path: path)
-        let runArguments = try manifestLoader.taskLoadArguments(at: taskPath)
+        let runArguments =
+            try manifestLoader.taskLoadArguments(at: taskPath)
             + [
                 "--tuist-task",
                 String(data: try JSONEncoder().encode(options), encoding: .utf8)!,
@@ -71,7 +72,10 @@ struct ExecService {
         let path = self.path(path)
         let taskPath = try task(with: taskName, path: path)
         let taskContents = try FileHandler.shared.readTextFile(taskPath)
-        let optionsRegex = try NSRegularExpression(pattern: "\\.option\\(\"([^\"]*)\"\\),?", options: [])
+        let optionsRegex = try NSRegularExpression(
+            pattern: "\\.option\\(\"([^\"]*)\"\\),?",
+            options: []
+        )
         var options: [String] = []
         optionsRegex.enumerateMatches(
             in: taskContents,
@@ -96,15 +100,19 @@ struct ExecService {
     private func task(with name: String, path: AbsolutePath) throws -> AbsolutePath {
         let config = try configLoader.loadConfig(path: path)
         let plugins = try pluginService.loadPlugins(using: config)
-        let tasksPaths: [AbsolutePath] = try tasksLocator.locateTasks(at: path)
+        let tasksPaths: [AbsolutePath] =
+            try tasksLocator.locateTasks(at: path)
             + plugins.tasks.map(\.path)
             .flatMap(FileHandler.shared.contentsOfDirectory)
-        let tasks: [String: AbsolutePath] = tasksPaths
+        let tasks: [String: AbsolutePath] =
+            tasksPaths
             .reduce(into: [:]) { acc, current in
                 acc[current.basenameWithoutExt.camelCaseToKebabCase()] = current
             }
 
-        guard let task = tasks[name] else { throw ExecError.taskNotFound(name, tasks.map(\.key).sorted()) }
+        guard let task = tasks[name] else {
+            throw ExecError.taskNotFound(name, tasks.map(\.key).sorted())
+        }
         return task
     }
 

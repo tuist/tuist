@@ -1,13 +1,20 @@
 import Foundation
 import TSCBasic
 import XCTest
+
 @testable import TuistSupport
 @testable import TuistSupportTesting
 
 final class FileHandlerErrorTests: XCTestCase {
     func test_description() {
-        XCTAssertEqual(FileHandlerError.invalidTextEncoding(AbsolutePath("/path")).description, "The file at /path is not a utf8 text file")
-        XCTAssertEqual(FileHandlerError.writingError(AbsolutePath("/path")).description, "Couldn't write to the file /path")
+        XCTAssertEqual(
+            FileHandlerError.invalidTextEncoding(AbsolutePath("/path")).description,
+            "The file at /path is not a utf8 text file"
+        )
+        XCTAssertEqual(
+            FileHandlerError.writingError(AbsolutePath("/path")).description,
+            "Couldn't write to the file /path"
+        )
     }
 }
 
@@ -87,7 +94,10 @@ final class FileHandlerTests: TuistUnitTestCase {
         let result = try subject.changeExtension(path: testZippedFrameworkPath, to: "txt")
 
         // Then
-        XCTAssertEqual(result.pathString.dropLast(4), testZippedFrameworkPath.pathString.dropLast(4))
+        XCTAssertEqual(
+            result.pathString.dropLast(4),
+            testZippedFrameworkPath.pathString.dropLast(4)
+        )
         XCTAssertEqual(result.basenameWithoutExt, testZippedFrameworkPath.basenameWithoutExt)
         XCTAssertEqual(result.basename, "\(testZippedFrameworkPath.basenameWithoutExt).txt")
         _ = try subject.changeExtension(path: result, to: "zip")
@@ -96,12 +106,14 @@ final class FileHandlerTests: TuistUnitTestCase {
     // MARK: - Private
 
     private func countItemsInRootTempDirectory(appropriateFor url: URL) throws -> Int {
-        let tempPath = AbsolutePath(try fileManager.url(
-            for: .itemReplacementDirectory,
-            in: .userDomainMask,
-            appropriateFor: url,
-            create: true
-        ).path)
+        let tempPath = AbsolutePath(
+            try fileManager.url(
+                for: .itemReplacementDirectory,
+                in: .userDomainMask,
+                appropriateFor: url,
+                create: true
+            ).path
+        )
         let rootTempPath = tempPath.parentDirectory
         try fileManager.removeItem(at: tempPath.asURL)
         let content = try fileManager.contentsOfDirectory(atPath: rootTempPath.pathString)

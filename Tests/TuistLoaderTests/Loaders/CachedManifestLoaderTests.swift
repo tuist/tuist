@@ -1,9 +1,10 @@
 import Foundation
 import ProjectDescription
 import TSCBasic
-import struct TuistGraph.Plugins
 import TuistSupport
 import XCTest
+
+import struct TuistGraph.Plugins
 
 @testable import TuistCoreTesting
 @testable import TuistLoader
@@ -31,8 +32,14 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
 
         do {
             cacheDirectoriesProvider = try MockCacheDirectoriesProvider()
-            cacheDirectory = try temporaryPath().appending(components: "tuist", "Cache", "Manifests")
-            cacheDirectoriesProviderFactory = MockCacheDirectoriesProviderFactory(provider: cacheDirectoriesProvider)
+            cacheDirectory = try temporaryPath().appending(
+                components: "tuist",
+                "Cache",
+                "Manifests"
+            )
+            cacheDirectoriesProviderFactory = MockCacheDirectoriesProviderFactory(
+                provider: cacheDirectoriesProvider
+            )
             cacheDirectoriesProvider.cacheDirectoryStub = cacheDirectory.parentDirectory
         } catch {
             XCTFail("Failed to create temporary directory")
@@ -132,7 +139,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
 
         // When
         try stubHelpers(withHash: "updatedHash")
-        subject = createSubject() // we need to re-create the subject as it internally caches hashes
+        subject = createSubject()  // we need to re-create the subject as it internally caches hashes
         _ = try subject.loadProject(at: path)
 
         // Then
@@ -150,7 +157,7 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
 
         // When
         try stubPlugins(withHash: "updatedHash")
-        subject = createSubject() // we need to re-create the subject as it internally caches hashes
+        subject = createSubject()  // we need to re-create the subject as it internally caches hashes
         _ = try subject.loadProject(at: path)
 
         // Then
@@ -271,17 +278,26 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         let manifestPath = path.appending(component: Manifest.project.fileName(path))
         try fileHandler.touch(manifestPath)
         let manifestData = try JSONEncoder().encode(project)
-        try fileHandler.write(String(data: manifestData, encoding: .utf8)!, path: manifestPath, atomically: true)
+        try fileHandler.write(
+            String(data: manifestData, encoding: .utf8)!,
+            path: manifestPath,
+            atomically: true
+        )
         projectManifests[path] = project
     }
 
-    private func stub(deprecatedManifest manifest: Config,
-                      at path: AbsolutePath) throws
-    {
+    private func stub(
+        deprecatedManifest manifest: Config,
+        at path: AbsolutePath
+    ) throws {
         let manifestPath = path.appending(component: Manifest.config.fileName(path))
         try fileHandler.touch(manifestPath)
         let manifestData = try JSONEncoder().encode(manifest)
-        try fileHandler.write(String(data: manifestData, encoding: .utf8)!, path: manifestPath, atomically: true)
+        try fileHandler.write(
+            String(data: manifestData, encoding: .utf8)!,
+            path: manifestPath,
+            atomically: true
+        )
         configManifests[path] = manifest
     }
 
@@ -299,11 +315,15 @@ final class CachedManifestLoaderTests: TuistUnitTestCase {
         let manifestPath = path.appending(component: Manifest.plugin.fileName(path))
         try fileHandler.touch(manifestPath)
         let manifestData = try JSONEncoder().encode(plugin)
-        try fileHandler.write(String(data: manifestData, encoding: .utf8)!, path: manifestPath, atomically: true)
+        try fileHandler.write(
+            String(data: manifestData, encoding: .utf8)!,
+            path: manifestPath,
+            atomically: true
+        )
         pluginManifests[path] = plugin
 
         let plugins = Plugins.test(projectDescriptionHelpers: [
-            .init(name: "TestPlugin", path: path, location: .local),
+            .init(name: "TestPlugin", path: path, location: .local)
         ])
 
         projectDescriptionHelpersHasher.stubHash = { _ in hash }

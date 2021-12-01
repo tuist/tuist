@@ -23,16 +23,17 @@ public final class ErrorHandler: ErrorHandling {
     public func fatal(error: FatalError) {
         let isSilent = error.type == .abortSilent || error.type == .bugSilent
         if !error.description.isEmpty, !isSilent {
-            logger.error("""
+            logger.error(
+                """
                 \(error.description)
                 Consider creating an issue using the following link: https://github.com/tuist/tuist/issues/new/choose
                 """
             )
         } else if error.type == .bugSilent {
             let message = """
-            An unexpected error happened. We've opened an issue to fix it as soon as possible.
-            We are sorry for any inconveniences it might have caused.
-            """
+                An unexpected error happened. We've opened an issue to fix it as soon as possible.
+                We are sorry for any inconveniences it might have caused.
+                """
             logger.error("\(message)")
         }
     }

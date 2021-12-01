@@ -36,7 +36,7 @@ final class UpdateWorkspaceProjectsGraphMapperTests: TuistUnitTestCase {
         let graph = Graph.test(
             workspace: workspace,
             projects: [
-                secondProject.path: secondProject,
+                secondProject.path: secondProject
             ]
         )
 

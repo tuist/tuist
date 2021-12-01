@@ -15,17 +15,26 @@ final class CarthageDependenciesTests: XCTestCase {
     // MARK: - Carthage Origin tests
 
     func test_carthageDependency_github_codable() throws {
-        let subject: CarthageDependencies.Dependency = .github(path: "Path/Path", requirement: .branch("branch_name"))
+        let subject: CarthageDependencies.Dependency = .github(
+            path: "Path/Path",
+            requirement: .branch("branch_name")
+        )
         XCTAssertCodable(subject)
     }
 
     func test_carthageDependency_git_codable() throws {
-        let subject: CarthageDependencies.Dependency = .git(path: "Git/Git", requirement: .exact("1.5.123"))
+        let subject: CarthageDependencies.Dependency = .git(
+            path: "Git/Git",
+            requirement: .exact("1.5.123")
+        )
         XCTAssertCodable(subject)
     }
 
     func test_carthageDependency_binary_codable() throws {
-        let subject: CarthageDependencies.Dependency = .binary(path: "file:///some/Path/MyFramework.json", requirement: .upToNext("5.6.9"))
+        let subject: CarthageDependencies.Dependency = .binary(
+            path: "file:///some/Path/MyFramework.json",
+            requirement: .upToNext("5.6.9")
+        )
         XCTAssertCodable(subject)
     }
 

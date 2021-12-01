@@ -21,7 +21,8 @@ enum DependenciesGraphControllerError: FatalError, Equatable {
     var description: String {
         switch self {
         case .failedToDecodeDependenciesGraph:
-            return "Couldn't decode the DependenciesGraph from the serialized JSON file. Running `tuist dependencies fetch` should solve the problem."
+            return
+                "Couldn't decode the DependenciesGraph from the serialized JSON file. Running `tuist dependencies fetch` should solve the problem."
         case .failedToEncodeDependenciesGraph:
             return "Couldn't encode the DependenciesGraph as a JSON file."
         }
@@ -52,7 +53,10 @@ public protocol DependenciesGraphControlling {
 public final class DependenciesGraphController: DependenciesGraphControlling {
     public init() {}
 
-    public func save(_ dependenciesGraph: TuistGraph.DependenciesGraph, to path: AbsolutePath) throws {
+    public func save(
+        _ dependenciesGraph: TuistGraph.DependenciesGraph,
+        to path: AbsolutePath
+    ) throws {
         let jsonEncoder = JSONEncoder()
         jsonEncoder.outputFormatting = .prettyPrinted
 
@@ -78,7 +82,9 @@ public final class DependenciesGraphController: DependenciesGraphControlling {
         do {
             return try JSONDecoder().decode(TuistGraph.DependenciesGraph.self, from: graphData)
         } catch {
-            logger.debug("Failed to load dependencies graph, running `tuist dependencies fetch` should solve the problem.\nError: \(error)")
+            logger.debug(
+                "Failed to load dependencies graph, running `tuist dependencies fetch` should solve the problem.\nError: \(error)"
+            )
             throw DependenciesGraphControllerError.failedToDecodeDependenciesGraph
         }
     }

@@ -57,7 +57,7 @@ extension Target {
                 name: name,
                 product: product,
                 dependencies: dependencies
-            ),
+            )
         ]
         if hasTests {
             targets.append(
@@ -65,7 +65,7 @@ extension Target {
                     name: "\(name)Tests",
                     product: .unitTests,
                     dependencies: testDependencies + [
-                        .target(name: name),
+                        .target(name: name)
                     ]
                         + (hasTesting ? [.target(name: "\(name)Testing")] : [])
                 )
@@ -91,7 +91,7 @@ extension Target {
                     name: "\(name)IntegrationTests",
                     product: .unitTests,
                     dependencies: integrationTestsDependencies + [
-                        .target(name: name),
+                        .target(name: name)
                     ]
                         + (hasTesting ? [.target(name: "\(name)Testing")] : [])
                 )

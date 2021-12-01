@@ -4,14 +4,17 @@ import UIKit
 class AppDelegate: UIResponder, UIApplicationDelegate {
     var window: UIWindow?
 
-    func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+    func application(
+        _ application: UIApplication,
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
+    ) -> Bool {
         window = UIWindow(frame: UIScreen.main.bounds)
-        
+
         print(Strings.hello)
         #if canImport(Lottie)
-        print(AnimationAsset.allAnimations.everythingBagel)
+            print(AnimationAsset.allAnimations.everythingBagel)
         #endif
-        
+
         let viewController = UIViewController()
         viewController.view.backgroundColor = .white
         viewController.view.addSubview(TestView())

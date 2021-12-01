@@ -4,15 +4,17 @@ import TuistCore
 import TuistGraph
 import TuistGraphTesting
 import TuistSupport
-import XcodeProj
 import XCTest
+import XcodeProj
+
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
 final class BuildPhaseGenerationErrorTests: TuistUnitTestCase {
     func test_description_when_missingFileReference() {
         let path = AbsolutePath("/test")
-        let expected = "Trying to add a file at path \(path.pathString) to a build phase that hasn't been added to the project."
+        let expected =
+            "Trying to add a file at path \(path.pathString) to a build phase that hasn't been added to the project."
         XCTAssertEqual(BuildPhaseGenerationError.missingFileReference(path).description, expected)
     }
 
@@ -71,35 +73,44 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             $0.file?.name
         }
 
-        XCTAssertEqual(buildFilesNames, [
-            "file1.swift",
-            "file2.swift",
-            "file3.swift",
-            "file4.swift",
-            "file5.swift",
-            "file6.swift",
-        ])
+        XCTAssertEqual(
+            buildFilesNames,
+            [
+                "file1.swift",
+                "file2.swift",
+                "file3.swift",
+                "file4.swift",
+                "file5.swift",
+                "file6.swift",
+            ]
+        )
 
         let buildFilesSettings = buildFiles.map {
             $0.settings as? [String: String]
         }
 
-        XCTAssertEqual(buildFilesSettings, [
-            ["COMPILER_FLAGS": "flag"],
-            nil, nil, nil, nil, nil,
-        ])
+        XCTAssertEqual(
+            buildFilesSettings,
+            [
+                ["COMPILER_FLAGS": "flag"],
+                nil, nil, nil, nil, nil,
+            ]
+        )
 
         let fileCodegenSettings = buildFiles.map {
             $0.settings as? [String: [String]]
         }
-        XCTAssertEqual(fileCodegenSettings, [
-            nil,
-            nil,
-            ["ATTRIBUTES": ["codegen"]],
-            ["ATTRIBUTES": ["private_codegen"]],
-            ["ATTRIBUTES": ["project_codegen"]],
-            ["ATTRIBUTES": ["no_codegen"]],
-        ])
+        XCTAssertEqual(
+            fileCodegenSettings,
+            [
+                nil,
+                nil,
+                ["ATTRIBUTES": ["codegen"]],
+                ["ATTRIBUTES": ["private_codegen"]],
+                ["ATTRIBUTES": ["project_codegen"]],
+                ["ATTRIBUTES": ["no_codegen"]],
+            ]
+        )
     }
 
     func test_generateScripts() throws {
@@ -107,7 +118,12 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let target = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
         pbxproj.add(object: target)
-        let targetScript = RawScriptBuildPhase(name: "Test", script: "Script", showEnvVarsInLog: true, hashable: false)
+        let targetScript = RawScriptBuildPhase(
+            name: "Test",
+            script: "Script",
+            showEnvVarsInLog: true,
+            hashable: false
+        )
         let targetScripts = [targetScript]
 
         // When
@@ -131,7 +147,13 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let target = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
         pbxproj.add(object: target)
-        let targetScript = RawScriptBuildPhase(name: "Test", script: "Script", showEnvVarsInLog: true, hashable: false, shellPath: "/bin/zsh")
+        let targetScript = RawScriptBuildPhase(
+            name: "Test",
+            script: "Script",
+            showEnvVarsInLog: true,
+            hashable: false,
+            shellPath: "/bin/zsh"
+        )
         let targetScripts = [targetScript]
 
         // When
@@ -153,14 +175,19 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         pbxproj.add(object: target)
         let fileElements = ProjectFileElements()
 
-        XCTAssertThrowsError(try subject.generateSourcesBuildPhase(
-            files: [SourceFile(path: path, compilerFlags: nil)],
-            coreDataModels: [],
-            pbxTarget: target,
-            fileElements: fileElements,
-            pbxproj: pbxproj
-        )) {
-            XCTAssertEqual($0 as? BuildPhaseGenerationError, BuildPhaseGenerationError.missingFileReference(path))
+        XCTAssertThrowsError(
+            try subject.generateSourcesBuildPhase(
+                files: [SourceFile(path: path, compilerFlags: nil)],
+                coreDataModels: [],
+                pbxTarget: target,
+                fileElements: fileElements,
+                pbxproj: pbxproj
+            )
+        ) {
+            XCTAssertEqual(
+                $0 as? BuildPhaseGenerationError,
+                BuildPhaseGenerationError.missingFileReference(path)
+            )
         }
     }
 
@@ -171,12 +198,18 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         pbxproj.add(object: target)
 
         let sources: [SourceFile] = [
-            SourceFile(path: "/path/sources/Base.lproj/OTTSiriExtension.intentdefinition", compilerFlags: nil),
-            SourceFile(path: "/path/sources/en.lproj/OTTSiriExtension.intentdefinition", compilerFlags: nil),
+            SourceFile(
+                path: "/path/sources/Base.lproj/OTTSiriExtension.intentdefinition",
+                compilerFlags: nil
+            ),
+            SourceFile(
+                path: "/path/sources/en.lproj/OTTSiriExtension.intentdefinition",
+                compilerFlags: nil
+            ),
         ]
 
         let fileElements = createLocalizedResourceFileElements(for: [
-            "/path/sources/OTTSiriExtension.intentdefinition",
+            "/path/sources/OTTSiriExtension.intentdefinition"
         ])
 
         // When
@@ -192,9 +225,12 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let buildPhase = try target.sourcesBuildPhase()
         let buildFiles = buildPhase?.files ?? []
 
-        XCTAssertEqual(buildFiles.map(\.file), [
-            fileElements.elements["/path/sources/OTTSiriExtension.intentdefinition"],
-        ])
+        XCTAssertEqual(
+            buildFiles.map(\.file),
+            [
+                fileElements.elements["/path/sources/OTTSiriExtension.intentdefinition"]
+            ]
+        )
     }
 
     func test_generateSourcesBuildPhase_throws_whenLocalizedFileAndFileReferenceIsMissing() {
@@ -204,14 +240,19 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         pbxproj.add(object: target)
         let fileElements = ProjectFileElements()
 
-        XCTAssertThrowsError(try subject.generateSourcesBuildPhase(
-            files: [SourceFile(path: path, compilerFlags: nil)],
-            coreDataModels: [],
-            pbxTarget: target,
-            fileElements: fileElements,
-            pbxproj: pbxproj
-        )) {
-            XCTAssertEqual($0 as? BuildPhaseGenerationError, BuildPhaseGenerationError.missingFileReference(path))
+        XCTAssertThrowsError(
+            try subject.generateSourcesBuildPhase(
+                files: [SourceFile(path: path, compilerFlags: nil)],
+                coreDataModels: [],
+                pbxTarget: target,
+                fileElements: fileElements,
+                pbxproj: pbxproj
+            )
+        ) {
+            XCTAssertEqual(
+                $0 as? BuildPhaseGenerationError,
+                BuildPhaseGenerationError.missingFileReference(path)
+            )
         }
     }
 
@@ -253,11 +294,14 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             )
         }
 
-        XCTAssertEqual(buildFilesWithSettings, [
-            FileWithSettings(name: "Private1.h", attributes: ["Private"]),
-            FileWithSettings(name: "Public1.h", attributes: ["Public"]),
-            FileWithSettings(name: "Project1.h", attributes: nil),
-        ])
+        XCTAssertEqual(
+            buildFilesWithSettings,
+            [
+                FileWithSettings(name: "Private1.h", attributes: ["Private"]),
+                FileWithSettings(name: "Public1.h", attributes: ["Public"]),
+                FileWithSettings(name: "Project1.h", attributes: nil),
+            ]
+        )
     }
 
     func test_generateHeadersBuildPhase_empty_when_iOSAppTarget() throws {
@@ -376,10 +420,13 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
         // Then
         let buildPhase = nativeTarget.buildPhases.first
-        XCTAssertEqual(buildPhase?.files?.map(\.file), [
-            fileElements.elements["/path/resources/Main.storyboard"],
-            fileElements.elements["/path/resources/App.strings"],
-        ])
+        XCTAssertEqual(
+            buildPhase?.files?.map(\.file),
+            [
+                fileElements.elements["/path/resources/Main.storyboard"],
+                fileElements.elements["/path/resources/App.strings"],
+            ]
+        )
     }
 
     func test_generateResourcesBuildPhase_whenLocalizedXibFiles() throws {
@@ -397,7 +444,11 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
             "resources/fr.lproj/Storyboard.strings",
         ])
         let groups = ProjectGroups.generate(
-            project: .test(path: "/path", sourceRootPath: "/path", xcodeProjPath: "/path/Project.xcodeproj"),
+            project: .test(
+                path: "/path",
+                sourceRootPath: "/path",
+                xcodeProjPath: "/path/Project.xcodeproj"
+            ),
             pbxproj: pbxproj
         )
         try files.forEach {
@@ -425,10 +476,13 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
         // Then
         let buildPhase = nativeTarget.buildPhases.first
-        XCTAssertEqual(buildPhase?.files?.map(\.file?.nameOrPath), [
-            "Controller.xib",
-            "Storyboard.storyboard",
-        ])
+        XCTAssertEqual(
+            buildPhase?.files?.map(\.file?.nameOrPath),
+            [
+                "Controller.xib",
+                "Storyboard.storyboard",
+            ]
+        )
     }
 
     func test_generateResourcesBuildPhase_whenLocalizedIntentsFile() throws {
@@ -445,7 +499,11 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let resourceFiles = files.filter { $0.suffix != ".intentdefinition" }
 
         let groups = ProjectGroups.generate(
-            project: .test(path: "/path", sourceRootPath: "/path", xcodeProjPath: "/path/Project.xcodeproj"),
+            project: .test(
+                path: "/path",
+                sourceRootPath: "/path",
+                xcodeProjPath: "/path/Project.xcodeproj"
+            ),
             pbxproj: pbxproj
         )
         try files.forEach {
@@ -508,7 +566,9 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        let pbxBuildPhase: PBXBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXSourcesBuildPhase)
+        let pbxBuildPhase: PBXBuildPhase = try XCTUnwrap(
+            nativeTarget.buildPhases.first as? PBXSourcesBuildPhase
+        )
         let pbxBuildFile: PBXBuildFile = try XCTUnwrap(pbxBuildPhase.files?.first)
         XCTAssertEqual(pbxBuildFile.file, versionGroup)
         XCTAssertEqual(versionGroup.currentVersion, model)
@@ -551,8 +611,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
     func test_generateResourcesBuildPhase_whenContainsResourcesTags() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
-        let resources: [ResourceFileElement] = [.file(path: "/file.type", tags: ["fileTag"]),
-                                                .folderReference(path: "/folder", tags: ["folderTag"])]
+        let resources: [ResourceFileElement] = [
+            .file(path: "/file.type", tags: ["fileTag"]),
+            .folderReference(path: "/folder", tags: ["folderTag"]),
+        ]
         let target = Target.test(resources: resources)
         let fileElements = ProjectFileElements()
         let pbxproj = PBXProj()
@@ -584,12 +646,19 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         XCTAssertNotNil(pbxBuildPhase)
         XCTAssertTrue(pbxBuildPhase is PBXResourcesBuildPhase)
 
-        let resourceBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXResourcesBuildPhase)
-        let allFileSettings = resourceBuildPhase.files?.map { $0.settings as? [String: AnyHashable] }
-        XCTAssertEqual(allFileSettings, [
-            ["ASSET_TAGS": ["fileTag"]],
-            ["ASSET_TAGS": ["folderTag"]],
-        ])
+        let resourceBuildPhase = try XCTUnwrap(
+            nativeTarget.buildPhases.first as? PBXResourcesBuildPhase
+        )
+        let allFileSettings = resourceBuildPhase.files?.map {
+            $0.settings as? [String: AnyHashable]
+        }
+        XCTAssertEqual(
+            allFileSettings,
+            [
+                ["ASSET_TAGS": ["fileTag"]],
+                ["ASSET_TAGS": ["folderTag"]],
+            ]
+        )
     }
 
     func test_generateResourceBundle() throws {
@@ -604,16 +673,20 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let fileElements = createProductFileElements(for: [bundle1, bundle2])
 
         let project = Project.test(path: path)
-        let targets: [AbsolutePath: [String: Target]] = [project.path: [
-            bundle1.name: bundle1,
-            bundle2.name: bundle2,
-            app.name: app,
-        ]]
+        let targets: [AbsolutePath: [String: Target]] = [
+            project.path: [
+                bundle1.name: bundle1,
+                bundle2.name: bundle2,
+                app.name: app,
+            ]
+        ]
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: bundle1.name, path: project.path): Set(),
             .target(name: bundle2.name, path: project.path): Set(),
-            .target(name: app.name, path: project.path): Set([.target(name: bundle1.name, path: project.path),
-                                                              .target(name: bundle2.name, path: project.path)]),
+            .target(name: app.name, path: project.path): Set([
+                .target(name: bundle1.name, path: project.path),
+                .target(name: bundle2.name, path: project.path),
+            ]),
         ]
         let graph = Graph.test(
             path: path,
@@ -635,10 +708,13 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
         // Then
         let resourcePhase = try nativeTarget.resourcesBuildPhase()
-        XCTAssertEqual(resourcePhase?.files?.compactMap { $0.file?.nameOrPath }, [
-            "Bundle1",
-            "Bundle2",
-        ])
+        XCTAssertEqual(
+            resourcePhase?.files?.compactMap { $0.file?.nameOrPath },
+            [
+                "Bundle1",
+                "Bundle2",
+            ]
+        )
     }
 
     func test_generateResourceBundle_fromProjectDependency() throws {
@@ -660,7 +736,9 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         ]
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: bundle.name, path: projectA.path): Set(),
-            .target(name: app.name, path: projectB.path): Set([.target(name: bundle.name, path: projectA.path)]),
+            .target(name: app.name, path: projectB.path): Set([
+                .target(name: bundle.name, path: projectA.path)
+            ]),
         ]
         let graph = Graph.test(
             path: path,
@@ -682,9 +760,12 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
         // Then
         let resourcePhase = try nativeTarget.resourcesBuildPhase()
-        XCTAssertEqual(resourcePhase?.files?.compactMap { $0.file?.nameOrPath }, [
-            "Bundle1",
-        ])
+        XCTAssertEqual(
+            resourcePhase?.files?.compactMap { $0.file?.nameOrPath },
+            [
+                "Bundle1"
+            ]
+        )
     }
 
     func test_generateCopyFilesBuildPhases() throws {
@@ -696,7 +777,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         ]
 
         let templates: [FileElement] = [
-            .file(path: "/path/sharedSupport/tuist.rtfd"),
+            .file(path: "/path/sharedSupport/tuist.rtfd")
         ]
 
         let pbxproj = PBXProj()
@@ -704,8 +785,18 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let fileElements = createFileElements(for: (fonts + templates).map(\.path))
 
         let target = Target.test(copyFiles: [
-            CopyFilesAction(name: "Copy Fonts", destination: .resources, subpath: "Fonts", files: fonts),
-            CopyFilesAction(name: "Copy Templates", destination: .sharedSupport, subpath: "Templates", files: templates),
+            CopyFilesAction(
+                name: "Copy Fonts",
+                destination: .resources,
+                subpath: "Fonts",
+                files: fonts
+            ),
+            CopyFilesAction(
+                name: "Copy Templates",
+                destination: .sharedSupport,
+                subpath: "Templates",
+                files: templates
+            ),
         ])
 
         // When
@@ -717,17 +808,24 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
 
         // Then
-        let firstBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
+        let firstBuildPhase = try XCTUnwrap(
+            nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase
+        )
         XCTAssertEqual(firstBuildPhase.name, "Copy Fonts")
         XCTAssertEqual(firstBuildPhase.dstSubfolderSpec, .resources)
         XCTAssertEqual(firstBuildPhase.dstPath, "Fonts")
-        XCTAssertEqual(firstBuildPhase.files?.compactMap { $0.file?.nameOrPath }, [
-            "font1.ttf",
-            "font2.ttf",
-            "font3.ttf",
-        ])
+        XCTAssertEqual(
+            firstBuildPhase.files?.compactMap { $0.file?.nameOrPath },
+            [
+                "font1.ttf",
+                "font2.ttf",
+                "font3.ttf",
+            ]
+        )
 
-        let secondBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.last as? PBXCopyFilesBuildPhase)
+        let secondBuildPhase = try XCTUnwrap(
+            nativeTarget.buildPhases.last as? PBXCopyFilesBuildPhase
+        )
         XCTAssertEqual(secondBuildPhase.name, "Copy Templates")
         XCTAssertEqual(secondBuildPhase.dstSubfolderSpec, .sharedSupport)
         XCTAssertEqual(secondBuildPhase.dstPath, "Templates")
@@ -739,7 +837,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let path = try temporaryPath()
         let projectA = Project.test(path: "/path/a")
         let appExtension = Target.test(name: "AppExtension", product: .appExtension)
-        let stickerPackExtension = Target.test(name: "StickerPackExtension", product: .stickerPackExtension)
+        let stickerPackExtension = Target.test(
+            name: "StickerPackExtension",
+            product: .stickerPackExtension
+        )
         let app = Target.test(name: "App", product: .app)
         let pbxproj = PBXProj()
         let nativeTarget = PBXNativeTarget(name: "Test")
@@ -750,7 +851,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
                 appExtension.name: appExtension,
                 stickerPackExtension.name: stickerPackExtension,
                 app.name: app,
-            ],
+            ]
         ]
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: appExtension.name, path: projectA.path): Set(),
@@ -782,18 +883,24 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let pbxBuildPhase: PBXBuildPhase? = nativeTarget.buildPhases.first
         XCTAssertNotNil(pbxBuildPhase)
         XCTAssertTrue(pbxBuildPhase is PBXCopyFilesBuildPhase)
-        XCTAssertEqual(pbxBuildPhase?.files?.compactMap { $0.file?.nameOrPath }, [
-            "AppExtension",
-            "StickerPackExtension",
-        ])
+        XCTAssertEqual(
+            pbxBuildPhase?.files?.compactMap { $0.file?.nameOrPath },
+            [
+                "AppExtension",
+                "StickerPackExtension",
+            ]
+        )
         XCTAssertEqual(
             pbxBuildPhase?.files?.compactMap { $0.settings as? [String: [String]] },
-            [["ATTRIBUTES": ["RemoveHeadersOnCopy"]],
-             ["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
+            [
+                ["ATTRIBUTES": ["RemoveHeadersOnCopy"]],
+                ["ATTRIBUTES": ["RemoveHeadersOnCopy"]],
+            ]
         )
     }
 
-    func test_generateAppExtensionsBuildPhase_noBuildPhase_when_appDoesntHaveAppExtensions() throws {
+    func test_generateAppExtensionsBuildPhase_noBuildPhase_when_appDoesntHaveAppExtensions() throws
+    {
         // Given
         let app = Target.test(name: "App", product: .app)
         let project = Project.test()
@@ -802,10 +909,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let fileElements = ProjectFileElements()
 
         let targets: [AbsolutePath: [String: Target]] = [
-            project.path: [app.name: app],
+            project.path: [app.name: app]
         ]
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: app.name, path: project.path): Set(),
+            .target(name: app.name, path: project.path): Set()
         ]
         let graph = Graph.test(
             path: project.path,
@@ -839,11 +946,13 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let fileElements = createProductFileElements(for: [app, watchApp])
 
         let targets: [AbsolutePath: [String: Target]] = [
-            project.path: [app.name: app, watchApp.name: watchApp],
+            project.path: [app.name: app, watchApp.name: watchApp]
         ]
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: watchApp.name, path: project.path): Set(),
-            .target(name: app.name, path: project.path): Set([.target(name: watchApp.name, path: project.path)]),
+            .target(name: app.name, path: project.path): Set([
+                .target(name: watchApp.name, path: project.path)
+            ]),
         ]
         let graph = Graph.test(
             path: project.path,
@@ -864,9 +973,12 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         )
         // Then
         let pbxBuildPhase = try XCTUnwrap(nativeTarget.buildPhases.first as? PBXCopyFilesBuildPhase)
-        XCTAssertEqual(pbxBuildPhase.files?.compactMap { $0.file?.nameOrPath }, [
-            "WatchApp",
-        ])
+        XCTAssertEqual(
+            pbxBuildPhase.files?.compactMap { $0.file?.nameOrPath },
+            [
+                "WatchApp"
+            ]
+        )
         XCTAssertEqual(
             pbxBuildPhase.files?.compactMap { $0.settings as? [String: [String]] },
             [["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
@@ -901,7 +1013,12 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
                 ),
             ]
         )
-        let project = Project.test(path: path, sourceRootPath: path, xcodeProjPath: path.appending(component: "Project.xcodeproj"), targets: [target])
+        let project = Project.test(
+            path: path,
+            sourceRootPath: path,
+            xcodeProjPath: path.appending(component: "Project.xcodeproj"),
+            targets: [target]
+        )
         let groups = ProjectGroups.generate(
             project: project,
             pbxproj: pbxproj
@@ -963,16 +1080,21 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
                     showEnvVarsInLog: false,
                     basedOnDependencyAnalysis: false,
                     runForInstallBuildsOnly: true,
-                    shellPath: "/bin/zsh" // testing custom shell
+                    shellPath: "/bin/zsh"  // testing custom shell
                 ),
                 TargetScript(
                     name: "pre",
                     order: .pre,
-                    script: .scriptPath(path.appending(component: "script.sh"), args: ["arg"]) // leaving default shell
+                    script: .scriptPath(path.appending(component: "script.sh"), args: ["arg"])  // leaving default shell
                 ),
             ]
         )
-        let project = Project.test(path: path, sourceRootPath: path, xcodeProjPath: path.appending(component: "Project.xcodeproj"), targets: [target])
+        let project = Project.test(
+            path: path,
+            sourceRootPath: path,
+            xcodeProjPath: path.appending(component: "Project.xcodeproj"),
+            targets: [target]
+        )
         let groups = ProjectGroups.generate(
             project: project,
             pbxproj: pbxproj
@@ -1014,11 +1136,13 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let fileElements = createProductFileElements(for: [app, appClip])
 
         let targets: [AbsolutePath: [String: Target]] = [
-            project.path: [app.name: app, appClip.name: appClip],
+            project.path: [app.name: app, appClip.name: appClip]
         ]
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: appClip.name, path: project.path): Set(),
-            .target(name: app.name, path: project.path): Set([.target(name: appClip.name, path: project.path)]),
+            .target(name: app.name, path: project.path): Set([
+                .target(name: appClip.name, path: project.path)
+            ]),
         ]
         let graph = Graph.test(
             path: project.path,
@@ -1054,11 +1178,15 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let coreDataModel = CoreDataModel(
             path: path.appending(component: "Model.xcdatamodeld"),
             versions: [
-                path.appending(components: "Model.xcdatamodeld", "1.xcdatamodel"),
+                path.appending(components: "Model.xcdatamodeld", "1.xcdatamodel")
             ],
             currentVersion: "1"
         )
-        let target = Target.test(platform: .iOS, product: .staticFramework, coreDataModels: [coreDataModel])
+        let target = Target.test(
+            platform: .iOS,
+            product: .staticFramework,
+            coreDataModels: [coreDataModel]
+        )
         let fileElements = createFileElements(for: [coreDataModel])
         let graph = Graph.test(path: path)
         let graphTraverser = GraphTraverser(graph: graph)
@@ -1077,16 +1205,22 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
         // Then
         let sourcesBuildPhase = pbxTarget.buildPhases.filter { $0 is PBXSourcesBuildPhase }.first
-        let resourcesBuildPhase = pbxTarget.buildPhases.filter { $0 is PBXResourcesBuildPhase }.first
-        let sourcesFiles = sourcesBuildPhase?.files?.compactMap {
-            $0.file?.nameOrPath
-        } ?? []
-        let resourcesFiles = resourcesBuildPhase?.files?.compactMap {
-            $0.file?.nameOrPath
-        } ?? []
-        XCTAssertEqual(sourcesFiles, [
-            "Model.xcdatamodeld",
-        ])
+        let resourcesBuildPhase = pbxTarget.buildPhases.filter { $0 is PBXResourcesBuildPhase }
+            .first
+        let sourcesFiles =
+            sourcesBuildPhase?.files?.compactMap {
+                $0.file?.nameOrPath
+            } ?? []
+        let resourcesFiles =
+            resourcesBuildPhase?.files?.compactMap {
+                $0.file?.nameOrPath
+            } ?? []
+        XCTAssertEqual(
+            sourcesFiles,
+            [
+                "Model.xcdatamodeld"
+            ]
+        )
         XCTAssertTrue(resourcesFiles.isEmpty)
     }
 
@@ -1096,7 +1230,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let coreDataModel = CoreDataModel(
             path: path.appending(component: "Model.xcdatamodeld"),
             versions: [
-                path.appending(components: "Model.xcdatamodeld", "1.xcdatamodel"),
+                path.appending(components: "Model.xcdatamodeld", "1.xcdatamodel")
             ],
             currentVersion: "1"
         )
@@ -1119,43 +1253,57 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
         // Then
         let sourcesBuildPhase = pbxTarget.buildPhases.filter { $0 is PBXSourcesBuildPhase }.first
-        let resourcesBuildPhase = pbxTarget.buildPhases.filter { $0 is PBXResourcesBuildPhase }.first
-        let sourcesFiles = sourcesBuildPhase?.files?.compactMap {
-            $0.file?.nameOrPath
-        } ?? []
-        let resourcesFiles = resourcesBuildPhase?.files?.compactMap {
-            $0.file?.nameOrPath
-        } ?? []
+        let resourcesBuildPhase = pbxTarget.buildPhases.filter { $0 is PBXResourcesBuildPhase }
+            .first
+        let sourcesFiles =
+            sourcesBuildPhase?.files?.compactMap {
+                $0.file?.nameOrPath
+            } ?? []
+        let resourcesFiles =
+            resourcesBuildPhase?.files?.compactMap {
+                $0.file?.nameOrPath
+            } ?? []
 
         XCTAssertTrue(sourcesFiles.isEmpty)
-        XCTAssertEqual(resourcesFiles, [
-            "Model.xcdatamodeld",
-        ])
+        XCTAssertEqual(
+            resourcesFiles,
+            [
+                "Model.xcdatamodeld"
+            ]
+        )
     }
 
     // MARK: - Helpers
 
     private func createProductFileElements(for targets: [Target]) -> ProjectFileElements {
         let fileElements = ProjectFileElements()
-        fileElements.products = Dictionary(uniqueKeysWithValues: targets.map {
-            ($0.name, PBXFileReference(name: $0.name))
-        })
+        fileElements.products = Dictionary(
+            uniqueKeysWithValues: targets.map {
+                ($0.name, PBXFileReference(name: $0.name))
+            }
+        )
         return fileElements
     }
 
-    private func createLocalizedResourceFileElements(for files: [AbsolutePath]) -> ProjectFileElements {
+    private func createLocalizedResourceFileElements(
+        for files: [AbsolutePath]
+    ) -> ProjectFileElements {
         let fileElements = ProjectFileElements()
-        fileElements.elements = Dictionary(uniqueKeysWithValues: files.map {
-            ($0, PBXVariantGroup())
-        })
+        fileElements.elements = Dictionary(
+            uniqueKeysWithValues: files.map {
+                ($0, PBXVariantGroup())
+            }
+        )
         return fileElements
     }
 
     private func createFileElements(for files: [AbsolutePath]) -> ProjectFileElements {
         let fileElements = ProjectFileElements()
-        fileElements.elements = Dictionary(uniqueKeysWithValues: files.map {
-            ($0, PBXFileReference(sourceTree: .group, name: $0.basename))
-        })
+        fileElements.elements = Dictionary(
+            uniqueKeysWithValues: files.map {
+                ($0, PBXFileReference(sourceTree: .group, name: $0.basename))
+            }
+        )
         return fileElements
     }
 

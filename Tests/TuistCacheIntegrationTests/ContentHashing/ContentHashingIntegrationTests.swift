@@ -29,19 +29,71 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
         super.setUp()
         do {
             let temporaryDirectoryPath = try temporaryPath()
-            source1 = try createTemporarySourceFile(on: temporaryDirectoryPath, name: "1", content: "1")
-            source2 = try createTemporarySourceFile(on: temporaryDirectoryPath, name: "2", content: "2")
-            source3 = try createTemporarySourceFile(on: temporaryDirectoryPath, name: "3", content: "3")
-            source4 = try createTemporarySourceFile(on: temporaryDirectoryPath, name: "4", content: "4")
-            resourceFile1 = try createTemporaryResourceFile(on: temporaryDirectoryPath, name: "r1", content: "r1")
-            resourceFile2 = try createTemporaryResourceFile(on: temporaryDirectoryPath, name: "r2", content: "r2")
-            resourceFolderReference1 = try createTemporaryResourceFolderReference(on: temporaryDirectoryPath, name: "rf1", content: "rf1")
-            resourceFolderReference2 = try createTemporaryResourceFolderReference(on: temporaryDirectoryPath, name: "rf2", content: "rf2")
-            _ = try createTemporarySourceFile(on: temporaryDirectoryPath, name: "CoreDataModel1", content: "cd1")
-            _ = try createTemporarySourceFile(on: temporaryDirectoryPath, name: "CoreDataModel2", content: "cd2")
-            _ = try createTemporarySourceFile(on: temporaryDirectoryPath, name: "Info.plist", content: "plist")
-            coreDataModel1 = CoreDataModel(path: temporaryDirectoryPath.appending(component: "CoreDataModel1"), versions: [], currentVersion: "1")
-            coreDataModel2 = CoreDataModel(path: temporaryDirectoryPath.appending(component: "CoreDataModel2"), versions: [], currentVersion: "2")
+            source1 = try createTemporarySourceFile(
+                on: temporaryDirectoryPath,
+                name: "1",
+                content: "1"
+            )
+            source2 = try createTemporarySourceFile(
+                on: temporaryDirectoryPath,
+                name: "2",
+                content: "2"
+            )
+            source3 = try createTemporarySourceFile(
+                on: temporaryDirectoryPath,
+                name: "3",
+                content: "3"
+            )
+            source4 = try createTemporarySourceFile(
+                on: temporaryDirectoryPath,
+                name: "4",
+                content: "4"
+            )
+            resourceFile1 = try createTemporaryResourceFile(
+                on: temporaryDirectoryPath,
+                name: "r1",
+                content: "r1"
+            )
+            resourceFile2 = try createTemporaryResourceFile(
+                on: temporaryDirectoryPath,
+                name: "r2",
+                content: "r2"
+            )
+            resourceFolderReference1 = try createTemporaryResourceFolderReference(
+                on: temporaryDirectoryPath,
+                name: "rf1",
+                content: "rf1"
+            )
+            resourceFolderReference2 = try createTemporaryResourceFolderReference(
+                on: temporaryDirectoryPath,
+                name: "rf2",
+                content: "rf2"
+            )
+            _ = try createTemporarySourceFile(
+                on: temporaryDirectoryPath,
+                name: "CoreDataModel1",
+                content: "cd1"
+            )
+            _ = try createTemporarySourceFile(
+                on: temporaryDirectoryPath,
+                name: "CoreDataModel2",
+                content: "cd2"
+            )
+            _ = try createTemporarySourceFile(
+                on: temporaryDirectoryPath,
+                name: "Info.plist",
+                content: "plist"
+            )
+            coreDataModel1 = CoreDataModel(
+                path: temporaryDirectoryPath.appending(component: "CoreDataModel1"),
+                versions: [],
+                currentVersion: "1"
+            )
+            coreDataModel2 = CoreDataModel(
+                path: temporaryDirectoryPath.appending(component: "CoreDataModel2"),
+                versions: [],
+                currentVersion: "2"
+            )
         } catch {
             XCTFail("Error while creating files for stub project")
         }
@@ -79,16 +131,21 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
             ],
             targets: [
                 project1.path: [
-                    framework1.target.name: framework1.target,
+                    framework1.target.name: framework1.target
                 ],
                 project2.path: [
-                    framework2.target.name: framework2.target,
+                    framework2.target.name: framework2.target
                 ],
             ]
         )
 
         // When
-        let contentHash = try subject.contentHashes(for: graph, cacheProfile: .test(), cacheOutputType: .framework, excludedTargets: [])
+        let contentHash = try subject.contentHashes(
+            for: graph,
+            cacheProfile: .test(),
+            cacheOutputType: .framework,
+            excludedTargets: []
+        )
 
         // Then
         XCTAssertEqual(contentHash[framework1], contentHash[framework2])
@@ -107,16 +164,21 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
             ],
             targets: [
                 project1.path: [
-                    framework1.target.name: framework1.target,
+                    framework1.target.name: framework1.target
                 ],
                 project2.path: [
-                    framework2.target.name: framework2.target,
+                    framework2.target.name: framework2.target
                 ],
             ]
         )
 
         // When
-        let contentHash = try subject.contentHashes(for: graph, cacheProfile: .test(), cacheOutputType: .framework, excludedTargets: [])
+        let contentHash = try subject.contentHashes(
+            for: graph,
+            cacheProfile: .test(),
+            cacheOutputType: .framework,
+            excludedTargets: []
+        )
 
         // Then
         XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
@@ -135,17 +197,22 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
             ],
             targets: [
                 project1.path: [
-                    framework1.target.name: framework1.target,
+                    framework1.target.name: framework1.target
                 ],
                 project2.path: [
-                    framework2.target.name: framework2.target,
+                    framework2.target.name: framework2.target
                 ],
             ]
         )
         let cacheProfile = TuistGraph.Cache.Profile(name: "Simulator", configuration: "Debug")
 
         // When
-        let contentHash = try subject.contentHashes(for: graph, cacheProfile: cacheProfile, cacheOutputType: .framework, excludedTargets: [])
+        let contentHash = try subject.contentHashes(
+            for: graph,
+            cacheProfile: cacheProfile,
+            cacheOutputType: .framework,
+            excludedTargets: []
+        )
 
         // Then
         XCTAssertEqual(contentHash[framework1], "d31f7192381862aa6b74c7bbf2f097ce")
@@ -165,17 +232,27 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
             ],
             targets: [
                 project1.path: [
-                    framework1.target.name: framework1.target,
+                    framework1.target.name: framework1.target
                 ],
                 project2.path: [
-                    framework2.target.name: framework2.target,
+                    framework2.target.name: framework2.target
                 ],
             ]
         )
 
         // When
-        let contentFrameworkHash = try subject.contentHashes(for: graph, cacheProfile: .test(), cacheOutputType: .framework, excludedTargets: [])
-        let contentXCFrameworkHash = try subject.contentHashes(for: graph, cacheProfile: .test(), cacheOutputType: .xcframework, excludedTargets: [])
+        let contentFrameworkHash = try subject.contentHashes(
+            for: graph,
+            cacheProfile: .test(),
+            cacheOutputType: .framework,
+            excludedTargets: []
+        )
+        let contentXCFrameworkHash = try subject.contentHashes(
+            for: graph,
+            cacheProfile: .test(),
+            cacheOutputType: .xcframework,
+            excludedTargets: []
+        )
 
         // Then
         XCTAssertNotEqual(contentFrameworkHash[framework1], contentXCFrameworkHash[framework1])
@@ -197,16 +274,21 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
             ],
             targets: [
                 project1.path: [
-                    framework1.target.name: framework1.target,
+                    framework1.target.name: framework1.target
                 ],
                 project2.path: [
-                    framework2.target.name: framework2.target,
+                    framework2.target.name: framework2.target
                 ],
             ]
         )
 
         // When
-        let contentHash = try subject.contentHashes(for: graph, cacheProfile: .test(), cacheOutputType: .framework, excludedTargets: [])
+        let contentHash = try subject.contentHashes(
+            for: graph,
+            cacheProfile: .test(),
+            cacheOutputType: .framework,
+            excludedTargets: []
+        )
 
         // Then
         XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
@@ -225,16 +307,21 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
             ],
             targets: [
                 project1.path: [
-                    framework1.target.name: framework1.target,
+                    framework1.target.name: framework1.target
                 ],
                 project2.path: [
-                    framework2.target.name: framework2.target,
+                    framework2.target.name: framework2.target
                 ],
             ]
         )
 
         // When
-        let contentHash = try subject.contentHashes(for: graph, cacheProfile: .test(), cacheOutputType: .framework, excludedTargets: [])
+        let contentHash = try subject.contentHashes(
+            for: graph,
+            cacheProfile: .test(),
+            cacheOutputType: .framework,
+            excludedTargets: []
+        )
 
         // Then
         XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
@@ -254,16 +341,21 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
             ],
             targets: [
                 project1.path: [
-                    framework1.target.name: framework1.target,
+                    framework1.target.name: framework1.target
                 ],
                 project2.path: [
-                    framework2.target.name: framework2.target,
+                    framework2.target.name: framework2.target
                 ],
             ]
         )
 
         // When
-        let contentHash = try subject.contentHashes(for: graph, cacheProfile: .test(), cacheOutputType: .framework, excludedTargets: [])
+        let contentHash = try subject.contentHashes(
+            for: graph,
+            cacheProfile: .test(),
+            cacheOutputType: .framework,
+            excludedTargets: []
+        )
 
         // Then
         XCTAssertEqual(contentHash[framework1], contentHash[framework2])
@@ -284,16 +376,21 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
             ],
             targets: [
                 project1.path: [
-                    framework1.target.name: framework1.target,
+                    framework1.target.name: framework1.target
                 ],
                 project2.path: [
-                    framework2.target.name: framework2.target,
+                    framework2.target.name: framework2.target
                 ],
             ]
         )
 
         // When
-        let contentHash = try subject.contentHashes(for: graph, cacheProfile: .test(), cacheOutputType: .framework, excludedTargets: [])
+        let contentHash = try subject.contentHashes(
+            for: graph,
+            cacheProfile: .test(),
+            cacheOutputType: .framework,
+            excludedTargets: []
+        )
 
         // Then
         XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
@@ -312,16 +409,21 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
             ],
             targets: [
                 project1.path: [
-                    framework1.target.name: framework1.target,
+                    framework1.target.name: framework1.target
                 ],
                 project2.path: [
-                    framework2.target.name: framework2.target,
+                    framework2.target.name: framework2.target
                 ],
             ]
         )
 
         // When
-        let contentHash = try subject.contentHashes(for: graph, cacheProfile: .test(), cacheOutputType: .framework, excludedTargets: [])
+        let contentHash = try subject.contentHashes(
+            for: graph,
+            cacheProfile: .test(),
+            cacheOutputType: .framework,
+            excludedTargets: []
+        )
 
         // Then
         XCTAssertEqual(contentHash[framework1], contentHash[framework2])
@@ -344,16 +446,21 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
             ],
             targets: [
                 project1.path: [
-                    framework1.target.name: framework1.target,
+                    framework1.target.name: framework1.target
                 ],
                 project2.path: [
-                    framework2.target.name: framework2.target,
+                    framework2.target.name: framework2.target
                 ],
             ]
         )
 
         // When
-        let contentHash = try subject.contentHashes(for: graph, cacheProfile: .test(), cacheOutputType: .framework, excludedTargets: [])
+        let contentHash = try subject.contentHashes(
+            for: graph,
+            cacheProfile: .test(),
+            cacheOutputType: .framework,
+            excludedTargets: []
+        )
 
         XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
     }
@@ -373,43 +480,54 @@ final class ContentHashingIntegrationTests: TuistUnitTestCase {
             ],
             targets: [
                 project1.path: [
-                    framework1.target.name: framework1.target,
+                    framework1.target.name: framework1.target
                 ],
                 project2.path: [
-                    framework2.target.name: framework2.target,
+                    framework2.target.name: framework2.target
                 ],
             ]
         )
 
         // When
-        let contentHash = try subject.contentHashes(for: graph, cacheProfile: .test(), cacheOutputType: .framework, excludedTargets: [])
+        let contentHash = try subject.contentHashes(
+            for: graph,
+            cacheProfile: .test(),
+            cacheOutputType: .framework,
+            excludedTargets: []
+        )
 
         XCTAssertNotEqual(contentHash[framework1], contentHash[framework2])
     }
 
     // MARK: - Private helpers
 
-    private func createTemporarySourceFile(on temporaryDirectoryPath: AbsolutePath, name: String, content: String) throws -> SourceFile {
+    private func createTemporarySourceFile(
+        on temporaryDirectoryPath: AbsolutePath,
+        name: String,
+        content: String
+    ) throws -> SourceFile {
         let filePath = temporaryDirectoryPath.appending(component: name)
         try FileHandler.shared.touch(filePath)
         try FileHandler.shared.write(content, path: filePath, atomically: true)
         return SourceFile(path: filePath, compilerFlags: nil)
     }
 
-    private func createTemporaryResourceFile(on temporaryDirectoryPath: AbsolutePath,
-                                             name: String,
-                                             content: String) throws -> ResourceFileElement
-    {
+    private func createTemporaryResourceFile(
+        on temporaryDirectoryPath: AbsolutePath,
+        name: String,
+        content: String
+    ) throws -> ResourceFileElement {
         let filePath = temporaryDirectoryPath.appending(component: name)
         try FileHandler.shared.touch(filePath)
         try FileHandler.shared.write(content, path: filePath, atomically: true)
         return ResourceFileElement.file(path: filePath)
     }
 
-    private func createTemporaryResourceFolderReference(on temporaryDirectoryPath: AbsolutePath,
-                                                        name: String,
-                                                        content: String) throws -> ResourceFileElement
-    {
+    private func createTemporaryResourceFolderReference(
+        on temporaryDirectoryPath: AbsolutePath,
+        name: String,
+        content: String
+    ) throws -> ResourceFileElement {
         let filePath = temporaryDirectoryPath.appending(component: name)
         try FileHandler.shared.touch(filePath)
         try FileHandler.shared.write(content, path: filePath, atomically: true)

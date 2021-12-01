@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import TuistGraph
 
 final class ProjectOptionTests: XCTestCase {

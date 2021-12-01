@@ -1,8 +1,7 @@
+import ExampleTuistPlugin
+import LocalPlugin
 import ProjectDescription
 import ProjectDescriptionHelpers
-
-import LocalPlugin
-import ExampleTuistPlugin
 
 // Test plugins are loaded
 let localHelper = LocalHelper(name: "LocalPlugin")

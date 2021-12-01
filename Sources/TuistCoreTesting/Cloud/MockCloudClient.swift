@@ -52,7 +52,9 @@ public final class MockCloudClient: CloudClienting {
 
     // MARK: Public Interface
 
-    public func request<T, Err: Error>(_ resource: HTTPResource<T, Err>) -> Single<(object: T, response: HTTPURLResponse)> {
+    public func request<T, Err: Error>(
+        _ resource: HTTPResource<T, Err>
+    ) -> Single<(object: T, response: HTTPURLResponse)> {
         invokedRequest = true
         invokedRequestCount += 1
         invokedRequestParameterList.append(resource)
@@ -63,7 +65,11 @@ public final class MockCloudClient: CloudClienting {
             return Single.error(error)
         } else {
             let objectCandidate = stubbedObjectPerURLRequest[urlRequest] ?? stubbedObject
-            guard let object = objectCandidate as? T else { fatalError("This function input parameter type should be the same as the one provided in this object's initializer.\nReceived type: \(String(describing: objectCandidate.self))\nExpected type: \(T.self)") }
+            guard let object = objectCandidate as? T else {
+                fatalError(
+                    "This function input parameter type should be the same as the one provided in this object's initializer.\nReceived type: \(String(describing: objectCandidate.self))\nExpected type: \(T.self)"
+                )
+            }
             let responseCandidate = stubbedResponsePerURLRequest[urlRequest] ?? stubbedResponse
             return Single.just((object, responseCandidate!))
         }

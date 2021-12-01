@@ -6,6 +6,7 @@ import TuistGraph
 import TuistGraphTesting
 import TuistSupport
 import XcodeProj
+
 @testable import TuistGenerator
 
 final class MockProjectDescriptorGenerator: ProjectDescriptorGenerating {

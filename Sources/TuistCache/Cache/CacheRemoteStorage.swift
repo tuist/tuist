@@ -17,7 +17,8 @@ enum CacheRemoteStorageError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .artifactNotFound(hash):
-            return "The downloaded artifact with hash '\(hash)' has an incorrect format and doesn't contain xcframework, framework or bundle."
+            return
+                "The downloaded artifact with hash '\(hash)' has an incorrect format and doesn't contain xcframework, framework or bundle."
         }
     }
 }
@@ -34,7 +35,11 @@ public final class CacheRemoteStorage: CacheStoring {
 
     // MARK: - Init
 
-    public convenience init(cloudConfig: Cloud, cloudClient: CloudClienting, cacheDirectoriesProvider: CacheDirectoriesProviding) {
+    public convenience init(
+        cloudConfig: Cloud,
+        cloudClient: CloudClienting,
+        cacheDirectoriesProvider: CacheDirectoriesProviding
+    ) {
         self.init(
             cloudClient: cloudClient,
             fileArchiverFactory: FileArchivingFactory(),
@@ -44,12 +49,13 @@ public final class CacheRemoteStorage: CacheStoring {
         )
     }
 
-    init(cloudClient: CloudClienting,
-         fileArchiverFactory: FileArchivingFactorying,
-         fileClient: FileClienting,
-         cloudCacheResourceFactory: CloudCacheResourceFactorying,
-         cacheDirectoriesProvider: CacheDirectoriesProviding)
-    {
+    init(
+        cloudClient: CloudClienting,
+        fileArchiverFactory: FileArchivingFactorying,
+        fileClient: FileClienting,
+        cloudCacheResourceFactory: CloudCacheResourceFactorying,
+        cacheDirectoriesProvider: CacheDirectoriesProviding
+    ) {
         self.cloudClient = cloudClient
         self.fileArchiverFactory = fileArchiverFactory
         self.fileClient = fileClient
@@ -61,14 +67,16 @@ public final class CacheRemoteStorage: CacheStoring {
 
     public func exists(name: String, hash: String) -> Single<Bool> {
         do {
-            let successRange = 200 ..< 300
+            let successRange = 200..<300
             let resource = try cloudCacheResourceFactory.existsResource(name: name, hash: hash)
             return cloudClient.request(resource)
                 .flatMap { _, response in
                     .just(successRange.contains(response.statusCode))
                 }
                 .catchError { error in
-                    if case let HTTPRequestDispatcherError.serverSideError(_, response) = error, response.statusCode == 404 {
+                    if case let HTTPRequestDispatcherError.serverSideError(_, response) = error,
+                        response.statusCode == 404
+                    {
                         return .just(false)
                     } else {
                         throw error
@@ -82,16 +90,22 @@ public final class CacheRemoteStorage: CacheStoring {
     public func fetch(name: String, hash: String) -> Single<AbsolutePath> {
         do {
             let resource = try cloudCacheResourceFactory.fetchResource(name: name, hash: hash)
-            return cloudClient
+            return
+                cloudClient
                 .request(resource)
                 .map(\.object.data.url)
                 .flatMap { (url: URL) in
                     self.fileClient.download(url: url)
-                        .do(onSubscribed: { logger.info("Downloading cache artifact with hash \(hash).") })
+                        .do(onSubscribed: {
+                            logger.info("Downloading cache artifact with hash \(hash).")
+                        })
                 }
                 .flatMap { (filePath: AbsolutePath) in
                     do {
-                        let archiveContentPath = try self.unzip(downloadedArchive: filePath, hash: hash)
+                        let archiveContentPath = try self.unzip(
+                            downloadedArchive: filePath,
+                            hash: hash
+                        )
                         return Single.just(archiveContentPath)
                     } catch {
                         return Single.error(error)
@@ -113,7 +127,8 @@ public final class CacheRemoteStorage: CacheStoring {
                 contentMD5: md5
             )
 
-            return cloudClient
+            return
+                cloudClient
                 .request(storeResource)
                 .map { (responseTuple) -> URL in responseTuple.object.data.url }
                 .flatMapCompletable { (url: URL) in
@@ -141,7 +156,8 @@ public final class CacheRemoteStorage: CacheStoring {
                 contentMD5: contentMD5
             )
 
-            return cloudClient
+            return
+                cloudClient
                 .request(verifyUploadResource).asCompletable()
         } catch {
             return Completable.error(error)
@@ -161,7 +177,9 @@ public final class CacheRemoteStorage: CacheStoring {
 
     private func unzip(downloadedArchive: AbsolutePath, hash: String) throws -> AbsolutePath {
         let zipPath = try FileHandler.shared.changeExtension(path: downloadedArchive, to: "zip")
-        let archiveDestination = cacheDirectoriesProvider.cacheDirectory(for: .builds).appending(component: hash)
+        let archiveDestination = cacheDirectoriesProvider.cacheDirectory(for: .builds).appending(
+            component: hash
+        )
         let fileUnarchiver = try fileArchiverFactory.makeFileUnarchiver(for: zipPath)
         let unarchivedDirectory = try fileUnarchiver.unzip()
         defer {

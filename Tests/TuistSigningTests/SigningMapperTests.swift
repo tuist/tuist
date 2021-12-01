@@ -3,6 +3,7 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 import XCTest
+
 @testable import TuistCoreTesting
 @testable import TuistSigning
 @testable import TuistSigningTesting
@@ -55,12 +56,12 @@ final class SigningMapperTests: TuistUnitTestCase {
         signingMatcher.matchStub = { _ in
             (
                 certificates: [
-                    fingerprint: certificate,
+                    fingerprint: certificate
                 ],
                 provisioningProfiles: [
                     targetName: [
-                        configuration: provisioningProfile,
-                    ],
+                        configuration: provisioningProfile
+                    ]
                 ]
             )
         }
@@ -74,8 +75,8 @@ final class SigningMapperTests: TuistUnitTestCase {
                         name: configuration,
                         variant: .debug
                     ): Configuration.test(settings: [
-                        "SOME_SETTING": "Value",
-                    ]),
+                        "SOME_SETTING": "Value"
+                    ])
                 ]
             )
         )
@@ -85,7 +86,9 @@ final class SigningMapperTests: TuistUnitTestCase {
             targets: [target]
         )
         let derivedDirectory = project.path.appending(component: Constants.DerivedDirectory.name)
-        let keychainPath = derivedDirectory.appending(component: Constants.DerivedDirectory.signingKeychain)
+        let keychainPath = derivedDirectory.appending(
+            component: Constants.DerivedDirectory.signingKeychain
+        )
 
         let expectedConfigurations: [BuildConfiguration: Configuration] = [
             BuildConfiguration(
@@ -95,10 +98,14 @@ final class SigningMapperTests: TuistUnitTestCase {
                 "SOME_SETTING": "Value",
                 "CODE_SIGN_STYLE": "Manual",
                 "CODE_SIGN_IDENTITY": SettingValue(stringLiteral: certificate.name),
-                "OTHER_CODE_SIGN_FLAGS": SettingValue(stringLiteral: "--keychain \(keychainPath.pathString)"),
+                "OTHER_CODE_SIGN_FLAGS": SettingValue(
+                    stringLiteral: "--keychain \(keychainPath.pathString)"
+                ),
                 "DEVELOPMENT_TEAM": SettingValue(stringLiteral: provisioningProfile.teamId),
-                "PROVISIONING_PROFILE_SPECIFIER": SettingValue(stringLiteral: provisioningProfile.uuid),
-            ]),
+                "PROVISIONING_PROFILE_SPECIFIER": SettingValue(
+                    stringLiteral: provisioningProfile.uuid
+                ),
+            ])
         ]
 
         // When

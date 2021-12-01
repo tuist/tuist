@@ -1,6 +1,7 @@
 import Foundation
 import TSCBasic
 import XCTest
+
 @testable import TuistEnvKit
 @testable import TuistSupport
 @testable import TuistSupportTesting
@@ -13,7 +14,10 @@ final class BundleServiceErrorTests: XCTestCase {
 
     func test_description() {
         let path = AbsolutePath("/test")
-        XCTAssertEqual(BundleServiceError.missingVersionFile(path).description, "Couldn't find a .tuist-version file in the directory \(path.pathString)")
+        XCTAssertEqual(
+            BundleServiceError.missingVersionFile(path).description,
+            "Couldn't find a .tuist-version file in the directory \(path.pathString)"
+        )
     }
 }
 
@@ -44,7 +48,10 @@ final class BundleServiceTests: TuistUnitTestCase {
 
     func test_run_throws_when_there_is_no_xmp_version_in_the_directory() throws {
         let temporaryPath = try self.temporaryPath()
-        XCTAssertThrowsSpecific(try subject.run(), BundleServiceError.missingVersionFile(temporaryPath))
+        XCTAssertThrowsSpecific(
+            try subject.run(),
+            BundleServiceError.missingVersionFile(temporaryPath)
+        )
     }
 
     func test_run_installs_the_app_if_it_doesnt_exist() throws {
@@ -60,7 +67,8 @@ final class BundleServiceTests: TuistUnitTestCase {
 
         try subject.run()
 
-        let bundledTestFilePath = temporaryPath
+        let bundledTestFilePath =
+            temporaryPath
             .appending(component: Constants.binFolderName)
             .appending(component: "test")
 
@@ -80,7 +88,9 @@ final class BundleServiceTests: TuistUnitTestCase {
         XCTAssertEqual(installer.installCallCount, 0)
     }
 
-    func test_run_doesnt_install_the_app_if_it_already_exists_with_whitespace_in_version_file() throws {
+    func test_run_doesnt_install_the_app_if_it_already_exists_with_whitespace_in_version_file()
+        throws
+    {
         let temporaryPath = try self.temporaryPath()
 
         let tuistVersionPath = temporaryPath.appending(component: Constants.versionFileName)
@@ -108,10 +118,12 @@ final class BundleServiceTests: TuistUnitTestCase {
 
         try subject.run()
 
-        XCTAssertPrinterOutputContains("""
-        Bundling the version 3.2.1 in the directory \(binPath.pathString)
-        Version 3.2.1 not available locally. Installing...
-        tuist bundled successfully at \(binPath.pathString)
-        """)
+        XCTAssertPrinterOutputContains(
+            """
+            Bundling the version 3.2.1 in the directory \(binPath.pathString)
+            Version 3.2.1 not available locally. Installing...
+            tuist bundled successfully at \(binPath.pathString)
+            """
+        )
     }
 }

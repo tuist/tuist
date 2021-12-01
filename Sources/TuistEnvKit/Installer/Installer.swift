@@ -41,7 +41,10 @@ enum InstallerError: FatalError, Equatable {
         switch (lhs, rhs) {
         case let (.versionNotFound(lhsVersion), .versionNotFound(rhsVersion)):
             return lhsVersion == rhsVersion
-        case let (.incompatibleSwiftVersion(lhsLocal, lhsExpected), .incompatibleSwiftVersion(rhsLocal, rhsExpected)):
+        case let (
+            .incompatibleSwiftVersion(lhsLocal, lhsExpected),
+            .incompatibleSwiftVersion(rhsLocal, rhsExpected)
+        ):
             return lhsLocal == rhsLocal && lhsExpected == rhsExpected
         default:
             return false
@@ -58,9 +61,10 @@ final class Installer: Installing {
 
     // MARK: - Init
 
-    init(buildCopier: BuildCopying = BuildCopier(),
-         versionsController: VersionsControlling = VersionsController())
-    {
+    init(
+        buildCopier: BuildCopying = BuildCopier(),
+        versionsController: VersionsControlling = VersionsController()
+    ) {
         self.buildCopier = buildCopier
         self.versionsController = versionsController
     }
@@ -75,29 +79,47 @@ final class Installer: Installing {
 
     func install(version: String, temporaryDirectory: AbsolutePath) throws {
         try installFromBundle(
-            bundleURL: URL(string: "https://github.com/tuist/tuist/releases/download/\(version)/tuist.zip")!,
+            bundleURL: URL(
+                string: "https://github.com/tuist/tuist/releases/download/\(version)/tuist.zip"
+            )!,
             version: version,
             temporaryDirectory: temporaryDirectory
         )
     }
 
-    func installFromBundle(bundleURL: URL,
-                           version: String,
-                           temporaryDirectory: AbsolutePath) throws
-    {
-        try versionsController.install(version: version, installation: { installationDirectory in
+    func installFromBundle(
+        bundleURL: URL,
+        version: String,
+        temporaryDirectory: AbsolutePath
+    ) throws {
+        try versionsController.install(
+            version: version,
+            installation: { installationDirectory in
 
-            // Download bundle
-            logger.notice("Downloading version \(version)")
+                // Download bundle
+                logger.notice("Downloading version \(version)")
 
-            let downloadPath = temporaryDirectory.appending(component: Constants.bundleName)
-            try System.shared.run("/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, bundleURL.absoluteString)
+                let downloadPath = temporaryDirectory.appending(component: Constants.bundleName)
+                try System.shared.run(
+                    "/usr/bin/curl",
+                    "-LSs",
+                    "--output",
+                    downloadPath.pathString,
+                    bundleURL.absoluteString
+                )
 
-            // Unzip
-            logger.notice("Installing...")
-            try System.shared.run("/usr/bin/unzip", "-q", downloadPath.pathString, "-d", installationDirectory.pathString)
+                // Unzip
+                logger.notice("Installing...")
+                try System.shared.run(
+                    "/usr/bin/unzip",
+                    "-q",
+                    downloadPath.pathString,
+                    "-d",
+                    installationDirectory.pathString
+                )
 
-            logger.notice("Version \(version) installed")
-        })
+                logger.notice("Version \(version) installed")
+            }
+        )
     }
 }

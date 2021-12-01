@@ -20,7 +20,9 @@ public final class HelpersDirectoryLocator: HelpersDirectoryLocating {
 
     /// Initializes the locator with its dependencies.
     /// - Parameter rootDirectoryLocator: Instance to locate the root directory of the project.
-    init(rootDirectoryLocator: RootDirectoryLocating) {
+    init(
+        rootDirectoryLocator: RootDirectoryLocating
+    ) {
         self.rootDirectoryLocator = rootDirectoryLocator
     }
 
@@ -28,7 +30,8 @@ public final class HelpersDirectoryLocator: HelpersDirectoryLocating {
 
     public func locate(at: AbsolutePath) -> AbsolutePath? {
         guard let rootDirectory = rootDirectoryLocator.locate(from: at) else { return nil }
-        let helpersDirectory = rootDirectory
+        let helpersDirectory =
+            rootDirectory
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.helpersDirectoryName)
         if !FileHandler.shared.exists(helpersDirectory) { return nil }

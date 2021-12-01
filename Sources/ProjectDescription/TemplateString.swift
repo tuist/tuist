@@ -6,7 +6,9 @@ public struct TemplateString: Encodable, Decodable, Equatable {
 }
 
 extension TemplateString: ExpressibleByStringLiteral {
-    public init(stringLiteral: String) {
+    public init(
+        stringLiteral: String
+    ) {
         rawString = stringLiteral
     }
 }
@@ -18,14 +20,19 @@ extension TemplateString: CustomStringConvertible {
 }
 
 extension TemplateString: ExpressibleByStringInterpolation {
-    public init(stringInterpolation: StringInterpolation) {
+    public init(
+        stringInterpolation: StringInterpolation
+    ) {
         rawString = stringInterpolation.string
     }
 
     public struct StringInterpolation: StringInterpolationProtocol {
         var string: String
 
-        public init(literalCapacity _: Int, interpolationCount _: Int) {
+        public init(
+            literalCapacity _: Int,
+            interpolationCount _: Int
+        ) {
             string = String()
         }
 

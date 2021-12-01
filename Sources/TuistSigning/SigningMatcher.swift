@@ -10,7 +10,9 @@ typealias ConfigurationName = String
 protocol SigningMatching {
     /// - Returns: Certificates and provisioning profiles matched with their configuration and target
     /// - Warning: Expects certificates and provisioning profiles already decrypted
-    func match(from path: AbsolutePath) throws -> (
+    func match(
+        from path: AbsolutePath
+    ) throws -> (
         certificates: [Fingerprint: Certificate],
         provisioningProfiles: [TargetName: [ConfigurationName: ProvisioningProfile]]
     )
@@ -21,16 +23,19 @@ final class SigningMatcher: SigningMatching {
     private let provisioningProfileParser: ProvisioningProfileParsing
     private let certificateParser: CertificateParsing
 
-    init(signingFilesLocator: SigningFilesLocating = SigningFilesLocator(),
-         provisioningProfileParser: ProvisioningProfileParsing = ProvisioningProfileParser(),
-         certificateParser: CertificateParsing = CertificateParser())
-    {
+    init(
+        signingFilesLocator: SigningFilesLocating = SigningFilesLocator(),
+        provisioningProfileParser: ProvisioningProfileParsing = ProvisioningProfileParser(),
+        certificateParser: CertificateParsing = CertificateParser()
+    ) {
         self.signingFilesLocator = signingFilesLocator
         self.provisioningProfileParser = provisioningProfileParser
         self.certificateParser = certificateParser
     }
 
-    func match(from path: AbsolutePath) throws -> (
+    func match(
+        from path: AbsolutePath
+    ) throws -> (
         certificates: [Fingerprint: Certificate],
         provisioningProfiles: [TargetName: [ConfigurationName: ProvisioningProfile]]
     ) {
@@ -45,7 +50,8 @@ final class SigningMatcher: SigningMatching {
             }
 
         // swiftlint:disable:next line_length
-        let provisioningProfiles: [TargetName: [ConfigurationName: ProvisioningProfile]] = try signingFilesLocator.locateProvisioningProfiles(from: path)
+        let provisioningProfiles: [TargetName: [ConfigurationName: ProvisioningProfile]] =
+            try signingFilesLocator.locateProvisioningProfiles(from: path)
             .map(provisioningProfileParser.parse)
             .reduce(into: [:]) { dict, profile in
                 var currentTargetDict = dict[profile.targetName] ?? [:]

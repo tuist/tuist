@@ -1,6 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistCore
+
 @testable import TuistGenerator
 
 final class MockSideEffectDescriptorExecutor: SideEffectDescriptorExecuting {

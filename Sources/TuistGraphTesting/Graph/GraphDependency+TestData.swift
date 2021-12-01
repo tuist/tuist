@@ -3,15 +3,16 @@ import TSCBasic
 
 @testable import TuistGraph
 
-public extension GraphDependency {
-    static func testFramework(path: AbsolutePath = AbsolutePath.root.appending(component: "Test.framework"),
-                              binaryPath: AbsolutePath = AbsolutePath.root.appending(RelativePath("Test.framework/Test")),
-                              dsymPath: AbsolutePath? = nil,
-                              bcsymbolmapPaths: [AbsolutePath] = [],
-                              linking: BinaryLinking = .dynamic,
-                              architectures: [BinaryArchitecture] = [.armv7],
-                              isCarthage: Bool = false) -> GraphDependency
-    {
+extension GraphDependency {
+    public static func testFramework(
+        path: AbsolutePath = AbsolutePath.root.appending(component: "Test.framework"),
+        binaryPath: AbsolutePath = AbsolutePath.root.appending(RelativePath("Test.framework/Test")),
+        dsymPath: AbsolutePath? = nil,
+        bcsymbolmapPaths: [AbsolutePath] = [],
+        linking: BinaryLinking = .dynamic,
+        architectures: [BinaryArchitecture] = [.armv7],
+        isCarthage: Bool = false
+    ) -> GraphDependency {
         GraphDependency.framework(
             path: path,
             binaryPath: binaryPath,
@@ -23,11 +24,14 @@ public extension GraphDependency {
         )
     }
 
-    static func testXCFramework(path: AbsolutePath = AbsolutePath.root.appending(RelativePath("Test.xcframework")),
-                                infoPlist: XCFrameworkInfoPlist = .test(),
-                                primaryBinaryPath: AbsolutePath = AbsolutePath.root.appending(RelativePath("Test.xcframework/Test")),
-                                linking: BinaryLinking = .dynamic) -> GraphDependency
-    {
+    public static func testXCFramework(
+        path: AbsolutePath = AbsolutePath.root.appending(RelativePath("Test.xcframework")),
+        infoPlist: XCFrameworkInfoPlist = .test(),
+        primaryBinaryPath: AbsolutePath = AbsolutePath.root.appending(
+            RelativePath("Test.xcframework/Test")
+        ),
+        linking: BinaryLinking = .dynamic
+    ) -> GraphDependency {
         .xcframework(
             path: path,
             infoPlist: infoPlist,
@@ -36,20 +40,22 @@ public extension GraphDependency {
         )
     }
 
-    static func testTarget(name: String = "Test",
-                           path: AbsolutePath = .root) -> GraphDependency
-    {
+    public static func testTarget(
+        name: String = "Test",
+        path: AbsolutePath = .root
+    ) -> GraphDependency {
         .target(
             name: name,
             path: path
         )
     }
 
-    static func testSDK(name: String = "XCTest",
-                        path: AbsolutePath = AbsolutePath.root.appending(RelativePath("XCTest.framework")),
-                        status: SDKStatus = .required,
-                        source: SDKSource = .system) -> GraphDependency
-    {
+    public static func testSDK(
+        name: String = "XCTest",
+        path: AbsolutePath = AbsolutePath.root.appending(RelativePath("XCTest.framework")),
+        status: SDKStatus = .required,
+        source: SDKSource = .system
+    ) -> GraphDependency {
         .sdk(
             name: name,
             path: path,
@@ -58,12 +64,13 @@ public extension GraphDependency {
         )
     }
 
-    static func testLibrary(path: AbsolutePath = AbsolutePath.root.appending(RelativePath("libTuist.a")),
-                            publicHeaders: AbsolutePath = AbsolutePath.root.appending(RelativePath("headers")),
-                            linking: BinaryLinking = .dynamic,
-                            architectures: [BinaryArchitecture] = [.armv7],
-                            swiftModuleMap: AbsolutePath? = nil) -> GraphDependency
-    {
+    public static func testLibrary(
+        path: AbsolutePath = AbsolutePath.root.appending(RelativePath("libTuist.a")),
+        publicHeaders: AbsolutePath = AbsolutePath.root.appending(RelativePath("headers")),
+        linking: BinaryLinking = .dynamic,
+        architectures: [BinaryArchitecture] = [.armv7],
+        swiftModuleMap: AbsolutePath? = nil
+    ) -> GraphDependency {
         .library(
             path: path,
             publicHeaders: publicHeaders,
@@ -73,9 +80,10 @@ public extension GraphDependency {
         )
     }
 
-    static func testPackageProduct(path: AbsolutePath = .root,
-                                   product: String = "Tuist") -> GraphDependency
-    {
+    public static func testPackageProduct(
+        path: AbsolutePath = .root,
+        product: String = "Tuist"
+    ) -> GraphDependency {
         .packageProduct(
             path: path,
             product: product

@@ -21,10 +21,14 @@ enum EmptyBuildSettingsCheckerError: FatalError, Equatable {
 
     public var description: String {
         switch self {
-        case let .missingXcodeProj(path): return "Couldn't find Xcode project at path \(path.pathString)."
+        case let .missingXcodeProj(path):
+            return "Couldn't find Xcode project at path \(path.pathString)."
         case .missingProject: return "The project's pbxproj file contains no projects."
-        case let .targetNotFound(name): return "Couldn't find target with name '\(name)' in the project."
-        case let .nonEmptyBuildSettings(configurations): return "The following configurations have non-empty build setttings: \(configurations.joined(separator: ", "))"
+        case let .targetNotFound(name):
+            return "Couldn't find target with name '\(name)' in the project."
+        case let .nonEmptyBuildSettings(configurations):
+            return
+                "The following configurations have non-empty build setttings: \(configurations.joined(separator: ", "))"
         }
     }
 
@@ -50,14 +54,21 @@ public class EmptyBuildSettingsChecker: EmptyBuildSettingsChecking {
     // MARK: - EmptyBuildSettingsChecking
 
     public func check(xcodeprojPath: AbsolutePath, targetName: String?) throws {
-        guard FileHandler.shared.exists(xcodeprojPath) else { throw EmptyBuildSettingsCheckerError.missingXcodeProj(xcodeprojPath) }
+        guard FileHandler.shared.exists(xcodeprojPath) else {
+            throw EmptyBuildSettingsCheckerError.missingXcodeProj(xcodeprojPath)
+        }
         let project = try XcodeProj(path: Path(xcodeprojPath.pathString))
         let pbxproj = project.pbxproj
-        let buildConfigurations = try self.buildConfigurations(pbxproj: pbxproj, targetName: targetName)
+        let buildConfigurations = try self.buildConfigurations(
+            pbxproj: pbxproj,
+            targetName: targetName
+        )
         let nonEmptyBuildSettings = buildConfigurations.compactMap { (config) -> String? in
             if config.buildSettings.isEmpty { return nil }
             config.buildSettings.forEach { key, _ in
-                logger.info("The build setting '\(key)' of build configuration '\(config.name)' is not empty.")
+                logger.info(
+                    "The build setting '\(key)' of build configuration '\(config.name)' is not empty."
+                )
             }
             return config.name
         }
@@ -68,7 +79,10 @@ public class EmptyBuildSettingsChecker: EmptyBuildSettingsChecking {
 
     // MARK: - Private
 
-    private func buildConfigurations(pbxproj: PBXProj, targetName: String?) throws -> [XCBuildConfiguration] {
+    private func buildConfigurations(
+        pbxproj: PBXProj,
+        targetName: String?
+    ) throws -> [XCBuildConfiguration] {
         if let targetName = targetName {
             guard let target = pbxproj.targets(named: targetName).first else {
                 throw SettingsToXCConfigExtractorError.targetNotFound(targetName)

@@ -32,7 +32,11 @@ public final class MockSystem: Systeming {
     public func run(_ arguments: [String]) throws {
         let command = arguments.joined(separator: " ")
         guard let stub = stubs[command] else {
-            throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data())
+            throw TuistSupport.SystemError.terminated(
+                command: arguments.first!,
+                code: 1,
+                standardError: Data()
+            )
         }
         if stub.exitstatus != 0 {
             let standardError = (stub.stderror?.data(using: .utf8)) ?? Data()
@@ -57,17 +61,33 @@ public final class MockSystem: Systeming {
         try capture(arguments, verbose: false, environment: [:])
     }
 
-    public func capture(_ arguments: String..., verbose: Bool, environment: [String: String]) throws -> String {
+    public func capture(
+        _ arguments: String...,
+        verbose: Bool,
+        environment: [String: String]
+    ) throws -> String {
         try capture(arguments, verbose: verbose, environment: environment)
     }
 
-    public func capture(_ arguments: [String], verbose _: Bool, environment _: [String: String]) throws -> String {
+    public func capture(
+        _ arguments: [String],
+        verbose _: Bool,
+        environment _: [String: String]
+    ) throws -> String {
         let command = arguments.joined(separator: " ")
         guard let stub = stubs[command] else {
-            throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data())
+            throw TuistSupport.SystemError.terminated(
+                command: arguments.first!,
+                code: 1,
+                standardError: Data()
+            )
         }
         if stub.exitstatus != 0 {
-            throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data())
+            throw TuistSupport.SystemError.terminated(
+                command: arguments.first!,
+                code: 1,
+                standardError: Data()
+            )
         }
         return stub.stdout ?? ""
     }
@@ -80,11 +100,19 @@ public final class MockSystem: Systeming {
         try runAndPrint(arguments, verbose: false, environment: [:])
     }
 
-    public func runAndPrint(_ arguments: String..., verbose: Bool, environment: [String: String]) throws {
+    public func runAndPrint(
+        _ arguments: String...,
+        verbose: Bool,
+        environment: [String: String]
+    ) throws {
         try runAndPrint(arguments, verbose: verbose, environment: environment)
     }
 
-    public func runAndPrint(_ arguments: [String], verbose: Bool, environment: [String: String]) throws {
+    public func runAndPrint(
+        _ arguments: [String],
+        verbose: Bool,
+        environment: [String: String]
+    ) throws {
         try runAndPrint(arguments, verbose: verbose, environment: environment, redirection: .none)
     }
 
@@ -96,13 +124,21 @@ public final class MockSystem: Systeming {
     ) throws {
         let command = arguments.joined(separator: " ")
         guard let stub = stubs[command] else {
-            throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data())
+            throw TuistSupport.SystemError.terminated(
+                command: arguments.first!,
+                code: 1,
+                standardError: Data()
+            )
         }
         if stub.exitstatus != 0 {
             if let error = stub.stderror {
                 redirection.outputClosures?.stderrClosure([UInt8](error.data(using: .utf8)!))
             }
-            throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data())
+            throw TuistSupport.SystemError.terminated(
+                command: arguments.first!,
+                code: 1,
+                standardError: Data()
+            )
         }
         calls.append(arguments.joined(separator: " "))
     }
@@ -115,18 +151,34 @@ public final class MockSystem: Systeming {
         observable(arguments, verbose: verbose, environment: [:])
     }
 
-    public func observable(_ arguments: [String], verbose _: Bool, environment _: [String: String]) -> Observable<SystemEvent<Data>> {
+    public func observable(
+        _ arguments: [String],
+        verbose _: Bool,
+        environment _: [String: String]
+    ) -> Observable<SystemEvent<Data>> {
         Observable.create { (observer) -> Disposable in
             let command = arguments.joined(separator: " ")
             guard let stub = self.stubs[command] else {
-                observer.onError(TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data()))
+                observer.onError(
+                    TuistSupport.SystemError.terminated(
+                        command: arguments.first!,
+                        code: 1,
+                        standardError: Data()
+                    )
+                )
                 return Disposables.create()
             }
             guard stub.exitstatus == 0 else {
                 if let error = stub.stderror {
                     observer.onNext(.standardError(error.data(using: .utf8)!))
                 }
-                observer.onError(TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data()))
+                observer.onError(
+                    TuistSupport.SystemError.terminated(
+                        command: arguments.first!,
+                        code: 1,
+                        standardError: Data()
+                    )
+                )
                 return Disposables.create()
             }
             if let stdout = stub.stdout {
@@ -137,22 +189,41 @@ public final class MockSystem: Systeming {
         }
     }
 
-    public func observable(_ arguments: [String], pipedToArguments: [String]) -> Observable<SystemEvent<Data>> {
+    public func observable(
+        _ arguments: [String],
+        pipedToArguments: [String]
+    ) -> Observable<SystemEvent<Data>> {
         observable(arguments, environment: [:], pipeTo: pipedToArguments)
     }
 
-    public func observable(_ arguments: [String], environment _: [String: String], pipeTo _: [String]) -> Observable<SystemEvent<Data>> {
+    public func observable(
+        _ arguments: [String],
+        environment _: [String: String],
+        pipeTo _: [String]
+    ) -> Observable<SystemEvent<Data>> {
         Observable.create { (observer) -> Disposable in
             let command = arguments.joined(separator: " ")
             guard let stub = self.stubs[command] else {
-                observer.onError(TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data()))
+                observer.onError(
+                    TuistSupport.SystemError.terminated(
+                        command: arguments.first!,
+                        code: 1,
+                        standardError: Data()
+                    )
+                )
                 return Disposables.create()
             }
             guard stub.exitstatus == 0 else {
                 if let error = stub.stderror {
                     observer.onNext(.standardError(error.data(using: .utf8)!))
                 }
-                observer.onError(TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data()))
+                observer.onError(
+                    TuistSupport.SystemError.terminated(
+                        command: arguments.first!,
+                        code: 1,
+                        standardError: Data()
+                    )
+                )
                 return Disposables.create()
             }
             if let stdout = stub.stdout {
@@ -167,13 +238,25 @@ public final class MockSystem: Systeming {
         try async(arguments, verbose: false, environment: [:])
     }
 
-    public func async(_ arguments: [String], verbose _: Bool, environment _: [String: String]) throws {
+    public func async(
+        _ arguments: [String],
+        verbose _: Bool,
+        environment _: [String: String]
+    ) throws {
         let command = arguments.joined(separator: " ")
         guard let stub = stubs[command] else {
-            throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data())
+            throw TuistSupport.SystemError.terminated(
+                command: arguments.first!,
+                code: 1,
+                standardError: Data()
+            )
         }
         if stub.exitstatus != 0 {
-            throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data())
+            throw TuistSupport.SystemError.terminated(
+                command: arguments.first!,
+                code: 1,
+                standardError: Data()
+            )
         }
     }
 

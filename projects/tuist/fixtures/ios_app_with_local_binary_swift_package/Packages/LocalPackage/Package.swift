@@ -9,7 +9,8 @@ let package = Package(
     products: [
         .library(
             name: "MyFramework",
-            targets: ["MyFramework"])
+            targets: ["MyFramework"]
+        )
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
@@ -19,6 +20,6 @@ let package = Package(
         .binaryTarget(
             name: "MyFramework",
             path: "MyFramework/prebuilt/MyFramework.xcframework"
-        )
+        ),
     ]
 )

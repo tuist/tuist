@@ -8,7 +8,10 @@ public struct TargetOutput: Codable, Equatable {
     /// The product type the target produces.
     public let product: String
 
-    public init(name: String, product: String) {
+    public init(
+        name: String,
+        product: String
+    ) {
         self.name = name
         self.product = product
     }

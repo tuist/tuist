@@ -32,7 +32,9 @@ public enum InfoPlist: Codable, Equatable {
             }
         }
 
-        public init(from decoder: Decoder) throws {
+        public init(
+            from decoder: Decoder
+        ) throws {
             if let singleValueContainer = try? decoder.singleValueContainer() {
                 if let value: String = try? singleValueContainer.decode(String.self) {
                     self = .string(value)
@@ -46,7 +48,9 @@ public enum InfoPlist: Codable, Equatable {
                 } else if let value: Bool = try? singleValueContainer.decode(Bool.self) {
                     self = .boolean(value)
                     return
-                } else if let value: [String: Value] = try? singleValueContainer.decode([String: Value].self) {
+                } else if let value: [String: Value] = try? singleValueContainer.decode(
+                    [String: Value].self
+                ) {
                     self = .dictionary(value)
                     return
                 } else if let value: [Value] = try? singleValueContainer.decode([Value].self) {
@@ -149,7 +153,9 @@ public enum InfoPlist: Codable, Equatable {
         }
     }
 
-    public init(from decoder: Decoder) throws {
+    public init(
+        from decoder: Decoder
+    ) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let type = try container.decode(String.self, forKey: .type)
         switch type {
@@ -158,7 +164,9 @@ public enum InfoPlist: Codable, Equatable {
         case "dictionary":
             self = .dictionary(try container.decode([String: Value].self, forKey: .value))
         case "extended":
-            self = .extendingDefault(with: try container.decode([String: Value].self, forKey: .value))
+            self = .extendingDefault(
+                with: try container.decode([String: Value].self, forKey: .value)
+            )
         default:
             preconditionFailure("unsupported type")
         }
@@ -168,7 +176,9 @@ public enum InfoPlist: Codable, Equatable {
 // MARK: - InfoPlist - ExpressibleByStringInterpolation
 
 extension InfoPlist: ExpressibleByStringInterpolation {
-    public init(stringLiteral value: String) {
+    public init(
+        stringLiteral value: String
+    ) {
         self = .file(path: Path(value))
     }
 }
@@ -176,7 +186,9 @@ extension InfoPlist: ExpressibleByStringInterpolation {
 // MARK: - InfoPlist.Value - ExpressibleByStringInterpolation
 
 extension InfoPlist.Value: ExpressibleByStringInterpolation {
-    public init(stringLiteral value: String) {
+    public init(
+        stringLiteral value: String
+    ) {
         self = .string(value)
     }
 }
@@ -184,7 +196,9 @@ extension InfoPlist.Value: ExpressibleByStringInterpolation {
 // MARK: - InfoPlist.Value - ExpressibleByIntegerLiteral
 
 extension InfoPlist.Value: ExpressibleByIntegerLiteral {
-    public init(integerLiteral value: Int) {
+    public init(
+        integerLiteral value: Int
+    ) {
         self = .integer(value)
     }
 }
@@ -192,7 +206,9 @@ extension InfoPlist.Value: ExpressibleByIntegerLiteral {
 // MARK: - InfoPlist.Value - ExpressibleByFloatLiteral
 
 extension InfoPlist.Value: ExpressibleByFloatLiteral {
-    public init(floatLiteral value: Double) {
+    public init(
+        floatLiteral value: Double
+    ) {
         self = .real(value)
     }
 }
@@ -200,7 +216,9 @@ extension InfoPlist.Value: ExpressibleByFloatLiteral {
 // MARK: - InfoPlist.Value - ExpressibleByBooleanLiteral
 
 extension InfoPlist.Value: ExpressibleByBooleanLiteral {
-    public init(booleanLiteral value: Bool) {
+    public init(
+        booleanLiteral value: Bool
+    ) {
         self = .boolean(value)
     }
 }
@@ -208,7 +226,9 @@ extension InfoPlist.Value: ExpressibleByBooleanLiteral {
 // MARK: - InfoPlist.Value - ExpressibleByDictionaryLiteral
 
 extension InfoPlist.Value: ExpressibleByDictionaryLiteral {
-    public init(dictionaryLiteral elements: (String, InfoPlist.Value)...) {
+    public init(
+        dictionaryLiteral elements: (String, InfoPlist.Value)...
+    ) {
         self = .dictionary(Dictionary(uniqueKeysWithValues: elements))
     }
 }
@@ -216,7 +236,9 @@ extension InfoPlist.Value: ExpressibleByDictionaryLiteral {
 // MARK: - InfoPlist.Value - ExpressibleByArrayLiteral
 
 extension InfoPlist.Value: ExpressibleByArrayLiteral {
-    public init(arrayLiteral elements: InfoPlist.Value...) {
+    public init(
+        arrayLiteral elements: InfoPlist.Value...
+    ) {
         self = .array(elements)
     }
 }

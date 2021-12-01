@@ -39,7 +39,9 @@ extension ProvisioningProfile.Content: Decodable {
             case appId = "application-identifier"
         }
 
-        init(from decoder: Decoder) throws {
+        init(
+            from decoder: Decoder
+        ) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             appId = try container.decode(String.self, forKey: .appId)
         }
@@ -57,7 +59,9 @@ extension ProvisioningProfile.Content: Decodable {
         case developerCertificates = "DeveloperCertificates"
     }
 
-    init(from decoder: Decoder) throws {
+    init(
+        from decoder: Decoder
+    ) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         name = try container.decode(String.self, forKey: .name)
         uuid = try container.decode(String.self, forKey: .uuid)

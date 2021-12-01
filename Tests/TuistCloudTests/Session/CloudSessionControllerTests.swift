@@ -15,7 +15,10 @@ final class CloudSessionControllerErrorTests: TuistUnitTestCase {
         let got = subject.description
 
         // Then
-        XCTAssertEqual(got, "The result from the authentication contains no parameters. We expect an account and token.")
+        XCTAssertEqual(
+            got,
+            "The result from the authentication contains no parameters. We expect an account and token."
+        )
     }
 
     func test_type_when_missingParameters() {
@@ -59,7 +62,10 @@ final class CloudSessionControllerErrorTests: TuistUnitTestCase {
         let got = subject.description
 
         // Then
-        XCTAssertEqual(got, "The result from the authentication contains invalid parameters: invalid. We expect an account and token.")
+        XCTAssertEqual(
+            got,
+            "The result from the authentication contains invalid parameters: invalid. We expect an account and token."
+        )
     }
 
     func test_type_when_invalidParameters() {
@@ -109,7 +115,9 @@ final class CloudSessionControllerTests: TuistUnitTestCase {
 
     func test_authenticate_when_parametersAreMissing() throws {
         // Given
-        httpRedirectListener.listenStub = { (port, path, message, _) -> (Swift.Result<[String: String]?, HTTPRedirectListenerError>) in
+        httpRedirectListener.listenStub = {
+            (port, path, message, _) -> (Swift.Result<[String: String]?, HTTPRedirectListenerError>)
+            in
             XCTAssertEqual(port, CloudSessionController.port)
             XCTAssertEqual(path, "auth")
             XCTAssertEqual(message, "Switch back to your terminal to continue the authentication.")
@@ -117,15 +125,22 @@ final class CloudSessionControllerTests: TuistUnitTestCase {
         }
 
         // Then
-        XCTAssertThrowsSpecific(try subject.authenticate(serverURL: serverURL), CloudSessionControllerError.missingParameters)
-        XCTAssertPrinterOutputContains("""
-        Opening \(authURL().absoluteString) to start the authentication flow
-        """)
+        XCTAssertThrowsSpecific(
+            try subject.authenticate(serverURL: serverURL),
+            CloudSessionControllerError.missingParameters
+        )
+        XCTAssertPrinterOutputContains(
+            """
+            Opening \(authURL().absoluteString) to start the authentication flow
+            """
+        )
     }
 
     func test_authenticate_when_parametersIncludeError() throws {
         // Given
-        httpRedirectListener.listenStub = { (port, path, message, _) -> (Swift.Result<[String: String]?, HTTPRedirectListenerError>) in
+        httpRedirectListener.listenStub = {
+            (port, path, message, _) -> (Swift.Result<[String: String]?, HTTPRedirectListenerError>)
+            in
             XCTAssertEqual(port, CloudSessionController.port)
             XCTAssertEqual(path, "auth")
             XCTAssertEqual(message, "Switch back to your terminal to continue the authentication.")
@@ -133,15 +148,22 @@ final class CloudSessionControllerTests: TuistUnitTestCase {
         }
 
         // Then
-        XCTAssertThrowsSpecific(try subject.authenticate(serverURL: serverURL), CloudSessionControllerError.authenticationError("value"))
-        XCTAssertPrinterOutputContains("""
-        Opening \(authURL().absoluteString) to start the authentication flow
-        """)
+        XCTAssertThrowsSpecific(
+            try subject.authenticate(serverURL: serverURL),
+            CloudSessionControllerError.authenticationError("value")
+        )
+        XCTAssertPrinterOutputContains(
+            """
+            Opening \(authURL().absoluteString) to start the authentication flow
+            """
+        )
     }
 
     func test_authenticate_when_tokenAndAccountParametersAreIncluded() throws {
         // Given
-        httpRedirectListener.listenStub = { (port, path, message, _) -> (Swift.Result<[String: String]?, HTTPRedirectListenerError>) in
+        httpRedirectListener.listenStub = {
+            (port, path, message, _) -> (Swift.Result<[String: String]?, HTTPRedirectListenerError>)
+            in
             XCTAssertEqual(port, CloudSessionController.port)
             XCTAssertEqual(path, "auth")
             XCTAssertEqual(message, "Switch back to your terminal to continue the authentication.")
@@ -154,16 +176,20 @@ final class CloudSessionControllerTests: TuistUnitTestCase {
         // Then
         let expectedCredentials = Credentials(token: "token", account: "account")
         XCTAssertEqual(try credentialsStore.read(serverURL: serverURL), expectedCredentials)
-        XCTAssertPrinterOutputContains("""
-        Opening \(authURL().absoluteString) to start the authentication flow
-        Successfully authenticated. Storing credentials...
-        Credentials stored successfully
-        """)
+        XCTAssertPrinterOutputContains(
+            """
+            Opening \(authURL().absoluteString) to start the authentication flow
+            Successfully authenticated. Storing credentials...
+            Credentials stored successfully
+            """
+        )
     }
 
     func test_authenticate_when_parametersContainInvalidKeys() throws {
         // Given
-        httpRedirectListener.listenStub = { (port, path, message, _) -> (Swift.Result<[String: String]?, HTTPRedirectListenerError>) in
+        httpRedirectListener.listenStub = {
+            (port, path, message, _) -> (Swift.Result<[String: String]?, HTTPRedirectListenerError>)
+            in
             XCTAssertEqual(port, CloudSessionController.port)
             XCTAssertEqual(path, "auth")
             XCTAssertEqual(message, "Switch back to your terminal to continue the authentication.")
@@ -171,10 +197,15 @@ final class CloudSessionControllerTests: TuistUnitTestCase {
         }
 
         // Then
-        XCTAssertThrowsSpecific(try subject.authenticate(serverURL: serverURL), CloudSessionControllerError.invalidParameters(["invalid"]))
-        XCTAssertPrinterOutputContains("""
-        Opening \(authURL().absoluteString) to start the authentication flow
-        """)
+        XCTAssertThrowsSpecific(
+            try subject.authenticate(serverURL: serverURL),
+            CloudSessionControllerError.invalidParameters(["invalid"])
+        )
+        XCTAssertPrinterOutputContains(
+            """
+            Opening \(authURL().absoluteString) to start the authentication flow
+            """
+        )
     }
 
     func test_printSession_when_credentialsExist() throws {
@@ -184,11 +215,13 @@ final class CloudSessionControllerTests: TuistUnitTestCase {
         try subject.printSession(serverURL: serverURL)
 
         // Then
-        XCTAssertPrinterOutputContains("""
-        These are the credentials for the server with URL \(serverURL.absoluteString):
-        - Account: \(credentials.account)
-        - Token: \(credentials.token)
-        """)
+        XCTAssertPrinterOutputContains(
+            """
+            These are the credentials for the server with URL \(serverURL.absoluteString):
+            - Account: \(credentials.account)
+            - Token: \(credentials.token)
+            """
+        )
     }
 
     func test_printSession_when_credentialsDontExist() throws {
@@ -196,9 +229,11 @@ final class CloudSessionControllerTests: TuistUnitTestCase {
         try subject.printSession(serverURL: serverURL)
 
         // Then
-        XCTAssertPrinterOutputContains("""
-        There are no sessions for the server with URL \(serverURL.absoluteString)
-        """)
+        XCTAssertPrinterOutputContains(
+            """
+            There are no sessions for the server with URL \(serverURL.absoluteString)
+            """
+        )
     }
 
     func test_logout_deletesTheCredentials() throws {
@@ -212,10 +247,12 @@ final class CloudSessionControllerTests: TuistUnitTestCase {
 
         // Then
         XCTAssertNil(try credentialsStore.read(serverURL: serverURL))
-        XCTAssertPrinterOutputContains("""
-        Removing session for server with URL \(serverURL.absoluteString)
-        Session deleted successfully
-        """)
+        XCTAssertPrinterOutputContains(
+            """
+            Removing session for server with URL \(serverURL.absoluteString)
+            Session deleted successfully
+            """
+        )
     }
 
     fileprivate func authURL() -> URL {

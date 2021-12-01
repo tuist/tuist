@@ -46,23 +46,30 @@ final class TemplateGeneratorTests: TuistTestCase {
 
     func test_directories_with_attributes() throws {
         // Given
-        let directories = [RelativePath("{{ name }}"), RelativePath("{{ aName }}"), RelativePath("{{ name }}/{{ bName }}")]
+        let directories = [
+            RelativePath("{{ name }}"), RelativePath("{{ aName }}"),
+            RelativePath("{{ name }}/{{ bName }}"),
+        ]
         let items = directories.map {
             Template.Item.test(path: RelativePath($0.pathString + "/file.swift"))
         }
         let template = Template.test(items: items)
         let destinationPath = try temporaryPath()
-        let expectedDirectories = [RelativePath("test_name"),
-                                   RelativePath("test"),
-                                   RelativePath("test_name/nested_dir")].map(destinationPath.appending)
+        let expectedDirectories = [
+            RelativePath("test_name"),
+            RelativePath("test"),
+            RelativePath("test_name/nested_dir"),
+        ].map(destinationPath.appending)
 
         // When
         try subject.generate(
             template: template,
             to: destinationPath,
-            attributes: ["name": "test_name",
-                         "aName": "test",
-                         "bName": "nested_dir"]
+            attributes: [
+                "name": "test_name",
+                "aName": "test",
+                "bName": "nested_dir",
+            ]
         )
 
         // Then
@@ -108,8 +115,14 @@ final class TemplateGeneratorTests: TuistTestCase {
         let sourcePath = try temporaryPath()
         let items = [
             Template.Item(path: RelativePath("{{ name }}"), contents: .string("{{ contentName }}")),
-            Template.Item(path: RelativePath("{{ directoryName }}/{{ fileName }}"), contents: .string("bContent")),
-            Template.Item(path: RelativePath("file"), contents: .file(sourcePath.appending(component: "{{ filePath }}"))),
+            Template.Item(
+                path: RelativePath("{{ directoryName }}/{{ fileName }}"),
+                contents: .string("bContent")
+            ),
+            Template.Item(
+                path: RelativePath("file"),
+                contents: .file(sourcePath.appending(component: "{{ filePath }}"))
+            ),
         ]
         let template = Template.test(items: items)
         let name = "test name"
@@ -119,7 +132,11 @@ final class TemplateGeneratorTests: TuistTestCase {
         let fileName = "test file"
         let filePath = "test file path"
         let destinationPath = try temporaryPath()
-        try FileHandler.shared.write(fileContent, path: sourcePath.appending(component: filePath), atomically: true)
+        try FileHandler.shared.write(
+            fileContent,
+            path: sourcePath.appending(component: filePath),
+            atomically: true
+        )
         let expectedFiles: [(AbsolutePath, String)] = [
             (destinationPath.appending(component: name), contentName),
             (destinationPath.appending(components: directoryName, fileName), "bContent"),
@@ -153,12 +170,26 @@ final class TemplateGeneratorTests: TuistTestCase {
         let aContent = "test a content"
         let bContent = "test b content"
         let items = [
-            Template.Item(path: RelativePath("a/file"), contents: .file(sourcePath.appending(component: "testFile"))),
-            Template.Item(path: RelativePath("b/{{ name }}/file"), contents: .file(sourcePath.appending(components: "bTestFile"))),
+            Template.Item(
+                path: RelativePath("a/file"),
+                contents: .file(sourcePath.appending(component: "testFile"))
+            ),
+            Template.Item(
+                path: RelativePath("b/{{ name }}/file"),
+                contents: .file(sourcePath.appending(components: "bTestFile"))
+            ),
         ]
         let template = Template.test(items: items)
-        try FileHandler.shared.write(aContent, path: sourcePath.appending(component: "testFile"), atomically: true)
-        try FileHandler.shared.write(bContent, path: sourcePath.appending(component: "bTestFile"), atomically: true)
+        try FileHandler.shared.write(
+            aContent,
+            path: sourcePath.appending(component: "testFile"),
+            atomically: true
+        )
+        try FileHandler.shared.write(
+            bContent,
+            path: sourcePath.appending(component: "bTestFile"),
+            atomically: true
+        )
         let expectedFiles: [(AbsolutePath, String)] = [
             (destinationPath.appending(components: "a", "file"), aContent),
             (destinationPath.appending(components: "b", name, "file"), bContent),
@@ -187,10 +218,12 @@ final class TemplateGeneratorTests: TuistTestCase {
             path: sourcePath.appending(component: "a.stencil"),
             atomically: true
         )
-        let template = Template.test(items: [Template.Item(
-            path: RelativePath("a"),
-            contents: .file(sourcePath.appending(component: "a.stencil"))
-        )])
+        let template = Template.test(items: [
+            Template.Item(
+                path: RelativePath("a"),
+                contents: .file(sourcePath.appending(component: "a.stencil"))
+            )
+        ])
 
         // When
         try subject.generate(
@@ -264,7 +297,7 @@ final class TemplateGeneratorTests: TuistTestCase {
             Template.Item(
                 path: RelativePath("ignore"),
                 contents: .file(sourcePath.appending(component: "b.stencil"))
-            ),
+            )
         ])
 
         // When
@@ -296,7 +329,7 @@ final class TemplateGeneratorTests: TuistTestCase {
             Template.Item(
                 path: RelativePath("destination"),
                 contents: .directory(sourcePath)
-            ),
+            )
         ])
 
         // When
@@ -308,7 +341,9 @@ final class TemplateGeneratorTests: TuistTestCase {
 
         // Then
         XCTAssertEqual(
-            try FileHandler.shared.readTextFile(destinationPath.appending(components: "destination", "folder", "file1.txt")),
+            try FileHandler.shared.readTextFile(
+                destinationPath.appending(components: "destination", "folder", "file1.txt")
+            ),
             expectedContentFile
         )
     }

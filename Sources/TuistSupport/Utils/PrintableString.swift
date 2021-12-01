@@ -7,7 +7,9 @@ public struct PrintableString: Encodable, Decodable, Equatable {
 }
 
 extension PrintableString: ExpressibleByStringLiteral {
-    public init(stringLiteral: String) {
+    public init(
+        stringLiteral: String
+    ) {
         rawString = stringLiteral
         pretty = stringLiteral
     }
@@ -24,7 +26,9 @@ extension PrintableString: CustomStringConvertible, CustomDebugStringConvertible
 }
 
 extension PrintableString: ExpressibleByStringInterpolation {
-    public init(stringInterpolation: StringInterpolation) {
+    public init(
+        stringInterpolation: StringInterpolation
+    ) {
         rawString = stringInterpolation.unformatted
         pretty = stringInterpolation.string
     }
@@ -33,7 +37,10 @@ extension PrintableString: ExpressibleByStringInterpolation {
         var unformatted: String
         var string: String
 
-        public init(literalCapacity _: Int, interpolationCount _: Int) {
+        public init(
+            literalCapacity _: Int,
+            interpolationCount _: Int
+        ) {
             string = ""
             unformatted = ""
         }
@@ -71,7 +78,9 @@ extension PrintableString {
         case warning(Token)
         case info(Token)
 
-        public init(stringLiteral: String) {
+        public init(
+            stringLiteral: String
+        ) {
             self = .raw(stringLiteral)
         }
 
@@ -138,12 +147,15 @@ extension Logger {
     public func pretty(
         _ message: @autoclosure () -> PrintableString,
         metadata: @autoclosure () -> Logger.Metadata? = nil,
-        file: String = #file, function: String = #function, line: UInt = #line
+        file: String = #file,
+        function: String = #function,
+        line: UInt = #line
     ) {
         let printableString = message()
 
         log(
-            level: .notice, Logger.Message(stringLiteral: printableString.rawString),
+            level: .notice,
+            Logger.Message(stringLiteral: printableString.rawString),
             metadata: metadata().map { $0.merging(.pretty, uniquingKeysWith: { $1 }) } ?? .pretty,
             file: file,
             function: function,

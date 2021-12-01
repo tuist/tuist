@@ -6,7 +6,7 @@ import XCTest
 final class ArrayExecutionContextTests: XCTestCase {
     func test_concurrentMap_success() {
         // Given
-        let numbers = Array(0 ... 1000)
+        let numbers = Array(0...1000)
         let transform: (Int) -> String = { "Number \($0)" }
 
         // When
@@ -18,7 +18,7 @@ final class ArrayExecutionContextTests: XCTestCase {
 
     func test_concurrentMap_errors() throws {
         // Given
-        let numbers = Array(0 ... 1000)
+        let numbers = Array(0...1000)
         let transform: (Int) throws -> String = {
             guard $0 % 100 == 0 else {
                 throw TestError.someError
@@ -27,12 +27,15 @@ final class ArrayExecutionContextTests: XCTestCase {
         }
 
         // When / Then
-        XCTAssertThrowsSpecific(try numbers.map(context: .concurrent, transform), TestError.someError)
+        XCTAssertThrowsSpecific(
+            try numbers.map(context: .concurrent, transform),
+            TestError.someError
+        )
     }
 
     func test_concurrentForEach_success() {
         // Given
-        let numbers = Array(0 ... 1000)
+        let numbers = Array(0...1000)
         var performedNumbers = Set<Int>()
         let queue = DispatchQueue(label: "TestQueue")
         let perform: (Int) -> Void = { number in
@@ -53,7 +56,7 @@ final class ArrayExecutionContextTests: XCTestCase {
 
     func test_concurrentForEach_error() {
         // Given
-        let numbers = Array(0 ... 1000)
+        let numbers = Array(0...1000)
         let perform: (Int) throws -> Void = {
             guard $0 % 100 == 0 else {
                 throw TestError.someError
@@ -61,7 +64,10 @@ final class ArrayExecutionContextTests: XCTestCase {
         }
 
         // When / Then
-        XCTAssertThrowsSpecific(try numbers.forEach(context: .concurrent, perform), TestError.someError)
+        XCTAssertThrowsSpecific(
+            try numbers.forEach(context: .concurrent, perform),
+            TestError.someError
+        )
     }
 
     // MARK: - Helpers

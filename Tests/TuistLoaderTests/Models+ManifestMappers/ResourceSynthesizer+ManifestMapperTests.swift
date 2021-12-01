@@ -82,7 +82,10 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
         var invokedPluginNames: [String] = []
         var invokedResourceNames: [String] = []
         var invokedResourceSynthesizerPlugins: [PluginResourceSynthesizer] = []
-        resourceSynthesizerPathLocator.templatePathStub = { pluginName, resourceName, resourceSynthesizerPlugins in
+        resourceSynthesizerPathLocator.templatePathStub = {
+            pluginName,
+            resourceName,
+            resourceSynthesizerPlugins in
             invokedPluginNames.append(pluginName)
             invokedResourceNames.append(resourceName)
             invokedResourceSynthesizerPlugins.append(contentsOf: resourceSynthesizerPlugins)
@@ -95,7 +98,7 @@ final class ResourceSynthesizerManifestMapperTests: TuistUnitTestCase {
             generatorPaths: GeneratorPaths(manifestDirectory: manifestDirectory),
             plugins: .test(
                 resourceSynthesizers: [
-                    .test(name: "Plugin"),
+                    .test(name: "Plugin")
                 ]
             ),
             resourceSynthesizerPathLocator: resourceSynthesizerPathLocator

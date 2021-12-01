@@ -14,7 +14,7 @@ enum SigningCipherError: FatalError, Equatable {
     var type: ErrorType {
         switch self {
         case .failedToEncrypt, .failedToDecrypt, .ivGenerationFailed,
-             .masterKeyNotFound, .signingDirectoryNotFound:
+            .masterKeyNotFound, .signingDirectoryNotFound:
             return .abort
         }
     }
@@ -60,9 +60,10 @@ public final class SigningCipher: SigningCiphering {
         )
     }
 
-    init(rootDirectoryLocator: RootDirectoryLocating,
-         signingFilesLocator: SigningFilesLocating)
-    {
+    init(
+        rootDirectoryLocator: RootDirectoryLocating,
+        signingFilesLocator: SigningFilesLocating
+    ) {
         self.rootDirectoryLocator = rootDirectoryLocator
         self.signingFilesLocator = signingFilesLocator
     }
@@ -72,13 +73,17 @@ public final class SigningCipher: SigningCiphering {
         let signingKeyFiles = try locateUnencryptedSigningFiles(at: path)
         guard !signingKeyFiles.isEmpty else { return }
 
-        let correctlyEncryptedSigningFiles = try self.correctlyEncryptedSigningFiles(at: path, masterKey: masterKey)
+        let correctlyEncryptedSigningFiles = try self.correctlyEncryptedSigningFiles(
+            at: path,
+            masterKey: masterKey
+        )
 
         try locateEncryptedSigningFiles(at: path)
             .filter { !correctlyEncryptedSigningFiles.map(\.encrypted).contains($0) }
             .forEach(FileHandler.shared.delete)
 
-        let cipheredKeys = try signingKeyFiles
+        let cipheredKeys =
+            try signingKeyFiles
             .filter { !correctlyEncryptedSigningFiles.map(\.unencrypted).contains($0) }
             .map(FileHandler.shared.readFile)
             .map { try encryptData($0, masterKey: masterKey) }
@@ -86,7 +91,9 @@ public final class SigningCipher: SigningCiphering {
         try zip(cipheredKeys, signingKeyFiles)
             .forEach { key, file in
                 logger.debug("Encrypting \(file.pathString)")
-                let encryptedPath = AbsolutePath(file.pathString + "." + Constants.encryptedExtension)
+                let encryptedPath = AbsolutePath(
+                    file.pathString + "." + Constants.encryptedExtension
+                )
                 try key.write(to: encryptedPath.url)
             }
 
@@ -99,7 +106,8 @@ public final class SigningCipher: SigningCiphering {
         let masterKey = try self.masterKey(at: path)
         let signingKeyFiles = try locateEncryptedSigningFiles(at: path)
         guard !signingKeyFiles.isEmpty else { return }
-        let decipheredKeys = try signingKeyFiles
+        let decipheredKeys =
+            try signingKeyFiles
             .map(FileHandler.shared.readFile)
             .map {
                 try decryptData($0, masterKey: masterKey)
@@ -110,7 +118,9 @@ public final class SigningCipher: SigningCiphering {
 
         try zip(decipheredKeys, signingKeyFiles).forEach { key, keyFile in
             logger.debug("Decrypting \(keyFile.pathString)")
-            let decryptedPath = AbsolutePath(keyFile.parentDirectory.pathString + "/" + keyFile.basenameWithoutExt)
+            let decryptedPath = AbsolutePath(
+                keyFile.parentDirectory.pathString + "/" + keyFile.basenameWithoutExt
+            )
             try key.write(to: decryptedPath.url)
         }
 
@@ -124,50 +134,75 @@ public final class SigningCipher: SigningCiphering {
         guard
             let rootDirectory = rootDirectoryLocator.locate(from: path)
         else { throw SigningCipherError.signingDirectoryNotFound(path) }
-        let masterKeyFile = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.masterKey)
-        guard FileHandler.shared.exists(masterKeyFile) else { throw SigningCipherError.masterKeyNotFound(masterKeyFile) }
-        let plainMasterKey = try FileHandler.shared.readTextFile(masterKeyFile).trimmingCharacters(in: .newlines)
+        let masterKeyFile = rootDirectory.appending(
+            components: Constants.tuistDirectoryName,
+            Constants.masterKey
+        )
+        guard FileHandler.shared.exists(masterKeyFile) else {
+            throw SigningCipherError.masterKeyNotFound(masterKeyFile)
+        }
+        let plainMasterKey = try FileHandler.shared.readTextFile(masterKeyFile).trimmingCharacters(
+            in: .newlines
+        )
         return plainMasterKey
     }
 
     // MARK: - Helpers
 
     private func locateUnencryptedSigningFiles(at path: AbsolutePath) throws -> [AbsolutePath] {
-        try signingFilesLocator.locateUnencryptedCertificates(from: path) + signingFilesLocator.locateUnencryptedPrivateKeys(from: path)
+        try signingFilesLocator.locateUnencryptedCertificates(from: path)
+            + signingFilesLocator.locateUnencryptedPrivateKeys(from: path)
     }
 
     private func locateEncryptedSigningFiles(at path: AbsolutePath) throws -> [AbsolutePath] {
-        try signingFilesLocator.locateEncryptedCertificates(from: path) + signingFilesLocator.locateEncryptedPrivateKeys(from: path)
+        try signingFilesLocator.locateEncryptedCertificates(from: path)
+            + signingFilesLocator.locateEncryptedPrivateKeys(from: path)
     }
 
     /// - Returns: Files that are already correctly encrypted
-    private func correctlyEncryptedSigningFiles(at path: AbsolutePath,
-                                                masterKey: Data) throws -> [(unencrypted: AbsolutePath, encrypted: AbsolutePath)]
-    {
+    private func correctlyEncryptedSigningFiles(
+        at path: AbsolutePath,
+        masterKey: Data
+    ) throws -> [(unencrypted: AbsolutePath, encrypted: AbsolutePath)] {
         try locateUnencryptedSigningFiles(at: path).compactMap { unencryptedFile in
-            let encryptedFile = AbsolutePath(unencryptedFile.pathString + "." + Constants.encryptedExtension)
+            let encryptedFile = AbsolutePath(
+                unencryptedFile.pathString + "." + Constants.encryptedExtension
+            )
             guard FileHandler.shared.exists(encryptedFile) else { return nil }
             let isEncryptionNeeded: Bool = try self.isEncryptionNeeded(
                 encryptedFile: encryptedFile,
                 unencryptedFile: unencryptedFile,
                 masterKey: masterKey
             )
-            return isEncryptionNeeded ? nil : (unencrypted: unencryptedFile, encrypted: encryptedFile)
+            return isEncryptionNeeded
+                ? nil : (unencrypted: unencryptedFile, encrypted: encryptedFile)
         }
     }
 
     /// Determines if encryption is needed
-    private func isEncryptionNeeded(encryptedFile: AbsolutePath, unencryptedFile: AbsolutePath, masterKey: Data) throws -> Bool {
+    private func isEncryptionNeeded(
+        encryptedFile: AbsolutePath,
+        unencryptedFile: AbsolutePath,
+        masterKey: Data
+    ) throws -> Bool {
         guard
-            let encodedString = String(data: try FileHandler.shared.readFile(encryptedFile), encoding: .utf8),
+            let encodedString = String(
+                data: try FileHandler.shared.readFile(encryptedFile),
+                encoding: .utf8
+            ),
             let dividerIndex = encodedString.firstIndex(of: "-"),
             let iv = Data(base64Encoded: String(encodedString.prefix(upTo: dividerIndex)))
         else { throw SigningCipherError.failedToDecrypt("corrupted data") }
 
-        let aesCipher = try AES(key: masterKey.bytes, blockMode: CTR(iv: iv.bytes), padding: .noPadding)
+        let aesCipher = try AES(
+            key: masterKey.bytes,
+            blockMode: CTR(iv: iv.bytes),
+            padding: .noPadding
+        )
         let unencryptedData = try FileHandler.shared.readFile(unencryptedFile)
         let encryptedBase64String = try aesCipher.encrypt(unencryptedData.bytes).toBase64()
-        guard let data = (iv.base64EncodedString() + "-" + encryptedBase64String).data(using: .utf8) else {
+        guard let data = (iv.base64EncodedString() + "-" + encryptedBase64String).data(using: .utf8)
+        else {
             throw SigningCipherError.failedToEncrypt
         }
 
@@ -181,9 +216,14 @@ public final class SigningCipher: SigningCiphering {
     /// - Returns: Encrypted data
     private func encryptData(_ data: Data, masterKey: Data) throws -> Data {
         let iv = try generateIv()
-        let aesCipher = try AES(key: masterKey.bytes, blockMode: CTR(iv: iv.bytes), padding: .noPadding)
+        let aesCipher = try AES(
+            key: masterKey.bytes,
+            blockMode: CTR(iv: iv.bytes),
+            padding: .noPadding
+        )
         let encryptedBase64String = try aesCipher.encrypt(data.bytes).toBase64()
-        guard let data = (iv.base64EncodedString() + "-" + encryptedBase64String).data(using: .utf8) else {
+        guard let data = (iv.base64EncodedString() + "-" + encryptedBase64String).data(using: .utf8)
+        else {
             throw SigningCipherError.failedToEncrypt
         }
         return data
@@ -201,8 +241,14 @@ public final class SigningCipher: SigningCiphering {
             let iv = Data(base64Encoded: String(encodedString.prefix(upTo: dividerIndex)))
         else { throw SigningCipherError.failedToDecrypt("corrupted data") }
 
-        let dataToDecrypt = Data(base64Encoded: String(encodedString.suffix(from: dividerIndex).dropFirst()))
-        let aesCipher = try AES(key: masterKey.bytes, blockMode: CTR(iv: iv.bytes), padding: .noPadding)
+        let dataToDecrypt = Data(
+            base64Encoded: String(encodedString.suffix(from: dividerIndex).dropFirst())
+        )
+        let aesCipher = try AES(
+            key: masterKey.bytes,
+            blockMode: CTR(iv: iv.bytes),
+            padding: .noPadding
+        )
         guard
             let decryptedData = try dataToDecrypt?.decrypt(cipher: aesCipher)
         else { throw SigningCipherError.failedToDecrypt("data is in wrong format") }
@@ -214,8 +260,13 @@ public final class SigningCipher: SigningCiphering {
         guard
             let rootDirectory = rootDirectoryLocator.locate(from: path)
         else { throw SigningCipherError.signingDirectoryNotFound(path) }
-        let masterKeyFile = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.masterKey)
-        guard FileHandler.shared.exists(masterKeyFile) else { throw SigningCipherError.masterKeyNotFound(masterKeyFile) }
+        let masterKeyFile = rootDirectory.appending(
+            components: Constants.tuistDirectoryName,
+            Constants.masterKey
+        )
+        guard FileHandler.shared.exists(masterKeyFile) else {
+            throw SigningCipherError.masterKeyNotFound(masterKeyFile)
+        }
         let plainMasterKey = try FileHandler.shared.readFile(masterKeyFile)
         return plainMasterKey.sha256()
     }

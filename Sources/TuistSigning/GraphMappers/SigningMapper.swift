@@ -17,10 +17,11 @@ public class SigningMapper: ProjectMapping {
         )
     }
 
-    init(signingFilesLocator: SigningFilesLocating,
-         signingMatcher: SigningMatching,
-         signingCipher: SigningCiphering)
-    {
+    init(
+        signingFilesLocator: SigningFilesLocating,
+        signingMatcher: SigningMatching,
+        signingCipher: SigningCiphering
+    ) {
         self.signingFilesLocator = signingFilesLocator
         self.signingMatcher = signingMatcher
         self.signingCipher = signingCipher
@@ -42,7 +43,9 @@ public class SigningMapper: ProjectMapping {
         defer { try? signingCipher.encryptSigning(at: path, keepFiles: false) }
 
         let derivedDirectory = project.path.appending(component: Constants.DerivedDirectory.name)
-        let keychainPath = derivedDirectory.appending(component: Constants.DerivedDirectory.signingKeychain)
+        let keychainPath = derivedDirectory.appending(
+            component: Constants.DerivedDirectory.signingKeychain
+        )
 
         let (certificates, provisioningProfiles) = try signingMatcher.match(from: project.path)
 
@@ -61,22 +64,26 @@ public class SigningMapper: ProjectMapping {
 
     // MARK: - Helpers
 
-    private func map(target: Target,
-                     project: Project,
-                     keychainPath: AbsolutePath,
-                     certificates: [Fingerprint: Certificate],
-                     provisioningProfiles: [TargetName: [ConfigurationName: ProvisioningProfile]]) throws -> Target
-    {
+    private func map(
+        target: Target,
+        project: Project,
+        keychainPath: AbsolutePath,
+        certificates: [Fingerprint: Certificate],
+        provisioningProfiles: [TargetName: [ConfigurationName: ProvisioningProfile]]
+    ) throws -> Target {
         var target = target
         let targetConfigurations = target.settings?.configurations ?? [:]
-        let configurations: [BuildConfiguration: Configuration?] = targetConfigurations
+        let configurations: [BuildConfiguration: Configuration?] =
+            targetConfigurations
             .merging(
                 project.settings.configurations,
                 uniquingKeysWith: { config, _ in config }
             )
             .reduce(into: [:]) { dict, configurationPair in
                 guard
-                    let provisioningProfile = provisioningProfiles[target.name]?[configurationPair.key.name],
+                    let provisioningProfile = provisioningProfiles[target.name]?[
+                        configurationPair.key.name
+                    ],
                     let certificate = certificates.first(for: provisioningProfile)
                 else {
                     dict[configurationPair.key] = configurationPair.value
@@ -86,9 +93,15 @@ public class SigningMapper: ProjectMapping {
                 var settings = configuration.settings
                 settings["CODE_SIGN_STYLE"] = "Manual"
                 settings["CODE_SIGN_IDENTITY"] = SettingValue(stringLiteral: certificate.name)
-                settings["OTHER_CODE_SIGN_FLAGS"] = SettingValue(stringLiteral: "--keychain \(keychainPath.pathString)")
-                settings["DEVELOPMENT_TEAM"] = SettingValue(stringLiteral: provisioningProfile.teamId)
-                settings["PROVISIONING_PROFILE_SPECIFIER"] = SettingValue(stringLiteral: provisioningProfile.uuid)
+                settings["OTHER_CODE_SIGN_FLAGS"] = SettingValue(
+                    stringLiteral: "--keychain \(keychainPath.pathString)"
+                )
+                settings["DEVELOPMENT_TEAM"] = SettingValue(
+                    stringLiteral: provisioningProfile.teamId
+                )
+                settings["PROVISIONING_PROFILE_SPECIFIER"] = SettingValue(
+                    stringLiteral: provisioningProfile.uuid
+                )
                 dict[configurationPair.key] = configuration.with(settings: settings)
             }
 

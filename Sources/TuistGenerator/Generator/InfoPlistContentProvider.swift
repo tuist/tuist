@@ -13,7 +13,11 @@ protocol InfoPlistContentProviding {
     ///   - target: Target whose Info.plist content will be returned.
     ///   - extendedWith: Values provided by the user to extend the default ones.
     /// - Returns: Content to generate the Info.plist file.
-    func content(project: Project, target: Target, extendedWith: [String: InfoPlist.Value]) -> [String: Any]?
+    func content(
+        project: Project,
+        target: Target,
+        extendedWith: [String: InfoPlist.Value]
+    ) -> [String: Any]?
 }
 
 final class InfoPlistContentProvider: InfoPlistContentProviding {
@@ -26,7 +30,11 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
     ///   - target: Target whose Info.plist content will be returned.
     ///   - extendedWith: Values provided by the user to extend the default ones.
     /// - Returns: Content to generate the Info.plist file.
-    func content(project: Project, target: Target, extendedWith: [String: InfoPlist.Value]) -> [String: Any]? {
+    func content(
+        project: Project,
+        target: Target,
+        extendedWith: [String: InfoPlist.Value]
+    ) -> [String: Any]? {
         if target.product == .staticLibrary || target.product == .dynamicLibrary {
             return nil
         }
@@ -57,19 +65,25 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
         // watchOS app
         if target.product == .watch2App, target.platform == .watchOS {
             let host = hostTarget(for: target, in: project)
-            extend(&content, with: watchosApp(
-                name: target.name,
-                hostAppBundleId: host?.bundleId
-            ))
+            extend(
+                &content,
+                with: watchosApp(
+                    name: target.name,
+                    hostAppBundleId: host?.bundleId
+                )
+            )
         }
 
         // watchOS app extension
         if target.product == .watch2Extension, target.platform == .watchOS {
             let host = hostTarget(for: target, in: project)
-            extend(&content, with: watchosAppExtension(
-                name: target.name,
-                hostAppBundleId: host?.bundleId
-            ))
+            extend(
+                &content,
+                with: watchosAppExtension(
+                    name: target.name,
+                    hostAppBundleId: host?.bundleId
+                )
+            )
         }
 
         extend(&content, with: extendedWith.unwrappingValues())
@@ -136,7 +150,7 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
 
         if shouldIncludeBundleExecutableKey(target) {
             return [
-                "CFBundleExecutable": "$(EXECUTABLE_NAME)",
+                "CFBundleExecutable": "$(EXECUTABLE_NAME)"
             ]
         } else {
             return [:]
@@ -150,7 +164,7 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
         [
             "LSRequiresIPhoneOS": true,
             "UIRequiredDeviceCapabilities": [
-                "armv7",
+                "armv7"
             ],
             "UISupportedInterfaceOrientations": [
                 "UIInterfaceOrientationPortrait",
@@ -183,7 +197,7 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
     /// - Returns: Info.plist content.
     func macos() -> [String: Any] {
         [
-            "NSHumanReadableCopyright": "Copyright ©. All rights reserved.",
+            "NSHumanReadableCopyright": "Copyright ©. All rights reserved."
         ]
     }
 
@@ -209,7 +223,8 @@ final class InfoPlistContentProvider: InfoPlistContentProviding {
     ///
     /// - Parameter hostAppBundleId: The host application's bundle identifier
     private func watchosAppExtension(name: String, hostAppBundleId: String?) -> [String: Any] {
-        let extensionAttributes: [String: Any] = hostAppBundleId.map { ["WKAppBundleIdentifier": $0] } ?? [:]
+        let extensionAttributes: [String: Any] =
+            hostAppBundleId.map { ["WKAppBundleIdentifier": $0] } ?? [:]
         return [
             "CFBundleDisplayName": name,
             "NSExtension": [

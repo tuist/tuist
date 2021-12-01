@@ -1,9 +1,11 @@
-import struct TSCUtility.Version
 import TuistCore
 import TuistCoreTesting
 import TuistGraph
 import TuistGraphTesting
 import XCTest
+
+import struct TSCUtility.Version
+
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
@@ -84,7 +86,9 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         "SWIFT_OPTIMIZATION_LEVEL": "-Onone",
         "TARGETED_DEVICE_FAMILY": "1,2",
         "SDKROOT": "iphoneos",
-        "LD_RUNPATH_SEARCH_PATHS": ["$(inherited)", "@executable_path/Frameworks", "@loader_path/Frameworks"],
+        "LD_RUNPATH_SEARCH_PATHS": [
+            "$(inherited)", "@executable_path/Frameworks", "@loader_path/Frameworks",
+        ],
         "DEFINES_MODULE": "YES",
         "VERSION_INFO_PREFIX": "",
         "CURRENT_PROJECT_VERSION": "1",
@@ -96,7 +100,9 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
 
     private let frameworkTargetEssentialReleaseSettings: [String: SettingValue] = [
         "SWIFT_OPTIMIZATION_LEVEL": "-Owholemodule",
-        "LD_RUNPATH_SEARCH_PATHS": ["$(inherited)", "@executable_path/Frameworks", "@loader_path/Frameworks"],
+        "LD_RUNPATH_SEARCH_PATHS": [
+            "$(inherited)", "@executable_path/Frameworks", "@loader_path/Frameworks",
+        ],
         "DEFINES_MODULE": "YES",
         "DYLIB_INSTALL_NAME_BASE": "@rpath",
         "INSTALL_PATH": "$(LOCAL_LIBRARY_DIR)/Frameworks",
@@ -115,7 +121,9 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
 
     private let testTargetEssentialDebugSettings: [String: SettingValue] = [
         "SDKROOT": "iphoneos",
-        "LD_RUNPATH_SEARCH_PATHS": ["$(inherited)", "@executable_path/Frameworks", "@loader_path/Frameworks"],
+        "LD_RUNPATH_SEARCH_PATHS": [
+            "$(inherited)", "@executable_path/Frameworks", "@loader_path/Frameworks",
+        ],
         "SWIFT_ACTIVE_COMPILATION_CONDITIONS": "DEBUG",
         "CODE_SIGN_IDENTITY": "iPhone Developer",
         "SWIFT_OPTIMIZATION_LEVEL": "-Onone",
@@ -371,7 +379,8 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         XCTAssertEqual(got.count, 10)
     }
 
-    func testTargetSettings_inheritsProjectDefaultSettings_when_targetBuildSettings_are_nil() throws {
+    func testTargetSettings_inheritsProjectDefaultSettings_when_targetBuildSettings_are_nil() throws
+    {
         // Given
         let project = Project.test(settings: .test(defaultSettings: .essential))
         let target = Target.test(settings: nil)
@@ -456,7 +465,10 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         XCTAssertEqual(got["SWIFT_VERSION"], .string("5.0"))
     }
 
-    func testTargetSettings_whenRecommendedAndSpecifiedInProject_doesNotContainsSystemInferredSettings() throws {
+    func
+        testTargetSettings_whenRecommendedAndSpecifiedInProject_doesNotContainsSystemInferredSettings()
+        throws
+    {
         // Given
         let buildConfiguration: BuildConfiguration = .release
         let settings = Settings(
@@ -468,7 +480,7 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
         let project = Project.test(
             settings: .test(
                 base: [
-                    "SWIFT_VERSION": "5.1",
+                    "SWIFT_VERSION": "5.1"
                 ]
             )
         )
@@ -737,45 +749,66 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
 final class DictionaryStringAnyExtensionTests: XCTestCase {
     func testToSettings_whenOnlyStrings() throws {
         // Given
-        let subject: [String: Any] = ["A": "A_VALUE",
-                                      "B": "B_VALUE"]
+        let subject: [String: Any] = [
+            "A": "A_VALUE",
+            "B": "B_VALUE",
+        ]
 
         // When
         let got = try subject.toSettings()
 
         // Then
-        XCTAssertEqual(got, ["A": .string("A_VALUE"),
-                             "B": .string("B_VALUE")])
+        XCTAssertEqual(
+            got,
+            [
+                "A": .string("A_VALUE"),
+                "B": .string("B_VALUE"),
+            ]
+        )
     }
 
     func testToSettings_whenStringsAndArray() throws {
         // Given
-        let subject: [String: Any] = ["A": "A_VALUE",
-                                      "B": "B_VALUE",
-                                      "C": ["C_1", "C_2"],
-                                      "D": ["D_1", "D_2"]]
+        let subject: [String: Any] = [
+            "A": "A_VALUE",
+            "B": "B_VALUE",
+            "C": ["C_1", "C_2"],
+            "D": ["D_1", "D_2"],
+        ]
 
         // When
         let got = try subject.toSettings()
 
         // Then
-        XCTAssertEqual(got, ["A": .string("A_VALUE"),
-                             "B": .string("B_VALUE"),
-                             "C": .array(["C_1", "C_2"]),
-                             "D": .array(["D_1", "D_2"])])
+        XCTAssertEqual(
+            got,
+            [
+                "A": .string("A_VALUE"),
+                "B": .string("B_VALUE"),
+                "C": .array(["C_1", "C_2"]),
+                "D": .array(["D_1", "D_2"]),
+            ]
+        )
     }
 
     func testToSettings_whenArraysOnly() throws {
         // Given
-        let subject: [String: Any] = ["A": ["A_1", "A_2"],
-                                      "B": ["B_1", "B_2"]]
+        let subject: [String: Any] = [
+            "A": ["A_1", "A_2"],
+            "B": ["B_1", "B_2"],
+        ]
 
         // When
         let got = try subject.toSettings()
 
         // Then
-        XCTAssertEqual(got, ["A": .array(["A_1", "A_2"]),
-                             "B": .array(["B_1", "B_2"])])
+        XCTAssertEqual(
+            got,
+            [
+                "A": .array(["A_1", "A_2"]),
+                "B": .array(["B_1", "B_2"]),
+            ]
+        )
     }
 
     func testToSettings_whenInvaludContent() throws {
@@ -789,18 +822,22 @@ final class DictionaryStringAnyExtensionTests: XCTestCase {
                 XCTFail("Unexpected error type")
                 return
             }
-            XCTAssertEqual(error.description, "Cannot convert \"[\"A_1\": [\"A_2\": \"A_3\"]]\" to SettingValue type")
+            XCTAssertEqual(
+                error.description,
+                "Cannot convert \"[\"A_1\": [\"A_2\": \"A_3\"]]\" to SettingValue type"
+            )
             XCTAssertEqual(error.type, .bug)
         }
     }
 }
 
-private extension XCTestCase {
-    func XCTAssertSettings(_ first: [String: SettingValue],
-                           containsAll second: [String: SettingValue],
-                           file: StaticString = #file,
-                           line: UInt = #line)
-    {
+extension XCTestCase {
+    fileprivate func XCTAssertSettings(
+        _ first: [String: SettingValue],
+        containsAll second: [String: SettingValue],
+        file: StaticString = #file,
+        line: UInt = #line
+    ) {
         for (key, expectedValue) in second {
             let result = first[key]
             let resultDescription = result.map { "\($0)" } ?? "nil"

@@ -6,6 +6,7 @@ import TuistGraph
 import TuistGraphTesting
 import TuistSupport
 import XCTest
+
 @testable import TuistCache
 @testable import TuistCoreTesting
 @testable import TuistSupportTesting
@@ -34,14 +35,31 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         let scheme = Scheme.test(name: "iOS")
 
         // When
-        try subject.build(scheme: scheme, projectTarget: XcodeBuildTarget(with: projectPath), configuration: "Debug", osVersion: nil, deviceName: nil, into: temporaryPath)
+        try subject.build(
+            scheme: scheme,
+            projectTarget: XcodeBuildTarget(with: projectPath),
+            configuration: "Debug",
+            osVersion: nil,
+            deviceName: nil,
+            into: temporaryPath
+        )
 
         // Then
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").count, 1)
-        let xcframeworkPath = try XCTUnwrap(FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").first)
+        let xcframeworkPath = try XCTUnwrap(
+            FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").first
+        )
         let infoPlist = try self.infoPlist(xcframeworkPath: xcframeworkPath)
-        XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("arm64") }))
-        XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("x86_64") }))
+        XCTAssertNotNil(
+            infoPlist.availableLibraries.first(where: {
+                $0.supportedArchitectures.contains("arm64")
+            })
+        )
+        XCTAssertNotNil(
+            infoPlist.availableLibraries.first(where: {
+                $0.supportedArchitectures.contains("x86_64")
+            })
+        )
         XCTAssertTrue(infoPlist.availableLibraries.allSatisfy { $0.supportedPlatform == "ios" })
         try FileHandler.shared.delete(xcframeworkPath)
     }
@@ -54,15 +72,27 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         let scheme = Scheme.test(name: "macOS")
 
         // When
-        try subject.build(scheme: scheme, projectTarget: XcodeBuildTarget(with: projectPath), configuration: "Debug", osVersion: nil, deviceName: nil, into: temporaryPath)
+        try subject.build(
+            scheme: scheme,
+            projectTarget: XcodeBuildTarget(with: projectPath),
+            configuration: "Debug",
+            osVersion: nil,
+            deviceName: nil,
+            into: temporaryPath
+        )
 
         // Then
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").count, 1)
-        let xcframeworkPath = try XCTUnwrap(FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").first)
+        let xcframeworkPath = try XCTUnwrap(
+            FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").first
+        )
         let infoPlist = try self.infoPlist(xcframeworkPath: xcframeworkPath)
-        XCTAssertNotNil(infoPlist.availableLibraries.first(where: { library in
-            library.supportedArchitectures.contains("x86_64") || library.supportedArchitectures.contains("arm64")
-        }))
+        XCTAssertNotNil(
+            infoPlist.availableLibraries.first(where: { library in
+                library.supportedArchitectures.contains("x86_64")
+                    || library.supportedArchitectures.contains("arm64")
+            })
+        )
         XCTAssertTrue(infoPlist.availableLibraries.allSatisfy { $0.supportedPlatform == "macos" })
         try FileHandler.shared.delete(xcframeworkPath)
     }
@@ -75,14 +105,31 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         let scheme = Scheme.test(name: "tvOS")
 
         // When
-        try subject.build(scheme: scheme, projectTarget: XcodeBuildTarget(with: projectPath), configuration: "Debug", osVersion: nil, deviceName: nil, into: temporaryPath)
+        try subject.build(
+            scheme: scheme,
+            projectTarget: XcodeBuildTarget(with: projectPath),
+            configuration: "Debug",
+            osVersion: nil,
+            deviceName: nil,
+            into: temporaryPath
+        )
 
         // Then
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").count, 1)
-        let xcframeworkPath = try XCTUnwrap(FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").first)
+        let xcframeworkPath = try XCTUnwrap(
+            FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").first
+        )
         let infoPlist = try self.infoPlist(xcframeworkPath: xcframeworkPath)
-        XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("x86_64") }))
-        XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("arm64") }))
+        XCTAssertNotNil(
+            infoPlist.availableLibraries.first(where: {
+                $0.supportedArchitectures.contains("x86_64")
+            })
+        )
+        XCTAssertNotNil(
+            infoPlist.availableLibraries.first(where: {
+                $0.supportedArchitectures.contains("arm64")
+            })
+        )
         XCTAssertTrue(infoPlist.availableLibraries.allSatisfy { $0.supportedPlatform == "tvos" })
         try FileHandler.shared.delete(xcframeworkPath)
     }
@@ -95,15 +142,35 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         let scheme = Scheme.test(name: "watchOS")
 
         // When
-        try subject.build(scheme: scheme, projectTarget: XcodeBuildTarget(with: projectPath), configuration: "Debug", osVersion: nil, deviceName: nil, into: temporaryPath)
+        try subject.build(
+            scheme: scheme,
+            projectTarget: XcodeBuildTarget(with: projectPath),
+            configuration: "Debug",
+            osVersion: nil,
+            deviceName: nil,
+            into: temporaryPath
+        )
 
         // Then
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").count, 1)
-        let xcframeworkPath = try XCTUnwrap(FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").first)
+        let xcframeworkPath = try XCTUnwrap(
+            FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").first
+        )
         let infoPlist = try self.infoPlist(xcframeworkPath: xcframeworkPath)
-        XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("i386") }))
-        XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("armv7k") }))
-        XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("arm64_32") }))
+        XCTAssertNotNil(
+            infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("i386") }
+            )
+        )
+        XCTAssertNotNil(
+            infoPlist.availableLibraries.first(where: {
+                $0.supportedArchitectures.contains("armv7k")
+            })
+        )
+        XCTAssertNotNil(
+            infoPlist.availableLibraries.first(where: {
+                $0.supportedArchitectures.contains("arm64_32")
+            })
+        )
         XCTAssertTrue(infoPlist.availableLibraries.allSatisfy { $0.supportedPlatform == "watchos" })
         try FileHandler.shared.delete(xcframeworkPath)
     }

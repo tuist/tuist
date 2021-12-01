@@ -8,7 +8,9 @@ import TuistSupport
 final class DumpService {
     private let manifestLoader: ManifestLoading
 
-    init(manifestLoader: ManifestLoading = ManifestLoader()) {
+    init(
+        manifestLoader: ManifestLoading = ManifestLoader()
+    ) {
         self.manifestLoader = manifestLoader
     }
 
@@ -30,7 +32,9 @@ final class DumpService {
         case .workspace:
             encoded = try manifestLoader.loadWorkspace(at: projectPath)
         case .config:
-            encoded = try manifestLoader.loadConfig(at: projectPath.appending(component: Constants.tuistDirectoryName))
+            encoded = try manifestLoader.loadConfig(
+                at: projectPath.appending(component: Constants.tuistDirectoryName)
+            )
         case .template:
             encoded = try manifestLoader.loadTemplate(at: projectPath)
         case .dependencies:

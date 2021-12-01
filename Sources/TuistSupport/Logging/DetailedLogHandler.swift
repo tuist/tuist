@@ -7,11 +7,16 @@ public struct DetailedLogHandler: LogHandler {
     private var stdout: LogHandler
     private var stderr: LogHandler
 
-    public init(label: String) {
+    public init(
+        label: String
+    ) {
         self.init(label: label, logLevel: .info)
     }
 
-    public init(label: String, logLevel: Logger.Level) {
+    public init(
+        label: String,
+        logLevel: Logger.Level
+    ) {
         self.label = label
         stdout = StreamLogHandler.standardOutput(label: label)
         stdout.logLevel = logLevel
@@ -23,11 +28,14 @@ public struct DetailedLogHandler: LogHandler {
         level: Logger.Level,
         message: Logger.Message,
         metadata: Logger.Metadata?,
-        file: String, function: String, line: UInt
+        file: String,
+        function: String,
+        line: UInt
     ) {
         var log: String = "\(timestamp()) \(level.rawValue) \(label)"
 
-        let mergedMetadata = metadata.map { self.metadata.merging($0, uniquingKeysWith: { $1 }) } ?? self.metadata
+        let mergedMetadata =
+            metadata.map { self.metadata.merging($0, uniquingKeysWith: { $1 }) } ?? self.metadata
 
         if mergedMetadata.isNotEmpty {
             log.append(mergedMetadata.prettyDescription)
@@ -35,7 +43,14 @@ public struct DetailedLogHandler: LogHandler {
 
         log.append(message.description)
 
-        output(for: level).log(level: level, message: message, metadata: metadata, file: file, function: function, line: line)
+        output(for: level).log(
+            level: level,
+            message: message,
+            metadata: metadata,
+            file: file,
+            function: function,
+            line: line
+        )
     }
 
     func output(for level: Logger.Level) -> LogHandler {

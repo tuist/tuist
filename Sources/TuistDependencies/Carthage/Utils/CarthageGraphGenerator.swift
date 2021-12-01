@@ -21,31 +21,38 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
             .filter { $0.extension == "version" }
 
         let jsonDecoder = JSONDecoder()
-        let products = try versionFilePaths
+        let products =
+            try versionFilePaths
             .map { try FileHandler.shared.readFile($0) }
             .map { try jsonDecoder.decode(CarthageVersionFile.self, from: $0) }
             .flatMap { $0.allProducts }
 
-        let externalDependencies: [String: [TargetDependency]] = Dictionary(grouping: products, by: \.name)
-            .compactMapValues { products in
-                guard let product = products.first else { return nil }
+        let externalDependencies: [String: [TargetDependency]] = Dictionary(
+            grouping: products,
+            by: \.name
+        )
+        .compactMapValues { products in
+            guard let product = products.first else { return nil }
 
-                guard let xcFrameworkName = product.container else {
-                    logger.warning("\(product.name) was not added to the DependenciesGraph", metadata: .subsection)
-                    return nil
-                }
-
-                var pathString = ""
-                pathString += Constants.tuistDirectoryName
-                pathString += "/"
-                pathString += Constants.DependenciesDirectory.name
-                pathString += "/"
-                pathString += Constants.DependenciesDirectory.carthageDirectoryName
-                pathString += "/Build/"
-                pathString += xcFrameworkName
-
-                return [.xcframework(path: Path(pathString))]
+            guard let xcFrameworkName = product.container else {
+                logger.warning(
+                    "\(product.name) was not added to the DependenciesGraph",
+                    metadata: .subsection
+                )
+                return nil
             }
+
+            var pathString = ""
+            pathString += Constants.tuistDirectoryName
+            pathString += "/"
+            pathString += Constants.DependenciesDirectory.name
+            pathString += "/"
+            pathString += Constants.DependenciesDirectory.carthageDirectoryName
+            pathString += "/Build/"
+            pathString += xcFrameworkName
+
+            return [.xcframework(path: Path(pathString))]
+        }
 
         return DependenciesGraph(externalDependencies: externalDependencies, externalProjects: [:])
     }

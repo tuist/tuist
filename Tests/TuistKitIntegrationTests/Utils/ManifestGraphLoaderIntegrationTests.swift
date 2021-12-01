@@ -4,6 +4,7 @@ import TuistGraph
 import TuistLoader
 import TuistSupport
 import XCTest
+
 @testable import TuistCoreTesting
 @testable import TuistKit
 @testable import TuistSupportTesting
@@ -35,11 +36,14 @@ final class ManifestGraphLoaderIntegrationTests: TuistTestCase {
 
         // Then
         XCTAssertEqual(result.workspace.name, "Workspace")
-        XCTAssertEqual(result.projects.values.map(\.name).sorted(), [
-            "App",
-            "FrameworkA",
-            "FrameworkB",
-        ])
+        XCTAssertEqual(
+            result.projects.values.map(\.name).sorted(),
+            [
+                "App",
+                "FrameworkA",
+                "FrameworkB",
+            ]
+        )
     }
 
     func test_load_project() throws {
@@ -52,10 +56,13 @@ final class ManifestGraphLoaderIntegrationTests: TuistTestCase {
 
         // Then
         XCTAssertEqual(result.workspace.name, "App")
-        XCTAssertEqual(result.projects.values.map(\.name).sorted(), [
-            "App",
-            "FrameworkA",
-            "FrameworkB",
-        ])
+        XCTAssertEqual(
+            result.projects.values.map(\.name).sorted(),
+            [
+                "App",
+                "FrameworkA",
+                "FrameworkB",
+            ]
+        )
     }
 }

@@ -10,7 +10,9 @@ public final class CacheContentHasher: ContentHashing {
     // In memory cache for files that have already been hashed
     private var hashesCache: [AbsolutePath: String] = [:]
 
-    public init(contentHasher: ContentHashing = ContentHasher()) {
+    public init(
+        contentHasher: ContentHashing = ContentHasher()
+    ) {
         self.contentHasher = contentHasher
     }
 

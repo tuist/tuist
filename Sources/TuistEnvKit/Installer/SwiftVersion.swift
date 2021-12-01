@@ -5,7 +5,9 @@ struct SwiftVersion: Comparable, Equatable, CustomStringConvertible {
     let minor: Int
     let patch: Int
 
-    init(_ value: String) {
+    init(
+        _ value: String
+    ) {
         let components = value.split(separator: ".")
         major = Int(String(components[0]))!
 

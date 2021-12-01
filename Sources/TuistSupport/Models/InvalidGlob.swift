@@ -8,7 +8,10 @@ public struct InvalidGlob: Equatable, CustomStringConvertible {
     /// Path to a non existing directory.
     public let nonExistentPath: AbsolutePath
 
-    public init(pattern: String, nonExistentPath: AbsolutePath) {
+    public init(
+        pattern: String,
+        nonExistentPath: AbsolutePath
+    ) {
         self.pattern = pattern
         self.nonExistentPath = nonExistentPath
     }

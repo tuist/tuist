@@ -16,7 +16,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window = NSWindow(
             contentRect: rect,
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
-            backing: .buffered, defer: false
+            backing: .buffered,
+            defer: false
         )
         window.title = "Window!"
     }

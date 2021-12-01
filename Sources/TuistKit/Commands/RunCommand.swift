@@ -9,14 +9,14 @@ struct RunCommand: ParsableCommand {
             commandName: "run",
             abstract: "Runs a scheme or target in the project",
             discussion: """
-            Given a runnable scheme or target the run command builds & runs it.
-            All arguments after the scheme or target are forwarded to the application.
-            """
-            // TODO: There is a bug in swift-argument-parser dependency (https://github.com/apple/swift-argument-parser/issues/169)
-            // add this documentation when this is true
-            //
-            // For example: calling `tuist run --device iPhone 12 MyScheme Arg1 --arg2 --arg3`
-            // Will result in running the application on an iPhone 12 simulator while 'Arg1', '--arg2', and '--arg3' are forwarded to the application.
+                Given a runnable scheme or target the run command builds & runs it.
+                All arguments after the scheme or target are forwarded to the application.
+                """
+                // TODO: There is a bug in swift-argument-parser dependency (https://github.com/apple/swift-argument-parser/issues/169)
+                // add this documentation when this is true
+                //
+                // For example: calling `tuist run --device iPhone 12 MyScheme Arg1 --arg2 --arg3`
+                // Will result in running the application on an iPhone 12 simulator while 'Arg1', '--arg2', and '--arg3' are forwarded to the application.
         )
     }
 
@@ -28,7 +28,8 @@ struct RunCommand: ParsableCommand {
 
     @Option(
         name: .shortAndLong,
-        help: "The path to the directory that contains the project with the target or scheme to be run.",
+        help:
+            "The path to the directory that contains the project with the target or scheme to be run.",
         completion: .directory
     )
     var path: String?

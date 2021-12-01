@@ -30,7 +30,9 @@ final class PluginServiceTests: TuistTestCase {
         let mockCacheDirectoriesProvider = try! MockCacheDirectoriesProvider()
         cacheDirectoriesProvider = mockCacheDirectoriesProvider
         cacheDirectoriesProvider.cacheDirectoryStub = try! temporaryPath()
-        cacheDirectoryProviderFactory = MockCacheDirectoriesProviderFactory(provider: cacheDirectoriesProvider)
+        cacheDirectoryProviderFactory = MockCacheDirectoriesProviderFactory(
+            provider: cacheDirectoriesProvider
+        )
         cacheDirectoryProviderFactory.cacheDirectoriesStub = { _ in mockCacheDirectoriesProvider }
         subject = PluginService(
             manifestLoader: manifestLoader,
@@ -62,7 +64,9 @@ final class PluginServiceTests: TuistTestCase {
             ProjectDescription.Plugin(name: pluginName)
         }
 
-        let config = mockConfig(plugins: [TuistGraph.PluginLocation.local(path: pluginPath.pathString)])
+        let config = mockConfig(plugins: [
+            TuistGraph.PluginLocation.local(path: pluginPath.pathString)
+        ])
 
         try fileHandler.createFolder(
             pluginPath.appending(component: Constants.helpersDirectoryName)
@@ -73,7 +77,9 @@ final class PluginServiceTests: TuistTestCase {
 
         // Then
         let expectedHelpersPath = pluginPath.appending(component: Constants.helpersDirectoryName)
-        let expectedPlugins = Plugins.test(projectDescriptionHelpers: [.init(name: pluginName, path: expectedHelpersPath, location: .local)])
+        let expectedPlugins = Plugins.test(projectDescriptionHelpers: [
+            .init(name: pluginName, path: expectedHelpersPath, location: .local)
+        ])
         XCTAssertEqual(plugins, expectedPlugins)
     }
 
@@ -82,27 +88,39 @@ final class PluginServiceTests: TuistTestCase {
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitId = "1.0.0"
         let pluginFingerprint = "\(pluginGitUrl)-\(pluginGitId)".md5
-        let cachedPluginPath = cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint)
+        let cachedPluginPath = cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(
+            components: pluginFingerprint
+        )
         let pluginName = "TestPlugin"
 
         manifestLoader.loadConfigStub = { _ in
-            .test(plugins: [ProjectDescription.PluginLocation.git(url: pluginGitUrl, tag: pluginGitId)])
+            .test(plugins: [
+                ProjectDescription.PluginLocation.git(url: pluginGitUrl, tag: pluginGitId)
+            ])
         }
 
         manifestLoader.loadPluginStub = { _ in
             ProjectDescription.Plugin(name: pluginName)
         }
 
-        try fileHandler.createFolder(cachedPluginPath.appending(component: Constants.helpersDirectoryName))
+        try fileHandler.createFolder(
+            cachedPluginPath.appending(component: Constants.helpersDirectoryName)
+        )
 
-        let config = mockConfig(plugins: [TuistGraph.PluginLocation.gitWithTag(url: pluginGitUrl, tag: pluginGitId)])
+        let config = mockConfig(plugins: [
+            TuistGraph.PluginLocation.gitWithTag(url: pluginGitUrl, tag: pluginGitId)
+        ])
 
         // When
         let plugins = try subject.loadPlugins(using: config)
 
         // Then
-        let expectedHelpersPath = cachedPluginPath.appending(component: Constants.helpersDirectoryName)
-        let expectedPlugins = Plugins.test(projectDescriptionHelpers: [.init(name: pluginName, path: expectedHelpersPath, location: .remote)])
+        let expectedHelpersPath = cachedPluginPath.appending(
+            component: Constants.helpersDirectoryName
+        )
+        let expectedPlugins = Plugins.test(projectDescriptionHelpers: [
+            .init(name: pluginName, path: expectedHelpersPath, location: .remote)
+        ])
         XCTAssertEqual(plugins, expectedPlugins)
     }
 
@@ -122,13 +140,15 @@ final class PluginServiceTests: TuistTestCase {
             ProjectDescription.Plugin(name: pluginName)
         }
 
-        let config = mockConfig(plugins: [TuistGraph.PluginLocation.local(path: pluginPath.pathString)])
+        let config = mockConfig(plugins: [
+            TuistGraph.PluginLocation.local(path: pluginPath.pathString)
+        ])
 
         // When
         let plugins = try subject.loadPlugins(using: config)
         let expectedPlugins = Plugins.test(
             resourceSynthesizers: [
-                PluginResourceSynthesizer(name: pluginName, path: resourceTemplatesPath),
+                PluginResourceSynthesizer(name: pluginName, path: resourceTemplatesPath)
             ]
         )
         XCTAssertEqual(plugins, expectedPlugins)
@@ -139,27 +159,33 @@ final class PluginServiceTests: TuistTestCase {
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitId = "1.0.0"
         let pluginFingerprint = "\(pluginGitUrl)-\(pluginGitId)".md5
-        let cachedPluginPath = cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint)
+        let cachedPluginPath = cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(
+            components: pluginFingerprint
+        )
         let pluginName = "TestPlugin"
         let resourceTemplatesPath = cachedPluginPath.appending(components: "ResourceSynthesizers")
 
         try makeDirectories(resourceTemplatesPath)
 
         manifestLoader.loadConfigStub = { _ in
-            .test(plugins: [ProjectDescription.PluginLocation.git(url: pluginGitUrl, tag: pluginGitId)])
+            .test(plugins: [
+                ProjectDescription.PluginLocation.git(url: pluginGitUrl, tag: pluginGitId)
+            ])
         }
 
         manifestLoader.loadPluginStub = { _ in
             ProjectDescription.Plugin(name: pluginName)
         }
 
-        let config = mockConfig(plugins: [TuistGraph.PluginLocation.gitWithTag(url: pluginGitUrl, tag: pluginGitId)])
+        let config = mockConfig(plugins: [
+            TuistGraph.PluginLocation.gitWithTag(url: pluginGitUrl, tag: pluginGitId)
+        ])
 
         // When
         let plugins = try subject.loadPlugins(using: config)
         let expectedPlugins = Plugins.test(
             resourceSynthesizers: [
-                PluginResourceSynthesizer(name: pluginName, path: resourceTemplatesPath),
+                PluginResourceSynthesizer(name: pluginName, path: resourceTemplatesPath)
             ]
         )
         XCTAssertEqual(plugins, expectedPlugins)
@@ -182,13 +208,15 @@ final class PluginServiceTests: TuistTestCase {
             ProjectDescription.Plugin(name: pluginName)
         }
 
-        let config = mockConfig(plugins: [TuistGraph.PluginLocation.local(path: pluginPath.pathString)])
+        let config = mockConfig(plugins: [
+            TuistGraph.PluginLocation.local(path: pluginPath.pathString)
+        ])
 
         // Then
         let plugins = try subject.loadPlugins(using: config)
         let expectedPlugins = Plugins.test(
             tasks: [
-                PluginTasks(name: pluginName, path: tasksPath),
+                PluginTasks(name: pluginName, path: tasksPath)
             ]
         )
         XCTAssertEqual(plugins, expectedPlugins)
@@ -199,7 +227,9 @@ final class PluginServiceTests: TuistTestCase {
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitId = "1.0.0"
         let pluginFingerprint = "\(pluginGitUrl)-\(pluginGitId)".md5
-        let cachedPluginPath = cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint)
+        let cachedPluginPath = cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(
+            components: pluginFingerprint
+        )
         let pluginName = "TestPlugin"
         let tasksPath = cachedPluginPath.appending(components: Constants.tasksDirectoryName)
 
@@ -207,20 +237,24 @@ final class PluginServiceTests: TuistTestCase {
 
         // When
         manifestLoader.loadConfigStub = { _ in
-            .test(plugins: [ProjectDescription.PluginLocation.git(url: pluginGitUrl, tag: pluginGitId)])
+            .test(plugins: [
+                ProjectDescription.PluginLocation.git(url: pluginGitUrl, tag: pluginGitId)
+            ])
         }
 
         manifestLoader.loadPluginStub = { _ in
             ProjectDescription.Plugin(name: pluginName)
         }
 
-        let config = mockConfig(plugins: [TuistGraph.PluginLocation.gitWithTag(url: pluginGitUrl, tag: pluginGitId)])
+        let config = mockConfig(plugins: [
+            TuistGraph.PluginLocation.gitWithTag(url: pluginGitUrl, tag: pluginGitId)
+        ])
 
         // Then
         let plugins = try subject.loadPlugins(using: config)
         let expectedPlugins = Plugins.test(
             tasks: [
-                PluginTasks(name: pluginName, path: tasksPath),
+                PluginTasks(name: pluginName, path: tasksPath)
             ]
         )
         XCTAssertEqual(plugins, expectedPlugins)
@@ -233,7 +267,7 @@ final class PluginServiceTests: TuistTestCase {
         let templatePath = pluginPath.appending(components: "Templates", "custom")
         templatesDirectoryLocator.templatePluginDirectoriesStub = { _ in
             [
-                templatePath,
+                templatePath
             ]
         }
 
@@ -248,7 +282,9 @@ final class PluginServiceTests: TuistTestCase {
             ProjectDescription.Plugin(name: pluginName)
         }
 
-        let config = mockConfig(plugins: [TuistGraph.PluginLocation.local(path: pluginPath.pathString)])
+        let config = mockConfig(plugins: [
+            TuistGraph.PluginLocation.local(path: pluginPath.pathString)
+        ])
 
         // Then
         let plugins = try subject.loadPlugins(using: config)
@@ -261,12 +297,14 @@ final class PluginServiceTests: TuistTestCase {
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitId = "1.0.0"
         let pluginFingerprint = "\(pluginGitUrl)-\(pluginGitId)".md5
-        let cachedPluginPath = cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint)
+        let cachedPluginPath = cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(
+            components: pluginFingerprint
+        )
         let pluginName = "TestPlugin"
         let templatePath = cachedPluginPath.appending(components: "Templates", "custom")
         templatesDirectoryLocator.templatePluginDirectoriesStub = { _ in
             [
-                templatePath,
+                templatePath
             ]
         }
 
@@ -274,14 +312,18 @@ final class PluginServiceTests: TuistTestCase {
 
         // When
         manifestLoader.loadConfigStub = { _ in
-            .test(plugins: [ProjectDescription.PluginLocation.git(url: pluginGitUrl, tag: pluginGitId)])
+            .test(plugins: [
+                ProjectDescription.PluginLocation.git(url: pluginGitUrl, tag: pluginGitId)
+            ])
         }
 
         manifestLoader.loadPluginStub = { _ in
             ProjectDescription.Plugin(name: pluginName)
         }
 
-        let config = mockConfig(plugins: [TuistGraph.PluginLocation.gitWithTag(url: pluginGitUrl, tag: pluginGitId)])
+        let config = mockConfig(plugins: [
+            TuistGraph.PluginLocation.gitWithTag(url: pluginGitUrl, tag: pluginGitId)
+        ])
 
         // Then
         let plugins = try subject.loadPlugins(using: config)
@@ -293,7 +335,9 @@ final class PluginServiceTests: TuistTestCase {
         // Given
         let pluginGitUrl = "https://url/to/repo.git"
         let pluginGitId = "1.0.0"
-        let config = mockConfig(plugins: [TuistGraph.PluginLocation.gitWithTag(url: pluginGitUrl, tag: pluginGitId)])
+        let config = mockConfig(plugins: [
+            TuistGraph.PluginLocation.gitWithTag(url: pluginGitUrl, tag: pluginGitId)
+        ])
 
         // When
         _ = try subject.loadPlugins(using: config)

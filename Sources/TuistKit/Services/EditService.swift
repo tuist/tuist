@@ -13,7 +13,8 @@ enum EditServiceError: FatalError {
     var description: String {
         switch self {
         case .xcodeNotSelected:
-            return "Couldn't determine the Xcode version to open the project. Make sure your Xcode installation is selected with 'xcode-select -s'."
+            return
+                "Couldn't determine the Xcode version to open the project. Make sure your Xcode installation is selected with 'xcode-select -s'."
         }
     }
 
@@ -73,7 +74,9 @@ final class EditService {
                     onlyCurrentDirectory: onlyCurrentDirectory,
                     plugins: plugins
                 )
-                logger.pretty("Opening Xcode to edit the project. Press \(.keystroke("CTRL + C")) once you are done editing")
+                logger.pretty(
+                    "Opening Xcode to edit the project. Press \(.keystroke("CTRL + C")) once you are done editing"
+                )
                 try opener.open(path: workspacePath, application: selectedXcode.path, wait: true)
             }
         } else {
@@ -84,7 +87,10 @@ final class EditService {
                 onlyCurrentDirectory: onlyCurrentDirectory,
                 plugins: plugins
             )
-            logger.notice("Xcode project generated at \(workspacePath.pathString)", metadata: .success)
+            logger.notice(
+                "Xcode project generated at \(workspacePath.pathString)",
+                metadata: .success
+            )
         }
     }
 
@@ -100,12 +106,16 @@ final class EditService {
 
     private func loadPlugins(at path: AbsolutePath) -> Plugins {
         guard let config = try? configLoader.loadConfig(path: path) else {
-            logger.warning("Unable to load Config.swift, fix any compiler errors and re-run for plugins to be loaded.")
+            logger.warning(
+                "Unable to load Config.swift, fix any compiler errors and re-run for plugins to be loaded."
+            )
             return .none
         }
 
         guard let plugins = try? pluginService.loadPlugins(using: config) else {
-            logger.warning("Unable to load Plugin.swift manifest, fix and re-run in order to use plugin(s).")
+            logger.warning(
+                "Unable to load Plugin.swift manifest, fix and re-run in order to use plugin(s)."
+            )
             return .none
         }
 

@@ -32,7 +32,10 @@ final class DependenciesManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try TuistGraph.Dependencies.from(manifest: manifest, generatorPaths: generatorPaths)
+        let got = try TuistGraph.Dependencies.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths
+        )
 
         // Then
         let expected: TuistGraph.Dependencies = .init(

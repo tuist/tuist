@@ -30,7 +30,9 @@ final class FileElementManifestMapperTests: TuistUnitTestCase {
 
         // Then
         let documentationPath = temporaryPath.appending(component: "Documentation").pathString
-        XCTAssertPrinterOutputContains("'\(documentationPath)' is a directory, try using: '\(documentationPath)/**' to list its files")
+        XCTAssertPrinterOutputContains(
+            "'\(documentationPath)' is a directory, try using: '\(documentationPath)/**' to list its files"
+        )
         XCTAssertEqual(model, [])
     }
 
@@ -39,16 +41,21 @@ final class FileElementManifestMapperTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         try createFiles([
-            "README.md",
+            "README.md"
         ])
 
         let manifest = ProjectDescription.FileElement.folderReference(path: "README.md")
 
         // When
-        let model = try TuistGraph.FileElement.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try TuistGraph.FileElement.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths
+        )
 
         // Then
-        XCTAssertPrinterOutputContains("README.md is not a directory - folder reference paths need to point to directories")
+        XCTAssertPrinterOutputContains(
+            "README.md is not a directory - folder reference paths need to point to directories"
+        )
         XCTAssertEqual(model, [])
     }
 
@@ -59,7 +66,10 @@ final class FileElementManifestMapperTests: TuistUnitTestCase {
         let manifest = ProjectDescription.FileElement.folderReference(path: "Documentation")
 
         // When
-        let model = try TuistGraph.FileElement.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try TuistGraph.FileElement.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths
+        )
 
         // Then
         XCTAssertPrinterOutputContains("Documentation does not exist")
@@ -78,6 +88,9 @@ final class FileElementManifestMapperTests: TuistUnitTestCase {
         let error = GlobError.nonExistentDirectory(invalidGlob)
 
         // Then
-        XCTAssertThrowsSpecific(try TuistGraph.FileElement.from(manifest: manifest, generatorPaths: generatorPaths), error)
+        XCTAssertThrowsSpecific(
+            try TuistGraph.FileElement.from(manifest: manifest, generatorPaths: generatorPaths),
+            error
+        )
     }
 }

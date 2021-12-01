@@ -1,13 +1,14 @@
 import Foundation
 import TSCBasic
 import XCTest
+
 @testable import TuistGraph
 
 private let script = """
-echo 'Hello World'
-wd=$(pwd)
-echo "$wd"
-"""
+    echo 'Hello World'
+    wd=$(pwd)
+    echo "$wd"
+    """
 
 final class TargetScriptTests: XCTestCase {
     func test_codable() {

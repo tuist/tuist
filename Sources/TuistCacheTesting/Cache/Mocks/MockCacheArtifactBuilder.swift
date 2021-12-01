@@ -1,11 +1,12 @@
 import Foundation
 import RxSwift
 import TSCBasic
-import struct TSCUtility.Version
 import TuistCache
 import TuistCore
 import TuistGraph
 import TuistSupportTesting
+
+import struct TSCUtility.Version
 
 public final class MockCacheArtifactBuilder: CacheArtifactBuilding {
     public init() {}
@@ -23,8 +24,11 @@ public final class MockCacheArtifactBuilder: CacheArtifactBuilding {
     public var invokedBuildSchemeProject = false
     public var invokedBuildSchemeProjectCount = 0
     // swiftlint:disable:next large_tuple
-    public var invokedBuildSchemeProjectParameters: (scheme: Scheme, projectTarget: XcodeBuildTarget, outputDirectory: AbsolutePath)?
-    public var invokedBuildchemeProjectParametersList = [(scheme: Scheme, projectTarget: XcodeBuildTarget, outputDirectory: AbsolutePath)]()
+    public var invokedBuildSchemeProjectParameters:
+        (scheme: Scheme, projectTarget: XcodeBuildTarget, outputDirectory: AbsolutePath)?
+    public var invokedBuildchemeProjectParametersList = [
+        (scheme: Scheme, projectTarget: XcodeBuildTarget, outputDirectory: AbsolutePath)
+    ]()
     public var stubbedBuildSchemeProjectError: Error?
     public func build(
         scheme: Scheme,

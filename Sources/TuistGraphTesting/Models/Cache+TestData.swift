@@ -1,16 +1,18 @@
 import Foundation
 import TSCBasic
+
 import struct TSCUtility.Version
+
 @testable import TuistGraph
 
-public extension Cache {
-    static func test(profiles: [Cache.Profile] = [Cache.Profile.test()]) -> Cache {
+extension Cache {
+    public static func test(profiles: [Cache.Profile] = [Cache.Profile.test()]) -> Cache {
         Cache(profiles: profiles, path: nil)
     }
 }
 
-public extension Cache.Profile {
-    static func test(
+extension Cache.Profile {
+    public static func test(
         name: String = "Development",
         configuration: String = "Debug",
         device: String? = nil,

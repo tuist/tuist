@@ -1,17 +1,22 @@
 import Foundation
-import struct TSCUtility.Version
 import TuistCore
 import TuistGraph
 import TuistSupport
 import XcodeProj
 
-public protocol DefaultSettingsProviding {
-    func projectSettings(project: Project,
-                         buildConfiguration: BuildConfiguration) throws -> SettingsDictionary
+import struct TSCUtility.Version
 
-    func targetSettings(target: Target,
-                        project: Project,
-                        buildConfiguration: BuildConfiguration) throws -> SettingsDictionary
+public protocol DefaultSettingsProviding {
+    func projectSettings(
+        project: Project,
+        buildConfiguration: BuildConfiguration
+    ) throws -> SettingsDictionary
+
+    func targetSettings(
+        target: Target,
+        project: Project,
+        buildConfiguration: BuildConfiguration
+    ) throws -> SettingsDictionary
 }
 
 public final class DefaultSettingsProvider: DefaultSettingsProviding {
@@ -67,8 +72,8 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
     /// Key is `Version` which describes from which version of Xcode are values available for
     private static let xcodeVersionSpecificSettings: [Version: Set<String>] = [
         Version(11, 0, 0): [
-            "ENABLE_PREVIEWS",
-        ],
+            "ENABLE_PREVIEWS"
+        ]
     ]
 
     private let system: Systeming
@@ -91,14 +96,16 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
 
     // MARK: - DefaultSettingsProviding
 
-    public func projectSettings(project: Project,
-                                buildConfiguration: BuildConfiguration) throws -> SettingsDictionary
-    {
+    public func projectSettings(
+        project: Project,
+        buildConfiguration: BuildConfiguration
+    ) throws -> SettingsDictionary {
         let settingsHelper = SettingsHelper()
         let defaultSettings = project.settings.defaultSettings
         let variant = settingsHelper.variant(buildConfiguration)
         let projectDefaultAll = try BuildSettingsProvider.projectDefault(variant: .all).toSettings()
-        let projectDefaultVariant = try BuildSettingsProvider.projectDefault(variant: variant).toSettings()
+        let projectDefaultVariant = try BuildSettingsProvider.projectDefault(variant: variant)
+            .toSettings()
         let filter = try createFilter(
             defaultSettings: defaultSettings,
             essentialKeys: DefaultSettingsProvider.essentialProjectSettings
@@ -110,10 +117,11 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
         return settings.filter(filter)
     }
 
-    public func targetSettings(target: Target,
-                               project: Project,
-                               buildConfiguration: BuildConfiguration) throws -> SettingsDictionary
-    {
+    public func targetSettings(
+        target: Target,
+        project: Project,
+        buildConfiguration: BuildConfiguration
+    ) throws -> SettingsDictionary {
         let settingsHelper = SettingsHelper()
         let defaultSettings = target.settings?.defaultSettings ?? project.settings.defaultSettings
         let product = settingsHelper.settingsProviderProduct(target)
@@ -147,10 +155,11 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
 
     // MARK: - Private
 
-    private func createFilter(defaultSettings: DefaultSettings,
-                              essentialKeys: Set<String>,
-                              newXcodeKeys: [Version: Set<String>] = [:]) throws -> (String, SettingValue) -> Bool
-    {
+    private func createFilter(
+        defaultSettings: DefaultSettings,
+        essentialKeys: Set<String>,
+        newXcodeKeys: [Version: Set<String>] = [:]
+    ) throws -> (String, SettingValue) -> Bool {
         switch defaultSettings {
         case let .essential(excludedKeys):
             return { key, _ in essentialKeys.contains(key) && !excludedKeys.contains(key) }
@@ -160,8 +169,7 @@ public final class DefaultSettingsProvider: DefaultSettingsProviding {
                 // Filter keys that are from higher Xcode version than current (otherwise return true)
                 !newXcodeKeys
                     .filter { $0.key > xcodeVersion }
-                    .values.flatMap { $0 }.contains(key) &&
-                    !excludedKeys.contains(key)
+                    .values.flatMap { $0 }.contains(key) && !excludedKeys.contains(key)
             }
         case .none:
             return { _, _ in false }

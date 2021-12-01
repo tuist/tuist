@@ -11,7 +11,7 @@ let project = Project(
             infoPlist: .default,
             sources: "App/**",
             dependencies: [
-                .external(name: "Alamofire"),
+                .external(name: "Alamofire")
             ]
         ),
         Target(

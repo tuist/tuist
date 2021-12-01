@@ -6,6 +6,7 @@ import TuistGraph
 import TuistLoader
 import TuistSigning
 import XCTest
+
 @testable import TuistCache
 @testable import TuistCore
 @testable import TuistGenerator
@@ -53,7 +54,11 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
         let got = subject.cache(includedTargets: includedTargets)
 
         // Then
-        XCTAssertContainsElementOfType(got, TreeShakePrunedTargetsGraphMapper.self, after: FocusTargetsGraphMappers.self)
+        XCTAssertContainsElementOfType(
+            got,
+            TreeShakePrunedTargetsGraphMapper.self,
+            after: FocusTargetsGraphMappers.self
+        )
     }
 
     func test_focus_contains_the_filter_target_dependenies_tree_graph_mapper() {
@@ -94,8 +99,16 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertContainsElementOfType(got, TreeShakePrunedTargetsGraphMapper.self, after: FocusTargetsGraphMappers.self)
-        XCTAssertContainsElementOfType(got, TreeShakePrunedTargetsGraphMapper.self, after: TargetsToCacheBinariesGraphMapper.self)
+        XCTAssertContainsElementOfType(
+            got,
+            TreeShakePrunedTargetsGraphMapper.self,
+            after: FocusTargetsGraphMappers.self
+        )
+        XCTAssertContainsElementOfType(
+            got,
+            TreeShakePrunedTargetsGraphMapper.self,
+            after: TargetsToCacheBinariesGraphMapper.self
+        )
     }
 
     func test_focus_contains_the_cache_mapper() {
@@ -115,7 +128,11 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertContainsElementOfType(got, TargetsToCacheBinariesGraphMapper.self, after: FocusTargetsGraphMappers.self)
+        XCTAssertContainsElementOfType(
+            got,
+            TargetsToCacheBinariesGraphMapper.self,
+            after: FocusTargetsGraphMappers.self
+        )
     }
 
     func test_automation_contains_the_tests_cache_graph_mapper() throws {
@@ -147,6 +164,10 @@ final class GraphMapperFactoryTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertContainsElementOfType(got, TreeShakePrunedTargetsGraphMapper.self, after: TestsCacheGraphMapper.self)
+        XCTAssertContainsElementOfType(
+            got,
+            TreeShakePrunedTargetsGraphMapper.self,
+            after: TestsCacheGraphMapper.self
+        )
     }
 }

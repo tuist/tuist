@@ -10,7 +10,10 @@ extension TuistGraph.Dependencies {
     /// - Parameters:
     ///   - manifest: Manifest representation of dependencies.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.Dependencies, generatorPaths: GeneratorPaths) throws -> Self {
+    static func from(
+        manifest: ProjectDescription.Dependencies,
+        generatorPaths: GeneratorPaths
+    ) throws -> Self {
         let carthage: TuistGraph.CarthageDependencies? = try {
             guard let carthage = manifest.carthage else {
                 return nil
@@ -21,7 +24,10 @@ extension TuistGraph.Dependencies {
             guard let swiftPackageManager = manifest.swiftPackageManager else {
                 return nil
             }
-            return try TuistGraph.SwiftPackageManagerDependencies.from(manifest: swiftPackageManager, generatorPaths: generatorPaths)
+            return try TuistGraph.SwiftPackageManagerDependencies.from(
+                manifest: swiftPackageManager,
+                generatorPaths: generatorPaths
+            )
         }()
         let platforms = try manifest.platforms.map { try TuistGraph.Platform.from(manifest: $0) }
 

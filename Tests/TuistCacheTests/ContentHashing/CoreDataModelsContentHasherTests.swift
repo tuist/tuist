@@ -6,6 +6,7 @@ import TuistCoreTesting
 import TuistGraph
 import TuistSupport
 import XCTest
+
 @testable import TuistCache
 @testable import TuistSupportTesting
 
@@ -13,7 +14,7 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
     private var subject: CoreDataModelsContentHasher!
     private var coreDataModel: CoreDataModel!
     private var mockContentHasher: MockContentHasher!
-    private let defaultValuesHash = "05c9d517e2cf12b45786787dae929a23" // Expected hash for the CoreDataModel created with the buildCoreDataModel function using default values
+    private let defaultValuesHash = "05c9d517e2cf12b45786787dae929a23"  // Expected hash for the CoreDataModel created with the buildCoreDataModel function using default values
 
     override func setUp() {
         super.setUp()
@@ -87,10 +88,11 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
         AbsolutePath("/\(name)+path")
     }
 
-    private func buildCoreDataModel(name: String = "CoreDataModel",
-                                    versions: [String] = ["1", "2"],
-                                    currentVersion: String = "1") throws -> CoreDataModel
-    {
+    private func buildCoreDataModel(
+        name: String = "CoreDataModel",
+        versions: [String] = ["1", "2"],
+        currentVersion: String = "1"
+    ) throws -> CoreDataModel {
         let fakePath = buildFakePath(from: name)
         mockContentHasher.stubHashForPath[fakePath] = "fixed-hash"
         let versionsAbsolutePaths = versions.map { AbsolutePath("/\($0)") }

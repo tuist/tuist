@@ -15,7 +15,8 @@ enum InitServiceError: FatalError, Equatable {
 
     var type: ErrorType {
         switch self {
-        case .ungettableProjectName, .nonEmptyDirectory, .templateNotFound, .templateNotProvided, .attributeNotProvided, .invalidValue:
+        case .ungettableProjectName, .nonEmptyDirectory, .templateNotFound, .templateNotProvided,
+            .attributeNotProvided, .invalidValue:
             return .abort
         }
     }
@@ -23,13 +24,15 @@ enum InitServiceError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .templateNotFound(template):
-            return "Could not find template \(template). Make sure it exists at Tuist/Templates/\(template)"
+            return
+                "Could not find template \(template). Make sure it exists at Tuist/Templates/\(template)"
         case .templateNotProvided:
             return "You must provide template name"
         case let .ungettableProjectName(path):
             return "Couldn't infer the project name from path \(path.pathString)."
         case let .nonEmptyDirectory(path):
-            return "Can't initialize a project in the non-empty directory at path \(path.pathString)."
+            return
+                "Can't initialize a project in the non-empty directory at path \(path.pathString)."
         case let .attributeNotProvided(name):
             return "You must provide \(name) option. Add --\(name) desired_value to your command."
         case let .invalidValue(argument: argument, error: error):
@@ -43,17 +46,20 @@ class InitService {
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateGenerator: TemplateGenerating
 
-    init(templateLoader: TemplateLoading = TemplateLoader(),
-         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
-         templateGenerator: TemplateGenerating = TemplateGenerator())
-    {
+    init(
+        templateLoader: TemplateLoading = TemplateLoader(),
+        templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
+        templateGenerator: TemplateGenerating = TemplateGenerator()
+    ) {
         self.templateLoader = templateLoader
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.templateGenerator = templateGenerator
     }
 
-    func loadTemplateOptions(templateName: String,
-                             path: String?) throws -> (
+    func loadTemplateOptions(
+        templateName: String,
+        path: String?
+    ) throws -> (
         required: [String],
         optional: [String]
     ) {
@@ -67,7 +73,9 @@ class InitService {
 
         let template = try templateLoader.loadTemplate(at: templateDirectory)
 
-        return template.attributes.reduce(into: (required: [], optional: [])) { currentValue, attribute in
+        return template.attributes.reduce(into: (required: [], optional: [])) {
+            currentValue,
+            attribute in
             switch attribute {
             case let .optional(name, default: _):
                 currentValue.optional.append(name)
@@ -77,13 +85,14 @@ class InitService {
         }
     }
 
-    func run(name: String?,
-             platform: String?,
-             path: String?,
-             templateName: String?,
-             requiredTemplateOptions: [String: String],
-             optionalTemplateOptions: [String: String?]) throws
-    {
+    func run(
+        name: String?,
+        platform: String?,
+        path: String?,
+        templateName: String?,
+        requiredTemplateOptions: [String: String],
+        optionalTemplateOptions: [String: String?]
+    ) throws {
         let platform = try self.platform(platform)
         let path = self.path(path)
         let name = try self.name(name, path: path)
@@ -138,12 +147,13 @@ class InitService {
     /// Parses all `attributes` from `template`
     /// If those attributes are optional, they default to `default` if not provided
     /// - Returns: Array of parsed attributes
-    private func parseAttributes(name: String,
-                                 platform: Platform,
-                                 requiredTemplateOptions: [String: String],
-                                 optionalTemplateOptions: [String: String?],
-                                 template: Template) throws -> [String: String]
-    {
+    private func parseAttributes(
+        name: String,
+        platform: Platform,
+        requiredTemplateOptions: [String: String],
+        optionalTemplateOptions: [String: String?],
+        template: Template
+    ) throws -> [String: String] {
         try template.attributes.reduce(into: [:]) { attributesDictionary, attribute in
             if attribute.name == "name" {
                 attributesDictionary[attribute.name] = name
@@ -177,7 +187,10 @@ class InitService {
     ///     - templateDirectories: Paths of available templates
     ///     - template: Name of template
     /// - Returns: `AbsolutePath` of template directory
-    private func templateDirectory(templateDirectories: [AbsolutePath], template: String) throws -> AbsolutePath {
+    private func templateDirectory(
+        templateDirectories: [AbsolutePath],
+        template: String
+    ) throws -> AbsolutePath {
         guard
             let templateDirectory = templateDirectories.first(where: { $0.basename == template })
         else { throw InitServiceError.templateNotFound(template) }
@@ -209,7 +222,10 @@ class InitService {
             if let platform = Platform(rawValue: platformString) {
                 return platform
             } else {
-                throw InitServiceError.invalidValue(argument: "platform", error: "Platform should be either ios, tvos, or macos")
+                throw InitServiceError.invalidValue(
+                    argument: "platform",
+                    error: "Platform should be either ios, tvos, or macos"
+                )
             }
         } else {
             return .iOS

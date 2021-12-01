@@ -11,19 +11,25 @@ extension TuistGraph.FileElement {
     /// - Parameters:
     ///   - manifest: Manifest representation of  the file element.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.FileElement,
-                     generatorPaths: GeneratorPaths,
-                     includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }) throws -> [TuistGraph.FileElement]
-    {
+    static func from(
+        manifest: ProjectDescription.FileElement,
+        generatorPaths: GeneratorPaths,
+        includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }
+    ) throws -> [TuistGraph.FileElement] {
         func globFiles(_ path: AbsolutePath) throws -> [AbsolutePath] {
             if FileHandler.shared.exists(path), !FileHandler.shared.isFolder(path) { return [path] }
 
-            let files = try FileHandler.shared.throwingGlob(AbsolutePath.root, glob: String(path.pathString.dropFirst()))
-                .filter(includeFiles)
+            let files = try FileHandler.shared.throwingGlob(
+                AbsolutePath.root,
+                glob: String(path.pathString.dropFirst())
+            )
+            .filter(includeFiles)
 
             if files.isEmpty {
                 if FileHandler.shared.isFolder(path) {
-                    logger.warning("'\(path.pathString)' is a directory, try using: '\(path.pathString)/**' to list its files")
+                    logger.warning(
+                        "'\(path.pathString)' is a directory, try using: '\(path.pathString)/**' to list its files"
+                    )
                 } else {
                     // FIXME: This should be done in a linter.
                     logger.warning("No files found at: \(path.pathString)")
@@ -42,7 +48,9 @@ extension TuistGraph.FileElement {
 
             guard FileHandler.shared.isFolder(path) else {
                 // FIXME: This should be done in a linter.
-                logger.warning("\(path.pathString) is not a directory - folder reference paths need to point to directories")
+                logger.warning(
+                    "\(path.pathString) is not a directory - folder reference paths need to point to directories"
+                )
                 return []
             }
 

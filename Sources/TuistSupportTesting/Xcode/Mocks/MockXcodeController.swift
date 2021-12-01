@@ -1,7 +1,8 @@
 import Foundation
-import struct TSCUtility.Version
 import TuistSupport
 import XCTest
+
+import struct TSCUtility.Version
 
 public final class MockXcodeController: XcodeControlling {
     public var selectedStub: Result<Xcode, Error>?

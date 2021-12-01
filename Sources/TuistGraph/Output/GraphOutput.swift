@@ -12,7 +12,11 @@ public struct GraphOutput: Codable, Equatable {
     /// The projects within this graph.
     public let projects: [String: ProjectOutput]
 
-    public init(name: String, path: String, projects: [String: ProjectOutput]) {
+    public init(
+        name: String,
+        path: String,
+        projects: [String: ProjectOutput]
+    ) {
         self.name = name
         self.path = path
         self.projects = projects

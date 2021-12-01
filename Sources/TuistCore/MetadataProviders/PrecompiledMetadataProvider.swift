@@ -30,7 +30,10 @@ enum PrecompiledMetadataProviderError: FatalError, Equatable {
 
     // MARK: - Equatable
 
-    static func == (lhs: PrecompiledMetadataProviderError, rhs: PrecompiledMetadataProviderError) -> Bool {
+    static func == (
+        lhs: PrecompiledMetadataProviderError,
+        rhs: PrecompiledMetadataProviderError
+    ) -> Bool {
         switch (lhs, rhs) {
         case let (.architecturesNotFound(lhsPath), .architecturesNotFound(rhsPath)):
             return lhsPath == rhsPath
@@ -107,7 +110,10 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
     }
 
     // swiftlint:disable:next large_tuple
-    private func readMetadatasFromFatHeader(binary: FileHandle, binaryPath: AbsolutePath) throws -> [(BinaryArchitecture, BinaryLinking, UUID?)] {
+    private func readMetadatasFromFatHeader(
+        binary: FileHandle,
+        binaryPath: AbsolutePath
+    ) throws -> [(BinaryArchitecture, BinaryLinking, UUID?)] {
         let currentOffset = binary.currentOffset
         let magic: UInt32 = binary.read()
         binary.seek(to: currentOffset)
@@ -117,7 +123,7 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
             swap_fat_header(&header, NX_UnknownByteOrder)
         }
 
-        return try (0 ..< header.nfat_arch).map { _ in
+        return try (0..<header.nfat_arch).map { _ in
             var fatArch: fat_arch = binary.read()
             if shouldSwap(magic) {
                 swap_fat_arch(&fatArch, 1, NX_UnknownByteOrder)
@@ -131,7 +137,12 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
             } else {
                 binary.seek(to: currentOffset)
 
-                guard let architecture = readBinaryArchitecture(cputype: fatArch.cputype, cpusubtype: fatArch.cpusubtype) else {
+                guard
+                    let architecture = readBinaryArchitecture(
+                        cputype: fatArch.cputype,
+                        cpusubtype: fatArch.cpusubtype
+                    )
+                else {
                     throw PrecompiledMetadataProviderError.architecturesNotFound(binaryPath)
                 }
 
@@ -141,7 +152,9 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
     }
 
     // swiftlint:disable:next function_body_length large_tuple
-    private func readMetadataFromMachHeaderIfAvailable(binary: FileHandle) throws -> (BinaryArchitecture, BinaryLinking, UUID?)? {
+    private func readMetadataFromMachHeaderIfAvailable(
+        binary: FileHandle
+    ) throws -> (BinaryArchitecture, BinaryLinking, UUID?)? {
         readArchiveFormatIfAvailable(binary: binary)
 
         let currentOffset = binary.currentOffset
@@ -177,12 +190,15 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
         }
 
         guard
-            let binaryArchitecture = readBinaryArchitecture(cputype: cputype, cpusubtype: cpusubtype)
+            let binaryArchitecture = readBinaryArchitecture(
+                cputype: cputype,
+                cpusubtype: cpusubtype
+            )
         else { return nil }
 
         var uuid: UUID?
 
-        for _ in 0 ..< numOfCommands {
+        for _ in 0..<numOfCommands {
             let currentOffset = binary.currentOffset
             var loadCommand: load_command = binary.read()
 
@@ -211,7 +227,10 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
         return (binaryArchitecture, binaryLinking, uuid)
     }
 
-    private func readBinaryArchitecture(cputype: cpu_type_t, cpusubtype: cpu_subtype_t) -> BinaryArchitecture? {
+    private func readBinaryArchitecture(
+        cputype: cpu_type_t,
+        cpusubtype: cpu_subtype_t
+    ) -> BinaryArchitecture? {
         guard
             let archInfo = NXGetArchInfoFromCpuType(cputype, cpusubtype),
             let arch = BinaryArchitecture(rawValue: String(cString: archInfo.pointee.name))
@@ -262,18 +281,18 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
     }
 }
 
-private extension FileHandle {
-    var currentOffset: UInt64 { offsetInFile }
+extension FileHandle {
+    fileprivate var currentOffset: UInt64 { offsetInFile }
 
-    func seek(to offset: UInt64) {
+    fileprivate func seek(to offset: UInt64) {
         seek(toFileOffset: offset)
     }
 
-    func read<T>() -> T {
+    fileprivate func read<T>() -> T {
         readData(ofLength: MemoryLayout<T>.size).withUnsafeBytes { $0.load(as: T.self) }
     }
 
-    func readString(ofLength length: Int) -> String? {
+    fileprivate func readString(ofLength length: Int) -> String? {
         let sizeData = readData(ofLength: length)
         return String(data: sizeData, encoding: .ascii)
     }

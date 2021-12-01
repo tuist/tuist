@@ -176,7 +176,11 @@ extension PackageInfo.Target {
         case target(name: String, condition: PackageInfo.PackageConditionDescription?)
 
         /// A product from an external package.
-        case product(name: String, package: String, condition: PackageInfo.PackageConditionDescription?)
+        case product(
+            name: String,
+            package: String,
+            condition: PackageInfo.PackageConditionDescription?
+        )
 
         /// A dependency to be resolved by name.
         case byName(name: String, condition: PackageInfo.PackageConditionDescription?)
@@ -206,7 +210,11 @@ extension PackageInfo.Target {
         /// The explicit localization of the resource.
         let localization: Localization?
 
-        init(rule: Rule, path: String, localization: Localization? = nil) {
+        init(
+            rule: Rule,
+            path: String,
+            localization: Localization? = nil
+        ) {
             self.rule = rule
             self.path = path
             self.localization = localization
@@ -273,10 +281,13 @@ extension PackageInfo.Target {
 
 extension PackageInfo: Decodable {
     private enum CodingKeys: String, CodingKey {
-        case products, targets, platforms, cLanguageStandard, cxxLanguageStandard, swiftLanguageVersions
+        case products, targets, platforms, cLanguageStandard, cxxLanguageStandard,
+            swiftLanguageVersions
     }
 
-    public init(from decoder: Decoder) throws {
+    public init(
+        from decoder: Decoder
+    ) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         products = try values.decode([Product].self, forKey: .products)
         targets = try values.decode([Target].self, forKey: .targets)
@@ -294,10 +305,17 @@ extension PackageInfo.Target.Dependency: Decodable {
         case target, product, byName
     }
 
-    init(from decoder: Decoder) throws {
+    init(
+        from decoder: Decoder
+    ) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         guard let key = values.allKeys.first(where: values.contains) else {
-            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Did not find a matching key"))
+            throw DecodingError.dataCorrupted(
+                .init(
+                    codingPath: decoder.codingPath,
+                    debugDescription: "Did not find a matching key"
+                )
+            )
         }
 
         var unkeyedValues = try values.nestedUnkeyedContainer(forKey: key)
@@ -305,19 +323,25 @@ extension PackageInfo.Target.Dependency: Decodable {
         case .target:
             self = .target(
                 name: try unkeyedValues.decode(String.self),
-                condition: try unkeyedValues.decodeIfPresent(PackageInfo.PackageConditionDescription.self)
+                condition: try unkeyedValues.decodeIfPresent(
+                    PackageInfo.PackageConditionDescription.self
+                )
             )
         case .product:
             let first = try unkeyedValues.decode(String.self)
             self = .product(
                 name: first,
                 package: try unkeyedValues.decodeIfPresent(String.self) ?? first,
-                condition: try unkeyedValues.decodeIfPresent(PackageInfo.PackageConditionDescription.self)
+                condition: try unkeyedValues.decodeIfPresent(
+                    PackageInfo.PackageConditionDescription.self
+                )
             )
         case .byName:
             self = .byName(
                 name: try unkeyedValues.decode(String.self),
-                condition: try unkeyedValues.decodeIfPresent(PackageInfo.PackageConditionDescription.self)
+                condition: try unkeyedValues.decodeIfPresent(
+                    PackageInfo.PackageConditionDescription.self
+                )
             )
         }
     }
@@ -328,15 +352,24 @@ extension PackageInfo.Product.ProductType: Decodable {
         case library, executable, plugin, test
     }
 
-    init(from decoder: Decoder) throws {
+    init(
+        from decoder: Decoder
+    ) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         guard let key = values.allKeys.first(where: values.contains) else {
-            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Did not find a matching key"))
+            throw DecodingError.dataCorrupted(
+                .init(
+                    codingPath: decoder.codingPath,
+                    debugDescription: "Did not find a matching key"
+                )
+            )
         }
         switch key {
         case .library:
             var unkeyedValues = try values.nestedUnkeyedContainer(forKey: key)
-            let libraryType = try unkeyedValues.decode(PackageInfo.Product.ProductType.LibraryType.self)
+            let libraryType = try unkeyedValues.decode(
+                PackageInfo.Product.ProductType.LibraryType.self
+            )
             self = .library(libraryType)
         case .test:
             self = .test

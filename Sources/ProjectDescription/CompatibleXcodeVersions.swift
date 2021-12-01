@@ -1,7 +1,9 @@
 import Foundation
 
 /// Enum that represents all the Xcode versions that a project or set of projects is compatible with.
-public enum CompatibleXcodeVersions: ExpressibleByArrayLiteral, ExpressibleByStringInterpolation, Codable, Equatable {
+public enum CompatibleXcodeVersions: ExpressibleByArrayLiteral, ExpressibleByStringInterpolation,
+    Codable, Equatable
+{
     /// The project supports all Xcode versions.
     case all
 
@@ -10,11 +12,15 @@ public enum CompatibleXcodeVersions: ExpressibleByArrayLiteral, ExpressibleByStr
 
     // MARK: - ExpressibleByArrayLiteral
 
-    public init(arrayLiteral elements: [String]) {
+    public init(
+        arrayLiteral elements: [String]
+    ) {
         self = .list(elements)
     }
 
-    public init(arrayLiteral elements: String...) {
+    public init(
+        arrayLiteral elements: String...
+    ) {
         self = .list(elements)
     }
 
@@ -25,7 +31,9 @@ public enum CompatibleXcodeVersions: ExpressibleByArrayLiteral, ExpressibleByStr
 
     // MARK: - ExpressibleByStringInterpolation
 
-    public init(stringLiteral value: String) {
+    public init(
+        stringLiteral value: String
+    ) {
         self = .list([value])
     }
 
@@ -42,7 +50,9 @@ public enum CompatibleXcodeVersions: ExpressibleByArrayLiteral, ExpressibleByStr
         }
     }
 
-    public init(from decoder: Decoder) throws {
+    public init(
+        from decoder: Decoder
+    ) throws {
         let container = try decoder.container(keyedBy: CodignKeys.self)
         let type = try container.decode(String.self, forKey: .type)
 
@@ -52,7 +62,11 @@ public enum CompatibleXcodeVersions: ExpressibleByArrayLiteral, ExpressibleByStr
         case "list":
             self = .list(try container.decode([String].self, forKey: .value))
         default:
-            throw DecodingError.dataCorruptedError(forKey: CodignKeys.type, in: container, debugDescription: "Invalid type \(type)")
+            throw DecodingError.dataCorruptedError(
+                forKey: CodignKeys.type,
+                in: container,
+                debugDescription: "Invalid type \(type)"
+            )
         }
     }
 }

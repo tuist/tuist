@@ -33,17 +33,13 @@ public final class SwiftPackageManagerController: SwiftPackageManagerControlling
     public func resolve(at path: AbsolutePath, printOutput: Bool) throws {
         let command = buildSwiftPackageCommand(packagePath: path, extraArguments: ["resolve"])
 
-        printOutput ?
-            try System.shared.runAndPrint(command) :
-            try System.shared.run(command)
+        printOutput ? try System.shared.runAndPrint(command) : try System.shared.run(command)
     }
 
     public func update(at path: AbsolutePath, printOutput: Bool) throws {
         let command = buildSwiftPackageCommand(packagePath: path, extraArguments: ["update"])
 
-        printOutput ?
-            try System.shared.runAndPrint(command) :
-            try System.shared.run(command)
+        printOutput ? try System.shared.runAndPrint(command) : try System.shared.run(command)
     }
 
     public func setToolsVersion(at path: AbsolutePath, to version: String?) throws {
@@ -72,7 +68,10 @@ public final class SwiftPackageManagerController: SwiftPackageManagerControlling
 
     // MARK: - Helpers
 
-    private func buildSwiftPackageCommand(packagePath: AbsolutePath, extraArguments: [String]) -> [String] {
+    private func buildSwiftPackageCommand(
+        packagePath: AbsolutePath,
+        extraArguments: [String]
+    ) -> [String] {
         [
             "swift",
             "package",

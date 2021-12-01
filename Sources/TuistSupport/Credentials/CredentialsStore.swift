@@ -25,7 +25,9 @@ public final class CredentialsStore: CredentialsStoring {
 
     public func store(credentials: Credentials, serverURL: URL) throws {
         try keychain(serverURL: serverURL)
-            .comment("Token to authenticate the \(credentials.account) against \(serverURL.absoluteString)")
+            .comment(
+                "Token to authenticate the \(credentials.account) against \(serverURL.absoluteString)"
+            )
             .set(credentials.account, key: credentials.token)
     }
 

@@ -28,7 +28,9 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
             hashesCacheDirectory: hashesCacheDirectory,
             config: Config.default,
             graphContentHasher: graphContentHasher,
-            cacheDirectoryProviderFactory: MockCacheDirectoriesProviderFactory(provider: cacheDirectoriesProvider)
+            cacheDirectoryProviderFactory: MockCacheDirectoriesProviderFactory(
+                provider: cacheDirectoriesProvider
+            )
         )
     }
 
@@ -55,7 +57,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
             target: Target.test(
                 name: "UnitTestsA",
                 dependencies: [
-                    .target(name: "FrameworkA"),
+                    .target(name: "FrameworkA")
                 ]
             ),
             project: project
@@ -77,7 +79,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                             TargetReference(
                                 projectPath: project.path,
                                 name: unitTestsA.target.name
-                            ),
+                            )
                         ]
                     ),
                     testAction: TestAction.test(
@@ -87,7 +89,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                                     projectPath: project.path,
                                     name: unitTestsA.target.name
                                 )
-                            ),
+                            )
                         ]
                     )
                 ),
@@ -133,14 +135,14 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                     frameworkA.target.name: frameworkA.target,
                     unitTestsA.target.name: unitTestsA.target,
                     unitTestsB.target.name: unitTestsB.target,
-                ],
+                ]
             ],
             dependencies: [
                 .target(name: unitTestsA.target.name, path: unitTestsA.path): [
-                    .target(name: frameworkA.target.name, path: frameworkA.path),
+                    .target(name: frameworkA.target.name, path: frameworkA.path)
                 ],
                 .target(name: unitTestsB.target.name, path: unitTestsB.path): [
-                    .target(name: frameworkA.target.name, path: frameworkA.path),
+                    .target(name: frameworkA.target.name, path: frameworkA.path)
                 ],
             ]
         )
@@ -177,7 +179,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                                 TargetReference(
                                     projectPath: project.path,
                                     name: unitTestsB.target.name
-                                ),
+                                )
                             ]
                         ),
                         testAction: TestAction.test(
@@ -187,7 +189,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                                         projectPath: project.path,
                                         name: unitTestsB.target.name
                                     )
-                                ),
+                                )
                             ]
                         )
                     ),
@@ -199,14 +201,14 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                     frameworkA.target.name: frameworkA.target,
                     unitTestsA.target.name: unitTestsA.target,
                     unitTestsB.target.name: unitTestsB.target,
-                ],
+                ]
             ],
             dependencies: [
                 .target(name: unitTestsA.target.name, path: unitTestsA.path): [
-                    .target(name: frameworkA.target.name, path: frameworkA.path),
+                    .target(name: frameworkA.target.name, path: frameworkA.path)
                 ],
                 .target(name: unitTestsB.target.name, path: unitTestsB.path): [
-                    .target(name: frameworkA.target.name, path: frameworkA.path),
+                    .target(name: frameworkA.target.name, path: frameworkA.path)
                 ],
             ]
         )
@@ -243,7 +245,9 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
 
         let output = TestingLogHandler.collected[.notice, ==]
         XCTAssertEqual(
-            output.components(separatedBy: "UnitTestsA has not changed from last successful run, skipping...").count - 1,
+            output.components(
+                separatedBy: "UnitTestsA has not changed from last successful run, skipping..."
+            ).count - 1,
             1
         )
     }
@@ -263,7 +267,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
             target: Target.test(
                 name: "UnitTestsA",
                 dependencies: [
-                    .target(name: "FrameworkA"),
+                    .target(name: "FrameworkA")
                 ]
             ),
             project: project
@@ -276,7 +280,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                     TargetReference(
                         projectPath: project.path,
                         name: unitTestsA.target.name
-                    ),
+                    )
                 ]
             ),
             testAction: TestAction.test(
@@ -286,14 +290,14 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                             projectPath: project.path,
                             name: unitTestsA.target.name
                         )
-                    ),
+                    )
                 ]
             )
         )
 
         let workspace = Workspace.test(
             schemes: [
-                schemeA,
+                schemeA
             ]
         )
 
@@ -304,12 +308,12 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                 project.path: [
                     frameworkA.target.name: frameworkA.target,
                     unitTestsA.target.name: unitTestsA.target,
-                ],
+                ]
             ],
             dependencies: [
                 .target(name: unitTestsA.target.name, path: unitTestsA.path): [
-                    .target(name: frameworkA.target.name, path: frameworkA.path),
-                ],
+                    .target(name: frameworkA.target.name, path: frameworkA.path)
+                ]
             ]
         )
 
@@ -333,7 +337,7 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                                 TargetReference(
                                     projectPath: project.path,
                                     name: unitTestsA.target.name
-                                ),
+                                )
                             ]
                         ),
                         testAction: TestAction.test(
@@ -343,10 +347,10 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                                         projectPath: project.path,
                                         name: unitTestsA.target.name
                                     )
-                                ),
+                                )
                             ]
                         )
-                    ),
+                    )
                 ]
             ),
             projects: [project.path: project],
@@ -354,12 +358,12 @@ final class TestsCacheMapperTests: TuistUnitTestCase {
                 project.path: [
                     frameworkA.target.name: frameworkA.target,
                     unitTestsA.target.name: unitTestsA.target,
-                ],
+                ]
             ],
             dependencies: [
                 .target(name: unitTestsA.target.name, path: unitTestsA.path): [
-                    .target(name: frameworkA.target.name, path: frameworkA.path),
-                ],
+                    .target(name: frameworkA.target.name, path: frameworkA.path)
+                ]
             ]
         )
 

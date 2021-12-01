@@ -26,12 +26,26 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
         product: Product
     )
     case bundle(path: AbsolutePath)
-    case product(target: String, productName: String, platformFilter: BuildFilePlatformFilter? = nil)
+    case product(
+        target: String,
+        productName: String,
+        platformFilter: BuildFilePlatformFilter? = nil
+    )
     case sdk(path: AbsolutePath, status: SDKStatus, source: SDKSource)
 
-    init(_ dependency: GraphDependency) {
+    init(
+        _ dependency: GraphDependency
+    ) {
         switch dependency {
-        case let .framework(path, binaryPath, dsymPath, bcsymbolmapPaths, linking, architectures, isCarthage):
+        case let .framework(
+            path,
+            binaryPath,
+            dsymPath,
+            bcsymbolmapPaths,
+            linking,
+            architectures,
+            isCarthage
+        ):
             self = .framework(
                 path: path,
                 binaryPath: binaryPath,
@@ -89,20 +103,26 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
     private enum Synthesized: Comparable, Hashable {
         case sdk(path: AbsolutePath)
         case product(target: String, productName: String)
-        case productWithPlatformFilter(target: String, productName: String, platformFilter: BuildFilePlatformFilter)
+        case productWithPlatformFilter(
+            target: String,
+            productName: String,
+            platformFilter: BuildFilePlatformFilter
+        )
         case library(path: AbsolutePath)
         case framework(path: AbsolutePath)
         case xcframework(path: AbsolutePath)
         case bundle(path: AbsolutePath)
 
-        init(dependencyReference: GraphDependencyReference) {
+        init(
+            dependencyReference: GraphDependencyReference
+        ) {
             switch dependencyReference {
-            case .xcframework(path: let path, infoPlist: _, primaryBinaryPath: _, binaryPath: _):
+            case .xcframework(let path, infoPlist: _, primaryBinaryPath: _, binaryPath: _):
                 self = .xcframework(path: path)
-            case .library(path: let path, linking: _, architectures: _, product: _):
+            case .library(let path, linking: _, architectures: _, product: _):
                 self = .library(path: path)
             case .framework(
-                path: let path,
+                let path,
                 binaryPath: _,
                 isCarthage: _,
                 dsymPath: _,
@@ -114,13 +134,21 @@ public enum GraphDependencyReference: Equatable, Comparable, Hashable {
                 self = .framework(path: path)
             case let .bundle(path: path):
                 self = .bundle(path: path)
-            case let .product(target: target, productName: productName, platformFilter: platformFilter):
+            case let .product(
+                target: target,
+                productName: productName,
+                platformFilter: platformFilter
+            ):
                 if let platformFilter = platformFilter {
-                    self = .productWithPlatformFilter(target: target, productName: productName, platformFilter: platformFilter)
+                    self = .productWithPlatformFilter(
+                        target: target,
+                        productName: productName,
+                        platformFilter: platformFilter
+                    )
                 } else {
                     self = .product(target: target, productName: productName)
                 }
-            case .sdk(path: let path, status: _, source: _):
+            case .sdk(let path, status: _, source: _):
                 self = .sdk(path: path)
             }
         }

@@ -40,7 +40,7 @@ let project = Project(
             infoPlist: .default,
             sources: "Targets/tvOSFramework/Tests/**",
             dependencies: [
-                .target(name: "tvOSFramework"),
+                .target(name: "tvOSFramework")
             ]
         ),
         Target(
@@ -54,7 +54,7 @@ let project = Project(
             settings: .settings(
                 base: [
                     "CODE_SIGN_IDENTITY": "",
-                    "CODE_SIGNING_REQUIRED": "NO"
+                    "CODE_SIGNING_REQUIRED": "NO",
                 ]
             )
         ),
@@ -67,12 +67,12 @@ let project = Project(
             infoPlist: .default,
             sources: "Targets/MacFramework/Tests/**",
             dependencies: [
-                .target(name: "MacFramework"),
+                .target(name: "MacFramework")
             ],
             settings: .settings(
                 base: [
                     "CODE_SIGN_IDENTITY": "",
-                    "CODE_SIGNING_REQUIRED": "NO"
+                    "CODE_SIGNING_REQUIRED": "NO",
                 ]
             )
         ),

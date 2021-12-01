@@ -4,8 +4,9 @@ import TuistCore
 import TuistCoreTesting
 import TuistGraph
 import TuistGraphTesting
-import XcodeProj
 import XCTest
+import XcodeProj
+
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
@@ -18,7 +19,11 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         super.setUp()
         pbxproj = PBXProj()
         groups = ProjectGroups.generate(
-            project: .test(path: "/path", sourceRootPath: "/path", xcodeProjPath: "/path/Project.xcodeproj"),
+            project: .test(
+                path: "/path",
+                sourceRootPath: "/path",
+                xcodeProjPath: "/path/Project.xcodeproj"
+            ),
             pbxproj: pbxproj
         )
 
@@ -50,7 +55,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                     runAction: .test(
                         options: .init(storeKitConfigurationPath: "/path/to/configuration.storekit")
                     )
-                ),
+                )
             ],
             additionalFiles: [
                 .file(path: "/path/to/file"),
@@ -62,13 +67,22 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let files = subject.projectFiles(project: project)
 
         // Then
-        XCTAssertTrue(files.isSuperset(of: [
-            GroupFileElement(path: "/project/debug.xcconfig", group: project.filesGroup),
-            GroupFileElement(path: "/project/release.xcconfig", group: project.filesGroup),
-            GroupFileElement(path: "/path/to/file", group: project.filesGroup),
-            GroupFileElement(path: "/path/to/folder", group: project.filesGroup, isReference: true),
-            GroupFileElement(path: "/path/to/configuration.storekit", group: project.filesGroup),
-        ]))
+        XCTAssertTrue(
+            files.isSuperset(of: [
+                GroupFileElement(path: "/project/debug.xcconfig", group: project.filesGroup),
+                GroupFileElement(path: "/project/release.xcconfig", group: project.filesGroup),
+                GroupFileElement(path: "/path/to/file", group: project.filesGroup),
+                GroupFileElement(
+                    path: "/path/to/folder",
+                    group: project.filesGroup,
+                    isReference: true
+                ),
+                GroupFileElement(
+                    path: "/path/to/configuration.storekit",
+                    group: project.filesGroup
+                ),
+            ])
+        )
     }
 
     func test_addElement() throws {
@@ -88,9 +102,12 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         // Then
         let projectGroup = groups.sortedMain.group(named: "Project")
-        XCTAssertEqual(projectGroup?.flattenedChildren, [
-            "myfolder/resources/a.png",
-        ])
+        XCTAssertEqual(
+            projectGroup?.flattenedChildren,
+            [
+                "myfolder/resources/a.png"
+            ]
+        )
     }
 
     func test_addElement_withDotFolders() throws {
@@ -110,9 +127,12 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         // Then
         let projectGroup = groups.sortedMain.group(named: "Project")
-        XCTAssertEqual(projectGroup?.flattenedChildren, [
-            "my.folder/resources/a.png",
-        ])
+        XCTAssertEqual(
+            projectGroup?.flattenedChildren,
+            [
+                "my.folder/resources/a.png"
+            ]
+        )
     }
 
     func test_addElement_fileReference() throws {
@@ -133,9 +153,12 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         // Then
         let projectGroup = groups.sortedMain.group(named: "Project")
-        XCTAssertEqual(projectGroup?.flattenedChildren, [
-            "myfolder/resources/generated_images",
-        ])
+        XCTAssertEqual(
+            projectGroup?.flattenedChildren,
+            [
+                "myfolder/resources/generated_images"
+            ]
+        )
     }
 
     func test_addElement_parentDirectories() throws {
@@ -155,9 +178,12 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         // Then
         let projectGroup = groups.sortedMain.group(named: "Project")
-        XCTAssertEqual(projectGroup?.flattenedChildren, [
-            "another/path/resources/a.png",
-        ])
+        XCTAssertEqual(
+            projectGroup?.flattenedChildren,
+            [
+                "another/path/resources/a.png"
+            ]
+        )
     }
 
     func test_addElement_xcassets() throws {
@@ -177,9 +203,12 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         // Then
         let projectGroup = groups.sortedMain.group(named: "Project")
-        XCTAssertEqual(projectGroup?.flattenedChildren, [
-            "myfolder/resources/assets.xcassets",
-        ])
+        XCTAssertEqual(
+            projectGroup?.flattenedChildren,
+            [
+                "myfolder/resources/assets.xcassets"
+            ]
+        )
     }
 
     func test_addElement_scnassets() throws {
@@ -199,9 +228,12 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         // Then
         let projectGroup = groups.sortedMain.group(named: "Project")
-        XCTAssertEqual(projectGroup?.flattenedChildren, [
-            "myfolder/resources/assets.scnassets",
-        ])
+        XCTAssertEqual(
+            projectGroup?.flattenedChildren,
+            [
+                "myfolder/resources/assets.scnassets"
+            ]
+        )
     }
 
     func test_addElement_xcassets_and_scnassets_multiple_files() throws {
@@ -234,10 +266,13 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         // Then
         let projectGroup = groups.sortedMain.group(named: "Project")
-        XCTAssertEqual(projectGroup?.flattenedChildren.sorted(), [
-            "myfolder/resources/assets.scnassets",
-            "myfolder/resources/assets.xcassets",
-        ])
+        XCTAssertEqual(
+            projectGroup?.flattenedChildren.sorted(),
+            [
+                "myfolder/resources/assets.scnassets",
+                "myfolder/resources/assets.xcassets",
+            ]
+        )
     }
 
     func test_addElement_lproj_multiple_files() throws {
@@ -272,20 +307,26 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         // Then
         let projectGroup = groups.sortedMain.group(named: "Project")
-        XCTAssertEqual(projectGroup?.flattenedChildren, [
-            "resources/App.strings/en",
-            "resources/App.strings/fr",
-            "resources/App.stringsdict/en",
-            "resources/App.stringsdict/fr",
-            "resources/Extension.strings/en",
-            "resources/Extension.strings/fr",
-        ])
+        XCTAssertEqual(
+            projectGroup?.flattenedChildren,
+            [
+                "resources/App.strings/en",
+                "resources/App.strings/fr",
+                "resources/App.stringsdict/en",
+                "resources/App.stringsdict/fr",
+                "resources/Extension.strings/en",
+                "resources/Extension.strings/fr",
+            ]
+        )
 
-        XCTAssertEqual(projectGroup?.debugVariantGroupPaths, [
-            "resources/App.strings",
-            "resources/App.stringsdict",
-            "resources/Extension.strings",
-        ])
+        XCTAssertEqual(
+            projectGroup?.debugVariantGroupPaths,
+            [
+                "resources/App.strings",
+                "resources/App.stringsdict",
+                "resources/Extension.strings",
+            ]
+        )
     }
 
     func test_addElement_lproj_variant_groups() throws {
@@ -323,23 +364,29 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         // Then
         let projectGroup = groups.sortedMain.group(named: "Project")
-        XCTAssertEqual(projectGroup?.flattenedChildren, [
-            "resources/Controller.xib/Base",
-            "resources/Controller.xib/en",
-            "resources/Controller.xib/fr",
-            "resources/Intents.intentdefinition/Base",
-            "resources/Intents.intentdefinition/en",
-            "resources/Intents.intentdefinition/fr",
-            "resources/Storyboard.storyboard/Base",
-            "resources/Storyboard.storyboard/en",
-            "resources/Storyboard.storyboard/fr",
-        ])
+        XCTAssertEqual(
+            projectGroup?.flattenedChildren,
+            [
+                "resources/Controller.xib/Base",
+                "resources/Controller.xib/en",
+                "resources/Controller.xib/fr",
+                "resources/Intents.intentdefinition/Base",
+                "resources/Intents.intentdefinition/en",
+                "resources/Intents.intentdefinition/fr",
+                "resources/Storyboard.storyboard/Base",
+                "resources/Storyboard.storyboard/en",
+                "resources/Storyboard.storyboard/fr",
+            ]
+        )
 
-        XCTAssertEqual(projectGroup?.debugVariantGroupPaths, [
-            "resources/Controller.xib",
-            "resources/Intents.intentdefinition",
-            "resources/Storyboard.storyboard",
-        ])
+        XCTAssertEqual(
+            projectGroup?.debugVariantGroupPaths,
+            [
+                "resources/Controller.xib",
+                "resources/Intents.intentdefinition",
+                "resources/Storyboard.storyboard",
+            ]
+        )
     }
 
     func test_addElement_lproj_knownRegions() throws {
@@ -374,19 +421,28 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
 
         // Then
 
-        XCTAssertEqual(subject.knownRegions, Set([
-            "en",
-            "fr",
-            "Base",
-        ]))
+        XCTAssertEqual(
+            subject.knownRegions,
+            Set([
+                "en",
+                "fr",
+                "Base",
+            ])
+        )
     }
 
     func test_targetFiles() throws {
         // Given
         let settings = Settings.test(
             base: [:],
-            debug: Configuration(settings: ["Configuration": "A"], xcconfig: AbsolutePath("/project/debug.xcconfig")),
-            release: Configuration(settings: ["Configuration": "B"], xcconfig: AbsolutePath("/project/release.xcconfig"))
+            debug: Configuration(
+                settings: ["Configuration": "A"],
+                xcconfig: AbsolutePath("/project/debug.xcconfig")
+            ),
+            release: Configuration(
+                settings: ["Configuration": "B"],
+                xcconfig: AbsolutePath("/project/release.xcconfig")
+            )
         )
 
         let target = Target.test(
@@ -411,13 +467,15 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
                         .file(path: "/project/tuist.rtfd"),
                         .file(path: "/project/tuist.rtfd/TXT.rtf"),
                     ]
-                ),
+                )
             ],
-            coreDataModels: [CoreDataModel(
-                path: AbsolutePath("/project/model.xcdatamodeld"),
-                versions: [AbsolutePath("/project/model.xcdatamodeld/1.xcdatamodel")],
-                currentVersion: "1"
-            )],
+            coreDataModels: [
+                CoreDataModel(
+                    path: AbsolutePath("/project/model.xcdatamodeld"),
+                    versions: [AbsolutePath("/project/model.xcdatamodeld/1.xcdatamodel")],
+                    currentVersion: "1"
+                )
+            ],
             headers: Headers(
                 public: [AbsolutePath("/project/public.h")],
                 private: [AbsolutePath("/project/private.h")],
@@ -432,32 +490,49 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         let files = try subject.targetFiles(target: target)
 
         // Then
-        XCTAssertTrue(files.isSuperset(of: [
-            GroupFileElement(path: "/project/debug.xcconfig", group: target.filesGroup),
-            GroupFileElement(path: "/project/release.xcconfig", group: target.filesGroup),
-            GroupFileElement(path: "/project/file.swift", group: target.filesGroup),
-            GroupFileElement(path: "/project/MyPlayground.playground", group: target.filesGroup),
-            GroupFileElement(path: "/project/image.png", group: target.filesGroup),
-            GroupFileElement(path: "/project/reference", group: target.filesGroup, isReference: true),
-            GroupFileElement(path: "/project/public.h", group: target.filesGroup),
-            GroupFileElement(path: "/project/project.h", group: target.filesGroup),
-            GroupFileElement(path: "/project/private.h", group: target.filesGroup),
-            GroupFileElement(path: "/project/model.xcdatamodeld/1.xcdatamodel", group: target.filesGroup),
-            GroupFileElement(path: "/project/model.xcdatamodeld", group: target.filesGroup),
-            GroupFileElement(path: "/project/tuist.rtfd", group: target.filesGroup),
-            GroupFileElement(path: "/project/tuist.rtfd/TXT.rtf", group: target.filesGroup),
-            GroupFileElement(path: "/project/README.md", group: target.filesGroup),
-        ]))
+        XCTAssertTrue(
+            files.isSuperset(of: [
+                GroupFileElement(path: "/project/debug.xcconfig", group: target.filesGroup),
+                GroupFileElement(path: "/project/release.xcconfig", group: target.filesGroup),
+                GroupFileElement(path: "/project/file.swift", group: target.filesGroup),
+                GroupFileElement(
+                    path: "/project/MyPlayground.playground",
+                    group: target.filesGroup
+                ),
+                GroupFileElement(path: "/project/image.png", group: target.filesGroup),
+                GroupFileElement(
+                    path: "/project/reference",
+                    group: target.filesGroup,
+                    isReference: true
+                ),
+                GroupFileElement(path: "/project/public.h", group: target.filesGroup),
+                GroupFileElement(path: "/project/project.h", group: target.filesGroup),
+                GroupFileElement(path: "/project/private.h", group: target.filesGroup),
+                GroupFileElement(
+                    path: "/project/model.xcdatamodeld/1.xcdatamodel",
+                    group: target.filesGroup
+                ),
+                GroupFileElement(path: "/project/model.xcdatamodeld", group: target.filesGroup),
+                GroupFileElement(path: "/project/tuist.rtfd", group: target.filesGroup),
+                GroupFileElement(path: "/project/tuist.rtfd/TXT.rtf", group: target.filesGroup),
+                GroupFileElement(path: "/project/README.md", group: target.filesGroup),
+            ])
+        )
     }
 
     func test_generateProduct() throws {
         // Given
         let pbxproj = PBXProj()
-        let project = Project.test(path: .root, sourceRootPath: .root, xcodeProjPath: AbsolutePath.root.appending(component: "Project.xcodeproj"), targets: [
-            .test(name: "App", product: .app),
-            .test(name: "Framework", product: .framework),
-            .test(name: "Library", product: .staticLibrary),
-        ])
+        let project = Project.test(
+            path: .root,
+            sourceRootPath: .root,
+            xcodeProjPath: AbsolutePath.root.appending(component: "Project.xcodeproj"),
+            targets: [
+                .test(name: "App", product: .app),
+                .test(name: "Framework", product: .framework),
+                .test(name: "Library", product: .staticLibrary),
+            ]
+        )
         let graph = Graph.test()
         let graphTraverser = GraphTraverser(graph: graph)
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
@@ -471,15 +546,18 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(groups.products.flattenedChildren, [
-            "App.app",
-            "Framework.framework",
-            "libLibrary.a",
-        ])
+        XCTAssertEqual(
+            groups.products.flattenedChildren,
+            [
+                "App.app",
+                "Framework.framework",
+                "libLibrary.a",
+            ]
+        )
     }
 
     func test_generateProducts_stableOrder() throws {
-        for _ in 0 ..< 5 {
+        for _ in 0..<5 {
             let pbxproj = PBXProj()
             let subject = ProjectFileElements()
             let targets: [Target] = [
@@ -510,14 +588,17 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             )
 
             // Then
-            XCTAssertEqual(groups.products.flattenedChildren, [
-                "App1.app",
-                "App2.app",
-                "Framework1.framework",
-                "Framework2.framework",
-                "libLibrary1.a",
-                "libLibrary2.a",
-            ])
+            XCTAssertEqual(
+                groups.products.flattenedChildren,
+                [
+                    "App1.app",
+                    "App2.app",
+                    "Framework1.framework",
+                    "Framework2.framework",
+                    "libLibrary1.a",
+                    "libLibrary2.a",
+                ]
+            )
         }
     }
 
@@ -529,7 +610,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             sourceRootPath: .root,
             xcodeProjPath: AbsolutePath.root.appending(component: "Project.xcodeproj"),
             targets: [
-                .test(name: "App", product: .app),
+                .test(name: "App", product: .app)
             ]
         )
         let graph = Graph.test()
@@ -564,7 +645,9 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         )
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
         var dependencies: Set<GraphDependencyReference> = Set()
-        let precompiledNode = GraphDependencyReference.testFramework(path: project.path.appending(component: "waka.framework"))
+        let precompiledNode = GraphDependencyReference.testFramework(
+            path: project.path.appending(component: "waka.framework")
+        )
         dependencies.insert(precompiledNode)
 
         try subject.generate(
@@ -575,7 +658,8 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             filesGroup: project.filesGroup
         )
 
-        let fileReference = groups.sortedMain.group(named: projectGroupName)?.children.first as? PBXFileReference
+        let fileReference =
+            groups.sortedMain.group(named: projectGroupName)?.children.first as? PBXFileReference
         XCTAssertEqual(fileReference?.path, "waka.framework")
         XCTAssertEqual(fileReference?.path, "waka.framework")
         XCTAssertNil(fileReference?.name)
@@ -641,9 +725,12 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         XCTAssertNil(variantGroup?.path)
         XCTAssertEqual(variantGroup?.children.map(\.name), ["en"])
         XCTAssertEqual(variantGroup?.children.map(\.path), ["en.lproj/App.strings"])
-        XCTAssertEqual(variantGroup?.children.map { ($0 as? PBXFileReference)?.lastKnownFileType }, [
-            Xcode.filetype(extension: "strings"),
-        ])
+        XCTAssertEqual(
+            variantGroup?.children.map { ($0 as? PBXFileReference)?.lastKnownFileType },
+            [
+                Xcode.filetype(extension: "strings")
+            ]
+        )
     }
 
     func test_addPlayground() throws {
@@ -670,7 +757,10 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         XCTAssertEqual(file?.path, "MyPlayground.playground")
         XCTAssertEqual(file?.sourceTree, .group)
         XCTAssertNil(file?.name)
-        XCTAssertEqual(file?.lastKnownFileType, Xcode.filetype(extension: fileAbsolutePath.extension!))
+        XCTAssertEqual(
+            file?.lastKnownFileType,
+            Xcode.filetype(extension: fileAbsolutePath.extension!)
+        )
     }
 
     func test_addVersionGroupElement() throws {
@@ -764,8 +854,12 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
     }
 
     func test_closestRelativeElementPath() {
-        let pathRelativeToSourceRoot = AbsolutePath("/a/framework/framework.framework").relative(to: AbsolutePath("/a/b/c/project"))
-        let got = subject.closestRelativeElementPath(pathRelativeToSourceRoot: pathRelativeToSourceRoot)
+        let pathRelativeToSourceRoot = AbsolutePath("/a/framework/framework.framework").relative(
+            to: AbsolutePath("/a/b/c/project")
+        )
+        let got = subject.closestRelativeElementPath(
+            pathRelativeToSourceRoot: pathRelativeToSourceRoot
+        )
         XCTAssertEqual(got, RelativePath("../../../framework"))
     }
 
@@ -773,13 +867,21 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         // Given
         let pbxproj = PBXProj()
         let sourceRootPath = AbsolutePath("/a/project/")
-        let project = Project.test(path: sourceRootPath, sourceRootPath: sourceRootPath, xcodeProjPath: sourceRootPath.appending(component: "Project.xcodeproj"))
+        let project = Project.test(
+            path: sourceRootPath,
+            sourceRootPath: sourceRootPath,
+            xcodeProjPath: sourceRootPath.appending(component: "Project.xcodeproj")
+        )
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
         let sdkPath = try temporaryPath().appending(component: "ARKit.framework")
         let sdkStatus: SDKStatus = .required
         let sdkSource: SDKSource = .developer
-        let sdkDependency = GraphDependencyReference.sdk(path: sdkPath, status: sdkStatus, source: sdkSource)
+        let sdkDependency = GraphDependencyReference.sdk(
+            path: sdkPath,
+            status: sdkStatus,
+            source: sdkSource
+        )
 
         // When
         try subject.generate(
@@ -791,9 +893,12 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(groups.frameworks.flattenedChildren, [
-            "ARKit.framework",
-        ])
+        XCTAssertEqual(
+            groups.frameworks.flattenedChildren,
+            [
+                "ARKit.framework"
+            ]
+        )
 
         let sdkElement = subject.sdks[sdkPath]
         XCTAssertNotNil(sdkElement)
@@ -813,7 +918,11 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         )
         let graphTarget: GraphTarget = .test(path: project.path, target: target, project: project)
         let groups = ProjectGroups.generate(
-            project: .test(path: .root, sourceRootPath: .root, xcodeProjPath: AbsolutePath.root.appending(component: "Project.xcodeproj")),
+            project: .test(
+                path: .root,
+                sourceRootPath: .root,
+                xcodeProjPath: AbsolutePath.root.appending(component: "Project.xcodeproj")
+            ),
             pbxproj: pbxproj
         )
 
@@ -821,18 +930,18 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             projects: [project.path: project],
             packages: [
                 project.path: [
-                    "A": .remote(url: "url", requirement: .branch("master")),
-                ],
+                    "A": .remote(url: "url", requirement: .branch("master"))
+                ]
             ],
             targets: [
                 graphTarget.path: [
-                    graphTarget.target.name: graphTarget.target,
-                ],
+                    graphTarget.target.name: graphTarget.target
+                ]
             ],
             dependencies: [
                 .target(name: graphTarget.target.name, path: graphTarget.path): [
-                    .packageProduct(path: project.path, product: "A"),
-                ],
+                    .packageProduct(path: project.path, product: "A")
+                ]
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -851,9 +960,9 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
     }
 }
 
-private extension PBXGroup {
+extension PBXGroup {
     /// Retuns all the child variant groups (recursively)
-    var debugVariantGroupPaths: [String] {
+    fileprivate var debugVariantGroupPaths: [String] {
         children.flatMap { (element: PBXFileElement) -> [String] in
             switch element {
             case let group as PBXVariantGroup:

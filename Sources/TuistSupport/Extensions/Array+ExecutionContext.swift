@@ -1,12 +1,15 @@
 import Foundation
 
-public extension Array {
+extension Array {
     /// Map (with execution context)
     ///
     /// - Parameters:
     ///   - context: The execution context to perform the `transform` with
     ///   - transform: The transformation closure to apply to the array
-    func map<B>(context: ExecutionContext, _ transform: (Element) throws -> B) rethrows -> [B] {
+    public func map<B>(
+        context: ExecutionContext,
+        _ transform: (Element) throws -> B
+    ) rethrows -> [B] {
         switch context.executionType {
         case .serial:
             return try map(transform)
@@ -20,7 +23,10 @@ public extension Array {
     /// - Parameters:
     ///   - context: The execution context to perform the `transform` with
     ///   - transform: The transformation closure to apply to the array
-    func compactMap<B>(context: ExecutionContext, _ transform: (Element) throws -> B?) rethrows -> [B] {
+    public func compactMap<B>(
+        context: ExecutionContext,
+        _ transform: (Element) throws -> B?
+    ) rethrows -> [B] {
         switch context.executionType {
         case .serial:
             return try compactMap(transform)
@@ -34,7 +40,7 @@ public extension Array {
     /// - Parameters:
     ///   - context: The execution context to perform the `perform` operation with
     ///   - transform: The perform closure to call on each element in the array
-    func forEach(context: ExecutionContext, _ perform: (Element) throws -> Void) rethrows {
+    public func forEach(context: ExecutionContext, _ perform: (Element) throws -> Void) rethrows {
         switch context.executionType {
         case .serial:
             return try forEach(perform)
@@ -54,7 +60,9 @@ extension Array {
     private final class ThreadSafe<A> {
         private var _value: A
         private let queue = DispatchQueue(label: "ThreadSafe")
-        init(_ value: A) {
+        init(
+            _ value: A
+        ) {
             _value = value
         }
 

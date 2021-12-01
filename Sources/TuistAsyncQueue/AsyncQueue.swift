@@ -25,11 +25,12 @@ public class AsyncQueue: AsyncQueuing {
 
     // MARK: - Init
 
-    init(queue: Queuing = Queuer.shared,
-         ciChecker: CIChecking = CIChecker(),
-         persistor: AsyncQueuePersisting = AsyncQueuePersistor(),
-         persistedEventsSchedulerType: SchedulerType = AsyncQueue.schedulerType())
-    {
+    init(
+        queue: Queuing = Queuer.shared,
+        ciChecker: CIChecking = CIChecker(),
+        persistor: AsyncQueuePersisting = AsyncQueuePersistor(),
+        persistedEventsSchedulerType: SchedulerType = AsyncQueue.schedulerType()
+    ) {
         self.queue = queue
         self.ciChecker = ciChecker
         self.persistor = persistor
@@ -66,14 +67,22 @@ public class AsyncQueue: AsyncQueuing {
     }
 
     public static func schedulerType() -> SchedulerType {
-        SerialDispatchQueueScheduler(queue: dispatchQueue(), internalSerialQueueName: "tuist-async-queue")
+        SerialDispatchQueueScheduler(
+            queue: dispatchQueue(),
+            internalSerialQueueName: "tuist-async-queue"
+        )
     }
 
     // MARK: - Private
 
-    private func liveDispatchOperation<T: AsyncQueueEvent>(event: T, dispatcher: AsyncQueueDispatching) -> Operation {
+    private func liveDispatchOperation<T: AsyncQueueEvent>(
+        event: T,
+        dispatcher: AsyncQueueDispatching
+    ) -> Operation {
         ConcurrentOperation(name: event.id.uuidString) { operation in
-            logger.debug("Dispatching event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
+            logger.debug(
+                "Dispatching event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'"
+            )
             do {
                 try dispatcher.dispatch(event: event) {
                     _ = self.persistor.delete(event: event)
@@ -86,9 +95,13 @@ public class AsyncQueue: AsyncQueuing {
     }
 
     private func dispatchPersisted(eventTuple: AsyncQueueEventTuple) {
-        guard let dispatcher = dispatchers.first(where: { $0.key == eventTuple.dispatcherId })?.value else {
+        guard
+            let dispatcher = dispatchers.first(where: { $0.key == eventTuple.dispatcherId })?.value
+        else {
             deletePersistedEvent(filename: eventTuple.filename)
-            logger.error("Couldn't find dispatcher for persisted event with id: \(eventTuple.dispatcherId)")
+            logger.error(
+                "Couldn't find dispatcher for persisted event with id: \(eventTuple.dispatcherId)"
+            )
             return
         }
 
@@ -96,17 +109,22 @@ public class AsyncQueue: AsyncQueuing {
         queue.addOperation(operation)
     }
 
-    private func persistedDispatchOperation(event: AsyncQueueEventTuple,
-                                            dispatcher: AsyncQueueDispatching) -> Operation
-    {
+    private func persistedDispatchOperation(
+        event: AsyncQueueEventTuple,
+        dispatcher: AsyncQueueDispatching
+    ) -> Operation {
         ConcurrentOperation(name: event.id.uuidString) { _ in
             do {
-                logger.debug("Dispatching persisted event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
+                logger.debug(
+                    "Dispatching persisted event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'"
+                )
                 try dispatcher.dispatchPersisted(data: event.data) {
                     self.deletePersistedEvent(filename: event.filename)
                 }
             } catch {
-                logger.debug("Failed to dispatch persisted event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
+                logger.debug(
+                    "Failed to dispatch persisted event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'"
+                )
             }
         }
     }
@@ -120,11 +138,14 @@ public class AsyncQueue: AsyncQueuing {
         persistor
             .readAll()
             .subscribeOn(persistedEventsSchedulerType)
-            .subscribe(onSuccess: { events in
-                events.forEach(self.dispatchPersisted)
-            }, onError: { error in
-                logger.debug("Error loading persisted events: \(error)")
-            })
+            .subscribe(
+                onSuccess: { events in
+                    events.forEach(self.dispatchPersisted)
+                },
+                onError: { error in
+                    logger.debug("Error loading persisted events: \(error)")
+                }
+            )
             .disposed(by: disposeBag)
     }
 

@@ -8,7 +8,9 @@ public protocol ProjectMapping {
 public class SequentialProjectMapper: ProjectMapping {
     let mappers: [ProjectMapping]
 
-    public init(mappers: [ProjectMapping]) {
+    public init(
+        mappers: [ProjectMapping]
+    ) {
         self.mappers = mappers
     }
 
@@ -26,7 +28,9 @@ public class SequentialProjectMapper: ProjectMapping {
 public class TargetProjectMapper: ProjectMapping {
     private let mapper: TargetMapping
 
-    public init(mapper: TargetMapping) {
+    public init(
+        mapper: TargetMapping
+    ) {
         self.mapper = mapper
     }
 

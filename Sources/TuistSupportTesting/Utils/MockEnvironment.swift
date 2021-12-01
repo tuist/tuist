@@ -39,7 +39,8 @@ public class MockEnvironment: Environmenting {
     }
 
     public var queueDirectory: AbsolutePath {
-        queueDirectoryStub ?? directory.path.appending(component: Constants.AsyncQueue.directoryName)
+        queueDirectoryStub
+            ?? directory.path.appending(component: Constants.AsyncQueue.directoryName)
     }
 
     func path(version: String) -> AbsolutePath {

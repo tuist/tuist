@@ -10,7 +10,9 @@ public struct ExecutionContext {
     }
 
     public var executionType: ExecutionType
-    public init(executionType: ExecutionType) {
+    public init(
+        executionType: ExecutionType
+    ) {
         self.executionType = executionType
     }
 

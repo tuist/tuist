@@ -15,7 +15,7 @@ final class WorkspaceTests: XCTestCase {
             name: "name",
             projects: ["ProjectA"],
             additionalFiles: [
-                .glob(pattern: "Documentation/**"),
+                .glob(pattern: "Documentation/**")
             ]
         )
         XCTAssertCodable(subject)

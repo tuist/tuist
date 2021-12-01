@@ -5,13 +5,17 @@ public struct ConfigurationName: ExpressibleByStringLiteral, Codable, Equatable 
     /// Configuration name.
     public let rawValue: String
 
-    internal init(_ rawValue: String) {
+    internal init(
+        _ rawValue: String
+    ) {
         self.rawValue = rawValue
     }
 
     /// Initializes a configuration name with its name.
     /// - Parameter value: Configuration name.
-    public init(stringLiteral value: StringLiteralType) {
+    public init(
+        stringLiteral value: StringLiteralType
+    ) {
         self.init(value)
     }
 
@@ -25,14 +29,14 @@ public struct ConfigurationName: ExpressibleByStringLiteral, Codable, Equatable 
 
 // Defaults provided by Tuist
 
-public extension ConfigurationName {
+extension ConfigurationName {
     /// Returns a configuration named "Debug"
-    static var debug: ConfigurationName {
+    public static var debug: ConfigurationName {
         ConfigurationName("Debug")
     }
 
     // Returns a configuration named "Release"
-    static var release: ConfigurationName {
+    public static var release: ConfigurationName {
         ConfigurationName("Release")
     }
 }

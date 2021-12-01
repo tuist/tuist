@@ -10,7 +10,10 @@ extension TuistGraph.TestAction {
     /// - Parameters:
     ///   - manifest: Manifest representation of test action model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.TestAction, generatorPaths: GeneratorPaths) throws -> TuistGraph.TestAction {
+    static func from(
+        manifest: ProjectDescription.TestAction,
+        generatorPaths: GeneratorPaths
+    ) throws -> TuistGraph.TestAction {
         // swiftlint:enable function_body_length
         let testPlans: [TuistGraph.TestPlan]?
         let targets: [TuistGraph.TestableTarget]
@@ -37,7 +40,9 @@ extension TuistGraph.TestAction {
             language = nil
             region = nil
         } else {
-            targets = try manifest.targets.map { try TuistGraph.TestableTarget.from(manifest: $0, generatorPaths: generatorPaths) }
+            targets = try manifest.targets.map {
+                try TuistGraph.TestableTarget.from(manifest: $0, generatorPaths: generatorPaths)
+            }
             arguments = manifest.arguments.map { TuistGraph.Arguments.from(manifest: $0) }
             coverage = manifest.options.coverage
             codeCoverageTargets = try manifest.options.codeCoverageTargets.map {
@@ -53,7 +58,11 @@ extension TuistGraph.TestAction {
                 )
             }
 
-            diagnosticsOptions = Set(manifest.diagnosticsOptions.map { TuistGraph.SchemeDiagnosticsOption.from(manifest: $0) })
+            diagnosticsOptions = Set(
+                manifest.diagnosticsOptions.map {
+                    TuistGraph.SchemeDiagnosticsOption.from(manifest: $0)
+                }
+            )
             language = manifest.options.language
             region = manifest.options.region
 
@@ -62,14 +71,18 @@ extension TuistGraph.TestAction {
         }
 
         let configurationName = manifest.configuration.rawValue
-        let preActions = try manifest.preActions.map { try TuistGraph.ExecutionAction.from(
-            manifest: $0,
-            generatorPaths: generatorPaths
-        ) }
-        let postActions = try manifest.postActions.map { try TuistGraph.ExecutionAction.from(
-            manifest: $0,
-            generatorPaths: generatorPaths
-        ) }
+        let preActions = try manifest.preActions.map {
+            try TuistGraph.ExecutionAction.from(
+                manifest: $0,
+                generatorPaths: generatorPaths
+            )
+        }
+        let postActions = try manifest.postActions.map {
+            try TuistGraph.ExecutionAction.from(
+                manifest: $0,
+                generatorPaths: generatorPaths
+            )
+        }
 
         return TestAction(
             targets: targets,

@@ -17,7 +17,9 @@ final class CleanServiceTests: TuistUnitTestCase {
         cacheDirectoriesProvider = mockCacheDirectoriesProvider
 
         subject = CleanService(
-            cacheDirectoryProviderFactory: MockCacheDirectoriesProviderFactory(provider: mockCacheDirectoriesProvider)
+            cacheDirectoryProviderFactory: MockCacheDirectoriesProviderFactory(
+                provider: mockCacheDirectoriesProvider
+            )
         )
     }
 
@@ -28,11 +30,16 @@ final class CleanServiceTests: TuistUnitTestCase {
 
     func test_run_with_category_cleans_category() throws {
         // Given
-        let cachePaths = try createFolders(["Cache", "Cache/BuildCache", "Cache/Manifests", "Cache/TestsCache"])
+        let cachePaths = try createFolders([
+            "Cache", "Cache/BuildCache", "Cache/Manifests", "Cache/TestsCache",
+        ])
         let cachePath = cachePaths[0]
         for path in cachePaths {
             let correctlyCreated = FileManager.default.fileExists(atPath: path.pathString)
-            XCTAssertTrue(correctlyCreated, "Test setup is not properly done. Folder \(path.pathString) should exist")
+            XCTAssertTrue(
+                correctlyCreated,
+                "Test setup is not properly done. Folder \(path.pathString) should exist"
+            )
         }
         cacheDirectoriesProvider.cacheDirectoryStub = cachePath
 
@@ -41,20 +48,34 @@ final class CleanServiceTests: TuistUnitTestCase {
 
         // Then
         let buildsExists = FileManager.default.fileExists(atPath: cachePaths[1].pathString)
-        XCTAssertFalse(buildsExists, "Cache folder at path \(cachePaths[1]) should have been deleted by the test.")
+        XCTAssertFalse(
+            buildsExists,
+            "Cache folder at path \(cachePaths[1]) should have been deleted by the test."
+        )
         let manifestsExists = FileManager.default.fileExists(atPath: cachePaths[2].pathString)
-        XCTAssertTrue(manifestsExists, "Cache folder at path \(cachePaths[2].pathString) should not have been deleted by the test.")
+        XCTAssertTrue(
+            manifestsExists,
+            "Cache folder at path \(cachePaths[2].pathString) should not have been deleted by the test."
+        )
         let testsExists = FileManager.default.fileExists(atPath: cachePaths[3].pathString)
-        XCTAssertFalse(testsExists, "Cache folder at path \(cachePaths[3].pathString) should not have been deleted by the test.")
+        XCTAssertFalse(
+            testsExists,
+            "Cache folder at path \(cachePaths[3].pathString) should not have been deleted by the test."
+        )
     }
 
     func test_run_without_category_cleans_all() throws {
         // Given
-        let cachePaths = try createFolders(["Cache", "Cache/BuildCache", "Cache/Manifests", "Cache/TestsCache"])
+        let cachePaths = try createFolders([
+            "Cache", "Cache/BuildCache", "Cache/Manifests", "Cache/TestsCache",
+        ])
         let cachePath = cachePaths[0]
         for path in cachePaths {
             let correctlyCreated = FileManager.default.fileExists(atPath: path.pathString)
-            XCTAssertTrue(correctlyCreated, "Test setup is not properly done. Folder \(path.pathString) should exist")
+            XCTAssertTrue(
+                correctlyCreated,
+                "Test setup is not properly done. Folder \(path.pathString) should exist"
+            )
         }
         cacheDirectoriesProvider.cacheDirectoryStub = cachePath
 
@@ -63,10 +84,19 @@ final class CleanServiceTests: TuistUnitTestCase {
 
         // Then
         let buildsExists = FileManager.default.fileExists(atPath: cachePaths[1].pathString)
-        XCTAssertFalse(buildsExists, "Cache folder at path \(cachePaths[1]) should have been deleted by the test.")
+        XCTAssertFalse(
+            buildsExists,
+            "Cache folder at path \(cachePaths[1]) should have been deleted by the test."
+        )
         let manifestsExists = FileManager.default.fileExists(atPath: cachePaths[2].pathString)
-        XCTAssertFalse(manifestsExists, "Cache folder at path \(cachePaths[2].pathString) should have been deleted by the test.")
+        XCTAssertFalse(
+            manifestsExists,
+            "Cache folder at path \(cachePaths[2].pathString) should have been deleted by the test."
+        )
         let testsExists = FileManager.default.fileExists(atPath: cachePaths[3].pathString)
-        XCTAssertFalse(testsExists, "Cache folder at path \(cachePaths[3].pathString) should not have been deleted by the test.")
+        XCTAssertFalse(
+            testsExists,
+            "Cache folder at path \(cachePaths[3].pathString) should not have been deleted by the test."
+        )
     }
 }

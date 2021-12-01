@@ -21,7 +21,9 @@ public class TemplateLoader: TemplateLoading {
         self.init(manifestLoader: ManifestLoader())
     }
 
-    init(manifestLoader: ManifestLoading) {
+    init(
+        manifestLoader: ManifestLoading
+    ) {
         self.manifestLoader = manifestLoader
     }
 
@@ -36,15 +38,20 @@ public class TemplateLoader: TemplateLoading {
 }
 
 extension TuistGraph.Template {
-    static func from(manifest: ProjectDescription.Template, generatorPaths: GeneratorPaths) throws -> TuistGraph.Template {
+    static func from(
+        manifest: ProjectDescription.Template,
+        generatorPaths: GeneratorPaths
+    ) throws -> TuistGraph.Template {
         let attributes = try manifest.attributes.map(TuistGraph.Template.Attribute.from)
-        let items = try manifest.items.map { Item(
-            path: RelativePath($0.path),
-            contents: try TuistGraph.Template.Contents.from(
-                manifest: $0.contents,
-                generatorPaths: generatorPaths
+        let items = try manifest.items.map {
+            Item(
+                path: RelativePath($0.path),
+                contents: try TuistGraph.Template.Contents.from(
+                    manifest: $0.contents,
+                    generatorPaths: generatorPaths
+                )
             )
-        ) }
+        }
         return TuistGraph.Template(
             description: manifest.description,
             attributes: attributes,
@@ -54,7 +61,9 @@ extension TuistGraph.Template {
 }
 
 extension TuistGraph.Template.Attribute {
-    static func from(manifest: ProjectDescription.Template.Attribute) throws -> TuistGraph.Template.Attribute {
+    static func from(
+        manifest: ProjectDescription.Template.Attribute
+    ) throws -> TuistGraph.Template.Attribute {
         switch manifest {
         case let .required(name):
             return .required(name)
@@ -65,9 +74,10 @@ extension TuistGraph.Template.Attribute {
 }
 
 extension TuistGraph.Template.Contents {
-    static func from(manifest: ProjectDescription.Template.Contents,
-                     generatorPaths: GeneratorPaths) throws -> TuistGraph.Template.Contents
-    {
+    static func from(
+        manifest: ProjectDescription.Template.Contents,
+        generatorPaths: GeneratorPaths
+    ) throws -> TuistGraph.Template.Contents {
         switch manifest {
         case let .string(contents):
             return .string(contents)

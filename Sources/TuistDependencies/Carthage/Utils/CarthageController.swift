@@ -18,8 +18,8 @@ enum CarthageControllerError: FatalError, Equatable {
     var type: ErrorType {
         switch self {
         case .carthageNotFound,
-             .unrecognizedCarthageVersion,
-             .xcframeworksProductionNotSupported:
+            .unrecognizedCarthageVersion,
+            .xcframeworksProductionNotSupported:
             return .abort
         }
     }
@@ -29,19 +29,19 @@ enum CarthageControllerError: FatalError, Equatable {
         switch self {
         case .carthageNotFound:
             return """
-            Carthage was not found in the environment.
-            It's possible that the tool is not installed or hasn't been exposed to your environment.
-            """
+                Carthage was not found in the environment.
+                It's possible that the tool is not installed or hasn't been exposed to your environment.
+                """
         case .unrecognizedCarthageVersion:
             return """
-            The version of Carthage cannot be determined.
-            It's possible that the tool is not installed or hasn't been exposed to your environment.
-            """
+                The version of Carthage cannot be determined.
+                It's possible that the tool is not installed or hasn't been exposed to your environment.
+                """
         case let .xcframeworksProductionNotSupported(installedVersion):
             return """
-            The version of Carthage installed in your environment (\(installedVersion.description)) doesn't suppport production of XCFrameworks.
-            You have to update the tool to at least 0.37.0 version.
-            """
+                The version of Carthage installed in your environment (\(installedVersion.description)) doesn't suppport production of XCFrameworks.
+                You have to update the tool to at least 0.37.0 version.
+                """
         }
     }
 }
@@ -61,14 +61,22 @@ public protocol CarthageControlling {
     ///   - path: Directory where project's dependencies will be installed.
     ///   - platforms: The platforms to build for.
     ///   - printOutput: When true it prints the Carthage's ouput.
-    func bootstrap(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>, printOutput: Bool) throws
+    func bootstrap(
+        at path: AbsolutePath,
+        platforms: Set<TuistGraph.Platform>,
+        printOutput: Bool
+    ) throws
 
     /// Updates and rebuilds the project's dependencies
     /// - Parameters:
     ///   - path: Directory where project's dependencies will be installed.
     ///   - platforms: The platforms to build for.
     ///   - printOutput: When true it prints the Carthage's ouput.
-    func update(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>, printOutput: Bool) throws
+    func update(
+        at path: AbsolutePath,
+        platforms: Set<TuistGraph.Platform>,
+        printOutput: Bool
+    ) throws
 }
 
 // MARK: - Carthage Controller
@@ -96,7 +104,10 @@ public final class CarthageController: CarthageControlling {
             return cached
         }
 
-        guard let output = try? System.shared.capture("/usr/bin/env", "carthage", "version").spm_chomp() else {
+        guard
+            let output = try? System.shared.capture("/usr/bin/env", "carthage", "version")
+                .spm_chomp()
+        else {
             throw CarthageControllerError.carthageNotFound
         }
 
@@ -108,28 +119,40 @@ public final class CarthageController: CarthageControlling {
         return version
     }
 
-    public func bootstrap(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>, printOutput: Bool) throws {
+    public func bootstrap(
+        at path: AbsolutePath,
+        platforms: Set<TuistGraph.Platform>,
+        printOutput: Bool
+    ) throws {
         guard try isXCFrameworksProductionSupported() else {
-            throw CarthageControllerError.xcframeworksProductionNotSupported(installedVersion: try carthageVersion())
+            throw CarthageControllerError.xcframeworksProductionNotSupported(
+                installedVersion: try carthageVersion()
+            )
         }
 
-        let command = buildCarthageCommand(path: path, platforms: platforms, subcommand: "bootstrap")
+        let command = buildCarthageCommand(
+            path: path,
+            platforms: platforms,
+            subcommand: "bootstrap"
+        )
 
-        printOutput ?
-            try System.shared.runAndPrint(command) :
-            try System.shared.run(command)
+        printOutput ? try System.shared.runAndPrint(command) : try System.shared.run(command)
     }
 
-    public func update(at path: AbsolutePath, platforms: Set<TuistGraph.Platform>, printOutput: Bool) throws {
+    public func update(
+        at path: AbsolutePath,
+        platforms: Set<TuistGraph.Platform>,
+        printOutput: Bool
+    ) throws {
         guard try isXCFrameworksProductionSupported() else {
-            throw CarthageControllerError.xcframeworksProductionNotSupported(installedVersion: try carthageVersion())
+            throw CarthageControllerError.xcframeworksProductionNotSupported(
+                installedVersion: try carthageVersion()
+            )
         }
 
         let command = buildCarthageCommand(path: path, platforms: platforms, subcommand: "update")
 
-        printOutput ?
-            try System.shared.runAndPrint(command) :
-            try System.shared.run(command)
+        printOutput ? try System.shared.runAndPrint(command) : try System.shared.run(command)
     }
 
     // MARK: - Helpers

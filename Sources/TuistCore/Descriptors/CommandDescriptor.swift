@@ -11,11 +11,15 @@ public struct CommandDescriptor: Equatable {
 
     /// Creates a command descriptor
     /// - Parameter command: The command and its arguments to perform
-    public init(command: [String]) {
+    public init(
+        command: [String]
+    ) {
         self.command = command
     }
 
-    public init(command: String...) {
+    public init(
+        command: String...
+    ) {
         self.init(command: command)
     }
 }

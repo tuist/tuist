@@ -4,6 +4,7 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 import XCTest
+
 @testable import TuistCache
 @testable import TuistCoreTesting
 @testable import TuistSupportTesting
@@ -81,9 +82,14 @@ final class CacheLocalStorageIntegrationTests: TuistTestCase {
         try FileHandler.shared.createFolder(xcframeworkPath)
 
         // When
-        _ = try subject.store(name: "ignored", hash: hash, paths: [xcframeworkPath]).toBlocking().first()
+        _ = try subject.store(name: "ignored", hash: hash, paths: [xcframeworkPath]).toBlocking()
+            .first()
 
         // Then
-        XCTAssertTrue(FileHandler.shared.exists(cacheDirectory.appending(RelativePath("\(hash)/framework.xcframework"))))
+        XCTAssertTrue(
+            FileHandler.shared.exists(
+                cacheDirectory.appending(RelativePath("\(hash)/framework.xcframework"))
+            )
+        )
     }
 }

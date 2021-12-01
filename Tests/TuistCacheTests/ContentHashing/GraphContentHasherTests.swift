@@ -99,11 +99,13 @@ final class GraphContentHasherTests: TuistUnitTestCase {
                     appTarget.target.name: appTarget.target,
                     dynamicLibraryTarget.target.name: dynamicLibraryTarget.target,
                     staticFrameworkTarget.target.name: staticFrameworkTarget.target,
-                ],
+                ]
             ]
         )
 
-        let expectedCachableTargets = [frameworkTarget, secondFrameworkTarget].sorted(by: { $0.target.name < $1.target.name })
+        let expectedCachableTargets = [frameworkTarget, secondFrameworkTarget].sorted(by: {
+            $0.target.name < $1.target.name
+        })
 
         // When
         let hashes = try subject.contentHashes(

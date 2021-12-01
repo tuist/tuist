@@ -13,14 +13,17 @@ public final class TasksLocator: TasksLocating {
     private let rootDirectoryLocator: RootDirectoryLocating
 
     /// Default constructor.
-    public init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {
+    public init(
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
+    ) {
         self.rootDirectoryLocator = rootDirectoryLocator
     }
 
     public func locateTasks(at path: AbsolutePath) throws -> [AbsolutePath] {
         guard let rootDirectory = rootDirectoryLocator.locate(from: path) else { return [] }
         let tasksDirectory = rootDirectory.appending(
-            components: Constants.tuistDirectoryName, Constants.tasksDirectoryName
+            components: Constants.tuistDirectoryName,
+            Constants.tasksDirectoryName
         )
         guard FileHandler.shared.exists(tasksDirectory) else { return [] }
         return try FileHandler.shared.contentsOfDirectory(tasksDirectory)

@@ -11,20 +11,26 @@ public struct Path: ExpressibleByStringInterpolation, Codable, Hashable {
     public let pathString: String
     public let callerPath: String?
 
-    public init(_ path: String) {
+    public init(
+        _ path: String
+    ) {
         self.init(path, type: .relativeToManifest)
     }
 
-    init(_ pathString: String,
-         type: PathType,
-         callerPath: String? = nil)
-    {
+    init(
+        _ pathString: String,
+        type: PathType,
+        callerPath: String? = nil
+    ) {
         self.type = type
         self.pathString = pathString
         self.callerPath = callerPath
     }
 
-    public static func relativeToCurrentFile(_ pathString: String, callerPath: StaticString = #file) -> Path {
+    public static func relativeToCurrentFile(
+        _ pathString: String,
+        callerPath: StaticString = #file
+    ) -> Path {
         Path(pathString, type: .relativeToCurrentFile, callerPath: "\(callerPath)")
     }
 
@@ -38,7 +44,9 @@ public struct Path: ExpressibleByStringInterpolation, Codable, Hashable {
 
     // MARK: - ExpressibleByStringInterpolation
 
-    public init(stringLiteral: String) {
+    public init(
+        stringLiteral: String
+    ) {
         if stringLiteral.starts(with: "//") {
             self.init(stringLiteral.replacingOccurrences(of: "//", with: ""), type: .relativeToRoot)
         } else {

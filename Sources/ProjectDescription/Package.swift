@@ -21,7 +21,9 @@ public enum Package: Equatable, Codable {
         case path
     }
 
-    public init(from decoder: Decoder) throws {
+    public init(
+        from decoder: Decoder
+    ) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
         switch kind {
@@ -76,7 +78,9 @@ extension Package {
             case maximumVersion
         }
 
-        public init(from decoder: Decoder) throws {
+        public init(
+            from decoder: Decoder
+        ) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             let kind: String = try container.decode(String.self, forKey: .kind)
             if kind == "revision" {
@@ -193,11 +197,13 @@ extension Package {
         // Increase upperbound's patch version by one.
         let upper = range.upperBound
         let upperBound = Version(
-            upper.major, upper.minor, upper.patch + 1,
+            upper.major,
+            upper.minor,
+            upper.patch + 1,
             prereleaseIdentifiers: upper.prereleaseIdentifiers,
             buildMetadataIdentifiers: upper.buildMetadataIdentifiers
         )
-        return .package(url: url, range.lowerBound ..< upperBound)
+        return .package(url: url, range.lowerBound..<upperBound)
     }
 
     /// Add a dependency to a local package on the filesystem.
@@ -215,17 +221,29 @@ extension Package {
 
 // Mark common APIs used by mistake as unavailable to provide better error messages.
 extension Package {
-    @available(*, unavailable, message: "use package(url:_:) with the .exact(Version) initializer instead")
+    @available(
+        *,
+        unavailable,
+        message: "use package(url:_:) with the .exact(Version) initializer instead"
+    )
     public static func package(url _: String, version _: Version) -> Package {
         fatalError()
     }
 
-    @available(*, unavailable, message: "use package(url:_:) with the .branch(String) initializer instead")
+    @available(
+        *,
+        unavailable,
+        message: "use package(url:_:) with the .branch(String) initializer instead"
+    )
     public static func package(url _: String, branch _: String) -> Package {
         fatalError()
     }
 
-    @available(*, unavailable, message: "use package(url:_:) with the .revision(String) initializer instead")
+    @available(
+        *,
+        unavailable,
+        message: "use package(url:_:) with the .revision(String) initializer instead"
+    )
     public static func package(url _: String, revision _: String) -> Package {
         fatalError()
     }

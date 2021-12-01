@@ -276,21 +276,38 @@ public final class GraphLoader: GraphLoading {
         return xcframework
     }
 
-    private func loadSDK(name: String,
-                         platform: Platform,
-                         status: SDKStatus,
-                         source: SDKSource) throws -> GraphDependency
-    {
-        let metadata = try systemFrameworkMetadataProvider.loadMetadata(sdkName: name, status: status, platform: platform, source: source)
-        return .sdk(name: metadata.name, path: metadata.path, status: metadata.status, source: metadata.source)
+    private func loadSDK(
+        name: String,
+        platform: Platform,
+        status: SDKStatus,
+        source: SDKSource
+    ) throws -> GraphDependency {
+        let metadata = try systemFrameworkMetadataProvider.loadMetadata(
+            sdkName: name,
+            status: status,
+            platform: platform,
+            source: source
+        )
+        return .sdk(
+            name: metadata.name,
+            path: metadata.path,
+            status: metadata.status,
+            source: metadata.source
+        )
     }
 
     private func loadXCTestSDK(platform: Platform) throws -> GraphDependency {
         let metadata = try systemFrameworkMetadataProvider.loadXCTestMetadata(platform: platform)
-        return .sdk(name: metadata.name, path: metadata.path, status: metadata.status, source: metadata.source)
+        return .sdk(
+            name: metadata.name,
+            path: metadata.path,
+            status: metadata.status,
+            source: metadata.source
+        )
     }
 
-    private func loadPackage(fromPath: AbsolutePath, productName: String) throws -> GraphDependency {
+    private func loadPackage(fromPath: AbsolutePath, productName: String) throws -> GraphDependency
+    {
         // TODO: `fromPath` isn't quite correct as it reflects the path where the dependency was declared
         // and doesn't uniquely identify it. It's been copied from the previous implementation to maintain
         // existing behaviour and should be fixed separately
@@ -312,7 +329,9 @@ public final class GraphLoader: GraphLoading {
         var xcframeworks: [AbsolutePath: GraphDependency] = [:]
         var packages: [AbsolutePath: [String: Package]] = [:]
 
-        init(projects: [Project]) {
+        init(
+            projects: [Project]
+        ) {
             let allProjects = Dictionary(uniqueKeysWithValues: projects.map { ($0.path, $0) })
             let allTargets = allProjects.mapValues {
                 Dictionary(uniqueKeysWithValues: $0.targets.map { ($0.name, $0) })
@@ -354,8 +373,8 @@ public final class GraphLoader: GraphLoading {
     }
 }
 
-private extension Package {
-    var name: String {
+extension Package {
+    fileprivate var name: String {
         switch self {
         case let .local(path: path):
             return path.pathString

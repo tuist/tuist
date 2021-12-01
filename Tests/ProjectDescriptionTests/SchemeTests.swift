@@ -10,8 +10,20 @@ final class SchemeTests: XCTestCase {
 
     func test_codable() throws {
         // Given
-        let buildAction = [ExecutionAction(title: "Run Script", scriptText: "echo build_action", target: TargetReference(projectPath: nil, target: "target"))]
-        let testAction = [ExecutionAction(title: "Run Script", scriptText: "echo test_action", target: TargetReference(projectPath: nil, target: "target"))]
+        let buildAction = [
+            ExecutionAction(
+                title: "Run Script",
+                scriptText: "echo build_action",
+                target: TargetReference(projectPath: nil, target: "target")
+            )
+        ]
+        let testAction = [
+            ExecutionAction(
+                title: "Run Script",
+                scriptText: "echo test_action",
+                target: TargetReference(projectPath: nil, target: "target")
+            )
+        ]
         let subject = Scheme(
             name: "scheme",
             shared: true,
@@ -51,8 +63,20 @@ final class SchemeTests: XCTestCase {
 
     func test_defaultConfigurationNames() throws {
         // Given / When
-        let buildAction = [ExecutionAction(title: "Run Script", scriptText: "echo build_action", target: .init(projectPath: nil, target: "target"))]
-        let testAction = [ExecutionAction(title: "Run Script", scriptText: "echo test_action", target: .init(projectPath: nil, target: "target"))]
+        let buildAction = [
+            ExecutionAction(
+                title: "Run Script",
+                scriptText: "echo build_action",
+                target: .init(projectPath: nil, target: "target")
+            )
+        ]
+        let testAction = [
+            ExecutionAction(
+                title: "Run Script",
+                scriptText: "echo test_action",
+                target: .init(projectPath: nil, target: "target")
+            )
+        ]
         let subject = Scheme(
             name: "scheme",
             shared: true,

@@ -1,4 +1,5 @@
 import Foundation
+
 @testable import TuistCore
 
 extension CloudResponse {

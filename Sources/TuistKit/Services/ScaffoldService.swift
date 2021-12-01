@@ -21,12 +21,16 @@ enum ScaffoldServiceError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .templateNotFound(template, searchPaths):
-            let searchDirectories = searchPaths
-                .reduce(into: Set<AbsolutePath>()) { result, path in result.insert(path.parentDirectory) }
+            let searchDirectories =
+                searchPaths
+                .reduce(into: Set<AbsolutePath>()) { result, path in
+                    result.insert(path.parentDirectory)
+                }
                 .reduce("\n") { $0 + "  * \($1.pathString)\n" }
             return "Could not find template \(template) in: \(searchDirectories)"
         case let .nonEmptyDirectory(path):
-            return "Can't generate a template in the non-empty directory at path \(path.pathString)."
+            return
+                "Can't generate a template in the non-empty directory at path \(path.pathString)."
         case let .attributeNotProvided(name):
             return "You must provide \(name) option. Add --\(name) desired_value to your command."
         }
@@ -71,7 +75,9 @@ final class ScaffoldService {
 
         let template = try templateLoader.loadTemplate(at: templateDirectory)
 
-        return template.attributes.reduce(into: (required: [], optional: [])) { currentValue, attribute in
+        return template.attributes.reduce(into: (required: [], optional: [])) {
+            currentValue,
+            attribute in
             switch attribute {
             case let .optional(name, default: _):
                 currentValue.optional.append(name)
@@ -131,10 +137,11 @@ final class ScaffoldService {
     /// Parses all `attributes` from `template`
     /// If those attributes are optional, they default to `default` if not provided
     /// - Returns: Array of parsed attributes
-    private func parseAttributes(requiredTemplateOptions: [String: String],
-                                 optionalTemplateOptions: [String: String?],
-                                 template: Template) throws -> [String: String]
-    {
+    private func parseAttributes(
+        requiredTemplateOptions: [String: String],
+        optionalTemplateOptions: [String: String?],
+        template: Template
+    ) throws -> [String: String] {
         try template.attributes.reduce(into: [:]) { attributesDictionary, attribute in
             switch attribute {
             case let .required(name):
@@ -162,7 +169,9 @@ final class ScaffoldService {
         at path: AbsolutePath,
         plugins: Plugins
     ) throws -> [AbsolutePath] {
-        let templateRelativeDirectories = try templatesDirectoryLocator.templateDirectories(at: path)
+        let templateRelativeDirectories = try templatesDirectoryLocator.templateDirectories(
+            at: path
+        )
         let templatePluginDirectories = plugins.templateDirectories
         return templateRelativeDirectories + templatePluginDirectories
     }
@@ -172,10 +181,15 @@ final class ScaffoldService {
     ///     - templateDirectories: Paths of available templates
     ///     - template: Name of template
     /// - Returns: `AbsolutePath` of template directory
-    private func templateDirectory(templateDirectories: [AbsolutePath], template: String) throws -> AbsolutePath {
+    private func templateDirectory(
+        templateDirectories: [AbsolutePath],
+        template: String
+    ) throws -> AbsolutePath {
         guard
             let templateDirectory = templateDirectories.first(where: { $0.basename == template })
-        else { throw ScaffoldServiceError.templateNotFound(template, searchPaths: templateDirectories) }
+        else {
+            throw ScaffoldServiceError.templateNotFound(template, searchPaths: templateDirectories)
+        }
         return templateDirectory
     }
 }

@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import TuistSupport
 
 final class StringRegexTests: XCTestCase {

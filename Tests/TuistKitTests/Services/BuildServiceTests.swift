@@ -29,8 +29,14 @@ final class BuildServiceErrorTests: TuistUnitTestCase {
     }
 
     func test_type() {
-        XCTAssertEqual(BuildServiceError.schemeNotFound(scheme: "A", existing: ["B", "C"]).type, .abort)
-        XCTAssertEqual(BuildServiceError.schemeWithoutBuildableTargets(scheme: "MyScheme").type, .abort)
+        XCTAssertEqual(
+            BuildServiceError.schemeNotFound(scheme: "A", existing: ["B", "C"]).type,
+            .abort
+        )
+        XCTAssertEqual(
+            BuildServiceError.schemeWithoutBuildableTargets(scheme: "MyScheme").type,
+            .abort
+        )
         XCTAssertEqual(BuildServiceError.workspaceNotFound(path: "/path/to/workspace").type, .bug)
     }
 }
@@ -177,9 +183,14 @@ final class BuildServiceTests: TuistUnitTestCase {
             [schemeA, schemeB]
         }
         buildGraphInspector.buildableTargetStub = { _scheme, _ in
-            if _scheme == schemeA { return GraphTarget.test(path: project.path, target: targetA, project: project) }
-            else if _scheme == schemeB { return GraphTarget.test(path: project.path, target: targetB, project: project) }
-            else { XCTFail("unexpected scheme"); return GraphTarget.test(path: project.path, target: targetA, project: project) }
+            if _scheme == schemeA {
+                return GraphTarget.test(path: project.path, target: targetA, project: project)
+            } else if _scheme == schemeB {
+                return GraphTarget.test(path: project.path, target: targetB, project: project)
+            } else {
+                XCTFail("unexpected scheme")
+                return GraphTarget.test(path: project.path, target: targetA, project: project)
+            }
         }
         buildGraphInspector.workspacePathStub = { _path in
             XCTAssertEqual(_path, path)
@@ -231,9 +242,14 @@ final class BuildServiceTests: TuistUnitTestCase {
             [schemeA, schemeB]
         }
         buildGraphInspector.buildableTargetStub = { _scheme, _ in
-            if _scheme == schemeA { return GraphTarget.test(path: project.path, target: targetA, project: project) }
-            else if _scheme == schemeB { return GraphTarget.test(path: project.path, target: targetB, project: project) }
-            else { XCTFail("unexpected scheme"); return GraphTarget.test(path: project.path, target: targetA, project: project) }
+            if _scheme == schemeA {
+                return GraphTarget.test(path: project.path, target: targetA, project: project)
+            } else if _scheme == schemeB {
+                return GraphTarget.test(path: project.path, target: targetB, project: project)
+            } else {
+                XCTFail("unexpected scheme")
+                return GraphTarget.test(path: project.path, target: targetA, project: project)
+            }
         }
         buildGraphInspector.workspacePathStub = { _path in
             XCTAssertEqual(_path, path)
@@ -295,8 +311,8 @@ final class BuildServiceTests: TuistUnitTestCase {
 
 // MARK: - Helpers
 
-private extension BuildService {
-    func testRun(
+extension BuildService {
+    fileprivate func testRun(
         schemeName: String? = nil,
         generate: Bool = false,
         clean: Bool = true,

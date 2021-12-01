@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistGraph
 import TuistSupport
+
 @testable import TuistCore
 
 public final class MockCacheDirectoriesProviderFactory: CacheDirectoriesProviderFactoring {
@@ -9,7 +10,9 @@ public final class MockCacheDirectoriesProviderFactory: CacheDirectoriesProvider
     public var cacheDirectoriesConfig: Config?
     private let provider: CacheDirectoriesProviding
 
-    public init(provider: CacheDirectoriesProviding) {
+    public init(
+        provider: CacheDirectoriesProviding
+    ) {
         self.provider = provider
     }
 

@@ -13,7 +13,8 @@ public enum TargetManifestMapperError: FatalError {
     public var description: String {
         switch self {
         case let .invalidResourcesGlob(targetName: targetName, invalidGlobs: invalidGlobs):
-            return "The target \(targetName) has the following invalid resource globs:\n" + invalidGlobs.invalidGlobsDescription
+            return "The target \(targetName) has the following invalid resource globs:\n"
+                + invalidGlobs.invalidGlobsDescription
         }
     }
 }
@@ -36,31 +37,54 @@ extension TuistGraph.Target {
 
         let bundleId = manifest.bundleId
         let productName = manifest.productName
-        let deploymentTarget = manifest.deploymentTarget.map { TuistGraph.DeploymentTarget.from(manifest: $0) }
-
-        let dependencies = try manifest.dependencies.flatMap {
-            try TuistGraph.TargetDependency.from(manifest: $0, generatorPaths: generatorPaths, externalDependencies: externalDependencies)
+        let deploymentTarget = manifest.deploymentTarget.map {
+            TuistGraph.DeploymentTarget.from(manifest: $0)
         }
 
-        let infoPlist = try TuistGraph.InfoPlist.from(manifest: manifest.infoPlist, generatorPaths: generatorPaths)
+        let dependencies = try manifest.dependencies.flatMap {
+            try TuistGraph.TargetDependency.from(
+                manifest: $0,
+                generatorPaths: generatorPaths,
+                externalDependencies: externalDependencies
+            )
+        }
+
+        let infoPlist = try TuistGraph.InfoPlist.from(
+            manifest: manifest.infoPlist,
+            generatorPaths: generatorPaths
+        )
         let entitlements = try manifest.entitlements.map { try generatorPaths.resolve(path: $0) }
 
-        let settings = try manifest.settings.map { try TuistGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
+        let settings = try manifest.settings.map {
+            try TuistGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths)
+        }
 
-        let (sources, sourcesPlaygrounds) = try sourcesAndPlaygrounds(manifest: manifest, targetName: name, generatorPaths: generatorPaths)
+        let (sources, sourcesPlaygrounds) = try sourcesAndPlaygrounds(
+            manifest: manifest,
+            targetName: name,
+            generatorPaths: generatorPaths
+        )
 
-        var (resources, resourcesPlaygrounds, invalidResourceGlobs) = try resourcesAndPlaygrounds(manifest: manifest, generatorPaths: generatorPaths)
+        var (resources, resourcesPlaygrounds, invalidResourceGlobs) = try resourcesAndPlaygrounds(
+            manifest: manifest,
+            generatorPaths: generatorPaths
+        )
         resources = resourcesFlatteningBundles(resources: resources)
 
         if !invalidResourceGlobs.isEmpty {
-            throw TargetManifestMapperError.invalidResourcesGlob(targetName: name, invalidGlobs: invalidResourceGlobs)
+            throw TargetManifestMapperError.invalidResourcesGlob(
+                targetName: name,
+                invalidGlobs: invalidResourceGlobs
+            )
         }
 
         let copyFiles = try (manifest.copyFiles ?? []).map {
             try TuistGraph.CopyFilesAction.from(manifest: $0, generatorPaths: generatorPaths)
         }
 
-        let headers = try manifest.headers.map { try TuistGraph.Headers.from(manifest: $0, generatorPaths: generatorPaths) }
+        let headers = try manifest.headers.map {
+            try TuistGraph.Headers.from(manifest: $0, generatorPaths: generatorPaths)
+        }
 
         let coreDataModels = try manifest.coreDataModels.map {
             try TuistGraph.CoreDataModel.from(manifest: $0, generatorPaths: generatorPaths)
@@ -75,7 +99,9 @@ extension TuistGraph.Target {
 
         let playgrounds = sourcesPlaygrounds + resourcesPlaygrounds
 
-        let additionalFiles = try manifest.additionalFiles.flatMap { try TuistGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths) }
+        let additionalFiles = try manifest.additionalFiles.flatMap {
+            try TuistGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths)
+        }
 
         return TuistGraph.Target(
             name: name,
@@ -106,9 +132,13 @@ extension TuistGraph.Target {
 
     // swiftlint:disable large_tuple
     // swiftlint:disable line_length
-    fileprivate static func resourcesAndPlaygrounds(manifest: ProjectDescription.Target,
-                                                    generatorPaths: GeneratorPaths) throws -> (resources: [TuistGraph.ResourceFileElement], playgrounds: [AbsolutePath], invalidResourceGlobs: [InvalidGlob])
-    {
+    fileprivate static func resourcesAndPlaygrounds(
+        manifest: ProjectDescription.Target,
+        generatorPaths: GeneratorPaths
+    ) throws -> (
+        resources: [TuistGraph.ResourceFileElement], playgrounds: [AbsolutePath],
+        invalidResourceGlobs: [InvalidGlob]
+    ) {
         // swiftlint:enable large_tuple
         // swiftlint:enable line_length
         let resourceFilter = { (path: AbsolutePath) -> Bool in
@@ -119,7 +149,8 @@ extension TuistGraph.Target {
         var resourcesWithoutPlaygrounds: [TuistGraph.ResourceFileElement] = []
         var playgrounds: Set<AbsolutePath> = []
 
-        let allResources = try (manifest.resources?.resources ?? []).flatMap { manifest -> [TuistGraph.ResourceFileElement] in
+        let allResources = try (manifest.resources?.resources ?? []).flatMap {
+            manifest -> [TuistGraph.ResourceFileElement] in
             do {
                 return try TuistGraph.ResourceFileElement.from(
                     manifest: manifest,
@@ -144,36 +175,61 @@ extension TuistGraph.Target {
             }
         }
 
-        return (resources: resourcesWithoutPlaygrounds, playgrounds: Array(playgrounds), invalidResourceGlobs: invalidResourceGlobs)
+        return (
+            resources: resourcesWithoutPlaygrounds, playgrounds: Array(playgrounds),
+            invalidResourceGlobs: invalidResourceGlobs
+        )
     }
 
-    fileprivate static func resourcesFlatteningBundles(resources: [TuistGraph.ResourceFileElement]) -> [TuistGraph.ResourceFileElement] {
-        Array(resources.reduce(into: Set<TuistGraph.ResourceFileElement>()) { flattenedResources, resourceElement in
-            switch resourceElement {
-            case let .file(path, _):
-                if path.pathString.contains(".bundle/") {
-                    flattenedResources.formUnion([.file(path: path.upToComponentMatching(extension: "bundle"))])
-                } else {
+    fileprivate static func resourcesFlatteningBundles(
+        resources: [TuistGraph.ResourceFileElement]
+    ) -> [TuistGraph.ResourceFileElement] {
+        Array(
+            resources.reduce(into: Set<TuistGraph.ResourceFileElement>()) {
+                flattenedResources,
+                resourceElement in
+                switch resourceElement {
+                case let .file(path, _):
+                    if path.pathString.contains(".bundle/") {
+                        flattenedResources.formUnion([
+                            .file(path: path.upToComponentMatching(extension: "bundle"))
+                        ])
+                    } else {
+                        flattenedResources.formUnion([resourceElement])
+                    }
+                case .folderReference:
                     flattenedResources.formUnion([resourceElement])
                 }
-            case .folderReference:
-                flattenedResources.formUnion([resourceElement])
             }
-        })
+        )
     }
 
     // swiftlint:disable:next line_length
-    fileprivate static func sourcesAndPlaygrounds(manifest: ProjectDescription.Target, targetName: String, generatorPaths: GeneratorPaths) throws -> (sources: [TuistGraph.SourceFile], playgrounds: [AbsolutePath]) {
+    fileprivate static func sourcesAndPlaygrounds(
+        manifest: ProjectDescription.Target,
+        targetName: String,
+        generatorPaths: GeneratorPaths
+    ) throws -> (sources: [TuistGraph.SourceFile], playgrounds: [AbsolutePath]) {
         var sourcesWithoutPlaygrounds: [TuistGraph.SourceFile] = []
         var playgrounds: Set<AbsolutePath> = []
 
         // Sources
-        let allSources = try TuistGraph.Target.sources(targetName: targetName, sources: manifest.sources?.globs.map { glob in
-            let globPath = try generatorPaths.resolve(path: glob.glob).pathString
-            let excluding: [String] = try glob.excluding.compactMap { try generatorPaths.resolve(path: $0).pathString }
-            let mappedCodeGen = glob.codeGen.map(TuistGraph.FileCodeGen.from)
-            return TuistGraph.SourceFileGlob(glob: globPath, excluding: excluding, compilerFlags: glob.compilerFlags, codeGen: mappedCodeGen)
-        } ?? [])
+        let allSources = try TuistGraph.Target.sources(
+            targetName: targetName,
+            sources: manifest.sources?.globs.map { glob in
+                let globPath = try generatorPaths.resolve(path: glob.glob).pathString
+                let excluding: [String] = try glob.excluding.compactMap {
+                    try generatorPaths.resolve(path: $0).pathString
+                }
+                let mappedCodeGen = glob.codeGen.map(TuistGraph.FileCodeGen.from)
+                return TuistGraph.SourceFileGlob(
+                    glob: globPath,
+                    excluding: excluding,
+                    compilerFlags: glob.compilerFlags,
+                    codeGen: mappedCodeGen
+                )
+            } ?? []
+        )
 
         allSources.forEach { sourceFile in
             if sourceFile.path.pathString.contains(".playground/") {

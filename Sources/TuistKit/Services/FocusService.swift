@@ -31,10 +31,20 @@ final class FocusService {
         self.pluginService = pluginService
     }
 
-    func run(path: String?, sources: Set<String>, noOpen: Bool, xcframeworks: Bool, profile: String?, ignoreCache: Bool) throws {
+    func run(
+        path: String?,
+        sources: Set<String>,
+        noOpen: Bool,
+        xcframeworks: Bool,
+        profile: String?,
+        ignoreCache: Bool
+    ) throws {
         let path = self.path(path)
         let config = try configLoader.loadConfig(path: path)
-        let cacheProfile = try CacheProfileResolver().resolveCacheProfile(named: profile, from: config)
+        let cacheProfile = try CacheProfileResolver().resolveCacheProfile(
+            named: profile,
+            from: config
+        )
         let generator = generatorFactory.focus(
             config: config,
             sources: sources.isEmpty ? try projectTargets(at: path, config: config) : sources,
@@ -68,6 +78,8 @@ final class FocusService {
             projects = [path]
         }
 
-        return try Set(projects.flatMap { try manifestLoader.loadProject(at: $0).targets.map(\.name) })
+        return try Set(
+            projects.flatMap { try manifestLoader.loadProject(at: $0).targets.map(\.name) }
+        )
     }
 }

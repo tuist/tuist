@@ -85,16 +85,21 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         let graphTargets = projects
             .lazy
             .map { ($0.path, $0.targets) }
-            .map { path, targets in (path, Dictionary(uniqueKeysWithValues: targets.map { ($0.name, $0) })) }
+            .map { path, targets in
+                (path, Dictionary(uniqueKeysWithValues: targets.map { ($0.name, $0) }))
+            }
 
         let graphDependencies = projects
             .lazy
             .flatMap { project -> [(GraphDependency, Set<GraphDependency>)] in
-                let graphDependencies = project.targets.map(\.dependencies).lazy.map { dependencies in
+                let graphDependencies = project.targets.map(\.dependencies).lazy.map {
+                    dependencies in
                     dependencies.lazy.compactMap { dependency -> GraphDependency? in
                         switch dependency {
                         case let .target(name):
-                            if let pluginsProject = pluginsProject, editablePluginManifests.contains(where: { $0.name == name }) {
+                            if let pluginsProject = pluginsProject,
+                                editablePluginManifests.contains(where: { $0.name == name })
+                            {
                                 return .target(name: name, path: pluginsProject.path)
                             } else {
                                 return .target(name: name, path: project.path)
@@ -106,7 +111,10 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                 }
 
                 return zip(project.targets, graphDependencies).map { target, dependencies in
-                    (GraphDependency.target(name: target.name, path: project.path), Set(dependencies))
+                    (
+                        GraphDependency.target(name: target.name, path: project.path),
+                        Set(dependencies)
+                    )
                 }
             }
 
@@ -174,7 +182,10 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                 name: taskPath.basenameWithoutExt,
                 filesGroup: manifestsFilesGroup,
                 targetSettings: Settings(
-                    base: targetBaseSettings(for: [projectAutomationPath], swiftVersion: swiftVersion),
+                    base: targetBaseSettings(
+                        for: [projectAutomationPath],
+                        swiftVersion: swiftVersion
+                    ),
                     configurations: Settings.default.configurations,
                     defaultSettings: .recommended
                 ),
@@ -203,14 +214,22 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         }()
 
         let manifestTargetSettings = Settings(
-            base: targetBaseSettings(for: [projectDescriptionPath] + pluginProjectDescriptionHelpersModule.map(\.path), swiftVersion: swiftVersion),
+            base: targetBaseSettings(
+                for: [projectDescriptionPath] + pluginProjectDescriptionHelpersModule.map(\.path),
+                swiftVersion: swiftVersion
+            ),
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         )
 
-        let manifestsTargets = namedManifests(projectManifests).map { name, projectManifestSourcePath -> Target in
-            let helperDependencies = helpersTarget.map { [TargetDependency.target(name: $0.name)] } ?? []
-            let editablePluginTargets = editablePluginTargets.map { TargetDependency.target(name: $0) }
+        let manifestsTargets = namedManifests(projectManifests).map {
+            name,
+            projectManifestSourcePath -> Target in
+            let helperDependencies =
+                helpersTarget.map { [TargetDependency.target(name: $0.name)] } ?? []
+            let editablePluginTargets = editablePluginTargets.map {
+                TargetDependency.target(name: $0)
+            }
             let dependencies = helperDependencies + editablePluginTargets
 
             return editorHelperTarget(
@@ -222,20 +241,36 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             )
         }
 
-        let targets = [
-            helpersTarget,
-            templatesTarget,
-            configTarget,
-            dependenciesTarget,
-        ]
-        .compactMap { $0 }
-        + manifestsTargets
-        + tasksTargets
+        let targets =
+            [
+                helpersTarget,
+                templatesTarget,
+                configTarget,
+                dependenciesTarget,
+            ]
+            .compactMap { $0 }
+            + manifestsTargets
+            + tasksTargets
 
-        let buildAction = BuildAction(targets: targets.map { TargetReference(projectPath: projectPath, name: $0.name) })
-        let arguments = Arguments(launchArguments: [LaunchArgument(name: "generate --path \(sourceRootPath)", isEnabled: true)])
-        let runAction = RunAction(configurationName: "Debug", executable: nil, filePath: tuistPath, arguments: arguments, diagnosticsOptions: Set())
-        let scheme = Scheme(name: projectName, shared: true, buildAction: buildAction, runAction: runAction)
+        let buildAction = BuildAction(
+            targets: targets.map { TargetReference(projectPath: projectPath, name: $0.name) }
+        )
+        let arguments = Arguments(launchArguments: [
+            LaunchArgument(name: "generate --path \(sourceRootPath)", isEnabled: true)
+        ])
+        let runAction = RunAction(
+            configurationName: "Debug",
+            executable: nil,
+            filePath: tuistPath,
+            arguments: arguments,
+            diagnosticsOptions: Set()
+        )
+        let scheme = Scheme(
+            name: projectName,
+            shared: true,
+            buildAction: buildAction,
+            runAction: runAction
+        )
         let projectSettings = Settings(
             base: [
                 "ONLY_ACTIVE_ARCH": "NO",
@@ -287,14 +322,20 @@ final class ProjectEditorMapper: ProjectEditorMapping {
 
         let pluginTargets = pluginManifests.map { manifest -> Target in
             let pluginManifest = manifest.path.appending(component: "Plugin.swift")
-            let pluginHelpersPath = manifest.path.appending(component: Constants.helpersDirectoryName)
-            let pluginTemplatesPath = manifest.path.appending(component: Constants.templatesDirectoryName)
-            let pluginResourceTemplatesPath = manifest.path.appending(component: Constants.resourceSynthesizersDirectoryName)
-            let sourcePaths = [pluginManifest] +
-                FileHandler.shared.glob(pluginHelpersPath, glob: "**/*.swift") +
-                FileHandler.shared.glob(pluginTemplatesPath, glob: "**/*.swift") +
-                FileHandler.shared.glob(pluginTemplatesPath, glob: "**/*.stencil") +
-                FileHandler.shared.glob(pluginResourceTemplatesPath, glob: "*.stencil")
+            let pluginHelpersPath = manifest.path.appending(
+                component: Constants.helpersDirectoryName
+            )
+            let pluginTemplatesPath = manifest.path.appending(
+                component: Constants.templatesDirectoryName
+            )
+            let pluginResourceTemplatesPath = manifest.path.appending(
+                component: Constants.resourceSynthesizersDirectoryName
+            )
+            let sourcePaths =
+                [pluginManifest] + FileHandler.shared.glob(pluginHelpersPath, glob: "**/*.swift")
+                + FileHandler.shared.glob(pluginTemplatesPath, glob: "**/*.swift")
+                + FileHandler.shared.glob(pluginTemplatesPath, glob: "**/*.stencil")
+                + FileHandler.shared.glob(pluginResourceTemplatesPath, glob: "*.stencil")
             return editorHelperTarget(
                 name: manifest.name,
                 filesGroup: pluginsFilesGroup,
@@ -305,14 +346,20 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         }
 
         let schemes = pluginTargets.map { target -> Scheme in
-            let buildAction = BuildAction(targets: [TargetReference(projectPath: projectPath, name: target.name)])
+            let buildAction = BuildAction(targets: [
+                TargetReference(projectPath: projectPath, name: target.name)
+            ])
             return Scheme(name: target.name, shared: true, buildAction: buildAction, runAction: nil)
         }
 
         let allPluginsScheme = Scheme(
             name: "Plugins",
             shared: true,
-            buildAction: BuildAction(targets: pluginTargets.map { TargetReference(projectPath: projectPath, name: $0.name) }),
+            buildAction: BuildAction(
+                targets: pluginTargets.map {
+                    TargetReference(projectPath: projectPath, name: $0.name)
+                }
+            ),
             runAction: nil
         )
 
@@ -358,7 +405,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         projectPath: AbsolutePath
     ) -> [TargetReference: Set<TargetReference>] {
         targets.reduce(into: [TargetReference: Set<TargetReference>]()) { result, target in
-            let dependencyRefs = target.dependencies.lazy.compactMap { dependency -> TargetReference? in
+            let dependencyRefs = target.dependencies.lazy.compactMap {
+                dependency -> TargetReference? in
                 switch dependency {
                 case let .target(name):
                     return TargetReference(projectPath: projectPath, name: name)
@@ -366,7 +414,9 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                     return nil
                 }
             }
-            result[TargetReference(projectPath: projectPath, name: target.name)] = Set(dependencyRefs)
+            result[TargetReference(projectPath: projectPath, name: target.name)] = Set(
+                dependencyRefs
+            )
         }
     }
 
@@ -411,8 +461,12 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         )
     }
 
-    private func targetBaseSettings(for includes: [AbsolutePath], swiftVersion: String) -> SettingsDictionary {
-        let includePaths = includes
+    private func targetBaseSettings(
+        for includes: [AbsolutePath],
+        swiftVersion: String
+    ) -> SettingsDictionary {
+        let includePaths =
+            includes
             .flatMap { path in
                 // In development, the .swiftmodule is generated in a directory up from the directory of the framework.
                 // /path/to/derived/tuist-xyz/

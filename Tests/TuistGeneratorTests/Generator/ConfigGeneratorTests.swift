@@ -5,8 +5,9 @@ import TuistCoreTesting
 import TuistGraph
 import TuistGraphTesting
 import TuistSupport
-import XcodeProj
 import XCTest
+import XcodeProj
+
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
@@ -71,11 +72,11 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         ]
 
         let debugSettings = [
-            "SWIFT_OPTIMIZATION_LEVEL": "-Onone",
+            "SWIFT_OPTIMIZATION_LEVEL": "-Onone"
         ]
 
         let releaseSettings = [
-            "SWIFT_OPTIMIZATION_LEVEL": "-Owholemodule",
+            "SWIFT_OPTIMIZATION_LEVEL": "-Owholemodule"
         ]
 
         // When
@@ -134,7 +135,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let releaseConfig = configurationList?.configuration(name: "Release")
 
         let expectedSettings = [
-            "INFOPLIST_FILE": "Info.plist",
+            "INFOPLIST_FILE": "Info.plist"
         ]
 
         assert(config: debugConfig, contains: expectedSettings)
@@ -204,7 +205,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let releaseConfig = configurationList?.configuration(name: "Release")
 
         let testHostSettings = [
-            "TEST_TARGET_NAME": "App",
+            "TEST_TARGET_NAME": "App"
         ]
 
         assert(config: debugConfig, contains: testHostSettings)
@@ -224,7 +225,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let releaseConfig = configurationList?.configuration(name: "Release")
 
         let testHostSettings = [
-            "TEST_TARGET_NAME": "App-dash", // `TEST_TARGET_NAME` should reference the target name as opposed to `productName`
+            "TEST_TARGET_NAME": "App-dash"  // `TEST_TARGET_NAME` should reference the target name as opposed to `productName`
         ]
 
         assert(config: debugConfig, contains: testHostSettings)
@@ -289,7 +290,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let releaseConfig = configurationList?.configuration(name: "Release")
 
         let expectedSettings = [
-            "MACOSX_DEPLOYMENT_TARGET": "10.14.1",
+            "MACOSX_DEPLOYMENT_TARGET": "10.14.1"
         ]
 
         assert(config: debugConfig, contains: expectedSettings)
@@ -356,7 +357,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let releaseConfig = configurationList?.configuration(name: "Release")
 
         let expectedSettings = [
-            "WATCHOS_DEPLOYMENT_TARGET": "6.0",
+            "WATCHOS_DEPLOYMENT_TARGET": "6.0"
         ]
 
         assert(config: debugConfig, contains: expectedSettings)
@@ -388,7 +389,7 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let releaseConfig = configurationList?.configuration(name: "Release")
 
         let expectedSettings = [
-            "TVOS_DEPLOYMENT_TARGET": "14.0",
+            "TVOS_DEPLOYMENT_TARGET": "14.0"
         ]
 
         assert(config: debugConfig, contains: expectedSettings)
@@ -497,8 +498,16 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let dir = try temporaryPath()
         let xcconfigsDir = dir.appending(component: "xcconfigs")
         try FileHandler.shared.createFolder(xcconfigsDir)
-        try "".write(to: xcconfigsDir.appending(component: "debug.xcconfig").url, atomically: true, encoding: .utf8)
-        try "".write(to: xcconfigsDir.appending(component: "release.xcconfig").url, atomically: true, encoding: .utf8)
+        try "".write(
+            to: xcconfigsDir.appending(component: "debug.xcconfig").url,
+            atomically: true,
+            encoding: .utf8
+        )
+        try "".write(
+            to: xcconfigsDir.appending(component: "release.xcconfig").url,
+            atomically: true,
+            encoding: .utf8
+        )
 
         // CustomDebug, CustomRelease, Debug, Release
         let configurations: [BuildConfiguration: Configuration?] = [
@@ -506,12 +515,18 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
                 settings: ["Debug": "Debug"],
                 xcconfig: xcconfigsDir.appending(component: "debug.xcconfig")
             ),
-            .debug("CustomDebug"): Configuration(settings: ["CustomDebug": "CustomDebug"], xcconfig: nil),
+            .debug("CustomDebug"): Configuration(
+                settings: ["CustomDebug": "CustomDebug"],
+                xcconfig: nil
+            ),
             .release: Configuration(
                 settings: ["Release": "Release"],
                 xcconfig: xcconfigsDir.appending(component: "release.xcconfig")
             ),
-            .release("CustomRelease"): Configuration(settings: ["CustomRelease": "CustomRelease"], xcconfig: nil),
+            .release("CustomRelease"): Configuration(
+                settings: ["CustomRelease": "CustomRelease"],
+                xcconfig: nil
+            ),
         ]
         let project = Project.test(
             path: dir,
@@ -531,19 +546,33 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         let dir = try temporaryPath()
         let xcconfigsDir = dir.appending(component: "xcconfigs")
         try FileHandler.shared.createFolder(xcconfigsDir)
-        try "".write(to: xcconfigsDir.appending(component: "debug.xcconfig").url, atomically: true, encoding: .utf8)
-        try "".write(to: xcconfigsDir.appending(component: "release.xcconfig").url, atomically: true, encoding: .utf8)
+        try "".write(
+            to: xcconfigsDir.appending(component: "debug.xcconfig").url,
+            atomically: true,
+            encoding: .utf8
+        )
+        try "".write(
+            to: xcconfigsDir.appending(component: "release.xcconfig").url,
+            atomically: true,
+            encoding: .utf8
+        )
         let configurations: [BuildConfiguration: Configuration?] = [
             .debug: Configuration(
                 settings: ["Debug": "Debug"],
                 xcconfig: xcconfigsDir.appending(component: "debug.xcconfig")
             ),
-            .debug("CustomDebug"): Configuration(settings: ["CustomDebug": "CustomDebug"], xcconfig: nil),
+            .debug("CustomDebug"): Configuration(
+                settings: ["CustomDebug": "CustomDebug"],
+                xcconfig: nil
+            ),
             .release: Configuration(
                 settings: ["Release": "Release"],
                 xcconfig: xcconfigsDir.appending(component: "release.xcconfig")
             ),
-            .release("CustomRelease"): Configuration(settings: ["CustomRelease": "CustomRelease"], xcconfig: nil),
+            .release("CustomRelease"): Configuration(
+                settings: ["CustomRelease": "CustomRelease"],
+                xcconfig: nil
+            ),
         ]
         let target = Target.test(
             name: "Test",
@@ -583,11 +612,12 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         )
     }
 
-    private func generateTestTargetConfig(appName: String = "App",
-                                          platform: Platform = .iOS,
-                                          productName: String? = nil,
-                                          uiTest: Bool = false) throws
-    {
+    private func generateTestTargetConfig(
+        appName: String = "App",
+        platform: Platform = .iOS,
+        productName: String? = nil,
+        uiTest: Bool = false
+    ) throws {
         let dir = try temporaryPath()
 
         let appTarget = Target.test(
@@ -597,7 +627,11 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             productName: productName
         )
 
-        let target = Target.test(name: "Test", platform: platform, product: uiTest ? .uiTests : .unitTests)
+        let target = Target.test(
+            name: "Test",
+            platform: platform,
+            product: uiTest ? .uiTests : .unitTests
+        )
         let project = Project.test(path: dir, name: "Project", targets: [target])
 
         let graph = Graph.test(
@@ -605,7 +639,11 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             path: project.path,
             projects: [project.path: project],
             targets: [project.path: [appTarget.name: appTarget, target.name: target]],
-            dependencies: [GraphDependency.target(name: target.name, path: project.path): Set([.target(name: appTarget.name, path: project.path)])]
+            dependencies: [
+                GraphDependency.target(name: target.name, path: project.path): Set([
+                    .target(name: appTarget.name, path: project.path)
+                ])
+            ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
@@ -621,11 +659,12 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         )
     }
 
-    func assert(config: XCBuildConfiguration?,
-                contains settings: [String: String],
-                file: StaticString = #file,
-                line: UInt = #line)
-    {
+    func assert(
+        config: XCBuildConfiguration?,
+        contains settings: [String: String],
+        file: StaticString = #file,
+        line: UInt = #line
+    ) {
         let matches = settings.filter {
             config?.buildSettings[$0.key] as? String == $0.value
         }
@@ -639,11 +678,12 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
         )
     }
 
-    func assert(config: XCBuildConfiguration?,
-                hasXcconfig xconfigPath: String,
-                file: StaticString = #file,
-                line: UInt = #line)
-    {
+    func assert(
+        config: XCBuildConfiguration?,
+        hasXcconfig xconfigPath: String,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) {
         let xcconfig: PBXFileReference? = config?.baseConfiguration
         XCTAssertEqual(
             xcconfig?.path,

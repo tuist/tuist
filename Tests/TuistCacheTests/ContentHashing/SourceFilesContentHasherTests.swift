@@ -6,6 +6,7 @@ import TuistCoreTesting
 import TuistGraph
 import TuistSupport
 import XCTest
+
 @testable import TuistCache
 @testable import TuistSupportTesting
 
@@ -62,6 +63,12 @@ final class SourceFilesContentHasherTests: TuistUnitTestCase {
         _ = try subject.hash(sources: [sourceFile1, sourceFile2])
 
         // Then
-        XCTAssertEqual(mockContentHasher.hashStringsSpy, ["file1-content-hash-fno-objc-arc-hash", "file2-content-hash-print-objc-runtime-info-hash"])
+        XCTAssertEqual(
+            mockContentHasher.hashStringsSpy,
+            [
+                "file1-content-hash-fno-objc-arc-hash",
+                "file2-content-hash-print-objc-runtime-info-hash",
+            ]
+        )
     }
 }

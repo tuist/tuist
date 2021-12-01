@@ -1,12 +1,13 @@
 import Foundation
 import RxSwift
 import TSCBasic
-import struct TSCUtility.Version
 import TuistCore
 import TuistGraph
 import TuistGraphTesting
 import TuistSupport
 import XCTest
+
+import struct TSCUtility.Version
 
 @testable import TuistAutomationTesting
 @testable import TuistCoreTesting
@@ -30,7 +31,10 @@ final class RunServiceErrorTests: TuistUnitTestCase {
     }
 
     func test_type() {
-        XCTAssertEqual(RunServiceError.schemeNotFound(scheme: "Scheme", existing: ["A", "B"]).type, .abort)
+        XCTAssertEqual(
+            RunServiceError.schemeNotFound(scheme: "Scheme", existing: ["A", "B"]).type,
+            .abort
+        )
         XCTAssertEqual(RunServiceError.schemeWithoutRunnableTarget(scheme: "Scheme").type, .abort)
         XCTAssertEqual(RunServiceError.invalidVersion("1.0.0").type, .abort)
     }
@@ -80,7 +84,8 @@ final class RunServiceTests: TuistUnitTestCase {
             expectation.fulfill()
             return (AbsolutePath("/path/to/project.xcworkspace"), .test())
         }
-        buildGraphInspector.workspacePathStub = { _ in AbsolutePath("/path/to/project.xcworkspace") }
+        buildGraphInspector.workspacePathStub = { _ in AbsolutePath("/path/to/project.xcworkspace")
+        }
         buildGraphInspector.runnableSchemesStub = { _ in [.test()] }
         buildGraphInspector.runnableTargetStub = { _, _ in .test() }
 
@@ -115,7 +120,13 @@ final class RunServiceTests: TuistUnitTestCase {
         let schemeName = "AScheme"
         let clean = true
         let configuration = "Test"
-        targetBuilder.buildTargetStub = { _, _workspacePath, _schemeName, _clean, _configuration, _ in
+        targetBuilder.buildTargetStub = {
+            _,
+            _workspacePath,
+            _schemeName,
+            _clean,
+            _configuration,
+            _ in
             // Then
             XCTAssertEqual(_workspacePath, workspacePath)
             XCTAssertEqual(_schemeName, schemeName)
@@ -148,7 +159,15 @@ final class RunServiceTests: TuistUnitTestCase {
         let version = Version(string: "15.0.0")
         let deviceName = "iPhone 11"
         let arguments = ["-arg1", "--arg2", "SomeArgument"]
-        targetRunner.runTargetStub = { _, _workspacePath, _schemeName, _configuration, _minVersion, _version, _deviceName, _arguments in
+        targetRunner.runTargetStub = {
+            _,
+            _workspacePath,
+            _schemeName,
+            _configuration,
+            _minVersion,
+            _version,
+            _deviceName,
+            _arguments in
             // Then
             XCTAssertEqual(_workspacePath, workspacePath)
             XCTAssertEqual(_schemeName, schemeName)
@@ -198,8 +217,8 @@ final class RunServiceTests: TuistUnitTestCase {
     }
 }
 
-private extension RunService {
-    func run(
+extension RunService {
+    fileprivate func run(
         schemeName: String = Scheme.test().name,
         generate: Bool = false,
         clean: Bool = false,

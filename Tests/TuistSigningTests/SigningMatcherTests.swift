@@ -1,6 +1,7 @@
 import TSCBasic
 import TuistCore
 import XCTest
+
 @testable import TuistSigning
 @testable import TuistSigningTesting
 @testable import TuistSupportTesting
@@ -98,8 +99,12 @@ final class SigningMatcherTests: TuistUnitTestCase {
             ),
         ]
 
-        let debugProvisioningProfilePath = AbsolutePath("/\(targetName).\(debugConfiguration).mobileprovision")
-        let releaseProvisioningProfilePath = AbsolutePath("/\(targetName).\(releaseConfiguration).mobileprovision")
+        let debugProvisioningProfilePath = AbsolutePath(
+            "/\(targetName).\(debugConfiguration).mobileprovision"
+        )
+        let releaseProvisioningProfilePath = AbsolutePath(
+            "/\(targetName).\(releaseConfiguration).mobileprovision"
+        )
         signingFilesLocator.locateProvisioningProfilesStub = { _ in
             [
                 debugProvisioningProfilePath,
@@ -134,7 +139,7 @@ final class SigningMatcherTests: TuistUnitTestCase {
                     configurationName: releaseConfiguration,
                     expirationDate: date
                 ),
-            ],
+            ]
         ]
 
         // When

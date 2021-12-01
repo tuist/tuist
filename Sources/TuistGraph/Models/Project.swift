@@ -2,7 +2,9 @@ import Foundation
 import TSCBasic
 import TSCUtility
 
-public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebugStringConvertible, Codable {
+public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebugStringConvertible,
+    Codable
+{
     // MARK: - Attributes
 
     /// Path to the folder that contains the project manifest.

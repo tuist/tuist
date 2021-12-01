@@ -13,7 +13,9 @@ final class EnvironmentTests: XCTestCase {
             "TUIST_4": "YES",
         ]
         try environment.enumerated().forEach { index, _ in
-            let value = try XCTUnwrap(Environment.value(for: String(index), environment: environment))
+            let value = try XCTUnwrap(
+                Environment.value(for: String(index), environment: environment)
+            )
             XCTAssertEqual(value, .boolean(true))
         }
     }
@@ -27,7 +29,9 @@ final class EnvironmentTests: XCTestCase {
             "TUIST_4": "NO",
         ]
         try environment.enumerated().forEach { index, _ in
-            let value = try XCTUnwrap(Environment.value(for: String(index), environment: environment))
+            let value = try XCTUnwrap(
+                Environment.value(for: String(index), environment: environment)
+            )
             XCTAssertEqual(value, .boolean(false))
         }
     }
@@ -35,7 +39,7 @@ final class EnvironmentTests: XCTestCase {
     func test_stringValue() {
         let stringValue = UUID().uuidString
         let environment: [String: String] = [
-            "TUIST_0": stringValue,
+            "TUIST_0": stringValue
         ]
         let value = Environment.value(for: "0", environment: environment)
         XCTAssertEqual(value, .string(stringValue))
@@ -43,7 +47,7 @@ final class EnvironmentTests: XCTestCase {
 
     func test_unknownKeysReturnNil() {
         let environment: [String: String] = [
-            "TUIST_0": "0",
+            "TUIST_0": "0"
         ]
         let value = Environment.value(for: "1", environment: environment)
         XCTAssertNil(value)

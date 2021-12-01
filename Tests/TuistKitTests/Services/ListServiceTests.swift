@@ -40,11 +40,11 @@ final class ListServiceTests: TuistUnitTestCase {
         // Given
         let expectedTemplates = ["template", "customTemplate"]
         let expectedOutput = """
-        Name            Description
-        ──────────────  ───────────
-        template        description
-        customTemplate  description
-        """
+            Name            Description
+            ──────────────  ───────────
+            template        description
+            customTemplate  description
+            """
 
         templatesDirectoryLocator.templateDirectoriesStub = { _ in
             try expectedTemplates.map(self.temporaryPath().appending)
@@ -65,17 +65,17 @@ final class ListServiceTests: TuistUnitTestCase {
         // Given
         let expectedTemplates = ["template", "customTemplate"]
         let expectedOutput = """
-        [
-          {
-            "description": "description",
-            "name": "template"
-          },
-          {
-            "description": "description",
-            "name": "customTemplate"
-          }
-        ]
-        """
+            [
+              {
+                "description": "description",
+                "name": "template"
+              },
+              {
+                "description": "description",
+                "name": "customTemplate"
+              }
+            ]
+            """
 
         templatesDirectoryLocator.templateDirectoriesStub = { _ in
             try expectedTemplates.map(self.temporaryPath().appending)
@@ -96,12 +96,12 @@ final class ListServiceTests: TuistUnitTestCase {
         // Given
         let expectedTemplates = ["template", "customTemplate", "pluginTemplate"]
         let expectedOutput = """
-        Name            Description
-        ──────────────  ───────────
-        template        description
-        customTemplate  description
-        pluginTemplate  description
-        """
+            Name            Description
+            ──────────────  ───────────
+            template        description
+            customTemplate  description
+            pluginTemplate  description
+            """
 
         let pluginTemplatePath = try temporaryPath().appending(component: "PluginTemplate")
         pluginService.loadPluginsStub = { _ in

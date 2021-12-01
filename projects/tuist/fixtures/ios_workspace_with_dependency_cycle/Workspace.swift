@@ -1,7 +1,9 @@
 import ProjectDescription
 
-let workspace = Workspace(name: "Workspace",
-                          projects: [
-                              "App", 
-                              "Frameworks/**", 
-                            ])
+let workspace = Workspace(
+    name: "Workspace",
+    projects: [
+        "App",
+        "Frameworks/**",
+    ]
+)

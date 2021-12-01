@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+
 @testable import TuistLoader
 
 final class MockProjectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing {

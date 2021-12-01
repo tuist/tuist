@@ -10,13 +10,25 @@ extension TuistGraph.TargetScript {
     /// - Parameters:
     ///   - manifest: Manifest representation of target action.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.TargetScript, generatorPaths: GeneratorPaths) throws -> TuistGraph.TargetScript {
+    static func from(
+        manifest: ProjectDescription.TargetScript,
+        generatorPaths: GeneratorPaths
+    ) throws -> TuistGraph.TargetScript {
         let name = manifest.name
         let order = TuistGraph.TargetScript.Order.from(manifest: manifest.order)
         let inputPaths = try absolutePaths(for: manifest.inputPaths, generatorPaths: generatorPaths)
-        let inputFileListPaths = try absolutePaths(for: manifest.inputFileListPaths, generatorPaths: generatorPaths)
-        let outputPaths = try absolutePaths(for: manifest.outputPaths, generatorPaths: generatorPaths)
-        let outputFileListPaths = try absolutePaths(for: manifest.outputFileListPaths, generatorPaths: generatorPaths)
+        let inputFileListPaths = try absolutePaths(
+            for: manifest.inputFileListPaths,
+            generatorPaths: generatorPaths
+        )
+        let outputPaths = try absolutePaths(
+            for: manifest.outputPaths,
+            generatorPaths: generatorPaths
+        )
+        let outputFileListPaths = try absolutePaths(
+            for: manifest.outputFileListPaths,
+            generatorPaths: generatorPaths
+        )
         let basedOnDependencyAnalysis = manifest.basedOnDependencyAnalysis
         let runForInstallBuildsOnly = manifest.runForInstallBuildsOnly
         let shellPath = manifest.shellPath
@@ -48,7 +60,10 @@ extension TuistGraph.TargetScript {
         )
     }
 
-    private static func absolutePaths(for paths: [Path], generatorPaths: GeneratorPaths) throws -> [AbsolutePath] {
+    private static func absolutePaths(
+        for paths: [Path],
+        generatorPaths: GeneratorPaths
+    ) throws -> [AbsolutePath] {
         try paths.map { (path: Path) -> [AbsolutePath] in
             // avoid globbing paths that contain variables
             if path.pathString.contains("$") {
@@ -66,7 +81,9 @@ extension TuistGraph.TargetScript.Order {
     /// - Parameters:
     ///   - manifest: Manifest representation of target action order.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.TargetScript.Order) -> TuistGraph.TargetScript.Order {
+    static func from(
+        manifest: ProjectDescription.TargetScript.Order
+    ) -> TuistGraph.TargetScript.Order {
         switch manifest {
         case .pre:
             return .pre

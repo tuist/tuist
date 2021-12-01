@@ -5,7 +5,10 @@ import TuistGraph
 import TuistSupport
 
 public protocol DependenciesContentHashing {
-    func hash(graphTarget: GraphTarget, hashedTargets: inout [GraphHashedTarget: String]) throws -> String
+    func hash(
+        graphTarget: GraphTarget,
+        hashedTargets: inout [GraphHashedTarget: String]
+    ) throws -> String
 }
 
 enum DependenciesContentHasherError: FatalError, Equatable {
@@ -24,9 +27,16 @@ enum DependenciesContentHasherError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .missingTargetHash(sourceTargetName, dependencyProjectPath, dependencyTargetName):
-            return "The target '\(sourceTargetName)' depends on the target '\(dependencyTargetName)' from the same project at path \(dependencyProjectPath.pathString) whose hash hasn't been previously calculated."
-        case let .missingProjectTargetHash(sourceProjectPath, sourceTargetName, dependencyProjectPath, dependencyTargetName):
-            return "The target '\(sourceTargetName)' from project at path \(sourceProjectPath.pathString) depends on the target '\(dependencyTargetName)' from the project at path \(dependencyProjectPath.pathString) whose hash hasn't been previously calculated."
+            return
+                "The target '\(sourceTargetName)' depends on the target '\(dependencyTargetName)' from the same project at path \(dependencyProjectPath.pathString) whose hash hasn't been previously calculated."
+        case let .missingProjectTargetHash(
+            sourceProjectPath,
+            sourceTargetName,
+            dependencyProjectPath,
+            dependencyTargetName
+        ):
+            return
+                "The target '\(sourceTargetName)' from project at path \(sourceProjectPath.pathString) depends on the target '\(dependencyTargetName)' from the project at path \(dependencyProjectPath.pathString) whose hash hasn't been previously calculated."
         }
     }
 
@@ -45,23 +55,38 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
 
     // MARK: - Init
 
-    public init(contentHasher: ContentHashing) {
+    public init(
+        contentHasher: ContentHashing
+    ) {
         self.contentHasher = contentHasher
     }
 
     // MARK: - DependenciesContentHashing
 
-    public func hash(graphTarget: GraphTarget, hashedTargets: inout [GraphHashedTarget: String]) throws -> String {
-        let hashes = try graphTarget.target.dependencies.map { try hash(graphTarget: graphTarget, dependency: $0, hashedTargets: &hashedTargets) }
+    public func hash(
+        graphTarget: GraphTarget,
+        hashedTargets: inout [GraphHashedTarget: String]
+    ) throws -> String {
+        let hashes = try graphTarget.target.dependencies.map {
+            try hash(graphTarget: graphTarget, dependency: $0, hashedTargets: &hashedTargets)
+        }
         return hashes.compactMap { $0 }.joined()
     }
 
     // MARK: - Private
 
-    private func hash(graphTarget: GraphTarget, dependency: TargetDependency, hashedTargets: inout [GraphHashedTarget: String]) throws -> String {
+    private func hash(
+        graphTarget: GraphTarget,
+        dependency: TargetDependency,
+        hashedTargets: inout [GraphHashedTarget: String]
+    ) throws -> String {
         switch dependency {
         case let .target(targetName):
-            guard let dependencyHash = hashedTargets[GraphHashedTarget(projectPath: graphTarget.path, targetName: targetName)] else {
+            guard
+                let dependencyHash = hashedTargets[
+                    GraphHashedTarget(projectPath: graphTarget.path, targetName: targetName)
+                ]
+            else {
                 throw DependenciesContentHasherError.missingTargetHash(
                     sourceTargetName: graphTarget.target.name,
                     dependencyProjectPath: graphTarget.path,
@@ -70,7 +95,11 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
             }
             return dependencyHash
         case let .project(targetName, projectPath):
-            guard let dependencyHash = hashedTargets[GraphHashedTarget(projectPath: projectPath, targetName: targetName)] else {
+            guard
+                let dependencyHash = hashedTargets[
+                    GraphHashedTarget(projectPath: projectPath, targetName: targetName)
+                ]
+            else {
                 throw DependenciesContentHasherError.missingProjectTargetHash(
                     sourceProjectPath: graphTarget.path,
                     sourceTargetName: graphTarget.target.name,
@@ -88,7 +117,9 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
             let publicHeadersHash = try contentHasher.hash(path: publicHeaders)
             if let swiftModuleMap = swiftModuleMap {
                 let swiftModuleHash = try contentHasher.hash(path: swiftModuleMap)
-                return try contentHasher.hash("library-\(libraryHash)-\(publicHeadersHash)-\(swiftModuleHash)")
+                return try contentHasher.hash(
+                    "library-\(libraryHash)-\(publicHeadersHash)-\(swiftModuleHash)"
+                )
             } else {
                 return try contentHasher.hash("library-\(libraryHash)-\(publicHeadersHash)")
             }

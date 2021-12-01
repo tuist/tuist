@@ -5,6 +5,7 @@ import TuistGraph
 import TuistGraphTesting
 import TuistSupport
 import XCTest
+
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 @testable import TuistSupportTesting
@@ -66,38 +67,50 @@ public final class GenerateInfoPlistProjectMapperTests: TuistUnitTestCase {
 
     // MARK: - Helpers
 
-    private func XCTAssertSideEffectsCreateDerivedInfoPlist(named: String,
-                                                            content: [String: String],
-                                                            projectPath: AbsolutePath,
-                                                            sideEffects: [SideEffectDescriptor],
-                                                            file: StaticString = #file,
-                                                            line: UInt = #line) throws
-    {
+    private func XCTAssertSideEffectsCreateDerivedInfoPlist(
+        named: String,
+        content: [String: String],
+        projectPath: AbsolutePath,
+        sideEffects: [SideEffectDescriptor],
+        file: StaticString = #file,
+        line: UInt = #line
+    ) throws {
         let data = try PropertyListSerialization.data(
             fromPropertyList: content,
             format: .xml,
             options: 0
         )
 
-        XCTAssertNotNil(sideEffects.first(where: { sideEffect in
-            guard case let SideEffectDescriptor.file(file) = sideEffect else { return false }
-            return file.path == projectPath
-                .appending(component: Constants.DerivedDirectory.name)
-                .appending(component: Constants.DerivedDirectory.infoPlists)
-                .appending(component: named) && file.contents == data
-        }), file: file, line: line)
+        XCTAssertNotNil(
+            sideEffects.first(where: { sideEffect in
+                guard case let SideEffectDescriptor.file(file) = sideEffect else { return false }
+                return file.path
+                    == projectPath
+                    .appending(component: Constants.DerivedDirectory.name)
+                    .appending(component: Constants.DerivedDirectory.infoPlists)
+                    .appending(component: named) && file.contents == data
+            }),
+            file: file,
+            line: line
+        )
     }
 
-    private func XCTAssertTargetExistsWithDerivedInfoPlist(named: String,
-                                                           project: Project,
-                                                           file: StaticString = #file,
-                                                           line: UInt = #line)
-    {
-        XCTAssertNotNil(project.targets.first(where: { (target: Target) in
-            target.infoPlist?.path == project.path
-                .appending(component: Constants.DerivedDirectory.name)
-                .appending(component: Constants.DerivedDirectory.infoPlists)
-                .appending(component: named)
-        }), file: file, line: line)
+    private func XCTAssertTargetExistsWithDerivedInfoPlist(
+        named: String,
+        project: Project,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) {
+        XCTAssertNotNil(
+            project.targets.first(where: { (target: Target) in
+                target.infoPlist?.path
+                    == project.path
+                    .appending(component: Constants.DerivedDirectory.name)
+                    .appending(component: Constants.DerivedDirectory.infoPlists)
+                    .appending(component: named)
+            }),
+            file: file,
+            line: line
+        )
     }
 }

@@ -1,9 +1,10 @@
 import Foundation
-import struct ProjectDescription.Config
 import TSCBasic
 import TuistCore
 import TuistGraph
 import TuistSupport
+
+import struct ProjectDescription.Config
 
 public protocol ConfigLoading {
     /// Loads the Tuist configuration by traversing the file system till the Config manifest is found,
@@ -53,14 +54,22 @@ public final class ConfigLoader: ConfigLoading {
     private func locateConfigPath(at path: AbsolutePath) -> AbsolutePath? {
         // If the Config.swift file exists in the root Tuist/ directory, we load it from there
         if let rootDirectoryPath = rootDirectoryLocator.locate(from: path) {
-            let configPath = rootDirectoryPath
-                .appending(RelativePath("\(Constants.tuistDirectoryName)/\(Manifest.config.fileName(path))"))
+            let configPath =
+                rootDirectoryPath
+                .appending(
+                    RelativePath(
+                        "\(Constants.tuistDirectoryName)/\(Manifest.config.fileName(path))"
+                    )
+                )
             if fileHandler.exists(configPath) {
                 return configPath
             }
         }
 
         // Otherwise we try to traverse up the directories to find it
-        return fileHandler.locateDirectoryTraversingParents(from: path, path: Manifest.config.fileName(path))
+        return fileHandler.locateDirectoryTraversingParents(
+            from: path,
+            path: Manifest.config.fileName(path)
+        )
     }
 }

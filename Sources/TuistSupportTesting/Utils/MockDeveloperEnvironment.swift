@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+
 @testable import TuistSupport
 
 public final class MockDeveloperEnvironment: DeveloperEnvironmenting {

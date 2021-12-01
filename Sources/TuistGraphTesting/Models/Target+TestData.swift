@@ -1,11 +1,12 @@
 import Foundation
 import TSCBasic
+
 @testable import TuistGraph
 
-public extension Target {
+extension Target {
     /// Creates a Target with test data
     /// Note: Referenced paths may not exist
-    static func test(
+    public static func test(
         name: String = "Target",
         platform: Platform = .iOS,
         product: Product = .app,
@@ -58,7 +59,7 @@ public extension Target {
     }
 
     /// Creates a bare bones Target with as little data as possible
-    static func empty(
+    public static func empty(
         name: String = "Target",
         platform: Platform = .iOS,
         product: Product = .app,

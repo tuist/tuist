@@ -51,9 +51,11 @@ public enum CoreDataVersionExtractorError: FatalError, Equatable {
     public var description: String {
         switch self {
         case let .couldNotExtractVersionFrom(path):
-            return "Couldn't locate current version in .xccurrentversion from path \(path.pathString). Try setting the current version manually or check if the current version is set it in your project."
+            return
+                "Couldn't locate current version in .xccurrentversion from path \(path.pathString). Try setting the current version manually or check if the current version is set it in your project."
         case let .couldNotReadCurrentVersion(path):
-            return "Couldn't read the xccurrentversion from path \(path.pathString). Try setting the current version manually or check if the current version is set it in your project."
+            return
+                "Couldn't read the xccurrentversion from path \(path.pathString). Try setting the current version manually or check if the current version is set it in your project."
         }
     }
 }

@@ -10,13 +10,17 @@ import TuistSupport
 public final class ProjectDevelopmentRegionMapper: ProjectMapping {
     private let config: TuistGraph.Config
 
-    public init(config: TuistGraph.Config) {
+    public init(
+        config: TuistGraph.Config
+    ) {
         self.config = config
     }
 
     // MARK: - ProjectMapping
 
-    public func map(project: TuistGraph.Project) throws -> (TuistGraph.Project, [SideEffectDescriptor]) {
+    public func map(
+        project: TuistGraph.Project
+    ) throws -> (TuistGraph.Project, [SideEffectDescriptor]) {
         var project = project
 
         // Xcode project development region

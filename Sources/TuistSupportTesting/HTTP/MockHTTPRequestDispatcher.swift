@@ -6,7 +6,9 @@ import TuistSupport
 public class MockHTTPRequestDispatcher: HTTPRequestDispatching {
     public var requests: [URLRequest] = []
 
-    public func dispatch<T, E>(resource: HTTPResource<T, E>) -> Single<(object: T, response: HTTPURLResponse)> where E: Error {
+    public func dispatch<T, E>(
+        resource: HTTPResource<T, E>
+    ) -> Single<(object: T, response: HTTPURLResponse)> where E: Error {
         return Single.create { observer in
             if T.self != Void.self {
                 fatalError(
@@ -24,7 +26,9 @@ public class MockHTTPRequestDispatcher: HTTPRequestDispatching {
         }
     }
 
-    public func dispatch<T, E>(resource: HTTPResource<T, E>) -> AnyPublisher<(object: T, response: HTTPURLResponse), Error> where E: Error {
+    public func dispatch<T, E>(
+        resource: HTTPResource<T, E>
+    ) -> AnyPublisher<(object: T, response: HTTPURLResponse), Error> where E: Error {
         AnyPublisher.create { subscriber in
             if T.self != Void.self {
                 fatalError(

@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+
 @testable import TuistCore
 
 public final class MockRootDirectoryLocator: RootDirectoryLocating {

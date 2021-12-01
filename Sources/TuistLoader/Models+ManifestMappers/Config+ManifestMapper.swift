@@ -11,16 +11,30 @@ extension TuistGraph.Config {
     /// - Parameters:
     ///   - manifest: Manifest representation of Tuist config.
     ///   - path: The path of the config file.
-    static func from(manifest: ProjectDescription.Config, at path: AbsolutePath) throws -> TuistGraph.Config {
+    static func from(
+        manifest: ProjectDescription.Config,
+        at path: AbsolutePath
+    ) throws -> TuistGraph.Config {
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         let generationOptions = try manifest.generationOptions.map {
-            try TuistGraph.Config.GenerationOption.from(manifest: $0, generatorPaths: generatorPaths)
+            try TuistGraph.Config.GenerationOption.from(
+                manifest: $0,
+                generatorPaths: generatorPaths
+            )
         }
-        let compatibleXcodeVersions = TuistGraph.CompatibleXcodeVersions.from(manifest: manifest.compatibleXcodeVersions)
-        let plugins = try manifest.plugins.map { try PluginLocation.from(manifest: $0, generatorPaths: generatorPaths) }
+        let compatibleXcodeVersions = TuistGraph.CompatibleXcodeVersions.from(
+            manifest: manifest.compatibleXcodeVersions
+        )
+        let plugins = try manifest.plugins.map {
+            try PluginLocation.from(manifest: $0, generatorPaths: generatorPaths)
+        }
         let swiftVersion: TSCUtility.Version?
         if let configuredVersion = manifest.swiftVersion {
-            swiftVersion = TSCUtility.Version(configuredVersion.major, configuredVersion.minor, configuredVersion.patch)
+            swiftVersion = TSCUtility.Version(
+                configuredVersion.major,
+                configuredVersion.minor,
+                configuredVersion.patch
+            )
         } else {
             swiftVersion = nil
         }
@@ -32,11 +46,15 @@ extension TuistGraph.Config {
 
         var cache: TuistGraph.Cache?
         if let manifestCache = manifest.cache {
-            cache = try TuistGraph.Cache.from(manifest: manifestCache, generatorPaths: generatorPaths)
+            cache = try TuistGraph.Cache.from(
+                manifest: manifestCache,
+                generatorPaths: generatorPaths
+            )
         }
 
         if let forcedCacheDirectiory = forcedCacheDirectiory {
-            cache = cache.map { TuistGraph.Cache(profiles: $0.profiles, path: forcedCacheDirectiory) }
+            cache =
+                cache.map { TuistGraph.Cache(profiles: $0.profiles, path: forcedCacheDirectiory) }
                 ?? TuistGraph.Cache(profiles: [], path: forcedCacheDirectiory)
         }
 
@@ -52,7 +70,9 @@ extension TuistGraph.Config {
     }
 
     private static var forcedCacheDirectiory: AbsolutePath? {
-        ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.forceConfigCacheDirectory].map { AbsolutePath($0) }
+        ProcessInfo.processInfo.environment[
+            Constants.EnvironmentVariables.forceConfigCacheDirectory
+        ].map { AbsolutePath($0) }
     }
 }
 

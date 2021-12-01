@@ -19,7 +19,8 @@ enum BuildServiceError: FatalError {
         case let .workspaceNotFound(path):
             return "Workspace not found expected xcworkspace at \(path)"
         case let .schemeNotFound(scheme, existing):
-            return "Couldn't find scheme \(scheme). The available schemes are: \(existing.joined(separator: ", "))."
+            return
+                "Couldn't find scheme \(scheme). The available schemes are: \(existing.joined(separator: ", "))."
         }
     }
 
@@ -28,7 +29,7 @@ enum BuildServiceError: FatalError {
         case .workspaceNotFound:
             return .bug
         case .schemeNotFound,
-             .schemeWithoutBuildableTargets:
+            .schemeWithoutBuildableTargets:
             return .abort
         }
     }
@@ -76,14 +77,25 @@ final class BuildService {
         let graphTraverser = GraphTraverser(graph: graph)
         let buildableSchemes = buildGraphInspector.buildableSchemes(graphTraverser: graphTraverser)
 
-        logger.log(level: .debug, "Found the following buildable schemes: \(buildableSchemes.map(\.name).joined(separator: ", "))")
+        logger.log(
+            level: .debug,
+            "Found the following buildable schemes: \(buildableSchemes.map(\.name).joined(separator: ", "))"
+        )
 
         if let schemeName = schemeName {
             guard let scheme = buildableSchemes.first(where: { $0.name == schemeName }) else {
-                throw BuildServiceError.schemeNotFound(scheme: schemeName, existing: buildableSchemes.map(\.name))
+                throw BuildServiceError.schemeNotFound(
+                    scheme: schemeName,
+                    existing: buildableSchemes.map(\.name)
+                )
             }
 
-            guard let graphTarget = buildGraphInspector.buildableTarget(scheme: scheme, graphTraverser: graphTraverser) else {
+            guard
+                let graphTarget = buildGraphInspector.buildableTarget(
+                    scheme: scheme,
+                    graphTraverser: graphTraverser
+                )
+            else {
                 throw TargetBuilderError.schemeWithoutBuildableTargets(scheme: scheme.name)
             }
 
@@ -98,9 +110,16 @@ final class BuildService {
         } else {
             var cleaned: Bool = false
             // Build only buildable entry schemes when specific schemes has not been passed
-            let buildableEntrySchemes = buildGraphInspector.buildableEntrySchemes(graphTraverser: graphTraverser)
+            let buildableEntrySchemes = buildGraphInspector.buildableEntrySchemes(
+                graphTraverser: graphTraverser
+            )
             try buildableEntrySchemes.forEach { scheme in
-                guard let graphTarget = buildGraphInspector.buildableTarget(scheme: scheme, graphTraverser: graphTraverser) else {
+                guard
+                    let graphTarget = buildGraphInspector.buildableTarget(
+                        scheme: scheme,
+                        graphTraverser: graphTraverser
+                    )
+                else {
                     throw TargetBuilderError.schemeWithoutBuildableTargets(scheme: scheme.name)
                 }
 

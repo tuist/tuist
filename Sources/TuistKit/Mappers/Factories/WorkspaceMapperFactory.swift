@@ -27,7 +27,9 @@ protocol WorkspaceMapperFactorying {
 final class WorkspaceMapperFactory: WorkspaceMapperFactorying {
     private let projectMapper: ProjectMapping
 
-    init(projectMapper: ProjectMapping) {
+    init(
+        projectMapper: ProjectMapping
+    ) {
         self.projectMapper = projectMapper
     }
 

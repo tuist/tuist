@@ -16,18 +16,18 @@ final class RunActionTests: TuistUnitTestCase {
             filePath: "/path/to/file",
             arguments: .init(
                 environment: [
-                    "key": "value",
+                    "key": "value"
                 ],
                 launchArguments: [
                     .init(
                         name: "name",
                         isEnabled: true
-                    ),
+                    )
                 ]
             ),
             options: .init(),
             diagnosticsOptions: [
-                .mainThreadChecker,
+                .mainThreadChecker
             ]
         )
 

@@ -4,29 +4,41 @@ public typealias SettingsDictionary = [String: SettingValue]
 
 // MARK: - SettingValue
 
-public enum SettingValue: ExpressibleByStringInterpolation, ExpressibleByArrayLiteral, ExpressibleByBooleanLiteral, Equatable, Codable {
+public enum SettingValue: ExpressibleByStringInterpolation, ExpressibleByArrayLiteral,
+    ExpressibleByBooleanLiteral, Equatable, Codable
+{
     case string(String)
     case array([String])
 
-    public init(stringLiteral value: String) {
+    public init(
+        stringLiteral value: String
+    ) {
         self = .string(value)
     }
 
-    public init(arrayLiteral elements: String...) {
+    public init(
+        arrayLiteral elements: String...
+    ) {
         self = .array(elements)
     }
 
     public typealias BooleanLiteralType = Bool
 
-    public init(booleanLiteral value: Bool) {
+    public init(
+        booleanLiteral value: Bool
+    ) {
         self = .string(value ? "YES" : "NO")
     }
 
-    public init<T>(_ stringRawRepresentable: T) where T: RawRepresentable, T.RawValue == String {
+    public init<T>(
+        _ stringRawRepresentable: T
+    ) where T: RawRepresentable, T.RawValue == String {
         self = .init(stringLiteral: stringRawRepresentable.rawValue)
     }
 
-    public init(from decoder: Decoder) throws {
+    public init(
+        from decoder: Decoder
+    ) throws {
         guard let singleValueContainer = try? decoder.singleValueContainer() else {
             preconditionFailure("Unsupported container type")
         }
@@ -72,7 +84,12 @@ public struct Configuration: Equatable, Codable {
     public let settings: SettingsDictionary
     public let xcconfig: Path?
 
-    init(name: ConfigurationName, variant: Variant, settings: SettingsDictionary, xcconfig: Path?) {
+    init(
+        name: ConfigurationName,
+        variant: Variant,
+        settings: SettingsDictionary,
+        xcconfig: Path?
+    ) {
         self.name = name
         self.variant = variant
         self.settings = settings
@@ -86,7 +103,11 @@ public struct Configuration: Equatable, Codable {
     ///   - settings: The base build settings to apply
     ///   - xcconfig: The xcconfig file to associate with this configuration
     /// - Returns: A debug `CustomConfiguration`
-    public static func debug(name: ConfigurationName, settings: SettingsDictionary = [:], xcconfig: Path? = nil) -> Configuration {
+    public static func debug(
+        name: ConfigurationName,
+        settings: SettingsDictionary = [:],
+        xcconfig: Path? = nil
+    ) -> Configuration {
         return Configuration(
             name: name,
             variant: .debug,
@@ -102,7 +123,11 @@ public struct Configuration: Equatable, Codable {
     ///   - settings: The base build settings to apply
     ///   - xcconfig: The xcconfig file to associate with this configuration
     /// - Returns: A release `CustomConfiguration`
-    public static func release(name: ConfigurationName, settings: SettingsDictionary = [:], xcconfig: Path? = nil) -> Configuration {
+    public static func release(
+        name: ConfigurationName,
+        settings: SettingsDictionary = [:],
+        xcconfig: Path? = nil
+    ) -> Configuration {
         return Configuration(
             name: name,
             variant: .release,
@@ -129,7 +154,9 @@ public enum DefaultSettings: Codable, Equatable {
         case recommended, essential, none
     }
 
-    public init(from decoder: Decoder) throws {
+    public init(
+        from decoder: Decoder
+    ) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let key = container.allKeys.first
 
@@ -148,7 +175,8 @@ public enum DefaultSettings: Codable, Equatable {
             throw DecodingError.dataCorrupted(
                 DecodingError.Context(
                     codingPath: container.codingPath,
-                    debugDescription: "Unable to decode DefaultSettings. \(String(describing: key)) is an unexpected key. Expected .recommended, .essential or .none."
+                    debugDescription:
+                        "Unable to decode DefaultSettings. \(String(describing: key)) is an unexpected key. Expected .recommended, .essential or .none."
                 )
             )
         }

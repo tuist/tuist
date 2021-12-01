@@ -27,7 +27,7 @@ class TargetScriptLinter: TargetScriptLinting {
         else { return [] }
 
         return [
-            LintingIssue(reason: "The embedded script is empty", severity: .warning),
+            LintingIssue(reason: "The embedded script is empty", severity: .warning)
         ]
     }
 
@@ -43,10 +43,12 @@ class TargetScriptLinter: TargetScriptLinting {
             _ = try System.shared.which(tool)
             return []
         } catch {
-            return [LintingIssue(
-                reason: "The script tool '\(tool)' was not found in the environment",
-                severity: .error
-            )]
+            return [
+                LintingIssue(
+                    reason: "The script tool '\(tool)' was not found in the environment",
+                    severity: .error
+                )
+            ]
         }
     }
 
@@ -55,9 +57,11 @@ class TargetScriptLinter: TargetScriptLinting {
             let path = script.path,
             !FileHandler.shared.exists(path)
         else { return [] }
-        return [LintingIssue(
-            reason: "The script path \(path.pathString) doesn't exist",
-            severity: .error
-        )]
+        return [
+            LintingIssue(
+                reason: "The script path \(path.pathString) doesn't exist",
+                severity: .error
+            )
+        ]
     }
 }

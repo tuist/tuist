@@ -5,6 +5,7 @@ import TuistGraph
 import TuistGraphTesting
 import TuistSupport
 import XCTest
+
 @testable import TuistCoreTesting
 @testable import TuistGenerator
 @testable import TuistSupportTesting
@@ -30,8 +31,16 @@ public final class DeleteDerivedDirectoryProjectMapperTests: TuistUnitTestCase {
         let (_, sideEffects) = try subject.map(project: projectA)
 
         // Then
-        XCTAssertEqual(sideEffects, [
-            .directory(.init(path: projectA.path.appending(component: Constants.DerivedDirectory.name), state: .absent)),
-        ])
+        XCTAssertEqual(
+            sideEffects,
+            [
+                .directory(
+                    .init(
+                        path: projectA.path.appending(component: Constants.DerivedDirectory.name),
+                        state: .absent
+                    )
+                )
+            ]
+        )
     }
 }

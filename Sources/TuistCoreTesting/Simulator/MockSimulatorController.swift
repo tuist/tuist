@@ -1,9 +1,11 @@
 import Foundation
 import RxSwift
 import TSCBasic
-import struct TSCUtility.Version
 import TuistGraph
 import TuistSupport
+
+import struct TSCUtility.Version
+
 @testable import TuistCore
 @testable import TuistSupportTesting
 
@@ -55,14 +57,16 @@ public final class MockSimulatorController: SimulatorControlling {
         )
     }
 
-    public var findAvailableDeviceStub: ((Platform, Version?, Version?, String?) -> Single<SimulatorDeviceAndRuntime>)?
+    public var findAvailableDeviceStub:
+        ((Platform, Version?, Version?, String?) -> Single<SimulatorDeviceAndRuntime>)?
     public func findAvailableDevice(
         platform: Platform,
         version: Version?,
         minVersion: Version?,
         deviceName: String?
     ) -> Single<SimulatorDeviceAndRuntime> {
-        findAvailableDeviceStub?(platform, version, minVersion, deviceName) ?? .just(SimulatorDeviceAndRuntime.test())
+        findAvailableDeviceStub?(platform, version, minVersion, deviceName)
+            ?? .just(SimulatorDeviceAndRuntime.test())
     }
 
     public var installAppStub: ((AbsolutePath, SimulatorDevice) throws -> Void)?
@@ -76,7 +80,12 @@ public final class MockSimulatorController: SimulatorControlling {
     }
 
     public var destinationStub: ((Platform) -> Single<String>)?
-    public func destination(for targetPlatform: Platform, version _: Version?, deviceName _: String?) -> Single<String> {
-        destinationStub?(targetPlatform) ?? .just("id=\(SimulatorDeviceAndRuntime.test().device.udid)")
+    public func destination(
+        for targetPlatform: Platform,
+        version _: Version?,
+        deviceName _: String?
+    ) -> Single<String> {
+        destinationStub?(targetPlatform)
+            ?? .just("id=\(SimulatorDeviceAndRuntime.test().device.udid)")
     }
 }

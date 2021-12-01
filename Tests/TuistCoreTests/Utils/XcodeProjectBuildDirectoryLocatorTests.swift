@@ -29,10 +29,16 @@ final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
         let configuration = "Release"
 
         // WHEN
-        let path = try subject.locate(platform: .macOS, projectPath: projectPath, configuration: configuration)
+        let path = try subject.locate(
+            platform: .macOS,
+            projectPath: projectPath,
+            configuration: configuration
+        )
 
         // THEN
-        let expectedPath = AbsolutePath("/Xcode/DerivedData/\(projectName)/Build/Products/\(configuration)")
+        let expectedPath = AbsolutePath(
+            "/Xcode/DerivedData/\(projectName)/Build/Products/\(configuration)"
+        )
         XCTAssertEqual(path, expectedPath)
     }
 
@@ -45,10 +51,16 @@ final class XcodeProjectBuildDirectoryLocatorTests: TuistTestCase {
         let sdk = "iphonesimulator"
 
         // WHEN
-        let path = try subject.locate(platform: .iOS, projectPath: projectPath, configuration: configuration)
+        let path = try subject.locate(
+            platform: .iOS,
+            projectPath: projectPath,
+            configuration: configuration
+        )
 
         // THEN
-        let expectedPath = AbsolutePath("/Xcode/DerivedData/\(projectName)/Build/Products/\(configuration)-\(sdk)")
+        let expectedPath = AbsolutePath(
+            "/Xcode/DerivedData/\(projectName)/Build/Products/\(configuration)-\(sdk)"
+        )
         XCTAssertEqual(path, expectedPath)
     }
 }

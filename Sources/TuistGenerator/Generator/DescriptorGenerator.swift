@@ -21,7 +21,10 @@ public protocol DescriptorGenerating {
     ///   - graphTraverser: Graph traverser.
     ///
     /// - Seealso: `GraphLoader`
-    func generateProject(project: Project, graphTraverser: GraphTraversing) throws -> ProjectDescriptor
+    func generateProject(
+        project: Project,
+        graphTraverser: GraphTraversing
+    ) throws -> ProjectDescriptor
 
     /// Generate a workspace descriptor
     ///
@@ -39,7 +42,9 @@ public final class DescriptorGenerator: DescriptorGenerating {
     private let workspaceDescriptorGenerator: WorkspaceDescriptorGenerating
     private let projectDescriptorGenerator: ProjectDescriptorGenerating
 
-    public convenience init(defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider()) {
+    public convenience init(
+        defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider()
+    ) {
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
         let schemeDescriptorsGenerator = SchemeDescriptorsGenerator()
@@ -60,14 +65,18 @@ public final class DescriptorGenerator: DescriptorGenerating {
         )
     }
 
-    init(workspaceDescriptorGenerator: WorkspaceDescriptorGenerating,
-         projectDescriptorGenerator: ProjectDescriptorGenerating)
-    {
+    init(
+        workspaceDescriptorGenerator: WorkspaceDescriptorGenerating,
+        projectDescriptorGenerator: ProjectDescriptorGenerating
+    ) {
         self.workspaceDescriptorGenerator = workspaceDescriptorGenerator
         self.projectDescriptorGenerator = projectDescriptorGenerator
     }
 
-    public func generateProject(project: Project, graphTraverser: GraphTraversing) throws -> ProjectDescriptor {
+    public func generateProject(
+        project: Project,
+        graphTraverser: GraphTraversing
+    ) throws -> ProjectDescriptor {
         try projectDescriptorGenerator.generate(project: project, graphTraverser: graphTraverser)
     }
 

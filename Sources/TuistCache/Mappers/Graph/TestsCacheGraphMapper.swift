@@ -43,8 +43,12 @@ public final class TestsCacheGraphMapper: GraphMapping {
     public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
         let graphTraverser = GraphTraverser(graph: graph)
         let hashableTargets = self.hashableTargets(graphTraverser: graphTraverser)
-        let hashes = try graphContentHasher.contentHashes(for: graph, filter: hashableTargets.contains)
-        let testsCacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories(config: config).cacheDirectory(for: .tests)
+        let hashes = try graphContentHasher.contentHashes(
+            for: graph,
+            filter: hashableTargets.contains
+        )
+        let testsCacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories(config: config)
+            .cacheDirectory(for: .tests)
         var visitedNodes: [GraphTarget: Bool] = [:]
         var workspace = graph.workspace
         let mappedSchemes = try workspace.schemes
@@ -124,7 +128,9 @@ public final class TestsCacheGraphMapper: GraphMapping {
             .map { testTargets in
                 testTargets.compactMap { testTarget in
                     guard
-                        let target = graphTraverser.targets[testTarget.target.projectPath]?[testTarget.target.name],
+                        let target = graphTraverser.targets[testTarget.target.projectPath]?[
+                            testTarget.target.name
+                        ],
                         let project = graphTraverser.projects[testTarget.target.projectPath]
                     else { return nil }
                     return GraphTarget(
@@ -200,9 +206,10 @@ public final class TestsCacheGraphMapper: GraphMapping {
         }
         /// Target is considered as cached if all its dependencies are cached and its hash is present in `testsCacheDirectory`
         /// Hash of the target is saved to that directory only after a successful test run
-        let isCached = FileHandler.shared.exists(
-            testsCacheDirectory.appending(component: hash)
-        ) && allTargetDependenciesAreHashed
+        let isCached =
+            FileHandler.shared.exists(
+                testsCacheDirectory.appending(component: hash)
+            ) && allTargetDependenciesAreHashed
         visited[target] = isCached
         return isCached
     }

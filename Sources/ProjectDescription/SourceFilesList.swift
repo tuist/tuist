@@ -21,27 +21,31 @@ public struct SourceFileGlob: ExpressibleByStringInterpolation, Codable, Equatab
     ///   - excluding: Relative glob patterns for excluded files.
     ///   - compilerFlags: Compiler flags.
     ///   - codegen: Source file code generation attribute
-    public init(_ glob: Path,
-                excluding: [Path] = [],
-                compilerFlags: String? = nil,
-                codeGen: FileCodeGen? = nil)
-    {
+    public init(
+        _ glob: Path,
+        excluding: [Path] = [],
+        compilerFlags: String? = nil,
+        codeGen: FileCodeGen? = nil
+    ) {
         self.glob = glob
         self.excluding = excluding
         self.compilerFlags = compilerFlags
         self.codeGen = codeGen
     }
 
-    public init(_ glob: Path,
-                excluding: Path?,
-                compilerFlags: String? = nil,
-                codeGen: FileCodeGen? = nil)
-    {
+    public init(
+        _ glob: Path,
+        excluding: Path?,
+        compilerFlags: String? = nil,
+        codeGen: FileCodeGen? = nil
+    ) {
         let paths: [Path] = excluding.flatMap { [$0] } ?? []
         self.init(glob, excluding: paths, compilerFlags: compilerFlags, codeGen: codeGen)
     }
 
-    public init(stringLiteral value: String) {
+    public init(
+        stringLiteral value: String
+    ) {
         self.init(Path(value))
     }
 }
@@ -57,14 +61,18 @@ public struct SourceFilesList: Codable, Equatable {
     /// Initializes the source files list with the glob patterns.
     ///
     /// - Parameter globs: Glob patterns.
-    public init(globs: [SourceFileGlob]) {
+    public init(
+        globs: [SourceFileGlob]
+    ) {
         self.globs = globs
     }
 
     /// Initializes the source files list with the glob patterns as strings.
     ///
     /// - Parameter globs: Glob patterns.
-    public init(globs: [String]) {
+    public init(
+        globs: [String]
+    ) {
         self.globs = globs.map(SourceFileGlob.init)
     }
 
@@ -74,7 +82,9 @@ public struct SourceFilesList: Codable, Equatable {
         SourceFilesList(globs: paths.map { SourceFileGlob($0) })
     }
 
-    public init(from decoder: Decoder) throws {
+    public init(
+        from decoder: Decoder
+    ) throws {
         let container = try decoder.singleValueContainer()
         globs = try container.decode([SourceFileGlob].self)
     }
@@ -87,13 +97,17 @@ public struct SourceFilesList: Codable, Equatable {
 
 /// Support file as single string
 extension SourceFilesList: ExpressibleByStringInterpolation {
-    public init(stringLiteral value: String) {
+    public init(
+        stringLiteral value: String
+    ) {
         self.init(globs: [value])
     }
 }
 
 extension SourceFilesList: ExpressibleByArrayLiteral {
-    public init(arrayLiteral elements: SourceFileGlob...) {
+    public init(
+        arrayLiteral elements: SourceFileGlob...
+    ) {
         self.init(globs: elements)
     }
 }

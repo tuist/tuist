@@ -11,7 +11,12 @@ public protocol HTTPRedirectListening: Any {
     ///   - redirectMessage: Text returned to the browser when it redirects the user to the given path.
     ///   - logoURL: The logo to show in the redirect page.
     /// - Returns: Either the query parameterrs of the redirect URL, or an error if the HTTP server fails to start.
-    func listen(port: UInt16, path: String, redirectMessage: String, logoURL: URL) -> Swift.Result<[String: String]?, HTTPRedirectListenerError>
+    func listen(
+        port: UInt16,
+        path: String,
+        redirectMessage: String,
+        logoURL: URL
+    ) -> Swift.Result<[String: String]?, HTTPRedirectListenerError>
 }
 
 public enum HTTPRedirectListenerError: FatalError {
@@ -47,15 +52,22 @@ public final class HTTPRedirectListener: HTTPRedirectListening {
         redirectMessage: String,
         logoURL: URL
     ) -> Swift.Result<[String: String]?, HTTPRedirectListenerError> {
-        precondition(runningSemaphore == nil, "Trying to start a redirect server for localhost:\(port)\(path) when there's already one running.")
+        precondition(
+            runningSemaphore == nil,
+            "Trying to start a redirect server for localhost:\(port)\(path) when there's already one running."
+        )
         let httpServer = HttpServer()
         var result: Swift.Result<[String: String]?, HTTPRedirectListenerError> = .success(nil)
 
         runningSemaphore = DispatchSemaphore(value: 0)
         httpServer[path] = { request in
-            result = .success(request.queryParams.reduce(into: [String: String]()) { $0[$1.0] = $1.1 })
+            result = .success(
+                request.queryParams.reduce(into: [String: String]()) { $0[$1.0] = $1.1 }
+            )
             DispatchQueue.global().async { runningSemaphore.signal() }
-            return HttpResponse.ok(.html(self.html(logoURL: logoURL, redirectMessage: redirectMessage)))
+            return HttpResponse.ok(
+                .html(self.html(logoURL: logoURL, redirectMessage: redirectMessage))
+            )
         }
 
         // If the user sends an interruption signal by pressing CTRL+C, we stop the server.

@@ -60,20 +60,23 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         let projectPath = try temporaryPath()
         let graph = Graph.test(
             projects: [
-                projectPath: .test(),
+                projectPath: .test()
             ],
             targets: [
                 projectPath: [
                     "A": .test(name: "A"),
                     "B": .test(name: "B"),
-                ],
+                ]
             ]
         )
 
         // When / Then
         XCTAssertThrowsSpecific(
             try subject.map(graph: graph),
-            FocusTargetsGraphMapperError.missingTargets(missingTargets: ["C", "D"], availableTargets: ["A", "B"])
+            FocusTargetsGraphMapperError.missingTargets(
+                missingTargets: ["C", "D"],
+                availableTargets: ["A", "B"]
+            )
         )
     }
 
@@ -101,10 +104,10 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: [
                 .target(name: bFramework.name, path: bGraphTarget.path): [
-                    .target(name: cFramework.name, path: cGraphTarget.path),
+                    .target(name: cFramework.name, path: cGraphTarget.path)
                 ],
                 .target(name: app.name, path: appGraphTarget.path): [
-                    .target(name: bFramework.name, path: bGraphTarget.path),
+                    .target(name: bFramework.name, path: bGraphTarget.path)
                 ],
             ]
         )
@@ -184,10 +187,10 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: [
                 .target(name: bFramework.name, path: bGraphTarget.path): [
-                    .target(name: cFramework.name, path: cGraphTarget.path),
+                    .target(name: cFramework.name, path: cGraphTarget.path)
                 ],
                 .target(name: app.name, path: appGraphTarget.path): [
-                    .target(name: bFramework.name, path: bGraphTarget.path),
+                    .target(name: bFramework.name, path: bGraphTarget.path)
                 ],
             ]
         )
@@ -269,10 +272,10 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             projects: [path: project],
             dependencies: [
                 .target(name: bFramework.name, path: bGraphTarget.path): [
-                    .target(name: cFramework.name, path: cGraphTarget.path),
+                    .target(name: cFramework.name, path: cGraphTarget.path)
                 ],
                 .target(name: app.name, path: appGraphTarget.path): [
-                    .target(name: bFramework.name, path: bGraphTarget.path),
+                    .target(name: bFramework.name, path: bGraphTarget.path)
                 ],
             ]
         )

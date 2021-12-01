@@ -8,7 +8,9 @@ public enum XcodeBuildTarget: Equatable {
     /// The target is an Xcode workspace.
     case workspace(AbsolutePath)
 
-    public init(with path: AbsolutePath) {
+    public init(
+        with path: AbsolutePath
+    ) {
         switch path.extension {
         case "xcworkspace":
             self = .workspace(path)

@@ -12,9 +12,11 @@ public enum CloudSessionControllerError: FatalError, Equatable {
         case let .authenticationError(error):
             return error
         case .missingParameters:
-            return "The result from the authentication contains no parameters. We expect an account and token."
+            return
+                "The result from the authentication contains no parameters. We expect an account and token."
         case let .invalidParameters(parameters):
-            return "The result from the authentication contains invalid parameters: \(parameters.joined(separator: ", ")). We expect an account and token."
+            return
+                "The result from the authentication contains invalid parameters: \(parameters.joined(separator: ", ")). We expect an account and token."
         }
     }
 
@@ -66,11 +68,12 @@ public final class CloudSessionController: CloudSessionControlling {
         )
     }
 
-    init(credentialsStore: CredentialsStoring,
-         httpRedirectListener: HTTPRedirectListening,
-         ciChecker: CIChecking,
-         opener: Opening)
-    {
+    init(
+        credentialsStore: CredentialsStoring,
+        httpRedirectListener: HTTPRedirectListening,
+        ciChecker: CIChecking,
+        opener: Opening
+    ) {
         self.credentialsStore = credentialsStore
         self.httpRedirectListener = httpRedirectListener
         self.ciChecker = ciChecker
@@ -118,13 +121,15 @@ public final class CloudSessionController: CloudSessionControlling {
     public func printSession(serverURL: URL) throws {
         if let credentials = try credentialsStore.read(serverURL: serverURL) {
             let output = """
-            These are the credentials for the server with URL \(serverURL.absoluteString):
-            - Account: \(credentials.account)
-            - Token: \(credentials.token)
-            """
+                These are the credentials for the server with URL \(serverURL.absoluteString):
+                - Account: \(credentials.account)
+                - Token: \(credentials.token)
+                """
             logger.notice("\(output)")
         } else {
-            logger.notice("There are no sessions for the server with URL \(serverURL.absoluteString)")
+            logger.notice(
+                "There are no sessions for the server with URL \(serverURL.absoluteString)"
+            )
         }
     }
 

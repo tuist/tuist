@@ -1,12 +1,17 @@
 import TSCBasic
-import struct TSCUtility.Version
 import TuistAutomation
 import TuistGraph
+
+import struct TSCUtility.Version
 
 public final class MockTargetRunner: TargetRunning {
     public init() {}
 
-    public var runTargetStub: ((GraphTarget, AbsolutePath, String, String?, Version?, Version?, String?, [String]) throws -> Void)?
+    public var runTargetStub:
+        (
+            (GraphTarget, AbsolutePath, String, String?, Version?, Version?, String?, [String])
+                throws -> Void
+        )?
     public func runTarget(
         _ target: GraphTarget,
         workspacePath: AbsolutePath,
@@ -17,7 +22,16 @@ public final class MockTargetRunner: TargetRunning {
         deviceName: String?,
         arguments: [String]
     ) throws {
-        try runTargetStub?(target, workspacePath, schemeName, configuration, minVersion, version, deviceName, arguments)
+        try runTargetStub?(
+            target,
+            workspacePath,
+            schemeName,
+            configuration,
+            minVersion,
+            version,
+            deviceName,
+            arguments
+        )
     }
 
     public var assertCanRunTargetStub: ((Target) throws -> Void)?

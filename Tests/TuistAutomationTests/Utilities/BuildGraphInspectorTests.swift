@@ -27,12 +27,20 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let target = Target.test(platform: .macOS)
 
         // When
-        let got = subject.buildArguments(project: .test(), target: target, configuration: nil, skipSigning: false)
+        let got = subject.buildArguments(
+            project: .test(),
+            target: target,
+            configuration: nil,
+            skipSigning: false
+        )
 
         // Then
-        XCTAssertEqual(got, [
-            .sdk(Platform.macOS.xcodeDeviceSDK),
-        ])
+        XCTAssertEqual(
+            got,
+            [
+                .sdk(Platform.macOS.xcodeDeviceSDK)
+            ]
+        )
     }
 
     func test_buildArguments_when_iOS() throws {
@@ -41,12 +49,20 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let iosSimulatorSDK = try XCTUnwrap(Platform.iOS.xcodeSimulatorSDK)
 
         // When
-        let got = subject.buildArguments(project: .test(), target: target, configuration: nil, skipSigning: false)
+        let got = subject.buildArguments(
+            project: .test(),
+            target: target,
+            configuration: nil,
+            skipSigning: false
+        )
 
         // Then
-        XCTAssertEqual(got, [
-            .sdk(iosSimulatorSDK),
-        ])
+        XCTAssertEqual(
+            got,
+            [
+                .sdk(iosSimulatorSDK)
+            ]
+        )
     }
 
     func test_buildArguments_when_watchOS() throws {
@@ -55,12 +71,20 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let watchosSimulatorSDK = try XCTUnwrap(Platform.watchOS.xcodeSimulatorSDK)
 
         // When
-        let got = subject.buildArguments(project: .test(), target: target, configuration: nil, skipSigning: false)
+        let got = subject.buildArguments(
+            project: .test(),
+            target: target,
+            configuration: nil,
+            skipSigning: false
+        )
 
         // Then
-        XCTAssertEqual(got, [
-            .sdk(watchosSimulatorSDK),
-        ])
+        XCTAssertEqual(
+            got,
+            [
+                .sdk(watchosSimulatorSDK)
+            ]
+        )
     }
 
     func test_buildArguments_when_tvOS() throws {
@@ -69,12 +93,20 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let tvosSimulatorSDK = try XCTUnwrap(Platform.tvOS.xcodeSimulatorSDK)
 
         // When
-        let got = subject.buildArguments(project: .test(), target: target, configuration: nil, skipSigning: false)
+        let got = subject.buildArguments(
+            project: .test(),
+            target: target,
+            configuration: nil,
+            skipSigning: false
+        )
 
         // Then
-        XCTAssertEqual(got, [
-            .sdk(tvosSimulatorSDK),
-        ])
+        XCTAssertEqual(
+            got,
+            [
+                .sdk(tvosSimulatorSDK)
+            ]
+        )
     }
 
     func test_buildArguments_when_skipSigning() throws {
@@ -83,16 +115,24 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let iosSimulatorSDK = try XCTUnwrap(Platform.iOS.xcodeSimulatorSDK)
 
         // When
-        let got = subject.buildArguments(project: .test(), target: target, configuration: nil, skipSigning: true)
+        let got = subject.buildArguments(
+            project: .test(),
+            target: target,
+            configuration: nil,
+            skipSigning: true
+        )
 
         // Then
-        XCTAssertEqual(got, [
-            .sdk(iosSimulatorSDK),
-            .xcarg("CODE_SIGN_IDENTITY", ""),
-            .xcarg("CODE_SIGNING_REQUIRED", "NO"),
-            .xcarg("CODE_SIGN_ENTITLEMENTS", ""),
-            .xcarg("CODE_SIGNING_ALLOWED", "NO"),
-        ])
+        XCTAssertEqual(
+            got,
+            [
+                .sdk(iosSimulatorSDK),
+                .xcarg("CODE_SIGN_IDENTITY", ""),
+                .xcarg("CODE_SIGNING_REQUIRED", "NO"),
+                .xcarg("CODE_SIGN_ENTITLEMENTS", ""),
+                .xcarg("CODE_SIGNING_ALLOWED", "NO"),
+            ]
+        )
     }
 
     func test_buildArguments_when_theGivenConfigurationExists() throws {
@@ -101,7 +141,12 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let target = Target.test(settings: settings)
 
         // When
-        let got = subject.buildArguments(project: .test(), target: target, configuration: "Release", skipSigning: false)
+        let got = subject.buildArguments(
+            project: .test(),
+            target: target,
+            configuration: "Release",
+            skipSigning: false
+        )
 
         // Then
         XCTAssertTrue(got.contains(.configuration("Release")))
@@ -113,7 +158,12 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let target = Target.test(settings: nil)
 
         // When
-        let got = subject.buildArguments(project: .test(settings: settings), target: target, configuration: "Release", skipSigning: false)
+        let got = subject.buildArguments(
+            project: .test(settings: settings),
+            target: target,
+            configuration: "Release",
+            skipSigning: false
+        )
 
         // Then
         XCTAssertTrue(got.contains(.configuration("Release")))
@@ -125,7 +175,12 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let target = Target.test(settings: settings)
 
         // When
-        let got = subject.buildArguments(project: .test(), target: target, configuration: "Release", skipSigning: false)
+        let got = subject.buildArguments(
+            project: .test(),
+            target: target,
+            configuration: "Release",
+            skipSigning: false
+        )
 
         // Then
         XCTAssertFalse(got.contains(.configuration("Release")))
@@ -135,7 +190,9 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         // Given
         let path = try temporaryPath()
         let projectPath = path.appending(component: "Project.xcodeproj")
-        let scheme = Scheme.test(buildAction: .test(targets: [.init(projectPath: projectPath, name: "Core")]))
+        let scheme = Scheme.test(
+            buildAction: .test(targets: [.init(projectPath: projectPath, name: "Core")])
+        )
         let target = Target.test(name: "Core")
         let project = Project.test(path: projectPath)
         let graph = Graph.test(
@@ -157,8 +214,14 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let path = try temporaryPath()
         let projectPath = path.appending(component: "Project.xcodeproj")
         let coreProjectPath = path.appending(component: "CoreProject.xcodeproj")
-        let coreScheme = Scheme.test(name: "Core", buildAction: .test(targets: [.init(projectPath: coreProjectPath, name: "Core")]))
-        let kitScheme = Scheme.test(name: "Kit", buildAction: .test(targets: [.init(projectPath: projectPath, name: "Kit")]))
+        let coreScheme = Scheme.test(
+            name: "Core",
+            buildAction: .test(targets: [.init(projectPath: coreProjectPath, name: "Core")])
+        )
+        let kitScheme = Scheme.test(
+            name: "Kit",
+            buildAction: .test(targets: [.init(projectPath: projectPath, name: "Kit")])
+        )
         let coreProject = Project.test(path: coreProjectPath, schemes: [coreScheme])
         let kitProject = Project.test(path: projectPath, schemes: [kitScheme])
         let workspaceScheme = Scheme.test(
@@ -318,12 +381,12 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         )
         let graph = Graph.test(
             projects: [
-                coreProject.path: coreProject,
+                coreProject.path: coreProject
             ],
             targets: [
                 coreProject.path: [
-                    coreGraphTarget.target.name: coreGraphTarget.target,
-                ],
+                    coreGraphTarget.target.name: coreGraphTarget.target
+                ]
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -346,12 +409,16 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let path = try temporaryPath()
 
         let projectAPath = path.appending(component: "ProjectA.xcodeproj")
-        let schemeA = Scheme.test(buildAction: .test(targets: [.init(projectPath: projectAPath, name: "A")]))
+        let schemeA = Scheme.test(
+            buildAction: .test(targets: [.init(projectPath: projectAPath, name: "A")])
+        )
         let projectA = Project.test(path: projectAPath, schemes: [schemeA])
         let targetA = Target.test(name: "A")
 
         let projectBPath = path.appending(component: "ProjectB.xcodeproj")
-        let schemeB = Scheme.test(buildAction: .test(targets: [.init(projectPath: projectBPath, name: "B")]))
+        let schemeB = Scheme.test(
+            buildAction: .test(targets: [.init(projectPath: projectBPath, name: "B")])
+        )
         let projectB = Project.test(path: projectBPath, schemes: [schemeB])
         let targetB = Target.test(name: "B")
 
@@ -377,7 +444,9 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
         try FileHandler.shared.createFolder(workspacePath)
-        try FileHandler.shared.touch(workspacePath.appending(component: Constants.tuistGeneratedFileName))
+        try FileHandler.shared.touch(
+            workspacePath.appending(component: Constants.tuistGeneratedFileName)
+        )
 
         // When
         let got = try subject.workspacePath(directory: path)
@@ -406,7 +475,9 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         try FileHandler.shared.createFolder(nonTuistWorkspacePath)
         let workspacePath = path.appending(component: "TuistApp.xcworkspace")
         try FileHandler.shared.createFolder(workspacePath)
-        try FileHandler.shared.touch(workspacePath.appending(component: Constants.tuistGeneratedFileName))
+        try FileHandler.shared.touch(
+            workspacePath.appending(component: Constants.tuistGeneratedFileName)
+        )
 
         // When
         let got = try subject.workspacePath(directory: path)
@@ -462,7 +533,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         XCTAssertEqual(
             got,
             [
-                .test(name: "WorkspaceName-Project"),
+                .test(name: "WorkspaceName-Project")
             ]
         )
     }

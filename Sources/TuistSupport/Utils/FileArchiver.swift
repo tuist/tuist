@@ -21,14 +21,21 @@ public class FileArchiver: FileArchiving {
 
     /// Initializes the archiver with a list of files to archive.
     /// - Parameter paths: Paths to archive
-    public init(paths: [AbsolutePath]) throws {
+    public init(
+        paths: [AbsolutePath]
+    ) throws {
         self.paths = paths
         temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: false).path
     }
 
     public func zip(name: String) throws -> AbsolutePath {
         let destinationZipPath = temporaryDirectory.appending(component: "\(name).zip")
-        try Zip.zipFiles(paths: paths.map(\.url), zipFilePath: destinationZipPath.url, password: nil, progress: nil)
+        try Zip.zipFiles(
+            paths: paths.map(\.url),
+            zipFilePath: destinationZipPath.url,
+            password: nil,
+            progress: nil
+        )
         return destinationZipPath
     }
 

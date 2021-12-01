@@ -28,20 +28,23 @@ final class GraphDependencyReferenceTests: TuistUnitTestCase {
         // When
         let results = subject.shuffled().sorted()
 
-        XCTAssertEqual(results, [
-            .sdk(path: "/A.framework", status: .required, source: .developer),
-            .sdk(path: "/B.framework", status: .optional, source: .developer),
-            .product(target: "A", productName: "A.framework"),
-            .product(target: "B", productName: "B.framework"),
-            .testLibrary(path: "/libraries/A.library"),
-            .testLibrary(path: "/libraries/B.library"),
-            .testFramework(path: "/frameworks/A.framework"),
-            .testFramework(path: "/frameworks/B.framework"),
-            .testXCFramework(path: "/xcframeworks/A.xcframework"),
-            .testXCFramework(path: "/xcframeworks/B.xcframework"),
-            .bundle(path: "/A.bundle"),
-            .bundle(path: "/B.bundle"),
-        ])
+        XCTAssertEqual(
+            results,
+            [
+                .sdk(path: "/A.framework", status: .required, source: .developer),
+                .sdk(path: "/B.framework", status: .optional, source: .developer),
+                .product(target: "A", productName: "A.framework"),
+                .product(target: "B", productName: "B.framework"),
+                .testLibrary(path: "/libraries/A.library"),
+                .testLibrary(path: "/libraries/B.library"),
+                .testFramework(path: "/frameworks/A.framework"),
+                .testFramework(path: "/frameworks/B.framework"),
+                .testXCFramework(path: "/xcframeworks/A.xcframework"),
+                .testXCFramework(path: "/xcframeworks/B.xcframework"),
+                .bundle(path: "/A.bundle"),
+                .bundle(path: "/B.bundle"),
+            ]
+        )
     }
 
     func test_compare_isStable() {
@@ -59,7 +62,7 @@ final class GraphDependencyReferenceTests: TuistUnitTestCase {
         }
 
         // When
-        let sorted = (0 ..< 10).map { _ in subject.shuffled().sorted() }
+        let sorted = (0..<10).map { _ in subject.shuffled().sorted() }
 
         // Then
         let unstable = sorted.dropFirst().filter { $0 != sorted.first }
@@ -98,16 +101,20 @@ private enum KnownGraphDependencyReference: CaseIterable {
             ]
         case .sdk:
             return [
-                .sdk(path: AbsolutePath("/sdks/\(name).framework"), status: .required, source: .system),
+                .sdk(
+                    path: AbsolutePath("/sdks/\(name).framework"),
+                    status: .required,
+                    source: .system
+                ),
                 .sdk(path: AbsolutePath("/sdks/\(name).tbd"), status: .required, source: .system),
             ]
         }
     }
 }
 
-private extension GraphDependencyReference {
+extension GraphDependencyReference {
     // This is added to enforce keeping `KnownGraphDependencyReference` and `GraphDependencyReference` in sync
-    var correspondingKnownType: KnownGraphDependencyReference {
+    fileprivate var correspondingKnownType: KnownGraphDependencyReference {
         switch self {
         case .xcframework:
             return .xcframework

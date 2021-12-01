@@ -83,7 +83,10 @@ final class LintCodeService {
 
     // MARK: - Get sources to lint
 
-    private func getSources(targetName: String?, graphTraverser: GraphTraversing) throws -> [AbsolutePath] {
+    private func getSources(
+        targetName: String?,
+        graphTraverser: GraphTraversing
+    ) throws -> [AbsolutePath] {
         if let targetName = targetName {
             return try getTargetSources(targetName: targetName, graphTraverser: graphTraverser)
         } else {
@@ -93,10 +96,14 @@ final class LintCodeService {
         }
     }
 
-    private func getTargetSources(targetName: String, graphTraverser: GraphTraversing) throws -> [AbsolutePath] {
-        guard let target = graphTraverser.allTargets()
-            .map(\.target)
-            .first(where: { $0.name == targetName })
+    private func getTargetSources(
+        targetName: String,
+        graphTraverser: GraphTraversing
+    ) throws -> [AbsolutePath] {
+        guard
+            let target = graphTraverser.allTargets()
+                .map(\.target)
+                .first(where: { $0.name == targetName })
         else {
             throw LintCodeServiceError.targetNotFound(targetName)
         }

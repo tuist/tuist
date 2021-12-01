@@ -1,6 +1,7 @@
 import Foundation
 import TSCBasic
 import TuistGraph
+
 @testable import TuistCore
 
 final class MockProjectMapper: ProjectMapping {

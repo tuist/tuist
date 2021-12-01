@@ -23,16 +23,16 @@ final class DumpServiceTests: TuistTestCase {
     func test_prints_the_manifest_when_project_manifest() throws {
         let tmpDir = try temporaryPath()
         let config = """
-        import ProjectDescription
+            import ProjectDescription
 
-        let project = Project(
-            name: "tuist",
-            organizationName: "tuist",
-            settings: nil,
-            targets: [],
-            resourceSynthesizers: []
-        )
-        """
+            let project = Project(
+                name: "tuist",
+                organizationName: "tuist",
+                settings: nil,
+                targets: [],
+                resourceSynthesizers: []
+            )
+            """
         try config.write(
             toFile: tmpDir.appending(component: "Project.swift").pathString,
             atomically: true,
@@ -40,30 +40,30 @@ final class DumpServiceTests: TuistTestCase {
         )
         try subject.run(path: tmpDir.pathString, manifest: .project)
         let expected = """
-        {
-          "additionalFiles": [
+            {
+              "additionalFiles": [
 
-          ],
-          "name": "tuist",
-          "options": [
+              ],
+              "name": "tuist",
+              "options": [
 
-          ],
-          "organizationName": "tuist",
-          "packages": [
+              ],
+              "organizationName": "tuist",
+              "packages": [
 
-          ],
-          "resourceSynthesizers": [
+              ],
+              "resourceSynthesizers": [
 
-          ],
-          "schemes": [
+              ],
+              "schemes": [
 
-          ],
-          "targets": [
+              ],
+              "targets": [
 
-          ]
-        }
+              ]
+            }
 
-        """
+            """
 
         XCTAssertPrinterOutputContains(expected)
     }
@@ -71,16 +71,16 @@ final class DumpServiceTests: TuistTestCase {
     func test_prints_the_manifest_when_workspace_manifest() throws {
         let tmpDir = try temporaryPath()
         let config = """
-        import ProjectDescription
+            import ProjectDescription
 
-        let workspace = Workspace(
-            name: "tuist",
-            projects: [],
-            schemes: [],
-            fileHeaderTemplate: nil,
-            additionalFiles: []
-        )
-        """
+            let workspace = Workspace(
+                name: "tuist",
+                projects: [],
+                schemes: [],
+                fileHeaderTemplate: nil,
+                additionalFiles: []
+            )
+            """
         try config.write(
             toFile: tmpDir.appending(component: "Workspace.swift").pathString,
             atomically: true,
@@ -88,20 +88,20 @@ final class DumpServiceTests: TuistTestCase {
         )
         try subject.run(path: tmpDir.pathString, manifest: .workspace)
         let expected = """
-        {
-          "additionalFiles": [
+            {
+              "additionalFiles": [
 
-          ],
-          "name": "tuist",
-          "projects": [
+              ],
+              "name": "tuist",
+              "projects": [
 
-          ],
-          "schemes": [
+              ],
+              "schemes": [
 
-          ]
-        }
+              ]
+            }
 
-        """
+            """
 
         XCTAssertPrinterOutputContains(expected)
     }
@@ -109,17 +109,17 @@ final class DumpServiceTests: TuistTestCase {
     func test_prints_the_manifest_when_config_manifest() throws {
         let tmpDir = try temporaryPath()
         let config = """
-        import ProjectDescription
+            import ProjectDescription
 
-        let config = Config(
-            compatibleXcodeVersions: .all,
-            cloud: nil,
-            cache: nil,
-            swiftVersion: nil,
-            plugins: [],
-            generationOptions: []
-        )
-        """
+            let config = Config(
+                compatibleXcodeVersions: .all,
+                cloud: nil,
+                cache: nil,
+                swiftVersion: nil,
+                plugins: [],
+                generationOptions: []
+            )
+            """
         try fileHandler.createFolder(tmpDir.appending(component: "Tuist"))
         try config.write(
             toFile: tmpDir.appending(components: "Tuist", "Config.swift").pathString,
@@ -128,19 +128,19 @@ final class DumpServiceTests: TuistTestCase {
         )
         try subject.run(path: tmpDir.pathString, manifest: .config)
         let expected = """
-        {
-          "compatibleXcodeVersions": {
-            "type": "all"
-          },
-          "generationOptions": [
+            {
+              "compatibleXcodeVersions": {
+                "type": "all"
+              },
+              "generationOptions": [
 
-          ],
-          "plugins": [
+              ],
+              "plugins": [
 
-          ]
-        }
+              ]
+            }
 
-        """
+            """
 
         XCTAssertPrinterOutputContains(expected)
     }
@@ -148,14 +148,14 @@ final class DumpServiceTests: TuistTestCase {
     func test_prints_the_manifest_when_template_manifest() throws {
         let tmpDir = try temporaryPath()
         let config = """
-        import ProjectDescription
+            import ProjectDescription
 
-        let template = Template(
-            description: "tuist",
-            attributes: [],
-            items: []
-        )
-        """
+            let template = Template(
+                description: "tuist",
+                attributes: [],
+                items: []
+            )
+            """
         try config.write(
             toFile: tmpDir.appending(component: "\(tmpDir.basenameWithoutExt).swift").pathString,
             atomically: true,
@@ -163,17 +163,17 @@ final class DumpServiceTests: TuistTestCase {
         )
         try subject.run(path: tmpDir.pathString, manifest: .template)
         let expected = """
-        {
-          "attributes": [
+            {
+              "attributes": [
 
-          ],
-          "description": "tuist",
-          "items": [
+              ],
+              "description": "tuist",
+              "items": [
 
-          ]
-        }
+              ]
+            }
 
-        """
+            """
 
         XCTAssertPrinterOutputContains(expected)
     }
@@ -181,12 +181,12 @@ final class DumpServiceTests: TuistTestCase {
     func test_prints_the_manifest_when_plugin_manifest() throws {
         let tmpDir = try temporaryPath()
         let config = """
-        import ProjectDescription
+            import ProjectDescription
 
-        let plugin = Plugin(
-            name: "tuist"
-        )
-        """
+            let plugin = Plugin(
+                name: "tuist"
+            )
+            """
         try config.write(
             toFile: tmpDir.appending(component: "Plugin.swift").pathString,
             atomically: true,
@@ -194,11 +194,11 @@ final class DumpServiceTests: TuistTestCase {
         )
         try subject.run(path: tmpDir.pathString, manifest: .plugin)
         let expected = """
-        {
-          "name": "tuist"
-        }
+            {
+              "name": "tuist"
+            }
 
-        """
+            """
 
         XCTAssertPrinterOutputContains(expected)
     }
@@ -206,14 +206,14 @@ final class DumpServiceTests: TuistTestCase {
     func test_prints_the_manifest_when_dependencies_manifest() throws {
         let tmpDir = try temporaryPath()
         let config = """
-        import ProjectDescription
+            import ProjectDescription
 
-        let dependencies = Dependencies(
-            carthage: nil,
-            swiftPackageManager: nil,
-            platforms: []
-        )
-        """
+            let dependencies = Dependencies(
+                carthage: nil,
+                swiftPackageManager: nil,
+                platforms: []
+            )
+            """
         try fileHandler.createFolder(tmpDir.appending(component: "Tuist"))
         try config.write(
             toFile: tmpDir.appending(components: "Tuist", "Dependencies.swift").pathString,
@@ -222,13 +222,13 @@ final class DumpServiceTests: TuistTestCase {
         )
         try subject.run(path: tmpDir.pathString, manifest: .dependencies)
         let expected = """
-        {
-          "platforms": [
+            {
+              "platforms": [
 
-          ]
-        }
+              ]
+            }
 
-        """
+            """
 
         XCTAssertPrinterOutputContains(expected)
     }
@@ -275,7 +275,9 @@ final class DumpServiceTests: TuistTestCase {
         try fileHandler.inTemporaryDirectory { tmpDir in
             var expectedDirectory = tmpDir
             if manifest == .config {
-                expectedDirectory = expectedDirectory.appending(component: Constants.tuistDirectoryName)
+                expectedDirectory = expectedDirectory.appending(
+                    component: Constants.tuistDirectoryName
+                )
                 if !fileHandler.exists(expectedDirectory) {
                     try fileHandler.createFolder(expectedDirectory)
                 }

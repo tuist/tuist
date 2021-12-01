@@ -1,13 +1,15 @@
 import Foundation
 import TSCBasic
 import TuistSupportTesting
+
 @testable import TuistGraph
 
-public extension Cloud {
-    static func test(url: URL = URL.test(),
-                     projectId: String = "123",
-                     options: [Cloud.Option] = []) -> Cloud
-    {
+extension Cloud {
+    public static func test(
+        url: URL = URL.test(),
+        projectId: String = "123",
+        options: [Cloud.Option] = []
+    ) -> Cloud {
         Cloud(url: url, projectId: projectId, options: options)
     }
 }

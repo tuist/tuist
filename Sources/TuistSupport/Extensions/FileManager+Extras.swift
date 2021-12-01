@@ -5,24 +5,34 @@ extension FileManager {
         subdirectoriesResolvingSymbolicLinks(atNestedPath: nil, basePath: path)
     }
 
-    private func subdirectoriesResolvingSymbolicLinks(atNestedPath nestedPath: String?, basePath: String) -> [String] {
-        let currentLevelPath = nestedPath.map { NSString(string: basePath).appendingPathComponent($0) } ?? basePath
+    private func subdirectoriesResolvingSymbolicLinks(
+        atNestedPath nestedPath: String?,
+        basePath: String
+    ) -> [String] {
+        let currentLevelPath =
+            nestedPath.map { NSString(string: basePath).appendingPathComponent($0) } ?? basePath
         let resolvedCurrentLevelPath = resolvingSymbolicLinks(path: currentLevelPath)
         guard
-            let resolvedSubpathsFromCurrentRoot = try? subpathsOfDirectory(atPath: resolvedCurrentLevelPath)
+            let resolvedSubpathsFromCurrentRoot = try? subpathsOfDirectory(
+                atPath: resolvedCurrentLevelPath
+            )
         else {
             return []
         }
 
         var resolvedSubpaths: [String] = []
         for subpath in resolvedSubpathsFromCurrentRoot {
-            let relativeSubpath = nestedPath.map { NSString(string: $0).appendingPathComponent(subpath) } ?? subpath
+            let relativeSubpath =
+                nestedPath.map { NSString(string: $0).appendingPathComponent(subpath) } ?? subpath
             let completeSubpath = NSString(string: basePath).appendingPathComponent(relativeSubpath)
 
             if isSymbolicLinkToDirectory(path: completeSubpath) {
                 resolvedSubpaths.append(relativeSubpath)
                 resolvedSubpaths.append(
-                    contentsOf: subdirectoriesResolvingSymbolicLinks(atNestedPath: relativeSubpath, basePath: basePath)
+                    contentsOf: subdirectoriesResolvingSymbolicLinks(
+                        atNestedPath: relativeSubpath,
+                        basePath: basePath
+                    )
                 )
             } else if isDirectory(path: completeSubpath) {
                 resolvedSubpaths.append(relativeSubpath)
@@ -47,7 +57,10 @@ extension FileManager {
             absoluteDestination = destination
         } else {
             // Transform symlinks with relative destinations to absolute paths.
-            absoluteDestination = URL(fileURLWithPath: path).deletingLastPathComponent().appendingPathComponent(destination).path
+            absoluteDestination =
+                URL(fileURLWithPath: path).deletingLastPathComponent().appendingPathComponent(
+                    destination
+                ).path
         }
 
         return resolvingSymbolicLinks(path: absoluteDestination)

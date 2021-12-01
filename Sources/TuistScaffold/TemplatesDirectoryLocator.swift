@@ -23,7 +23,9 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
     private let rootDirectoryLocator: RootDirectoryLocating
 
     /// Default constructor.
-    public init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {
+    public init(
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
+    ) {
         self.rootDirectoryLocator = rootDirectoryLocator
     }
 
@@ -38,7 +40,9 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
                 .removingLastComponent()
                 .removingLastComponent()
         #else
-            let bundlePath = AbsolutePath(Bundle(for: TemplatesDirectoryLocator.self).bundleURL.path)
+            let bundlePath = AbsolutePath(
+                Bundle(for: TemplatesDirectoryLocator.self).bundleURL.path
+            )
         #endif
         let paths = [
             bundlePath,
@@ -58,9 +62,11 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
 
     public func templateDirectories(at path: AbsolutePath) throws -> [AbsolutePath] {
         let tuistTemplatesDirectory = locateTuistTemplates()
-        let tuistTemplates = try tuistTemplatesDirectory.map(FileHandler.shared.contentsOfDirectory) ?? []
+        let tuistTemplates =
+            try tuistTemplatesDirectory.map(FileHandler.shared.contentsOfDirectory) ?? []
         let userTemplatesDirectory = locateUserTemplates(at: path)
-        let userTemplates = try userTemplatesDirectory.map(FileHandler.shared.contentsOfDirectory) ?? []
+        let userTemplates =
+            try userTemplatesDirectory.map(FileHandler.shared.contentsOfDirectory) ?? []
         return (tuistTemplates + userTemplates).filter(FileHandler.shared.isFolder)
     }
 
@@ -72,6 +78,9 @@ public final class TemplatesDirectoryLocator: TemplatesDirectoryLocating {
 
     private func locate(from path: AbsolutePath) -> AbsolutePath? {
         guard let rootDirectory = rootDirectoryLocator.locate(from: path) else { return nil }
-        return rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.templatesDirectoryName)
+        return rootDirectory.appending(
+            components: Constants.tuistDirectoryName,
+            Constants.templatesDirectoryName
+        )
     }
 }

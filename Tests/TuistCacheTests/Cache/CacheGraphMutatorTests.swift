@@ -3,6 +3,7 @@ import TSCBasic
 import TuistCore
 import TuistGraph
 import XCTest
+
 @testable import TuistCache
 @testable import TuistCoreTesting
 @testable import TuistGraphTesting
@@ -43,34 +44,69 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
 
         // Given: D
         let dFramework = Target.test(name: "D", platform: .iOS, product: .framework)
-        let dProject = Project.test(path: path.appending(component: "D"), name: "D", targets: [dFramework])
-        let dFrameworkGraphTarget = GraphTarget.test(path: dProject.path, target: dFramework, project: dProject)
+        let dProject = Project.test(
+            path: path.appending(component: "D"),
+            name: "D",
+            targets: [dFramework]
+        )
+        let dFrameworkGraphTarget = GraphTarget.test(
+            path: dProject.path,
+            target: dFramework,
+            project: dProject
+        )
 
         // Given: B
         let bFramework = Target.test(name: "B", platform: .iOS, product: .framework)
-        let bProject = Project.test(path: path.appending(component: "B"), name: "B", targets: [bFramework])
-        let bFrameworkGraphTarget = GraphTarget.test(path: bProject.path, target: bFramework, project: bProject)
+        let bProject = Project.test(
+            path: path.appending(component: "B"),
+            name: "B",
+            targets: [bFramework]
+        )
+        let bFrameworkGraphTarget = GraphTarget.test(
+            path: bProject.path,
+            target: bFramework,
+            project: bProject
+        )
 
         // Given: C
         let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
-        let cProject = Project.test(path: path.appending(component: "C"), name: "C", targets: [cFramework])
-        let cFrameworkGraphTarget = GraphTarget.test(path: cProject.path, target: cFramework, project: cProject)
+        let cProject = Project.test(
+            path: path.appending(component: "C"),
+            name: "C",
+            targets: [cFramework]
+        )
+        let cFrameworkGraphTarget = GraphTarget.test(
+            path: cProject.path,
+            target: cFramework,
+            project: cProject
+        )
 
         // Given: App
         let app = Target.test(name: "App", platform: .iOS, product: .app)
-        let appProject = Project.test(path: path.appending(component: "App"), name: "App", targets: [app])
-        let appTargetGraphTarget = GraphTarget.test(path: appProject.path, target: app, project: appProject)
+        let appProject = Project.test(
+            path: path.appending(component: "App"),
+            name: "App",
+            targets: [app]
+        )
+        let appTargetGraphTarget = GraphTarget.test(
+            path: appProject.path,
+            target: app,
+            project: appProject
+        )
 
-        let graphTargets = [bFrameworkGraphTarget, cFrameworkGraphTarget, dFrameworkGraphTarget, appTargetGraphTarget]
+        let graphTargets = [
+            bFrameworkGraphTarget, cFrameworkGraphTarget, dFrameworkGraphTarget,
+            appTargetGraphTarget,
+        ]
         let graph = Graph.test(
             projects: graphProjects(graphTargets),
             targets: self.graphTargets(graphTargets),
             dependencies: [
                 .target(name: bFramework.name, path: bFrameworkGraphTarget.path): [
-                    .target(name: dFramework.name, path: dFrameworkGraphTarget.path),
+                    .target(name: dFramework.name, path: dFrameworkGraphTarget.path)
                 ],
                 .target(name: cFramework.name, path: cFrameworkGraphTarget.path): [
-                    .target(name: dFramework.name, path: dFrameworkGraphTarget.path),
+                    .target(name: dFramework.name, path: dFrameworkGraphTarget.path)
                 ],
                 .target(name: app.name, path: appTargetGraphTarget.path): [
                     .target(name: bFramework.name, path: bFrameworkGraphTarget.path),
@@ -93,10 +129,15 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         ]
 
         xcframeworkLoader.loadStub = { path in
-            if path == dXCFrameworkPath { return dXCFramework }
-            else if path == bXCFrameworkPath { return bXCFramework }
-            else if path == cXCFrameworkPath { return cXCFramework }
-            else { fatalError("Unexpected load call") }
+            if path == dXCFrameworkPath {
+                return dXCFramework
+            } else if path == bXCFrameworkPath {
+                return bXCFramework
+            } else if path == cXCFrameworkPath {
+                return cXCFramework
+            } else {
+                fatalError("Unexpected load call")
+            }
         }
 
         frameworkLoader.loadStub = { _ in
@@ -108,10 +149,10 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             targets: self.graphTargets(graphTargets),
             dependencies: [
                 .testXCFramework(path: bXCFrameworkPath): [
-                    .testXCFramework(path: dXCFrameworkPath),
+                    .testXCFramework(path: dXCFrameworkPath)
                 ],
                 .testXCFramework(path: cXCFrameworkPath): [
-                    .testXCFramework(path: dXCFrameworkPath),
+                    .testXCFramework(path: dXCFrameworkPath)
                 ],
                 .target(name: app.name, path: appTargetGraphTarget.path): [
                     .testXCFramework(path: bXCFrameworkPath),
@@ -121,7 +162,11 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try subject.map(graph: graph, precompiledArtifacts: xcframeworks, sources: Set(["App"]))
+        let got = try subject.map(
+            graph: graph,
+            precompiledArtifacts: xcframeworks,
+            sources: Set(["App"])
+        )
 
         // Then
         XCTAssertEqual(
@@ -145,18 +190,42 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
 
         // Given: B
         let bFramework = Target.test(name: "B", platform: .iOS, product: .framework)
-        let bProject = Project.test(path: path.appending(component: "B"), name: "B", targets: [bFramework])
-        let bGraphTarget = GraphTarget.test(path: bProject.path, target: bFramework, project: bProject)
+        let bProject = Project.test(
+            path: path.appending(component: "B"),
+            name: "B",
+            targets: [bFramework]
+        )
+        let bGraphTarget = GraphTarget.test(
+            path: bProject.path,
+            target: bFramework,
+            project: bProject
+        )
 
         // Given: C
         let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
-        let cProject = Project.test(path: path.appending(component: "C"), name: "C", targets: [cFramework])
-        let cGraphTarget = GraphTarget.test(path: cProject.path, target: cFramework, project: cProject)
+        let cProject = Project.test(
+            path: path.appending(component: "C"),
+            name: "C",
+            targets: [cFramework]
+        )
+        let cGraphTarget = GraphTarget.test(
+            path: cProject.path,
+            target: cFramework,
+            project: cProject
+        )
 
         // Given: App
         let appTarget = Target.test(name: "App", platform: .iOS, product: .app)
-        let appProject = Project.test(path: path.appending(component: "App"), name: "App", targets: [appTarget])
-        let appGraphTarget = GraphTarget.test(path: appProject.path, target: appTarget, project: appProject)
+        let appProject = Project.test(
+            path: path.appending(component: "App"),
+            name: "App",
+            targets: [appTarget]
+        )
+        let appGraphTarget = GraphTarget.test(
+            path: appProject.path,
+            target: appTarget,
+            project: appProject
+        )
 
         let graphTargets = [bGraphTarget, cGraphTarget, appGraphTarget]
         let graph = Graph.test(
@@ -164,10 +233,10 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             targets: self.graphTargets(graphTargets),
             dependencies: [
                 .target(name: bFramework.name, path: bGraphTarget.path): [
-                    dFramework,
+                    dFramework
                 ],
                 .target(name: cFramework.name, path: cGraphTarget.path): [
-                    dFramework,
+                    dFramework
                 ],
                 .target(name: appTarget.name, path: appGraphTarget.path): [
                     .target(name: bFramework.name, path: bGraphTarget.path),
@@ -187,9 +256,13 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         ]
 
         xcframeworkLoader.loadStub = { path in
-            if path == bXCFrameworkPath { return bXCFramework }
-            else if path == cXCFrameworkPath { return cXCFramework }
-            else { fatalError("Unexpected load call") }
+            if path == bXCFrameworkPath {
+                return bXCFramework
+            } else if path == cXCFrameworkPath {
+                return cXCFramework
+            } else {
+                fatalError("Unexpected load call")
+            }
         }
 
         frameworkLoader.loadStub = { path in
@@ -202,10 +275,10 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             targets: self.graphTargets(graphTargets),
             dependencies: [
                 .testXCFramework(path: bXCFrameworkPath): [
-                    dFramework,
+                    dFramework
                 ],
                 .testXCFramework(path: cXCFrameworkPath): [
-                    dFramework,
+                    dFramework
                 ],
                 .target(name: appTarget.name, path: appGraphTarget.path): [
                     .testXCFramework(path: bXCFrameworkPath),
@@ -215,7 +288,11 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try subject.map(graph: graph, precompiledArtifacts: xcframeworks, sources: Set(["App"]))
+        let got = try subject.map(
+            graph: graph,
+            precompiledArtifacts: xcframeworks,
+            sources: Set(["App"])
+        )
 
         // Then
         XCTAssertEqual(
@@ -245,18 +322,42 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
 
         // Given: B
         let bFramework = Target.test(name: "B", platform: .iOS, product: .framework)
-        let bProject = Project.test(path: path.appending(component: "B"), name: "B", targets: [bFramework])
-        let bGraphTarget = GraphTarget.test(path: bProject.path, target: bFramework, project: bProject)
+        let bProject = Project.test(
+            path: path.appending(component: "B"),
+            name: "B",
+            targets: [bFramework]
+        )
+        let bGraphTarget = GraphTarget.test(
+            path: bProject.path,
+            target: bFramework,
+            project: bProject
+        )
 
         // Given: C
         let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
-        let cProject = Project.test(path: path.appending(component: "C"), name: "C", targets: [cFramework])
-        let cGraphTarget = GraphTarget.test(path: cProject.path, target: cFramework, project: cProject)
+        let cProject = Project.test(
+            path: path.appending(component: "C"),
+            name: "C",
+            targets: [cFramework]
+        )
+        let cGraphTarget = GraphTarget.test(
+            path: cProject.path,
+            target: cFramework,
+            project: cProject
+        )
 
         // Given: App
         let appTarget = Target.test(name: "App", platform: .iOS, product: .app)
-        let appProject = Project.test(path: path.appending(component: "App"), name: "App", targets: [appTarget])
-        let appGraphTarget = GraphTarget.test(path: appProject.path, target: appTarget, project: appProject)
+        let appProject = Project.test(
+            path: path.appending(component: "App"),
+            name: "App",
+            targets: [appTarget]
+        )
+        let appGraphTarget = GraphTarget.test(
+            path: appProject.path,
+            target: appTarget,
+            project: appProject
+        )
 
         let graphTargets = [bGraphTarget, cGraphTarget, appGraphTarget]
         let graph = Graph.test(
@@ -264,7 +365,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             targets: self.graphTargets(graphTargets),
             dependencies: [
                 .target(name: bFramework.name, path: bGraphTarget.path): [
-                    dFramework,
+                    dFramework
                 ],
                 .target(name: cFramework.name, path: cGraphTarget.path): [
                     dFramework,
@@ -288,9 +389,13 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         ]
 
         xcframeworkLoader.loadStub = { path in
-            if path == bXCFrameworkPath { return bXCFramework }
-            else if path == cXCFrameworkPath { return cXCFramework }
-            else { fatalError("Unexpected load call") }
+            if path == bXCFrameworkPath {
+                return bXCFramework
+            } else if path == cXCFrameworkPath {
+                return cXCFramework
+            } else {
+                fatalError("Unexpected load call")
+            }
         }
 
         frameworkLoader.loadStub = { path in
@@ -303,7 +408,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             targets: self.graphTargets(graphTargets),
             dependencies: [
                 .testXCFramework(path: bXCFrameworkPath): [
-                    dFramework,
+                    dFramework
                 ],
                 .testXCFramework(path: cXCFrameworkPath): [
                     dFramework,
@@ -317,7 +422,11 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try subject.map(graph: graph, precompiledArtifacts: xcframeworks, sources: Set(["App"]))
+        let got = try subject.map(
+            graph: graph,
+            precompiledArtifacts: xcframeworks,
+            sources: Set(["App"])
+        )
 
         // Then
         XCTAssertEqual(
@@ -347,13 +456,25 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
 
         // Given: B
         let bFramework = Target.test(name: "B", platform: .iOS, product: .framework)
-        let bProject = Project.test(path: path.appending(component: "B"), name: "B", targets: [bFramework])
-        let bGraphTarget = GraphTarget.test(path: bProject.path, target: bFramework, project: bProject)
+        let bProject = Project.test(
+            path: path.appending(component: "B"),
+            name: "B",
+            targets: [bFramework]
+        )
+        let bGraphTarget = GraphTarget.test(
+            path: bProject.path,
+            target: bFramework,
+            project: bProject
+        )
 
         // Given: C
         let cProject = Project.test(path: path.appending(component: "C"), name: "C")
         let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
-        let cGraphTarget = GraphTarget.test(path: cProject.path, target: cFramework, project: cProject)
+        let cGraphTarget = GraphTarget.test(
+            path: cProject.path,
+            target: cFramework,
+            project: cProject
+        )
 
         // Given: App
         let appProject = Project.test(path: path.appending(component: "App"), name: "App")
@@ -369,10 +490,10 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             targets: self.graphTargets(graphTargets),
             dependencies: [
                 .target(name: bFramework.name, path: bGraphTarget.path): [
-                    dFramework,
+                    dFramework
                 ],
                 .target(name: cFramework.name, path: cGraphTarget.path): [
-                    eXCFramework,
+                    eXCFramework
                 ],
                 .target(name: appTarget.target.name, path: appTarget.path): [
                     .target(name: bFramework.name, path: bGraphTarget.path),
@@ -385,12 +506,15 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         let cXCFrameworkPath = path.appending(component: "C.xcframework")
         let cXCFramework = GraphDependency.testXCFramework(path: cXCFrameworkPath)
         let xcframeworks = [
-            cGraphTarget: cXCFrameworkPath,
+            cGraphTarget: cXCFrameworkPath
         ]
 
         xcframeworkLoader.loadStub = { path in
-            if path == cXCFrameworkPath { return cXCFramework }
-            else { fatalError("Unexpected load call") }
+            if path == cXCFrameworkPath {
+                return cXCFramework
+            } else {
+                fatalError("Unexpected load call")
+            }
         }
 
         frameworkLoader.loadStub = { path in
@@ -403,10 +527,10 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             targets: self.graphTargets(graphTargets),
             dependencies: [
                 .target(name: bFramework.name, path: bGraphTarget.path): [
-                    dFramework,
+                    dFramework
                 ],
                 .testXCFramework(path: cXCFrameworkPath): [
-                    eXCFramework,
+                    eXCFramework
                 ],
                 .target(name: appTarget.target.name, path: appTarget.path): [
                     .target(name: bFramework.name, path: bGraphTarget.path),
@@ -416,7 +540,11 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try subject.map(graph: graph, precompiledArtifacts: xcframeworks, sources: Set(["App"]))
+        let got = try subject.map(
+            graph: graph,
+            precompiledArtifacts: xcframeworks,
+            sources: Set(["App"])
+        )
 
         // Then
         XCTAssertEqual(
@@ -434,13 +562,29 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         // Given nodes
         // Given: C
         let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
-        let cProject = Project.test(path: path.appending(component: "C"), name: "C", targets: [cFramework])
-        let cGraphTarget = GraphTarget.test(path: cProject.path, target: cFramework, project: cProject)
+        let cProject = Project.test(
+            path: path.appending(component: "C"),
+            name: "C",
+            targets: [cFramework]
+        )
+        let cGraphTarget = GraphTarget.test(
+            path: cProject.path,
+            target: cFramework,
+            project: cProject
+        )
 
         // Given: B
         let bFramework = Target.test(name: "B", platform: .iOS, product: .framework)
-        let bProject = Project.test(path: path.appending(component: "B"), name: "B", targets: [bFramework])
-        let bGraphTarget = GraphTarget.test(path: bProject.path, target: bFramework, project: bProject)
+        let bProject = Project.test(
+            path: path.appending(component: "B"),
+            name: "B",
+            targets: [bFramework]
+        )
+        let bGraphTarget = GraphTarget.test(
+            path: bProject.path,
+            target: bFramework,
+            project: bProject
+        )
 
         // Given: App
         let appProject = Project.test(path: path.appending(component: "App"), name: "App")
@@ -456,13 +600,13 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             targets: self.graphTargets(graphTargets),
             dependencies: [
                 .target(name: bFramework.name, path: bGraphTarget.path): [
-                    .target(name: cFramework.name, path: cGraphTarget.path),
+                    .target(name: cFramework.name, path: cGraphTarget.path)
                 ],
                 .target(name: cFramework.name, path: cGraphTarget.path): [
-                    .testSDK(name: "XCTest"),
+                    .testSDK(name: "XCTest")
                 ],
                 .target(name: appGraphTarget.target.name, path: appGraphTarget.path): [
-                    .target(name: bFramework.name, path: bGraphTarget.path),
+                    .target(name: bFramework.name, path: bGraphTarget.path)
                 ],
             ]
         )
@@ -490,23 +634,55 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
 
         // Given: D
         let dFramework = Target.test(name: "D", platform: .iOS, product: .framework)
-        let dProject = Project.test(path: path.appending(component: "D"), name: "D", targets: [dFramework])
-        let dGraphTarget = GraphTarget.test(path: dProject.path, target: dFramework, project: dProject)
+        let dProject = Project.test(
+            path: path.appending(component: "D"),
+            name: "D",
+            targets: [dFramework]
+        )
+        let dGraphTarget = GraphTarget.test(
+            path: dProject.path,
+            target: dFramework,
+            project: dProject
+        )
 
         // Given: B
         let bFramework = Target.test(name: "B", platform: .iOS, product: .framework)
-        let bProject = Project.test(path: path.appending(component: "B"), name: "B", targets: [bFramework])
-        let bGraphTarget = GraphTarget.test(path: bProject.path, target: bFramework, project: bProject)
+        let bProject = Project.test(
+            path: path.appending(component: "B"),
+            name: "B",
+            targets: [bFramework]
+        )
+        let bGraphTarget = GraphTarget.test(
+            path: bProject.path,
+            target: bFramework,
+            project: bProject
+        )
 
         // Given: C
         let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
-        let cProject = Project.test(path: path.appending(component: "C"), name: "C", targets: [cFramework])
-        let cGraphTarget = GraphTarget.test(path: cProject.path, target: cFramework, project: cProject)
+        let cProject = Project.test(
+            path: path.appending(component: "C"),
+            name: "C",
+            targets: [cFramework]
+        )
+        let cGraphTarget = GraphTarget.test(
+            path: cProject.path,
+            target: cFramework,
+            project: cProject
+        )
 
         // Given: App
         let appTarget = Target.test(name: "App", platform: .iOS, product: .app)
-        let appProject = Project.test(path: path.appending(component: "App"), name: "App", targets: [appTarget])
-        let appGraphTarget = GraphTarget.test(path: appProject.path, target: appTarget, project: appProject)
+        let appProject = Project.test(
+            path: path.appending(component: "App"),
+            name: "App",
+            targets: [appTarget]
+        )
+        let appGraphTarget = GraphTarget.test(
+            path: appProject.path,
+            target: appTarget,
+            project: appProject
+        )
 
         let graphTargets = [bGraphTarget, cGraphTarget, dGraphTarget, appGraphTarget]
         let graph = Graph.test(
@@ -514,10 +690,10 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             targets: self.graphTargets(graphTargets),
             dependencies: [
                 .target(name: bFramework.name, path: bGraphTarget.path): [
-                    .target(name: dFramework.name, path: dGraphTarget.path),
+                    .target(name: dFramework.name, path: dGraphTarget.path)
                 ],
                 .target(name: cFramework.name, path: cGraphTarget.path): [
-                    .target(name: dFramework.name, path: dGraphTarget.path),
+                    .target(name: dFramework.name, path: dGraphTarget.path)
                 ],
                 .target(name: appTarget.name, path: appGraphTarget.path): [
                     .target(name: bFramework.name, path: bGraphTarget.path),
@@ -540,10 +716,15 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         ]
 
         frameworkLoader.loadStub = { path in
-            if path == dCachedFrameworkPath { return dCachedFramework }
-            else if path == bCachedFrameworkPath { return bCachedFramework }
-            else if path == cCachedFrameworkPath { return cCachedFramework }
-            else { fatalError("Unexpected load call") }
+            if path == dCachedFrameworkPath {
+                return dCachedFramework
+            } else if path == bCachedFrameworkPath {
+                return bCachedFramework
+            } else if path == cCachedFrameworkPath {
+                return cCachedFramework
+            } else {
+                fatalError("Unexpected load call")
+            }
         }
 
         xcframeworkLoader.loadStub = { _ in
@@ -555,10 +736,10 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             targets: self.graphTargets(graphTargets),
             dependencies: [
                 .testFramework(path: bCachedFrameworkPath): [
-                    .testFramework(path: dCachedFrameworkPath),
+                    .testFramework(path: dCachedFrameworkPath)
                 ],
                 .testFramework(path: cCachedFrameworkPath): [
-                    .testFramework(path: dCachedFrameworkPath),
+                    .testFramework(path: dCachedFrameworkPath)
                 ],
                 .target(name: appTarget.name, path: appGraphTarget.path): [
                     .testFramework(path: bCachedFrameworkPath),
@@ -568,7 +749,11 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try subject.map(graph: graph, precompiledArtifacts: frameworks, sources: Set(["App"]))
+        let got = try subject.map(
+            graph: graph,
+            precompiledArtifacts: frameworks,
+            sources: Set(["App"])
+        )
 
         // Then
         XCTAssertEqual(
@@ -592,18 +777,42 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
 
         // Given: B
         let bFramework = Target.test(name: "B", platform: .iOS, product: .framework)
-        let bProject = Project.test(path: path.appending(component: "B"), name: "B", targets: [bFramework])
-        let bGraphTarget = GraphTarget.test(path: bProject.path, target: bFramework, project: bProject)
+        let bProject = Project.test(
+            path: path.appending(component: "B"),
+            name: "B",
+            targets: [bFramework]
+        )
+        let bGraphTarget = GraphTarget.test(
+            path: bProject.path,
+            target: bFramework,
+            project: bProject
+        )
 
         // Given: C
         let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
-        let cProject = Project.test(path: path.appending(component: "C"), name: "C", targets: [cFramework])
-        let cGraphTarget = GraphTarget.test(path: cProject.path, target: cFramework, project: cProject)
+        let cProject = Project.test(
+            path: path.appending(component: "C"),
+            name: "C",
+            targets: [cFramework]
+        )
+        let cGraphTarget = GraphTarget.test(
+            path: cProject.path,
+            target: cFramework,
+            project: cProject
+        )
 
         // Given: App
         let appTarget = Target.test(name: "App", platform: .iOS, product: .app)
-        let appProject = Project.test(path: path.appending(component: "App"), name: "App", targets: [appTarget])
-        let appGraphTarget = GraphTarget.test(path: appProject.path, target: appTarget, project: appProject)
+        let appProject = Project.test(
+            path: path.appending(component: "App"),
+            name: "App",
+            targets: [appTarget]
+        )
+        let appGraphTarget = GraphTarget.test(
+            path: appProject.path,
+            target: appTarget,
+            project: appProject
+        )
 
         let graphTargets = [bGraphTarget, cGraphTarget, appGraphTarget]
         let graph = Graph.test(
@@ -611,10 +820,10 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             targets: self.graphTargets(graphTargets),
             dependencies: [
                 .target(name: bFramework.name, path: bGraphTarget.path): [
-                    dFramework,
+                    dFramework
                 ],
                 .target(name: cFramework.name, path: cGraphTarget.path): [
-                    dFramework,
+                    dFramework
                 ],
                 .target(name: appTarget.name, path: appGraphTarget.path): [
                     .target(name: bFramework.name, path: bGraphTarget.path),
@@ -634,10 +843,15 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         ]
 
         frameworkLoader.loadStub = { path in
-            if path == bCachedFrameworkPath { return bCachedFramework }
-            else if path == cCachedFrameworkPath { return cCachedFramework }
-            else if path == dFrameworkPath { return dFramework }
-            else { fatalError("Unexpected load call") }
+            if path == bCachedFrameworkPath {
+                return bCachedFramework
+            } else if path == cCachedFrameworkPath {
+                return cCachedFramework
+            } else if path == dFrameworkPath {
+                return dFramework
+            } else {
+                fatalError("Unexpected load call")
+            }
         }
 
         xcframeworkLoader.loadStub = { _ in
@@ -649,10 +863,10 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             targets: self.graphTargets(graphTargets),
             dependencies: [
                 .testFramework(path: bCachedFrameworkPath): [
-                    dFramework,
+                    dFramework
                 ],
                 .testFramework(path: cCachedFrameworkPath): [
-                    dFramework,
+                    dFramework
                 ],
                 .target(name: appTarget.name, path: appGraphTarget.path): [
                     .testFramework(path: bCachedFrameworkPath),
@@ -662,7 +876,11 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try subject.map(graph: graph, precompiledArtifacts: frameworks, sources: Set(["App"]))
+        let got = try subject.map(
+            graph: graph,
+            precompiledArtifacts: frameworks,
+            sources: Set(["App"])
+        )
 
         // Then
         XCTAssertEqual(
@@ -692,18 +910,42 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
 
         // Given: B
         let bFramework = Target.test(name: "B", platform: .iOS, product: .framework)
-        let bProject = Project.test(path: path.appending(component: "B"), name: "B", targets: [bFramework])
-        let bGraphTarget = GraphTarget.test(path: bProject.path, target: bFramework, project: bProject)
+        let bProject = Project.test(
+            path: path.appending(component: "B"),
+            name: "B",
+            targets: [bFramework]
+        )
+        let bGraphTarget = GraphTarget.test(
+            path: bProject.path,
+            target: bFramework,
+            project: bProject
+        )
 
         // Given: C
         let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
-        let cProject = Project.test(path: path.appending(component: "C"), name: "C", targets: [cFramework])
-        let cGraphTarget = GraphTarget.test(path: cProject.path, target: cFramework, project: cProject)
+        let cProject = Project.test(
+            path: path.appending(component: "C"),
+            name: "C",
+            targets: [cFramework]
+        )
+        let cGraphTarget = GraphTarget.test(
+            path: cProject.path,
+            target: cFramework,
+            project: cProject
+        )
 
         // Given: App
         let appTarget = Target.test(name: "App", platform: .iOS, product: .app)
-        let appProject = Project.test(path: path.appending(component: "App"), name: "App", targets: [appTarget])
-        let appGraphTarget = GraphTarget.test(path: appProject.path, target: appTarget, project: appProject)
+        let appProject = Project.test(
+            path: path.appending(component: "App"),
+            name: "App",
+            targets: [appTarget]
+        )
+        let appGraphTarget = GraphTarget.test(
+            path: appProject.path,
+            target: appTarget,
+            project: appProject
+        )
 
         let graphTargets = [bGraphTarget, cGraphTarget, appGraphTarget]
         let graph = Graph.test(
@@ -711,7 +953,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             targets: self.graphTargets(graphTargets),
             dependencies: [
                 .target(name: bFramework.name, path: bGraphTarget.path): [
-                    dFramework,
+                    dFramework
                 ],
                 .target(name: cFramework.name, path: cGraphTarget.path): [
                     dFramework,
@@ -735,10 +977,15 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         ]
 
         frameworkLoader.loadStub = { path in
-            if path == bCachedFrameworkPath { return bCachedFramework }
-            else if path == cCachedFrameworkPath { return cCachedFramework }
-            else if path == dFrameworkPath { return dFramework }
-            else { fatalError("Unexpected load call") }
+            if path == bCachedFrameworkPath {
+                return bCachedFramework
+            } else if path == cCachedFrameworkPath {
+                return cCachedFramework
+            } else if path == dFrameworkPath {
+                return dFramework
+            } else {
+                fatalError("Unexpected load call")
+            }
         }
 
         xcframeworkLoader.loadStub = { path in
@@ -751,7 +998,7 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             targets: self.graphTargets(graphTargets),
             dependencies: [
                 .testFramework(path: bCachedFrameworkPath): [
-                    dFramework,
+                    dFramework
                 ],
                 .testFramework(path: cCachedFrameworkPath): [
                     dFramework,
@@ -765,7 +1012,11 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try subject.map(graph: graph, precompiledArtifacts: frameworks, sources: Set(["App"]))
+        let got = try subject.map(
+            graph: graph,
+            precompiledArtifacts: frameworks,
+            sources: Set(["App"])
+        )
 
         // Then
         XCTAssertEqual(
@@ -795,17 +1046,33 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
 
         // Given: B
         let bFramework = Target.test(name: "B", platform: .iOS, product: .framework)
-        let bProject = Project.test(path: path.appending(component: "B"), name: "B", targets: [bFramework])
-        let bGraphTarget = GraphTarget.test(path: bProject.path, target: bFramework, project: bProject)
+        let bProject = Project.test(
+            path: path.appending(component: "B"),
+            name: "B",
+            targets: [bFramework]
+        )
+        let bGraphTarget = GraphTarget.test(
+            path: bProject.path,
+            target: bFramework,
+            project: bProject
+        )
 
         // Given: C
         let cProject = Project.test(path: path.appending(component: "C"), name: "C")
         let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
-        let cGraphTarget = GraphTarget.test(path: cProject.path, target: cFramework, project: cProject)
+        let cGraphTarget = GraphTarget.test(
+            path: cProject.path,
+            target: cFramework,
+            project: cProject
+        )
 
         // Given: App
         let appProject = Project.test(path: path.appending(component: "App"), name: "App")
-        let appGraphTarget = GraphTarget.test(path: appProject.path, target: Target.test(name: "App", platform: .iOS, product: .app), project: appProject)
+        let appGraphTarget = GraphTarget.test(
+            path: appProject.path,
+            target: Target.test(name: "App", platform: .iOS, product: .app),
+            project: appProject
+        )
 
         let graphTargets = [bGraphTarget, cGraphTarget, appGraphTarget]
         let graph = Graph.test(
@@ -813,10 +1080,10 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             targets: self.graphTargets(graphTargets),
             dependencies: [
                 .target(name: bFramework.name, path: bGraphTarget.path): [
-                    dFramework,
+                    dFramework
                 ],
                 .target(name: cFramework.name, path: cGraphTarget.path): [
-                    eXCFramework,
+                    eXCFramework
                 ],
                 .target(name: appGraphTarget.target.name, path: appGraphTarget.path): [
                     .target(name: bFramework.name, path: bGraphTarget.path),
@@ -829,12 +1096,15 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         let cCachedFrameworkPath = path.appending(component: "C.xcframework")
         let cCachedFramework = GraphDependency.testFramework(path: cCachedFrameworkPath)
         let frameworks = [
-            cGraphTarget: cCachedFrameworkPath,
+            cGraphTarget: cCachedFrameworkPath
         ]
 
         frameworkLoader.loadStub = { path in
-            if path == cCachedFrameworkPath { return cCachedFramework }
-            else { fatalError("Unexpected load call") }
+            if path == cCachedFrameworkPath {
+                return cCachedFramework
+            } else {
+                fatalError("Unexpected load call")
+            }
         }
 
         xcframeworkLoader.loadStub = { _ in
@@ -846,10 +1116,10 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
             targets: self.graphTargets(graphTargets),
             dependencies: [
                 .target(name: bFramework.name, path: bGraphTarget.path): [
-                    dFramework,
+                    dFramework
                 ],
                 .testFramework(path: cCachedFrameworkPath): [
-                    eXCFramework,
+                    eXCFramework
                 ],
                 .target(name: appGraphTarget.target.name, path: appGraphTarget.path): [
                     .target(name: bFramework.name, path: bGraphTarget.path),
@@ -859,18 +1129,22 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
         )
 
         // When
-        let got = try subject.map(graph: graph, precompiledArtifacts: frameworks, sources: Set(["App"]))
+        let got = try subject.map(
+            graph: graph,
+            precompiledArtifacts: frameworks,
+            sources: Set(["App"])
+        )
 
         // Then
         XCTAssertEqual(
             got,
             expectedGraph
         )
-//        let app = try XCTUnwrap(got.entryNodes.first as? GraphTarget)
-//        let b = try XCTUnwrap(app.dependencies.compactMap { $0 as? GraphTarget }.first(where: { $0.name == "B" }))
-//        let c = try XCTUnwrap(app.dependencies.compactMap { $0 as? GraphTarget }.first(where: { $0.path == cCachedFrameworkPath }))
-//        XCTAssertTrue(b.dependencies.contains(where: { $0.path == dFrameworkPath }))
-//        XCTAssertTrue(c.dependencies.contains(where: { $0.path == eXCFrameworkPath }))
+        //        let app = try XCTUnwrap(got.entryNodes.first as? GraphTarget)
+        //        let b = try XCTUnwrap(app.dependencies.compactMap { $0 as? GraphTarget }.first(where: { $0.name == "B" }))
+        //        let c = try XCTUnwrap(app.dependencies.compactMap { $0 as? GraphTarget }.first(where: { $0.path == cCachedFrameworkPath }))
+        //        XCTAssertTrue(b.dependencies.contains(where: { $0.path == dFrameworkPath }))
+        //        XCTAssertTrue(c.dependencies.contains(where: { $0.path == eXCFrameworkPath }))
     }
 
     fileprivate func graphProjects(_ targets: [GraphTarget]) -> [AbsolutePath: Project] {

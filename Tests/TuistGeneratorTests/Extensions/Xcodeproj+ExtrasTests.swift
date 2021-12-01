@@ -1,5 +1,6 @@
-import XcodeProj
 import XCTest
+import XcodeProj
+
 @testable import TuistGenerator
 
 class XcodeprojExtrasTests: XCTestCase {
@@ -18,16 +19,19 @@ class XcodeprojExtrasTests: XCTestCase {
         let sorted = elements.sorted(by: PBXFileElement.filesBeforeGroupsSort)
 
         // Then
-        XCTAssertEqual(sorted.map(\.nameOrPath), [
-            // Files
-            "c",
-            "d",
-            "r",
+        XCTAssertEqual(
+            sorted.map(\.nameOrPath),
+            [
+                // Files
+                "c",
+                "d",
+                "r",
 
-            // Groups
-            "A",
-            "E",
-            "Z",
-        ])
+                // Groups
+                "A",
+                "E",
+                "Z",
+            ]
+        )
     }
 }

@@ -1,7 +1,9 @@
 import Foundation
-import struct TSCUtility.Version
 import TuistSupport
 import XCTest
+
+import struct TSCUtility.Version
+
 @testable import TuistEnvKit
 @testable import TuistSupportTesting
 
@@ -69,7 +71,9 @@ final class UpdaterTests: TuistUnitTestCase {
 
         try subject.update()
 
-        XCTAssertPrinterOutputContains("No local versions available. Installing the latest version 3.2.1")
+        XCTAssertPrinterOutputContains(
+            "No local versions available. Installing the latest version 3.2.1"
+        )
         XCTAssertEqual(installArgs.count, 1)
         XCTAssertEqual(installArgs.first, "3.2.1")
         XCTAssertEqual(envUpdater.updateCallCount, 1)

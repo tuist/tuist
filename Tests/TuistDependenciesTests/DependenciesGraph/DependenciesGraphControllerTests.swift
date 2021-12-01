@@ -41,7 +41,11 @@ public final class DependenciesGraphControllerTests: TuistUnitTestCase {
         let graphPath = root.appending(components: "Tuist", "Dependencies", "graph.json")
         try fileHandler.touch(graphPath)
 
-        try fileHandler.write(TuistGraph.DependenciesGraph.testJson, path: graphPath, atomically: true)
+        try fileHandler.write(
+            TuistGraph.DependenciesGraph.testJson,
+            path: graphPath,
+            atomically: true
+        )
 
         // When
         let got = try subject.load(at: root)
@@ -49,7 +53,7 @@ public final class DependenciesGraphControllerTests: TuistUnitTestCase {
         // Then
         let expected = TuistGraph.DependenciesGraph(
             externalDependencies: [
-                "RxSwift": [.xcframework(path: "/Tuist/Dependencies/Carthage/RxSwift.xcframework")],
+                "RxSwift": [.xcframework(path: "/Tuist/Dependencies/Carthage/RxSwift.xcframework")]
             ],
             externalProjects: [:]
         )

@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import Framework4
 
 class Framework4Tests: XCTestCase {

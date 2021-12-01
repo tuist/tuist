@@ -1,11 +1,13 @@
 import Foundation
 import TSCBasic
+
 @testable import TuistLoader
 
 public final class MockManifestFilesLocator: ManifestFilesLocating {
     public var locateManifestsArgs: [AbsolutePath] = []
     public var locateManifestsStub: [(Manifest, AbsolutePath)]?
-    public var locateProjectManifestsStub: ((AbsolutePath, [String], Bool) -> [ManifestFilesLocator.ProjectManifest])?
+    public var locateProjectManifestsStub:
+        ((AbsolutePath, [String], Bool) -> [ManifestFilesLocator.ProjectManifest])?
     public var locatePluginManifestsStub: [AbsolutePath]?
     public var locatePluginManifestsArgs: [AbsolutePath] = []
     public var locateConfigStub: AbsolutePath?
@@ -38,7 +40,7 @@ public final class MockManifestFilesLocator: ManifestFilesLocating {
             ManifestFilesLocator.ProjectManifest(
                 manifest: .project,
                 path: locatingPath.appending(component: "Project.swift")
-            ),
+            )
         ]
     }
 

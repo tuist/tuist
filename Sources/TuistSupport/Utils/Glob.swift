@@ -16,7 +16,7 @@ public let GlobBehaviorBashV3 = Glob.Behavior(
 
 // swiftlint:disable:next identifier_name
 public let GlobBehaviorBashV4 = Glob.Behavior(
-    supportsGlobstar: true, // Matches Bash v4 with "shopt -s globstar" option
+    supportsGlobstar: true,  // Matches Bash v4 with "shopt -s globstar" option
     includesFilesFromRootOfGlobstar: true,
     includesDirectoriesInResults: true,
     includesFilesInResultsIfTrailingSlash: false
@@ -29,9 +29,7 @@ public let GlobBehaviorGradle = Glob.Behavior(
     includesFilesInResultsIfTrailingSlash: true
 )
 
-/**
- Finds files on the file system using pattern matching.
- */
+/// Finds files on the file system using pattern matching.
 public class Glob: Collection {
     /**
      * Different glob implementations have different behaviors, so the behavior of this
@@ -53,11 +51,12 @@ public class Glob: Collection {
         // If false and the last characters of the pattern are "**/" then only directories are returned in the results.
         let includesFilesInResultsIfTrailingSlash: Bool
 
-        public init(supportsGlobstar: Bool,
-                    includesFilesFromRootOfGlobstar: Bool,
-                    includesDirectoriesInResults: Bool,
-                    includesFilesInResultsIfTrailingSlash: Bool)
-        {
+        public init(
+            supportsGlobstar: Bool,
+            includesFilesFromRootOfGlobstar: Bool,
+            includesDirectoriesInResults: Bool,
+            includesFilesInResultsIfTrailingSlash: Bool
+        ) {
             self.supportsGlobstar = supportsGlobstar
             self.includesFilesFromRootOfGlobstar = includesFilesFromRootOfGlobstar
             self.includesDirectoriesInResults = includesDirectoriesInResults
@@ -72,7 +71,10 @@ public class Glob: Collection {
     public var startIndex: Int { paths.startIndex }
     public var endIndex: Int { paths.endIndex }
 
-    public init(pattern: String, behavior: Behavior = Glob.defaultBehavior) {
+    public init(
+        pattern: String,
+        behavior: Behavior = Glob.defaultBehavior
+    ) {
         self.behavior = behavior
 
         var adjustedPattern = pattern
@@ -87,7 +89,8 @@ public class Glob: Collection {
             }
         }
 
-        let patterns = behavior.supportsGlobstar ? expandGlobstar(pattern: adjustedPattern) : [adjustedPattern]
+        let patterns =
+            behavior.supportsGlobstar ? expandGlobstar(pattern: adjustedPattern) : [adjustedPattern]
 
         for pattern in patterns {
             var gt = glob_t()
@@ -107,7 +110,10 @@ public class Glob: Collection {
 
     private var globalFlags = GLOB_TILDE | GLOB_BRACE | GLOB_MARK
 
-    private func executeGlob(pattern: UnsafePointer<CChar>, gt: UnsafeMutablePointer<glob_t>) -> Bool {
+    private func executeGlob(
+        pattern: UnsafePointer<CChar>,
+        gt: UnsafeMutablePointer<glob_t>
+    ) -> Bool {
         glob(pattern, globalFlags, nil, gt) == 0
     }
 
@@ -140,7 +146,9 @@ public class Glob: Collection {
             lastPart = "*"
         }
         for directory in directories {
-            let partiallyResolvedPattern = NSString(string: directory).appendingPathComponent(lastPart)
+            let partiallyResolvedPattern = NSString(string: directory).appendingPathComponent(
+                lastPart
+            )
             results.append(contentsOf: expandGlobstar(pattern: partiallyResolvedPattern))
         }
 
@@ -154,7 +162,7 @@ public class Glob: Collection {
         #else
             let matchesCount = Int(gt.gl_matchc)
         #endif
-        for i in 0 ..< matchesCount {
+        for i in 0..<matchesCount {
             if let path = String(validatingUTF8: gt.gl_pathv[i]!) {
                 if !includeFiles || !includeDirectories {
                     let isDirectory = FileManager.default.isDirectory(path: path)

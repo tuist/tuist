@@ -1,7 +1,7 @@
 import Foundation
 
-public extension URL {
-    static func test() -> URL {
+extension URL {
+    public static func test() -> URL {
         URL(string: "https://test.tuist.io")!
     }
 }

@@ -2,8 +2,8 @@ import TuistCloud
 import TuistCore
 import TuistGraph
 import TuistSupport
-
 import XCTest
+
 @testable import TuistAnalytics
 @testable import TuistCoreTesting
 @testable import TuistSupportTesting
@@ -44,6 +44,9 @@ final class CloudAnalyticsResourceFactoryTests: TuistUnitTestCase {
         XCTAssertHTTPResourceMethod(got, "POST")
         XCTAssertHTTPResourcePath(got, path: "/api/analytics")
         XCTAssertHTTPResourceContainsHeader(got, header: "Content-Type", value: "application/json")
-        XCTAssertHTTPResourceURL(got, url: URL(string: cloud.url.absoluteString + "/api/analytics?project_id=123")!)
+        XCTAssertHTTPResourceURL(
+            got,
+            url: URL(string: cloud.url.absoluteString + "/api/analytics?project_id=123")!
+        )
     }
 }

@@ -73,26 +73,29 @@ class SwiftPackageManagerModuleMapGeneratorTests: TuistTestCase {
                 return
             case .nestedHeader:
                 expectedContent = """
-                module Module {
-                    umbrella header "/Absolute/Public/Headers/Path/Module/Module.h"
-                    export *
-                }
+                    module Module {
+                        umbrella header "/Absolute/Public/Headers/Path/Module/Module.h"
+                        export *
+                    }
 
-                """
+                    """
             case .directory:
                 expectedContent = """
-                module Module {
-                    umbrella "/Absolute/Public/Headers/Path"
-                    export *
-                }
+                    module Module {
+                        umbrella "/Absolute/Public/Headers/Path"
+                        export *
+                    }
 
-                """
+                    """
             }
             XCTAssertEqual(content, expectedContent)
             XCTAssertEqual(path, "/Absolute/Public/Headers/Path/Module.modulemap")
             XCTAssertTrue(atomically)
         }
-        let moduleMap = try subject.generate(moduleName: "Module", publicHeadersPath: "/Absolute/Public/Headers/Path")
+        let moduleMap = try subject.generate(
+            moduleName: "Module",
+            publicHeadersPath: "/Absolute/Public/Headers/Path"
+        )
         XCTAssertEqual(moduleMap.type, moduleMapType)
         switch moduleMapType {
         case .none, .header, .nestedHeader:

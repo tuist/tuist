@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistCore
 import XCTest
+
 @testable import TuistGraph
 @testable import TuistSupportTesting
 
@@ -17,11 +18,13 @@ final class LintingIssueTests: TuistUnitTestCase {
 
         XCTAssertThrowsError(try [first, second].printAndThrowIfNeeded())
 
-        XCTAssertPrinterOutputContains("""
+        XCTAssertPrinterOutputContains(
+            """
             warning
             """
         )
-        XCTAssertPrinterErrorContains("""
+        XCTAssertPrinterErrorContains(
+            """
             error
             """
         )
@@ -32,7 +35,8 @@ final class LintingIssueTests: TuistUnitTestCase {
 
         XCTAssertThrowsError(try [first].printAndThrowIfNeeded())
 
-        XCTAssertPrinterErrorContains("""
+        XCTAssertPrinterErrorContains(
+            """
             error
             """
         )

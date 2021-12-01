@@ -10,7 +10,12 @@ public protocol GraphToGraphVizMapping {
     ///
     /// - Parameter graph: Graph to be converted into a GraphViz.Graph.
     /// - Returns: The GraphViz.Graph representation.
-    func map(graph: TuistGraph.Graph, skipTestTargets: Bool, skipExternalDependencies: Bool, targetsToFilter: [String]) -> GraphViz.Graph
+    func map(
+        graph: TuistGraph.Graph,
+        skipTestTargets: Bool,
+        skipExternalDependencies: Bool,
+        targetsToFilter: [String]
+    ) -> GraphViz.Graph
 }
 
 public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
@@ -20,7 +25,12 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
     ///
     /// - Parameter graph: Graph to be converted into a GraphViz.Graph.
     /// - Returns: The GraphViz.Graph representation.
-    public func map(graph: TuistGraph.Graph, skipTestTargets: Bool, skipExternalDependencies: Bool, targetsToFilter: [String]) -> GraphViz.Graph {
+    public func map(
+        graph: TuistGraph.Graph,
+        skipTestTargets: Bool,
+        skipExternalDependencies: Bool,
+        targetsToFilter: [String]
+    ) -> GraphViz.Graph {
         var nodes: [GraphViz.Node] = []
         var dependencies: [GraphViz.Edge] = []
         var graphVizGraph = GraphViz.Graph(directed: true)
@@ -28,7 +38,9 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
         let graphTraverser = GraphTraverser(graph: graph)
 
         let filteredTargets: Set<GraphTarget> = graphTraverser.allTargets().filter { target in
-            if skipTestTargets, graphTraverser.dependsOnXCTest(path: target.path, name: target.target.name) {
+            if skipTestTargets,
+                graphTraverser.dependsOnXCTest(path: target.path, name: target.target.name)
+            {
                 return false
             }
 
@@ -41,7 +53,12 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
 
         let filteredTargetsAndDependencies: Set<GraphTarget> = filteredTargets.union(
             transitiveClosure(Array(filteredTargets)) { target in
-                Array(graphTraverser.directTargetDependencies(path: target.path, name: target.target.name))
+                Array(
+                    graphTraverser.directTargetDependencies(
+                        path: target.path,
+                        name: target.target.name
+                    )
+                )
             }
         )
 
@@ -51,7 +68,9 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
             nodes.append(leftNode)
 
             guard
-                let targetDependencies = graphTraverser.dependencies[.target(name: target.target.name, path: target.path)]
+                let targetDependencies = graphTraverser.dependencies[
+                    .target(name: target.target.name, path: target.path)
+                ]
             else { return }
             targetDependencies
                 .filter { dependency in
@@ -79,8 +98,8 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
     }
 }
 
-private extension GraphDependency {
-    var isExternal: Bool {
+extension GraphDependency {
+    fileprivate var isExternal: Bool {
         switch self {
         case .target:
             return false
@@ -89,7 +108,7 @@ private extension GraphDependency {
         }
     }
 
-    var name: String {
+    fileprivate var name: String {
         switch self {
         case let .target(name: name, path: _):
             return name

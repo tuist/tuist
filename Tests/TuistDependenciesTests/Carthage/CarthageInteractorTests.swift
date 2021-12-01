@@ -37,19 +37,23 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         carthageController.canUseSystemCarthageStub = { true }
 
         let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
-        let dependenciesDirectory = rootPath
+        let dependenciesDirectory =
+            rootPath
             .appending(component: Constants.DependenciesDirectory.name)
-        let lockfilesDirectory = dependenciesDirectory
+        let lockfilesDirectory =
+            dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
-        let carthageDirectory = dependenciesDirectory
+        let carthageDirectory =
+            dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
-        let carthageBuildDirectory = carthageDirectory
+        let carthageBuildDirectory =
+            carthageDirectory
             .appending(component: "Build")
 
         let platforms: Set<Platform> = [.iOS, .watchOS, .macOS, .tvOS]
         let stubbedDependencies = CarthageDependencies(
             [
-                .github(path: "Moya", requirement: .exact("1.1.1")),
+                .github(path: "Moya", requirement: .exact("1.1.1"))
             ]
         )
 
@@ -87,7 +91,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         try XCTAssertDirectoryContentEqual(
             lockfilesDirectory,
             [
-                Constants.DependenciesDirectory.cartfileResolvedName,
+                Constants.DependenciesDirectory.cartfileResolvedName
             ]
         )
         try XCTAssertDirectoryContentEqual(
@@ -145,19 +149,23 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         carthageController.canUseSystemCarthageStub = { true }
 
         let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
-        let dependenciesDirectory = rootPath
+        let dependenciesDirectory =
+            rootPath
             .appending(component: Constants.DependenciesDirectory.name)
-        let lockfilesDirectory = dependenciesDirectory
+        let lockfilesDirectory =
+            dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
-        let carthageDirectory = dependenciesDirectory
+        let carthageDirectory =
+            dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.carthageDirectoryName)
-        let carthageBuildDirectory = carthageDirectory
+        let carthageBuildDirectory =
+            carthageDirectory
             .appending(component: "Build")
 
         let platforms: Set<Platform> = [.iOS, .watchOS, .macOS, .tvOS]
         let stubbedDependencies = CarthageDependencies(
             [
-                .github(path: "Moya", requirement: .exact("1.1.1")),
+                .github(path: "Moya", requirement: .exact("1.1.1"))
             ]
         )
 
@@ -195,7 +203,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         try XCTAssertDirectoryContentEqual(
             lockfilesDirectory,
             [
-                Constants.DependenciesDirectory.cartfileResolvedName,
+                Constants.DependenciesDirectory.cartfileResolvedName
             ]
         )
         try XCTAssertDirectoryContentEqual(
@@ -253,11 +261,12 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         carthageController.canUseSystemCarthageStub = { false }
 
         let rootPath = try TemporaryDirectory(removeTreeOnDeinit: true).path
-        let dependenciesDirectory = rootPath
+        let dependenciesDirectory =
+            rootPath
             .appending(component: Constants.DependenciesDirectory.name)
         let dependencies = CarthageDependencies(
             [
-                .github(path: "Moya", requirement: .exact("1.1.1")),
+                .github(path: "Moya", requirement: .exact("1.1.1"))
             ]
         )
         let platforms: Set<Platform> = [.iOS]
@@ -277,9 +286,11 @@ final class CarthageInteractorTests: TuistUnitTestCase {
     func test_clean() throws {
         // Given
         let rootPath = try temporaryPath()
-        let dependenciesDirectory = rootPath
+        let dependenciesDirectory =
+            rootPath
             .appending(component: Constants.DependenciesDirectory.name)
-        let lockfilesDirectory = dependenciesDirectory
+        let lockfilesDirectory =
+            dependenciesDirectory
             .appending(component: Constants.DependenciesDirectory.lockfilesDirectoryName)
 
         try createFiles([
@@ -303,7 +314,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
         try XCTAssertDirectoryContentEqual(
             lockfilesDirectory,
             [
-                "OtherLockfile.lock",
+                "OtherLockfile.lock"
             ]
         )
     }
@@ -311,8 +322,8 @@ final class CarthageInteractorTests: TuistUnitTestCase {
 
 // MARK: - Helpers
 
-private extension CarthageInteractorTests {
-    func simulateCarthageOutput(at path: AbsolutePath) throws {
+extension CarthageInteractorTests {
+    fileprivate func simulateCarthageOutput(at path: AbsolutePath) throws {
         try [
             "Cartfile.resolved",
             "Carthage/Cartfile",

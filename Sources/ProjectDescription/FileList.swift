@@ -7,7 +7,9 @@ public struct FileList: Codable, Equatable {
     /// Initializes the files list with the glob patterns.
     ///
     /// - Parameter globs: Glob patterns.
-    public init(globs: [Path]) {
+    public init(
+        globs: [Path]
+    ) {
         self.globs = globs
     }
 
@@ -17,13 +19,17 @@ public struct FileList: Codable, Equatable {
 }
 
 extension FileList: ExpressibleByStringInterpolation {
-    public init(stringLiteral value: String) {
+    public init(
+        stringLiteral value: String
+    ) {
         self.init(globs: [Path(value)])
     }
 }
 
 extension FileList: ExpressibleByArrayLiteral {
-    public init(arrayLiteral elements: String...) {
+    public init(
+        arrayLiteral elements: String...
+    ) {
         self.init(globs: elements.map { Path($0) })
     }
 }

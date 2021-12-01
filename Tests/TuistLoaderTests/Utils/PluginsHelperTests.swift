@@ -40,7 +40,10 @@ final class PluginsHelperTests: TuistUnitTestCase {
                 resourceName: "Strings",
                 resourceSynthesizerPlugins: [.test(name: "A")]
             ),
-            ResourceSynthesizerPathLocatorError.resourceTemplateNotFound(name: "Strings.stencil", plugin: "A")
+            ResourceSynthesizerPathLocatorError.resourceTemplateNotFound(
+                name: "Strings.stencil",
+                plugin: "A"
+            )
         )
     }
 
@@ -59,7 +62,7 @@ final class PluginsHelperTests: TuistUnitTestCase {
                     .test(
                         name: "A",
                         path: pluginPath
-                    ),
+                    )
                 ]
             ),
             templatePath
@@ -68,7 +71,10 @@ final class PluginsHelperTests: TuistUnitTestCase {
 
     func test_resourceTemplateNotFound_error() {
         XCTAssertEqual(
-            ResourceSynthesizerPathLocatorError.resourceTemplateNotFound(name: "Strings.stencil", plugin: "A").description,
+            ResourceSynthesizerPathLocatorError.resourceTemplateNotFound(
+                name: "Strings.stencil",
+                plugin: "A"
+            ).description,
             "No template Strings.stencil found in a plugin A"
         )
     }

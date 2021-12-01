@@ -21,7 +21,11 @@ public struct Cloud: Equatable, Hashable {
     ///   - url: Cloud server base URL.
     ///   - projectId: Project unique identifier.
     ///   - options: Cloud options.
-    public init(url: URL, projectId: String, options: [Option]) {
+    public init(
+        url: URL,
+        projectId: String,
+        options: [Option]
+    ) {
         self.url = url
         self.projectId = projectId
         self.options = options

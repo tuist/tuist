@@ -1,10 +1,11 @@
 import Foundation
 import TSCBasic
 import TSCUtility
+
 @testable import TuistGraph
 
-public extension Workspace {
-    static func test(
+extension Workspace {
+    public static func test(
         path: AbsolutePath = AbsolutePath("/"),
         xcWorkspacePath: AbsolutePath = AbsolutePath("/"),
         name: String = "test",

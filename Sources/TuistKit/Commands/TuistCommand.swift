@@ -83,7 +83,10 @@ public struct TuistCommand: ParsableCommand {
 
     private static func execute(_ command: ParsableCommand) throws {
         var command = command
-        guard Environment.shared.isStatsEnabled else { try command.run(); return }
+        guard Environment.shared.isStatsEnabled else {
+            try command.run()
+            return
+        }
         let trackableCommand = TrackableCommand(command: command)
         let future = try trackableCommand.run()
         TuistProcess.shared.add(futureTask: future)

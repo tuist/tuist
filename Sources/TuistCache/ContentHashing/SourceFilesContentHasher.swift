@@ -13,7 +13,9 @@ public final class SourceFilesContentHasher: SourceFilesContentHashing {
 
     // MARK: - Init
 
-    public init(contentHasher: ContentHashing) {
+    public init(
+        contentHasher: ContentHashing
+    ) {
         self.contentHasher = contentHasher
     }
 

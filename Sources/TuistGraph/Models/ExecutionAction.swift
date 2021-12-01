@@ -11,11 +11,12 @@ public struct ExecutionAction: Equatable, Codable {
 
     // MARK: - Init
 
-    public init(title: String,
-                scriptText: String,
-                target: TargetReference?,
-                showEnvVarsInLog: Bool = true)
-    {
+    public init(
+        title: String,
+        scriptText: String,
+        target: TargetReference?,
+        showEnvVarsInLog: Bool = true
+    ) {
         self.title = title
         self.scriptText = scriptText
         self.target = target

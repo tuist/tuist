@@ -66,7 +66,9 @@ extension PluginLocation {
             }
         }
 
-        public init(from decoder: Decoder) throws {
+        public init(
+            from decoder: Decoder
+        ) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             let key = container.allKeys.first
 
@@ -88,7 +90,8 @@ extension PluginLocation {
                 throw DecodingError.dataCorrupted(
                     DecodingError.Context(
                         codingPath: container.codingPath,
-                        debugDescription: "Unable to decode `LocationType`. \(String(describing: key)) is an unexpected key."
+                        debugDescription:
+                            "Unable to decode `LocationType`. \(String(describing: key)) is an unexpected key."
                     )
                 )
             }

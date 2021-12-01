@@ -17,9 +17,10 @@ public final class CodeLinter: CodeLinting {
     private let rootDirectoryLocator: RootDirectoryLocating
     private let binaryLocator: BinaryLocating
 
-    public init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
-                binaryLocator: BinaryLocating = BinaryLocator())
-    {
+    public init(
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator(),
+        binaryLocator: BinaryLocating = BinaryLocator()
+    ) {
         self.rootDirectoryLocator = rootDirectoryLocator
         self.binaryLocator = binaryLocator
     }
@@ -53,7 +54,9 @@ public final class CodeLinter: CodeLinting {
     private func swiftLintConfigPath(path: AbsolutePath) -> AbsolutePath? {
         guard let rootPath = rootDirectoryLocator.locate(from: path) else { return nil }
         return ["yml", "yaml"].compactMap { (fileExtension) -> AbsolutePath? in
-            let swiftlintPath = rootPath.appending(RelativePath("\(Constants.tuistDirectoryName)/.swiftlint.\(fileExtension)"))
+            let swiftlintPath = rootPath.appending(
+                RelativePath("\(Constants.tuistDirectoryName)/.swiftlint.\(fileExtension)")
+            )
             return (FileHandler.shared.exists(swiftlintPath)) ? swiftlintPath : nil
         }.first
     }
@@ -66,14 +69,17 @@ public final class CodeLinter: CodeLinting {
         return environment
     }
 
-    private func buildSwiftLintArguments(swiftLintPath: AbsolutePath,
-                                         sources _: [AbsolutePath],
-                                         configPath: AbsolutePath?,
-                                         strict: Bool) -> [String]
-    {
-        var arguments = [swiftLintPath.pathString,
-                         "lint",
-                         "--use-script-input-files"]
+    private func buildSwiftLintArguments(
+        swiftLintPath: AbsolutePath,
+        sources _: [AbsolutePath],
+        configPath: AbsolutePath?,
+        strict: Bool
+    ) -> [String] {
+        var arguments = [
+            swiftLintPath.pathString,
+            "lint",
+            "--use-script-input-files",
+        ]
 
         if let configPath = configPath {
             arguments += ["--config", configPath.pathString]

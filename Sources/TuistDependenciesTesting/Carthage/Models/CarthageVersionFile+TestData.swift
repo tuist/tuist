@@ -34,7 +34,7 @@ extension CarthageVersionFile {
                 .init(
                     name: "Alamofire",
                     container: "Alamofire.xcframework"
-                ),
+                )
             ],
             watchOS: [
                 .init(

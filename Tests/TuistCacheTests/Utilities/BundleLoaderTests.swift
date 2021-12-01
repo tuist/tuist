@@ -1,6 +1,7 @@
 import TSCBasic
 import TuistSupport
 import XCTest
+
 @testable import TuistCache
 @testable import TuistSupportTesting
 
@@ -49,7 +50,10 @@ final class BundleLoaderTests: TuistUnitTestCase {
         let bundlePath = path.appending(component: "tuist.bundle")
 
         // Then
-        XCTAssertThrowsSpecific(try subject.load(path: bundlePath), BundleLoaderError.bundleNotFound(bundlePath))
+        XCTAssertThrowsSpecific(
+            try subject.load(path: bundlePath),
+            BundleLoaderError.bundleNotFound(bundlePath)
+        )
     }
 
     func test_load_when_the_framework_exists() throws {

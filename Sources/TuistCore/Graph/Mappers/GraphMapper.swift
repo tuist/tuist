@@ -16,7 +16,9 @@ public final class AnyGraphMapper: GraphMapping {
 
     /// Default initializer
     /// - Parameter mapper: Function to map the graph.
-    public init(mapper: @escaping (Graph) throws -> (Graph, [SideEffectDescriptor])) {
+    public init(
+        mapper: @escaping (Graph) throws -> (Graph, [SideEffectDescriptor])
+    ) {
         self.mapper = mapper
     }
 
@@ -31,7 +33,9 @@ public final class SequentialGraphMapper: GraphMapping {
 
     /// Default initializer
     /// - Parameter mappers: List of mappers to be executed sequentially.
-    public init(_ mappers: [GraphMapping]) {
+    public init(
+        _ mappers: [GraphMapping]
+    ) {
         self.mappers = mappers
     }
 

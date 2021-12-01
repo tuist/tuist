@@ -7,7 +7,9 @@ import TuistSupport
 final class DecryptService {
     private let signingCipher: SigningCiphering
 
-    init(signingCipher: SigningCiphering = SigningCipher()) {
+    init(
+        signingCipher: SigningCiphering = SigningCipher()
+    ) {
         self.signingCipher = signingCipher
     }
 

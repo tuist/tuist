@@ -95,7 +95,10 @@ final class AsyncQueueTests: TuistUnitTestCase {
         // When
         subject.dispatch(event: event) {
             // Then
-            guard let queuedOperation = self.mockQueuer.invokedAddOperationParameterOperation as? ConcurrentOperation else {
+            guard
+                let queuedOperation = self.mockQueuer.invokedAddOperationParameterOperation
+                    as? ConcurrentOperation
+            else {
                 XCTFail("Operation not added to the queuer")
                 return
             }
@@ -152,7 +155,8 @@ final class AsyncQueueTests: TuistUnitTestCase {
         subject.dispatch(event: event) {
             self.wait(for: [expectation], timeout: self.timeout)
 
-            guard let dispatchedEvent = self.mockAsyncQueueDispatcher1.invokedDispatchParameterEvent else {
+            guard let dispatchedEvent = self.mockAsyncQueueDispatcher1.invokedDispatchParameterEvent
+            else {
                 XCTFail("Event was not dispatched")
                 return
             }
@@ -226,19 +230,28 @@ final class AsyncQueueTests: TuistUnitTestCase {
         let numberOfOperationsQueued = mockQueuer.invokedAddOperationCount
         XCTAssertEqual(numberOfOperationsQueued, 3)
 
-        guard let queuedOperation1 = mockQueuer.invokedAddOperationParametersOperationsList[0] as? ConcurrentOperation else {
+        guard
+            let queuedOperation1 = mockQueuer.invokedAddOperationParametersOperationsList[0]
+                as? ConcurrentOperation
+        else {
             XCTFail("Operation for event tuple 1 not added to the queuer")
             return
         }
         XCTAssertEqual(queuedOperation1.name, eventTuple1.id.uuidString)
 
-        guard let queuedOperation2 = mockQueuer.invokedAddOperationParametersOperationsList[1] as? ConcurrentOperation else {
+        guard
+            let queuedOperation2 = mockQueuer.invokedAddOperationParametersOperationsList[1]
+                as? ConcurrentOperation
+        else {
             XCTFail("Operation for event tuple 2 not added to the queuer")
             return
         }
         XCTAssertEqual(queuedOperation2.name, eventTuple2.id.uuidString)
 
-        guard let queuedOperation3 = mockQueuer.invokedAddOperationParametersOperationsList[2] as? ConcurrentOperation else {
+        guard
+            let queuedOperation3 = mockQueuer.invokedAddOperationParametersOperationsList[2]
+                as? ConcurrentOperation
+        else {
             XCTFail("Operation for event tuple 3 not added to the queuer")
             return
         }
@@ -261,7 +274,10 @@ final class AsyncQueueTests: TuistUnitTestCase {
 
         // Then
         wait(for: [expectation], timeout: timeout)
-        guard let dispatchedEventData = mockAsyncQueueDispatcher1.invokedDispatchPersistedDataParameter else {
+        guard
+            let dispatchedEventData = mockAsyncQueueDispatcher1
+                .invokedDispatchPersistedDataParameter
+        else {
             XCTFail("Data from persisted event was not dispatched")
             return
         }

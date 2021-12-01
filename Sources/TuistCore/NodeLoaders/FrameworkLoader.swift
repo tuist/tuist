@@ -35,7 +35,9 @@ public final class FrameworkLoader: FrameworkLoading {
 
     /// Initializes the loader with its attributes.
     /// - Parameter frameworkMetadataProvider: Framework metadata provider.
-    public init(frameworkMetadataProvider: FrameworkMetadataProviding = FrameworkMetadataProvider()) {
+    public init(
+        frameworkMetadataProvider: FrameworkMetadataProviding = FrameworkMetadataProvider()
+    ) {
         self.frameworkMetadataProvider = frameworkMetadataProvider
     }
 

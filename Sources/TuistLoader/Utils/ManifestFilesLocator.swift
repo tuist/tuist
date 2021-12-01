@@ -43,7 +43,9 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
     /// Utility to locate the root directory of the project
     let rootDirectoryLocator: RootDirectoryLocating
 
-    public init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {
+    public init(
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
+    ) {
         self.rootDirectoryLocator = rootDirectoryLocator
     }
 
@@ -151,7 +153,8 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
                 .filter { path in
                     !excluding.contains { pattern in match(path, pattern: pattern) }
                 }
-            let projectsPaths = manifestsFilePaths
+            let projectsPaths =
+                manifestsFilePaths
                 .filter { $0.basename == Manifest.project.fileName(path) }
                 .map {
                     ProjectManifest(
@@ -159,7 +162,8 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
                         path: $0
                     )
                 }
-            let workspacesPaths = manifestsFilePaths
+            let workspacesPaths =
+                manifestsFilePaths
                 .filter { $0.basename == Manifest.workspace.fileName(path) }
                 .map {
                     ProjectManifest(
@@ -173,18 +177,25 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
     }
 
     public func locateConfig(at locatingPath: AbsolutePath) -> AbsolutePath? {
-        let subPath = RelativePath("\(Constants.tuistDirectoryName)/\(Manifest.config.fileName(locatingPath))")
+        let subPath = RelativePath(
+            "\(Constants.tuistDirectoryName)/\(Manifest.config.fileName(locatingPath))"
+        )
         return traverseAndLocate(at: locatingPath, appending: subPath)
     }
 
     public func locateDependencies(at locatingPath: AbsolutePath) -> AbsolutePath? {
-        let subPath = RelativePath("\(Constants.tuistDirectoryName)/\(Manifest.dependencies.fileName(locatingPath))")
+        let subPath = RelativePath(
+            "\(Constants.tuistDirectoryName)/\(Manifest.dependencies.fileName(locatingPath))"
+        )
         return traverseAndLocate(at: locatingPath, appending: subPath)
     }
 
     // MARK: - Helpers
 
-    private func traverseAndLocate(at locatingPath: AbsolutePath, appending subpath: RelativePath) -> AbsolutePath? {
+    private func traverseAndLocate(
+        at locatingPath: AbsolutePath,
+        appending subpath: RelativePath
+    ) -> AbsolutePath? {
         let manifestPath = locatingPath.appending(subpath)
 
         if FileHandler.shared.exists(manifestPath) {

@@ -23,7 +23,7 @@ final class TargetTests: XCTestCase {
             ),
             entitlements: "entitlement",
             scripts: [
-                TargetScript.post(path: "path", arguments: ["arg"], name: "name"),
+                TargetScript.post(path: "path", arguments: ["arg"], name: "name")
             ],
             dependencies: [
                 .framework(path: "path"),
@@ -57,9 +57,11 @@ final class TargetTests: XCTestCase {
                 SourceFileGlob("Intents/Project.intentdefinition", codeGen: .project),
                 SourceFileGlob("Intents/Disabled.intentdefinition", codeGen: .disabled),
             ]),
-            resources: ["resources/*",
-                        .glob(pattern: "file.type", tags: ["tag"]),
-                        .folderReference(path: "resource/", tags: ["tag"])],
+            resources: [
+                "resources/*",
+                .glob(pattern: "file.type", tags: ["tag"]),
+                .folderReference(path: "resource/", tags: ["tag"]),
+            ],
             headers: Headers(
                 public: ["public/*"],
                 private: ["private/*"],
@@ -67,7 +69,7 @@ final class TargetTests: XCTestCase {
             ),
             entitlements: "entitlement",
             scripts: [
-                TargetScript.post(path: "path", arguments: ["arg"], name: "name"),
+                TargetScript.post(path: "path", arguments: ["arg"], name: "name")
             ],
             dependencies: [
                 .framework(path: "path"),
@@ -78,9 +80,21 @@ final class TargetTests: XCTestCase {
             settings: .settings(
                 base: ["a": .string("b")],
                 configurations: [
-                    .debug(name: .debug, settings: ["a": .string("debug")], xcconfig: "debug.xcconfig"),
-                    .debug(name: "Beta", settings: ["a": .string("beta")], xcconfig: "beta.xcconfig"),
-                    .debug(name: .release, settings: ["a": .string("release")], xcconfig: "debug.xcconfig"),
+                    .debug(
+                        name: .debug,
+                        settings: ["a": .string("debug")],
+                        xcconfig: "debug.xcconfig"
+                    ),
+                    .debug(
+                        name: "Beta",
+                        settings: ["a": .string("beta")],
+                        xcconfig: "beta.xcconfig"
+                    ),
+                    .debug(
+                        name: .release,
+                        settings: ["a": .string("release")],
+                        xcconfig: "debug.xcconfig"
+                    ),
                 ]
             ),
             coreDataModels: [CoreDataModel("pat", currentVersion: "version")],

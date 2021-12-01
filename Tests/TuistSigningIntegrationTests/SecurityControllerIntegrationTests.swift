@@ -1,6 +1,7 @@
 import TSCBasic
 import TuistSupport
 import XCTest
+
 @testable import TuistSigning
 @testable import TuistSigningTesting
 @testable import TuistSupportTesting
@@ -21,9 +22,12 @@ final class SecurityControllerIntegrationTests: TuistTestCase {
 
     func test_import_certificate() throws {
         // Given
-        let keychainPath = try temporaryPath().appending(component: Constants.DerivedDirectory.signingKeychain)
+        let keychainPath = try temporaryPath().appending(
+            component: Constants.DerivedDirectory.signingKeychain
+        )
 
-        let currentDirectory = AbsolutePath(#file.replacingOccurrences(of: "file://", with: "")).removingLastComponent()
+        let currentDirectory = AbsolutePath(#file.replacingOccurrences(of: "file://", with: ""))
+            .removingLastComponent()
         let publicKey = currentDirectory.appending(component: "Target.Debug.cer")
         let privateKey = currentDirectory.appending(component: "Target.Debug.p12")
 
@@ -53,11 +57,17 @@ final class SecurityControllerIntegrationTests: TuistTestCase {
 
     func test_import_certificate_when_exists() throws {
         // Given
-        let keychainPath = try temporaryPath().appending(component: Constants.DerivedDirectory.signingKeychain)
+        let keychainPath = try temporaryPath().appending(
+            component: Constants.DerivedDirectory.signingKeychain
+        )
 
-        let currentDirectory = AbsolutePath(#file.replacingOccurrences(of: "file://", with: "")).removingLastComponent()
+        let currentDirectory = AbsolutePath(#file.replacingOccurrences(of: "file://", with: ""))
+            .removingLastComponent()
         let certificateParser = CertificateParser()
-        let certificate = try certificateParser.parse(publicKey: currentDirectory.appending(component: "Target.Debug.cer"), privateKey: currentDirectory.appending(component: "Target.Debug.p12"))
+        let certificate = try certificateParser.parse(
+            publicKey: currentDirectory.appending(component: "Target.Debug.cer"),
+            privateKey: currentDirectory.appending(component: "Target.Debug.p12")
+        )
 
         try subject.createKeychain(at: keychainPath, password: "")
         try subject.unlockKeychain(at: keychainPath, password: "")
@@ -76,8 +86,11 @@ final class SecurityControllerIntegrationTests: TuistTestCase {
 
     func test_decode_file() throws {
         // Given
-        let currentDirectory = AbsolutePath(#file.replacingOccurrences(of: "file://", with: "")).removingLastComponent()
-        let provisioningProfile = currentDirectory.appending(component: "SignApp.debug.mobileprovision")
+        let currentDirectory = AbsolutePath(#file.replacingOccurrences(of: "file://", with: ""))
+            .removingLastComponent()
+        let provisioningProfile = currentDirectory.appending(
+            component: "SignApp.debug.mobileprovision"
+        )
 
         // When
         let output = try subject.decodeFile(at: provisioningProfile)

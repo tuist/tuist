@@ -10,7 +10,10 @@ public final class MockDependenciesGraphController: DependenciesGraphControlling
     var invokedSave = false
     var saveStub: ((TuistGraph.DependenciesGraph, AbsolutePath) throws -> Void)?
 
-    public func save(_ dependenciesGraph: TuistGraph.DependenciesGraph, to path: AbsolutePath) throws {
+    public func save(
+        _ dependenciesGraph: TuistGraph.DependenciesGraph,
+        to path: AbsolutePath
+    ) throws {
         invokedSave = true
         try saveStub?(dependenciesGraph, path)
     }

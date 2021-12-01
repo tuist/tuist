@@ -28,13 +28,19 @@ final class CopyFilesManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try TuistGraph.CopyFilesAction.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try TuistGraph.CopyFilesAction.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths
+        )
 
         // Then
         XCTAssertEqual(model.name, "Copy Fonts")
         XCTAssertEqual(model.destination, .resources)
         XCTAssertEqual(model.subpath, "Fonts")
-        XCTAssertEqual(model.files, files.map { .file(path: temporaryPath.appending(RelativePath($0))) })
+        XCTAssertEqual(
+            model.files,
+            files.map { .file(path: temporaryPath.appending(RelativePath($0))) }
+        )
     }
 
     func test_from_with_package_files() throws {
@@ -61,12 +67,18 @@ final class CopyFilesManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try TuistGraph.CopyFilesAction.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try TuistGraph.CopyFilesAction.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths
+        )
 
         // Then
         XCTAssertEqual(model.name, "Copy Templates")
         XCTAssertEqual(model.destination, .sharedSupport)
         XCTAssertEqual(model.subpath, "Templates")
-        XCTAssertEqual(model.files, cleanFiles.map { .file(path: temporaryPath.appending(RelativePath($0))) })
+        XCTAssertEqual(
+            model.files,
+            cleanFiles.map { .file(path: temporaryPath.appending(RelativePath($0))) }
+        )
     }
 }

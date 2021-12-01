@@ -17,12 +17,13 @@ public struct RunAction: Equatable, Codable {
     /// Diagnostics options.
     public let diagnosticsOptions: [SchemeDiagnosticsOption]
 
-    init(configuration: ConfigurationName,
-         executable: TargetReference? = nil,
-         arguments: Arguments? = nil,
-         options: RunActionOptions = .options(),
-         diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker])
-    {
+    init(
+        configuration: ConfigurationName,
+        executable: TargetReference? = nil,
+        arguments: Arguments? = nil,
+        options: RunActionOptions = .options(),
+        diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker]
+    ) {
         self.configuration = configuration
         self.executable = executable
         self.arguments = arguments
@@ -38,12 +39,13 @@ public struct RunAction: Equatable, Codable {
     ///   - options: Run action options.
     ///   - diagnosticsOptions: Diagnostics options.
     /// - Returns: Run action.
-    public static func runAction(configuration: ConfigurationName = .debug,
-                                 executable: TargetReference? = nil,
-                                 arguments: Arguments? = nil,
-                                 options: RunActionOptions = .options(),
-                                 diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker]) -> RunAction
-    {
+    public static func runAction(
+        configuration: ConfigurationName = .debug,
+        executable: TargetReference? = nil,
+        arguments: Arguments? = nil,
+        options: RunActionOptions = .options(),
+        diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker]
+    ) -> RunAction {
         return RunAction(
             configuration: configuration,
             executable: executable,

@@ -1,4 +1,4 @@
-import Foundation
 import DynamicFramework
+import Foundation
 
 let dynamicClass = DynamicFramework()

@@ -1,6 +1,7 @@
 import TSCBasic
 import TuistGraph
 import XCTest
+
 @testable import TuistCore
 @testable import TuistSupportTesting
 
@@ -22,15 +23,24 @@ final class SystemFrameworkMetadataProviderTests: XCTestCase {
         let sdkName = "UIKit.framework"
 
         // When
-        let metadata = try subject.loadMetadata(sdkName: sdkName, status: .required, platform: .iOS, source: .system)
+        let metadata = try subject.loadMetadata(
+            sdkName: sdkName,
+            status: .required,
+            platform: .iOS,
+            source: .system
+        )
 
         // Then
-        XCTAssertEqual(metadata, SystemFrameworkMetadata(
-            name: sdkName,
-            path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/UIKit.framework",
-            status: .required,
-            source: .system
-        ))
+        XCTAssertEqual(
+            metadata,
+            SystemFrameworkMetadata(
+                name: sdkName,
+                path:
+                    "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/UIKit.framework",
+                status: .required,
+                source: .system
+            )
+        )
     }
 
     func test_loadMetadata_library() throws {
@@ -38,15 +48,23 @@ final class SystemFrameworkMetadataProviderTests: XCTestCase {
         let sdkName = "libc++.tbd"
 
         // When
-        let metadata = try subject.loadMetadata(sdkName: sdkName, status: .required, platform: .iOS, source: .system)
+        let metadata = try subject.loadMetadata(
+            sdkName: sdkName,
+            status: .required,
+            platform: .iOS,
+            source: .system
+        )
 
         // Then
-        XCTAssertEqual(metadata, SystemFrameworkMetadata(
-            name: sdkName,
-            path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/usr/lib/libc++.tbd",
-            status: .required,
-            source: .system
-        ))
+        XCTAssertEqual(
+            metadata,
+            SystemFrameworkMetadata(
+                name: sdkName,
+                path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/usr/lib/libc++.tbd",
+                status: .required,
+                source: .system
+            )
+        )
     }
 
     func test_loadMetadata_unsupportedType() throws {
@@ -55,7 +73,12 @@ final class SystemFrameworkMetadataProviderTests: XCTestCase {
 
         // When / Then
         XCTAssertThrowsSpecific(
-            try subject.loadMetadata(sdkName: sdkName, status: .required, platform: .iOS, source: .system),
+            try subject.loadMetadata(
+                sdkName: sdkName,
+                status: .required,
+                platform: .iOS,
+                source: .system
+            ),
             SystemFrameworkMetadataProviderError.unsupportedSDK(name: "UIKit.xcframework")
         )
     }
@@ -64,12 +87,20 @@ final class SystemFrameworkMetadataProviderTests: XCTestCase {
         // Given
         let sdkName = "XCTest.framework"
         let source = SDKSource.developer
-        let platform = Platform.watchOS // watchOS doesn't support XCTest
+        let platform = Platform.watchOS  // watchOS doesn't support XCTest
 
         // When / Then
         XCTAssertThrowsSpecific(
-            try subject.loadMetadata(sdkName: sdkName, status: .required, platform: platform, source: source),
-            SystemFrameworkMetadataProviderError.unsupportedSDKForPlatform(name: "XCTest.framework", platform: .watchOS)
+            try subject.loadMetadata(
+                sdkName: sdkName,
+                status: .required,
+                platform: platform,
+                source: source
+            ),
+            SystemFrameworkMetadataProviderError.unsupportedSDKForPlatform(
+                name: "XCTest.framework",
+                platform: .watchOS
+            )
         )
     }
 
@@ -80,14 +111,22 @@ final class SystemFrameworkMetadataProviderTests: XCTestCase {
         let platform = Platform.iOS
 
         // When
-        let metadata = try subject.loadMetadata(sdkName: sdkName, status: .required, platform: platform, source: source)
+        let metadata = try subject.loadMetadata(
+            sdkName: sdkName,
+            status: .required,
+            platform: platform,
+            source: source
+        )
 
         // Then
-        XCTAssertEqual(metadata, SystemFrameworkMetadata(
-            name: sdkName,
-            path: "/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework",
-            status: .required,
-            source: .developer
-        ))
+        XCTAssertEqual(
+            metadata,
+            SystemFrameworkMetadata(
+                name: sdkName,
+                path: "/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework",
+                status: .required,
+                source: .developer
+            )
+        )
     }
 }

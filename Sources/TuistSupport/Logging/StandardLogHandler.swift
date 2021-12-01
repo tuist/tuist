@@ -6,11 +6,16 @@ public struct StandardLogHandler: LogHandler {
 
     public let label: String
 
-    public init(label: String) {
+    public init(
+        label: String
+    ) {
         self.init(label: label, logLevel: .info)
     }
 
-    public init(label: String, logLevel: Logger.Level) {
+    public init(
+        label: String,
+        logLevel: Logger.Level
+    ) {
         self.label = label
         self.logLevel = logLevel
     }
@@ -19,9 +24,13 @@ public struct StandardLogHandler: LogHandler {
         level: Logger.Level,
         message: Logger.Message,
         metadata: Logger.Metadata?,
-        file _: String, function _: String, line _: UInt
+        file _: String,
+        function _: String,
+        line _: UInt
     ) {
-        if let metadata = metadata, metadata[Logger.Metadata.tuist] == .string(Logger.Metadata.prettyKey) {
+        if let metadata = metadata,
+            metadata[Logger.Metadata.tuist] == .string(Logger.Metadata.prettyKey)
+        {
             return
         }
 

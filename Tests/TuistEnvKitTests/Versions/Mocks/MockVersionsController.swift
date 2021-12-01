@@ -1,8 +1,10 @@
 import Foundation
 import TSCBasic
-import struct TSCUtility.Version
 import TuistSupport
 import TuistSupportTesting
+
+import struct TSCUtility.Version
+
 @testable import TuistEnvKit
 
 final class MockVersionsController: VersionsControlling {

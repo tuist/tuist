@@ -1,5 +1,6 @@
 import TSCBasic
 import TuistGraph
+
 @testable import TuistGenerator
 
 final class MockSynthesizedResourceInterfaceGenerator: SynthesizedResourceInterfacesGenerating {

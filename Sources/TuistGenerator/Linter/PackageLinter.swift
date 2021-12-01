@@ -11,7 +11,9 @@ protocol PackageLinting: AnyObject {
 class PackageLinter: PackageLinting {
     private let fileHandler: FileHandling
 
-    init(fileHandler: FileHandling = FileHandler.shared) {
+    init(
+        fileHandler: FileHandling = FileHandler.shared
+    ) {
         self.fileHandler = fileHandler
     }
 

@@ -5,7 +5,9 @@ import TuistSupport
 final class LocalService {
     private let versionController: VersionsControlling
 
-    init(versionController: VersionsControlling = VersionsController()) {
+    init(
+        versionController: VersionsControlling = VersionsController()
+    ) {
         self.versionController = versionController
     }
 
@@ -20,7 +22,10 @@ final class LocalService {
     // MARK: - Helpers
 
     private func printLocalVersions() throws {
-        logger.notice("The following versions are available in the local environment:", metadata: .section)
+        logger.notice(
+            "The following versions are available in the local environment:",
+            metadata: .section
+        )
         let versions = versionController.semverVersions()
         let output = versions.sorted().reversed().map { "- \($0)" }.joined(separator: "\n")
         logger.notice("\(output)")
@@ -28,7 +33,10 @@ final class LocalService {
 
     private func createVersionFile(version: String) throws {
         let currentPath = FileHandler.shared.currentPath
-        logger.notice("Generating \(Constants.versionFileName) file with version \(version)", metadata: .section)
+        logger.notice(
+            "Generating \(Constants.versionFileName) file with version \(version)",
+            metadata: .section
+        )
         let tuistVersionPath = currentPath.appending(component: Constants.versionFileName)
         try "\(version)".write(
             to: URL(fileURLWithPath: tuistVersionPath.pathString),

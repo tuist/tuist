@@ -1,4 +1,3 @@
-
 public class D {
     public static let value: String = "dValue"
 

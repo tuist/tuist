@@ -11,10 +11,11 @@ extension TuistGraph.ResourceFileElement {
     /// - Parameters:
     ///   - manifest: Manifest representation of  the file element.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.ResourceFileElement,
-                     generatorPaths: GeneratorPaths,
-                     includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }) throws -> [TuistGraph.ResourceFileElement]
-    {
+    static func from(
+        manifest: ProjectDescription.ResourceFileElement,
+        generatorPaths: GeneratorPaths,
+        includeFiles: @escaping (AbsolutePath) -> Bool = { _ in true }
+    ) throws -> [TuistGraph.ResourceFileElement] {
         func globFiles(_ path: AbsolutePath, excluding: [String]) throws -> [AbsolutePath] {
             if FileHandler.shared.exists(path), !FileHandler.shared.isFolder(path) { return [path] }
 
@@ -25,13 +26,18 @@ extension TuistGraph.ResourceFileElement {
                 excluded.formUnion(globs)
             }
 
-            let files = try FileHandler.shared.throwingGlob(AbsolutePath.root, glob: String(path.pathString.dropFirst()))
-                .filter(includeFiles)
-                .filter { !excluded.contains($0) }
+            let files = try FileHandler.shared.throwingGlob(
+                AbsolutePath.root,
+                glob: String(path.pathString.dropFirst())
+            )
+            .filter(includeFiles)
+            .filter { !excluded.contains($0) }
 
             if files.isEmpty {
                 if FileHandler.shared.isFolder(path) {
-                    logger.warning("'\(path.pathString)' is a directory, try using: '\(path.pathString)/**' to list its files")
+                    logger.warning(
+                        "'\(path.pathString)' is a directory, try using: '\(path.pathString)/**' to list its files"
+                    )
                 } else {
                     // FIXME: This should be done in a linter.
                     logger.warning("No files found at: \(path.pathString)")
@@ -50,7 +56,9 @@ extension TuistGraph.ResourceFileElement {
 
             guard FileHandler.shared.isFolder(path) else {
                 // FIXME: This should be done in a linter.
-                logger.warning("\(path.pathString) is not a directory - folder reference paths need to point to directories")
+                logger.warning(
+                    "\(path.pathString) is not a directory - folder reference paths need to point to directories"
+                )
                 return []
             }
 
@@ -60,11 +68,17 @@ extension TuistGraph.ResourceFileElement {
         switch manifest {
         case let .glob(pattern, excluding, tags):
             let resolvedPath = try generatorPaths.resolve(path: pattern)
-            let excluding: [String] = try excluding.compactMap { try generatorPaths.resolve(path: $0).pathString }
-            return try globFiles(resolvedPath, excluding: excluding).map { ResourceFileElement.file(path: $0, tags: tags) }
+            let excluding: [String] = try excluding.compactMap {
+                try generatorPaths.resolve(path: $0).pathString
+            }
+            return try globFiles(resolvedPath, excluding: excluding).map {
+                ResourceFileElement.file(path: $0, tags: tags)
+            }
         case let .folderReference(folderReferencePath, tags):
             let resolvedPath = try generatorPaths.resolve(path: folderReferencePath)
-            return folderReferences(resolvedPath).map { ResourceFileElement.folderReference(path: $0, tags: tags) }
+            return folderReferences(resolvedPath).map {
+                ResourceFileElement.folderReference(path: $0, tags: tags)
+            }
         }
     }
 }

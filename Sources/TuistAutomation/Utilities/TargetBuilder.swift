@@ -55,7 +55,8 @@ public final class TargetBuilder: TargetBuilding {
     public init(
         buildGraphInspector: BuildGraphInspecting = BuildGraphInspector(),
         xcodeBuildController: XcodeBuildControlling = XcodeBuildController(),
-        xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating = XcodeProjectBuildDirectoryLocator()
+        xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating =
+            XcodeProjectBuildDirectoryLocator()
     ) {
         self.buildGraphInspector = buildGraphInspector
         self.xcodeBuildController = xcodeBuildController
@@ -79,7 +80,8 @@ public final class TargetBuilder: TargetBuilding {
             skipSigning: false
         )
 
-        _ = try xcodeBuildController
+        _ =
+            try xcodeBuildController
             .build(
                 .workspace(workspacePath),
                 scheme: schemeName,
@@ -91,7 +93,9 @@ public final class TargetBuilder: TargetBuilding {
             .last()
 
         if let buildOutputPath = buildOutputPath {
-            let configuration = configuration ?? target.project.settings.defaultDebugBuildConfiguration()?.name ?? BuildConfiguration.debug.name
+            let configuration =
+                configuration ?? target.project.settings.defaultDebugBuildConfiguration()?.name
+                ?? BuildConfiguration.debug.name
             try copyBuildProducts(
                 to: buildOutputPath,
                 projectPath: workspacePath,
@@ -120,7 +124,11 @@ public final class TargetBuilder: TargetBuilding {
         if !FileHandler.shared.exists(buildOutputPath) {
             try FileHandler.shared.createFolder(buildOutputPath)
         }
-        logger.log(level: .notice, "Copying build products to \(buildOutputPath.pathString)", metadata: .subsection)
+        logger.log(
+            level: .notice,
+            "Copying build products to \(buildOutputPath.pathString)",
+            metadata: .subsection
+        )
 
         try FileHandler.shared
             .contentsOfDirectory(xcodeSchemeBuildPath)

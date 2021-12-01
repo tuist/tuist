@@ -5,6 +5,7 @@ import TuistGraph
 import TuistGraphTesting
 import TuistSupport
 import XCTest
+
 @testable import TuistCache
 @testable import TuistCore
 @testable import TuistCoreTesting
@@ -34,12 +35,21 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
         let scheme = Scheme.test(name: "iOS")
 
         // When
-        try subject.build(scheme: scheme, projectTarget: XcodeBuildTarget(with: projectPath), configuration: "Debug", osVersion: nil, deviceName: nil, into: temporaryPath)
+        try subject.build(
+            scheme: scheme,
+            projectTarget: XcodeBuildTarget(with: projectPath),
+            configuration: "Debug",
+            osVersion: nil,
+            deviceName: nil,
+            into: temporaryPath
+        )
 
         // Then
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.framework").count, 1)
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.dSYM").count, 1)
-        let frameworkPath = try XCTUnwrap(FileHandler.shared.glob(temporaryPath, glob: "*.framework").first)
+        let frameworkPath = try XCTUnwrap(
+            FileHandler.shared.glob(temporaryPath, glob: "*.framework").first
+        )
         XCTAssertEqual(try binaryLinking(path: frameworkPath), .dynamic)
         XCTAssertTrue((try architectures(path: frameworkPath)).onlySimulator)
         XCTAssertEqual(try architectures(path: frameworkPath).count, 1)
@@ -53,12 +63,21 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
         let scheme = Scheme.test(name: "macOS")
 
         // When
-        try subject.build(scheme: scheme, projectTarget: XcodeBuildTarget(with: projectPath), configuration: "Debug", osVersion: nil, deviceName: nil, into: temporaryPath)
+        try subject.build(
+            scheme: scheme,
+            projectTarget: XcodeBuildTarget(with: projectPath),
+            configuration: "Debug",
+            osVersion: nil,
+            deviceName: nil,
+            into: temporaryPath
+        )
 
         // Then
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.framework").count, 1)
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.dSYM").count, 1)
-        let frameworkPath = try XCTUnwrap(FileHandler.shared.glob(temporaryPath, glob: "*.framework").first)
+        let frameworkPath = try XCTUnwrap(
+            FileHandler.shared.glob(temporaryPath, glob: "*.framework").first
+        )
         XCTAssertEqual(try binaryLinking(path: frameworkPath), .dynamic)
         XCTAssertTrue(try architectures(path: frameworkPath).contains(.x8664))
         XCTAssertEqual(try architectures(path: frameworkPath).count, 1)
@@ -72,12 +91,21 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
         let scheme = Scheme.test(name: "tvOS")
 
         // When
-        try subject.build(scheme: scheme, projectTarget: XcodeBuildTarget(with: projectPath), configuration: "Debug", osVersion: nil, deviceName: nil, into: temporaryPath)
+        try subject.build(
+            scheme: scheme,
+            projectTarget: XcodeBuildTarget(with: projectPath),
+            configuration: "Debug",
+            osVersion: nil,
+            deviceName: nil,
+            into: temporaryPath
+        )
 
         // Then
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.framework").count, 1)
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.dSYM").count, 1)
-        let frameworkPath = try XCTUnwrap(FileHandler.shared.glob(temporaryPath, glob: "*.framework").first)
+        let frameworkPath = try XCTUnwrap(
+            FileHandler.shared.glob(temporaryPath, glob: "*.framework").first
+        )
         XCTAssertEqual(try binaryLinking(path: frameworkPath), .dynamic)
         XCTAssertTrue((try architectures(path: frameworkPath)).onlySimulator)
         XCTAssertEqual(try architectures(path: frameworkPath).count, 1)
@@ -91,12 +119,21 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
         let scheme = Scheme.test(name: "watchOS")
 
         // When
-        try subject.build(scheme: scheme, projectTarget: XcodeBuildTarget(with: projectPath), configuration: "Debug", osVersion: nil, deviceName: nil, into: temporaryPath)
+        try subject.build(
+            scheme: scheme,
+            projectTarget: XcodeBuildTarget(with: projectPath),
+            configuration: "Debug",
+            osVersion: nil,
+            deviceName: nil,
+            into: temporaryPath
+        )
 
         // Then
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.framework").count, 1)
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.dSYM").count, 1)
-        let frameworkPath = try XCTUnwrap(FileHandler.shared.glob(temporaryPath, glob: "*.framework").first)
+        let frameworkPath = try XCTUnwrap(
+            FileHandler.shared.glob(temporaryPath, glob: "*.framework").first
+        )
         XCTAssertEqual(try binaryLinking(path: frameworkPath), .dynamic)
         XCTAssertTrue((try architectures(path: frameworkPath)).onlySimulator)
         XCTAssertEqual(try architectures(path: frameworkPath).count, 1)

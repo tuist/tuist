@@ -10,7 +10,10 @@ extension TuistGraph.CoreDataModel {
     /// - Parameters:
     ///   - manifest: Manifest representation of Core Data model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.CoreDataModel, generatorPaths: GeneratorPaths) throws -> TuistGraph.CoreDataModel {
+    static func from(
+        manifest: ProjectDescription.CoreDataModel,
+        generatorPaths: GeneratorPaths
+    ) throws -> TuistGraph.CoreDataModel {
         let modelPath = try generatorPaths.resolve(path: manifest.path)
         let versions = FileHandler.shared.glob(modelPath, glob: "*.xcdatamodel")
 

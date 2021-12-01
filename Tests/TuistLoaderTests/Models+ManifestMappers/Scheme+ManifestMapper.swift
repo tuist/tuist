@@ -23,7 +23,12 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
         let model = try TuistGraph.Scheme.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
-        try assert(scheme: model, matches: manifest, path: projectPath, generatorPaths: generatorPaths)
+        try assert(
+            scheme: model,
+            matches: manifest,
+            path: projectPath,
+            generatorPaths: generatorPaths
+        )
     }
 
     func test_from_when_the_scheme_has_actions() throws {
@@ -63,6 +68,11 @@ final class SchemeManifestMapperTests: TuistUnitTestCase {
         let model = try TuistGraph.Scheme.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
-        try assert(scheme: model, matches: manifest, path: projectPath, generatorPaths: generatorPaths)
+        try assert(
+            scheme: model,
+            matches: manifest,
+            path: projectPath,
+            generatorPaths: generatorPaths
+        )
     }
 }

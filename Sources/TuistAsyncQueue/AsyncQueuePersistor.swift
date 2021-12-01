@@ -4,7 +4,9 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 
-public typealias AsyncQueueEventTuple = (dispatcherId: String, id: UUID, date: Date, data: Data, filename: String)
+public typealias AsyncQueueEventTuple = (
+    dispatcherId: String, id: UUID, date: Date, data: Data, filename: String
+)
 
 public protocol AsyncQueuePersisting {
     /// Reads all the persisted events and returns them.
@@ -31,7 +33,9 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
 
     // MARK: - Init
 
-    init(directory: AbsolutePath = Environment.shared.queueDirectory) {
+    init(
+        directory: AbsolutePath = Environment.shared.queueDirectory
+    ) {
         self.directory = directory
     }
 
@@ -111,6 +115,9 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
 
     private func createDirectoryIfNeeded() throws {
         guard !FileManager.default.fileExists(atPath: directory.pathString) else { return }
-        try FileManager.default.createDirectory(atPath: directory.pathString, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(
+            atPath: directory.pathString,
+            withIntermediateDirectories: true
+        )
     }
 }

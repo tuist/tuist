@@ -14,7 +14,9 @@ protocol SigningFilesLocating {
 final class SigningFilesLocator: SigningFilesLocating {
     private let rootDirectoryLocator: RootDirectoryLocating
 
-    init(rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()) {
+    init(
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
+    ) {
         self.rootDirectoryLocator = rootDirectoryLocator
     }
 
@@ -22,7 +24,10 @@ final class SigningFilesLocator: SigningFilesLocating {
         guard
             let rootDirectory = rootDirectoryLocator.locate(from: path)
         else { return nil }
-        let signingDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+        let signingDirectory = rootDirectory.appending(
+            components: Constants.tuistDirectoryName,
+            Constants.signingDirectoryName
+        )
         return FileHandler.shared.exists(signingDirectory) ? signingDirectory : nil
     }
 
@@ -57,7 +62,10 @@ final class SigningFilesLocator: SigningFilesLocating {
         guard
             let rootDirectory = rootDirectoryLocator.locate(from: path)
         else { return [] }
-        let signingDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+        let signingDirectory = rootDirectory.appending(
+            components: Constants.tuistDirectoryName,
+            Constants.signingDirectoryName
+        )
         return FileHandler.shared.glob(signingDirectory, glob: "*")
     }
 }

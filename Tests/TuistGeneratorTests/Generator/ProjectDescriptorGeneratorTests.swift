@@ -1,13 +1,15 @@
 import Foundation
 import TSCBasic
-import struct TSCUtility.Version
 import TuistCore
 import TuistCoreTesting
 import TuistGraph
 import TuistGraphTesting
 import TuistSupport
-import XcodeProj
 import XCTest
+import XcodeProj
+
+import struct TSCUtility.Version
+
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
@@ -58,18 +60,21 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
                 project.path: [
                     testGraphTarget.target.name: testGraphTarget.target,
                     appGraphTarget.target.name: appGraphTarget.target,
-                ],
+                ]
             ],
             dependencies: [
                 .target(name: testGraphTarget.target.name, path: testGraphTarget.path): [
-                    .target(name: appGraphTarget.target.name, path: appGraphTarget.path),
-                ],
+                    .target(name: appGraphTarget.target.name, path: appGraphTarget.path)
+                ]
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let generatedProject = try subject.generate(project: project, graphTraverser: graphTraverser)
+        let generatedProject = try subject.generate(
+            project: project,
+            graphTraverser: graphTraverser
+        )
 
         // Then
         let pbxproj = generatedProject.xcodeProj.pbxproj
@@ -77,15 +82,18 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         let nativeTargets = pbxproj.nativeTargets
         let attributes = pbxproject?.targetAttributes ?? [:]
         let appTarget = nativeTargets.first(where: { $0.name == "App" })
-        XCTAssertTrue(attributes.contains { attribute in
+        XCTAssertTrue(
+            attributes.contains { attribute in
 
-            guard let testTargetID = attribute.value["TestTargetID"] as? PBXNativeTarget else {
-                return false
-            }
+                guard let testTargetID = attribute.value["TestTargetID"] as? PBXNativeTarget else {
+                    return false
+                }
 
-            return attribute.key.name == "Tests" && testTargetID == appTarget
+                return attribute.key.name == "Tests" && testTargetID == appTarget
 
-        }, "Test target is missing from target attributes.")
+            },
+            "Test target is missing from target attributes."
+        )
     }
 
     func test_objectVersion_when_xcode11_and_spm() throws {
@@ -106,18 +114,18 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
             projects: [project.path: project],
             packages: [
                 project.path: [
-                    "A": .remote(url: "A", requirement: .exact("0.1")),
-                ],
+                    "A": .remote(url: "A", requirement: .exact("0.1"))
+                ]
             ],
             targets: [
                 graphTarget.path: [
-                    graphTarget.target.name: graphTarget.target,
-                ],
+                    graphTarget.target.name: graphTarget.target
+                ]
             ],
             dependencies: [
                 .target(name: graphTarget.target.name, path: graphTarget.path): [
-                    .packageProduct(path: project.path, product: "A"),
-                ],
+                    .packageProduct(path: project.path, product: "A")
+                ]
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -195,9 +203,11 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         let project = Project.test(
             path: path,
             targets: [
-                .test(resources: resources.map {
-                    .file(path: path.appending(RelativePath($0)))
-                }),
+                .test(
+                    resources: resources.map {
+                        .file(path: path.appending(RelativePath($0)))
+                    }
+                )
             ]
         )
 
@@ -206,11 +216,14 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
 
         // Then
         let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
-        XCTAssertEqual(pbxProject.knownRegions, [
-            "Base",
-            "en",
-            "fr",
-        ])
+        XCTAssertEqual(
+            pbxProject.knownRegions,
+            [
+                "Base",
+                "en",
+                "fr",
+            ]
+        )
     }
 
     func test_generate_setsDefaultKnownRegions() throws {
@@ -228,10 +241,13 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
 
         // Then
         let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
-        XCTAssertEqual(pbxProject.knownRegions, [
-            "Base",
-            "en",
-        ])
+        XCTAssertEqual(
+            pbxProject.knownRegions,
+            [
+                "Base",
+                "en",
+            ]
+        )
     }
 
     func test_generate_setsOrganizationName() throws {
@@ -251,9 +267,12 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         // Then
         let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
         let attributes = try XCTUnwrap(pbxProject.attributes as? [String: String])
-        XCTAssertEqual(attributes, [
-            "ORGANIZATIONNAME": "tuist",
-        ])
+        XCTAssertEqual(
+            attributes,
+            [
+                "ORGANIZATIONNAME": "tuist"
+            ]
+        )
     }
 
     func test_generate_setsResourcesTagsName() throws {
@@ -261,8 +280,10 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         let path = try temporaryPath()
         let graph = Graph.test(path: path)
         let graphTraverser = GraphTraverser(graph: graph)
-        let resources: [ResourceFileElement] = [.file(path: "/", tags: ["fileTag", "commonTag"]),
-                                                .folderReference(path: "/", tags: ["folderTag", "commonTag"])]
+        let resources: [ResourceFileElement] = [
+            .file(path: "/", tags: ["fileTag", "commonTag"]),
+            .folderReference(path: "/", tags: ["folderTag", "commonTag"]),
+        ]
         let project = Project.test(
             path: path,
             targets: [.test(resources: resources)]
@@ -274,9 +295,12 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         // Then
         let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
         let attributes = try XCTUnwrap(pbxProject.attributes as? [String: AnyHashable])
-        XCTAssertEqual(attributes, [
-            "KnownAssetTags": ["fileTag", "folderTag", "commonTag"].sorted(),
-        ])
+        XCTAssertEqual(
+            attributes,
+            [
+                "KnownAssetTags": ["fileTag", "folderTag", "commonTag"].sorted()
+            ]
+        )
     }
 
     func test_generate_setsDefaultDevelopmentRegion() throws {
@@ -334,18 +358,18 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
             projects: [project.path: project],
             packages: [
                 project.path: [
-                    "A": .local(path: localPackagePath),
-                ],
+                    "A": .local(path: localPackagePath)
+                ]
             ],
             targets: [
                 graphTarget.path: [
-                    graphTarget.target.name: graphTarget.target,
-                ],
+                    graphTarget.target.name: graphTarget.target
+                ]
             ],
             dependencies: [
                 .target(name: graphTarget.target.name, path: graphTarget.path): [
-                    .packageProduct(path: project.path, product: "A"),
-                ],
+                    .packageProduct(path: project.path, product: "A")
+                ]
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -357,9 +381,12 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         let pbxproj = got.xcodeProj.pbxproj
         let rootGroup = try XCTUnwrap(pbxproj.rootGroup())
         let paths = rootGroup.children.compactMap(\.path)
-        XCTAssertEqual(paths, [
-            "../Packages/LocalPackageA",
-        ])
+        XCTAssertEqual(
+            paths,
+            [
+                "../Packages/LocalPackageA"
+            ]
+        )
     }
 
     func test_generate_setsLastUpgradeCheck() throws {
@@ -379,8 +406,11 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         // Then
         let pbxProject = try XCTUnwrap(try got.xcodeProj.pbxproj.rootProject())
         let attributes = try XCTUnwrap(pbxProject.attributes as? [String: String])
-        XCTAssertEqual(attributes, [
-            "LastUpgradeCheck": "1251",
-        ])
+        XCTAssertEqual(
+            attributes,
+            [
+                "LastUpgradeCheck": "1251"
+            ]
+        )
     }
 }

@@ -1,10 +1,13 @@
 import Foundation
 import TSCBasic
 import TuistAnalytics
+import TuistKit
 import TuistLoader
 import TuistSupport
 
-if CommandLine.arguments.contains("--verbose") { try? ProcessEnv.setVar(Constants.EnvironmentVariables.verbose, value: "true") }
+if CommandLine.arguments.contains("--verbose") {
+    try? ProcessEnv.setVar(Constants.EnvironmentVariables.verbose, value: "true")
+}
 
 TuistSupport.LogOutput.bootstrap()
 
@@ -16,7 +19,5 @@ if let argumentIndex = CommandLine.arguments.firstIndex(of: "--path") {
 }
 
 try TuistAnalytics.bootstrap(config: ConfigLoader().loadConfig(path: path))
-
-import TuistKit
 
 TuistCommand.main()

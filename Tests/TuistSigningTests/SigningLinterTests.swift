@@ -2,6 +2,7 @@ import TSCBasic
 import TuistCore
 import TuistGraph
 import XCTest
+
 @testable import TuistSigning
 @testable import TuistSigningTesting
 @testable import TuistSupportTesting
@@ -27,11 +28,11 @@ final class SigningLinterTests: TuistUnitTestCase {
         let expectedIssues = [
             LintingIssue(
                 reason: """
-                Certificate \(certificate.name)'s development team \(certificate.developmentTeam) does not correspond to \(provisioningProfile.teamId).
-                Make sure they are the same.
-                """,
+                    Certificate \(certificate.name)'s development team \(certificate.developmentTeam) does not correspond to \(provisioningProfile.teamId).
+                    Make sure they are the same.
+                    """,
                 severity: .error
-            ),
+            )
         ]
 
         // When
@@ -46,9 +47,10 @@ final class SigningLinterTests: TuistUnitTestCase {
         let certificate = Certificate.test(isRevoked: true)
         let expectedIssues = [
             LintingIssue(
-                reason: "Certificate \(certificate.name) is revoked. Create a new one and replace it to resolve the issue.",
+                reason:
+                    "Certificate \(certificate.name) is revoked. Create a new one and replace it to resolve the issue.",
                 severity: .warning
-            ),
+            )
         ]
 
         // When
@@ -87,12 +89,14 @@ final class SigningLinterTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(
             got,
-            [LintingIssue(
-                reason: """
-                App id \(provisioningProfile.appId) does not correspond to \(provisioningProfile.teamId).\(target.bundleId). Make sure the provisioning profile has been added to the right target.
-                """,
-                severity: .error
-            )]
+            [
+                LintingIssue(
+                    reason: """
+                        App id \(provisioningProfile.appId) does not correspond to \(provisioningProfile.teamId).\(target.bundleId). Make sure the provisioning profile has been added to the right target.
+                        """,
+                    severity: .error
+                )
+            ]
         )
     }
 
@@ -125,12 +129,14 @@ final class SigningLinterTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(
             got,
-            [LintingIssue(
-                reason: """
-                App id \(provisioningProfile.appId) does not correspond to \(provisioningProfile.teamId).\(target.bundleId). Make sure the provisioning profile has been added to the right target.
-                """,
-                severity: .error
-            )]
+            [
+                LintingIssue(
+                    reason: """
+                        App id \(provisioningProfile.appId) does not correspond to \(provisioningProfile.teamId).\(target.bundleId). Make sure the provisioning profile has been added to the right target.
+                        """,
+                    severity: .error
+                )
+            ]
         )
     }
 

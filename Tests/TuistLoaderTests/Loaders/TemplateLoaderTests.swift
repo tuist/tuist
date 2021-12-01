@@ -45,10 +45,12 @@ final class TemplateLoaderTests: TuistUnitTestCase {
         manifestLoader.loadTemplateStub = { _ in
             ProjectDescription.Template(
                 description: "desc",
-                items: [ProjectDescription.Template.Item(
-                    path: "generateOne",
-                    contents: .file("fileOne")
-                )]
+                items: [
+                    ProjectDescription.Template.Item(
+                        path: "generateOne",
+                        contents: .file("fileOne")
+                    )
+                ]
             )
         }
 
@@ -56,12 +58,17 @@ final class TemplateLoaderTests: TuistUnitTestCase {
         let got = try subject.loadTemplate(at: temporaryPath)
 
         // Then
-        XCTAssertEqual(got, TuistGraph.Template(
-            description: "desc",
-            items: [Template.Item(
-                path: RelativePath("generateOne"),
-                contents: .file(temporaryPath.appending(component: "fileOne"))
-            )]
-        ))
+        XCTAssertEqual(
+            got,
+            TuistGraph.Template(
+                description: "desc",
+                items: [
+                    Template.Item(
+                        path: RelativePath("generateOne"),
+                        contents: .file(temporaryPath.appending(component: "fileOne"))
+                    )
+                ]
+            )
+        )
     }
 }

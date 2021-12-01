@@ -13,7 +13,9 @@ protocol CloudAnalyticsResourceFactorying {
 class CloudAnalyticsResourceFactory: CloudAnalyticsResourceFactorying {
     private let cloudConfig: Cloud
 
-    init(cloudConfig: Cloud) {
+    init(
+        cloudConfig: Cloud
+    ) {
         self.cloudConfig = cloudConfig
     }
 
@@ -42,7 +44,7 @@ class CloudAnalyticsResourceFactory: CloudAnalyticsResourceFactorying {
     ) -> URL {
         var urlComponents = URLComponents(url: cacheURL, resolvingAgainstBaseURL: false)!
         let queryItems: [URLQueryItem] = [
-            URLQueryItem(name: "project_id", value: projectId),
+            URLQueryItem(name: "project_id", value: projectId)
         ]
 
         urlComponents.path = "/api/analytics"

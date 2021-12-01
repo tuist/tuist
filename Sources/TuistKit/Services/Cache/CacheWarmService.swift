@@ -19,7 +19,13 @@ final class CacheWarmService {
         pluginService = PluginService()
     }
 
-    func run(path: String?, profile: String?, xcframeworks: Bool, targets: Set<String>, dependenciesOnly: Bool) throws {
+    func run(
+        path: String?,
+        profile: String?,
+        xcframeworks: Bool,
+        targets: Set<String>,
+        dependenciesOnly: Bool
+    ) throws {
         let path = self.path(path)
         let config = try configLoader.loadConfig(path: path)
         let cache = Cache(storageProvider: CacheStorageProvider(config: config))
@@ -28,7 +34,10 @@ final class CacheWarmService {
         if xcframeworks {
             cacheController = xcframeworkCacheController(cache: cache, contentHasher: contentHasher)
         } else {
-            cacheController = simulatorFrameworkCacheController(cache: cache, contentHasher: contentHasher)
+            cacheController = simulatorFrameworkCacheController(
+                cache: cache,
+                contentHasher: contentHasher
+            )
         }
 
         let profile = try CacheProfileResolver().resolveCacheProfile(named: profile, from: config)
@@ -36,7 +45,8 @@ final class CacheWarmService {
             config: config,
             path: path,
             cacheProfile: profile,
-            includedTargets: targets.isEmpty ? try projectTargets(at: path, config: config) : targets,
+            includedTargets: targets.isEmpty
+                ? try projectTargets(at: path, config: config) : targets,
             dependenciesOnly: dependenciesOnly
         )
     }
@@ -55,7 +65,10 @@ final class CacheWarmService {
         FileHandler.shared.currentPath
     }
 
-    fileprivate func simulatorFrameworkCacheController(cache: CacheStoring, contentHasher: ContentHashing) -> CacheControlling {
+    fileprivate func simulatorFrameworkCacheController(
+        cache: CacheStoring,
+        contentHasher: ContentHashing
+    ) -> CacheControlling {
         let frameworkBuilder = CacheFrameworkBuilder(xcodeBuildController: XcodeBuildController())
         let bundleBuilder = CacheBundleBuilder(xcodeBuildController: XcodeBuildController())
         return CacheController(
@@ -66,7 +79,10 @@ final class CacheWarmService {
         )
     }
 
-    fileprivate func xcframeworkCacheController(cache: CacheStoring, contentHasher: ContentHashing) -> CacheControlling {
+    fileprivate func xcframeworkCacheController(
+        cache: CacheStoring,
+        contentHasher: ContentHashing
+    ) -> CacheControlling {
         let frameworkBuilder = CacheXCFrameworkBuilder(xcodeBuildController: XcodeBuildController())
         let bundleBuilder = CacheBundleBuilder(xcodeBuildController: XcodeBuildController())
         return CacheController(
@@ -87,6 +103,8 @@ final class CacheWarmService {
             projects = [path]
         }
 
-        return try Set(projects.flatMap { try manifestLoader.loadProject(at: $0).targets.map(\.name) })
+        return try Set(
+            projects.flatMap { try manifestLoader.loadProject(at: $0).targets.map(\.name) }
+        )
     }
 }

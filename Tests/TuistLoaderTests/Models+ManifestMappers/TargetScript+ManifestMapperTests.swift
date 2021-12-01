@@ -21,7 +21,10 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
             arguments: ["arg1", "arg2"]
         )
         // When
-        let model = try TuistGraph.TargetScript.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try TuistGraph.TargetScript.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths
+        )
 
         // Then
         XCTAssertEqual(model.name, "MyScript")
@@ -44,15 +47,30 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
             outputFileListPaths: ["$(SRCROOT)/foo/bar/**/*.swift"]
         )
         // When
-        let model = try TuistGraph.TargetScript.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try TuistGraph.TargetScript.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths
+        )
 
         // Then
         XCTAssertEqual(model.name, "MyScript")
         XCTAssertEqual(model.script, .tool("my_tool", ["arg1", "arg2"]))
         XCTAssertEqual(model.order, .pre)
-        XCTAssertEqual(model.inputPaths, [temporaryPath.appending(RelativePath("$(SRCROOT)/foo/bar/**/*.swift"))])
-        XCTAssertEqual(model.inputFileListPaths, [temporaryPath.appending(RelativePath("$(SRCROOT)/foo/bar/**/*.swift"))])
-        XCTAssertEqual(model.outputPaths, [temporaryPath.appending(RelativePath("$(SRCROOT)/foo/bar/**/*.swift"))])
-        XCTAssertEqual(model.outputFileListPaths, [temporaryPath.appending(RelativePath("$(SRCROOT)/foo/bar/**/*.swift"))])
+        XCTAssertEqual(
+            model.inputPaths,
+            [temporaryPath.appending(RelativePath("$(SRCROOT)/foo/bar/**/*.swift"))]
+        )
+        XCTAssertEqual(
+            model.inputFileListPaths,
+            [temporaryPath.appending(RelativePath("$(SRCROOT)/foo/bar/**/*.swift"))]
+        )
+        XCTAssertEqual(
+            model.outputPaths,
+            [temporaryPath.appending(RelativePath("$(SRCROOT)/foo/bar/**/*.swift"))]
+        )
+        XCTAssertEqual(
+            model.outputFileListPaths,
+            [temporaryPath.appending(RelativePath("$(SRCROOT)/foo/bar/**/*.swift"))]
+        )
     }
 }

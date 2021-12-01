@@ -5,13 +5,17 @@ import TuistCore
 public final class LastUpgradeVersionWorkspaceMapper: WorkspaceMapping {
     let lastUpgradeVersion: Version
 
-    public init(lastUpgradeVersion: Version) {
+    public init(
+        lastUpgradeVersion: Version
+    ) {
         self.lastUpgradeVersion = lastUpgradeVersion
     }
 
     // MARK: - WorkspaceMapping
 
-    public func map(workspace: WorkspaceWithProjects) throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
+    public func map(
+        workspace: WorkspaceWithProjects
+    ) throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
         var projects = workspace.projects
         projects.indices.forEach { projects[$0].lastUpgradeCheck = lastUpgradeVersion }
 

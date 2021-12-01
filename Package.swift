@@ -7,9 +7,15 @@ let rxSwiftDependency: Target.Dependency = .product(name: "RxSwift", package: "R
 let rxBlockingDependency: Target.Dependency = .product(name: "RxBlocking", package: "RxSwift")
 let rxRelayDependency: Target.Dependency = .product(name: "RxRelay", package: "RxSwift")
 let rxTestDependency: Target.Dependency = .product(name: "RxTest", package: "RxSwift")
-let swiftToolsSupportDependency: Target.Dependency = .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core")
+let swiftToolsSupportDependency: Target.Dependency = .product(
+    name: "SwiftToolsSupport-auto",
+    package: "swift-tools-support-core"
+)
 let loggingDependency: Target.Dependency = .product(name: "Logging", package: "swift-log")
-let argumentParserDependency: Target.Dependency = .product(name: "ArgumentParser", package: "swift-argument-parser")
+let argumentParserDependency: Target.Dependency = .product(
+    name: "ArgumentParser",
+    package: "swift-argument-parser"
+)
 let swiftGenKitDependency: Target.Dependency = .product(name: "SwiftGenKit", package: "SwiftGen")
 let swifterDependency: Target.Dependency = .byName(name: "Swifter")
 let combineExtDependency: Target.Dependency = .byName(name: "CombineExt")
@@ -52,22 +58,57 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/tuist/XcodeProj.git", .upToNextMajor(from: "8.5.0")),
-        .package(name: "Signals", url: "https://github.com/tuist/BlueSignals.git", .upToNextMajor(from: "1.0.21")),
+        .package(
+            name: "Signals",
+            url: "https://github.com/tuist/BlueSignals.git",
+            .upToNextMajor(from: "1.0.21")
+        ),
         .package(url: "https://github.com/ReactiveX/RxSwift.git", .upToNextMajor(from: "5.1.1")),
         .package(url: "https://github.com/rnine/Checksum.git", .upToNextMajor(from: "1.0.2")),
         .package(url: "https://github.com/apple/swift-log.git", .upToNextMajor(from: "1.4.2")),
-        .package(url: "https://github.com/krzyzanowskim/CryptoSwift.git", .upToNextMajor(from: "1.4.1")),
-        .package(url: "https://github.com/stencilproject/Stencil.git", .upToNextMajor(from: "0.14.0")),
-        .package(url: "https://github.com/kishikawakatsumi/KeychainAccess.git", .upToNextMajor(from: "4.2.2")),
-        .package(name: "Swifter", url: "https://github.com/fortmarek/swifter.git", .branch("stable")),
-        .package(url: "https://github.com/apple/swift-tools-support-core.git", .upToNextMinor(from: "0.2.0")),
-        .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMajor(from: "0.4.3")),
-        .package(url: "https://github.com/maparoni/Zip.git", .revision("059e7346082d02de16220cd79df7db18ddeba8c3")),
+        .package(
+            url: "https://github.com/krzyzanowskim/CryptoSwift.git",
+            .upToNextMajor(from: "1.4.1")
+        ),
+        .package(
+            url: "https://github.com/stencilproject/Stencil.git",
+            .upToNextMajor(from: "0.14.0")
+        ),
+        .package(
+            url: "https://github.com/kishikawakatsumi/KeychainAccess.git",
+            .upToNextMajor(from: "4.2.2")
+        ),
+        .package(
+            name: "Swifter",
+            url: "https://github.com/fortmarek/swifter.git",
+            .branch("stable")
+        ),
+        .package(
+            url: "https://github.com/apple/swift-tools-support-core.git",
+            .upToNextMinor(from: "0.2.0")
+        ),
+        .package(
+            url: "https://github.com/apple/swift-argument-parser.git",
+            .upToNextMajor(from: "0.4.3")
+        ),
+        .package(
+            url: "https://github.com/maparoni/Zip.git",
+            .revision("059e7346082d02de16220cd79df7db18ddeba8c3")
+        ),
         .package(url: "https://github.com/tuist/GraphViz.git", .branch("tuist")),
         .package(url: "https://github.com/SwiftGen/SwiftGen", .exact("6.5.0")),
-        .package(url: "https://github.com/SwiftGen/StencilSwiftKit.git", .upToNextMajor(from: "2.8.0")),
-        .package(url: "https://github.com/FabrizioBrancati/Queuer.git", .upToNextMajor(from: "2.1.1")),
-        .package(url: "https://github.com/CombineCommunity/CombineExt.git", .upToNextMajor(from: "1.3.0")),
+        .package(
+            url: "https://github.com/SwiftGen/StencilSwiftKit.git",
+            .upToNextMajor(from: "2.8.0")
+        ),
+        .package(
+            url: "https://github.com/FabrizioBrancati/Queuer.git",
+            .upToNextMajor(from: "2.1.1")
+        ),
+        .package(
+            url: "https://github.com/CombineCommunity/CombineExt.git",
+            .upToNextMajor(from: "1.3.0")
+        ),
     ],
     targets: [
         .target(
@@ -83,7 +124,9 @@ let package = Package(
         ),
         .testTarget(
             name: "TuistGraphTests",
-            dependencies: ["TuistGraph", "TuistGraphTesting", "TuistSupportTesting", "TuistCoreTesting"]
+            dependencies: [
+                "TuistGraph", "TuistGraphTesting", "TuistSupportTesting", "TuistCoreTesting",
+            ]
         ),
         .target(
             name: "TuistCore",
@@ -209,7 +252,7 @@ let package = Package(
         .target(
             name: "tuistenv",
             dependencies: [
-                "TuistEnvKit",
+                "TuistEnvKit"
             ]
         ),
         .target(

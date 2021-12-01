@@ -29,11 +29,19 @@ final class CarthageGraphGeneratorTests: TuistUnitTestCase {
 
         let rxSwiftVersionFilePath = path.appending(component: ".RxSwift.version")
         try fileHandler.touch(rxSwiftVersionFilePath)
-        try fileHandler.write(CarthageVersionFile.testRxSwiftJson, path: rxSwiftVersionFilePath, atomically: true)
+        try fileHandler.write(
+            CarthageVersionFile.testRxSwiftJson,
+            path: rxSwiftVersionFilePath,
+            atomically: true
+        )
 
         let alamofireVersionFilePath = path.appending(component: ".Alamofire.version")
         try fileHandler.touch(alamofireVersionFilePath)
-        try fileHandler.write(CarthageVersionFile.testAlamofireJson, path: alamofireVersionFilePath, atomically: true)
+        try fileHandler.write(
+            CarthageVersionFile.testAlamofireJson,
+            path: alamofireVersionFilePath,
+            atomically: true
+        )
 
         // When
         let got = try subject.generate(at: path)
@@ -41,12 +49,48 @@ final class CarthageGraphGeneratorTests: TuistUnitTestCase {
         // Then
         let expected = DependenciesGraph(
             externalDependencies: [
-                "RxSwift": [.xcframework(path: .relativeToManifest("Tuist/Dependencies/Carthage/Build/RxSwift.xcframework"))],
-                "RxCocoa": [.xcframework(path: .relativeToManifest("Tuist/Dependencies/Carthage/Build/RxCocoa.xcframework"))],
-                "RxRelay": [.xcframework(path: .relativeToManifest("Tuist/Dependencies/Carthage/Build/RxRelay.xcframework"))],
-                "RxTest": [.xcframework(path: .relativeToManifest("Tuist/Dependencies/Carthage/Build/RxTest.xcframework"))],
-                "RxBlocking": [.xcframework(path: .relativeToManifest("Tuist/Dependencies/Carthage/Build/RxBlocking.xcframework"))],
-                "Alamofire": [.xcframework(path: .relativeToManifest("Tuist/Dependencies/Carthage/Build/Alamofire.xcframework"))],
+                "RxSwift": [
+                    .xcframework(
+                        path: .relativeToManifest(
+                            "Tuist/Dependencies/Carthage/Build/RxSwift.xcframework"
+                        )
+                    )
+                ],
+                "RxCocoa": [
+                    .xcframework(
+                        path: .relativeToManifest(
+                            "Tuist/Dependencies/Carthage/Build/RxCocoa.xcframework"
+                        )
+                    )
+                ],
+                "RxRelay": [
+                    .xcframework(
+                        path: .relativeToManifest(
+                            "Tuist/Dependencies/Carthage/Build/RxRelay.xcframework"
+                        )
+                    )
+                ],
+                "RxTest": [
+                    .xcframework(
+                        path: .relativeToManifest(
+                            "Tuist/Dependencies/Carthage/Build/RxTest.xcframework"
+                        )
+                    )
+                ],
+                "RxBlocking": [
+                    .xcframework(
+                        path: .relativeToManifest(
+                            "Tuist/Dependencies/Carthage/Build/RxBlocking.xcframework"
+                        )
+                    )
+                ],
+                "Alamofire": [
+                    .xcframework(
+                        path: .relativeToManifest(
+                            "Tuist/Dependencies/Carthage/Build/Alamofire.xcframework"
+                        )
+                    )
+                ],
             ],
             externalProjects: [:]
         )

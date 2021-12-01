@@ -13,7 +13,11 @@ protocol CacheGraphMutating {
     ///   - graph: Dependency graph.
     ///   - precompiledArtifacts: Dictionary that maps targets with the paths to their cached `.framework`s, `.xcframework`s or `.bundle`s.
     ///   - source: Contains a list of targets that won't be replaced with their pre-compiled version from the cache.
-    func map(graph: Graph, precompiledArtifacts: [GraphTarget: AbsolutePath], sources: Set<String>) throws -> Graph
+    func map(
+        graph: Graph,
+        precompiledArtifacts: [GraphTarget: AbsolutePath],
+        sources: Set<String>
+    ) throws -> Graph
 }
 
 // swiftlint:disable:next type_body_length
@@ -35,10 +39,11 @@ class CacheGraphMutator: CacheGraphMutating {
 
     /// Initializes the graph mapper with its attributes.
     /// - Parameter xcframeworkLoader: Utility to parse an .xcframework from the filesystem and load it into memory.
-    init(frameworkLoader: FrameworkLoading = FrameworkLoader(),
-         xcframeworkLoader: XCFrameworkLoading = XCFrameworkLoader(),
-         bundleLoader: BundleLoading = BundleLoader())
-    {
+    init(
+        frameworkLoader: FrameworkLoading = FrameworkLoader(),
+        xcframeworkLoader: XCFrameworkLoading = XCFrameworkLoader(),
+        bundleLoader: BundleLoading = BundleLoader()
+    ) {
         self.frameworkLoader = frameworkLoader
         self.xcframeworkLoader = xcframeworkLoader
         self.bundleLoader = bundleLoader
@@ -61,7 +66,9 @@ class CacheGraphMutator: CacheGraphMutating {
         let graphTraverser = GraphTraverser(graph: graph)
         var visitedPrecompiledArtifactPaths: [GraphTarget: VisitedArtifact?] = [:]
         var loadedPrecompiledDependencies: [AbsolutePath: GraphDependency] = [:]
-        let userSpecifiedSourceTargets = graphTraverser.allTargets().filter { sources.contains($0.target.name) }
+        let userSpecifiedSourceTargets = graphTraverser.allTargets().filter {
+            sources.contains($0.target.name)
+        }
         var sourceTargets = Set(userSpecifiedSourceTargets)
 
         /// New graph dependencies
@@ -203,7 +210,10 @@ class CacheGraphMutator: CacheGraphMutating {
             ).forEach { dependency in
                 switch dependency {
                 case .framework, .xcframework, .bundle, .sdk:
-                    var precompiledDependencies = graphDependencies[precompiledArtifact, default: Set()]
+                    var precompiledDependencies = graphDependencies[
+                        precompiledArtifact,
+                        default: Set()
+                    ]
                     precompiledDependencies.insert(dependency)
                     graphDependencies[precompiledArtifact] = precompiledDependencies
                 case .library, .packageProduct, .target:
@@ -251,16 +261,16 @@ class CacheGraphMutator: CacheGraphMutating {
             return nil
         }
         // The target can be replaced
-        else if
-            let path = precompiledArtifacts[target],
-            graphTraverser.directTargetDependencies(path: target.path, name: target.target.name).allSatisfy({
-                precompiledArtifactPath(
-                    target: $0,
-                    graphTraverser: graphTraverser,
-                    precompiledArtifacts: precompiledArtifacts,
-                    visitedPrecompiledArtifactPaths: &visitedPrecompiledArtifactPaths
-                ) != nil
-            })
+        else if let path = precompiledArtifacts[target],
+            graphTraverser.directTargetDependencies(path: target.path, name: target.target.name)
+                .allSatisfy({
+                    precompiledArtifactPath(
+                        target: $0,
+                        graphTraverser: graphTraverser,
+                        precompiledArtifacts: precompiledArtifacts,
+                        visitedPrecompiledArtifactPaths: &visitedPrecompiledArtifactPaths
+                    ) != nil
+                })
         {
             visitedPrecompiledArtifactPaths[target] = VisitedArtifact(path: path)
             return path
@@ -317,7 +327,9 @@ class CacheGraphMutator: CacheGraphMutating {
                 precompiledDependencies.formUnion(precompiledDependency)
             }
 
-            graphDependencies[key] = graphDependencies[key, default: Set()].union(precompiledDependencies)
+            graphDependencies[key] = graphDependencies[key, default: Set()].union(
+                precompiledDependencies
+            )
         }
     }
 }

@@ -1,9 +1,12 @@
 import Foundation
 import TSCBasic
 import TuistGraph
+
 @testable import TuistCore
 
-public final class MockFrameworkMetadataProvider: MockPrecompiledMetadataProvider, FrameworkMetadataProviding {
+public final class MockFrameworkMetadataProvider: MockPrecompiledMetadataProvider,
+    FrameworkMetadataProviding
+{
     public var loadMetadataStub: ((AbsolutePath) throws -> FrameworkMetadata)?
     public func loadMetadata(at path: AbsolutePath) throws -> FrameworkMetadata {
         if let loadMetadataStub = loadMetadataStub {

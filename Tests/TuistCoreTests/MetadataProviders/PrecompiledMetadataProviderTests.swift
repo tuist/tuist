@@ -81,7 +81,11 @@ final class PrecompiledMetadataProviderTests: TuistUnitTestCase {
 
     func test_metadata_xcframework() throws {
         // Given
-        let binaryPath = fixturePath(path: RelativePath("MyFramework.xcframework/ios-x86_64-simulator/MyFramework.framework/MyFramework"))
+        let binaryPath = fixturePath(
+            path: RelativePath(
+                "MyFramework.xcframework/ios-x86_64-simulator/MyFramework.framework/MyFramework"
+            )
+        )
 
         // When
         let architectures = try subject.architectures(binaryPath: binaryPath)
@@ -94,14 +98,16 @@ final class PrecompiledMetadataProviderTests: TuistUnitTestCase {
         XCTAssertEqual(
             uuids,
             Set([
-                UUID(uuidString: "725302D8-8353-312F-8BF4-564B24F7B3E8"),
+                UUID(uuidString: "725302D8-8353-312F-8BF4-564B24F7B3E8")
             ])
         )
     }
 
     func test_metadata_static_xcframework() throws {
         // Given
-        let binaryPath = fixturePath(path: RelativePath("MyStaticLibrary.xcframework/ios-arm64/libMyStaticLibrary.a"))
+        let binaryPath = fixturePath(
+            path: RelativePath("MyStaticLibrary.xcframework/ios-arm64/libMyStaticLibrary.a")
+        )
 
         // When
         let architectures = try subject.architectures(binaryPath: binaryPath)

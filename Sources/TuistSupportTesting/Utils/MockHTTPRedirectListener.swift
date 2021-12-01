@@ -1,10 +1,16 @@
 import Foundation
+
 @testable import TuistSupport
 
 public final class MockHTTPRedirectListener: HTTPRedirectListening {
     public init() {}
 
-    public var listenStub: ((UInt16, String, String, URL) -> Swift.Result<[String: String]?, HTTPRedirectListenerError>)?
+    public var listenStub:
+        (
+            (UInt16, String, String, URL) -> Swift.Result<
+                [String: String]?, HTTPRedirectListenerError
+            >
+        )?
 
     public func listen(
         port: UInt16,

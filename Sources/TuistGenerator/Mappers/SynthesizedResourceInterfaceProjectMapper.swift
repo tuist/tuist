@@ -25,7 +25,7 @@ enum SynthesizedResourceInterfaceProjectMapperError: FatalError, Equatable {
 }
 
 /// A project mapper that synthesizes resource interfaces
-public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { // swiftlint:disable:this type_name
+public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping {  // swiftlint:disable:this type_name
     private let synthesizedResourceInterfacesGenerator: SynthesizedResourceInterfacesGenerating
     private let contentHasher: ContentHashing
 
@@ -64,7 +64,10 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
     }
 
     /// Map and generate resource interfaces for a given `Target` and `Project`
-    private func mapTarget(_ target: Target, project: Project) throws -> (Target, [SideEffectDescriptor]) {
+    private func mapTarget(
+        _ target: Target,
+        project: Project
+    ) throws -> (Target, [SideEffectDescriptor]) {
         guard !target.resources.isEmpty, target.supportsSources else { return (target, []) }
 
         var target = target
@@ -76,7 +79,9 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
                     let templateString = try FileHandler.shared.readTextFile(path)
                     return (resourceSynthesizer, templateString)
                 case .defaultTemplate:
-                    return (resourceSynthesizer, try templateString(for: resourceSynthesizer.parser))
+                    return (
+                        resourceSynthesizer, try templateString(for: resourceSynthesizer.parser)
+                    )
                 }
             }
             .reduce([]) { acc, current in
@@ -108,8 +113,12 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
             .appending(component: Constants.DerivedDirectory.name)
             .appending(component: Constants.DerivedDirectory.sources)
 
-        let paths = try self.paths(for: resourceSynthesizer, target: target, developmentRegion: project.developmentRegion)
-            .filter(isResourceEmpty)
+        let paths = try self.paths(
+            for: resourceSynthesizer,
+            target: target,
+            developmentRegion: project.developmentRegion
+        )
+        .filter(isResourceEmpty)
 
         let templateName: String
         switch resourceSynthesizer.template {
@@ -133,7 +142,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
                         name: name,
                         paths: paths
                     )
-                ),
+                )
             ]
         }
 
@@ -148,13 +157,15 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
 
         var target = target
 
-        target.sources += try renderedResources
+        target.sources +=
+            try renderedResources
             .map { resource in
                 let hash = try resource.contents.map(contentHasher.hash)
                 return SourceFile(path: resource.path, contentHash: hash)
             }
 
-        let sideEffects = renderedResources
+        let sideEffects =
+            renderedResources
             .map { FileDescriptor(path: $0.path, contents: $0.contents) }
             .map(SideEffectDescriptor.file)
 
@@ -172,7 +183,8 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
         let resourcesPaths = target.resources
             .map(\.path)
 
-        var paths = resourcesPaths
+        var paths =
+            resourcesPaths
             .filter { $0.extension.map(resourceSynthesizer.extensions.contains) ?? false }
             .sorted()
 
@@ -186,11 +198,15 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
 
             // Let's sort paths moving the development region localization's one at first
             let prioritizedPaths = paths.filter { path in
-                regionPriorityQueue.map { path.parentDirectory.basename.contains($0) }.contains(true)
+                regionPriorityQueue.map { path.parentDirectory.basename.contains($0) }.contains(
+                    true
+                )
             }
 
             let unprioritizedPaths = paths.filter { path in
-                !regionPriorityQueue.map { path.parentDirectory.basename.contains($0) }.contains(true)
+                !regionPriorityQueue.map { path.parentDirectory.basename.contains($0) }.contains(
+                    true
+                )
             }
 
             paths = prioritizedPaths + unprioritizedPaths

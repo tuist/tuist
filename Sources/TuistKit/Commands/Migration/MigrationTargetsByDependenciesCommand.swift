@@ -20,6 +20,8 @@ struct MigrationTargetsByDependenciesCommand: ParsableCommand {
     var xcodeprojPath: String
 
     func run() throws {
-        try MigrationTargetsByDependenciesService().run(xcodeprojPath: AbsolutePath(xcodeprojPath, relativeTo: FileHandler.shared.currentPath))
+        try MigrationTargetsByDependenciesService().run(
+            xcodeprojPath: AbsolutePath(xcodeprojPath, relativeTo: FileHandler.shared.currentPath)
+        )
     }
 }

@@ -32,21 +32,33 @@ final class EmbedScriptGeneratorTests: TuistUnitTestCase {
             bcsymbolmapPaths: [bcsymbolPath]
         )
         // When
-        let got = try subject.script(sourceRootPath: framework.precompiledPath!.parentDirectory, frameworkReferences: [framework], includeSymbolsInFileLists: true)
+        let got = try subject.script(
+            sourceRootPath: framework.precompiledPath!.parentDirectory,
+            frameworkReferences: [framework],
+            includeSymbolsInFileLists: true
+        )
 
         // Then
-        XCTAssertEqual(got.inputPaths, [
-            RelativePath("tuist.framework"),
-            RelativePath("tuist.framework/tuist"),
-            RelativePath("tuist.framework/Info.plist"),
-        ])
-        XCTAssertEqual(got.outputPaths, [
-            "${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/\(path.basename)",
-        ])
+        XCTAssertEqual(
+            got.inputPaths,
+            [
+                RelativePath("tuist.framework"),
+                RelativePath("tuist.framework/tuist"),
+                RelativePath("tuist.framework/Info.plist"),
+            ]
+        )
+        XCTAssertEqual(
+            got.outputPaths,
+            [
+                "${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/\(path.basename)"
+            ]
+        )
 
         XCTAssertTrue(got.script.contains("install_framework \"$SRCROOT/\(path.basename)\""))
         XCTAssertTrue(got.script.contains("install_dsym \"$SRCROOT/\(dsymPath.basename)\""))
-        XCTAssertTrue(got.script.contains("install_bcsymbolmap \"$SRCROOT/\(bcsymbolPath.basename)\""))
+        XCTAssertTrue(
+            got.script.contains("install_bcsymbolmap \"$SRCROOT/\(bcsymbolPath.basename)\"")
+        )
     }
 
     func test_script_when_not_includingSymbolsInFileLists() throws {
@@ -61,20 +73,32 @@ final class EmbedScriptGeneratorTests: TuistUnitTestCase {
             bcsymbolmapPaths: [bcsymbolPath]
         )
         // When
-        let got = try subject.script(sourceRootPath: framework.precompiledPath!.parentDirectory, frameworkReferences: [framework], includeSymbolsInFileLists: false)
+        let got = try subject.script(
+            sourceRootPath: framework.precompiledPath!.parentDirectory,
+            frameworkReferences: [framework],
+            includeSymbolsInFileLists: false
+        )
 
         // Then
-        XCTAssertEqual(got.inputPaths, [
-            RelativePath("tuist.framework"),
-            RelativePath("tuist.framework/tuist"),
-            RelativePath("tuist.framework/Info.plist"),
-        ])
-        XCTAssertEqual(got.outputPaths, [
-            "${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/\(path.basename)",
-        ])
+        XCTAssertEqual(
+            got.inputPaths,
+            [
+                RelativePath("tuist.framework"),
+                RelativePath("tuist.framework/tuist"),
+                RelativePath("tuist.framework/Info.plist"),
+            ]
+        )
+        XCTAssertEqual(
+            got.outputPaths,
+            [
+                "${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/\(path.basename)"
+            ]
+        )
 
         XCTAssertTrue(got.script.contains("install_framework \"$SRCROOT/\(path.basename)\""))
         XCTAssertTrue(got.script.contains("install_dsym \"$SRCROOT/\(dsymPath.basename)\""))
-        XCTAssertTrue(got.script.contains("install_bcsymbolmap \"$SRCROOT/\(bcsymbolPath.basename)\""))
+        XCTAssertTrue(
+            got.script.contains("install_bcsymbolmap \"$SRCROOT/\(bcsymbolPath.basename)\"")
+        )
     }
 }

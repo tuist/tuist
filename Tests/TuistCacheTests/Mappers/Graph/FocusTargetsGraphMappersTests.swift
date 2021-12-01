@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistGraph
 import XCTest
+
 @testable import TuistCache
 @testable import TuistCore
 @testable import TuistCoreTesting
@@ -24,14 +25,14 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
                     aTarget.name: aTarget,
                     bTarget.name: bTarget,
                     cTarget.name: cTarget,
-                ],
+                ]
             ],
             dependencies: [
                 .target(name: bTarget.name, path: path): [
-                    .target(name: aTarget.name, path: path),
+                    .target(name: aTarget.name, path: path)
                 ],
                 .target(name: cTarget.name, path: path): [
-                    .target(name: bTarget.name, path: path),
+                    .target(name: bTarget.name, path: path)
                 ],
             ]
         )
@@ -61,14 +62,14 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
                     aTarget.name: aTarget,
                     bTarget.name: bTarget,
                     cTarget.name: cTarget,
-                ],
+                ]
             ],
             dependencies: [
                 .target(name: bTarget.name, path: path): [
-                    .target(name: aTarget.name, path: path),
+                    .target(name: aTarget.name, path: path)
                 ],
                 .target(name: cTarget.name, path: path): [
-                    .target(name: bTarget.name, path: path),
+                    .target(name: bTarget.name, path: path)
                 ],
             ]
         )
@@ -86,7 +87,9 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         )
     }
 
-    func test_map_when_included_targets_is_target_with_no_dependency_all_other_targets_are_pruned() throws {
+    func test_map_when_included_targets_is_target_with_no_dependency_all_other_targets_are_pruned()
+        throws
+    {
         // Given
         let targetNames = ["foo", "bar", "baz"].shuffled()
         let aTarget = Target.test(name: targetNames[0])
@@ -102,14 +105,14 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
                     aTarget.name: aTarget,
                     bTarget.name: bTarget,
                     cTarget.name: cTarget,
-                ],
+                ]
             ],
             dependencies: [
                 .target(name: bTarget.name, path: path): [
-                    .target(name: aTarget.name, path: path),
+                    .target(name: aTarget.name, path: path)
                 ],
                 .target(name: cTarget.name, path: path): [
-                    .target(name: bTarget.name, path: path),
+                    .target(name: bTarget.name, path: path)
                 ],
             ]
         )
@@ -127,7 +130,10 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         )
     }
 
-    func test_map_when_included_targets_is_target_with_dependencies_all_non_dependant_targets_are_pruned() throws {
+    func
+        test_map_when_included_targets_is_target_with_dependencies_all_non_dependant_targets_are_pruned()
+        throws
+    {
         // Given
         let targetNames = ["foo", "bar", "baz"].shuffled()
         let aTarget = Target.test(name: targetNames[0])
@@ -143,14 +149,14 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
                     aTarget.name: aTarget,
                     bTarget.name: bTarget,
                     cTarget.name: cTarget,
-                ],
+                ]
             ],
             dependencies: [
                 .target(name: bTarget.name, path: path): [
-                    .target(name: aTarget.name, path: path),
+                    .target(name: aTarget.name, path: path)
                 ],
                 .target(name: cTarget.name, path: path): [
-                    .target(name: bTarget.name, path: path),
+                    .target(name: bTarget.name, path: path)
                 ],
             ]
         )
@@ -168,7 +174,10 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         )
     }
 
-    func test_map_when_included_targets_is_target_with_no_dependency_but_with_test_target_all_other_targets_are_pruned() throws {
+    func
+        test_map_when_included_targets_is_target_with_no_dependency_but_with_test_target_all_other_targets_are_pruned()
+        throws
+    {
         // Given
         let targetNames = ["foo", "bar", "baz"].shuffled()
         let aTarget = Target.test(name: targetNames[0])
@@ -186,17 +195,17 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
                     aTarget.name: aTarget,
                     bTarget.name: bTarget,
                     cTarget.name: cTarget,
-                ],
+                ]
             ],
             dependencies: [
                 .target(name: aTestTarget.name, path: path): [
-                    .target(name: aTarget.name, path: path),
+                    .target(name: aTarget.name, path: path)
                 ],
                 .target(name: bTarget.name, path: path): [
-                    .target(name: aTarget.name, path: path),
+                    .target(name: aTarget.name, path: path)
                 ],
                 .target(name: cTarget.name, path: path): [
-                    .target(name: bTarget.name, path: path),
+                    .target(name: bTarget.name, path: path)
                 ],
             ]
         )

@@ -27,11 +27,13 @@ struct FocusCommand: ParsableCommand, HasTrackableParameters {
     )
     var path: String?
 
-    @Argument(help: """
-    A list of targets in which you'd like to focus. \
-    Those and their dependant targets will be generated as sources. \
-    If no target is specified, the project defined targets will be focused.
-    """)
+    @Argument(
+        help: """
+            A list of targets in which you'd like to focus. \
+            Those and their dependant targets will be generated as sources. \
+            If no target is specified, the project defined targets will be focused.
+            """
+    )
     var sources: [String] = []
 
     @Flag(
@@ -42,7 +44,8 @@ struct FocusCommand: ParsableCommand, HasTrackableParameters {
 
     @Flag(
         name: [.customShort("x"), .long],
-        help: "When passed it uses xcframeworks (simulator and device) from the cache instead of frameworks (only simulator)."
+        help:
+            "When passed it uses xcframeworks (simulator and device) from the cache instead of frameworks (only simulator)."
     )
     var xcframeworks: Bool = false
 

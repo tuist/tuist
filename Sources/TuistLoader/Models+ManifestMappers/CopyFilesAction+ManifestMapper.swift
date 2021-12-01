@@ -13,7 +13,8 @@ public enum CopyFilesManifestMapperError: FatalError {
     public var description: String {
         switch self {
         case let .invalidResourcesGlob(actionName: actionName, invalidGlobs: invalidGlobs):
-            return "The copy files action \(actionName) has the following invalid resource globs:\n" + invalidGlobs.invalidGlobsDescription
+            return "The copy files action \(actionName) has the following invalid resource globs:\n"
+                + invalidGlobs.invalidGlobsDescription
         }
     }
 }
@@ -23,9 +24,13 @@ extension TuistGraph.CopyFilesAction {
     /// - Parameters:
     ///   - manifest: Manifest representation of platform model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.CopyFilesAction, generatorPaths: GeneratorPaths) throws -> TuistGraph.CopyFilesAction {
+    static func from(
+        manifest: ProjectDescription.CopyFilesAction,
+        generatorPaths: GeneratorPaths
+    ) throws -> TuistGraph.CopyFilesAction {
         var invalidResourceGlobs: [InvalidGlob] = []
-        let files: [TuistGraph.FileElement] = try manifest.files.flatMap { manifest -> [TuistGraph.FileElement] in
+        let files: [TuistGraph.FileElement] = try manifest.files.flatMap {
+            manifest -> [TuistGraph.FileElement] in
             do {
                 let files = try TuistGraph.FileElement.from(
                     manifest: manifest,
@@ -40,12 +45,17 @@ extension TuistGraph.CopyFilesAction {
         }
 
         if !invalidResourceGlobs.isEmpty {
-            throw CopyFilesManifestMapperError.invalidResourcesGlob(actionName: manifest.name, invalidGlobs: invalidResourceGlobs)
+            throw CopyFilesManifestMapperError.invalidResourcesGlob(
+                actionName: manifest.name,
+                invalidGlobs: invalidResourceGlobs
+            )
         }
 
         return TuistGraph.CopyFilesAction(
             name: manifest.name,
-            destination: TuistGraph.CopyFilesAction.Destination.from(manifest: manifest.destination),
+            destination: TuistGraph.CopyFilesAction.Destination.from(
+                manifest: manifest.destination
+            ),
             subpath: manifest.subpath,
             files: files
         )
@@ -56,7 +66,9 @@ extension TuistGraph.CopyFilesAction.Destination {
     /// Maps a ProjectDescription.TargetAction.Destination instance into a TuistGraph.TargetAction.Destination model.
     /// - Parameters:
     ///   - manifest: Manifest representation of target action destination.
-    static func from(manifest: ProjectDescription.CopyFilesAction.Destination) -> TuistGraph.CopyFilesAction.Destination {
+    static func from(
+        manifest: ProjectDescription.CopyFilesAction.Destination
+    ) -> TuistGraph.CopyFilesAction.Destination {
         switch manifest {
         case .absolutePath:
             return .absolutePath

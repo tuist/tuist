@@ -32,13 +32,15 @@ public enum ResourceFileElement: Equatable, Hashable, Codable {
         }
     }
 
-    public init(path: AbsolutePath) {
+    public init(
+        path: AbsolutePath
+    ) {
         self = .file(path: path)
     }
 }
 
-public extension Array where Element == TuistGraph.ResourceFileElement {
-    mutating func remove(path: AbsolutePath) {
+extension Array where Element == TuistGraph.ResourceFileElement {
+    public mutating func remove(path: AbsolutePath) {
         guard let index = firstIndex(of: TuistGraph.ResourceFileElement(path: path)) else { return }
         remove(at: index)
     }
@@ -58,7 +60,9 @@ extension ResourceFileElement {
         case tags
     }
 
-    public init(from decoder: Decoder) throws {
+    public init(
+        from decoder: Decoder
+    ) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
         switch kind {

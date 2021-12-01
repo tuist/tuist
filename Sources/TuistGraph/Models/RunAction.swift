@@ -13,13 +13,14 @@ public struct RunAction: Equatable, Codable {
 
     // MARK: - Init
 
-    public init(configurationName: String,
-                executable: TargetReference?,
-                filePath: AbsolutePath?,
-                arguments: Arguments?,
-                options: RunActionOptions = .init(),
-                diagnosticsOptions: Set<SchemeDiagnosticsOption>)
-    {
+    public init(
+        configurationName: String,
+        executable: TargetReference?,
+        filePath: AbsolutePath?,
+        arguments: Arguments?,
+        options: RunActionOptions = .init(),
+        diagnosticsOptions: Set<SchemeDiagnosticsOption>
+    ) {
         self.configurationName = configurationName
         self.executable = executable
         self.filePath = filePath

@@ -45,7 +45,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
     func test_fetch_carthage() throws {
         // Given
         let rootPath = try temporaryPath()
-        let dependenciesDirectoryPath = rootPath
+        let dependenciesDirectoryPath =
+            rootPath
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
 
@@ -74,7 +75,11 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         }
 
         // When
-        let graphManifest = try subject.fetch(at: rootPath, dependencies: dependencies, swiftVersion: nil)
+        let graphManifest = try subject.fetch(
+            at: rootPath,
+            dependencies: dependencies,
+            swiftVersion: nil
+        )
 
         // Then
         XCTAssertEqual(graphManifest, expectedGraphManifest)
@@ -89,7 +94,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
     func test_fetch_swiftPackageManger() throws {
         // Given
         let rootPath = try temporaryPath()
-        let dependenciesDirectoryPath = rootPath
+        let dependenciesDirectoryPath =
+            rootPath
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
 
@@ -120,7 +126,11 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         }
 
         // When
-        let graphManifest = try subject.fetch(at: rootPath, dependencies: dependencies, swiftVersion: swiftVersion)
+        let graphManifest = try subject.fetch(
+            at: rootPath,
+            dependencies: dependencies,
+            swiftVersion: swiftVersion
+        )
 
         // Then
         XCTAssertEqual(graphManifest, .test())
@@ -135,7 +145,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
     func test_fetch_carthage_swiftPackageManger() throws {
         // Given
         let rootPath = try temporaryPath()
-        let dependenciesDirectoryPath = rootPath
+        let dependenciesDirectoryPath =
+            rootPath
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
 
@@ -182,15 +193,21 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         }
 
         // When
-        let graphManifest = try subject.fetch(at: rootPath, dependencies: dependencies, swiftVersion: swiftVersion)
+        let graphManifest = try subject.fetch(
+            at: rootPath,
+            dependencies: dependencies,
+            swiftVersion: swiftVersion
+        )
 
         // Then
         XCTAssertEqual(
             graphManifest,
             .init(
                 externalDependencies: [
-                    "Carthage": TuistCore.DependenciesGraph.testXCFramework(name: "Carthage").externalDependencies.values.first!,
-                    "SPM": TuistCore.DependenciesGraph.testXCFramework(name: "SPM").externalDependencies.values.first!,
+                    "Carthage": TuistCore.DependenciesGraph.testXCFramework(name: "Carthage")
+                        .externalDependencies.values.first!,
+                    "SPM": TuistCore.DependenciesGraph.testXCFramework(name: "SPM")
+                        .externalDependencies.values.first!,
                 ],
                 externalProjects: [:]
             )
@@ -209,12 +226,12 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         let dependencies = TuistGraph.Dependencies(
             carthage: .init(
                 [
-                    .github(path: "Moya", requirement: .exact("1.1.1")),
+                    .github(path: "Moya", requirement: .exact("1.1.1"))
                 ]
             ),
             swiftPackageManager: .init(
                 [
-                    .remote(url: "Moya", requirement: .exact("2.3.4")),
+                    .remote(url: "Moya", requirement: .exact("2.3.4"))
                 ],
                 productTypes: [:],
                 baseSettings: .default,
@@ -262,7 +279,12 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         let dependencies = TuistGraph.Dependencies(
             carthage: .init([]),
-            swiftPackageManager: .init([], productTypes: [:], baseSettings: .default, targetSettings: [:]),
+            swiftPackageManager: .init(
+                [],
+                productTypes: [:],
+                baseSettings: .default,
+                targetSettings: [:]
+            ),
             platforms: []
         )
 
@@ -279,12 +301,21 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         let dependencies = TuistGraph.Dependencies(
             carthage: .init([]),
-            swiftPackageManager: .init([], productTypes: [:], baseSettings: .default, targetSettings: [:]),
+            swiftPackageManager: .init(
+                [],
+                productTypes: [:],
+                baseSettings: .default,
+                targetSettings: [:]
+            ),
             platforms: [.iOS]
         )
 
         // When
-        let graphManifest = try subject.fetch(at: rootPath, dependencies: dependencies, swiftVersion: nil)
+        let graphManifest = try subject.fetch(
+            at: rootPath,
+            dependencies: dependencies,
+            swiftVersion: nil
+        )
 
         // Then
         XCTAssertEqual(graphManifest, .none)
@@ -300,7 +331,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
     func test_update_carthage() throws {
         // Given
         let rootPath = try temporaryPath()
-        let dependenciesDirectoryPath = rootPath
+        let dependenciesDirectoryPath =
+            rootPath
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
 
@@ -328,7 +360,11 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         }
 
         // When
-        let graphManifest = try subject.update(at: rootPath, dependencies: dependencies, swiftVersion: nil)
+        let graphManifest = try subject.update(
+            at: rootPath,
+            dependencies: dependencies,
+            swiftVersion: nil
+        )
 
         // Then
         XCTAssertEqual(graphManifest, expectedGraph)
@@ -342,7 +378,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
     func test_update_swiftPackageManger() throws {
         // Given
         let rootPath = try temporaryPath()
-        let dependenciesDirectoryPath = rootPath
+        let dependenciesDirectoryPath =
+            rootPath
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
 
@@ -373,7 +410,11 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         }
 
         // When
-        let graphManifest = try subject.update(at: rootPath, dependencies: dependencies, swiftVersion: swiftVersion)
+        let graphManifest = try subject.update(
+            at: rootPath,
+            dependencies: dependencies,
+            swiftVersion: swiftVersion
+        )
 
         // Then
         XCTAssertEqual(graphManifest, .test())
@@ -387,7 +428,8 @@ final class DependenciesControllerTests: TuistUnitTestCase {
     func test_update_carthage_swiftPackageManger() throws {
         // Given
         let rootPath = try temporaryPath()
-        let dependenciesDirectoryPath = rootPath
+        let dependenciesDirectoryPath =
+            rootPath
             .appending(component: Constants.tuistDirectoryName)
             .appending(component: Constants.DependenciesDirectory.name)
 
@@ -433,7 +475,11 @@ final class DependenciesControllerTests: TuistUnitTestCase {
         }
 
         // When
-        let graphManifest = try subject.update(at: rootPath, dependencies: dependencies, swiftVersion: swiftVersion)
+        let graphManifest = try subject.update(
+            at: rootPath,
+            dependencies: dependencies,
+            swiftVersion: swiftVersion
+        )
 
         // Then
         XCTAssertEqual(graphManifest, expectedGraph)
@@ -450,7 +496,12 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         let dependencies = TuistGraph.Dependencies(
             carthage: .init([]),
-            swiftPackageManager: .init([], productTypes: [:], baseSettings: .default, targetSettings: [:]),
+            swiftPackageManager: .init(
+                [],
+                productTypes: [:],
+                baseSettings: .default,
+                targetSettings: [:]
+            ),
             platforms: []
         )
 
@@ -467,12 +518,21 @@ final class DependenciesControllerTests: TuistUnitTestCase {
 
         let dependencies = TuistGraph.Dependencies(
             carthage: .init([]),
-            swiftPackageManager: .init([], productTypes: [:], baseSettings: .default, targetSettings: [:]),
+            swiftPackageManager: .init(
+                [],
+                productTypes: [:],
+                baseSettings: .default,
+                targetSettings: [:]
+            ),
             platforms: [.iOS]
         )
 
         // When
-        let graphManifest = try subject.update(at: rootPath, dependencies: dependencies, swiftVersion: nil)
+        let graphManifest = try subject.update(
+            at: rootPath,
+            dependencies: dependencies,
+            swiftVersion: nil
+        )
 
         // Then
         XCTAssertEqual(graphManifest, .none)
@@ -493,7 +553,7 @@ final class DependenciesControllerTests: TuistUnitTestCase {
                 "anotherLibrary": [.project(target: "Target", path: "/anotherLibrary")],
             ],
             externalProjects: [
-                "/anotherLibrary": .test(),
+                "/anotherLibrary": .test()
             ]
         )
 

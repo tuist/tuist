@@ -3,27 +3,42 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 
-typealias CloudExistsResource = HTTPResource<CloudResponse<CloudEmptyResponse>, CloudEmptyResponseError>
+typealias CloudExistsResource = HTTPResource<
+    CloudResponse<CloudEmptyResponse>, CloudEmptyResponseError
+>
 typealias CloudCacheResource = HTTPResource<CloudResponse<CloudCacheResponse>, CloudResponseError>
-typealias CloudVerifyUploadResource = HTTPResource<CloudResponse<CloudVerifyUploadResponse>, CloudResponseError>
+typealias CloudVerifyUploadResource = HTTPResource<
+    CloudResponse<CloudVerifyUploadResponse>, CloudResponseError
+>
 
 /// Entity responsible for providing cache-related resources
 protocol CloudCacheResourceFactorying {
     func existsResource(name: String, hash: String) throws -> CloudExistsResource
     func fetchResource(name: String, hash: String) throws -> CloudCacheResource
     func storeResource(name: String, hash: String, contentMD5: String) throws -> CloudCacheResource
-    func verifyUploadResource(name: String, hash: String, contentMD5: String) throws -> CloudVerifyUploadResource
+    func verifyUploadResource(
+        name: String,
+        hash: String,
+        contentMD5: String
+    ) throws -> CloudVerifyUploadResource
 }
 
 class CloudCacheResourceFactory: CloudCacheResourceFactorying {
     private let cloudConfig: Cloud
 
-    init(cloudConfig: Cloud) {
+    init(
+        cloudConfig: Cloud
+    ) {
         self.cloudConfig = cloudConfig
     }
 
     func existsResource(name: String, hash: String) throws -> CloudExistsResource {
-        let url = try apiCacheURL(name: name, hash: hash, cacheURL: cloudConfig.url, projectId: cloudConfig.projectId)
+        let url = try apiCacheURL(
+            name: name,
+            hash: hash,
+            cacheURL: cloudConfig.url,
+            projectId: cloudConfig.projectId
+        )
         var request = URLRequest(url: url)
         request.httpMethod = "HEAD"
         return HTTPResource(
@@ -43,7 +58,8 @@ class CloudCacheResourceFactory: CloudCacheResourceFactorying {
         return HTTPResource.jsonResource(for: url, httpMethod: "GET")
     }
 
-    func storeResource(name: String, hash: String, contentMD5: String) throws -> CloudCacheResource {
+    func storeResource(name: String, hash: String, contentMD5: String) throws -> CloudCacheResource
+    {
         let url = try apiCacheURL(
             name: name,
             hash: hash,
@@ -54,7 +70,11 @@ class CloudCacheResourceFactory: CloudCacheResourceFactorying {
         return HTTPResource.jsonResource(for: url, httpMethod: "POST")
     }
 
-    func verifyUploadResource(name: String, hash: String, contentMD5: String) throws -> CloudVerifyUploadResource {
+    func verifyUploadResource(
+        name: String,
+        hash: String,
+        contentMD5: String
+    ) throws -> CloudVerifyUploadResource {
         let url = try apiCacheVerifyUploadURL(
             name: name,
             hash: hash,

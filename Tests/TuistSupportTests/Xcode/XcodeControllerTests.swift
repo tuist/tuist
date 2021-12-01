@@ -1,6 +1,7 @@
 import Foundation
-import struct TSCUtility.Version
 import XCTest
+
+import struct TSCUtility.Version
 
 @testable import TuistSupport
 @testable import TuistSupportTesting
@@ -76,7 +77,10 @@ final class XcodeControllerTests: TuistUnitTestCase {
         system.errorCommand(["xcode-select", "-p"])
 
         // Then
-        XCTAssertThrowsSpecific(try subject.selectedVersion(), XcodeController.XcodeVersionError.noXcode)
+        XCTAssertThrowsSpecific(
+            try subject.selectedVersion(),
+            XcodeController.XcodeVersionError.noXcode
+        )
     }
 
     func test_selectedVersion_when_xcodeSelectReturnsThePath() throws {

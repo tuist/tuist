@@ -16,10 +16,12 @@ extension TargetScript {
             return text.spm_chomp().spm_chuzzle() ?? ""
 
         case let .scriptPath(path, args: args):
-            return "\"$SRCROOT\"/\(path.relative(to: sourceRootPath).pathString) \(args.joined(separator: " "))"
+            return
+                "\"$SRCROOT\"/\(path.relative(to: sourceRootPath).pathString) \(args.joined(separator: " "))"
 
         case let .tool(tool, args):
-            return try "\(System.shared.which(tool).spm_chomp().spm_chuzzle()!) \(args.joined(separator: " "))"
+            return try
+                "\(System.shared.which(tool).spm_chomp().spm_chuzzle()!) \(args.joined(separator: " "))"
         }
     }
 }

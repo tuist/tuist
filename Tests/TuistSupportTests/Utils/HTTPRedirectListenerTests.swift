@@ -26,6 +26,9 @@ final class HTTPRedirectListenerErrorTests: XCTestCase {
         let got = subject.description
 
         // Then
-        XCTAssertEqual(got, "The redirect HTTP server faild to start with the following error: \(error).")
+        XCTAssertEqual(
+            got,
+            "The redirect HTTP server faild to start with the following error: \(error)."
+        )
     }
 }

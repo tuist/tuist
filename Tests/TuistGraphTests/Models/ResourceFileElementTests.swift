@@ -10,7 +10,7 @@ final class ResourceFileElementTests: TuistUnitTestCase {
         let subject = ResourceFileElement.file(
             path: "/path/to/element",
             tags: [
-                "tag",
+                "tag"
             ]
         )
 
@@ -23,7 +23,7 @@ final class ResourceFileElementTests: TuistUnitTestCase {
         let subject = ResourceFileElement.folderReference(
             path: "/path/to/folder",
             tags: [
-                "tag",
+                "tag"
             ]
         )
 

@@ -27,7 +27,7 @@ final class SourceRootPathProjectMapperTests: TuistUnitTestCase {
         let project = Project.test(
             settings: Settings.test(
                 base: [
-                    "SRCROOT": "user_value",
+                    "SRCROOT": "user_value"
                 ]
             )
         )
@@ -56,7 +56,7 @@ final class SourceRootPathProjectMapperTests: TuistUnitTestCase {
                 sourceRootPath: sourceRootPath,
                 settings: Settings.test(
                     base: [
-                        "SRCROOT": SettingValue(stringLiteral: sourceRootPath.pathString),
+                        "SRCROOT": SettingValue(stringLiteral: sourceRootPath.pathString)
                     ]
                 )
             )

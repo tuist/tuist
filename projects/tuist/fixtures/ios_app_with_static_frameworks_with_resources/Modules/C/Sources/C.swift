@@ -1,5 +1,6 @@
-import Foundation
 import D
+import Foundation
+
 public class C {
     public static let value: String = "cValue"
 

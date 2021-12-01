@@ -5,6 +5,7 @@ import TSCBasic
 import TSCUtility
 import TuistSupport
 import TuistSupportTesting
+
 @testable import TuistEnvKit
 
 final class MockVersionProvider: VersionProviding {

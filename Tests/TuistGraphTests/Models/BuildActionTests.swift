@@ -12,7 +12,7 @@ final class BuildActionTests: TuistUnitTestCase {
                 .init(
                     projectPath: "/path/to/project",
                     name: "name"
-                ),
+                )
             ],
             preActions: [
                 .init(
@@ -20,7 +20,7 @@ final class BuildActionTests: TuistUnitTestCase {
                     scriptText: "text",
                     target: nil,
                     showEnvVarsInLog: true
-                ),
+                )
             ],
             postActions: [
                 .init(
@@ -28,7 +28,7 @@ final class BuildActionTests: TuistUnitTestCase {
                     scriptText: "text",
                     target: nil,
                     showEnvVarsInLog: false
-                ),
+                )
             ]
         )
 

@@ -28,11 +28,19 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Given
         let sourceRootPath = try temporaryPath()
         let projectManifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }
-        let configPath = sourceRootPath.appending(components: Constants.tuistDirectoryName, "Config.swift")
-        let dependenciesPath = sourceRootPath.appending(components: Constants.tuistDirectoryName, "Dependencies.swift")
+        let configPath = sourceRootPath.appending(
+            components: Constants.tuistDirectoryName,
+            "Config.swift"
+        )
+        let dependenciesPath = sourceRootPath.appending(
+            components: Constants.tuistDirectoryName,
+            "Dependencies.swift"
+        )
         let helperPaths = [sourceRootPath].map { $0.appending(component: "Project+Template.swift") }
         let templates = [sourceRootPath].map { $0.appending(component: "template") }
-        let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
+        let projectDescriptionPath = sourceRootPath.appending(
+            component: "ProjectDescription.framework"
+        )
         let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
         let projectName = "Manifests"
         let projectsGroup = ProjectGroup.group(name: projectName)
@@ -56,7 +64,9 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             templates: templates,
             tasks: tasksPaths,
             projectDescriptionPath: projectDescriptionPath,
-            projectAutomationPath: sourceRootPath.appending(component: "ProjectAutomation.framework")
+            projectAutomationPath: sourceRootPath.appending(
+                component: "ProjectAutomation.framework"
+            )
         )
 
         let project = try XCTUnwrap(graph.projects.values.first)
@@ -72,24 +82,34 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(project.targets.sorted { $0.name < $1.name }, targets)
 
         // Generated Manifests target
-        let manifestsTarget = try XCTUnwrap(project.targets.first(where: { $0.name == sourceRootPath.basename + projectName }))
+        let manifestsTarget = try XCTUnwrap(
+            project.targets.first(where: { $0.name == sourceRootPath.basename + projectName })
+        )
         XCTAssertEqual(targets.last, manifestsTarget)
 
         XCTAssertEqual(manifestsTarget.platform, .macOS)
         XCTAssertEqual(manifestsTarget.product, .staticFramework)
-        XCTAssertEqual(manifestsTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
+        XCTAssertEqual(
+            manifestsTarget.settings,
+            expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory])
+        )
         XCTAssertEqual(manifestsTarget.sources.map(\.path), projectManifestPaths)
         XCTAssertEqual(manifestsTarget.filesGroup, projectsGroup)
         XCTAssertEqual(manifestsTarget.dependencies, [.target(name: "ProjectDescriptionHelpers")])
 
         // Generated Helpers target
-        let helpersTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "ProjectDescriptionHelpers" }))
+        let helpersTarget = try XCTUnwrap(
+            project.targets.last(where: { $0.name == "ProjectDescriptionHelpers" })
+        )
         XCTAssertTrue(targets.contains(helpersTarget))
 
         XCTAssertEqual(helpersTarget.name, "ProjectDescriptionHelpers")
         XCTAssertEqual(helpersTarget.platform, .macOS)
         XCTAssertEqual(helpersTarget.product, .staticFramework)
-        XCTAssertEqual(helpersTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
+        XCTAssertEqual(
+            helpersTarget.settings,
+            expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory])
+        )
         XCTAssertEqual(helpersTarget.sources.map(\.path), helperPaths)
         XCTAssertEqual(helpersTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(helpersTarget.dependencies)
@@ -101,7 +121,10 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(templatesTarget.name, "Templates")
         XCTAssertEqual(templatesTarget.platform, .macOS)
         XCTAssertEqual(templatesTarget.product, .staticFramework)
-        XCTAssertEqual(templatesTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
+        XCTAssertEqual(
+            templatesTarget.settings,
+            expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory])
+        )
         XCTAssertEqual(templatesTarget.sources.map(\.path), templates)
         XCTAssertEqual(templatesTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(templatesTarget.dependencies)
@@ -113,19 +136,27 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(configTarget.name, "Config")
         XCTAssertEqual(configTarget.platform, .macOS)
         XCTAssertEqual(configTarget.product, .staticFramework)
-        XCTAssertEqual(configTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
+        XCTAssertEqual(
+            configTarget.settings,
+            expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory])
+        )
         XCTAssertEqual(configTarget.sources.map(\.path), [configPath])
         XCTAssertEqual(configTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(configTarget.dependencies)
 
         // Generated Dependencies target
-        let dependenciesTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "Dependencies" }))
+        let dependenciesTarget = try XCTUnwrap(
+            project.targets.last(where: { $0.name == "Dependencies" })
+        )
         XCTAssertTrue(targets.contains(dependenciesTarget))
 
         XCTAssertEqual(dependenciesTarget.name, "Dependencies")
         XCTAssertEqual(dependenciesTarget.platform, .macOS)
         XCTAssertEqual(dependenciesTarget.product, .staticFramework)
-        XCTAssertEqual(dependenciesTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
+        XCTAssertEqual(
+            dependenciesTarget.settings,
+            expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory])
+        )
         XCTAssertEqual(dependenciesTarget.sources.map(\.path), [dependenciesPath])
         XCTAssertEqual(dependenciesTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(dependenciesTarget.dependencies)
@@ -137,7 +168,10 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(taskOneTarget.name, "TaskOne")
         XCTAssertEqual(taskOneTarget.platform, .macOS)
         XCTAssertEqual(taskOneTarget.product, .staticFramework)
-        XCTAssertEqual(taskOneTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
+        XCTAssertEqual(
+            taskOneTarget.settings,
+            expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory])
+        )
         XCTAssertEqual(taskOneTarget.sources.map(\.path), [tasksPaths[0]])
         XCTAssertEqual(taskOneTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(taskOneTarget.dependencies)
@@ -149,7 +183,10 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(taskTwoTarget.name, "TaskTwo")
         XCTAssertEqual(taskTwoTarget.platform, .macOS)
         XCTAssertEqual(taskTwoTarget.product, .staticFramework)
-        XCTAssertEqual(taskTwoTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
+        XCTAssertEqual(
+            taskTwoTarget.settings,
+            expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory])
+        )
         XCTAssertEqual(taskTwoTarget.sources.map(\.path), [tasksPaths[1]])
         XCTAssertEqual(taskTwoTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(taskTwoTarget.dependencies)
@@ -157,12 +194,17 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Generated Project
         XCTAssertEqual(project.path, sourceRootPath.appending(component: projectName))
         XCTAssertEqual(project.name, projectName)
-        XCTAssertEqual(project.settings, Settings(
-            base: ["ONLY_ACTIVE_ARCH": "NO",
-                   "EXCLUDED_ARCHS": "x86_64"],
-            configurations: Settings.default.configurations,
-            defaultSettings: .recommended
-        ))
+        XCTAssertEqual(
+            project.settings,
+            Settings(
+                base: [
+                    "ONLY_ACTIVE_ARCH": "NO",
+                    "EXCLUDED_ARCHS": "x86_64",
+                ],
+                configurations: Settings.default.configurations,
+                defaultSettings: .recommended
+            )
+        )
         XCTAssertEqual(project.filesGroup, projectsGroup)
 
         // Generated Scheme
@@ -176,16 +218,22 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let runAction = try XCTUnwrap(scheme.runAction)
         XCTAssertEqual(runAction.filePath, tuistPath)
         let generateArgument = "generate --path \(sourceRootPath)"
-        XCTAssertEqual(runAction.arguments, Arguments(launchArguments: [LaunchArgument(name: generateArgument, isEnabled: true)]))
+        XCTAssertEqual(
+            runAction.arguments,
+            Arguments(launchArguments: [LaunchArgument(name: generateArgument, isEnabled: true)])
+        )
     }
 
-    func test_edit_when_there_are_no_helpers_and_no_setup_and_no_config_and_no_dependencies() throws {
+    func test_edit_when_there_are_no_helpers_and_no_setup_and_no_config_and_no_dependencies() throws
+    {
         // Given
         let sourceRootPath = try temporaryPath()
         let projectManifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }
         let helperPaths: [AbsolutePath] = []
         let templates: [AbsolutePath] = []
-        let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
+        let projectDescriptionPath = sourceRootPath.appending(
+            component: "ProjectDescription.framework"
+        )
         let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
         let projectName = "Manifests"
         let projectsGroup = ProjectGroup.group(name: projectName)
@@ -205,7 +253,9 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             templates: templates,
             tasks: [],
             projectDescriptionPath: projectDescriptionPath,
-            projectAutomationPath: sourceRootPath.appending(component: "ProjectAutomation.framework")
+            projectAutomationPath: sourceRootPath.appending(
+                component: "ProjectAutomation.framework"
+            )
         )
 
         let project = try XCTUnwrap(graph.projects.values.first)
@@ -219,11 +269,16 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEmpty(targets.flatMap(\.dependencies))
 
         // Generated Manifests target
-        let manifestsTarget = try XCTUnwrap(project.targets.last(where: { $0.name == sourceRootPath.basename + projectName }))
+        let manifestsTarget = try XCTUnwrap(
+            project.targets.last(where: { $0.name == sourceRootPath.basename + projectName })
+        )
 
         XCTAssertEqual(manifestsTarget.platform, .macOS)
         XCTAssertEqual(manifestsTarget.product, .staticFramework)
-        XCTAssertEqual(manifestsTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
+        XCTAssertEqual(
+            manifestsTarget.settings,
+            expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory])
+        )
         XCTAssertEqual(manifestsTarget.sources.map(\.path), projectManifestPaths)
         XCTAssertEqual(manifestsTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(manifestsTarget.dependencies)
@@ -231,12 +286,17 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Generated Project
         XCTAssertEqual(project.path, sourceRootPath.appending(component: projectName))
         XCTAssertEqual(project.name, projectName)
-        XCTAssertEqual(project.settings, Settings(
-            base: ["ONLY_ACTIVE_ARCH": "NO",
-                   "EXCLUDED_ARCHS": "x86_64"],
-            configurations: Settings.default.configurations,
-            defaultSettings: .recommended
-        ))
+        XCTAssertEqual(
+            project.settings,
+            Settings(
+                base: [
+                    "ONLY_ACTIVE_ARCH": "NO",
+                    "EXCLUDED_ARCHS": "x86_64",
+                ],
+                configurations: Settings.default.configurations,
+                defaultSettings: .recommended
+            )
+        )
         XCTAssertEqual(project.filesGroup, projectsGroup)
 
         // Generated Scheme
@@ -250,22 +310,35 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let runAction = try XCTUnwrap(scheme.runAction)
         XCTAssertEqual(runAction.filePath, tuistPath)
         let generateArgument = "generate --path \(sourceRootPath)"
-        XCTAssertEqual(runAction.arguments, Arguments(launchArguments: [LaunchArgument(name: generateArgument, isEnabled: true)]))
+        XCTAssertEqual(
+            runAction.arguments,
+            Arguments(launchArguments: [LaunchArgument(name: generateArgument, isEnabled: true)])
+        )
     }
 
     func test_tuist_edit_with_more_than_one_manifest() throws {
         // Given
         let sourceRootPath = try temporaryPath()
-        let configPath = sourceRootPath.appending(components: Constants.tuistDirectoryName, "Config.swift")
-        let dependenciesPath = sourceRootPath.appending(components: Constants.tuistDirectoryName, "Dependencies.swift")
+        let configPath = sourceRootPath.appending(
+            components: Constants.tuistDirectoryName,
+            "Config.swift"
+        )
+        let dependenciesPath = sourceRootPath.appending(
+            components: Constants.tuistDirectoryName,
+            "Dependencies.swift"
+        )
         let otherProjectPath = "Module"
         let projectManifestPaths = [
             sourceRootPath.appending(component: "Project.swift"),
-            sourceRootPath.appending(component: otherProjectPath).appending(component: "Project.swift"),
+            sourceRootPath.appending(component: otherProjectPath).appending(
+                component: "Project.swift"
+            ),
         ]
         let helperPaths: [AbsolutePath] = []
         let templates: [AbsolutePath] = []
-        let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
+        let projectDescriptionPath = sourceRootPath.appending(
+            component: "ProjectDescription.framework"
+        )
         let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
         let projectName = "Manifests"
 
@@ -284,7 +357,9 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             templates: templates,
             tasks: [],
             projectDescriptionPath: projectDescriptionPath,
-            projectAutomationPath: sourceRootPath.appending(component: "ProjectAutomation.framework")
+            projectAutomationPath: sourceRootPath.appending(
+                component: "ProjectAutomation.framework"
+            )
         )
 
         let project = try XCTUnwrap(graph.projects.values.first)
@@ -299,23 +374,39 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEmpty(targets.flatMap(\.dependencies))
 
         // Generated Manifests target
-        let manifestOneTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "ModuleManifests" }))
+        let manifestOneTarget = try XCTUnwrap(
+            project.targets.last(where: { $0.name == "ModuleManifests" })
+        )
 
         XCTAssertEqual(manifestOneTarget.name, "ModuleManifests")
         XCTAssertEqual(manifestOneTarget.platform, .macOS)
         XCTAssertEqual(manifestOneTarget.product, .staticFramework)
-        XCTAssertEqual(manifestOneTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
-        XCTAssertEqual(manifestOneTarget.sources.map(\.path), [try XCTUnwrap(projectManifestPaths.last)])
+        XCTAssertEqual(
+            manifestOneTarget.settings,
+            expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory])
+        )
+        XCTAssertEqual(
+            manifestOneTarget.sources.map(\.path),
+            [try XCTUnwrap(projectManifestPaths.last)]
+        )
         XCTAssertEqual(manifestOneTarget.filesGroup, .group(name: projectName))
         XCTAssertEmpty(manifestOneTarget.dependencies)
 
         // Generated Manifests target
-        let manifestTwoTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "\(sourceRootPath.basename)Manifests" }))
+        let manifestTwoTarget = try XCTUnwrap(
+            project.targets.last(where: { $0.name == "\(sourceRootPath.basename)Manifests" })
+        )
 
         XCTAssertEqual(manifestTwoTarget.platform, .macOS)
         XCTAssertEqual(manifestTwoTarget.product, .staticFramework)
-        XCTAssertEqual(manifestTwoTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
-        XCTAssertEqual(manifestTwoTarget.sources.map(\.path), [try XCTUnwrap(projectManifestPaths.first)])
+        XCTAssertEqual(
+            manifestTwoTarget.settings,
+            expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory])
+        )
+        XCTAssertEqual(
+            manifestTwoTarget.sources.map(\.path),
+            [try XCTUnwrap(projectManifestPaths.first)]
+        )
         XCTAssertEqual(manifestTwoTarget.filesGroup, .group(name: projectName))
         XCTAssertEmpty(manifestTwoTarget.dependencies)
 
@@ -325,7 +416,10 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(configTarget.name, "Config")
         XCTAssertEqual(configTarget.platform, .macOS)
         XCTAssertEqual(configTarget.product, .staticFramework)
-        XCTAssertEqual(configTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
+        XCTAssertEqual(
+            configTarget.settings,
+            expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory])
+        )
         XCTAssertEqual(configTarget.sources.map(\.path), [configPath])
         XCTAssertEqual(configTarget.filesGroup, .group(name: projectName))
         XCTAssertEmpty(configTarget.dependencies)
@@ -333,12 +427,17 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Generated Project
         XCTAssertEqual(project.path, sourceRootPath.appending(component: projectName))
         XCTAssertEqual(project.name, projectName)
-        XCTAssertEqual(project.settings, Settings(
-            base: ["ONLY_ACTIVE_ARCH": "NO",
-                   "EXCLUDED_ARCHS": "x86_64"],
-            configurations: Settings.default.configurations,
-            defaultSettings: .recommended
-        ))
+        XCTAssertEqual(
+            project.settings,
+            Settings(
+                base: [
+                    "ONLY_ACTIVE_ARCH": "NO",
+                    "EXCLUDED_ARCHS": "x86_64",
+                ],
+                configurations: Settings.default.configurations,
+                defaultSettings: .recommended
+            )
+        )
         XCTAssertEqual(project.filesGroup, .group(name: projectName))
 
         // Generated Scheme
@@ -352,7 +451,10 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let runAction = try XCTUnwrap(scheme.runAction)
         XCTAssertEqual(runAction.filePath, tuistPath)
         let generateArgument = "generate --path \(sourceRootPath)"
-        XCTAssertEqual(runAction.arguments, Arguments(launchArguments: [LaunchArgument(name: generateArgument, isEnabled: true)]))
+        XCTAssertEqual(
+            runAction.arguments,
+            Arguments(launchArguments: [LaunchArgument(name: generateArgument, isEnabled: true)])
+        )
     }
 
     func test_tuist_edit_with_one_plugin_no_projects() throws {
@@ -363,7 +465,9 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         }
         let helperPaths: [AbsolutePath] = []
         let templates: [AbsolutePath] = []
-        let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
+        let projectDescriptionPath = sourceRootPath.appending(
+            component: "ProjectDescription.framework"
+        )
         let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
         let projectName = "Plugins"
         let projectsGroup = ProjectGroup.group(name: projectName)
@@ -383,7 +487,9 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             templates: templates,
             tasks: [],
             projectDescriptionPath: projectDescriptionPath,
-            projectAutomationPath: sourceRootPath.appending(component: "ProjectAutomation.framework")
+            projectAutomationPath: sourceRootPath.appending(
+                component: "ProjectAutomation.framework"
+            )
         )
 
         let project = try XCTUnwrap(graph.projects.values.first)
@@ -397,11 +503,16 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEmpty(targets.flatMap(\.dependencies))
 
         // Generated Plugin target
-        let pluginTarget = try XCTUnwrap(project.targets.last(where: { $0.name == sourceRootPath.basename }))
+        let pluginTarget = try XCTUnwrap(
+            project.targets.last(where: { $0.name == sourceRootPath.basename })
+        )
 
         XCTAssertEqual(pluginTarget.platform, .macOS)
         XCTAssertEqual(pluginTarget.product, .staticFramework)
-        XCTAssertEqual(pluginTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
+        XCTAssertEqual(
+            pluginTarget.settings,
+            expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory])
+        )
         XCTAssertEqual(pluginTarget.sources.map(\.path), pluginManifestPaths)
         XCTAssertEqual(pluginTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(pluginTarget.dependencies)
@@ -409,12 +520,17 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Generated Project
         XCTAssertEqual(project.path, sourceRootPath.appending(component: projectName))
         XCTAssertEqual(project.name, projectName)
-        XCTAssertEqual(project.settings, Settings(
-            base: ["ONLY_ACTIVE_ARCH": "NO",
-                   "EXCLUDED_ARCHS": "x86_64"],
-            configurations: Settings.default.configurations,
-            defaultSettings: .recommended
-        ))
+        XCTAssertEqual(
+            project.settings,
+            Settings(
+                base: [
+                    "ONLY_ACTIVE_ARCH": "NO",
+                    "EXCLUDED_ARCHS": "x86_64",
+                ],
+                configurations: Settings.default.configurations,
+                defaultSettings: .recommended
+            )
+        )
         XCTAssertEqual(project.filesGroup, projectsGroup)
 
         // Generated Schemes
@@ -426,7 +542,10 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(pluginBuildAction.targets.map(\.name), [pluginTarget.name])
 
         let allPluginsBuildAction = try XCTUnwrap(schemes.last?.buildAction)
-        XCTAssertEqual(allPluginsBuildAction.targets.map(\.name).sorted(), targets.map(\.name).sorted())
+        XCTAssertEqual(
+            allPluginsBuildAction.targets.map(\.name).sorted(),
+            targets.map(\.name).sorted()
+        )
     }
 
     func test_tuist_edit_with_more_than_one_plugin_no_projects() throws {
@@ -440,7 +559,9 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         }
         let helperPaths: [AbsolutePath] = []
         let templates: [AbsolutePath] = []
-        let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
+        let projectDescriptionPath = sourceRootPath.appending(
+            component: "ProjectDescription.framework"
+        )
         let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
         let projectName = "Plugins"
         let projectsGroup = ProjectGroup.group(name: projectName)
@@ -460,7 +581,9 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             templates: templates,
             tasks: [],
             projectDescriptionPath: projectDescriptionPath,
-            projectAutomationPath: sourceRootPath.appending(component: "ProjectAutomation.framework")
+            projectAutomationPath: sourceRootPath.appending(
+                component: "ProjectAutomation.framework"
+            )
         )
 
         let project = try XCTUnwrap(graph.projects.values.first)
@@ -478,7 +601,10 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
 
         XCTAssertEqual(firstPluginTarget.platform, .macOS)
         XCTAssertEqual(firstPluginTarget.product, .staticFramework)
-        XCTAssertEqual(firstPluginTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
+        XCTAssertEqual(
+            firstPluginTarget.settings,
+            expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory])
+        )
         XCTAssertEqual(firstPluginTarget.sources.map(\.path), [pluginManifestPaths[0]])
         XCTAssertEqual(firstPluginTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(firstPluginTarget.dependencies)
@@ -488,7 +614,10 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
 
         XCTAssertEqual(secondPluginTarget.platform, .macOS)
         XCTAssertEqual(secondPluginTarget.product, .staticFramework)
-        XCTAssertEqual(secondPluginTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
+        XCTAssertEqual(
+            secondPluginTarget.settings,
+            expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory])
+        )
         XCTAssertEqual(secondPluginTarget.sources.map(\.path), [pluginManifestPaths[1]])
         XCTAssertEqual(secondPluginTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(secondPluginTarget.dependencies)
@@ -496,12 +625,17 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Generated Project
         XCTAssertEqual(project.path, sourceRootPath.appending(component: projectName))
         XCTAssertEqual(project.name, projectName)
-        XCTAssertEqual(project.settings, Settings(
-            base: ["ONLY_ACTIVE_ARCH": "NO",
-                   "EXCLUDED_ARCHS": "x86_64"],
-            configurations: Settings.default.configurations,
-            defaultSettings: .recommended
-        ))
+        XCTAssertEqual(
+            project.settings,
+            Settings(
+                base: [
+                    "ONLY_ACTIVE_ARCH": "NO",
+                    "EXCLUDED_ARCHS": "x86_64",
+                ],
+                configurations: Settings.default.configurations,
+                defaultSettings: .recommended
+            )
+        )
         XCTAssertEqual(project.filesGroup, projectsGroup)
 
         // Generated Schemes
@@ -533,11 +667,16 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let sourceRootPath = try temporaryPath()
         let pluginManifestPath = sourceRootPath.appending(component: "Plugin.swift")
         let editablePluginManifests = [
-            EditablePluginManifest(name: pluginManifestPath.parentDirectory.basename, path: pluginManifestPath.parentDirectory),
+            EditablePluginManifest(
+                name: pluginManifestPath.parentDirectory.basename,
+                path: pluginManifestPath.parentDirectory
+            )
         ]
         let helperPaths: [AbsolutePath] = []
         let templates: [AbsolutePath] = []
-        let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
+        let projectDescriptionPath = sourceRootPath.appending(
+            component: "ProjectDescription.framework"
+        )
         let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
         try createFiles([
             "Unrelated/Source.swift",
@@ -568,7 +707,9 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             templates: templates,
             tasks: [],
             projectDescriptionPath: projectDescriptionPath,
-            projectAutomationPath: sourceRootPath.appending(component: "ProjectAutomation.framework")
+            projectAutomationPath: sourceRootPath.appending(
+                component: "ProjectAutomation.framework"
+            )
         )
 
         // Then
@@ -587,7 +728,9 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let projectManifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }
         let helperPaths: [AbsolutePath] = []
         let templates: [AbsolutePath] = []
-        let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
+        let projectDescriptionPath = sourceRootPath.appending(
+            component: "ProjectDescription.framework"
+        )
         let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
         let projectName = "Manifests"
         let projectsGroup = ProjectGroup.group(name: projectName)
@@ -608,7 +751,9 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             templates: templates,
             tasks: [],
             projectDescriptionPath: projectDescriptionPath,
-            projectAutomationPath: sourceRootPath.appending(component: "ProjectAutomation.framework")
+            projectAutomationPath: sourceRootPath.appending(
+                component: "ProjectAutomation.framework"
+            )
         )
 
         let project = try XCTUnwrap(graph.projects.values.first)
@@ -622,11 +767,19 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEmpty(targets.flatMap(\.dependencies))
 
         // Generated Manifests target
-        let manifestsTarget = try XCTUnwrap(project.targets.last(where: { $0.name == sourceRootPath.basename + projectName }))
+        let manifestsTarget = try XCTUnwrap(
+            project.targets.last(where: { $0.name == sourceRootPath.basename + projectName })
+        )
 
         XCTAssertEqual(manifestsTarget.platform, .macOS)
         XCTAssertEqual(manifestsTarget.product, .staticFramework)
-        XCTAssertEqual(manifestsTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory, pluginHelpersPath.parentDirectory, pluginHelpersPath.parentDirectory.parentDirectory]))
+        XCTAssertEqual(
+            manifestsTarget.settings,
+            expectedSettings(includePaths: [
+                sourceRootPath, sourceRootPath.parentDirectory, pluginHelpersPath.parentDirectory,
+                pluginHelpersPath.parentDirectory.parentDirectory,
+            ])
+        )
         XCTAssertEqual(manifestsTarget.sources.map(\.path), projectManifestPaths)
         XCTAssertEqual(manifestsTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(manifestsTarget.dependencies)
@@ -634,12 +787,17 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Generated Project
         XCTAssertEqual(project.path, sourceRootPath.appending(component: projectName))
         XCTAssertEqual(project.name, projectName)
-        XCTAssertEqual(project.settings, Settings(
-            base: ["ONLY_ACTIVE_ARCH": "NO",
-                   "EXCLUDED_ARCHS": "x86_64"],
-            configurations: Settings.default.configurations,
-            defaultSettings: .recommended
-        ))
+        XCTAssertEqual(
+            project.settings,
+            Settings(
+                base: [
+                    "ONLY_ACTIVE_ARCH": "NO",
+                    "EXCLUDED_ARCHS": "x86_64",
+                ],
+                configurations: Settings.default.configurations,
+                defaultSettings: .recommended
+            )
+        )
         XCTAssertEqual(project.filesGroup, projectsGroup)
 
         // Generated Scheme
@@ -653,11 +811,15 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let runAction = try XCTUnwrap(scheme.runAction)
         XCTAssertEqual(runAction.filePath, tuistPath)
         let generateArgument = "generate --path \(sourceRootPath)"
-        XCTAssertEqual(runAction.arguments, Arguments(launchArguments: [LaunchArgument(name: generateArgument, isEnabled: true)]))
+        XCTAssertEqual(
+            runAction.arguments,
+            Arguments(launchArguments: [LaunchArgument(name: generateArgument, isEnabled: true)])
+        )
     }
 
     fileprivate func expectedSettings(includePaths: [AbsolutePath]) -> Settings {
-        let paths = includePaths
+        let paths =
+            includePaths
             .map(\.pathString)
             .map { "\"\($0)\"" }
         return Settings(

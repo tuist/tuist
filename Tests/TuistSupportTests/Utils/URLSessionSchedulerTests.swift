@@ -1,4 +1,5 @@
 import XCTest
+
 @testable import TuistSupport
 @testable import TuistSupportTesting
 
@@ -8,10 +9,19 @@ final class URLSessionSchedulerErrorTests: TuistUnitTestCase {
         let url = URL.test()
         let request = URLRequest(url: url)
         let status = HTTPStatusCode.notFound
-        let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: nil, headerFields: [:])!
+        let response = HTTPURLResponse(
+            url: url,
+            statusCode: status,
+            httpVersion: nil,
+            headerFields: [:]
+        )!
 
         // When
-        let got = URLSessionSchedulerError.httpError(status: status, response: response, request: request).type
+        let got = URLSessionSchedulerError.httpError(
+            status: status,
+            response: response,
+            request: request
+        ).type
 
         // Then
         XCTAssertEqual(got, .abort)
@@ -22,12 +32,24 @@ final class URLSessionSchedulerErrorTests: TuistUnitTestCase {
         let url = URL.test()
         let request = URLRequest(url: url)
         let status = HTTPStatusCode.notFound
-        let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: nil, headerFields: [:])!
+        let response = HTTPURLResponse(
+            url: url,
+            statusCode: status,
+            httpVersion: nil,
+            headerFields: [:]
+        )!
 
         // When
-        let got = URLSessionSchedulerError.httpError(status: status, response: response, request: request).description
+        let got = URLSessionSchedulerError.httpError(
+            status: status,
+            response: response,
+            request: request
+        ).description
 
         // Then
-        XCTAssertEqual(got, "We got an error \(status) from the request \(response.url!) \(request.httpMethod!)")
+        XCTAssertEqual(
+            got,
+            "We got an error \(status) from the request \(response.url!) \(request.httpMethod!)"
+        )
     }
 }

@@ -29,7 +29,8 @@ struct InitCommand: ParsableCommand, HasTrackableParameters {
 
     @Option(
         name: .shortAndLong,
-        help: "The path to the folder where the project will be generated (Default: Current directory)",
+        help:
+            "The path to the folder where the project will be generated (Default: Current directory)",
         completion: .directory
     )
     var path: String?
@@ -42,7 +43,8 @@ struct InitCommand: ParsableCommand, HasTrackableParameters {
 
     @Option(
         name: .shortAndLong,
-        help: "The name of the template to use (you can list available templates with tuist scaffold list)"
+        help:
+            "The name of the template to use (you can list available templates with tuist scaffold list)"
     )
     var template: String?
 
@@ -52,11 +54,15 @@ struct InitCommand: ParsableCommand, HasTrackableParameters {
     init() {}
 
     // Custom decoding to decode dynamic options
-    init(from decoder: Decoder) throws {
+    init(
+        from decoder: Decoder
+    ) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        platform = try container.decodeIfPresent(Option<String>.self, forKey: .platform)?.wrappedValue
+        platform = try container.decodeIfPresent(Option<String>.self, forKey: .platform)?
+            .wrappedValue
         name = try container.decodeIfPresent(Option<String>.self, forKey: .name)?.wrappedValue
-        template = try container.decodeIfPresent(Option<String>.self, forKey: .template)?.wrappedValue
+        template = try container.decodeIfPresent(Option<String>.self, forKey: .template)?
+            .wrappedValue
         path = try container.decodeIfPresent(Option<String>.self, forKey: .path)?.wrappedValue
         try InitCommand.requiredTemplateOptions.forEach { option in
             requiredTemplateOptions[option.name] = try container.decode(
@@ -101,10 +107,11 @@ extension InitCommand {
         // We want to parse only the name of template, not its arguments which will be dynamically added
         // Plucking out path argument
         let pairedArguments: [[String]] = stride(from: 1, to: arguments.count, by: 2).map {
-            Array(arguments[$0 ..< min($0 + 2, arguments.count)])
+            Array(arguments[$0..<min($0 + 2, arguments.count)])
         }
         let possibleValues = ["--path", "-p", "--template", "-t"]
-        let filteredArguments = pairedArguments
+        let filteredArguments =
+            pairedArguments
             .filter {
                 possibleValues.contains($0.first ?? "")
             }
@@ -158,7 +165,9 @@ extension InitCommand {
             }
         }
 
-        init?(stringValue: String) {
+        init?(
+            stringValue: String
+        ) {
             switch stringValue {
             case "platform":
                 self = .platform
@@ -202,10 +211,14 @@ extension InitCommand: CustomReflectable {
         ].filter {
             // Prefer attributes defined in a template if it clashes with predefined ones
             $0.label.map { label in
-                !(InitCommand.requiredTemplateOptions.map(\.name) + InitCommand.optionalTemplateOptions.map(\.name))
+                !(InitCommand.requiredTemplateOptions.map(\.name)
+                    + InitCommand.optionalTemplateOptions.map(\.name))
                     .contains(label)
             } ?? true
         }
-        return Mirror(InitCommand(), children: children + requiredTemplateChildren + optionalTemplateChildren)
+        return Mirror(
+            InitCommand(),
+            children: children + requiredTemplateChildren + optionalTemplateChildren
+        )
     }
 }

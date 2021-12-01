@@ -22,8 +22,8 @@
 
 import Foundation
 
-public extension Data {
-    var md5: String {
+extension Data {
+    public var md5: String {
         let message = withUnsafeBytes { (pointer) -> [UInt8] in
             Array(pointer)
         }
@@ -38,8 +38,8 @@ public extension Data {
     }
 }
 
-public extension String {
-    var md5: String {
+extension String {
+    public var md5: String {
         if let data = data(using: .utf8, allowLossyConversion: true) {
             return data.md5
         } else {
@@ -48,16 +48,17 @@ public extension String {
     }
 }
 
-/** array of bytes, little-endian representation */
+/// array of bytes, little-endian representation
 func arrayOfBytes<T>(_ value: T, length: Int? = nil) -> [UInt8] {
     let totalBytes = length ?? (MemoryLayout<T>.size * 8)
 
     let valuePointer = UnsafeMutablePointer<T>.allocate(capacity: 1)
     valuePointer.pointee = value
 
-    let bytes = valuePointer.withMemoryRebound(to: UInt8.self, capacity: totalBytes) { (bytesPointer) -> [UInt8] in
+    let bytes = valuePointer.withMemoryRebound(to: UInt8.self, capacity: totalBytes) {
+        (bytesPointer) -> [UInt8] in
         var bytes = [UInt8](repeating: 0, count: totalBytes)
-        for j in 0 ..< min(MemoryLayout<T>.size, totalBytes) {
+        for j in 0..<min(MemoryLayout<T>.size, totalBytes) {
             bytes[totalBytes - 1 - j] = (bytesPointer + j).pointee
         }
         return bytes
@@ -100,7 +101,7 @@ extension HashProtocol {
         var tmpMessage = message
 
         // Step 1. Append Padding Bits
-        tmpMessage.append(0x80) // append one bit (UInt8 with one bit) to message
+        tmpMessage.append(0x80)  // append one bit (UInt8 with one bit) to message
 
         // append "0" bit until message length in bits ≡ 448 (mod 512)
         var msgLength = tmpMessage.count
@@ -136,7 +137,10 @@ struct BytesIterator: IteratorProtocol {
     let chunkSize: Int
     let data: [UInt8]
 
-    init(chunkSize: Int, data: [UInt8]) {
+    init(
+        chunkSize: Int,
+        data: [UInt8]
+    ) {
         self.chunkSize = chunkSize
         self.data = data
     }
@@ -145,7 +149,7 @@ struct BytesIterator: IteratorProtocol {
 
     mutating func next() -> ArraySlice<UInt8>? {
         let end = min(chunkSize, data.count - offset)
-        let result = data[offset ..< offset + end]
+        let result = data[offset..<offset + end]
         offset += result.count
         return !result.isEmpty ? result : nil
     }
@@ -165,10 +169,12 @@ func rotateLeft(_ value: UInt32, bits: UInt32) -> UInt32 {
 }
 
 class MD5: HashProtocol {
-    static let size = 16 // 128 / 8
+    static let size = 16  // 128 / 8
     let message: [UInt8]
 
-    init(_ message: [UInt8]) {
+    init(
+        _ message: [UInt8]
+    ) {
         self.message = message
     }
 
@@ -215,7 +221,7 @@ class MD5: HashProtocol {
         tmpMessage += lengthBytes.reversed()
 
         // Process the message in successive 512-bit chunks:
-        let chunkSizeBytes = 512 / 8 // 64
+        let chunkSizeBytes = 512 / 8  // 64
 
         for chunk in BytesSequence(chunkSize: chunkSizeBytes, data: tmpMessage) {
             // break chunk into sixteen 32-bit words M[j], 0 ≤ j ≤ 15
@@ -231,21 +237,21 @@ class MD5: HashProtocol {
             var dTemp: UInt32 = 0
 
             // Main loop
-            for j in 0 ..< sines.count {
+            for j in 0..<sines.count {
                 var g = 0
                 var F: UInt32 = 0
 
                 switch j {
-                case 0 ... 15:
+                case 0...15:
                     F = (B & C) | ((~B) & D)
                     g = j
-                case 16 ... 31:
+                case 16...31:
                     F = (D & B) | (~D & C)
                     g = (5 * j + 1) % 16
-                case 32 ... 47:
+                case 32...47:
                     F = B ^ C ^ D
                     g = (3 * j + 5) % 16
-                case 48 ... 63:
+                case 48...63:
                     F = C ^ (B | (~D))
                     g = (7 * j) % 16
                 default:

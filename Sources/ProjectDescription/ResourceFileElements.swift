@@ -8,19 +8,25 @@ public struct ResourceFileElements: Codable, Equatable {
     /// List of resource file elements
     public let resources: [ResourceFileElement]
 
-    public init(resources: [ResourceFileElement]) {
+    public init(
+        resources: [ResourceFileElement]
+    ) {
         self.resources = resources
     }
 }
 
 extension ResourceFileElements: ExpressibleByStringInterpolation {
-    public init(stringLiteral value: String) {
+    public init(
+        stringLiteral value: String
+    ) {
         self.init(resources: [.glob(pattern: Path(value))])
     }
 }
 
 extension ResourceFileElements: ExpressibleByArrayLiteral {
-    public init(arrayLiteral elements: ResourceFileElement...) {
+    public init(
+        arrayLiteral elements: ResourceFileElement...
+    ) {
         self.init(resources: elements)
     }
 }

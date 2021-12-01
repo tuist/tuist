@@ -32,7 +32,7 @@ final class LastUpgradeVersionWorkspaceMapperTests: TuistUnitTestCase {
             path: projectAPath,
             name: "A",
             targets: [
-                .test(),
+                .test()
             ],
             lastUpgradeCheck: nil
         )
@@ -41,7 +41,7 @@ final class LastUpgradeVersionWorkspaceMapperTests: TuistUnitTestCase {
             path: projectBPath,
             name: "B",
             targets: [
-                .test(),
+                .test()
             ],
             lastUpgradeCheck: nil
         )
@@ -62,7 +62,7 @@ final class LastUpgradeVersionWorkspaceMapperTests: TuistUnitTestCase {
             path: projectAPath,
             name: "A",
             targets: [
-                .test(),
+                .test()
             ],
             lastUpgradeCheck: .init(12, 5, 1)
         )
@@ -71,7 +71,7 @@ final class LastUpgradeVersionWorkspaceMapperTests: TuistUnitTestCase {
             path: projectBPath,
             name: "B",
             targets: [
-                .test(),
+                .test()
             ],
             lastUpgradeCheck: .init(12, 5, 1)
         )

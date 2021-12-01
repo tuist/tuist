@@ -42,7 +42,9 @@ extension TargetDependency {
         case status
     }
 
-    public init(from decoder: Decoder) throws {
+    public init(
+        from decoder: Decoder
+    ) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
         switch kind {
@@ -62,8 +64,15 @@ extension TargetDependency {
         case .library:
             let path = try container.decode(AbsolutePath.self, forKey: .path)
             let publicHeaders = try container.decode(AbsolutePath.self, forKey: .publicHeaders)
-            let swiftModuleMap = try container.decodeIfPresent(AbsolutePath.self, forKey: .swiftModuleMap)
-            self = .library(path: path, publicHeaders: publicHeaders, swiftModuleMap: swiftModuleMap)
+            let swiftModuleMap = try container.decodeIfPresent(
+                AbsolutePath.self,
+                forKey: .swiftModuleMap
+            )
+            self = .library(
+                path: path,
+                publicHeaders: publicHeaders,
+                swiftModuleMap: swiftModuleMap
+            )
         case .package:
             let product = try container.decode(String.self, forKey: .product)
             self = .package(product: product)

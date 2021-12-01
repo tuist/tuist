@@ -4,12 +4,17 @@ public struct TargetReference: Equatable, Codable, ExpressibleByStringInterpolat
     public var projectPath: Path?
     public var targetName: String
 
-    public init(projectPath: Path?, target: String) {
+    public init(
+        projectPath: Path?,
+        target: String
+    ) {
         self.projectPath = projectPath
         targetName = target
     }
 
-    public init(stringLiteral value: String) {
+    public init(
+        stringLiteral value: String
+    ) {
         self = .init(projectPath: nil, target: value)
     }
 

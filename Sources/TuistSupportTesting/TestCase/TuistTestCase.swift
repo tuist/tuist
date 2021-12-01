@@ -9,7 +9,9 @@ import XCTest
 public final class MockFileHandler: FileHandler {
     let temporaryDirectory: () throws -> (AbsolutePath)
 
-    init(temporaryDirectory: @escaping () throws -> (AbsolutePath)) {
+    init(
+        temporaryDirectory: @escaping () throws -> (AbsolutePath)
+    ) {
         self.temporaryDirectory = temporaryDirectory
         super.init()
     }
@@ -18,7 +20,9 @@ public final class MockFileHandler: FileHandler {
     public var cacheDirectoryStub: AbsolutePath?
 
     // swiftlint:disable:next force_try
-    override public var homeDirectory: AbsolutePath { homeDirectoryStub ?? (try! temporaryDirectory()) }
+    override public var homeDirectory: AbsolutePath {
+        homeDirectoryStub ?? (try! temporaryDirectory())
+    }
 
     // swiftlint:disable:next force_try
     override public var currentPath: AbsolutePath { try! temporaryDirectory() }
@@ -71,7 +75,10 @@ public final class MockFileHandler: FileHandler {
         return stubIsFolder(path)
     }
 
-    override public func inTemporaryDirectory<Result>(removeOnCompletion _: Bool, _ closure: (AbsolutePath) throws -> Result) throws -> Result {
+    override public func inTemporaryDirectory<Result>(
+        removeOnCompletion _: Bool,
+        _ closure: (AbsolutePath) throws -> Result
+    ) throws -> Result {
         try closure(temporaryDirectory())
     }
 
@@ -79,11 +86,16 @@ public final class MockFileHandler: FileHandler {
         try closure(temporaryDirectory())
     }
 
-    override public func inTemporaryDirectory(removeOnCompletion _: Bool, _ closure: (AbsolutePath) throws -> Void) throws {
+    override public func inTemporaryDirectory(
+        removeOnCompletion _: Bool,
+        _ closure: (AbsolutePath) throws -> Void
+    ) throws {
         try closure(temporaryDirectory())
     }
 
-    override public func inTemporaryDirectory<Result>(_ closure: (AbsolutePath) throws -> Result) throws -> Result {
+    override public func inTemporaryDirectory<Result>(
+        _ closure: (AbsolutePath) throws -> Result
+    ) throws -> Result {
         try closure(temporaryDirectory())
     }
 }
@@ -155,11 +167,19 @@ open class TuistTestCase: XCTestCase {
         return paths
     }
 
-    public func XCTAssertPrinterOutputContains(_ expected: String, file: StaticString = #file, line: UInt = #line) {
+    public func XCTAssertPrinterOutputContains(
+        _ expected: String,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) {
         XCTAssertPrinterContains(expected, at: .warning, >=, file: file, line: line)
     }
 
-    public func XCTAssertPrinterErrorContains(_ expected: String, file: StaticString = #file, line: UInt = #line) {
+    public func XCTAssertPrinterErrorContains(
+        _ expected: String,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) {
         XCTAssertPrinterContains(expected, at: .error, <=, file: file, line: line)
     }
 
@@ -167,19 +187,20 @@ open class TuistTestCase: XCTestCase {
         _ expected: String,
         at level: Logger.Level,
         _ comparison: (Logger.Level, Logger.Level) -> Bool,
-        file: StaticString = #file, line: UInt = #line
+        file: StaticString = #file,
+        line: UInt = #line
     ) {
         let output = TestingLogHandler.collected[level, comparison]
 
         let message = """
-        The output:
-        ===========
-        \(output)
+            The output:
+            ===========
+            \(output)
 
-        Doesn't contain the expected:
-        ===========
-        \(expected)
-        """
+            Doesn't contain the expected:
+            ===========
+            \(expected)
+            """
 
         XCTAssertTrue(output.contains(expected), message, file: file, line: line)
     }
@@ -188,19 +209,20 @@ open class TuistTestCase: XCTestCase {
         _ notExpected: String,
         at level: Logger.Level,
         _ comparison: (Logger.Level, Logger.Level) -> Bool,
-        file: StaticString = #file, line: UInt = #line
+        file: StaticString = #file,
+        line: UInt = #line
     ) {
         let output = TestingLogHandler.collected[level, comparison]
 
         let message = """
-        The output:
-        ===========
-        \(output)
+            The output:
+            ===========
+            \(output)
 
-        Contains the not expected:
-        ===========
-        \(notExpected)
-        """
+            Contains the not expected:
+            ===========
+            \(notExpected)
+            """
 
         XCTAssertFalse(output.contains(notExpected), message, file: file, line: line)
     }
@@ -214,25 +236,27 @@ open class TuistTestCase: XCTestCase {
         file: StaticString = #file,
         line: UInt = #line
     ) throws {
-        let directoryContent = try fileHandler
+        let directoryContent =
+            try fileHandler
             .contentsOfDirectory(directory)
             .map { $0.pathString }
             .sorted()
 
-        let expectedContent = expected
+        let expectedContent =
+            expected
             .map { directory.appending(RelativePath($0)) }
             .map { $0.pathString }
             .sorted()
 
         let message = """
-        The directory content:
-        ===========
-        \(directoryContent.isEmpty ? "<Empty>" : directoryContent.joined(separator: "\n"))
+            The directory content:
+            ===========
+            \(directoryContent.isEmpty ? "<Empty>" : directoryContent.joined(separator: "\n"))
 
-        Doesn't equal to expected:
-        ===========
-        \(expectedContent.isEmpty ? "<Empty>" : expectedContent.joined(separator: "\n"))
-        """
+            Doesn't equal to expected:
+            ===========
+            \(expectedContent.isEmpty ? "<Empty>" : expectedContent.joined(separator: "\n"))
+            """
 
         XCTAssertEqual(directoryContent, expectedContent, message, file: file, line: line)
     }

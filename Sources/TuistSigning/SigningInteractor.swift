@@ -31,14 +31,15 @@ public final class SigningInteractor: SigningInteracting {
         )
     }
 
-    init(signingFilesLocator: SigningFilesLocating,
-         rootDirectoryLocator: RootDirectoryLocating,
-         signingMatcher: SigningMatching,
-         signingInstaller: SigningInstalling,
-         signingLinter: SigningLinting,
-         securityController: SecurityControlling,
-         signingCipher: SigningCiphering)
-    {
+    init(
+        signingFilesLocator: SigningFilesLocating,
+        rootDirectoryLocator: RootDirectoryLocating,
+        signingMatcher: SigningMatching,
+        signingInstaller: SigningInstalling,
+        signingLinter: SigningLinting,
+        securityController: SecurityControlling,
+        signingCipher: SigningCiphering
+    ) {
         self.signingFilesLocator = signingFilesLocator
         self.rootDirectoryLocator = rootDirectoryLocator
         self.signingMatcher = signingMatcher
@@ -52,10 +53,14 @@ public final class SigningInteractor: SigningInteracting {
         let entryPath = graphTraverser.path
         guard
             let signingDirectory = try signingFilesLocator.locateSigningDirectory(from: entryPath),
-            let derivedDirectory = rootDirectoryLocator.locate(from: entryPath)?.appending(component: Constants.DerivedDirectory.name)
+            let derivedDirectory = rootDirectoryLocator.locate(from: entryPath)?.appending(
+                component: Constants.DerivedDirectory.name
+            )
         else { return }
 
-        let keychainPath = derivedDirectory.appending(component: Constants.DerivedDirectory.signingKeychain)
+        let keychainPath = derivedDirectory.appending(
+            component: Constants.DerivedDirectory.signingKeychain
+        )
 
         let masterKey = try signingCipher.readMasterKey(at: signingDirectory)
         try FileHandler.shared.createFolder(derivedDirectory)
@@ -68,7 +73,9 @@ public final class SigningInteractor: SigningInteracting {
         try signingCipher.decryptSigning(at: entryPath, keepFiles: true)
         defer { try? signingCipher.encryptSigning(at: entryPath, keepFiles: false) }
 
-        let (certificates, provisioningProfiles) = try signingMatcher.match(from: graphTraverser.path)
+        let (certificates, provisioningProfiles) = try signingMatcher.match(
+            from: graphTraverser.path
+        )
 
         try graphTraverser.allTargets().sorted().forEach { target in
             try install(
@@ -82,11 +89,12 @@ public final class SigningInteractor: SigningInteracting {
 
     // MARK: - Helpers
 
-    private func install(target: GraphTarget,
-                         keychainPath: AbsolutePath,
-                         certificates: [Fingerprint: Certificate],
-                         provisioningProfiles: [TargetName: [ConfigurationName: ProvisioningProfile]]) throws
-    {
+    private func install(
+        target: GraphTarget,
+        keychainPath: AbsolutePath,
+        certificates: [Fingerprint: Certificate],
+        provisioningProfiles: [TargetName: [ConfigurationName: ProvisioningProfile]]
+    ) throws {
         let targetConfigurations = target.target.settings?.configurations ?? [:]
         /// Filtering certificate-provisioning profile pairs, so they are installed only when necessary (they correspond to some configuration and target in the project)
         let signingPairs = Set(
@@ -97,9 +105,13 @@ public final class SigningInteractor: SigningInteracting {
                 )
                 .keys
         )
-        .compactMap { configuration -> (certificate: Certificate, provisioningProfile: ProvisioningProfile)? in
+        .compactMap {
+            configuration -> (certificate: Certificate, provisioningProfile: ProvisioningProfile)?
+            in
             guard
-                let provisioningProfile = provisioningProfiles[target.target.name]?[configuration.name],
+                let provisioningProfile = provisioningProfiles[target.target.name]?[
+                    configuration.name
+                ],
                 let certificate = certificates.first(for: provisioningProfile)
             else {
                 return nil

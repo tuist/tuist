@@ -36,9 +36,10 @@ final class BenchmarkCommand {
 
     private let fileHandler: FileHandler
 
-    init(fileHandler: FileHandler,
-         parser: ArgumentParser)
-    {
+    init(
+        fileHandler: FileHandler,
+        parser: ArgumentParser
+    ) {
         self.fileHandler = fileHandler
         configPathOption = parser.add(
             option: "--config",
@@ -122,10 +123,11 @@ final class BenchmarkCommand {
         }
     }
 
-    private func measure(config: BenchmarkConfig,
-                         fixtures: [AbsolutePath],
-                         binaryPath: AbsolutePath) throws -> [MeasureResult]
-    {
+    private func measure(
+        config: BenchmarkConfig,
+        fixtures: [AbsolutePath],
+        binaryPath: AbsolutePath
+    ) throws -> [MeasureResult] {
         let measure = Measure(
             fileHandler: fileHandler,
             binaryPath: binaryPath
@@ -140,11 +142,12 @@ final class BenchmarkCommand {
         return results
     }
 
-    private func benchmark(config: BenchmarkConfig,
-                           fixtures: [AbsolutePath],
-                           binaryPath: AbsolutePath,
-                           referenceBinaryPath: AbsolutePath) throws -> [BenchmarkResult]
-    {
+    private func benchmark(
+        config: BenchmarkConfig,
+        fixtures: [AbsolutePath],
+        binaryPath: AbsolutePath,
+        referenceBinaryPath: AbsolutePath
+    ) throws -> [BenchmarkResult] {
         let benchmark = Benchmark(
             fileHandler: fileHandler,
             binaryPath: binaryPath,
@@ -160,9 +163,10 @@ final class BenchmarkCommand {
         return results
     }
 
-    private func getFixturePaths(fixturesListPath: AbsolutePath?,
-                                 fixturePath: AbsolutePath?) throws -> [AbsolutePath]
-    {
+    private func getFixturePaths(
+        fixturesListPath: AbsolutePath?,
+        fixturePath: AbsolutePath?
+    ) throws -> [AbsolutePath] {
         if let fixturePath = fixturePath {
             return [fixturePath]
         }
@@ -177,7 +181,10 @@ final class BenchmarkCommand {
         return []
     }
 
-    private func makeRenderer(for option: BenchmarkResultFormat, config: BenchmarkConfig) -> Renderer {
+    private func makeRenderer(
+        for option: BenchmarkResultFormat,
+        config: BenchmarkConfig
+    ) -> Renderer {
         switch option {
         case .console:
             return ConsoleRenderer(deltaThreshold: config.deltaThreshold)

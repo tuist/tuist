@@ -33,7 +33,9 @@ public struct ResourceSynthesizer: Codable, Equatable {
             case defaultTemplate
         }
 
-        public init(from decoder: Decoder) throws {
+        public init(
+            from decoder: Decoder
+        ) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             let type = try container.decode(TypeName.self, forKey: .type)
             switch type {

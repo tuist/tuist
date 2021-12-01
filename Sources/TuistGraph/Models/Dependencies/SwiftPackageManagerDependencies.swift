@@ -53,9 +53,9 @@ extension SwiftPackageManagerDependencies {
 
 // MARK: - Package.manifestValue()
 
-private extension Package {
+extension Package {
     /// Returns `Package.swift` representation.
-    var manifestValue: String {
+    fileprivate var manifestValue: String {
         switch self {
         case let .local(path):
             return #".package(path: "\#(path)")"#
@@ -67,9 +67,9 @@ private extension Package {
 
 // MARK: - Requirement.manifestValue()
 
-private extension Requirement {
+extension Requirement {
     /// Returns `Package.swift` representation.
-    var manifestValue: String {
+    fileprivate var manifestValue: String {
         switch self {
         case let .exact(version):
             return #".exact("\#(version)")"#

@@ -33,7 +33,9 @@ final class TasksLocatorIntegrationTests: TuistTestCase {
         )
 
         // When
-        let got = try subject.locateTasks(at: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory")))
+        let got = try subject.locateTasks(
+            at: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory"))
+        )
 
         // Then
         XCTAssertEqual(
@@ -51,7 +53,9 @@ final class TasksLocatorIntegrationTests: TuistTestCase {
         try createFolders(["this/is/a/very/nested/directory"])
 
         // When
-        let got = try subject.locateTasks(at: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory")))
+        let got = try subject.locateTasks(
+            at: temporaryDirectory.appending(RelativePath("this/is/a/very/nested/directory"))
+        )
 
         // Then
         XCTAssertEmpty(got)

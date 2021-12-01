@@ -12,12 +12,12 @@ let project = Project(
             sources: "Sources/**",
             resources: [
                 "Resources/**/*.png",
-                "Resources/*.xcassets"
+                "Resources/*.xcassets",
             ],
             dependencies: [
                 .project(target: "Framework1", path: "../Framework1"),
-                .project(target: "StaticFramework", path: "../StaticFramework")
+                .project(target: "StaticFramework", path: "../StaticFramework"),
             ]
-        ),
+        )
     ]
 )

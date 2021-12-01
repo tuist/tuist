@@ -4,6 +4,7 @@ import TuistCore
 import TuistGraph
 import TuistSupport
 import TuistSupportTesting
+
 @testable import TuistCache
 @testable import TuistCoreTesting
 
@@ -12,7 +13,7 @@ public class MockCloudCacheResourceFactory: CloudCacheResourceFactorying {
 
     public var invokedExistsResource = false
     public var invokedExistsResourceCount = 0
-    public var invokedExistsResourceParameters: (name: String, hash: String, Void)? // swiftlint:disable:this large_tuple
+    public var invokedExistsResourceParameters: (name: String, hash: String, Void)?  // swiftlint:disable:this large_tuple
     public var invokedExistsResourceParametersList = [(name: String, hash: String, Void)]()
     public var stubbedExistsResourceError: Error?
     public var stubbedExistsResourceResult: CloudExistsResource = HTTPResource(
@@ -21,7 +22,10 @@ public class MockCloudCacheResourceFactory: CloudCacheResourceFactorying {
         parseError: { _, _ in CloudEmptyResponseError() }
     )
 
-    public func existsResource(name: String, hash: String) throws -> HTTPResource<CloudResponse<CloudEmptyResponse>, CloudEmptyResponseError> {
+    public func existsResource(
+        name: String,
+        hash: String
+    ) throws -> HTTPResource<CloudResponse<CloudEmptyResponse>, CloudEmptyResponseError> {
         invokedExistsResource = true
         invokedExistsResourceCount += 1
         invokedExistsResourceParameters = (name, hash, ())
@@ -34,7 +38,7 @@ public class MockCloudCacheResourceFactory: CloudCacheResourceFactorying {
 
     public var invokedFetchResource = false
     public var invokedFetchResourceCount = 0
-    public var invokedFetchResourceParameters: (name: String, hash: String, Void)? // swiftlint:disable:this large_tuple
+    public var invokedFetchResourceParameters: (name: String, hash: String, Void)?  // swiftlint:disable:this large_tuple
     public var invokedFetchResourceParametersList = [(name: String, hash: String, Void)]()
     public var stubbedFetchResourceError: Error?
     public var stubbedFetchResourceResult: CloudCacheResource = HTTPResource(
@@ -56,8 +60,10 @@ public class MockCloudCacheResourceFactory: CloudCacheResourceFactorying {
 
     public var invokedStoreResource = false
     public var invokedStoreResourceCount = 0
-    public var invokedStoreResourceParameters: (name: String, hash: String, contentMD5: String)? // swiftlint:disable:this large_tuple
-    public var invokedStoreResourceParametersList = [(name: String, hash: String, contentMD5: String)]()
+    public var invokedStoreResourceParameters: (name: String, hash: String, contentMD5: String)?  // swiftlint:disable:this large_tuple
+    public var invokedStoreResourceParametersList = [
+        (name: String, hash: String, contentMD5: String)
+    ]()
     public var stubbedStoreResourceError: Error?
     public var stubbedStoreResourceResult: CloudCacheResource = HTTPResource(
         request: { URLRequest.test() },
@@ -65,7 +71,11 @@ public class MockCloudCacheResourceFactory: CloudCacheResourceFactorying {
         parseError: { _, _ in CloudResponseError.test() }
     )
 
-    public func storeResource(name: String, hash: String, contentMD5: String) throws -> CloudCacheResource {
+    public func storeResource(
+        name: String,
+        hash: String,
+        contentMD5: String
+    ) throws -> CloudCacheResource {
         invokedStoreResource = true
         invokedStoreResourceCount += 1
         invokedStoreResourceParameters = (name, hash, contentMD5)
@@ -78,9 +88,12 @@ public class MockCloudCacheResourceFactory: CloudCacheResourceFactorying {
 
     public var invokedVerifyUploadResource = false
     public var invokedVerifyUploadResourceCount = 0
-    public var invokedVerifyUploadResourceParameters: (name: String, hash: String, contentMD5: String)? // swiftlint:disable:this large_tuple
+    public var invokedVerifyUploadResourceParameters:
+        (name: String, hash: String, contentMD5: String)?  // swiftlint:disable:this large_tuple
     // swiftlint:disable:next identifier_name
-    public var invokedVerifyUploadResourceParametersList = [(name: String, hash: String, contentMD5: String)]()
+    public var invokedVerifyUploadResourceParametersList = [
+        (name: String, hash: String, contentMD5: String)
+    ]()
     public var stubbedVerifyUploadResourceError: Error?
     public var stubbedVerifyUploadResourceResult: CloudVerifyUploadResource = HTTPResource(
         request: { URLRequest.test() },
@@ -88,7 +101,11 @@ public class MockCloudCacheResourceFactory: CloudCacheResourceFactorying {
         parseError: { _, _ in CloudResponseError.test() }
     )
 
-    public func verifyUploadResource(name: String, hash: String, contentMD5: String) throws -> CloudVerifyUploadResource {
+    public func verifyUploadResource(
+        name: String,
+        hash: String,
+        contentMD5: String
+    ) throws -> CloudVerifyUploadResource {
         invokedVerifyUploadResource = true
         invokedVerifyUploadResourceCount += 1
         invokedVerifyUploadResourceParameters = (name, hash, contentMD5)

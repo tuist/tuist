@@ -28,11 +28,15 @@ public final class CacheLocalStorage: CacheStoring {
 
     // MARK: - Init
 
-    public convenience init(cacheDirectoriesProvider: CacheDirectoriesProviding) {
+    public convenience init(
+        cacheDirectoriesProvider: CacheDirectoriesProviding
+    ) {
         self.init(cacheDirectory: cacheDirectoriesProvider.cacheDirectory(for: .builds))
     }
 
-    init(cacheDirectory: AbsolutePath) {
+    init(
+        cacheDirectory: AbsolutePath
+    ) {
         self.cacheDirectory = cacheDirectory
     }
 
@@ -40,14 +44,22 @@ public final class CacheLocalStorage: CacheStoring {
 
     public func exists(name _: String, hash: String) -> Single<Bool> {
         Single.create { (completed) -> Disposable in
-            completed(.success(self.lookupCompiledArtifact(directory: self.cacheDirectory.appending(component: hash)) != nil))
+            completed(
+                .success(
+                    self.lookupCompiledArtifact(
+                        directory: self.cacheDirectory.appending(component: hash)
+                    ) != nil
+                )
+            )
             return Disposables.create()
         }
     }
 
     public func fetch(name _: String, hash: String) -> Single<AbsolutePath> {
         Single.create { (completed) -> Disposable in
-            if let path = self.lookupCompiledArtifact(directory: self.cacheDirectory.appending(component: hash)) {
+            if let path = self.lookupCompiledArtifact(
+                directory: self.cacheDirectory.appending(component: hash)
+            ) {
                 completed(.success(path))
             } else {
                 completed(.error(CacheLocalStorageError.compiledArtifactNotFound(hash: hash)))
@@ -88,7 +100,9 @@ public final class CacheLocalStorage: CacheStoring {
     fileprivate func lookupCompiledArtifact(directory: AbsolutePath) -> AbsolutePath? {
         let extensions = ["framework", "xcframework", "bundle"]
         for ext in extensions {
-            if let filePath = FileHandler.shared.glob(directory, glob: "*.\(ext)").first { return filePath }
+            if let filePath = FileHandler.shared.glob(directory, glob: "*.\(ext)").first {
+                return filePath
+            }
         }
         return nil
     }

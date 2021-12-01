@@ -1,6 +1,7 @@
 import Foundation
 import TSCBasic
 import XCTest
+
 @testable import TuistCore
 
 final class GraphCircularDetectorTests: XCTestCase {
@@ -28,7 +29,10 @@ final class GraphCircularDetectorTests: XCTestCase {
         subject.start(from: c, to: a)
 
         // Then
-        XCTAssertThrowsSpecific(try subject.complete(), GraphLoadingError.circularDependency([a, b, c]))
+        XCTAssertThrowsSpecific(
+            try subject.complete(),
+            GraphLoadingError.circularDependency([a, b, c])
+        )
     }
 
     func test_cycleDetected_2() throws {
@@ -165,7 +169,10 @@ final class GraphCircularDetectorTests: XCTestCase {
         subject.start(from: f, to: d)
 
         // Then
-        XCTAssertThrowsSpecific(try subject.complete(), GraphLoadingError.circularDependency([d, e, f]))
+        XCTAssertThrowsSpecific(
+            try subject.complete(),
+            GraphLoadingError.circularDependency([d, e, f])
+        )
     }
 
     // MARK: -
@@ -176,7 +183,7 @@ final class GraphCircularDetectorTests: XCTestCase {
         // ~ <200ms
         measureMetrics([.wallClockTime], automaticallyStartMeasuring: false) {
             // Given
-            var nodes = (0 ..< 1000).map { node("\($0)") }.shuffled()
+            var nodes = (0..<1000).map { node("\($0)") }.shuffled()
 
             while let node = nodes.popLast() {
                 nodes.forEach {

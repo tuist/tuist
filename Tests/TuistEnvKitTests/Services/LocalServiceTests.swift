@@ -1,8 +1,10 @@
 import Foundation
 import TSCBasic
-import struct TSCUtility.Version
 import TuistSupport
 import XCTest
+
+import struct TSCUtility.Version
+
 @testable import TuistEnvKit
 @testable import TuistSupportTesting
 
@@ -46,24 +48,30 @@ final class LocalServiceTests: TuistUnitTestCase {
         // Then
         let versionPath = temporaryPath.appending(component: Constants.versionFileName)
 
-        XCTAssertPrinterOutputContains("""
-        Generating \(Constants.versionFileName) file with version 3.2.1
-        File generated at path \(versionPath.pathString)
-        """)
+        XCTAssertPrinterOutputContains(
+            """
+            Generating \(Constants.versionFileName) file with version 3.2.1
+            File generated at path \(versionPath.pathString)
+            """
+        )
     }
 
     func test_run_prints_when_no_argument_is_passed() throws {
         // Given
-        versionController.semverVersionsStub = [Version(string: "1.2.3")!, Version(string: "3.2.1")!]
+        versionController.semverVersionsStub = [
+            Version(string: "1.2.3")!, Version(string: "3.2.1")!,
+        ]
 
         // When
         try subject.run(version: nil)
 
         // Then
-        XCTAssertPrinterOutputContains("""
-        The following versions are available in the local environment:
-        - 3.2.1
-        - 1.2.3
-        """)
+        XCTAssertPrinterOutputContains(
+            """
+            The following versions are available in the local environment:
+            - 3.2.1
+            - 1.2.3
+            """
+        )
     }
 }

@@ -9,10 +9,11 @@ public struct Template: Codable, Equatable {
     /// Items to generate
     public let items: [Item]
 
-    public init(description: String,
-                attributes: [Attribute] = [],
-                items: [Item] = [])
-    {
+    public init(
+        description: String,
+        attributes: [Attribute] = [],
+        items: [Item] = []
+    ) {
         self.description = description
         self.attributes = attributes
         self.items = items
@@ -36,7 +37,9 @@ public struct Template: Codable, Equatable {
             case value
         }
 
-        public init(from decoder: Decoder) throws {
+        public init(
+            from decoder: Decoder
+        ) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             let type = try container.decode(String.self, forKey: .type)
             if type == "string" {
@@ -75,7 +78,10 @@ public struct Template: Codable, Equatable {
         public let path: String
         public let contents: Contents
 
-        public init(path: String, contents: Contents) {
+        public init(
+            path: String,
+            contents: Contents
+        ) {
             self.path = path
             self.contents = contents
         }
@@ -94,7 +100,9 @@ public struct Template: Codable, Equatable {
             case `default`
         }
 
-        public init(from decoder: Decoder) throws {
+        public init(
+            from decoder: Decoder
+        ) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             let name = try container.decode(String.self, forKey: .name)
             let type = try container.decode(String.self, forKey: .type)
@@ -124,12 +132,12 @@ public struct Template: Codable, Equatable {
     }
 }
 
-public extension Template.Item {
+extension Template.Item {
     /// - Parameters:
     ///     - path: Path where to generate file
     ///     - contents: String Contents
     /// - Returns: `Template.Item` that is `.string`
-    static func string(path: String, contents: String) -> Template.Item {
+    public static func string(path: String, contents: String) -> Template.Item {
         Template.Item(path: path, contents: .string(contents))
     }
 
@@ -137,7 +145,7 @@ public extension Template.Item {
     ///     - path: Path where to generate file
     ///     - templatePath: Path of file where the template is defined
     /// - Returns: `Template.Item` that is `.file`
-    static func file(path: String, templatePath: Path) -> Template.Item {
+    public static func file(path: String, templatePath: Path) -> Template.Item {
         Template.Item(path: path, contents: .file(templatePath))
     }
 
@@ -145,13 +153,13 @@ public extension Template.Item {
     ///     - path: Path where will be copied the folder
     ///     - sourcePath: Path of folder which will be copied
     /// - Returns: `Template.Item` that is `.directory`
-    static func directory(path: String, sourcePath: Path) -> Template.Item {
+    public static func directory(path: String, sourcePath: Path) -> Template.Item {
         Template.Item(path: path, contents: .directory(sourcePath))
     }
 }
 
-public extension String.StringInterpolation {
-    mutating func appendInterpolation(_ value: Template.Attribute) {
+extension String.StringInterpolation {
+    public mutating func appendInterpolation(_ value: Template.Attribute) {
         switch value {
         case let .required(name), let .optional(name, default: _):
             appendInterpolation("{{ \(name) }}")

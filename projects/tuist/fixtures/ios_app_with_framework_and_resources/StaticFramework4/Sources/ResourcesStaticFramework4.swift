@@ -8,8 +8,10 @@ public class ResourcesStaticFramework4 {
     }
 
     public func loadImage() -> UIImage? {
-        return UIImage(named: "StaticFramework4Resources-tuist",
-                       in: StaticFramework4Resources.bundle,
-                       compatibleWith: nil)
+        return UIImage(
+            named: "StaticFramework4Resources-tuist",
+            in: StaticFramework4Resources.bundle,
+            compatibleWith: nil
+        )
     }
 }

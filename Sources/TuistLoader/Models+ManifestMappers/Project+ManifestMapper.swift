@@ -22,14 +22,28 @@ extension TuistGraph.Project {
         let name = manifest.name
         let organizationName = manifest.organizationName
         let options = manifest.options.map { TuistGraph.ProjectOption.from(manifest: $0) }
-        let settings = try manifest.settings.map { try TuistGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
-        let targets = try manifest.targets.map {
-            try TuistGraph.Target.from(manifest: $0, generatorPaths: generatorPaths, externalDependencies: externalDependencies)
+        let settings = try manifest.settings.map {
+            try TuistGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths)
         }
-        let schemes = try manifest.schemes.map { try TuistGraph.Scheme.from(manifest: $0, generatorPaths: generatorPaths) }
-        let additionalFiles = try manifest.additionalFiles.flatMap { try TuistGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths) }
-        let packages = try manifest.packages.map { try TuistGraph.Package.from(manifest: $0, generatorPaths: generatorPaths) }
-        let ideTemplateMacros = try manifest.fileHeaderTemplate.map { try IDETemplateMacros.from(manifest: $0, generatorPaths: generatorPaths) }
+        let targets = try manifest.targets.map {
+            try TuistGraph.Target.from(
+                manifest: $0,
+                generatorPaths: generatorPaths,
+                externalDependencies: externalDependencies
+            )
+        }
+        let schemes = try manifest.schemes.map {
+            try TuistGraph.Scheme.from(manifest: $0, generatorPaths: generatorPaths)
+        }
+        let additionalFiles = try manifest.additionalFiles.flatMap {
+            try TuistGraph.FileElement.from(manifest: $0, generatorPaths: generatorPaths)
+        }
+        let packages = try manifest.packages.map {
+            try TuistGraph.Package.from(manifest: $0, generatorPaths: generatorPaths)
+        }
+        let ideTemplateMacros = try manifest.fileHeaderTemplate.map {
+            try IDETemplateMacros.from(manifest: $0, generatorPaths: generatorPaths)
+        }
         let resourceSynthesizers = try manifest.resourceSynthesizers.map {
             try TuistGraph.ResourceSynthesizer.from(
                 manifest: $0,
@@ -41,7 +55,9 @@ extension TuistGraph.Project {
         return Project(
             path: generatorPaths.manifestDirectory,
             sourceRootPath: generatorPaths.manifestDirectory,
-            xcodeProjPath: generatorPaths.manifestDirectory.appending(component: "\(name).xcodeproj"),
+            xcodeProjPath: generatorPaths.manifestDirectory.appending(
+                component: "\(name).xcodeproj"
+            ),
             name: name,
             organizationName: organizationName,
             developmentRegion: nil,

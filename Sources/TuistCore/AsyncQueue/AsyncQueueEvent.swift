@@ -16,10 +16,11 @@ public struct AnyAsyncQueueEvent: AsyncQueueEvent {
     public let dispatcherId: String
     public let date: Date
 
-    public init(id: UUID = UUID(),
-                dispatcherId: String,
-                date: Date = Date())
-    {
+    public init(
+        id: UUID = UUID(),
+        dispatcherId: String,
+        date: Date = Date()
+    ) {
         self.id = id
         self.dispatcherId = dispatcherId
         self.date = date

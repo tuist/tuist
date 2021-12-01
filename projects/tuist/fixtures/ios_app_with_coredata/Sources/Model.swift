@@ -1,6 +1,5 @@
-import Foundation
 import CoreData
-
+import Foundation
 
 final class MyModel {
     private lazy var persistentContainer: NSPersistentContainer = {

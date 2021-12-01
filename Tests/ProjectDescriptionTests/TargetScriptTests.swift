@@ -17,10 +17,10 @@ final class TargetScriptTests: XCTestCase {
 
     func test_embedded_script() {
         let script = """
-        echo 'Hello World'
-        wd=$(pwd)
-        echo "$wd"
-        """
+            echo 'Hello World'
+            wd=$(pwd)
+            echo "$wd"
+            """
 
         let subject = TargetScript.pre(script: script, name: "name")
         XCTAssertEqual(subject.script, .embedded(script))
@@ -28,10 +28,10 @@ final class TargetScriptTests: XCTestCase {
 
     func test_toJSON_when_embedded() {
         let script = """
-        echo 'Hello World'
-        wd=$(pwd)
-        echo "$wd"
-        """
+            echo 'Hello World'
+            wd=$(pwd)
+            echo "$wd"
+            """
 
         let subject = TargetScript.pre(script: script, name: "name")
         XCTAssertCodable(subject)

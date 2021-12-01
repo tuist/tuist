@@ -76,7 +76,9 @@ public enum InfoPlist: Equatable, Codable {
 // MARK: - InfoPlist - ExpressibleByStringLiteral
 
 extension InfoPlist: ExpressibleByStringLiteral {
-    public init(stringLiteral value: String) {
+    public init(
+        stringLiteral value: String
+    ) {
         self = .file(path: AbsolutePath(value))
     }
 }
@@ -98,7 +100,9 @@ extension InfoPlist {
         case dictionary
     }
 
-    public init(from decoder: Decoder) throws {
+    public init(
+        from decoder: Decoder
+    ) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
         switch kind {
@@ -141,7 +145,9 @@ extension InfoPlist {
 // MARK: - InfoPlist.Value - ExpressibleByStringLiteral
 
 extension InfoPlist.Value: ExpressibleByStringLiteral {
-    public init(stringLiteral value: String) {
+    public init(
+        stringLiteral value: String
+    ) {
         self = .string(value)
     }
 }
@@ -149,7 +155,9 @@ extension InfoPlist.Value: ExpressibleByStringLiteral {
 // MARK: - InfoPlist.Value - ExpressibleByIntegerLiteral
 
 extension InfoPlist.Value: ExpressibleByIntegerLiteral {
-    public init(integerLiteral value: Int) {
+    public init(
+        integerLiteral value: Int
+    ) {
         self = .integer(value)
     }
 }
@@ -157,7 +165,9 @@ extension InfoPlist.Value: ExpressibleByIntegerLiteral {
 // MARK: - InfoPlist.Value - ExpressibleByIntegerLiteral
 
 extension InfoPlist.Value: ExpressibleByFloatLiteral {
-    public init(floatLiteral value: Double) {
+    public init(
+        floatLiteral value: Double
+    ) {
         self = .real(value)
     }
 }
@@ -165,7 +175,9 @@ extension InfoPlist.Value: ExpressibleByFloatLiteral {
 // MARK: - InfoPlist.Value - ExpressibleByBooleanLiteral
 
 extension InfoPlist.Value: ExpressibleByBooleanLiteral {
-    public init(booleanLiteral value: Bool) {
+    public init(
+        booleanLiteral value: Bool
+    ) {
         self = .boolean(value)
     }
 }
@@ -173,7 +185,9 @@ extension InfoPlist.Value: ExpressibleByBooleanLiteral {
 // MARK: - InfoPlist.Value - ExpressibleByDictionaryLiteral
 
 extension InfoPlist.Value: ExpressibleByDictionaryLiteral {
-    public init(dictionaryLiteral elements: (String, InfoPlist.Value)...) {
+    public init(
+        dictionaryLiteral elements: (String, InfoPlist.Value)...
+    ) {
         self = .dictionary(Dictionary(uniqueKeysWithValues: elements))
     }
 }
@@ -181,7 +195,9 @@ extension InfoPlist.Value: ExpressibleByDictionaryLiteral {
 // MARK: - InfoPlist.Value - ExpressibleByArrayLiteral
 
 extension InfoPlist.Value: ExpressibleByArrayLiteral {
-    public init(arrayLiteral elements: InfoPlist.Value...) {
+    public init(
+        arrayLiteral elements: InfoPlist.Value...
+    ) {
         self = .array(elements)
     }
 }
@@ -208,7 +224,9 @@ extension InfoPlist.Value {
         case array
     }
 
-    public init(from decoder: Decoder) throws {
+    public init(
+        from decoder: Decoder
+    ) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
         switch kind {

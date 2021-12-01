@@ -1,4 +1,4 @@
-import Foundation
 import DynamicLib
+import Foundation
 
 let dynamicClass = DynamicLib()

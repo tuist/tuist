@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import TuistSupport
 @testable import TuistSupportTesting
 
@@ -32,9 +33,9 @@ final class ErrorHandlerTests: TuistUnitTestCase {
         let error = TestError(type: .bugSilent)
         subject.fatal(error: error)
         let expected = """
-        An unexpected error happened. We've opened an issue to fix it as soon as possible.
-        We are sorry for any inconveniences it might have caused.
-        """
+            An unexpected error happened. We've opened an issue to fix it as soon as possible.
+            We are sorry for any inconveniences it might have caused.
+            """
         XCTAssertPrinterErrorContains(expected)
     }
 }

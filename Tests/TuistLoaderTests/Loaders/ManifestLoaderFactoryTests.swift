@@ -16,7 +16,8 @@ final class ManifestLoaderFactoryTests: TuistUnitTestCase {
         XCTAssert(type(of: result) is CachedManifestLoader.Type)
     }
 
-    func test_create_non_cached_manifest_loader_when_explicitely_configured_via_enviromentvariable() {
+    func test_create_non_cached_manifest_loader_when_explicitely_configured_via_enviromentvariable()
+    {
         // Given
         environment.tuistConfigVariables[Constants.EnvironmentVariables.cacheManifests] = "0"
         let sut = ManifestLoaderFactory()

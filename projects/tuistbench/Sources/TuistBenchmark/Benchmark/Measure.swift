@@ -21,17 +21,19 @@ final class Measure {
     private let fileHandler: FileHandler
     private let binaryPath: AbsolutePath
 
-    init(fileHandler: FileHandler,
-         binaryPath: AbsolutePath)
-    {
+    init(
+        fileHandler: FileHandler,
+        binaryPath: AbsolutePath
+    ) {
         self.fileHandler = fileHandler
         self.binaryPath = binaryPath
     }
 
-    func measure(runs: Int,
-                 arguments: [String],
-                 fixturePath: AbsolutePath) throws -> MeasureResult
-    {
+    func measure(
+        runs: Int,
+        arguments: [String],
+        fixturePath: AbsolutePath
+    ) throws -> MeasureResult {
         let cold = try measureColdRuns(runs: runs, arguments: arguments, fixturePath: fixturePath)
         let warm = try measureWarmRuns(runs: runs, arguments: arguments, fixturePath: fixturePath)
         return MeasureResult(
@@ -41,11 +43,12 @@ final class Measure {
         )
     }
 
-    private func measureColdRuns(runs: Int,
-                                 arguments: [String],
-                                 fixturePath: AbsolutePath) throws -> [TimeInterval]
-    {
-        try (0 ..< runs).map { _ in
+    private func measureColdRuns(
+        runs: Int,
+        arguments: [String],
+        fixturePath: AbsolutePath
+    ) throws -> [TimeInterval] {
+        try (0..<runs).map { _ in
             try withTemporaryDirectory(removeTreeOnDeinit: true) { temporaryDirectoryPath in
                 let temporaryPath = temporaryDirectoryPath.appending(component: "fixture")
                 try fileHandler.copy(path: fixturePath, to: temporaryPath)
@@ -59,10 +62,11 @@ final class Measure {
         }
     }
 
-    private func measureWarmRuns(runs: Int,
-                                 arguments: [String],
-                                 fixturePath: AbsolutePath) throws -> [TimeInterval]
-    {
+    private func measureWarmRuns(
+        runs: Int,
+        arguments: [String],
+        fixturePath: AbsolutePath
+    ) throws -> [TimeInterval] {
         try withTemporaryDirectory(removeTreeOnDeinit: true) { temporaryDirectoryPath in
             let temporaryPath = temporaryDirectoryPath.appending(component: "fixture")
             try fileHandler.copy(path: fixturePath, to: temporaryPath)
@@ -97,7 +101,7 @@ final class Measure {
     }
 
     private func measure(runs: Int, code: () throws -> Void) throws -> [TimeInterval] {
-        try (0 ..< runs).map { _ in
+        try (0..<runs).map { _ in
             try measure(code: code)
         }
     }

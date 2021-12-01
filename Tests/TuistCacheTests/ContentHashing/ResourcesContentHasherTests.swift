@@ -6,6 +6,7 @@ import TuistCoreTesting
 import TuistGraph
 import TuistSupport
 import XCTest
+
 @testable import TuistCache
 @testable import TuistSupportTesting
 
@@ -67,6 +68,9 @@ final class ResourcesContentHasherTests: TuistUnitTestCase {
         mockContentHasher.stubHashForPath[filePath2] = "2"
 
         // When/Then
-        XCTAssertEqual(try subject.hash(resources: [file1, file2]), try subject.hash(resources: [file2, file1]))
+        XCTAssertEqual(
+            try subject.hash(resources: [file1, file2]),
+            try subject.hash(resources: [file2, file1])
+        )
     }
 }

@@ -60,7 +60,12 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         // Then
         XCTAssertThrowsSpecific(
             // When
-            _ = try subject.findAvailableDevice(platform: .macOS, version: nil, minVersion: nil, deviceName: nil).toBlocking(timeout: 1).single(),
+            _ = try subject.findAvailableDevice(
+                platform: .macOS,
+                version: nil,
+                minVersion: nil,
+                deviceName: nil
+            ).toBlocking(timeout: 1).single(),
             SimulatorControllerError.deviceNotFound(.macOS, nil, nil, [expectedDeviceAndRuntime])
         )
     }
@@ -72,8 +77,18 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         // Then
         XCTAssertThrowsSpecific(
             // When
-            _ = try subject.findAvailableDevice(platform: .iOS, version: .init(15, 0, 0), minVersion: nil, deviceName: nil).toBlocking(timeout: 1).single(),
-            SimulatorControllerError.deviceNotFound(.iOS, .init(15, 0, 0), nil, [expectedDeviceAndRuntime])
+            _ = try subject.findAvailableDevice(
+                platform: .iOS,
+                version: .init(15, 0, 0),
+                minVersion: nil,
+                deviceName: nil
+            ).toBlocking(timeout: 1).single(),
+            SimulatorControllerError.deviceNotFound(
+                .iOS,
+                .init(15, 0, 0),
+                nil,
+                [expectedDeviceAndRuntime]
+            )
         )
     }
 
@@ -84,7 +99,12 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         // Then
         XCTAssertThrowsSpecific(
             // When
-            _ = try subject.findAvailableDevice(platform: .iOS, version: nil, minVersion: .init(15, 0, 0), deviceName: nil).toBlocking(timeout: 1).single(),
+            _ = try subject.findAvailableDevice(
+                platform: .iOS,
+                version: nil,
+                minVersion: .init(15, 0, 0),
+                deviceName: nil
+            ).toBlocking(timeout: 1).single(),
             SimulatorControllerError.deviceNotFound(.iOS, nil, nil, [expectedDeviceAndRuntime])
         )
     }
@@ -96,8 +116,18 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         // Then
         XCTAssertThrowsSpecific(
             // When
-            _ = try subject.findAvailableDevice(platform: .iOS, version: nil, minVersion: nil, deviceName: "iPad 100").toBlocking(timeout: 1).single(),
-            SimulatorControllerError.deviceNotFound(.iOS, nil, "iPad 100", [expectedDeviceAndRuntime])
+            _ = try subject.findAvailableDevice(
+                platform: .iOS,
+                version: nil,
+                minVersion: nil,
+                deviceName: "iPad 100"
+            ).toBlocking(timeout: 1).single(),
+            SimulatorControllerError.deviceNotFound(
+                .iOS,
+                nil,
+                "iPad 100",
+                [expectedDeviceAndRuntime]
+            )
         )
     }
 
@@ -106,9 +136,14 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         let expectedDeviceAndRuntime = createSystemStubs(devices: true, runtimes: true)
 
         // When
-        let device = try subject.findAvailableDevice(platform: .iOS, version: nil, minVersion: nil, deviceName: nil)
-            .toBlocking(timeout: 1)
-            .single()
+        let device = try subject.findAvailableDevice(
+            platform: .iOS,
+            version: nil,
+            minVersion: nil,
+            deviceName: nil
+        )
+        .toBlocking(timeout: 1)
+        .single()
 
         // Then
         XCTAssertEqual(device, expectedDeviceAndRuntime)
@@ -119,9 +154,14 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         let expectedDeviceAndRuntime = createSystemStubs(devices: true, runtimes: true)
 
         // When
-        let device = try subject.findAvailableDevice(platform: .iOS, version: .init(14, 4, 0), minVersion: nil, deviceName: nil)
-            .toBlocking(timeout: 1)
-            .single()
+        let device = try subject.findAvailableDevice(
+            platform: .iOS,
+            version: .init(14, 4, 0),
+            minVersion: nil,
+            deviceName: nil
+        )
+        .toBlocking(timeout: 1)
+        .single()
 
         // Then
         XCTAssertEqual(device, expectedDeviceAndRuntime)
@@ -132,9 +172,14 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         let expectedDeviceAndRuntime = createSystemStubs(devices: true, runtimes: true)
 
         // When
-        let device = try subject.findAvailableDevice(platform: .iOS, version: nil, minVersion: .init(14, 0, 0), deviceName: nil)
-            .toBlocking(timeout: 1)
-            .single()
+        let device = try subject.findAvailableDevice(
+            platform: .iOS,
+            version: nil,
+            minVersion: .init(14, 0, 0),
+            deviceName: nil
+        )
+        .toBlocking(timeout: 1)
+        .single()
 
         // Then
         XCTAssertEqual(device, expectedDeviceAndRuntime)
@@ -145,9 +190,14 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         let expectedDeviceAndRuntime = createSystemStubs(devices: true, runtimes: true)
 
         // When
-        let device = try subject.findAvailableDevice(platform: .iOS, version: nil, minVersion: nil, deviceName: expectedDeviceAndRuntime.device.name)
-            .toBlocking(timeout: 1)
-            .single()
+        let device = try subject.findAvailableDevice(
+            platform: .iOS,
+            version: nil,
+            minVersion: nil,
+            deviceName: expectedDeviceAndRuntime.device.name
+        )
+        .toBlocking(timeout: 1)
+        .single()
 
         // Then
         XCTAssertEqual(device, expectedDeviceAndRuntime)
@@ -245,7 +295,11 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         system.succeedCommand(launchAppCommand)
 
         // When
-        try subject.launchApp(bundleId: bundleId, device: deviceAndRuntime.device, arguments: arguments)
+        try subject.launchApp(
+            bundleId: bundleId,
+            device: deviceAndRuntime.device,
+            arguments: arguments
+        )
 
         // Then
         XCTAssertTrue(system.called(launchAppCommand))
@@ -259,21 +313,21 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         let version = "14.4"
         let runtimeName = "iOS 14.4"
         let runtimesJsonResponse = """
-        {
-          "runtimes" : [
             {
-              "bundlePath" : "\(bundlePath)",
-              "buildversion" : "\(buildVersion)",
-              "runtimeRoot" : "\(runtimeRoot)",
-              "identifier" : "\(identifier)",
-              "version" : "\(version)",
-              "isAvailable" : true,
-              "supportedDeviceTypes" : [],
-              "name" : "\(runtimeName)"
+              "runtimes" : [
+                {
+                  "bundlePath" : "\(bundlePath)",
+                  "buildversion" : "\(buildVersion)",
+                  "runtimeRoot" : "\(runtimeRoot)",
+                  "identifier" : "\(identifier)",
+                  "version" : "\(version)",
+                  "isAvailable" : true,
+                  "supportedDeviceTypes" : [],
+                  "name" : "\(runtimeName)"
+                }
+              ]
             }
-          ]
-        }
-        """
+            """
         let dataPath = "/path/to/sim/81F0475F-0A03-4742-92D7-D59ACE3A5895/data"
         let logPath = "/path/to/logs/81F0475F-0A03-4742-92D7-D59ACE3A5895"
         let udid = "81F0475F-0A03-4742-92D7-D59ACE3A5895"
@@ -282,29 +336,33 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         let deviceName = "iPhone 11"
         let runTimeIdentifier = "com.apple.CoreSimulator.SimRuntime.iOS-14-4"
         let devicesJsonResponse = """
-        {
-          "devices" : {
-            "\(runTimeIdentifier)" : [
-              {
-                "dataPath" : "\(dataPath)",
-                "logPath" : "\(logPath)",
-                "udid" : "\(udid)",
-                "isAvailable" : true,
-                "deviceTypeIdentifier" : "\(deviceTypeIdentifier)",
-                "state" : "\(state)",
-                "name" : "\(deviceName)"
+            {
+              "devices" : {
+                "\(runTimeIdentifier)" : [
+                  {
+                    "dataPath" : "\(dataPath)",
+                    "logPath" : "\(logPath)",
+                    "udid" : "\(udid)",
+                    "isAvailable" : true,
+                    "deviceTypeIdentifier" : "\(deviceTypeIdentifier)",
+                    "state" : "\(state)",
+                    "name" : "\(deviceName)"
+                  }
+                ]
               }
-            ]
-          }
-        }
-        """
+            }
+            """
 
         if runtimes {
-            system.stubs["/usr/bin/xcrun simctl list runtimes --json"] = (nil, runtimesJsonResponse, 0)
+            system.stubs["/usr/bin/xcrun simctl list runtimes --json"] = (
+                nil, runtimesJsonResponse, 0
+            )
         }
 
         if devices {
-            system.stubs["/usr/bin/xcrun simctl list devices --json"] = (nil, devicesJsonResponse, 0)
+            system.stubs["/usr/bin/xcrun simctl list devices --json"] = (
+                nil, devicesJsonResponse, 0
+            )
         }
 
         return SimulatorDeviceAndRuntime(

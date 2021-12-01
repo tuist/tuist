@@ -36,7 +36,9 @@ public class WallClock: Clock {
         private let start: Date
         private let clock: Clock
 
-        fileprivate init(clock: Clock) {
+        fileprivate init(
+            clock: Clock
+        ) {
             self.clock = clock
             start = clock.now
         }

@@ -18,11 +18,14 @@ final class ProjectDescriptionSearchPathsTests: TuistUnitTestCase {
         let searchPaths = libraryPaths.map { ProjectDescriptionSearchPaths.paths(for: $0) }
 
         // Then
-        XCTAssertEqual(searchPaths.map(\.style), [
-            .commandLine,
-            .xcode,
-            .swiftPackageInXcode,
-        ])
+        XCTAssertEqual(
+            searchPaths.map(\.style),
+            [
+                .commandLine,
+                .xcode,
+                .swiftPackageInXcode,
+            ]
+        )
     }
 
     func test_paths_includeSearchPath() throws {
@@ -37,11 +40,14 @@ final class ProjectDescriptionSearchPathsTests: TuistUnitTestCase {
         let searchPaths = libraryPaths.map { ProjectDescriptionSearchPaths.paths(for: $0) }
 
         // Then
-        XCTAssertEqual(searchPaths.map(\.includeSearchPath), [
-            "/path/to/tuist/.build/debug",
-            "/path/to/DerivedData/Debug",
-            "/path/to/DerivedData/Debug",
-        ])
+        XCTAssertEqual(
+            searchPaths.map(\.includeSearchPath),
+            [
+                "/path/to/tuist/.build/debug",
+                "/path/to/DerivedData/Debug",
+                "/path/to/DerivedData/Debug",
+            ]
+        )
     }
 
     func test_paths_librarySearchPath() throws {
@@ -56,11 +62,14 @@ final class ProjectDescriptionSearchPathsTests: TuistUnitTestCase {
         let searchPaths = libraryPaths.map { ProjectDescriptionSearchPaths.paths(for: $0) }
 
         // Then
-        XCTAssertEqual(searchPaths.map(\.librarySearchPath), [
-            "/path/to/tuist/.build/debug",
-            "/path/to/DerivedData/Debug",
-            "/path/to/DerivedData/Debug",
-        ])
+        XCTAssertEqual(
+            searchPaths.map(\.librarySearchPath),
+            [
+                "/path/to/tuist/.build/debug",
+                "/path/to/DerivedData/Debug",
+                "/path/to/DerivedData/Debug",
+            ]
+        )
     }
 
     func test_paths_frameworkSearchPath() throws {
@@ -75,10 +84,13 @@ final class ProjectDescriptionSearchPathsTests: TuistUnitTestCase {
         let searchPaths = libraryPaths.map { ProjectDescriptionSearchPaths.paths(for: $0) }
 
         // Then
-        XCTAssertEqual(searchPaths.map(\.frameworkSearchPath), [
-            "/path/to/tuist/.build/debug",
-            "/path/to/DerivedData/Debug",
-            "/path/to/DerivedData/Debug/PackageFrameworks",
-        ])
+        XCTAssertEqual(
+            searchPaths.map(\.frameworkSearchPath),
+            [
+                "/path/to/tuist/.build/debug",
+                "/path/to/DerivedData/Debug",
+                "/path/to/DerivedData/Debug/PackageFrameworks",
+            ]
+        )
     }
 }

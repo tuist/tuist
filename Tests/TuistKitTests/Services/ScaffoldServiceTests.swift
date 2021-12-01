@@ -63,7 +63,9 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
             [try self.temporaryPath().appending(component: "template")]
         }
 
-        let expectedOptions: (required: [String], optional: [String]) = (required: ["required"], optional: ["optional"])
+        let expectedOptions: (required: [String], optional: [String]) = (
+            required: ["required"], optional: ["optional"]
+        )
 
         // When
         let options = try subject.loadTemplateOptions(
@@ -89,7 +91,9 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
             )
         }
 
-        let expectedOptions: (required: [String], optional: [String]) = (required: ["required"], optional: ["optional"])
+        let expectedOptions: (required: [String], optional: [String]) = (
+            required: ["required"], optional: ["optional"]
+        )
         let pluginTemplatePath = try temporaryPath().appending(component: "PluginTemplate")
 
         pluginService.loadPluginsStub = { _ in
@@ -164,8 +168,10 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
     func test_attributes_are_passed_to_generator() throws {
         // Given
         templateLoader.loadTemplateStub = { _ in
-            Template.test(attributes: [.optional("optional", default: ""),
-                                       .required("required")])
+            Template.test(attributes: [
+                .optional("optional", default: ""),
+                .required("required"),
+            ])
         }
 
         templatesDirectoryLocator.templateDirectoriesStub = { _ in
@@ -185,19 +191,22 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(
-            ["optional": "optionalValue",
-             "required": "requiredValue"],
+            [
+                "optional": "optionalValue",
+                "required": "requiredValue",
+            ],
             generateAttributes
         )
     }
 }
 
 extension ScaffoldService {
-    func testRun(path: String? = nil,
-                 templateName: String = "template",
-                 requiredTemplateOptions: [String: String] = [:],
-                 optionalTemplateOptions: [String: String] = [:]) throws
-    {
+    func testRun(
+        path: String? = nil,
+        templateName: String = "template",
+        requiredTemplateOptions: [String: String] = [:],
+        optionalTemplateOptions: [String: String] = [:]
+    ) throws {
         try run(
             path: path,
             templateName: templateName,

@@ -7,8 +7,8 @@ let project = Project(
         .app(
             name: "App",
             dependencies: [
-                .project(target: "FrameworkA", path: "//FrameworkA"),
+                .project(target: "FrameworkA", path: "//FrameworkA")
             ]
-        ),
+        )
     ]
 )

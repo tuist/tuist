@@ -3,7 +3,9 @@ import Foundation
 public struct WeakArray<Element: AnyObject>: Collection {
     private var items: [WeakBox<Element>] = []
 
-    public init(_ elements: [Element]) {
+    public init(
+        _ elements: [Element]
+    ) {
         items = elements.map { WeakBox($0) }
     }
 

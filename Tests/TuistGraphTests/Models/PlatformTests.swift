@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import TuistGraph
 
 final class PlatformTests: XCTestCase {
@@ -71,10 +72,13 @@ final class PlatformTests: XCTestCase {
         let paths = platforms.map(\.xcodeSdkRootPath)
 
         // Then
-        XCTAssertEqual(paths, [
-            "Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk",
-            "Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk",
-            "Platforms/AppleTVOS.platform/Developer/SDKs/AppleTVOS.sdk",
-        ])
+        XCTAssertEqual(
+            paths,
+            [
+                "Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk",
+                "Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk",
+                "Platforms/AppleTVOS.platform/Developer/SDKs/AppleTVOS.sdk",
+            ]
+        )
     }
 }

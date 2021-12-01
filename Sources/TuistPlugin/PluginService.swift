@@ -33,7 +33,8 @@ public final class PluginService: PluginServicing {
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
         fileHandler: FileHandling = FileHandler.shared,
         gitHandler: GitHandling = GitHandler(),
-        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory()
+        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring =
+            CacheDirectoriesProviderFactory()
     ) {
         self.manifestLoader = manifestLoader
         self.templatesDirectoryLocator = templatesDirectoryLocator
@@ -51,10 +52,13 @@ public final class PluginService: PluginServicing {
             .compactMap { pluginLocation in
                 switch pluginLocation {
                 case let .local(path):
-                    logger.debug("Using plugin \(pluginLocation.description)", metadata: .subsection)
+                    logger.debug(
+                        "Using plugin \(pluginLocation.description)",
+                        metadata: .subsection
+                    )
                     return AbsolutePath(path)
                 case .gitWithSha,
-                     .gitWithTag:
+                    .gitWithTag:
                     return nil
                 }
             }
@@ -64,8 +68,12 @@ public final class PluginService: PluginServicing {
             .compactMap { pluginLocation in
                 switch pluginLocation {
                 case let .gitWithSha(url, id),
-                     let .gitWithTag(url, id):
-                    return try fetchGitPlugin(at: url, with: id, cacheDirectory: cacheDirectories.cacheDirectory(for: .plugins))
+                    let .gitWithTag(url, id):
+                    return try fetchGitPlugin(
+                        at: url,
+                        with: id,
+                        cacheDirectory: cacheDirectories.cacheDirectory(for: .plugins)
+                    )
                 case .local:
                     return nil
                 }
@@ -75,12 +83,20 @@ public final class PluginService: PluginServicing {
 
         let localProjectDescriptionHelperPlugins = zip(localPluginManifests, localPluginPaths)
             .compactMap { plugin, path -> ProjectDescriptionHelpersPlugin? in
-                projectDescriptionHelpersPlugin(name: plugin.name, pluginPath: path, location: .local)
+                projectDescriptionHelpersPlugin(
+                    name: plugin.name,
+                    pluginPath: path,
+                    location: .local
+                )
             }
 
         let remoteProjectDescriptionHelperPlugins = zip(remotePluginManifests, remotePluginPaths)
             .compactMap { plugin, path -> ProjectDescriptionHelpersPlugin? in
-                projectDescriptionHelpersPlugin(name: plugin.name, pluginPath: path, location: .remote)
+                projectDescriptionHelpersPlugin(
+                    name: plugin.name,
+                    pluginPath: path,
+                    location: .remote
+                )
             }
 
         let templatePaths = try pluginPaths.flatMap(templatePaths(pluginPath:))
@@ -101,7 +117,8 @@ public final class PluginService: PluginServicing {
         .map(PluginTasks.init)
 
         return Plugins(
-            projectDescriptionHelpers: localProjectDescriptionHelperPlugins + remoteProjectDescriptionHelperPlugins,
+            projectDescriptionHelpers: localProjectDescriptionHelperPlugins
+                + remoteProjectDescriptionHelperPlugins,
             templatePaths: templatePaths,
             resourceSynthesizers: resourceSynthesizerPlugins,
             tasks: tasks
@@ -110,9 +127,14 @@ public final class PluginService: PluginServicing {
 
     /// fetches the git plugins from the remote server and caches them in
     /// the Tuist cache with a unique fingerprint
-    private func fetchGitPlugin(at url: String, with gitId: String, cacheDirectory: AbsolutePath) throws -> AbsolutePath {
+    private func fetchGitPlugin(
+        at url: String,
+        with gitId: String,
+        cacheDirectory: AbsolutePath
+    ) throws -> AbsolutePath {
         let fingerprint = "\(url)-\(gitId)".md5
-        let pluginDirectory = cacheDirectory
+        let pluginDirectory =
+            cacheDirectory
             .appending(RelativePath(fingerprint))
 
         guard !fileHandler.exists(pluginDirectory) else {

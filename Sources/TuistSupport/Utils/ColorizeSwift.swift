@@ -112,7 +112,10 @@ extension String {
 
     fileprivate func applyStyle(_ codeStyle: TerminalStyleCode) -> String {
         guard String.isColorizationEnabled else { return self }
-        let str = replacingOccurrences(of: TerminalStyle.reset.open, with: TerminalStyle.reset.open + codeStyle.open)
+        let str = replacingOccurrences(
+            of: TerminalStyle.reset.open,
+            with: TerminalStyle.reset.open + codeStyle.open
+        )
 
         return codeStyle.open + str + TerminalStyle.reset.open
     }

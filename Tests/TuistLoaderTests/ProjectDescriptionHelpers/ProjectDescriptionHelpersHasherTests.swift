@@ -25,11 +25,15 @@ class ProjectDescriptionHelpersHasherTests: TuistUnitTestCase {
         // Given
         let temporaryDir = try temporaryPath()
         let helperPath = temporaryDir.appending(component: "Project+Templates.swift")
-        try FileHandler.shared.write("import ProjectDescription", path: helperPath, atomically: true)
+        try FileHandler.shared.write(
+            "import ProjectDescription",
+            path: helperPath,
+            atomically: true
+        )
         environment.manifestLoadingVariables = ["TUIST_VARIABLE": "TEST"]
 
         // Then
-        for _ in 0 ..< 20 {
+        for _ in 0..<20 {
             let got = try subject.hash(helpersDirectory: temporaryDir)
             XCTAssertEqual(got, "c9910732734d9dcf509bdb7538aed526")
         }

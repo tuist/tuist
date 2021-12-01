@@ -3,7 +3,9 @@ import Foundation
 public struct AnalyzeAction: Equatable, Codable {
     public let configuration: ConfigurationName
 
-    init(configuration: ConfigurationName) {
+    init(
+        configuration: ConfigurationName
+    ) {
         self.configuration = configuration
     }
 

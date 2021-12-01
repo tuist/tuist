@@ -9,14 +9,20 @@ final class CacheStorageProvider: CacheStorageProviding {
     private let config: Config
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
 
-    init(config: Config) {
+    init(
+        config: Config
+    ) {
         self.config = config
         cacheDirectoryProviderFactory = CacheDirectoriesProviderFactory()
     }
 
     func storages() throws -> [CacheStoring] {
-        let cacheDirectoriesProvider = try cacheDirectoryProviderFactory.cacheDirectories(config: config)
-        var storages: [CacheStoring] = [CacheLocalStorage(cacheDirectoriesProvider: cacheDirectoriesProvider)]
+        let cacheDirectoriesProvider = try cacheDirectoryProviderFactory.cacheDirectories(
+            config: config
+        )
+        var storages: [CacheStoring] = [
+            CacheLocalStorage(cacheDirectoriesProvider: cacheDirectoriesProvider)
+        ]
         if let cloudConfig = config.cloud {
             let storage = CacheRemoteStorage(
                 cloudConfig: cloudConfig,

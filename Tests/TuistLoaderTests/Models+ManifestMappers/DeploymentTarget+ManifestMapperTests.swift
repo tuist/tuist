@@ -13,7 +13,10 @@ import XCTest
 final class DeploymentTargetManifestMapperTests: TuistUnitTestCase {
     func test_deploymentTarget() throws {
         // Given
-        let manifest: ProjectDescription.DeploymentTarget = .iOS(targetVersion: "13.1", devices: .iphone)
+        let manifest: ProjectDescription.DeploymentTarget = .iOS(
+            targetVersion: "13.1",
+            devices: .iphone
+        )
 
         // When
         let got = TuistGraph.DeploymentTarget.from(manifest: manifest)

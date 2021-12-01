@@ -10,14 +10,18 @@ final class MigrationTargetsByDependenciesService {
 
     // MARK: - Init
 
-    init(targetsExtractor: TargetsExtracting = TargetsExtractor()) {
+    init(
+        targetsExtractor: TargetsExtracting = TargetsExtractor()
+    ) {
         self.targetsExtractor = targetsExtractor
     }
 
     // MARK: - Internal
 
     func run(xcodeprojPath: AbsolutePath) throws {
-        let sortedTargets = try targetsExtractor.targetsSortedByDependencies(xcodeprojPath: xcodeprojPath)
+        let sortedTargets = try targetsExtractor.targetsSortedByDependencies(
+            xcodeprojPath: xcodeprojPath
+        )
         let sortedTargetsJson = try makeJson(from: sortedTargets)
         logger.info("\(sortedTargetsJson)")
     }

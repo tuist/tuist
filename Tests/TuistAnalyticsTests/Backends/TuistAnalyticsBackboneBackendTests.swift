@@ -3,8 +3,8 @@ import TuistCloud
 import TuistCore
 import TuistGraph
 import TuistSupport
-
 import XCTest
+
 @testable import TuistAnalytics
 @testable import TuistCoreTesting
 @testable import TuistSupportTesting
@@ -32,7 +32,10 @@ final class TuistAnalyticsBackboneBackendTests: TuistUnitTestCase {
 
         // Then
         XCTAssertHTTPResourceMethod(got, "POST")
-        XCTAssertHTTPResourceURL(got, url: Constants.backboneURL.appendingPathComponent("command_events.json"))
+        XCTAssertHTTPResourceURL(
+            got,
+            url: Constants.backboneURL.appendingPathComponent("command_events.json")
+        )
         XCTAssertHTTPResourceContainsHeader(got, header: "Content-Type", value: "application/json")
     }
 

@@ -3,6 +3,7 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 import XCTest
+
 @testable import TuistCoreTesting
 @testable import TuistSigning
 @testable import TuistSigningTesting
@@ -92,8 +93,14 @@ final class SigningInstallerTests: TuistUnitTestCase {
     }
 
     private func generateTestProfileFile() throws -> AbsolutePath {
-        let sourceProvisioningProfilePath = try temporaryPath().appending(component: "file.mobileprovision")
-        try "my provisioning".write(to: sourceProvisioningProfilePath.url, atomically: true, encoding: .utf8)
+        let sourceProvisioningProfilePath = try temporaryPath().appending(
+            component: "file.mobileprovision"
+        )
+        try "my provisioning".write(
+            to: sourceProvisioningProfilePath.url,
+            atomically: true,
+            encoding: .utf8
+        )
 
         return sourceProvisioningProfilePath
     }
@@ -101,8 +108,12 @@ final class SigningInstallerTests: TuistUnitTestCase {
     private func isProfileInstalled(_ profile: ProvisioningProfile) throws -> Bool {
         let homeDirectoryPath = try temporaryPath()
         fileHandler.homeDirectoryStub = homeDirectoryPath
-        let provisioningProfilesDirectoryPath = homeDirectoryPath.appending(RelativePath("Library/MobileDevice/Provisioning Profiles"))
-        let destinationProvisioningProfilePath = provisioningProfilesDirectoryPath.appending(component: "\(profile.uuid).mobileprovision")
+        let provisioningProfilesDirectoryPath = homeDirectoryPath.appending(
+            RelativePath("Library/MobileDevice/Provisioning Profiles")
+        )
+        let destinationProvisioningProfilePath = provisioningProfilesDirectoryPath.appending(
+            component: "\(profile.uuid).mobileprovision"
+        )
 
         return fileHandler.exists(destinationProvisioningProfilePath)
     }

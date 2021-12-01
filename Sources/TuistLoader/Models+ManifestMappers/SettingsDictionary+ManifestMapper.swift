@@ -6,7 +6,9 @@ extension TuistGraph.SettingsDictionary {
     /// Maps a ProjectDescription.SettingsDictionary instance into a TuistGraph.SettingsDictionary instance.
     /// - Parameters:
     ///   - manifest: Manifest representation of deployment target model.
-    static func from(manifest: ProjectDescription.SettingsDictionary) -> TuistGraph.SettingsDictionary {
+    static func from(
+        manifest: ProjectDescription.SettingsDictionary
+    ) -> TuistGraph.SettingsDictionary {
         return manifest.mapValues { value in
             switch value {
             case let .string(stringValue):

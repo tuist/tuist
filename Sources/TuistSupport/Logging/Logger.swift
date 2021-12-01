@@ -1,5 +1,6 @@
-import class Foundation.ProcessInfo
 @_exported import Logging
+
+import class Foundation.ProcessInfo
 
 let logger = Logger(label: "io.tuist.support")
 

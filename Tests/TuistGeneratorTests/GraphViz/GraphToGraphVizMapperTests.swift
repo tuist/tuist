@@ -5,6 +5,7 @@ import TuistCore
 import TuistGraph
 import TuistGraphTesting
 import XCTest
+
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
@@ -26,7 +27,12 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         let graph = try makeGivenGraph()
 
         // When
-        let got = subject.map(graph: graph, skipTestTargets: false, skipExternalDependencies: false, targetsToFilter: [])
+        let got = subject.map(
+            graph: graph,
+            skipTestTargets: false,
+            skipExternalDependencies: false,
+            targetsToFilter: []
+        )
         let expected = makeExpectedGraphViz()
         let gotNodeIds = got.nodes.map(\.id).sorted()
         let expectedNodeIds = expected.nodes.map(\.id).sorted()
@@ -41,7 +47,12 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         let graph = try makeGivenGraph()
 
         // When
-        let got = subject.map(graph: graph, skipTestTargets: false, skipExternalDependencies: true, targetsToFilter: [])
+        let got = subject.map(
+            graph: graph,
+            skipTestTargets: false,
+            skipExternalDependencies: true,
+            targetsToFilter: []
+        )
         let expected = makeExpectedGraphViz(includeExternalDependencies: false)
         let gotNodeIds = got.nodes.map(\.id).sorted()
         let expectedNodeIds = expected.nodes.map(\.id).sorted()
@@ -57,7 +68,12 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         let graph = try makeGivenGraph()
 
         // When
-        let got = subject.map(graph: graph, skipTestTargets: true, skipExternalDependencies: false, targetsToFilter: [])
+        let got = subject.map(
+            graph: graph,
+            skipTestTargets: true,
+            skipExternalDependencies: false,
+            targetsToFilter: []
+        )
         let expected = makeExpectedGraphViz(includeTests: false)
         let gotNodeIds = got.nodes.map(\.id).sorted()
         let expectedNodeIds = expected.nodes.map(\.id).sorted()
@@ -78,7 +94,12 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         expected.append(GraphViz.Edge(from: tuist, to: core))
 
         // When
-        let got = subject.map(graph: graph, skipTestTargets: false, skipExternalDependencies: true, targetsToFilter: ["Tuist iOS"])
+        let got = subject.map(
+            graph: graph,
+            skipTestTargets: false,
+            skipExternalDependencies: true,
+            targetsToFilter: ["Tuist iOS"]
+        )
 
         // Then
         let gotNodeIds = got.nodes.map(\.id).sorted()
@@ -142,7 +163,11 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         let coreProject = Project.test(path: "/Core")
         let framework = GraphDependency.testFramework(path: AbsolutePath("/XcodeProj.framework"))
         let library = GraphDependency.testLibrary(path: AbsolutePath("/RxSwift.a"))
-        let sdk = GraphDependency.testSDK(name: "CoreData.framework", status: .required, source: .developer)
+        let sdk = GraphDependency.testSDK(
+            name: "CoreData.framework",
+            status: .required,
+            source: .developer
+        )
 
         let core = GraphTarget.test(
             path: coreProject.path,

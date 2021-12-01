@@ -1,4 +1,3 @@
 import ProjectDescription
 
-let setup = Setup([
-])
+let setup = Setup([])

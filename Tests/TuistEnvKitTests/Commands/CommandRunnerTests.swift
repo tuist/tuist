@@ -1,8 +1,10 @@
 import Foundation
 import TSCBasic
-import struct TSCUtility.Version
 import TuistSupport
 import XCTest
+
+import struct TSCUtility.Version
+
 @testable import TuistEnvKit
 @testable import TuistSupportTesting
 
@@ -12,7 +14,10 @@ final class CommandRunnerErrorTests: XCTestCase {
     }
 
     func test_description() {
-        XCTAssertEqual(CommandRunnerError.versionNotFound.description, "No valid version has been found locally")
+        XCTAssertEqual(
+            CommandRunnerError.versionNotFound.description,
+            "No valid version has been found locally"
+        )
     }
 }
 
@@ -90,10 +95,12 @@ final class CommandRunnerTests: TuistUnitTestCase {
 
         try subject.run()
 
-        XCTAssertPrinterOutputContains("""
-        Using version 3.2.1 defined at \(temporaryPath.pathString)
-        Version 3.2.1 not found locally. Installing...
-        """)
+        XCTAssertPrinterOutputContains(
+            """
+            Using version 3.2.1 defined at \(temporaryPath.pathString)
+            Version 3.2.1 not found locally. Installing...
+            """
+        )
         XCTAssertEqual(installArgs.count, 1)
         XCTAssertEqual(installArgs.first, "3.2.1")
     }

@@ -5,8 +5,9 @@ import TuistCoreTesting
 import TuistGraph
 import TuistGraphTesting
 import TuistSupport
-import XcodeProj
 import XCTest
+import XcodeProj
+
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
@@ -57,20 +58,31 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
 
         // Then
         let xcworkspace = result.xcworkspace
-        XCTAssertEqual(xcworkspace.data.children, [
-            .group(.init(location: .group("Documentation"), name: "Documentation", children: [
+        XCTAssertEqual(
+            xcworkspace.data.children,
+            [
+                .group(
+                    .init(
+                        location: .group("Documentation"),
+                        name: "Documentation",
+                        children: [
+                            .file(.init(location: .group("README.md")))
+                        ]
+                    )
+                ),
                 .file(.init(location: .group("README.md"))),
-            ])),
-            .file(.init(location: .group("README.md"))),
-            .file(.init(location: .group("Website"))),
-        ])
+                .file(.init(location: .group("Website"))),
+            ]
+        )
     }
 
     func test_generate_workspaceStructure_noWorkspaceData() throws {
         // Given
         let name = "test"
         let temporaryPath = try self.temporaryPath()
-        try FileHandler.shared.createFolder(temporaryPath.appending(component: "\(name).xcworkspace"))
+        try FileHandler.shared.createFolder(
+            temporaryPath.appending(component: "\(name).xcworkspace")
+        )
         let workspace = Workspace.test(name: name)
         let graph = Graph.test(
             path: temporaryPath,
@@ -107,8 +119,8 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
             projects: [project.path: project],
             targets: [
                 project.path: [
-                    target.name: target,
-                ],
+                    target.name: target
+                ]
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -118,9 +130,12 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
 
         // Then
         let xcworkspace = result.xcworkspace
-        XCTAssertEqual(xcworkspace.data.children, [
-            .file(.init(location: .group("Test.xcodeproj"))),
-        ])
+        XCTAssertEqual(
+            xcworkspace.data.children,
+            [
+                .file(.init(location: .group("Test.xcodeproj")))
+            ]
+        )
     }
 
     // MARK: - Helpers

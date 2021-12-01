@@ -53,16 +53,19 @@ struct ExecCommand: ParsableCommand {
     var taskOptions: [String: String] = [:]
 
     // Custom decoding to decode dynamic options
-    init(from decoder: Decoder) throws {
+    init(
+        from decoder: Decoder
+    ) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         task = try container.decode(Argument<String>.self, forKey: .task).wrappedValue
         path = try container.decodeIfPresent(Option<String>.self, forKey: .path)?.wrappedValue
         try ExecCommand.options.forEach { option in
-            guard let value = try container.decode(
-                Option<String?>.self,
-                forKey: .option(option.name)
-            )
-            .wrappedValue
+            guard
+                let value = try container.decode(
+                    Option<String?>.self,
+                    forKey: .option(option.name)
+                )
+                .wrappedValue
             else { return }
             taskOptions[option.name] = value
         }
@@ -80,19 +83,25 @@ extension ExecCommand {
             let arguments = arguments,
             arguments.count >= 2
         else { throw ExecCommandError.taskNotProvided }
-        guard !configuration.subcommands.contains(where: { $0.configuration.commandName == arguments[1] }) else { return }
+        guard
+            !configuration.subcommands.contains(where: {
+                $0.configuration.commandName == arguments[1]
+            })
+        else { return }
         // We want to parse only the name of a task, not its arguments which will be dynamically added
         // Plucking out path arguments
         let pairedArguments: [[String]] = stride(from: 2, to: arguments.count, by: 2).map {
-            Array(arguments[$0 ..< min($0 + 2, arguments.count)])
+            Array(arguments[$0..<min($0 + 2, arguments.count)])
         }
-        let filteredArguments = pairedArguments
+        let filteredArguments =
+            pairedArguments
             .filter {
                 $0.first == "--path" || $0.first == "-p"
             }
             .flatMap { $0 }
 
-        guard let command = try parseAsRoot([arguments[1]] + filteredArguments) as? ExecCommand else { return }
+        guard let command = try parseAsRoot([arguments[1]] + filteredArguments) as? ExecCommand
+        else { return }
 
         ExecCommand.options = try ExecService().loadTaskOptions(
             taskName: command.task,
@@ -123,7 +132,9 @@ extension ExecCommand {
             }
         }
 
-        init?(stringValue: String) {
+        init?(
+            stringValue: String
+        ) {
             switch stringValue {
             case "task":
                 self = .task

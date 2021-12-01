@@ -1,6 +1,6 @@
-import UIKit
-import PrebuiltStaticFramework
 import LibraryA
+import PrebuiltStaticFramework
+import UIKit
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -9,7 +9,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     func application(
         _ application: UIApplication,
-        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil
+        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
 
         usePackageCode()
@@ -26,7 +26,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     private func usePackageCode() {
         print(LibraryAClass().text)
     }
-    
+
     private func useStaticLibraryCode() {
         let staticFrameworkClass = StaticFrameworkClass()
         print(staticFrameworkClass.hello())

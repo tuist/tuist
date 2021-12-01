@@ -90,7 +90,8 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
         XCTAssertEqual(got.sorted(), ["SymlinkFolder"])
     }
 
-    func testSubdirectoriesResolvingSymbolicLinks_whenSymbolicLinkAndOriginalInSameSubtree() throws {
+    func testSubdirectoriesResolvingSymbolicLinks_whenSymbolicLinkAndOriginalInSameSubtree() throws
+    {
         // Given
         let fileManager = FileManager.default
 
@@ -181,7 +182,10 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
         try fileHandler.createFolder(otherOutsideFolderPath)
         try fileHandler.createFolder(subFolderPath)
         try fileHandler.createSymbolicLink(at: symlinkFolderPath, destination: outsideFolderPath)
-        try fileHandler.createSymbolicLink(at: subSymlinkFolderPath, destination: otherOutsideFolderPath)
+        try fileHandler.createSymbolicLink(
+            at: subSymlinkFolderPath,
+            destination: otherOutsideFolderPath
+        )
 
         // Then
         let got = fileManager.subdirectoriesResolvingSymbolicLinks(atPath: folderPath.pathString)
@@ -214,7 +218,10 @@ final class FileManagerExtrasTests: TuistUnitTestCase {
         try fileHandler.createFolder(folderPath)
         try fileHandler.createFolder(outsideFolderPath)
         try fileHandler.createFolder(subfolderPath)
-        try fileManager.createSymbolicLink(atPath: symlinkFolderPath.pathString, withDestinationPath: "../OutsideFolder")
+        try fileManager.createSymbolicLink(
+            atPath: symlinkFolderPath.pathString,
+            withDestinationPath: "../OutsideFolder"
+        )
 
         // Then
         let got = fileManager.subdirectoriesResolvingSymbolicLinks(atPath: folderPath.pathString)

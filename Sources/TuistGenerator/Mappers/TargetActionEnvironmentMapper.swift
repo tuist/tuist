@@ -6,7 +6,9 @@ import TuistGraph
 public final class TargetActionEnvironmentMapper: TargetMapping {
     let showEnvVarsInLog: Bool
 
-    public init(_ showEnvVarsInLog: Bool) {
+    public init(
+        _ showEnvVarsInLog: Bool
+    ) {
         self.showEnvVarsInLog = showEnvVarsInLog
     }
 

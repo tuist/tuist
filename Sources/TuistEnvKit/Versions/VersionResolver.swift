@@ -57,7 +57,9 @@ class VersionResolver: VersionResolving {
 
     // MARK: - Init
 
-    init(settingsController: SettingsControlling = SettingsController()) {
+    init(
+        settingsController: SettingsControlling = SettingsController()
+    ) {
         self.settingsController = settingsController
     }
 
@@ -86,7 +88,8 @@ class VersionResolver: VersionResolving {
     private func resolveVersionFile(path: AbsolutePath) throws -> ResolvedVersion {
         var value: String!
         do {
-            value = try String(contentsOf: URL(fileURLWithPath: path.pathString)).trimmingCharacters(in: .whitespacesAndNewlines)
+            value = try String(contentsOf: URL(fileURLWithPath: path.pathString))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
         } catch {
             throw VersionResolverError.readError(path: path)
         }

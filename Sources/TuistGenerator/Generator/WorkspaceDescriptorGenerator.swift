@@ -50,9 +50,10 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
 
     // MARK: - Init
 
-    convenience init(defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider(),
-                     config: Config = .default)
-    {
+    convenience init(
+        defaultSettingsProvider: DefaultSettingsProviding = DefaultSettingsProvider(),
+        config: Config = .default
+    ) {
         let configGenerator = ConfigGenerator(defaultSettingsProvider: defaultSettingsProvider)
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
         let projectDescriptorGenerator = ProjectDescriptorGenerator(
@@ -67,11 +68,12 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         )
     }
 
-    init(projectDescriptorGenerator: ProjectDescriptorGenerating,
-         workspaceStructureGenerator: WorkspaceStructureGenerating,
-         schemeDescriptorsGenerator: SchemeDescriptorsGenerating,
-         config: Config = .default)
-    {
+    init(
+        projectDescriptorGenerator: ProjectDescriptorGenerating,
+        workspaceStructureGenerator: WorkspaceStructureGenerating,
+        schemeDescriptorsGenerator: SchemeDescriptorsGenerating,
+        config: Config = .default
+    ) {
         self.projectDescriptorGenerator = projectDescriptorGenerator
         self.workspaceStructureGenerator = workspaceStructureGenerator
         self.schemeDescriptorsGenerator = schemeDescriptorsGenerator
@@ -89,24 +91,29 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         let projects = try Array(graphTraverser.projects.values)
             .sorted(by: { $0.path < $1.path })
             .compactMap(context: config.projectGenerationContext) { project -> ProjectDescriptor? in
-                try projectDescriptorGenerator.generate(project: project, graphTraverser: graphTraverser)
+                try projectDescriptorGenerator.generate(
+                    project: project,
+                    graphTraverser: graphTraverser
+                )
             }
 
-        let generatedProjects: [AbsolutePath: GeneratedProject] = Dictionary(uniqueKeysWithValues: projects.map { project in
-            let pbxproj = project.xcodeProj.pbxproj
-            let targets = pbxproj.nativeTargets.map {
-                ($0.name, $0)
-            }
-            return (
-                project.xcodeprojPath,
-                GeneratedProject(
-                    pbxproj: pbxproj,
-                    path: project.xcodeprojPath,
-                    targets: Dictionary(targets, uniquingKeysWith: { $1 }),
-                    name: project.xcodeprojPath.basename
+        let generatedProjects: [AbsolutePath: GeneratedProject] = Dictionary(
+            uniqueKeysWithValues: projects.map { project in
+                let pbxproj = project.xcodeProj.pbxproj
+                let targets = pbxproj.nativeTargets.map {
+                    ($0.name, $0)
+                }
+                return (
+                    project.xcodeprojPath,
+                    GeneratedProject(
+                        pbxproj: pbxproj,
+                        path: project.xcodeprojPath,
+                        targets: Dictionary(targets, uniquingKeysWith: { $1 }),
+                        name: project.xcodeprojPath.basename
+                    )
                 )
-            )
-        })
+            }
+        )
 
         // Workspace structure
         let structure = workspaceStructureGenerator.generateStructure(
@@ -161,7 +168,10 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
     ///   - lhs: First file to be sorted.
     ///   - rhs: Second file to be sorted.
     /// - Returns: True if the first workspace data element should be before the second one.
-    private func workspaceDataElementSort(lhs: XCWorkspaceDataElement, rhs: XCWorkspaceDataElement) -> Bool {
+    private func workspaceDataElementSort(
+        lhs: XCWorkspaceDataElement,
+        rhs: XCWorkspaceDataElement
+    ) -> Bool {
         switch (lhs, rhs) {
         case let (.file(lhsFile), .file(rhsFile)):
             return workspaceFilePathSort(
@@ -202,10 +212,11 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
         }
     }
 
-    private func recursiveChildElement(generatedProjects: [AbsolutePath: GeneratedProject],
-                                       element: WorkspaceStructure.Element,
-                                       path: AbsolutePath) throws -> XCWorkspaceDataElement
-    {
+    private func recursiveChildElement(
+        generatedProjects: [AbsolutePath: GeneratedProject],
+        element: WorkspaceStructure.Element,
+        path: AbsolutePath
+    ) throws -> XCWorkspaceDataElement {
         switch element {
         case let .file(path: filePath):
             return workspaceFileElement(path: filePath.relative(to: path))
@@ -214,7 +225,9 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
             return workspaceFileElement(path: folderPath.relative(to: path))
 
         case let .group(name: name, path: groupPath, contents: contents):
-            let location = XCWorkspaceDataElementLocationType.group(groupPath.relative(to: path).pathString)
+            let location = XCWorkspaceDataElementLocationType.group(
+                groupPath.relative(to: path).pathString
+            )
 
             let groupReference = XCWorkspaceDataGroup(
                 location: location,

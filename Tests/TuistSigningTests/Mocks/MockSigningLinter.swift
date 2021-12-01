@@ -1,11 +1,13 @@
 import TSCBasic
 import TuistCore
 import TuistGraph
+
 @testable import TuistSigning
 
 final class MockSigningLinter: SigningLinting {
     var lintStub: ((Certificate, ProvisioningProfile) -> [LintingIssue])?
-    func lint(certificate: Certificate, provisioningProfile: ProvisioningProfile) -> [LintingIssue] {
+    func lint(certificate: Certificate, provisioningProfile: ProvisioningProfile) -> [LintingIssue]
+    {
         lintStub?(certificate, provisioningProfile) ?? []
     }
 

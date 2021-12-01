@@ -10,7 +10,9 @@ public struct Plugin: Equatable, Hashable {
     ///
     /// - Parameters:
     ///     - name: The name of the plugin.
-    public init(name: String) {
+    public init(
+        name: String
+    ) {
         self.name = name
     }
 }

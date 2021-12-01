@@ -11,7 +11,11 @@ public final class MockXcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirec
     }
 
     public var locateStub: ((Platform, AbsolutePath, String) throws -> AbsolutePath)?
-    public func locate(platform: Platform, projectPath: AbsolutePath, configuration: String) throws -> AbsolutePath {
+    public func locate(
+        platform: Platform,
+        projectPath: AbsolutePath,
+        configuration: String
+    ) throws -> AbsolutePath {
         guard let stub = locateStub else {
             throw MockXcodeProjectBuildDirectoryLocatorError.noStub
         }

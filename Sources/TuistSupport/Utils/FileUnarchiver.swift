@@ -20,13 +20,20 @@ public class FileUnarchiver: FileUnarchiving {
 
     /// Initializes the unarchiver with the path to the file to unarchive.
     /// - Parameter path: Path to the .zip file to unarchive.
-    public init(path: AbsolutePath) throws {
+    public init(
+        path: AbsolutePath
+    ) throws {
         self.path = path
         temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: false).path
     }
 
     public func unzip() throws -> AbsolutePath {
-        try Zip.unzipFile(path.url, destination: temporaryDirectory.url, overwrite: true, password: nil)
+        try Zip.unzipFile(
+            path.url,
+            destination: temporaryDirectory.url,
+            overwrite: true,
+            password: nil
+        )
         return temporaryDirectory
     }
 

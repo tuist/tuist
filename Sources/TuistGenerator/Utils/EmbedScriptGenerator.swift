@@ -13,9 +13,11 @@ protocol EmbedScriptGenerating {
     /// - Parameter sourceRootPath: Directory where the Xcode project will be created.
     /// - Parameter frameworkReferences: Framework references.
     /// - Parameter includeSymbolsInFileLists: Whether or not to list DSYMs/bcsymbol files in the input/output file list.
-    func script(sourceRootPath: AbsolutePath,
-                frameworkReferences: [GraphDependencyReference],
-                includeSymbolsInFileLists: Bool) throws -> EmbedScript
+    func script(
+        sourceRootPath: AbsolutePath,
+        frameworkReferences: [GraphDependencyReference],
+        includeSymbolsInFileLists: Bool
+    ) throws -> EmbedScript
 }
 
 /// It represents a embed frameworks script.
@@ -33,10 +35,11 @@ struct EmbedScript {
 final class EmbedScriptGenerator: EmbedScriptGenerating {
     typealias FrameworkScript = (script: String, inputPaths: [RelativePath], outputPaths: [String])
 
-    func script(sourceRootPath: AbsolutePath,
-                frameworkReferences: [GraphDependencyReference],
-                includeSymbolsInFileLists: Bool) throws -> EmbedScript
-    {
+    func script(
+        sourceRootPath: AbsolutePath,
+        frameworkReferences: [GraphDependencyReference],
+        includeSymbolsInFileLists: Bool
+    ) throws -> EmbedScript {
         var script = baseScript()
         script.append("\n")
 
@@ -52,10 +55,11 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
 
     // MARK: - Fileprivate
 
-    fileprivate func frameworksScript(sourceRootPath: AbsolutePath,
-                                      frameworkReferences: [GraphDependencyReference],
-                                      includeSymbolsInFileLists: Bool) throws -> FrameworkScript
-    {
+    fileprivate func frameworksScript(
+        sourceRootPath: AbsolutePath,
+        frameworkReferences: [GraphDependencyReference],
+        includeSymbolsInFileLists: Bool
+    ) throws -> FrameworkScript {
         var script = ""
         var inputPaths: [RelativePath] = []
         var outputPaths: [String] = []
@@ -73,7 +77,18 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
         }
 
         for frameworkReference in frameworkReferences {
-            guard case let GraphDependencyReference.framework(path, _, _, dsymPath, bcsymbolmapPaths, _, _, _) = frameworkReference else {
+            guard
+                case let GraphDependencyReference.framework(
+                    path,
+                    _,
+                    _,
+                    dsymPath,
+                    bcsymbolmapPaths,
+                    _,
+                    _,
+                    _
+                ) = frameworkReference
+            else {
                 preconditionFailure("references need to be of type framework")
                 break
             }
@@ -83,9 +98,13 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
             script.append("install_framework \"$SRCROOT/\(relativeFrameworkPath.pathString)\"\n")
 
             inputPaths.append(relativeFrameworkPath)
-            inputPaths.append(relativeFrameworkPath.appending(component: relativeFrameworkPath.basenameWithoutExt))
+            inputPaths.append(
+                relativeFrameworkPath.appending(component: relativeFrameworkPath.basenameWithoutExt)
+            )
             inputPaths.append(relativeFrameworkPath.appending(component: "Info.plist"))
-            outputPaths.append("${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/\(relativeFrameworkPath.basename)")
+            outputPaths.append(
+                "${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/\(relativeFrameworkPath.basename)"
+            )
 
             // .dSYM
             if let dsymPath = dsymPath {
@@ -253,9 +272,9 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
     // swiftlint:enable line_length
 }
 
-private extension RelativePath {
+extension RelativePath {
     /// Returns the basename without the extension.
-    var basenameWithoutExt: String {
+    fileprivate var basenameWithoutExt: String {
         if let ext = self.extension {
             return String(basename.dropLast(ext.count + 1))
         }

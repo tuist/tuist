@@ -20,11 +20,12 @@ public struct SourceFileGlob: Equatable {
     ///   - excluding: Glob pattern used for filtering out files.
     ///   - compilerFlags: Compiler flags.
     ///   - codegen: Source file code generation attribute
-    public init(glob: String,
-                excluding: [String] = [],
-                compilerFlags: String? = nil,
-                codeGen: FileCodeGen? = nil)
-    {
+    public init(
+        glob: String,
+        excluding: [String] = [],
+        compilerFlags: String? = nil,
+        codeGen: FileCodeGen? = nil
+    ) {
         self.glob = glob
         self.excluding = excluding
         self.compilerFlags = compilerFlags

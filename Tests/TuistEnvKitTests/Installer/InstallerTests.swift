@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistSupport
 import XCTest
+
 @testable import TuistEnvKit
 @testable import TuistSupportTesting
 
@@ -35,7 +36,9 @@ final class InstallerTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let downloadURL = URL(string: "https://github.com/tuist/tuist/releases/download/3.2.1/tuist.zip")!
+        let downloadURL = URL(
+            string: "https://github.com/tuist/tuist/releases/download/3.2.1/tuist.zip"
+        )!
 
         versionsController.installStub = { _, closure in
             try closure(temporaryPath)
@@ -64,11 +67,13 @@ final class InstallerTests: TuistUnitTestCase {
             temporaryDirectory: temporaryDirectory.path
         )
 
-        XCTAssertPrinterOutputContains("""
-        Downloading version 3.2.1
-        Installing...
-        Version \(version) installed
-        """)
+        XCTAssertPrinterOutputContains(
+            """
+            Downloading version 3.2.1
+            Installing...
+            Version \(version) installed
+            """
+        )
     }
 
     func test_install_when_bundled_release_and_download_fails() throws {
@@ -76,7 +81,9 @@ final class InstallerTests: TuistUnitTestCase {
         let version = "3.2.1"
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let downloadURL = URL(string: "https://github.com/tuist/tuist/releases/download/3.2.1/tuist.zip")!
+        let downloadURL = URL(
+            string: "https://github.com/tuist/tuist/releases/download/3.2.1/tuist.zip"
+        )!
 
         versionsController.installStub = { _, closure in
             try closure(temporaryPath)
@@ -94,7 +101,9 @@ final class InstallerTests: TuistUnitTestCase {
             error: "download_error"
         )
 
-        XCTAssertThrowsError(try subject.install(version: version, temporaryDirectory: temporaryDirectory.path))
+        XCTAssertThrowsError(
+            try subject.install(version: version, temporaryDirectory: temporaryDirectory.path)
+        )
     }
 
     func test_install_when_bundled_release_when_unzip_fails() throws {
@@ -102,7 +111,9 @@ final class InstallerTests: TuistUnitTestCase {
         let version = "3.2.1"
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let downloadURL = URL(string: "https://github.com/tuist/tuist/releases/download/3.2.1/tuist.zip")!
+        let downloadURL = URL(
+            string: "https://github.com/tuist/tuist/releases/download/3.2.1/tuist.zip"
+        )!
 
         versionsController.installStub = { _, closure in
             try closure(temporaryPath)
@@ -126,7 +137,9 @@ final class InstallerTests: TuistUnitTestCase {
             error: "unzip_error"
         )
 
-        XCTAssertThrowsError(try subject.install(version: version, temporaryDirectory: temporaryDirectory.path))
+        XCTAssertThrowsError(
+            try subject.install(version: version, temporaryDirectory: temporaryDirectory.path)
+        )
     }
 
     // MARK: - Fileprivate

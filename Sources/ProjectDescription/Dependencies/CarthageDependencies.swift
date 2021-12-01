@@ -7,7 +7,9 @@ public struct CarthageDependencies: Codable, Equatable {
 
     /// Creates `CarthageDependencies` instance.
     /// - Parameter dependencies: List of dependencies that can be installed using Carthage.
-    public init(_ dependencies: [Dependency]) {
+    public init(
+        _ dependencies: [Dependency]
+    ) {
         self.dependencies = dependencies
     }
 }
@@ -15,16 +17,18 @@ public struct CarthageDependencies: Codable, Equatable {
 // MARK: - ExpressibleByArrayLiteral
 
 extension CarthageDependencies: ExpressibleByArrayLiteral {
-    public init(arrayLiteral elements: Dependency...) {
+    public init(
+        arrayLiteral elements: Dependency...
+    ) {
         dependencies = elements
     }
 }
 
 // MARK: - CarthageDependencies.Dependency & CarthageDependencies.Requirement & CarthageDependencies.Options
 
-public extension CarthageDependencies {
+extension CarthageDependencies {
     /// Specifies origin of Carthage dependency.
-    enum Dependency: Codable, Equatable {
+    public enum Dependency: Codable, Equatable {
         /// GitHub repositories (both GitHub.com and GitHub Enterprise).
         case github(path: String, requirement: Requirement)
         /// Other Git repositories.
@@ -34,7 +38,7 @@ public extension CarthageDependencies {
     }
 
     /// Specifies version requirement for Carthage dependency.
-    enum Requirement: Codable, Equatable {
+    public enum Requirement: Codable, Equatable {
         case exact(Version)
         case upToNext(Version)
         case atLeast(Version)
@@ -58,21 +62,32 @@ extension CarthageDependencies.Dependency {
         case requirement
     }
 
-    public init(from decoder: Decoder) throws {
+    public init(
+        from decoder: Decoder
+    ) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
         switch kind {
         case .github:
             let path = try container.decode(String.self, forKey: .path)
-            let requirement = try container.decode(CarthageDependencies.Requirement.self, forKey: .requirement)
+            let requirement = try container.decode(
+                CarthageDependencies.Requirement.self,
+                forKey: .requirement
+            )
             self = .github(path: path, requirement: requirement)
         case .git:
             let path = try container.decode(String.self, forKey: .path)
-            let requirement = try container.decode(CarthageDependencies.Requirement.self, forKey: .requirement)
+            let requirement = try container.decode(
+                CarthageDependencies.Requirement.self,
+                forKey: .requirement
+            )
             self = .git(path: path, requirement: requirement)
         case .binary:
             let path = try container.decode(String.self, forKey: .path)
-            let requirement = try container.decode(CarthageDependencies.Requirement.self, forKey: .requirement)
+            let requirement = try container.decode(
+                CarthageDependencies.Requirement.self,
+                forKey: .requirement
+            )
             self = .binary(path: path, requirement: requirement)
         }
     }
@@ -114,7 +129,9 @@ extension CarthageDependencies.Requirement {
         case revision
     }
 
-    public init(from decoder: Decoder) throws {
+    public init(
+        from decoder: Decoder
+    ) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
         switch kind {

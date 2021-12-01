@@ -82,7 +82,9 @@ public struct ProjectDescriptionSearchPaths {
         )
     }
 
-    private static func pathStyle(for libraryPath: AbsolutePath) -> ProjectDescriptionSearchPaths.Style {
+    private static func pathStyle(
+        for libraryPath: AbsolutePath
+    ) -> ProjectDescriptionSearchPaths.Style {
         if libraryPath.extension == "framework" {
             if libraryPath.parentDirectory.components.last == "PackageFrameworks" {
                 return .swiftPackageInXcode

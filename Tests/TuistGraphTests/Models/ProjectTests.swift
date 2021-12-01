@@ -4,6 +4,7 @@ import TuistCore
 import TuistCoreTesting
 import TuistGraphTesting
 import XCTest
+
 @testable import TuistGraph
 
 final class ProjectTests: XCTestCase {
@@ -39,14 +40,14 @@ final class ProjectTests: XCTestCase {
                     frameworkTests.name: frameworkTests,
                     app.name: app,
                     appTests.name: appTests,
-                ],
+                ]
             ],
             dependencies: [
                 .target(name: frameworkTests.name, path: project.path): [
-                    .target(name: framework.name, path: project.path),
+                    .target(name: framework.name, path: project.path)
                 ],
                 .target(name: appTests.name, path: project.path): [
-                    .target(name: app.name, path: project.path),
+                    .target(name: app.name, path: project.path)
                 ],
             ]
         )
@@ -75,7 +76,10 @@ final class ProjectTests: XCTestCase {
 
     func test_defaultDebugBuildConfigurationName_when_defaultDebugConfigDoesntExist() {
         // Given
-        let settings = Settings.test(base: [:], configurations: [.debug("Test"): Configuration.test()])
+        let settings = Settings.test(
+            base: [:],
+            configurations: [.debug("Test"): Configuration.test()]
+        )
         let project = Project.test(settings: settings)
 
         // When

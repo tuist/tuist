@@ -32,13 +32,14 @@ public struct WorkspaceDescriptor {
     /// The side effects required for generating this workspace
     public var sideEffectDescriptors: [SideEffectDescriptor]
 
-    public init(path: AbsolutePath,
-                xcworkspacePath: AbsolutePath,
-                xcworkspace: XCWorkspace,
-                projectDescriptors: [ProjectDescriptor],
-                schemeDescriptors: [SchemeDescriptor],
-                sideEffectDescriptors: [SideEffectDescriptor])
-    {
+    public init(
+        path: AbsolutePath,
+        xcworkspacePath: AbsolutePath,
+        xcworkspace: XCWorkspace,
+        projectDescriptors: [ProjectDescriptor],
+        schemeDescriptors: [SchemeDescriptor],
+        sideEffectDescriptors: [SideEffectDescriptor]
+    ) {
         self.path = path
         self.xcworkspacePath = xcworkspacePath
         self.xcworkspace = xcworkspace

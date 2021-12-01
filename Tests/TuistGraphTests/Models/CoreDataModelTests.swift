@@ -10,7 +10,7 @@ final class CoreDataModelTests: TuistUnitTestCase {
         let subject = CoreDataModel(
             path: "/path/to/model",
             versions: [
-                "/path/to/version",
+                "/path/to/version"
             ],
             currentVersion: "1.1.1"
         )

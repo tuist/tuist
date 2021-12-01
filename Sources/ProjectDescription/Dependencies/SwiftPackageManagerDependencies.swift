@@ -35,7 +35,9 @@ public struct SwiftPackageManagerDependencies: Codable, Equatable {
 // MARK: - ExpressibleByArrayLiteral
 
 extension SwiftPackageManagerDependencies: ExpressibleByArrayLiteral {
-    public init(arrayLiteral elements: Package...) {
+    public init(
+        arrayLiteral elements: Package...
+    ) {
         self.init(elements)
     }
 }

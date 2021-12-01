@@ -20,7 +20,9 @@ final class GitHandlerTests: TuistUnitTestCase {
         let url = "https://some/url/to/repo.git"
         let path = try temporaryPath()
 
-        system.stubs["git -C \(path.pathString) clone \(url)"] = (stderror: nil, stdout: nil, exitstatus: 0)
+        system.stubs["git -C \(path.pathString) clone \(url)"] = (
+            stderror: nil, stdout: nil, exitstatus: 0
+        )
 
         XCTAssertNoThrow(try subject.clone(url: url, into: path))
         XCTAssertTrue(system.called("git", "-C", path.pathString, "clone", url))
@@ -39,7 +41,9 @@ final class GitHandlerTests: TuistUnitTestCase {
         let url = "https://some/url/to/repo.git"
         let path = try temporaryPath()
 
-        system.stubs["git clone \(url) \(path.pathString)"] = (stderror: nil, stdout: nil, exitstatus: 0)
+        system.stubs["git clone \(url) \(path.pathString)"] = (
+            stderror: nil, stdout: nil, exitstatus: 0
+        )
 
         XCTAssertNoThrow(try subject.clone(url: url, to: path))
         XCTAssertTrue(system.called("git", "clone", url, path.pathString))
@@ -70,14 +74,16 @@ final class GitHandlerTests: TuistUnitTestCase {
         system.stubs[expectedCommand] = (stderror: nil, stdout: nil, exitstatus: 0)
 
         XCTAssertNoThrow(try subject.checkout(id: id, in: path))
-        XCTAssertTrue(system.called(
-            "git",
-            "--git-dir",
-            path.appending(component: ".git").pathString,
-            "--work-tree",
-            path.pathString,
-            "checkout",
-            id
-        ))
+        XCTAssertTrue(
+            system.called(
+                "git",
+                "--git-dir",
+                path.appending(component: ".git").pathString,
+                "--work-tree",
+                path.pathString,
+                "checkout",
+                id
+            )
+        )
     }
 }

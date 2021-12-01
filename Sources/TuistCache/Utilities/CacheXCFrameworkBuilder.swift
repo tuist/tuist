@@ -2,10 +2,11 @@ import Foundation
 import RxBlocking
 import RxSwift
 import TSCBasic
-import struct TSCUtility.Version
 import TuistCore
 import TuistGraph
 import TuistSupport
+
+import struct TSCUtility.Version
 
 public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
     // MARK: - Attributes
@@ -17,7 +18,9 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
 
     /// Initializes the builder.
     /// - Parameter xcodeBuildController: Xcode build controller instance to run xcodebuild commands.
-    public init(xcodeBuildController: XcodeBuildControlling) {
+    public init(
+        xcodeBuildController: XcodeBuildControlling
+    ) {
         self.xcodeBuildController = xcodeBuildController
     }
 
@@ -42,7 +45,9 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
             // Build for the simulator
             var simulatorArchivePath: AbsolutePath?
             if platform.hasSimulators {
-                simulatorArchivePath = temporaryDirectory.appending(component: "simulator.xcarchive")
+                simulatorArchivePath = temporaryDirectory.appending(
+                    component: "simulator.xcarchive"
+                )
                 try simulatorBuild(
                     projectTarget: projectTarget,
                     scheme: scheme.name,
@@ -62,7 +67,8 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
                 archivePath: deviceArchivePath
             )
 
-            let productNames = deviceArchivePath
+            let productNames =
+                deviceArchivePath
                 .appending(RelativePath("Products/Library/Frameworks/"))
                 .glob("*")
                 .map { $0.basenameWithoutExt }
@@ -71,13 +77,25 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
             for productName in productNames {
                 var frameworkpaths = [AbsolutePath]()
                 if let simulatorArchivePath = simulatorArchivePath {
-                    frameworkpaths.append(frameworkPath(fromArchivePath: simulatorArchivePath, productName: productName))
+                    frameworkpaths.append(
+                        frameworkPath(
+                            fromArchivePath: simulatorArchivePath,
+                            productName: productName
+                        )
+                    )
                 }
-                frameworkpaths.append(frameworkPath(fromArchivePath: deviceArchivePath, productName: productName))
-                let xcframeworkPath = outputDirectory.appending(component: "\(productName).xcframework")
+                frameworkpaths.append(
+                    frameworkPath(fromArchivePath: deviceArchivePath, productName: productName)
+                )
+                let xcframeworkPath = outputDirectory.appending(
+                    component: "\(productName).xcframework"
+                )
                 try buildXCFramework(frameworks: frameworkpaths, output: xcframeworkPath)
 
-                try FileHandler.shared.move(from: xcframeworkPath, to: outputDirectory.appending(component: xcframeworkPath.basename))
+                try FileHandler.shared.move(
+                    from: xcframeworkPath,
+                    to: outputDirectory.appending(component: xcframeworkPath.basename)
+                )
             }
         }
     }
@@ -90,12 +108,13 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
             .last()
     }
 
-    fileprivate func deviceBuild(projectTarget: XcodeBuildTarget,
-                                 scheme: String,
-                                 platform: Platform,
-                                 configuration: String,
-                                 archivePath: AbsolutePath) throws
-    {
+    fileprivate func deviceBuild(
+        projectTarget: XcodeBuildTarget,
+        scheme: String,
+        platform: Platform,
+        configuration: String,
+        archivePath: AbsolutePath
+    ) throws {
         _ = try xcodeBuildController.archive(
             projectTarget,
             scheme: scheme,
@@ -113,12 +132,13 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
         .last()
     }
 
-    fileprivate func simulatorBuild(projectTarget: XcodeBuildTarget,
-                                    scheme: String,
-                                    platform: Platform,
-                                    configuration: String,
-                                    archivePath: AbsolutePath) throws
-    {
+    fileprivate func simulatorBuild(
+        projectTarget: XcodeBuildTarget,
+        scheme: String,
+        platform: Platform,
+        configuration: String,
+        archivePath: AbsolutePath
+    ) throws {
         _ = try xcodeBuildController.archive(
             projectTarget,
             scheme: scheme,
@@ -140,7 +160,10 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
     /// - Parameters:
     ///   - archivePath: Path to the .xcarchive.
     ///   - productName: Product name.
-    fileprivate func frameworkPath(fromArchivePath archivePath: AbsolutePath, productName: String) -> AbsolutePath {
+    fileprivate func frameworkPath(
+        fromArchivePath archivePath: AbsolutePath,
+        productName: String
+    ) -> AbsolutePath {
         archivePath.appending(RelativePath("Products/Library/Frameworks/\(productName).framework"))
     }
 }

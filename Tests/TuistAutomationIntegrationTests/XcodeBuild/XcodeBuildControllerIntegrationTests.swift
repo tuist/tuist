@@ -24,7 +24,9 @@ final class XcodeBuildControllerIntegrationTests: TuistTestCase {
 
     func test_showBuildSettings() throws {
         // Given
-        let target = XcodeBuildTarget.project(fixturePath(path: RelativePath("Frameworks/Frameworks.xcodeproj")))
+        let target = XcodeBuildTarget.project(
+            fixturePath(path: RelativePath("Frameworks/Frameworks.xcodeproj"))
+        )
 
         // When
         let got = try subject.showBuildSettings(target, scheme: "iOS", configuration: "Debug")

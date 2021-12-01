@@ -4,11 +4,15 @@
 public struct DecodingFirst<Value>: Codable where Value: Codable {
     public var wrappedValue: Value
 
-    public init(wrappedValue: Value) {
+    public init(
+        wrappedValue: Value
+    ) {
         self.wrappedValue = wrappedValue
     }
 
-    public init(from decoder: Decoder) throws {
+    public init(
+        from decoder: Decoder
+    ) throws {
         guard let value = try [Value](from: decoder).first else {
             throw "Expected an array with at least one value"
         }

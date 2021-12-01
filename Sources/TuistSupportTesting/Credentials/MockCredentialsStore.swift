@@ -1,4 +1,5 @@
 import Foundation
+
 @testable import TuistSupport
 
 public final class MockCredentialsStore: CredentialsStoring {

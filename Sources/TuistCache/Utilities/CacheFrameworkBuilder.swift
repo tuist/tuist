@@ -2,10 +2,11 @@ import Foundation
 import RxBlocking
 import RxSwift
 import TSCBasic
-import struct TSCUtility.Version
 import TuistCore
 import TuistGraph
 import TuistSupport
+
+import struct TSCUtility.Version
 
 public final class CacheFrameworkBuilder: CacheArtifactBuilding {
     // MARK: - Attributes
@@ -34,7 +35,8 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
         xcodeBuildController: XcodeBuildControlling,
         simulatorController: SimulatorControlling = SimulatorController(),
         developerEnvironment: DeveloperEnvironmenting = DeveloperEnvironment.shared,
-        xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating = XcodeProjectBuildDirectoryLocator()
+        xcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating =
+            XcodeProjectBuildDirectoryLocator()
     ) {
         self.xcodeBuildController = xcodeBuildController
         self.simulatorController = simulatorController
@@ -84,15 +86,18 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
 
     // MARK: - Fileprivate
 
-    fileprivate func arguments(platform: Platform,
-                               configuration: String,
-                               version: Version?,
-                               deviceName: String?) throws -> [XcodeBuildArgument]
-    {
+    fileprivate func arguments(
+        platform: Platform,
+        configuration: String,
+        version: Version?,
+        deviceName: String?
+    ) throws -> [XcodeBuildArgument] {
         return try destination(platform: platform, version: version, deviceName: deviceName)
             .map { (destination: String) -> [XcodeBuildArgument] in
                 [
-                    .sdk(platform == .macOS ? platform.xcodeDeviceSDK : platform.xcodeSimulatorSDK!),
+                    .sdk(
+                        platform == .macOS ? platform.xcodeDeviceSDK : platform.xcodeSimulatorSDK!
+                    ),
                     .configuration(configuration),
                     .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"),
                     .xcarg("GCC_GENERATE_DEBUGGING_SYMBOLS", "YES"),
@@ -105,7 +110,11 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
 
     /// https://www.mokacoding.com/blog/xcodebuild-destination-options/
     /// https://www.mokacoding.com/blog/how-to-always-run-latest-simulator-cli/
-    fileprivate func destination(platform: Platform, version: Version?, deviceName: String?) -> Single<String> {
+    fileprivate func destination(
+        platform: Platform,
+        version: Version?,
+        deviceName: String?
+    ) -> Single<String> {
         var mappedPlatform: Platform!
         switch platform {
         case .iOS: mappedPlatform = .iOS
@@ -114,16 +123,22 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
         case .macOS: return .just("platform=OS X,arch=x86_64")
         }
 
-        return simulatorController.findAvailableDevice(platform: mappedPlatform, version: version, minVersion: nil, deviceName: deviceName)
-            .flatMap { (deviceAndRuntime) -> Single<String> in
-                .just("id=\(deviceAndRuntime.device.udid)")
-            }
+        return simulatorController.findAvailableDevice(
+            platform: mappedPlatform,
+            version: version,
+            minVersion: nil,
+            deviceName: deviceName
+        )
+        .flatMap { (deviceAndRuntime) -> Single<String> in
+            .just("id=\(deviceAndRuntime.device.udid)")
+        }
     }
 
-    fileprivate func xcodebuild(projectTarget: XcodeBuildTarget,
-                                scheme: String,
-                                arguments: [XcodeBuildArgument]) throws
-    {
+    fileprivate func xcodebuild(
+        projectTarget: XcodeBuildTarget,
+        scheme: String,
+        arguments: [XcodeBuildArgument]
+    ) throws {
         _ = try xcodeBuildController.build(
             projectTarget,
             scheme: scheme,
@@ -136,17 +151,24 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
         .last()
     }
 
-    fileprivate func exportFrameworksAndDSYMs(from buildDirectory: AbsolutePath,
-                                              into outputDirectory: AbsolutePath) throws
-    {
+    fileprivate func exportFrameworksAndDSYMs(
+        from buildDirectory: AbsolutePath,
+        into outputDirectory: AbsolutePath
+    ) throws {
         let frameworks = FileHandler.shared.glob(buildDirectory, glob: "*.framework")
         try frameworks.forEach { framework in
-            try FileHandler.shared.copy(from: framework, to: outputDirectory.appending(component: framework.basename))
+            try FileHandler.shared.copy(
+                from: framework,
+                to: outputDirectory.appending(component: framework.basename)
+            )
         }
 
         let dsyms = FileHandler.shared.glob(buildDirectory, glob: "*.dSYM")
         try dsyms.forEach { dsym in
-            try FileHandler.shared.copy(from: dsym, to: outputDirectory.appending(component: dsym.basename))
+            try FileHandler.shared.copy(
+                from: dsym,
+                to: outputDirectory.appending(component: dsym.basename)
+            )
         }
     }
 }

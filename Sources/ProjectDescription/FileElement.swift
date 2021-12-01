@@ -35,7 +35,9 @@ public enum FileElement: Codable, Equatable {
         case path
     }
 
-    public init(from decoder: Decoder) throws {
+    public init(
+        from decoder: Decoder
+    ) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let type = try container.decode(TypeName.self, forKey: .type)
         switch type {
@@ -61,7 +63,9 @@ public enum FileElement: Codable, Equatable {
 }
 
 extension FileElement: ExpressibleByStringInterpolation {
-    public init(stringLiteral value: String) {
+    public init(
+        stringLiteral value: String
+    ) {
         self = .glob(pattern: Path(value))
     }
 }
@@ -77,7 +81,9 @@ extension Array: ExpressibleByExtendedGraphemeClusterLiteral where Element == Fi
 extension Array: ExpressibleByStringLiteral where Element == FileElement {
     public typealias StringLiteralType = String
 
-    public init(stringLiteral value: String) {
+    public init(
+        stringLiteral value: String
+    ) {
         self = [.glob(pattern: Path(value))]
     }
 }

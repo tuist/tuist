@@ -31,7 +31,9 @@ public struct TextTable<T> {
     ///
     /// - Parameters:
     ///   - mapper: A function for mapping an instance `T` to an array of columns.
-    public init(_ mapper: @escaping (T) -> [Column]) {
+    public init(
+        _ mapper: @escaping (T) -> [Column]
+    ) {
         self.mapper = mapper
     }
 
@@ -96,7 +98,8 @@ public struct TextTable<T> {
         table += cells.map(\.value).joined(separator: "  ")
     }
 
-    private func calculateWidths<C: Collection>(for data: C) -> [Int] where C.Iterator.Element == T {
+    private func calculateWidths<C: Collection>(for data: C) -> [Int]
+    where C.Iterator.Element == T {
         guard let first = data.first else { return [] }
 
         // Headers
@@ -118,12 +121,15 @@ public struct TextTable<T> {
     }
 }
 
-public extension TextTable {
-    struct Column {
+extension TextTable {
+    public struct Column {
         let title: String
         let value: CustomStringConvertible
 
-        public init(title: String, value: CustomStringConvertible) {
+        public init(
+            title: String,
+            value: CustomStringConvertible
+        ) {
             self.title = title
             self.value = value
         }
@@ -134,7 +140,10 @@ extension TextTable {
     private struct Cell {
         let value: String
 
-        init(value: CustomStringConvertible, width: Int) {
+        init(
+            value: CustomStringConvertible,
+            width: Int
+        ) {
             precondition(
                 width >= value.description.count,
                 "The width \(width) cannot be smaller than a value description count \(value.description.count)."

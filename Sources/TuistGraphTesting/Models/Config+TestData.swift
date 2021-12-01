@@ -1,10 +1,11 @@
 import Foundation
 import TSCBasic
 import TSCUtility
+
 @testable import TuistGraph
 
-public extension Config {
-    static func test(
+extension Config {
+    public static func test(
         compatibleXcodeVersions: CompatibleXcodeVersions = .all,
         cloud: Cloud? = Cloud.test(),
         cache: Cache? = Cache.test(),

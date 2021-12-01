@@ -44,8 +44,13 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             .appending(component: Constants.DerivedDirectory.name)
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "Bundle+\(target.name).swift")
-        let expectedContents = ResourcesProjectMapper
-            .fileContent(targetName: target.name, bundleName: "\(target.name)Resources", target: target)
+        let expectedContents =
+            ResourcesProjectMapper
+            .fileContent(
+                targetName: target.name,
+                bundleName: "\(target.name)Resources",
+                target: target
+            )
         XCTAssertEqual(file.path, expectedPath)
         XCTAssertEqual(file.contents, expectedContents.data(using: .utf8))
 
@@ -58,7 +63,10 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotTarget.sources.count, 1)
         XCTAssertEqual(gotTarget.sources.first?.path, expectedPath)
         XCTAssertEqual(gotTarget.dependencies.count, 1)
-        XCTAssertEqual(gotTarget.dependencies.first, TargetDependency.target(name: "\(target.name)Resources"))
+        XCTAssertEqual(
+            gotTarget.dependencies.first,
+            TargetDependency.target(name: "\(target.name)Resources")
+        )
 
         let resourcesTarget = try XCTUnwrap(gotProject.targets.last)
         XCTAssertEqual(resourcesTarget.name, "\(target.name)Resources")
@@ -73,7 +81,13 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
     func test_map_when_a_target_that_has_core_data_models_and_doesnt_supports_them() throws {
         // Given
 
-        let coreDataModels: [CoreDataModel] = [CoreDataModel(path: "/data.xcdatamodeld", versions: ["/data.xcdatamodeld"], currentVersion: "1")]
+        let coreDataModels: [CoreDataModel] = [
+            CoreDataModel(
+                path: "/data.xcdatamodeld",
+                versions: ["/data.xcdatamodeld"],
+                currentVersion: "1"
+            )
+        ]
         let target = Target.test(product: .staticLibrary, coreDataModels: coreDataModels)
         project = Project.test(targets: [target])
 
@@ -91,8 +105,13 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             .appending(component: Constants.DerivedDirectory.name)
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "Bundle+\(target.name).swift")
-        let expectedContents = ResourcesProjectMapper
-            .fileContent(targetName: target.name, bundleName: "\(target.name)Resources", target: target)
+        let expectedContents =
+            ResourcesProjectMapper
+            .fileContent(
+                targetName: target.name,
+                bundleName: "\(target.name)Resources",
+                target: target
+            )
         XCTAssertEqual(file.path, expectedPath)
         XCTAssertEqual(file.contents, expectedContents.data(using: .utf8))
 
@@ -105,7 +124,10 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotTarget.sources.count, 1)
         XCTAssertEqual(gotTarget.sources.first?.path, expectedPath)
         XCTAssertEqual(gotTarget.dependencies.count, 1)
-        XCTAssertEqual(gotTarget.dependencies.first, TargetDependency.target(name: "\(target.name)Resources"))
+        XCTAssertEqual(
+            gotTarget.dependencies.first,
+            TargetDependency.target(name: "\(target.name)Resources")
+        )
 
         let resourcesTarget = try XCTUnwrap(gotProject.targets.last)
         XCTAssertEqual(resourcesTarget.name, "\(target.name)Resources")
@@ -137,8 +159,13 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             .appending(component: Constants.DerivedDirectory.name)
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "Bundle+\(target.name).swift")
-        let expectedContents = ResourcesProjectMapper
-            .fileContent(targetName: target.name, bundleName: "\(target.name)Resources", target: target)
+        let expectedContents =
+            ResourcesProjectMapper
+            .fileContent(
+                targetName: target.name,
+                bundleName: "\(target.name)Resources",
+                target: target
+            )
         XCTAssertEqual(file.path, expectedPath)
         XCTAssertEqual(file.contents, expectedContents.data(using: .utf8))
 
@@ -155,7 +182,13 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
 
     func test_map_when_a_target_that_has_core_data_models_and_supports_them() throws {
         // Given
-        let coreDataModels: [CoreDataModel] = [CoreDataModel(path: "/data.xcdatamodeld", versions: ["/data.xcdatamodeld"], currentVersion: "1")]
+        let coreDataModels: [CoreDataModel] = [
+            CoreDataModel(
+                path: "/data.xcdatamodeld",
+                versions: ["/data.xcdatamodeld"],
+                currentVersion: "1"
+            )
+        ]
         let target = Target.test(product: .framework, coreDataModels: coreDataModels)
         project = Project.test(targets: [target])
 
@@ -173,8 +206,13 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
             .appending(component: Constants.DerivedDirectory.name)
             .appending(component: Constants.DerivedDirectory.sources)
             .appending(component: "Bundle+\(target.name).swift")
-        let expectedContents = ResourcesProjectMapper
-            .fileContent(targetName: target.name, bundleName: "\(target.name)Resources", target: target)
+        let expectedContents =
+            ResourcesProjectMapper
+            .fileContent(
+                targetName: target.name,
+                bundleName: "\(target.name)Resources",
+                target: target
+            )
         XCTAssertEqual(file.path, expectedPath)
         XCTAssertEqual(file.contents, expectedContents.data(using: .utf8))
 

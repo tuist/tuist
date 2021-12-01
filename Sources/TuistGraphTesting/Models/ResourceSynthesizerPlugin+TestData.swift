@@ -1,9 +1,10 @@
 import Foundation
 import TSCBasic
+
 @testable import TuistGraph
 
-public extension PluginResourceSynthesizer {
-    static func test(
+extension PluginResourceSynthesizer {
+    public static func test(
         name: String = "Plugin",
         path: AbsolutePath = AbsolutePath("/test")
     ) -> Self {

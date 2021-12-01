@@ -11,27 +11,34 @@ extension TuistGraph.Headers {
     /// - Parameters:
     ///   - manifest: Manifest representation of Headers.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.Headers, generatorPaths: GeneratorPaths) throws -> TuistGraph.Headers {
+    static func from(
+        manifest: ProjectDescription.Headers,
+        generatorPaths: GeneratorPaths
+    ) throws -> TuistGraph.Headers {
         let unfoldGlob: (AbsolutePath) -> [AbsolutePath] = { path in
-            FileHandler.shared.glob(AbsolutePath.root, glob: String(path.pathString.dropFirst())).filter {
-                if let fileExtension = $0.extension {
-                    return TuistGraph.Headers.extensions.contains(".\(fileExtension)")
+            FileHandler.shared.glob(AbsolutePath.root, glob: String(path.pathString.dropFirst()))
+                .filter {
+                    if let fileExtension = $0.extension {
+                        return TuistGraph.Headers.extensions.contains(".\(fileExtension)")
+                    }
+                    return false
                 }
-                return false
-            }
         }
 
-        let `public` = try manifest.public?.globs.flatMap {
-            unfoldGlob(try generatorPaths.resolve(path: $0))
-        } ?? []
+        let `public` =
+            try manifest.public?.globs.flatMap {
+                unfoldGlob(try generatorPaths.resolve(path: $0))
+            } ?? []
 
-        let `private` = try manifest.private?.globs.flatMap {
-            unfoldGlob(try generatorPaths.resolve(path: $0))
-        } ?? []
+        let `private` =
+            try manifest.private?.globs.flatMap {
+                unfoldGlob(try generatorPaths.resolve(path: $0))
+            } ?? []
 
-        let project = try manifest.project?.globs.flatMap {
-            unfoldGlob(try generatorPaths.resolve(path: $0))
-        } ?? []
+        let project =
+            try manifest.project?.globs.flatMap {
+                unfoldGlob(try generatorPaths.resolve(path: $0))
+            } ?? []
 
         return Headers(public: `public`, private: `private`, project: project)
     }

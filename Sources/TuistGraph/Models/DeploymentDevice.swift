@@ -9,7 +9,9 @@ public struct DeploymentDevice: OptionSet, Codable, Hashable {
 
     public let rawValue: UInt
 
-    public init(rawValue: UInt) {
+    public init(
+        rawValue: UInt
+    ) {
         self.rawValue = rawValue
     }
 

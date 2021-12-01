@@ -10,7 +10,9 @@ extension TuistGraph.CompatibleXcodeVersions {
     /// - Parameters:
     ///   - manifest: Manifest representation of compatible Xcode versions.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.CompatibleXcodeVersions) -> TuistGraph.CompatibleXcodeVersions {
+    static func from(
+        manifest: ProjectDescription.CompatibleXcodeVersions
+    ) -> TuistGraph.CompatibleXcodeVersions {
         switch manifest {
         case .all:
             return .all

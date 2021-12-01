@@ -8,7 +8,9 @@ protocol CocoaPodsInteracting {}
 final class CocoaPodsInteractor {
     private let binaryLocator: BinaryLocating
 
-    init(binaryLocator: BinaryLocating = BinaryLocator()) {
+    init(
+        binaryLocator: BinaryLocating = BinaryLocator()
+    ) {
         self.binaryLocator = binaryLocator
     }
 

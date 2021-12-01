@@ -30,7 +30,9 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
 
         // Then
         let documentationPath = temporaryPath.appending(component: "Documentation").pathString
-        XCTAssertPrinterOutputContains("'\(documentationPath)' is a directory, try using: '\(documentationPath)/**' to list its files")
+        XCTAssertPrinterOutputContains(
+            "'\(documentationPath)' is a directory, try using: '\(documentationPath)/**' to list its files"
+        )
         XCTAssertEqual(model, [])
     }
 
@@ -39,16 +41,21 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         let temporaryPath = try self.temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         try createFiles([
-            "README.md",
+            "README.md"
         ])
 
         let manifest = ProjectDescription.ResourceFileElement.folderReference(path: "README.md")
 
         // When
-        let model = try TuistGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try TuistGraph.ResourceFileElement.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths
+        )
 
         // Then
-        XCTAssertPrinterOutputContains("README.md is not a directory - folder reference paths need to point to directories")
+        XCTAssertPrinterOutputContains(
+            "README.md is not a directory - folder reference paths need to point to directories"
+        )
         XCTAssertEqual(model, [])
     }
 
@@ -59,7 +66,10 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         let manifest = ProjectDescription.ResourceFileElement.folderReference(path: "Documentation")
 
         // When
-        let model = try TuistGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try TuistGraph.ResourceFileElement.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths
+        )
 
         // Then
         XCTAssertPrinterOutputContains("Documentation does not exist")
@@ -78,7 +88,13 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         let error = GlobError.nonExistentDirectory(invalidGlob)
 
         // Then
-        XCTAssertThrowsSpecific(try TuistGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths), error)
+        XCTAssertThrowsSpecific(
+            try TuistGraph.ResourceFileElement.from(
+                manifest: manifest,
+                generatorPaths: generatorPaths
+            ),
+            error
+        )
     }
 
     func test_excluding() throws {
@@ -89,12 +105,22 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         let includedResource = resourcesFolder.appending(component: "included.xib")
         try fileHandler.createFolder(resourcesFolder)
         try fileHandler.write("", path: includedResource, atomically: true)
-        try fileHandler.write("", path: resourcesFolder.appending(component: "excluded.xib"), atomically: true)
-        let manifest = ProjectDescription.ResourceFileElement.glob(pattern: "Resources/**", excluding: ["Resources/excluded.xib"])
+        try fileHandler.write(
+            "",
+            path: resourcesFolder.appending(component: "excluded.xib"),
+            atomically: true
+        )
+        let manifest = ProjectDescription.ResourceFileElement.glob(
+            pattern: "Resources/**",
+            excluding: ["Resources/excluded.xib"]
+        )
 
         // Then
         XCTAssertEqual(
-            try TuistGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths),
+            try TuistGraph.ResourceFileElement.from(
+                manifest: manifest,
+                generatorPaths: generatorPaths
+            ),
             [
                 .file(path: resourcesFolder, tags: []),
                 .file(path: includedResource, tags: []),
@@ -111,12 +137,22 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         let includedResource = resourcesFolder.appending(component: "included.xib")
         try fileHandler.createFolder(resourcesFolder)
         try fileHandler.write("", path: includedResource, atomically: true)
-        try fileHandler.write("", path: excludedResourcesFolder.appending(component: "excluded.xib"), atomically: true)
-        let manifest = ProjectDescription.ResourceFileElement.glob(pattern: "Resources/**", excluding: ["Resources/Excluded"])
+        try fileHandler.write(
+            "",
+            path: excludedResourcesFolder.appending(component: "excluded.xib"),
+            atomically: true
+        )
+        let manifest = ProjectDescription.ResourceFileElement.glob(
+            pattern: "Resources/**",
+            excluding: ["Resources/Excluded"]
+        )
 
         // Then
         XCTAssertEqual(
-            try TuistGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths),
+            try TuistGraph.ResourceFileElement.from(
+                manifest: manifest,
+                generatorPaths: generatorPaths
+            ),
             [
                 .file(path: resourcesFolder, tags: []),
                 .file(path: includedResource, tags: []),
@@ -133,12 +169,22 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         let includedResource = resourcesFolder.appending(component: "included.xib")
         try fileHandler.createFolder(resourcesFolder)
         try fileHandler.write("", path: includedResource, atomically: true)
-        try fileHandler.write("", path: excludedResourcesFolder.appending(component: "excluded.xib"), atomically: true)
-        let manifest = ProjectDescription.ResourceFileElement.glob(pattern: "Resources/**", excluding: ["Resources/Excluded/**"])
+        try fileHandler.write(
+            "",
+            path: excludedResourcesFolder.appending(component: "excluded.xib"),
+            atomically: true
+        )
+        let manifest = ProjectDescription.ResourceFileElement.glob(
+            pattern: "Resources/**",
+            excluding: ["Resources/Excluded/**"]
+        )
 
         // Then
         XCTAssertEqual(
-            try TuistGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths),
+            try TuistGraph.ResourceFileElement.from(
+                manifest: manifest,
+                generatorPaths: generatorPaths
+            ),
             [
                 .file(path: resourcesFolder, tags: []),
                 .file(path: includedResource, tags: []),

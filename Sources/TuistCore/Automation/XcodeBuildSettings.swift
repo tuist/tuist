@@ -11,10 +11,11 @@ public struct XcodeBuildSettings {
     /// Build configuration.
     public let configuration: String
 
-    public init(_ settings: DictionaryType,
-                target: String,
-                configuration: String)
-    {
+    public init(
+        _ settings: DictionaryType,
+        target: String,
+        configuration: String
+    ) {
         self.settings = settings
         self.target = target
         self.configuration = configuration

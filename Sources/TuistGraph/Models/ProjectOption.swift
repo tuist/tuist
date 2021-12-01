@@ -49,15 +49,21 @@ extension ProjectOption {
         case textSettings
     }
 
-    public init(from decoder: Decoder) throws {
+    public init(
+        from decoder: Decoder
+    ) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
-        if container.allKeys.contains(.textSettings), try container.decodeNil(forKey: .textSettings) == false {
+        if container.allKeys.contains(.textSettings),
+            try container.decodeNil(forKey: .textSettings) == false
+        {
             var associatedValues = try container.nestedUnkeyedContainer(forKey: .textSettings)
             let textSettings = try associatedValues.decode(TextSettings.self)
             self = .textSettings(textSettings)
         } else {
-            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown enum case"))
+            throw DecodingError.dataCorrupted(
+                .init(codingPath: decoder.codingPath, debugDescription: "Unknown enum case")
+            )
         }
     }
 

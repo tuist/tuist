@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistGraph
 import TuistGraphTesting
+
 @testable import TuistKit
 
 final class MockManifestGraphLoader: ManifestGraphLoading {

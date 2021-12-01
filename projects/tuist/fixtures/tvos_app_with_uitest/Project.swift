@@ -20,7 +20,7 @@ let project = Project(
             infoPlist: "UITests.plist",
             sources: "App/UITests/**",
             dependencies: [
-                .target(name: "App"),
+                .target(name: "App")
             ]
         ),
     ]

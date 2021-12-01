@@ -12,10 +12,12 @@ public enum TargetsExtractorError: FatalError, Equatable {
 
     public var description: String {
         switch self {
-        case let .missingXcodeProj(path): return "Couldn't find Xcode project at path \(path.pathString)."
+        case let .missingXcodeProj(path):
+            return "Couldn't find Xcode project at path \(path.pathString)."
         case .noTargets: return "The project doesn't have any targets."
         case .failedToEncode: return "Failed to encode targets into JSON schema"
-        case let .failedToExtractTargets(reason): return "Failed to extract targets for reason: \(reason)."
+        case let .failedToExtractTargets(reason):
+            return "Failed to extract targets for reason: \(reason)."
         }
     }
 
@@ -53,8 +55,12 @@ public final class TargetsExtractor: TargetsExtracting {
 
     // MARK: - EmptyBuildSettingsChecking
 
-    public func targetsSortedByDependencies(xcodeprojPath: AbsolutePath) throws -> [TargetDependencyCount] {
-        guard FileHandler.shared.exists(xcodeprojPath) else { throw TargetsExtractorError.missingXcodeProj(xcodeprojPath) }
+    public func targetsSortedByDependencies(
+        xcodeprojPath: AbsolutePath
+    ) throws -> [TargetDependencyCount] {
+        guard FileHandler.shared.exists(xcodeprojPath) else {
+            throw TargetsExtractorError.missingXcodeProj(xcodeprojPath)
+        }
         let pbxproj = try XcodeProj(path: Path(xcodeprojPath.pathString)).pbxproj
         let targets = pbxproj.nativeTargets + pbxproj.aggregateTargets + pbxproj.legacyTargets
         if targets.isEmpty {
@@ -63,13 +69,17 @@ public final class TargetsExtractor: TargetsExtracting {
         return try sortTargetsByDependenciesCount(targets)
     }
 
-    private func sortTargetsByDependenciesCount(_ targets: [PBXTarget]) throws -> [TargetDependencyCount] {
+    private func sortTargetsByDependenciesCount(
+        _ targets: [PBXTarget]
+    ) throws -> [TargetDependencyCount] {
         try topologicalSort(targets, successors: { $0.dependencies.compactMap(\.target) })
             .reversed()
-            .map { TargetDependencyCount(
-                targetName: $0.name,
-                targetDependenciesNames: $0.dependencies.compactMap { $0.target?.name },
-                linkedFrameworksCount: try $0.frameworksBuildPhase()?.files?.count ?? 0
-            ) }
+            .map {
+                TargetDependencyCount(
+                    targetName: $0.name,
+                    targetDependenciesNames: $0.dependencies.compactMap { $0.target?.name },
+                    linkedFrameworksCount: try $0.frameworksBuildPhase()?.files?.count ?? 0
+                )
+            }
     }
 }

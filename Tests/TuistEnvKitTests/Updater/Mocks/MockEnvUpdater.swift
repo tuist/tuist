@@ -1,4 +1,5 @@
 import Foundation
+
 @testable import TuistEnvKit
 
 final class MockEnvUpdater: EnvUpdating {

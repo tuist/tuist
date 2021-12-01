@@ -8,7 +8,9 @@ import TuistSupport
 extension TuistGraph.CarthageDependencies {
     /// Creates `TuistGraph.CarthageDependencies` instance from `ProjectDescription.CarthageDependencies` instance.
     static func from(manifest: ProjectDescription.CarthageDependencies) throws -> Self {
-        let dependencies = manifest.dependencies.map { TuistGraph.CarthageDependencies.Dependency.from(manifest: $0) }
+        let dependencies = manifest.dependencies.map {
+            TuistGraph.CarthageDependencies.Dependency.from(manifest: $0)
+        }
 
         return .init(dependencies)
     }

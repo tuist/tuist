@@ -5,8 +5,15 @@ import TuistGraph
 import TuistSupport
 
 public protocol TargetContentHashing {
-    func contentHash(for target: GraphTarget, hashedTargets: inout [GraphHashedTarget: String]) throws -> String
-    func contentHash(for target: GraphTarget, hashedTargets: inout [GraphHashedTarget: String], additionalStrings: [String]) throws -> String
+    func contentHash(
+        for target: GraphTarget,
+        hashedTargets: inout [GraphHashedTarget: String]
+    ) throws -> String
+    func contentHash(
+        for target: GraphTarget,
+        hashedTargets: inout [GraphHashedTarget: String],
+        additionalStrings: [String]
+    ) throws -> String
 }
 
 /// `TargetContentHasher`
@@ -26,7 +33,9 @@ public final class TargetContentHasher: TargetContentHashing {
 
     // MARK: - Init
 
-    public convenience init(contentHasher: ContentHashing) {
+    public convenience init(
+        contentHasher: ContentHashing
+    ) {
         self.init(
             contentHasher: contentHasher,
             sourceFilesContentHasher: SourceFilesContentHasher(contentHasher: contentHasher),
@@ -35,7 +44,9 @@ public final class TargetContentHasher: TargetContentHashing {
             resourcesContentHasher: ResourcesContentHasher(contentHasher: contentHasher),
             copyFilesContentHasher: CopyFilesContentHasher(contentHasher: contentHasher),
             headersContentHasher: HeadersContentHasher(contentHasher: contentHasher),
-            deploymentTargetContentHasher: DeploymentTargetContentHasher(contentHasher: contentHasher),
+            deploymentTargetContentHasher: DeploymentTargetContentHasher(
+                contentHasher: contentHasher
+            ),
             infoPlistContentHasher: InfoPlistContentHasher(contentHasher: contentHasher),
             settingsContentHasher: SettingsContentHasher(contentHasher: contentHasher),
             dependenciesContentHasher: DependenciesContentHasher(contentHasher: contentHasher)
@@ -70,7 +81,10 @@ public final class TargetContentHasher: TargetContentHashing {
 
     // MARK: - TargetContentHashing
 
-    public func contentHash(for target: GraphTarget, hashedTargets: inout [GraphHashedTarget: String]) throws -> String {
+    public func contentHash(
+        for target: GraphTarget,
+        hashedTargets: inout [GraphHashedTarget: String]
+    ) throws -> String {
         try contentHash(for: target, hashedTargets: &hashedTargets, additionalStrings: [])
     }
 
@@ -82,9 +96,16 @@ public final class TargetContentHasher: TargetContentHashing {
         let sourcesHash = try sourceFilesContentHasher.hash(sources: graphTarget.target.sources)
         let resourcesHash = try resourcesContentHasher.hash(resources: graphTarget.target.resources)
         let copyFilesHash = try copyFilesContentHasher.hash(copyFiles: graphTarget.target.copyFiles)
-        let coreDataModelHash = try coreDataModelsContentHasher.hash(coreDataModels: graphTarget.target.coreDataModels)
-        let targetScriptsHash = try targetScriptsContentHasher.hash(targetScripts: graphTarget.target.scripts)
-        let dependenciesHash = try dependenciesContentHasher.hash(graphTarget: graphTarget, hashedTargets: &hashedTargets)
+        let coreDataModelHash = try coreDataModelsContentHasher.hash(
+            coreDataModels: graphTarget.target.coreDataModels
+        )
+        let targetScriptsHash = try targetScriptsContentHasher.hash(
+            targetScripts: graphTarget.target.scripts
+        )
+        let dependenciesHash = try dependenciesContentHasher.hash(
+            graphTarget: graphTarget,
+            hashedTargets: &hashedTargets
+        )
         let environmentHash = try contentHasher.hash(graphTarget.target.environment)
         var stringsToHash = [
             graphTarget.target.name,
@@ -105,7 +126,9 @@ public final class TargetContentHasher: TargetContentHashing {
             stringsToHash.append(headersHash)
         }
         if let deploymentTarget = graphTarget.target.deploymentTarget {
-            let deploymentTargetHash = try deploymentTargetContentHasher.hash(deploymentTarget: deploymentTarget)
+            let deploymentTargetHash = try deploymentTargetContentHasher.hash(
+                deploymentTarget: deploymentTarget
+            )
             stringsToHash.append(deploymentTargetHash)
         }
         if let infoPlist = graphTarget.target.infoPlist {

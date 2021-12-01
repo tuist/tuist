@@ -38,7 +38,11 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
 
     func test_contentHashes_when_no_excluded_targets_all_hashes_are_computed() throws {
         var contentHashesCalled = false
-        let includedTarget = GraphTarget(path: "/Project/Path", target: Target.test(name: "Included", product: .framework), project: Project.test())
+        let includedTarget = GraphTarget(
+            path: "/Project/Path",
+            target: Target.test(name: "Included", product: .framework),
+            project: Project.test()
+        )
         graphContentHasher.contentHashesStub = { _, filter, _ in
             contentHashesCalled = true
             XCTAssertTrue(filter(includedTarget))
@@ -55,8 +59,16 @@ final class CacheGraphContentHasherTests: TuistUnitTestCase {
 
     func test_contentHashes_when_excluded_targets_excluded_hashes_are_not_computed() throws {
         var contentHashesCalled = false
-        let excludedTarget = GraphTarget(path: "/Project/Path", target: Target.test(name: "Excluded", product: .framework), project: Project.test())
-        let includedTarget = GraphTarget(path: "/Project/Path", target: Target.test(name: "Included", product: .framework), project: Project.test())
+        let excludedTarget = GraphTarget(
+            path: "/Project/Path",
+            target: Target.test(name: "Excluded", product: .framework),
+            project: Project.test()
+        )
+        let includedTarget = GraphTarget(
+            path: "/Project/Path",
+            target: Target.test(name: "Included", product: .framework),
+            project: Project.test()
+        )
         graphContentHasher.contentHashesStub = { _, filter, _ in
             contentHashesCalled = true
             XCTAssertTrue(filter(includedTarget))

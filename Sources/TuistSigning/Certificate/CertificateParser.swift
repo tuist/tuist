@@ -17,9 +17,11 @@ enum CertificateParserError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .nameParsingFailed(path, input):
-            return "We couldn't parse the name while parsing the following output from the file \(path.pathString): \(input)"
+            return
+                "We couldn't parse the name while parsing the following output from the file \(path.pathString): \(input)"
         case let .developmentTeamParsingFailed(path, input):
-            return "We couldn't parse the development team while parsing the following output from the file \(path.pathString): \(input)"
+            return
+                "We couldn't parse the development team while parsing the following output from the file \(path.pathString): \(input)"
         case let .fileParsingFailed(path):
             return "We couldn't parse the file \(path.pathString)"
         }
@@ -60,7 +62,11 @@ final class CertificateParser: CertificateParsing {
             options: []
         )
         guard
-            let nameResult = nameRegex.firstMatch(in: subject, options: [], range: NSRange(location: 0, length: subject.count))
+            let nameResult = nameRegex.firstMatch(
+                in: subject,
+                options: [],
+                range: NSRange(location: 0, length: subject.count)
+            )
         else { throw CertificateParserError.nameParsingFailed(publicKey, subject) }
         let name = NSString(string: subject).substring(with: nameResult.range(at: 1)).spm_chomp()
 
@@ -69,9 +75,15 @@ final class CertificateParser: CertificateParsing {
             options: []
         )
         guard
-            let developmentTeamResult = developmentTeamRegex.firstMatch(in: subject, options: [], range: NSRange(location: 0, length: subject.count))
+            let developmentTeamResult = developmentTeamRegex.firstMatch(
+                in: subject,
+                options: [],
+                range: NSRange(location: 0, length: subject.count)
+            )
         else { throw CertificateParserError.developmentTeamParsingFailed(publicKey, subject) }
-        let developmentTeam = NSString(string: subject).substring(with: developmentTeamResult.range(at: 1)).spm_chomp()
+        let developmentTeam = NSString(string: subject).substring(
+            with: developmentTeamResult.range(at: 1)
+        ).spm_chomp()
 
         return Certificate(
             publicKey: publicKey,
@@ -84,7 +96,9 @@ final class CertificateParser: CertificateParsing {
     }
 
     func parseFingerPrint(developerCertificate: Data) throws -> String {
-        let temporaryFile = try FileHandler.shared.temporaryDirectory().appending(component: "developerCertificate.cer")
+        let temporaryFile = try FileHandler.shared.temporaryDirectory().appending(
+            component: "developerCertificate.cer"
+        )
         try developerCertificate.write(to: temporaryFile.asURL)
 
         return try fingerprint(at: temporaryFile)
@@ -94,7 +108,16 @@ final class CertificateParser: CertificateParsing {
 
     private func subject(at path: AbsolutePath) throws -> String {
         do {
-            return try System.shared.capture("openssl", "x509", "-inform", "der", "-in", path.pathString, "-noout", "-subject")
+            return try System.shared.capture(
+                "openssl",
+                "x509",
+                "-inform",
+                "der",
+                "-in",
+                path.pathString,
+                "-noout",
+                "-subject"
+            )
         } catch let TuistSupport.SystemError.terminated(_, _, standardError) {
             if let string = String(data: standardError, encoding: .utf8) {
                 logger.warning("Parsing subject of \(path) failed with: \(string)")
@@ -107,7 +130,16 @@ final class CertificateParser: CertificateParsing {
 
     private func fingerprint(at path: AbsolutePath) throws -> String {
         do {
-            return try System.shared.capture("openssl", "x509", "-inform", "der", "-in", path.pathString, "-noout", "-fingerprint").spm_chomp()
+            return try System.shared.capture(
+                "openssl",
+                "x509",
+                "-inform",
+                "der",
+                "-in",
+                path.pathString,
+                "-noout",
+                "-fingerprint"
+            ).spm_chomp()
         } catch let TuistSupport.SystemError.terminated(_, _, standardError) {
             if let string = String(data: standardError, encoding: .utf8) {
                 logger.warning("Parsing fingerprint of \(path) failed with: \(string)")
@@ -122,8 +154,14 @@ final class CertificateParser: CertificateParsing {
 extension String {
     func sanitizeEncoding() -> String {
         // Had some real life certificates where encoding in the name was broken - e.g. \\xC3\\xA4 instead of ä
-        guard let regex = try? NSRegularExpression(pattern: "(\\\\x([A-Za-z0-9]{2}))(\\\\x([A-Za-z0-9]{2}))", options: []) else { return self }
-        let matches = regex.matches(in: self, options: [], range: NSRange(startIndex..., in: self)).reversed()
+        guard
+            let regex = try? NSRegularExpression(
+                pattern: "(\\\\x([A-Za-z0-9]{2}))(\\\\x([A-Za-z0-9]{2}))",
+                options: []
+            )
+        else { return self }
+        let matches = regex.matches(in: self, options: [], range: NSRange(startIndex..., in: self))
+            .reversed()
 
         var modifiableString = self
         matches.forEach { result in
@@ -136,7 +174,10 @@ extension String {
                 return
             }
             let resultRange = Range(result.range, in: modifiableString)!
-            modifiableString.replaceSubrange(resultRange, with: String(decoding: [firstInt, secondInt] as [UTF8.CodeUnit], as: UTF8.self))
+            modifiableString.replaceSubrange(
+                resultRange,
+                with: String(decoding: [firstInt, secondInt] as [UTF8.CodeUnit], as: UTF8.self)
+            )
         }
 
         return modifiableString

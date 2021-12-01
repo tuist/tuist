@@ -1,9 +1,10 @@
 import Foundation
 import ProjectDescription
 import TSCBasic
-import struct TSCUtility.Version
 import TuistGraph
 import TuistSupport
+
+import struct TSCUtility.Version
 
 enum CacheProfileError: FatalError, Equatable {
     case invalidVersion(string: String)
@@ -24,9 +25,10 @@ enum CacheProfileError: FatalError, Equatable {
 }
 
 extension TuistGraph.Cache {
-    static func from(manifest: ProjectDescription.Cache,
-                     generatorPaths: GeneratorPaths) throws -> TuistGraph.Cache
-    {
+    static func from(
+        manifest: ProjectDescription.Cache,
+        generatorPaths: GeneratorPaths
+    ) throws -> TuistGraph.Cache {
         let path = try manifest.path.map { try generatorPaths.resolve(path: $0) }
         let profiles = try manifest.profiles.map(TuistGraph.Cache.Profile.from(manifest:))
         return TuistGraph.Cache(profiles: profiles, path: path)
@@ -34,7 +36,8 @@ extension TuistGraph.Cache {
 }
 
 extension TuistGraph.Cache.Profile {
-    static func from(manifest: ProjectDescription.Cache.Profile) throws -> TuistGraph.Cache.Profile {
+    static func from(manifest: ProjectDescription.Cache.Profile) throws -> TuistGraph.Cache.Profile
+    {
         var resolvedVersion: TSCUtility.Version?
 
         if let versionString = manifest.os {

@@ -17,7 +17,8 @@ enum GeneratorPathsError: FatalError, Equatable {
     var description: String {
         switch self {
         case let .rootDirectoryNotFound(path):
-            return "Couldn't locate the root directory from path \(path.pathString). The root directory is the closest directory that contains a Tuist or a .git directory."
+            return
+                "Couldn't locate the root directory from path \(path.pathString). The root directory is the closest directory that contains a Tuist or a .git directory."
         }
     }
 }
@@ -30,9 +31,10 @@ struct GeneratorPaths {
 
     /// Creates an instance with its attributes.
     /// - Parameter manifestDirectory: Path to the directory that contains the manifest being loaded.
-    init(manifestDirectory: AbsolutePath,
-         rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator())
-    {
+    init(
+        manifestDirectory: AbsolutePath,
+        rootDirectoryLocator: RootDirectoryLocating = RootDirectoryLocator()
+    ) {
         self.manifestDirectory = manifestDirectory
         self.rootDirectoryLocator = rootDirectoryLocator
     }
@@ -47,8 +49,14 @@ struct GeneratorPaths {
         case .relativeToManifest:
             return AbsolutePath(path.pathString, relativeTo: manifestDirectory)
         case .relativeToRoot:
-            guard let rootPath = rootDirectoryLocator.locate(from: AbsolutePath(manifestDirectory.pathString)) else {
-                throw GeneratorPathsError.rootDirectoryNotFound(AbsolutePath(manifestDirectory.pathString))
+            guard
+                let rootPath = rootDirectoryLocator.locate(
+                    from: AbsolutePath(manifestDirectory.pathString)
+                )
+            else {
+                throw GeneratorPathsError.rootDirectoryNotFound(
+                    AbsolutePath(manifestDirectory.pathString)
+                )
             }
             return AbsolutePath(path.pathString, relativeTo: rootPath)
         }

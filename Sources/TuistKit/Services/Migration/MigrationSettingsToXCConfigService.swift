@@ -10,7 +10,9 @@ class MigrationSettingsToXCConfigService {
 
     // MARK: - Init
 
-    init(settingsToXCConfigExtractor: SettingsToXCConfigExtracting = SettingsToXCConfigExtractor()) {
+    init(
+        settingsToXCConfigExtractor: SettingsToXCConfigExtracting = SettingsToXCConfigExtractor()
+    ) {
         self.settingsToXCConfigExtractor = settingsToXCConfigExtractor
     }
 

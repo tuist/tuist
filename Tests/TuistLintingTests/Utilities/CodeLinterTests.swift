@@ -48,7 +48,10 @@ final class CodeLinterTests: TuistUnitTestCase {
         binaryLocator.stubbedSwiftLintPathError = fakeError
 
         // When
-        XCTAssertThrowsSpecific(try subject.lint(sources: fakeSources, path: fakePath, strict: false), fakeError)
+        XCTAssertThrowsSpecific(
+            try subject.lint(sources: fakeSources, path: fakePath, strict: false),
+            fakeError
+        )
     }
 
     func test_lint_no_configuration() throws {
@@ -100,7 +103,9 @@ final class CodeLinterTests: TuistUnitTestCase {
         let fakePath = AbsolutePath("/foo/bar")
         let fakeRoot = AbsolutePath("/root")
         let fakeSwiftLintPath = AbsolutePath("/swiftlint")
-        let swiftLintConfigPath = fakeRoot.appending(RelativePath("\(Constants.tuistDirectoryName)/.swiftlint.yml"))
+        let swiftLintConfigPath = fakeRoot.appending(
+            RelativePath("\(Constants.tuistDirectoryName)/.swiftlint.yml")
+        )
 
         rootDirectoryLocator.locateStub = fakeRoot
         binaryLocator.stubbedSwiftLintPathResult = fakeSwiftLintPath
@@ -134,7 +139,9 @@ final class CodeLinterTests: TuistUnitTestCase {
         let fakePath = AbsolutePath("/foo/bar")
         let fakeRoot = AbsolutePath("/root")
         let fakeSwiftLintPath = AbsolutePath("/swiftlint")
-        let swiftLintConfigPath = fakeRoot.appending(RelativePath("\(Constants.tuistDirectoryName)/.swiftlint.yaml"))
+        let swiftLintConfigPath = fakeRoot.appending(
+            RelativePath("\(Constants.tuistDirectoryName)/.swiftlint.yaml")
+        )
 
         rootDirectoryLocator.locateStub = fakeRoot
         binaryLocator.stubbedSwiftLintPathResult = fakeSwiftLintPath

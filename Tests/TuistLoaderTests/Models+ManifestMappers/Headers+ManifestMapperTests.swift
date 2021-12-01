@@ -41,20 +41,29 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         let model = try TuistGraph.Headers.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
-        XCTAssertEqual(model.public, [
-            "Sources/public/A1.h",
-            "Sources/public/A2.h",
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        XCTAssertEqual(
+            model.public,
+            [
+                "Sources/public/A1.h",
+                "Sources/public/A2.h",
+            ].map { temporaryPath.appending(RelativePath($0)) }
+        )
 
-        XCTAssertEqual(model.private, [
-            "Sources/private/B1.h",
-            "Sources/private/B2.h",
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        XCTAssertEqual(
+            model.private,
+            [
+                "Sources/private/B1.h",
+                "Sources/private/B2.h",
+            ].map { temporaryPath.appending(RelativePath($0)) }
+        )
 
-        XCTAssertEqual(model.project, [
-            "Sources/project/C1.h",
-            "Sources/project/C2.h",
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        XCTAssertEqual(
+            model.project,
+            [
+                "Sources/project/C1.h",
+                "Sources/project/C2.h",
+            ].map { temporaryPath.appending(RelativePath($0)) }
+        )
     }
 
     func test_from_when_array() throws {
@@ -88,20 +97,29 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         let model = try TuistGraph.Headers.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
-        XCTAssertEqual(model.public, [
-            "Sources/public/A/A1.h",
-            "Sources/public/B/B1.h",
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        XCTAssertEqual(
+            model.public,
+            [
+                "Sources/public/A/A1.h",
+                "Sources/public/B/B1.h",
+            ].map { temporaryPath.appending(RelativePath($0)) }
+        )
 
-        XCTAssertEqual(model.private, [
-            "Sources/private/C/C1.h",
-            "Sources/private/D/D1.h",
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        XCTAssertEqual(
+            model.private,
+            [
+                "Sources/private/C/C1.h",
+                "Sources/private/D/D1.h",
+            ].map { temporaryPath.appending(RelativePath($0)) }
+        )
 
-        XCTAssertEqual(model.project, [
-            "Sources/project/E/E1.h",
-            "Sources/project/F/F1.h",
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        XCTAssertEqual(
+            model.project,
+            [
+                "Sources/project/E/E1.h",
+                "Sources/project/F/F1.h",
+            ].map { temporaryPath.appending(RelativePath($0)) }
+        )
     }
 
     func test_from_when_array_and_string() throws {
@@ -127,13 +145,19 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         let model = try TuistGraph.Headers.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
-        XCTAssertEqual(model.public, [
-            "Sources/public/A/A1.h",
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        XCTAssertEqual(
+            model.public,
+            [
+                "Sources/public/A/A1.h"
+            ].map { temporaryPath.appending(RelativePath($0)) }
+        )
 
-        XCTAssertEqual(model.project, [
-            "Sources/project/C/C1.h",
-            "Sources/project/D/D1.h",
-        ].map { temporaryPath.appending(RelativePath($0)) })
+        XCTAssertEqual(
+            model.project,
+            [
+                "Sources/project/C/C1.h",
+                "Sources/project/D/D1.h",
+            ].map { temporaryPath.appending(RelativePath($0)) }
+        )
     }
 }

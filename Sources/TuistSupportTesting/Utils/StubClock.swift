@@ -52,7 +52,9 @@ public class StubClock: Clock {
     private class Timer: ClockTimer {
         private let timeInterval: TimeInterval
         private var stopCount = 0
-        fileprivate init(timeInterval: TimeInterval) {
+        fileprivate init(
+            timeInterval: TimeInterval
+        ) {
             self.timeInterval = timeInterval
         }
 

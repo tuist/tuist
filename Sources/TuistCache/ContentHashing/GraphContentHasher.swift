@@ -17,13 +17,13 @@ public protocol GraphContentHashing {
     ) throws -> [GraphTarget: String]
 }
 
-public extension GraphContentHashing {
+extension GraphContentHashing {
     /// Hashes graph
     /// - Parameters:
     ///     - graph: Graph to hash
     ///     - filter: If `true`, `TargetNode` is hashed, otherwise it is skipped
     ///     - additionalStrings: Additional strings to be used when hashing graph
-    func contentHashes(
+    public func contentHashes(
         for graph: Graph,
         filter: (GraphTarget) -> Bool = { _ in true },
         additionalStrings: [String] = []
@@ -44,12 +44,16 @@ public final class GraphContentHasher: GraphContentHashing {
 
     // MARK: - Init
 
-    public convenience init(contentHasher: ContentHashing) {
+    public convenience init(
+        contentHasher: ContentHashing
+    ) {
         let targetContentHasher = TargetContentHasher(contentHasher: contentHasher)
         self.init(targetContentHasher: targetContentHasher)
     }
 
-    public init(targetContentHasher: TargetContentHashing) {
+    public init(
+        targetContentHasher: TargetContentHashing
+    ) {
         self.targetContentHasher = targetContentHasher
     }
 
@@ -89,7 +93,9 @@ public final class GraphContentHasher: GraphContentHashing {
                 hashedTargets: &hashedTargets,
                 additionalStrings: additionalStrings
             )
-            hashedTargets[GraphHashedTarget(projectPath: target.path, targetName: target.target.name)] = hash
+            hashedTargets[
+                GraphHashedTarget(projectPath: target.path, targetName: target.target.name)
+            ] = hash
             return hash
         }
         return Dictionary(uniqueKeysWithValues: zip(hashableTargets, hashes))

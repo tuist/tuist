@@ -2,8 +2,8 @@ import TuistCloud
 import TuistCore
 import TuistGraph
 import TuistSupport
-
 import XCTest
+
 @testable import TuistAnalytics
 @testable import TuistCoreTesting
 @testable import TuistSupportTesting
@@ -36,7 +36,9 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
 
         // Then
         _ = XCTWaiter.wait(for: [expectation], timeout: 1.0)
-        var expectedBackboneRequest = URLRequest(url: URL(string: "https://backbone.tuist.io/command_events.json")!)
+        var expectedBackboneRequest = URLRequest(
+            url: URL(string: "https://backbone.tuist.io/command_events.json")!
+        )
         expectedBackboneRequest.httpMethod = "POST"
         expectedBackboneRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         expectedBackboneRequest.httpBody = try Self.commandEventData()
@@ -59,7 +61,9 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
 
         // Then
         _ = XCTWaiter.wait(for: [expectation], timeout: 1.0)
-        var expectedBackboneRequest = URLRequest(url: URL(string: "https://backbone.tuist.io/command_events.json")!)
+        var expectedBackboneRequest = URLRequest(
+            url: URL(string: "https://backbone.tuist.io/command_events.json")!
+        )
         expectedBackboneRequest.httpMethod = "POST"
         expectedBackboneRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         expectedBackboneRequest.httpBody = try Self.commandEventData()
@@ -88,26 +92,34 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
 
         // Then
         _ = XCTWaiter.wait(for: [expectation], timeout: 1.0)
-        var expectedBackboneRequest = URLRequest(url: URL(string: "https://backbone.tuist.io/command_events.json")!)
+        var expectedBackboneRequest = URLRequest(
+            url: URL(string: "https://backbone.tuist.io/command_events.json")!
+        )
         expectedBackboneRequest.httpMethod = "POST"
         expectedBackboneRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         expectedBackboneRequest.httpBody = try Self.commandEventData()
         XCTAssertEqual(requestDispatcher.requests, [expectedBackboneRequest])
-        var expectedCloudRequestUrlComponents = URLComponents(url: cloudURL, resolvingAgainstBaseURL: false)!
+        var expectedCloudRequestUrlComponents = URLComponents(
+            url: cloudURL,
+            resolvingAgainstBaseURL: false
+        )!
         expectedCloudRequestUrlComponents.path = "/api/analytics"
-        expectedCloudRequestUrlComponents.queryItems = [URLQueryItem(name: "project_id", value: projectID)]
+        expectedCloudRequestUrlComponents.queryItems = [
+            URLQueryItem(name: "project_id", value: projectID)
+        ]
         var expectedCloudRequest = URLRequest(url: expectedCloudRequestUrlComponents.url!)
         expectedCloudRequest.httpMethod = "POST"
         expectedCloudRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
         expectedCloudRequest.httpBody = try Self.commandEventData()
         XCTAssertEqual(
-            mockCloudClient.invokedRequestParameterList as? [HTTPResource<Void, CloudEmptyResponseError>],
+            mockCloudClient.invokedRequestParameterList
+                as? [HTTPResource<Void, CloudEmptyResponseError>],
             [
                 HTTPResource(
                     request: { expectedCloudRequest },
                     parse: { _, _ in () },
                     parseError: { _, _ in CloudEmptyResponseError() }
-                ),
+                )
             ]
         )
     }

@@ -25,6 +25,6 @@ let project = Project(
             dependencies: [
                 .target(name: "App")
             ]
-        )
+        ),
     ]
 )

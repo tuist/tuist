@@ -10,18 +10,24 @@ import TuistSupport
 public class ProjectNameAndOrganizationMapper: ProjectMapping {
     private let config: TuistGraph.Config
 
-    public init(config: TuistGraph.Config) {
+    public init(
+        config: TuistGraph.Config
+    ) {
         self.config = config
     }
 
     // MARK: - ProjectMapping
 
-    public func map(project: TuistGraph.Project) throws -> (TuistGraph.Project, [SideEffectDescriptor]) {
+    public func map(
+        project: TuistGraph.Project
+    ) throws -> (TuistGraph.Project, [SideEffectDescriptor]) {
         var project = project
 
         // Xcode project file name
         if let xcodeFileName = xcodeFileNameOverride(for: project) {
-            project.xcodeProjPath = project.xcodeProjPath.parentDirectory.appending(component: "\(xcodeFileName).xcodeproj")
+            project.xcodeProjPath = project.xcodeProjPath.parentDirectory.appending(
+                component: "\(xcodeFileName).xcodeproj"
+            )
         }
 
         // Xcode project organization name

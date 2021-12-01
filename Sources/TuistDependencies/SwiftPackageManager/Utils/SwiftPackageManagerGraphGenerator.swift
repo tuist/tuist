@@ -28,7 +28,8 @@ enum SwiftPackageManagerGraphGeneratorError: FatalError, Equatable {
         case let .unsupportedDependencyKind(name):
             return "The dependency kind \(name) is not supported."
         case let .missingPathInLocalSwiftPackage(name):
-            return "The local package \(name) does not contain the path in the generated `workspace-state.json` file."
+            return
+                "The local package \(name) does not contain the path in the generated `workspace-state.json` file."
         }
     }
 }
@@ -59,7 +60,8 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
     private let packageInfoMapper: PackageInfoMapping
 
     public init(
-        swiftPackageManagerController: SwiftPackageManagerControlling = SwiftPackageManagerController(),
+        swiftPackageManagerController: SwiftPackageManagerControlling =
+            SwiftPackageManagerController(),
         packageInfoMapper: PackageInfoMapping = PackageInfoMapper()
     ) {
         self.swiftPackageManagerController = swiftPackageManagerController
@@ -79,9 +81,13 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         let checkoutsFolder = path.appending(component: "checkouts")
         let workspacePath = path.appending(component: "workspace-state.json")
 
-        let workspaceState = try JSONDecoder().decode(SwiftPackageManagerWorkspaceState.self, from: try FileHandler.shared.readFile(workspacePath))
+        let workspaceState = try JSONDecoder().decode(
+            SwiftPackageManagerWorkspaceState.self,
+            from: try FileHandler.shared.readFile(workspacePath)
+        )
         let packageInfos: [(name: String, folder: AbsolutePath, info: PackageInfo)]
-        packageInfos = try workspaceState.object.dependencies.map(context: .concurrent) { dependency in
+        packageInfos = try workspaceState.object.dependencies.map(context: .concurrent) {
+            dependency in
             let name = dependency.packageRef.name
             let packageFolder: AbsolutePath
             switch dependency.packageRef.kind {
@@ -90,11 +96,15 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             case "local":
                 // Depending on the swift version, the information is available either in `path` or in `location`
                 guard let path = dependency.packageRef.path ?? dependency.packageRef.location else {
-                    throw SwiftPackageManagerGraphGeneratorError.missingPathInLocalSwiftPackage(name)
+                    throw SwiftPackageManagerGraphGeneratorError.missingPathInLocalSwiftPackage(
+                        name
+                    )
                 }
                 packageFolder = AbsolutePath(path)
             default:
-                throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(dependency.packageRef.kind)
+                throw SwiftPackageManagerGraphGeneratorError.unsupportedDependencyKind(
+                    dependency.packageRef.kind
+                )
             }
 
             let packageInfo = try swiftPackageManagerController.loadPackageInfo(at: packageFolder)
@@ -105,13 +115,21 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             )
         }
 
-        let productToPackage: [String: String] = packageInfos.reduce(into: [:]) { result, packageInfo in
+        let productToPackage: [String: String] = packageInfos.reduce(into: [:]) {
+            result,
+            packageInfo in
             packageInfo.info.products.forEach { result[$0.name] = packageInfo.name }
         }
 
-        let packageToProject = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.folder) })
-        let packageInfoDictionary = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.info) })
-        let packageToFolder = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.folder) })
+        let packageToProject = Dictionary(
+            uniqueKeysWithValues: packageInfos.map { ($0.name, $0.folder) }
+        )
+        let packageInfoDictionary = Dictionary(
+            uniqueKeysWithValues: packageInfos.map { ($0.name, $0.info) }
+        )
+        let packageToFolder = Dictionary(
+            uniqueKeysWithValues: packageInfos.map { ($0.name, $0.folder) }
+        )
 
         let preprocessInfo = try packageInfoMapper.preprocess(
             packageInfos: packageInfoDictionary,
@@ -121,7 +139,8 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             platforms: platforms
         )
 
-        let externalProjects: [Path: ProjectDescription.Project] = try packageInfos.reduce(into: [:]) { result, packageInfo in
+        let externalProjects: [Path: ProjectDescription.Project] = try packageInfos.reduce(into: [:]
+        ) { result, packageInfo in
             let manifest = try packageInfoMapper.map(
                 packageInfo: packageInfo.info,
                 packageInfos: packageInfoDictionary,
@@ -140,6 +159,9 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             result[Path(packageInfo.folder.pathString)] = manifest
         }
 
-        return DependenciesGraph(externalDependencies: preprocessInfo.productToExternalDependencies, externalProjects: externalProjects)
+        return DependenciesGraph(
+            externalDependencies: preprocessInfo.productToExternalDependencies,
+            externalProjects: externalProjects
+        )
     }
 }

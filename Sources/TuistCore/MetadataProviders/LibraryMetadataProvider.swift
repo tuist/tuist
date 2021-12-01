@@ -17,9 +17,11 @@ enum LibraryMetadataProviderError: FatalError, Equatable {
         case let .libraryNotFound(path):
             return "Couldn't find library at \(path.pathString)"
         case let .publicHeadersNotFound(libraryPath: libraryPath, headersPath: headersPath):
-            return "Couldn't find the public headers at \(headersPath.pathString) for library \(libraryPath.pathString)"
+            return
+                "Couldn't find the public headers at \(headersPath.pathString) for library \(libraryPath.pathString)"
         case let .swiftModuleMapNotFound(libraryPath: libraryPath, moduleMapPath: moduleMapPath):
-            return "Couldn't find the public headers at \(moduleMapPath.pathString) for library \(libraryPath.pathString)"
+            return
+                "Couldn't find the public headers at \(moduleMapPath.pathString) for library \(libraryPath.pathString)"
         }
     }
 
@@ -36,9 +38,11 @@ enum LibraryMetadataProviderError: FatalError, Equatable {
 public protocol LibraryMetadataProviding: PrecompiledMetadataProviding {
     /// Loads all the metadata associated with a library (.a / .dylib) at the specified path
     /// - Note: This performs various shell calls and disk operations
-    func loadMetadata(at path: AbsolutePath,
-                      publicHeaders: AbsolutePath,
-                      swiftModuleMap: AbsolutePath?) throws -> LibraryMetadata
+    func loadMetadata(
+        at path: AbsolutePath,
+        publicHeaders: AbsolutePath,
+        swiftModuleMap: AbsolutePath?
+    ) throws -> LibraryMetadata
 }
 
 // MARK: - Default Implementation
@@ -48,20 +52,27 @@ public final class LibraryMetadataProvider: PrecompiledMetadataProvider, Library
         super.init()
     }
 
-    public func loadMetadata(at path: AbsolutePath,
-                             publicHeaders: AbsolutePath,
-                             swiftModuleMap: AbsolutePath?) throws -> LibraryMetadata
-    {
+    public func loadMetadata(
+        at path: AbsolutePath,
+        publicHeaders: AbsolutePath,
+        swiftModuleMap: AbsolutePath?
+    ) throws -> LibraryMetadata {
         let fileHandler = FileHandler.shared
         guard fileHandler.exists(path) else {
             throw LibraryMetadataProviderError.libraryNotFound(path)
         }
         guard fileHandler.exists(publicHeaders) else {
-            throw LibraryMetadataProviderError.publicHeadersNotFound(libraryPath: path, headersPath: publicHeaders)
+            throw LibraryMetadataProviderError.publicHeadersNotFound(
+                libraryPath: path,
+                headersPath: publicHeaders
+            )
         }
         if let swiftModuleMap = swiftModuleMap {
             guard fileHandler.exists(swiftModuleMap) else {
-                throw LibraryMetadataProviderError.swiftModuleMapNotFound(libraryPath: path, moduleMapPath: swiftModuleMap)
+                throw LibraryMetadataProviderError.swiftModuleMapNotFound(
+                    libraryPath: path,
+                    moduleMapPath: swiftModuleMap
+                )
             }
         }
 

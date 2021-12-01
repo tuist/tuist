@@ -10,21 +10,32 @@ public class CloudClient: CloudClienting {
 
     // Use session without redirect to prevent redirects to be wrongly interpreted as successful responses.
     // For example, the `CacheRemoteStorage.exists` method would return true if the request is not authenticated and redirect is allowed.
-    private var noRedirectDelegate: NoRedirectDelegate? // swiftlint:disable:this weak_delegate
+    private var noRedirectDelegate: NoRedirectDelegate?  // swiftlint:disable:this weak_delegate
     lazy var requestDispatcher: HTTPRequestDispatching = {
         noRedirectDelegate = NoRedirectDelegate()
-        return HTTPRequestDispatcher(session: URLSession(configuration: .default, delegate: noRedirectDelegate, delegateQueue: nil))
+        return HTTPRequestDispatcher(
+            session: URLSession(
+                configuration: .default,
+                delegate: noRedirectDelegate,
+                delegateQueue: nil
+            )
+        )
     }()
 
     // MARK: - Init
 
-    public init(cloudHTTPRequestAuthenticator: CloudHTTPRequestAuthenticating = CloudHTTPRequestAuthenticator()) {
+    public init(
+        cloudHTTPRequestAuthenticator: CloudHTTPRequestAuthenticating =
+            CloudHTTPRequestAuthenticator()
+    ) {
         self.cloudHTTPRequestAuthenticator = cloudHTTPRequestAuthenticator
     }
 
     // MARK: - Public
 
-    public func request<T, E>(_ resource: HTTPResource<T, E>) -> Single<(object: T, response: HTTPURLResponse)> {
+    public func request<T, E>(
+        _ resource: HTTPResource<T, E>
+    ) -> Single<(object: T, response: HTTPURLResponse)> {
         Single<HTTPResource<T, E>>.create { (observer) -> Disposable in
             do {
                 observer(.success(try self.resourceWithHeaders(resource)))
@@ -37,7 +48,9 @@ public class CloudClient: CloudClienting {
 
     // MARK: - Fileprivate
 
-    private func resourceWithHeaders<T, E>(_ resource: HTTPResource<T, E>) throws -> HTTPResource<T, E> {
+    private func resourceWithHeaders<T, E>(
+        _ resource: HTTPResource<T, E>
+    ) throws -> HTTPResource<T, E> {
         try resource.mappingRequest { (request) -> URLRequest in
             var request = request
             if request.allHTTPHeaderFields == nil { request.allHTTPHeaderFields = [:] }

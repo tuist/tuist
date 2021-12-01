@@ -41,7 +41,8 @@ struct ScaffoldCommand: ParsableCommand {
 
     @Option(
         name: .shortAndLong,
-        help: "The path to the folder where the template will be generated (Default: Current directory)",
+        help:
+            "The path to the folder where the template will be generated (Default: Current directory)",
         completion: .directory
     )
     var path: String?
@@ -57,10 +58,13 @@ struct ScaffoldCommand: ParsableCommand {
     init() {}
 
     // Custom decoding to decode dynamic options
-    init(from decoder: Decoder) throws {
+    init(
+        from decoder: Decoder
+    ) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         template = try container.decode(Argument<String>.self, forKey: .template).wrappedValue
-        json = try container.decodeIfPresent(Option<Bool>.self, forKey: .json)?.wrappedValue ?? false
+        json =
+            try container.decodeIfPresent(Option<Bool>.self, forKey: .json)?.wrappedValue ?? false
         path = try container.decodeIfPresent(Option<String>.self, forKey: .path)?.wrappedValue
         try ScaffoldCommand.requiredTemplateOptions.forEach { option in
             requiredTemplateOptions[option.name] = try container.decode(
@@ -104,19 +108,25 @@ extension ScaffoldCommand {
             let arguments = arguments,
             arguments.count >= 2
         else { throw ScaffoldCommandError.templateNotProvided }
-        guard !configuration.subcommands.contains(where: { $0.configuration.commandName == arguments[1] }) else { return }
+        guard
+            !configuration.subcommands.contains(where: {
+                $0.configuration.commandName == arguments[1]
+            })
+        else { return }
         // We want to parse only the name of template, not its arguments which will be dynamically added
         // Plucking out json and path arguments
         let pairedArguments: [[String]] = stride(from: 2, to: arguments.count, by: 2).map {
-            Array(arguments[$0 ..< min($0 + 2, arguments.count)])
+            Array(arguments[$0..<min($0 + 2, arguments.count)])
         }
-        let filteredArguments = pairedArguments
+        let filteredArguments =
+            pairedArguments
             .filter {
                 $0.first == "--path" || $0.first == "-p" || $0.first == "--json"
             }
             .flatMap { $0 }
 
-        guard let command = try parseAsRoot([arguments[1]] + filteredArguments) as? ScaffoldCommand else { return }
+        guard let command = try parseAsRoot([arguments[1]] + filteredArguments) as? ScaffoldCommand
+        else { return }
 
         let (required, optional) = try ScaffoldService().loadTemplateOptions(
             templateName: command.template,
@@ -157,7 +167,9 @@ extension ScaffoldCommand {
             }
         }
 
-        init?(stringValue: String) {
+        init?(
+            stringValue: String
+        ) {
             switch stringValue {
             case "template":
                 self = .template
@@ -168,7 +180,8 @@ extension ScaffoldCommand {
             default:
                 if ScaffoldCommand.requiredTemplateOptions.map(\.name).contains(stringValue) {
                     self = .required(stringValue)
-                } else if ScaffoldCommand.optionalTemplateOptions.map(\.name).contains(stringValue) {
+                } else if ScaffoldCommand.optionalTemplateOptions.map(\.name).contains(stringValue)
+                {
                     self = .optional(stringValue)
                 } else {
                     return nil
@@ -197,10 +210,14 @@ extension ScaffoldCommand: CustomReflectable {
         ].filter {
             // Prefer attributes defined in a template if it clashes with predefined ones
             $0.label.map { label in
-                !(ScaffoldCommand.requiredTemplateOptions.map(\.name) + ScaffoldCommand.optionalTemplateOptions.map(\.name))
+                !(ScaffoldCommand.requiredTemplateOptions.map(\.name)
+                    + ScaffoldCommand.optionalTemplateOptions.map(\.name))
                     .contains(label)
             } ?? true
         }
-        return Mirror(ScaffoldCommand(), children: children + requiredTemplateChildren + optionalTemplateChildren)
+        return Mirror(
+            ScaffoldCommand(),
+            children: children + requiredTemplateChildren + optionalTemplateChildren
+        )
     }
 }

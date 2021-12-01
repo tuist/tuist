@@ -42,7 +42,8 @@ public class Environment: Environmenting {
     public static var shared: Environmenting = Environment()
 
     /// Returns the default local directory.
-    static let defaultDirectory = AbsolutePath(URL(fileURLWithPath: NSHomeDirectory()).path).appending(component: ".tuist")
+    static let defaultDirectory = AbsolutePath(URL(fileURLWithPath: NSHomeDirectory()).path)
+        .appending(component: ".tuist")
 
     // MARK: - Attributes
 
@@ -65,7 +66,10 @@ public class Environment: Environmenting {
     /// - Parameters:
     ///   - directory: Directory where the Tuist environment files will be stored.
     ///   - fileHandler: File handler instance to perform file operations.
-    init(directory: AbsolutePath, fileHandler: FileHandling) {
+    init(
+        directory: AbsolutePath,
+        fileHandler: FileHandling
+    ) {
         self.directory = directory
         self.fileHandler = fileHandler
         setup()
@@ -85,7 +89,9 @@ public class Environment: Environmenting {
 
     /// Returns true if the output of Tuist should be coloured.
     public var shouldOutputBeColoured: Bool {
-        if let coloredOutput = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.colouredOutput] {
+        if let coloredOutput = ProcessInfo.processInfo.environment[
+            Constants.EnvironmentVariables.colouredOutput
+        ] {
             return Constants.trueValues.contains(coloredOutput)
         } else {
             return isStandardOutputInteractive
@@ -102,19 +108,29 @@ public class Environment: Environmenting {
     }
 
     public var isVerbose: Bool {
-        guard let variable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.verbose] else { return false }
+        guard
+            let variable = ProcessInfo.processInfo.environment[
+                Constants.EnvironmentVariables.verbose
+            ]
+        else { return false }
         return Constants.trueValues.contains(variable)
     }
 
     public var isStatsEnabled: Bool {
-        guard let variable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.statsOptOut] else { return true }
+        guard
+            let variable = ProcessInfo.processInfo.environment[
+                Constants.EnvironmentVariables.statsOptOut
+            ]
+        else { return true }
         let userOptedOut = Constants.trueValues.contains(variable)
         return !userOptedOut
     }
 
     /// Returns the directory where all the versions are.
     public var versionsDirectory: AbsolutePath {
-        if let envVariable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.versionsDirectory] {
+        if let envVariable = ProcessInfo.processInfo.environment[
+            Constants.EnvironmentVariables.versionsDirectory
+        ] {
             return AbsolutePath(envVariable)
         } else {
             return directory.appending(component: "Versions")
@@ -122,11 +138,15 @@ public class Environment: Environmenting {
     }
 
     public var automationPath: AbsolutePath? {
-        ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.automationPath].map { AbsolutePath($0) }
+        ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.automationPath].map {
+            AbsolutePath($0)
+        }
     }
 
     public var queueDirectory: AbsolutePath {
-        if let envVariable = ProcessInfo.processInfo.environment[Constants.EnvironmentVariables.queueDirectory] {
+        if let envVariable = ProcessInfo.processInfo.environment[
+            Constants.EnvironmentVariables.queueDirectory
+        ] {
             return AbsolutePath(envVariable)
         } else {
             return directory.appending(component: Constants.AsyncQueue.directoryName)
@@ -135,7 +155,9 @@ public class Environment: Environmenting {
 
     /// Returns all the environment variables that are specific to Tuist (prefixed with TUIST_)
     public var tuistVariables: [String: String] {
-        ProcessInfo.processInfo.environment.filter { $0.key.hasPrefix("TUIST_") }.filter { !$0.key.hasPrefix("TUIST_CONFIG_") }
+        ProcessInfo.processInfo.environment.filter { $0.key.hasPrefix("TUIST_") }.filter {
+            !$0.key.hasPrefix("TUIST_CONFIG_")
+        }
     }
 
     /// Returns all the environment variables that are specific to Tuist config (prefixed with TUIST_CONFIG_)
@@ -145,7 +167,7 @@ public class Environment: Environmenting {
 
     public var manifestLoadingVariables: [String: String] {
         let allowedVariableKeys = [
-            "DEVELOPER_DIR",
+            "DEVELOPER_DIR"
         ]
         let allowedVariables = ProcessInfo.processInfo.environment.filter {
             allowedVariableKeys.contains($0.key)

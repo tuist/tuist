@@ -7,7 +7,8 @@ public enum XcodeError: FatalError, Equatable {
     public var description: String {
         switch self {
         case let .infoPlistNotFound(path):
-            return "Couldn't find Xcode's Info.plist at \(path.pathString). Make sure your Xcode installation is selected by running: sudo xcode-select -s /Applications/Xcode.app"
+            return
+                "Couldn't find Xcode's Info.plist at \(path.pathString). Make sure your Xcode installation is selected by running: sudo xcode-select -s /Applications/Xcode.app"
         }
     }
 
@@ -28,7 +29,9 @@ public struct Xcode {
         /// Initializes the InfoPlist object with its attributes.
         ///
         /// - Parameter version: Version.
-        public init(version: String) {
+        public init(
+            version: String
+        ) {
             self.version = version
         }
 
@@ -64,9 +67,10 @@ public struct Xcode {
     ///
     /// - Parameters:
     ///     - path: Path to the Xcode app bundle.
-    public init(path: AbsolutePath,
-                infoPlist: InfoPlist)
-    {
+    public init(
+        path: AbsolutePath,
+        infoPlist: InfoPlist
+    ) {
         self.path = path
         self.infoPlist = infoPlist
     }

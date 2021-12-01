@@ -49,7 +49,9 @@ public protocol FrameworkMetadataProviding: PrecompiledMetadataProviding {
 
 // MARK: - Default Implementation
 
-public final class FrameworkMetadataProvider: PrecompiledMetadataProvider, FrameworkMetadataProviding {
+public final class FrameworkMetadataProvider: PrecompiledMetadataProvider,
+    FrameworkMetadataProviding
+{
     override public init() {
         super.init()
     }
@@ -85,7 +87,8 @@ public final class FrameworkMetadataProvider: PrecompiledMetadataProvider, Frame
     public func bcsymbolmapPaths(frameworkPath: AbsolutePath) throws -> [AbsolutePath] {
         let binaryPath = self.binaryPath(frameworkPath: frameworkPath)
         let uuids = try self.uuids(binaryPath: binaryPath)
-        return uuids
+        return
+            uuids
             .map { frameworkPath.parentDirectory.appending(component: "\($0).bcsymbolmap") }
             .filter { FileHandler.shared.exists($0) }
             .sorted()

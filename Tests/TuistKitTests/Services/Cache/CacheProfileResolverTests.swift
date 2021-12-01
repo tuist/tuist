@@ -61,7 +61,12 @@ final class CacheProfileResolverTests: TuistUnitTestCase {
         // When
         let resolvedProfile = try subject.resolveCacheProfile(
             named: nil,
-            from: .test(cache: Cache(profiles: [.init(name: "foo", configuration: "configuration")], path: nil))
+            from: .test(
+                cache: Cache(
+                    profiles: [.init(name: "foo", configuration: "configuration")],
+                    path: nil
+                )
+            )
         )
 
         // Then
@@ -81,9 +86,20 @@ final class CacheProfileResolverTests: TuistUnitTestCase {
             from: .test(
                 cache: Cache(
                     profiles: [
-                        .init(name: "foo", configuration: "debug", device: "iPhone 12", os: "15.0.0"),
-                        .init(name: "bar", configuration: "release", device: "iPhone 12", os: "15.0.0"),
-                    ], path: nil
+                        .init(
+                            name: "foo",
+                            configuration: "debug",
+                            device: "iPhone 12",
+                            os: "15.0.0"
+                        ),
+                        .init(
+                            name: "bar",
+                            configuration: "release",
+                            device: "iPhone 12",
+                            os: "15.0.0"
+                        ),
+                    ],
+                    path: nil
                 )
             )
         )
@@ -100,7 +116,9 @@ final class CacheProfileResolverTests: TuistUnitTestCase {
         )
     }
 
-    func test_resolves_selected_release_profile_from_tuist_defaults_when_cache_config_is_nil() throws {
+    func test_resolves_selected_release_profile_from_tuist_defaults_when_cache_config_is_nil()
+        throws
+    {
         // When
         let resolvedProfile = try subject.resolveCacheProfile(
             named: "Release",
@@ -117,7 +135,9 @@ final class CacheProfileResolverTests: TuistUnitTestCase {
         )
     }
 
-    func test_resolves_selected_release_profile_from_tuist_defaults_when_profiles_list_is_empty() throws {
+    func test_resolves_selected_release_profile_from_tuist_defaults_when_profiles_list_is_empty()
+        throws
+    {
         // When
         let resolvedProfile = try subject.resolveCacheProfile(
             named: "Release",
@@ -134,7 +154,9 @@ final class CacheProfileResolverTests: TuistUnitTestCase {
         )
     }
 
-    func test_resolves_selected_development_profile_from_tuist_defaults_when_cache_config_is_nil() throws {
+    func test_resolves_selected_development_profile_from_tuist_defaults_when_cache_config_is_nil()
+        throws
+    {
         // When
         let resolvedProfile = try subject.resolveCacheProfile(
             named: "Development",
@@ -151,7 +173,10 @@ final class CacheProfileResolverTests: TuistUnitTestCase {
         )
     }
 
-    func test_resolves_selected_development_profile_from_tuist_defaults_when_profiles_list_is_empty() throws {
+    func
+        test_resolves_selected_development_profile_from_tuist_defaults_when_profiles_list_is_empty()
+        throws
+    {
         // When
         let resolvedProfile = try subject.resolveCacheProfile(
             named: "Development",
@@ -173,7 +198,9 @@ final class CacheProfileResolverTests: TuistUnitTestCase {
         XCTAssertThrowsSpecific(
             try subject.resolveCacheProfile(
                 named: "foo",
-                from: .test(cache: Cache(profiles: [.init(name: "bar", configuration: "debug")], path: nil))
+                from: .test(
+                    cache: Cache(profiles: [.init(name: "bar", configuration: "debug")], path: nil)
+                )
             ),
             CacheProfileResolverError.missingProfile(name: "foo", availableProfiles: ["bar"])
         )

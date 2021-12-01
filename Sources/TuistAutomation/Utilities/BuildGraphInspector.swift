@@ -10,7 +10,12 @@ public protocol BuildGraphInspecting {
     /// - Parameter target: Target whose build arguments will be returned.
     /// - Parameter configuration: The configuration to be built. When nil, it defaults to the configuration specified in the scheme.
     /// - Parameter skipSigning: Skip code signing during build that is not required to be signed (eg. build for testing on iOS Simulator)
-    func buildArguments(project: Project, target: Target, configuration: String?, skipSigning: Bool) -> [XcodeBuildArgument]
+    func buildArguments(
+        project: Project,
+        target: Target,
+        configuration: String?,
+        skipSigning: Bool
+    ) -> [XcodeBuildArgument]
 
     /// Given a directory, it returns the first .xcworkspace found.
     /// - Parameter path: Found .xcworkspace.
@@ -55,7 +60,12 @@ public protocol BuildGraphInspecting {
 public final class BuildGraphInspector: BuildGraphInspecting {
     public init() {}
 
-    public func buildArguments(project: Project, target: Target, configuration: String?, skipSigning: Bool) -> [XcodeBuildArgument] {
+    public func buildArguments(
+        project: Project,
+        target: Target,
+        configuration: String?,
+        skipSigning: Bool
+    ) -> [XcodeBuildArgument] {
         var arguments: [XcodeBuildArgument]
         if target.platform == .macOS {
             arguments = [.sdk(target.platform.xcodeDeviceSDK)]
@@ -65,10 +75,14 @@ public final class BuildGraphInspector: BuildGraphInspecting {
 
         // Configuration
         if let configuration = configuration {
-            if (target.settings ?? project.settings)?.configurations.first(where: { $0.key.name == configuration }) != nil {
+            if (target.settings ?? project.settings)?.configurations.first(where: {
+                $0.key.name == configuration
+            }) != nil {
                 arguments.append(.configuration(configuration))
             } else {
-                logger.warning("The scheme's targets don't have the given configuration \(configuration). Defaulting to the scheme's default.")
+                logger.warning(
+                    "The scheme's targets don't have the given configuration \(configuration). Defaulting to the scheme's default."
+                )
             }
         }
 
@@ -101,7 +115,10 @@ public final class BuildGraphInspector: BuildGraphInspecting {
 
     public func testableTarget(scheme: Scheme, graphTraverser: GraphTraversing) -> GraphTarget? {
         guard let testTarget = scheme.testAction?.targets.first else { return nil }
-        return graphTraverser.target(path: testTarget.target.projectPath, name: testTarget.target.name)
+        return graphTraverser.target(
+            path: testTarget.target.projectPath,
+            name: testTarget.target.name
+        )
     }
 
     public func buildableSchemes(graphTraverser: GraphTraversing) -> [Scheme] {
@@ -112,7 +129,8 @@ public final class BuildGraphInspector: BuildGraphInspecting {
 
     public func buildableEntrySchemes(graphTraverser: GraphTraversing) -> [Scheme] {
         let projects = Set(graphTraverser.rootTargets().map(\.project))
-        return projects
+        return
+            projects
             .flatMap(\.schemes)
             .filter { $0.buildAction?.targets.isEmpty == false }
             .sorted(by: { $0.name < $1.name })

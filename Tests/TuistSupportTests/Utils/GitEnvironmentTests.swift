@@ -10,7 +10,10 @@ final class GitEnvironmentErrorTests: TuistUnitTestCase {
     }
 
     func test_description_when_githubCredentialsFillError() {
-        XCTAssertEqual(GitEnvironmentError.githubCredentialsFillError("test").description, "Trying to get your environment's credentials for https://github.com failed with the following error: test")
+        XCTAssertEqual(
+            GitEnvironmentError.githubCredentialsFillError("test").description,
+            "Trying to get your environment's credentials for https://github.com failed with the following error: test"
+        )
     }
 }
 
@@ -29,7 +32,9 @@ final class GitEnvironmentTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_githubAuthentication_returns_the_environment_variable_when_the_token_is_present() throws {
+    func test_githubAuthentication_returns_the_environment_variable_when_the_token_is_present()
+        throws
+    {
         // Given
         let expectation = XCTestExpectation(description: "Git authentication")
         envVariables[Constants.EnvironmentVariables.githubAPIToken] = "TOKEN"
@@ -44,13 +49,15 @@ final class GitEnvironmentTests: TuistUnitTestCase {
         wait(for: [expectation], timeout: 10.0)
     }
 
-    func test_githubAuthentication_returns_the_system_credentials_when_the_token_is_not_present() throws {
+    func test_githubAuthentication_returns_the_system_credentials_when_the_token_is_not_present()
+        throws
+    {
         // Given
         let expectation = XCTestExpectation(description: "Git authentication")
         let output = """
-        username=tuist
-        password=rocks
-        """
+            username=tuist
+            password=rocks
+            """
         system.succeedCommand(["/usr/bin/env", "echo", "url=https://github.com"], output: output)
         system.succeedCommand(["/usr/bin/env", "git", "credential", "fill"], output: output)
 
@@ -80,16 +87,17 @@ final class GitEnvironmentTests: TuistUnitTestCase {
                     XCTFail("Expected to receive an error but it did not.")
                     expectation.fulfill()
                 }
-            } receiveValue: { _ in }
+            } receiveValue: { _ in
+            }
         wait(for: [expectation], timeout: 10.0)
     }
 
     func test_githubCredentials_when_the_command_returns_the_expected_output() throws {
         // Given
         let output = """
-        username=tuist
-        password=rocks
-        """
+            username=tuist
+            password=rocks
+            """
         system.succeedCommand(["/usr/bin/env", "echo", "url=https://github.com"], output: output)
         system.succeedCommand(["/usr/bin/env", "git", "credential", "fill"], output: output)
         let expectation = XCTestExpectation(description: "Git credentials fill command")
@@ -114,8 +122,8 @@ final class GitEnvironmentTests: TuistUnitTestCase {
     func test_githubCredentials_when_the_commands_output_lacks_username_or_password() throws {
         // Given
         let output = """
-        password=rocks
-        """
+            password=rocks
+            """
         system.succeedCommand(["/usr/bin/env", "echo", "url=https://github.com"], output: output)
         system.succeedCommand(["/usr/bin/env", "git", "credential", "fill"], output: output)
         let expectation = XCTestExpectation(description: "Git credentials fill command")

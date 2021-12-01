@@ -15,9 +15,10 @@ class TargetLinter: TargetLinting {
 
     // MARK: - Init
 
-    init(settingsLinter: SettingsLinting = SettingsLinter(),
-         targetScriptLinter: TargetScriptLinting = TargetScriptLinter())
-    {
+    init(
+        settingsLinter: SettingsLinting = SettingsLinter(),
+        targetScriptLinter: TargetScriptLinting = TargetScriptLinter()
+    ) {
         self.settingsLinter = settingsLinter
         self.targetScriptLinter = targetScriptLinter
     }
@@ -54,14 +55,25 @@ class TargetLinter: TargetLinting {
         var bundleIdentifier = target.bundleId
 
         // Remove any interpolated variables
-        bundleIdentifier = bundleIdentifier.replacingOccurrences(of: "\\$\\{.+\\}", with: "", options: .regularExpression)
-        bundleIdentifier = bundleIdentifier.replacingOccurrences(of: "\\$\\(.+\\)", with: "", options: .regularExpression)
+        bundleIdentifier = bundleIdentifier.replacingOccurrences(
+            of: "\\$\\{.+\\}",
+            with: "",
+            options: .regularExpression
+        )
+        bundleIdentifier = bundleIdentifier.replacingOccurrences(
+            of: "\\$\\(.+\\)",
+            with: "",
+            options: .regularExpression
+        )
 
-        var allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+        var allowed = CharacterSet(
+            charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        )
         allowed.formUnion(CharacterSet(charactersIn: "-."))
 
         if !bundleIdentifier.unicodeScalars.allSatisfy({ allowed.contains($0) }) {
-            let reason = "Invalid bundle identifier '\(bundleIdentifier)'. This string must be a uniform type identifier (UTI) that contains only alphanumeric (A-Z,a-z,0-9), hyphen (-), and period (.) characters."
+            let reason =
+                "Invalid bundle identifier '\(bundleIdentifier)'. This string must be a uniform type identifier (UTI) that contains only alphanumeric (A-Z,a-z,0-9), hyphen (-), and period (.) characters."
 
             return [LintingIssue(reason: reason, severity: .error)]
         }
@@ -69,10 +81,13 @@ class TargetLinter: TargetLinting {
     }
 
     private func lintProductName(target: Target) -> [LintingIssue] {
-        let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
+        let allowed = CharacterSet(
+            charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
+        )
 
         if target.productName.unicodeScalars.allSatisfy(allowed.contains) == false {
-            let reason = "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9) and underscore (_) characters."
+            let reason =
+                "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9) and underscore (_) characters."
 
             return [LintingIssue(reason: reason, severity: .warning)]
         }
@@ -89,9 +104,20 @@ class TargetLinter: TargetLinting {
         let hasNoScripts = target.scripts.isEmpty
 
         if hasNoSources, hasNoDependencies, hasNoScripts {
-            return [LintingIssue(reason: "The target \(target.name) doesn't contain source files.", severity: .warning)]
+            return [
+                LintingIssue(
+                    reason: "The target \(target.name) doesn't contain source files.",
+                    severity: .warning
+                )
+            ]
         } else if !supportsSources, !sources.isEmpty {
-            return [LintingIssue(reason: "Target \(target.name) cannot contain sources. \(target.platform) \(target.product) targets don't support source files", severity: .error)]
+            return [
+                LintingIssue(
+                    reason:
+                        "Target \(target.name) cannot contain sources. \(target.platform) \(target.product) targets don't support source files",
+                    severity: .error
+                )
+            ]
         }
 
         return []
@@ -104,14 +130,18 @@ class TargetLinter: TargetLinting {
         let entitlements = files.filter { $0.pathString.contains(".entitlements") }
 
         if let targetInfoPlistPath = target.infoPlist?.path, files.contains(targetInfoPlistPath) {
-            let reason = "Info.plist at path \(targetInfoPlistPath) being copied into the target \(target.name) product."
+            let reason =
+                "Info.plist at path \(targetInfoPlistPath) being copied into the target \(target.name) product."
             issues.append(LintingIssue(reason: reason, severity: .warning))
         }
 
-        issues.append(contentsOf: entitlements.map {
-            let reason = "Entitlements file at path \($0.pathString) being copied into the target \(target.name) product."
-            return LintingIssue(reason: reason, severity: .warning)
-        })
+        issues.append(
+            contentsOf: entitlements.map {
+                let reason =
+                    "Entitlements file at path \($0.pathString) being copied into the target \(target.name) product."
+                return LintingIssue(reason: reason, severity: .warning)
+            }
+        )
 
         issues.append(contentsOf: lintInfoplistExists(target: target))
         issues.append(contentsOf: lintEntitlementsExist(target: target))
@@ -136,7 +166,8 @@ class TargetLinter: TargetLinting {
             let versionPath = coreDataModel.path.appending(component: versionFileName)
 
             if !FileHandler.shared.exists(versionPath) {
-                let reason = "The default version of the Core Data model at path \(coreDataModel.path.pathString), \(coreDataModel.currentVersion), does not exist. There should be a file at \(versionPath.pathString)"
+                let reason =
+                    "The default version of the Core Data model at path \(coreDataModel.path.pathString), \(coreDataModel.currentVersion), does not exist. There should be a file at \(versionPath.pathString)"
                 return LintingIssue(reason: reason, severity: .error)
             }
             return nil
@@ -149,7 +180,12 @@ class TargetLinter: TargetLinting {
             case let InfoPlist.file(path: path) = infoPlist,
             !FileHandler.shared.exists(path)
         {
-            issues.append(LintingIssue(reason: "Info.plist file not found at path \(infoPlist.path!.pathString)", severity: .error))
+            issues.append(
+                LintingIssue(
+                    reason: "Info.plist file not found at path \(infoPlist.path!.pathString)",
+                    severity: .error
+                )
+            )
         }
         return issues
     }
@@ -157,7 +193,12 @@ class TargetLinter: TargetLinting {
     private func lintEntitlementsExist(target: Target) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         if let path = target.entitlements, !FileHandler.shared.exists(path) {
-            issues.append(LintingIssue(reason: "Entitlements file not found at path \(path.pathString)", severity: .error))
+            issues.append(
+                LintingIssue(
+                    reason: "Entitlements file not found at path \(path.pathString)",
+                    severity: .error
+                )
+            )
         }
         return issues
     }
@@ -170,9 +211,10 @@ class TargetLinter: TargetLinting {
         if target.resources.isEmpty == false {
             return [
                 LintingIssue(
-                    reason: "Target \(target.name) cannot contain resources. \(target.product) targets do not support resources",
+                    reason:
+                        "Target \(target.name) cannot contain resources. \(target.product) targets do not support resources",
                     severity: .error
-                ),
+                )
             ]
         }
 
@@ -184,13 +226,22 @@ class TargetLinter: TargetLinting {
             return []
         }
 
-        let versionFormatIssue = LintingIssue(reason: "The version of deployment target is incorrect", severity: .error)
+        let versionFormatIssue = LintingIssue(
+            reason: "The version of deployment target is incorrect",
+            severity: .error
+        )
 
         let osVersionRegex = "\\b[0-9]+\\.[0-9]+(?:\\.[0-9]+)?\\b"
-        if !deploymentTarget.version.matches(pattern: osVersionRegex) { return [versionFormatIssue] }
+        if !deploymentTarget.version.matches(pattern: osVersionRegex) {
+            return [versionFormatIssue]
+        }
 
         let platform = target.platform
-        let inconsistentPlatformIssue = LintingIssue(reason: "Found an inconsistency between a platform `\(platform.caseValue)` and deployment target `\(deploymentTarget.platform)`", severity: .error)
+        let inconsistentPlatformIssue = LintingIssue(
+            reason:
+                "Found an inconsistency between a platform `\(platform.caseValue)` and deployment target `\(deploymentTarget.platform)`",
+            severity: .error
+        )
 
         switch deploymentTarget {
         case .iOS: if platform != .iOS { return [inconsistentPlatformIssue] }
@@ -204,7 +255,7 @@ class TargetLinter: TargetLinting {
 
     private func lintValidPlatformProductCombinations(target: Target) -> [LintingIssue] {
         let invalidProductsForPlatforms: [Platform: [Product]] = [
-            .iOS: [.watch2App, .watch2Extension, .tvTopShelfExtension],
+            .iOS: [.watch2App, .watch2Extension, .tvTopShelfExtension]
         ]
 
         if let invalidProducts = invalidProductsForPlatforms[target.platform],
@@ -212,9 +263,10 @@ class TargetLinter: TargetLinting {
         {
             return [
                 LintingIssue(
-                    reason: "'\(target.name)' for platform '\(target.platform)' can't have a product type '\(target.product)'",
+                    reason:
+                        "'\(target.name)' for platform '\(target.platform)' can't have a product type '\(target.product)'",
                     severity: .error
-                ),
+                )
             ]
         }
 
@@ -227,7 +279,11 @@ class TargetLinter: TargetLinting {
         target.dependencies.forEach { seen[$0, default: 0] += 1 }
         let duplicates = seen.enumerated().filter { $0.element.value > 1 }
         return duplicates.map {
-            .init(reason: "Target '\(target.name)' has duplicate \($0.element.key.typeName) dependency specified: '\($0.element.key.name)'", severity: .warning)
+            .init(
+                reason:
+                    "Target '\(target.name)' has duplicate \($0.element.key.typeName) dependency specified: '\($0.element.key.name)'",
+                severity: .warning
+            )
         }
     }
 
@@ -242,15 +298,16 @@ class TargetLinter: TargetLinting {
 
         return unsupportedSourceFileAttributes.map {
             .init(
-                reason: "Target '\(target.name)' has a source file at path \($0.path) with unsupported `codeGen` attributes. Only \(knownSupportedExtensions.listed()) are known to support this.",
+                reason:
+                    "Target '\(target.name)' has a source file at path \($0.path) with unsupported `codeGen` attributes. Only \(knownSupportedExtensions.listed()) are known to support this.",
                 severity: .warning
             )
         }
     }
 }
 
-private extension TargetDependency {
-    var typeName: String {
+extension TargetDependency {
+    fileprivate var typeName: String {
         switch self {
         case .target:
             return "target"
@@ -271,7 +328,7 @@ private extension TargetDependency {
         }
     }
 
-    var name: String {
+    fileprivate var name: String {
         switch self {
         case let .target(name):
             return name

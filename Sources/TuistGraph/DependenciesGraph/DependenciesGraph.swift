@@ -9,11 +9,17 @@ public struct DependenciesGraph: Equatable, Codable {
     public let externalProjects: [AbsolutePath: Project]
 
     /// Create an instance of `DependenciesGraph` model.
-    public init(externalDependencies: [String: [TargetDependency]], externalProjects: [AbsolutePath: Project]) {
+    public init(
+        externalDependencies: [String: [TargetDependency]],
+        externalProjects: [AbsolutePath: Project]
+    ) {
         self.externalDependencies = externalDependencies
         self.externalProjects = externalProjects
     }
 
     /// An empty `DependenciesGraph`.
-    public static let none: DependenciesGraph = .init(externalDependencies: [:], externalProjects: [:])
+    public static let none: DependenciesGraph = .init(
+        externalDependencies: [:],
+        externalProjects: [:]
+    )
 }

@@ -7,7 +7,8 @@ struct CloudSessionCommand: ParsableCommand {
         CommandConfiguration(
             commandName: "session",
             _superCommandName: "cloud",
-            abstract: "Prints any existing session to authenticate on the server with the URL defined in the Config.swift file"
+            abstract:
+                "Prints any existing session to authenticate on the server with the URL defined in the Config.swift file"
         )
     }
 

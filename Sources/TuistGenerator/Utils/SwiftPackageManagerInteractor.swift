@@ -29,11 +29,17 @@ public protocol SwiftPackageManagerInteracting {
 
 public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
     private let fileHandler: FileHandling
-    public init(fileHandler: FileHandling = FileHandler.shared) {
+    public init(
+        fileHandler: FileHandling = FileHandler.shared
+    ) {
         self.fileHandler = fileHandler
     }
 
-    public func install(graphTraverser: GraphTraversing, workspaceName: String, config: Config = .default) throws {
+    public func install(
+        graphTraverser: GraphTraversing,
+        workspaceName: String,
+        config: Config = .default
+    ) throws {
         try generatePackageDependencyManager(
             at: graphTraverser.path,
             workspaceName: workspaceName,
@@ -55,8 +61,12 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
         }
 
         let rootPackageResolvedPath = path.appending(component: ".package.resolved")
-        let workspacePackageResolvedFolderPath = path.appending(RelativePath("\(workspaceName)/xcshareddata/swiftpm"))
-        let workspacePackageResolvedPath = workspacePackageResolvedFolderPath.appending(component: "Package.resolved")
+        let workspacePackageResolvedFolderPath = path.appending(
+            RelativePath("\(workspaceName)/xcshareddata/swiftpm")
+        )
+        let workspacePackageResolvedPath = workspacePackageResolvedFolderPath.appending(
+            component: "Package.resolved"
+        )
 
         if fileHandler.exists(rootPackageResolvedPath) {
             try fileHandler.createFolder(workspacePackageResolvedFolderPath)
@@ -95,6 +105,9 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
             try fileHandler.delete(rootPackageResolvedPath)
         }
 
-        try fileHandler.linkFile(atPath: workspacePackageResolvedPath, toPath: rootPackageResolvedPath)
+        try fileHandler.linkFile(
+            atPath: workspacePackageResolvedPath,
+            toPath: rootPackageResolvedPath
+        )
     }
 }

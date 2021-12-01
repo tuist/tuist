@@ -14,7 +14,9 @@ public final class TargetScriptsContentHasher: TargetScriptsContentHashing {
 
     // MARK: - Init
 
-    public init(contentHasher: ContentHashing) {
+    public init(
+        contentHasher: ContentHashing
+    ) {
         self.contentHasher = contentHasher
     }
 
@@ -32,11 +34,13 @@ public final class TargetScriptsContentHasher: TargetScriptsContentHashing {
             pathsToHash.append(contentsOf: script.outputPaths)
             pathsToHash.append(contentsOf: script.outputFileListPaths)
             let fileHashes = try pathsToHash.map { try contentHasher.hash(path: $0) }
-            stringsToHash.append(contentsOf: fileHashes +
-                [script.name,
-                 script.tool ?? "", // TODO: don't default to ""
-                 script.order.rawValue] +
-                script.arguments)
+            stringsToHash.append(
+                contentsOf: fileHashes + [
+                    script.name,
+                    script.tool ?? "",  // TODO: don't default to ""
+                    script.order.rawValue,
+                ] + script.arguments
+            )
         }
         return try contentHasher.hash(stringsToHash)
     }

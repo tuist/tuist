@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistGraph
 import XCTest
+
 @testable import TuistCache
 @testable import TuistCore
 @testable import TuistCoreTesting
@@ -57,7 +58,9 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
-            targets: [project.path: [firstTarget.name: firstTarget, secondTarget.name: secondTarget]],
+            targets: [
+                project.path: [firstTarget.name: firstTarget, secondTarget.name: secondTarget]
+            ],
             dependencies: [:]
         )
 
@@ -77,7 +80,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         let path = AbsolutePath("/project")
         let target = Target.test(name: "first", prune: true)
         let schemes: [Scheme] = [
-            .test(buildAction: .test(targets: [.init(projectPath: path, name: target.name)])),
+            .test(buildAction: .test(targets: [.init(projectPath: path, name: target.name)]))
         ]
         let project = Project.test(path: path, targets: [target], schemes: schemes)
 
@@ -106,7 +109,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         let removedProjectPath = AbsolutePath.root.appending(component: "Other")
         let target = Target.test(name: "first", prune: true)
         let schemes: [Scheme] = [
-            .test(buildAction: .test(targets: [.init(projectPath: path, name: target.name)])),
+            .test(buildAction: .test(targets: [.init(projectPath: path, name: target.name)]))
         ]
         let project = Project.test(path: path, targets: [target], schemes: schemes)
         let workspace = Workspace.test(
@@ -136,7 +139,7 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         let removedProjectPath = AbsolutePath.root.appending(component: "Other")
         let target = Target.test(name: "first", prune: true)
         let schemes: [Scheme] = [
-            .test(buildAction: .test(targets: [.init(projectPath: path, name: target.name)])),
+            .test(buildAction: .test(targets: [.init(projectPath: path, name: target.name)]))
         ]
         let project = Project.test(path: path, targets: [target], schemes: [])
         let workspace = Workspace.test(
@@ -170,11 +173,17 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         ]
         let scheme = Scheme.test(
             name: "Scheme",
-            buildAction: .test(targets: targets.map { TargetReference(projectPath: path, name: $0.name) }),
+            buildAction: .test(
+                targets: targets.map { TargetReference(projectPath: path, name: $0.name) }
+            ),
             testAction: .test(
-                targets: targets.map { TestableTarget(target: TargetReference(projectPath: path, name: $0.name)) },
+                targets: targets.map {
+                    TestableTarget(target: TargetReference(projectPath: path, name: $0.name))
+                },
                 coverage: true,
-                codeCoverageTargets: targets.map { TargetReference(projectPath: path, name: $0.name) }
+                codeCoverageTargets: targets.map {
+                    TargetReference(projectPath: path, name: $0.name)
+                }
             )
         )
         let project = Project.test(path: path, targets: targets, schemes: [scheme])
@@ -187,18 +196,32 @@ final class TreeShakePrunedTargetsGraphMapperTests: TuistUnitTestCase {
         let unprunedTargets = targets.filter { !$0.prune }
         let schemeWithUnprunedTargets = Scheme.test(
             name: "Scheme",
-            buildAction: .test(targets: unprunedTargets.map { TargetReference(projectPath: path, name: $0.name) }),
+            buildAction: .test(
+                targets: unprunedTargets.map { TargetReference(projectPath: path, name: $0.name) }
+            ),
             testAction: .test(
-                targets: unprunedTargets.map { TestableTarget(target: TargetReference(projectPath: path, name: $0.name)) },
+                targets: unprunedTargets.map {
+                    TestableTarget(target: TargetReference(projectPath: path, name: $0.name))
+                },
                 coverage: true,
-                codeCoverageTargets: unprunedTargets.map { TargetReference(projectPath: path, name: $0.name) }
+                codeCoverageTargets: unprunedTargets.map {
+                    TargetReference(projectPath: path, name: $0.name)
+                }
             )
         )
-        let expectedProject = Project.test(path: path, targets: unprunedTargets, schemes: [schemeWithUnprunedTargets])
+        let expectedProject = Project.test(
+            path: path,
+            targets: unprunedTargets,
+            schemes: [schemeWithUnprunedTargets]
+        )
         let expectedGraph = Graph.test(
             path: expectedProject.path,
             projects: [expectedProject.path: expectedProject],
-            targets: [expectedProject.path: Dictionary(uniqueKeysWithValues: unprunedTargets.map { ($0.name, $0) })]
+            targets: [
+                expectedProject.path: Dictionary(
+                    uniqueKeysWithValues: unprunedTargets.map { ($0.name, $0) }
+                )
+            ]
         )
 
         // When

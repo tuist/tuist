@@ -2,46 +2,46 @@ import Foundation
 
 class ManifestTemplate {
     private let workspaceTemplate = """
-    import ProjectDescription
+        import ProjectDescription
 
-    let workspace = Workspace(
-        name: "{WorkspaceName}",
-        projects: [
-    {Projects}
-        ])
-    """
+        let workspace = Workspace(
+            name: "{WorkspaceName}",
+            projects: [
+        {Projects}
+            ])
+        """
 
     private let workspaceProjectTemplate = """
-          "{Project}"
-    """
+              "{Project}"
+        """
 
     private let projectTemplate = """
-    import ProjectDescription
+        import ProjectDescription
 
-    let project = Project(
-        name: "{ProjectName}",
-        targets: [
-    {Targets}
-        ])
+        let project = Project(
+            name: "{ProjectName}",
+            targets: [
+        {Targets}
+            ])
 
-    """
+        """
 
     private let targetTemplate = """
-            Target(
-                name: "{TargetName}",
-                platform: .iOS,
-                product: .framework,
-                bundleId: "io.tuist.{TargetName}",
-                infoPlist: .default,
-                sources: [
-                    "{TargetName}/Sources/**"
-                ],
-                resources: [
+                Target(
+                    name: "{TargetName}",
+                    platform: .iOS,
+                    product: .framework,
+                    bundleId: "io.tuist.{TargetName}",
+                    infoPlist: .default,
+                    sources: [
+                        "{TargetName}/Sources/**"
+                    ],
+                    resources: [
 
-                ],
-                dependencies: [
-            ])
-    """
+                    ],
+                    dependencies: [
+                ])
+        """
 
     func generate(workspaceName: String, projects: [String]) -> String {
         workspaceTemplate

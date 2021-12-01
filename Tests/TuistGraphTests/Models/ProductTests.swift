@@ -1,6 +1,7 @@
 import Foundation
-import XcodeProj
 import XCTest
+import XcodeProj
+
 @testable import TuistGraph
 
 final class ProductTests: XCTestCase {

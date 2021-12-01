@@ -5,7 +5,8 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     // MARK: - Static
 
     public static let validSourceExtensions: [String] = [
-        "m", "swift", "mm", "cpp", "cc", "c", "d", "s", "intentdefinition", "xcmappingmodel", "metal", "mlmodel",
+        "m", "swift", "mm", "cpp", "cc", "c", "d", "s", "intentdefinition", "xcmappingmodel",
+        "metal", "mlmodel",
     ]
     public static let validFolderExtensions: [String] = [
         "framework", "bundle", "app", "xcassets", "appiconset", "scnassets",
@@ -42,30 +43,31 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
 
     // MARK: - Init
 
-    public init(name: String,
-                platform: Platform,
-                product: Product,
-                productName: String?,
-                bundleId: String,
-                deploymentTarget: DeploymentTarget? = nil,
-                infoPlist: InfoPlist? = nil,
-                entitlements: AbsolutePath? = nil,
-                settings: Settings? = nil,
-                sources: [SourceFile] = [],
-                resources: [ResourceFileElement] = [],
-                copyFiles: [CopyFilesAction] = [],
-                headers: Headers? = nil,
-                coreDataModels: [CoreDataModel] = [],
-                scripts: [TargetScript] = [],
-                environment: [String: String] = [:],
-                launchArguments: [LaunchArgument] = [],
-                filesGroup: ProjectGroup,
-                dependencies: [TargetDependency] = [],
-                rawScriptBuildPhases: [RawScriptBuildPhase] = [],
-                playgrounds: [AbsolutePath] = [],
-                additionalFiles: [FileElement] = [],
-                prune: Bool = false)
-    {
+    public init(
+        name: String,
+        platform: Platform,
+        product: Product,
+        productName: String?,
+        bundleId: String,
+        deploymentTarget: DeploymentTarget? = nil,
+        infoPlist: InfoPlist? = nil,
+        entitlements: AbsolutePath? = nil,
+        settings: Settings? = nil,
+        sources: [SourceFile] = [],
+        resources: [ResourceFileElement] = [],
+        copyFiles: [CopyFilesAction] = [],
+        headers: Headers? = nil,
+        coreDataModels: [CoreDataModel] = [],
+        scripts: [TargetScript] = [],
+        environment: [String: String] = [:],
+        launchArguments: [LaunchArgument] = [],
+        filesGroup: ProjectGroup,
+        dependencies: [TargetDependency] = [],
+        rawScriptBuildPhases: [RawScriptBuildPhase] = [],
+        playgrounds: [AbsolutePath] = [],
+        additionalFiles: [FileElement] = [],
+        prune: Bool = false
+    ) {
         self.name = name
         self.product = product
         self.platform = platform
@@ -145,23 +147,23 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     public var supportsResources: Bool {
         switch product {
         case .app,
-             .framework,
-             .unitTests,
-             .uiTests,
-             .bundle,
-             .appExtension,
-             .watch2App,
-             .watch2Extension,
-             .tvTopShelfExtension,
-             .messagesExtension,
-             .stickerPackExtension,
-             .appClip:
+            .framework,
+            .unitTests,
+            .uiTests,
+            .bundle,
+            .appExtension,
+            .watch2App,
+            .watch2Extension,
+            .tvTopShelfExtension,
+            .messagesExtension,
+            .stickerPackExtension,
+            .appClip:
             return true
 
         case .commandLineTool,
-             .dynamicLibrary,
-             .staticLibrary,
-             .staticFramework:
+            .dynamicLibrary,
+            .staticLibrary,
+            .staticFramework:
             return false
         }
     }
@@ -194,21 +196,13 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     // MARK: - Equatable
 
     public static func == (lhs: Target, rhs: Target) -> Bool {
-        lhs.name == rhs.name &&
-            lhs.platform == rhs.platform &&
-            lhs.product == rhs.product &&
-            lhs.bundleId == rhs.bundleId &&
-            lhs.productName == rhs.productName &&
-            lhs.infoPlist == rhs.infoPlist &&
-            lhs.entitlements == rhs.entitlements &&
-            lhs.settings == rhs.settings &&
-            lhs.sources == rhs.sources &&
-            lhs.resources == rhs.resources &&
-            lhs.headers == rhs.headers &&
-            lhs.coreDataModels == rhs.coreDataModels &&
-            lhs.scripts == rhs.scripts &&
-            lhs.dependencies == rhs.dependencies &&
-            lhs.environment == rhs.environment
+        lhs.name == rhs.name && lhs.platform == rhs.platform && lhs.product == rhs.product
+            && lhs.bundleId == rhs.bundleId && lhs.productName == rhs.productName
+            && lhs.infoPlist == rhs.infoPlist && lhs.entitlements == rhs.entitlements
+            && lhs.settings == rhs.settings && lhs.sources == rhs.sources
+            && lhs.resources == rhs.resources && lhs.headers == rhs.headers
+            && lhs.coreDataModels == rhs.coreDataModels && lhs.scripts == rhs.scripts
+            && lhs.dependencies == rhs.dependencies && lhs.environment == rhs.environment
     }
 
     public func hash(into hasher: inout Hasher) {

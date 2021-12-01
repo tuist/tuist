@@ -15,7 +15,10 @@ public struct PackageOutput: Codable, Equatable {
     /// In the case of a remote package, the value is the URL of the package.
     public let path: String
 
-    public init(kind: PackageKind, path: String) {
+    public init(
+        kind: PackageKind,
+        path: String
+    ) {
         self.kind = kind
         self.path = path
     }

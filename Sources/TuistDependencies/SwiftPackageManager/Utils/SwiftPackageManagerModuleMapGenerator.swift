@@ -20,19 +20,29 @@ public enum ModuleMapType: Equatable {
 /// [documented here](https://github.com/apple/swift-package-manager/blob/main/Documentation/Usage.md#creating-c-language-targets) and
 /// [implemented here](https://github.com/apple/swift-package-manager/blob/main/Sources/PackageLoading/ModuleMapGenerator.swift).
 public protocol SwiftPackageManagerModuleMapGenerating {
-    func generate(moduleName: String, publicHeadersPath: AbsolutePath) throws -> (type: ModuleMapType, path: AbsolutePath?)
+    func generate(
+        moduleName: String,
+        publicHeadersPath: AbsolutePath
+    ) throws -> (type: ModuleMapType, path: AbsolutePath?)
 }
 
 public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMapGenerating {
     public init() {}
 
-    public func generate(moduleName: String, publicHeadersPath: AbsolutePath) throws -> (type: ModuleMapType, path: AbsolutePath?) {
+    public func generate(
+        moduleName: String,
+        publicHeadersPath: AbsolutePath
+    ) throws -> (type: ModuleMapType, path: AbsolutePath?) {
         let umbrellaHeaderPath = publicHeadersPath.appending(component: moduleName + ".h")
-        let nestedUmbrellaHeaderPath = publicHeadersPath.appending(component: moduleName).appending(component: moduleName + ".h")
+        let nestedUmbrellaHeaderPath = publicHeadersPath.appending(component: moduleName).appending(
+            component: moduleName + ".h"
+        )
 
         let moduleMapType: ModuleMapType
 
-        if let customModuleMapPath = try Self.customModuleMapPath(publicHeadersPath: publicHeadersPath) {
+        if let customModuleMapPath = try Self.customModuleMapPath(
+            publicHeadersPath: publicHeadersPath
+        ) {
             // User defined modulemap exists, use it
             return (type: .custom, path: customModuleMapPath)
         } else if FileHandler.shared.exists(umbrellaHeaderPath) {
@@ -62,8 +72,14 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
                 }
 
                 """
-            let generatedModuleMapPath = publicHeadersPath.appending(component: "\(moduleName).modulemap")
-            try FileHandler.shared.write(generatedModuleMapContent, path: generatedModuleMapPath, atomically: true)
+            let generatedModuleMapPath = publicHeadersPath.appending(
+                component: "\(moduleName).modulemap"
+            )
+            try FileHandler.shared.write(
+                generatedModuleMapContent,
+                path: generatedModuleMapPath,
+                atomically: true
+            )
             return (type: moduleMapType, path: generatedModuleMapPath)
         }
     }
@@ -72,7 +88,9 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
         guard FileHandler.shared.exists(publicHeadersPath) else { return nil }
 
         let moduleMapPath = RelativePath("module.modulemap")
-        let publicHeadersFolderContent = try FileHandler.shared.contentsOfDirectory(publicHeadersPath)
+        let publicHeadersFolderContent = try FileHandler.shared.contentsOfDirectory(
+            publicHeadersPath
+        )
 
         if publicHeadersFolderContent.contains(publicHeadersPath.appending(moduleMapPath)) {
             return publicHeadersPath.appending(moduleMapPath)

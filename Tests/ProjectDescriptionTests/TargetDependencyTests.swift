@@ -1,5 +1,6 @@
 import Foundation
 import XCTest
+
 @testable import ProjectDescription
 
 final class TargetDependencyTests: XCTestCase {
@@ -19,7 +20,11 @@ final class TargetDependencyTests: XCTestCase {
     }
 
     func test_toJSON_when_library() {
-        let subject = TargetDependency.library(path: "/path/library.a", publicHeaders: "/path/headers", swiftModuleMap: "/path/modulemap")
+        let subject = TargetDependency.library(
+            path: "/path/library.a",
+            publicHeaders: "/path/headers",
+            swiftModuleMap: "/path/modulemap"
+        )
         XCTAssertCodable(subject)
     }
 
@@ -50,7 +55,7 @@ final class TargetDependencyTests: XCTestCase {
     func test_xcframework_codable() {
         // Given
         let subject: [TargetDependency] = [
-            .xcframework(path: "/path/framework.xcframework"),
+            .xcframework(path: "/path/framework.xcframework")
         ]
 
         // Then

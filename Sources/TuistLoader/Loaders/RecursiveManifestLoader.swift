@@ -24,9 +24,10 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
     private let manifestLoader: ManifestLoading
     private let fileHandler: FileHandling
 
-    public init(manifestLoader: ManifestLoading = ManifestLoader(),
-                fileHandler: FileHandling = FileHandler.shared)
-    {
+    public init(
+        manifestLoader: ManifestLoading = ManifestLoader(),
+        fileHandler: FileHandling = FileHandler.shared
+    ) {
         self.manifestLoader = manifestLoader
         self.fileHandler = fileHandler
     }
@@ -78,7 +79,10 @@ public class RecursiveManifestLoader: RecursiveManifestLoading {
         return LoadedProjects(projects: cache)
     }
 
-    private func dependencyPaths(for project: ProjectDescription.Project, path: AbsolutePath) throws -> [AbsolutePath] {
+    private func dependencyPaths(
+        for project: ProjectDescription.Project,
+        path: AbsolutePath
+    ) throws -> [AbsolutePath] {
         let generatorPaths = GeneratorPaths(manifestDirectory: path)
         let paths: [AbsolutePath] = try project.targets.flatMap {
             try $0.dependencies.compactMap {

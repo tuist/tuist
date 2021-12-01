@@ -26,7 +26,8 @@ public enum ManifestLoaderError: FatalError, Equatable {
         case let .manifestNotFound(manifest, path):
             return "\(manifest?.fileName(path) ?? "Manifest") not found at path \(path.pathString)"
         case let .manifestCachingFailed(manifest, path):
-            return "Could not cache \(manifest?.fileName(path) ?? "Manifest") at path \(path.pathString)"
+            return
+                "Could not cache \(manifest?.fileName(path) ?? "Manifest") at path \(path.pathString)"
         }
     }
 
@@ -129,12 +130,13 @@ public class ManifestLoader: ManifestLoading {
         )
     }
 
-    init(environment: Environmenting,
-         resourceLocator: ResourceLocating,
-         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring,
-         projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring,
-         manifestFilesLocator: ManifestFilesLocating)
-    {
+    init(
+        environment: Environmenting,
+        resourceLocator: ResourceLocating,
+        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring,
+        projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring,
+        manifestFilesLocator: ManifestFilesLocating
+    ) {
         self.environment = environment
         self.resourceLocator = resourceLocator
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
@@ -164,7 +166,10 @@ public class ManifestLoader: ManifestLoading {
     }
 
     public func loadDependencies(at path: AbsolutePath) throws -> ProjectDescription.Dependencies {
-        let dependencyPath = path.appending(components: Constants.tuistDirectoryName, Manifest.dependencies.fileName(path))
+        let dependencyPath = path.appending(
+            components: Constants.tuistDirectoryName,
+            Manifest.dependencies.fileName(path)
+        )
         guard FileHandler.shared.exists(dependencyPath) else {
             throw ManifestLoaderError.manifestNotFound(.dependencies, path)
         }
@@ -200,7 +205,9 @@ public class ManifestLoader: ManifestLoading {
         let data = try loadDataForManifest(manifest, at: manifestPath)
         if Environment.shared.isVerbose {
             let string = String(data: data, encoding: .utf8)
-            logger.debug("Trying to load the manifest represented by the following JSON representation:\n\(string ?? "")")
+            logger.debug(
+                "Trying to load the manifest represented by the following JSON representation:\n\(string ?? "")"
+            )
         }
         return try decoder.decode(T.self, from: data)
     }
@@ -222,31 +229,44 @@ public class ManifestLoader: ManifestLoading {
         _ manifest: Manifest,
         at path: AbsolutePath
     ) throws -> Data {
-        let arguments = try buildArguments(
-            manifest,
-            at: path
-        ) + ["--tuist-dump"]
+        let arguments =
+            try buildArguments(
+                manifest,
+                at: path
+            ) + ["--tuist-dump"]
 
         let result = System.shared
-            .observable(arguments, verbose: false, environment: environment.manifestLoadingVariables)
+            .observable(
+                arguments,
+                verbose: false,
+                environment: environment.manifestLoadingVariables
+            )
             .toBlocking()
             .materialize()
 
         switch result {
         case let .completed(elements):
-            let output = elements.filter { $0.isStandardOutput }.map(\.value).reduce(into: Data()) { $0.append($1) }
+            let output = elements.filter { $0.isStandardOutput }.map(\.value).reduce(into: Data()) {
+                $0.append($1)
+            }
             guard let string = String(data: output, encoding: .utf8) else { return output }
 
-            guard let startTokenRange = string.range(of: ManifestLoader.startManifestToken) else { return output }
-            guard let endTokenRange = string.range(of: ManifestLoader.endManifestToken) else { return output }
+            guard let startTokenRange = string.range(of: ManifestLoader.startManifestToken) else {
+                return output
+            }
+            guard let endTokenRange = string.range(of: ManifestLoader.endManifestToken) else {
+                return output
+            }
 
-            let preManifestLogs = String(string[string.startIndex ..< startTokenRange.lowerBound]).chomp()
-            let postManifestLogs = String(string[endTokenRange.upperBound ..< string.endIndex]).chomp()
+            let preManifestLogs = String(string[string.startIndex..<startTokenRange.lowerBound])
+                .chomp()
+            let postManifestLogs = String(string[endTokenRange.upperBound..<string.endIndex])
+                .chomp()
 
             if !preManifestLogs.isEmpty { logger.info("\(path.pathString): \(preManifestLogs)") }
             if !postManifestLogs.isEmpty { logger.info("\(path.pathString):\(postManifestLogs)") }
 
-            let manifest = string[startTokenRange.upperBound ..< endTokenRange.lowerBound]
+            let manifest = string[startTokenRange.upperBound..<endTokenRange.lowerBound]
             return manifest.data(using: .utf8)!
         case let .failed(_, error):
             logUnexpectedImportErrorIfNeeded(in: path, error: error, manifest: manifest)
@@ -267,11 +287,11 @@ public class ManifestLoader: ManifestLoading {
         case .task:
             frameworkName = "ProjectAutomation"
         case .config,
-             .plugin,
-             .dependencies,
-             .project,
-             .template,
-             .workspace:
+            .plugin,
+            .dependencies,
+            .project,
+            .template,
+            .workspace:
             frameworkName = "ProjectDescription"
         }
         var arguments = [
@@ -284,20 +304,21 @@ public class ManifestLoader: ManifestLoading {
             "-l\(frameworkName)",
             "-framework", frameworkName,
         ]
-        let projectDescriptionHelpersCacheDirectory = try cacheDirectoryProviderFactory
+        let projectDescriptionHelpersCacheDirectory =
+            try cacheDirectoryProviderFactory
             .cacheDirectories(config: nil)
             .cacheDirectory(for: .projectDescriptionHelpers)
 
         let projectDescriptionHelperArguments: [String] = try {
             switch manifest {
             case .config,
-                 .plugin,
-                 .task:
+                .plugin,
+                .task:
                 return []
             case .dependencies,
-                 .project,
-                 .template,
-                 .workspace:
+                .project,
+                .template,
+                .workspace:
                 return try projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(
                     cacheDirectory: projectDescriptionHelpersCacheDirectory
                 )
@@ -305,12 +326,14 @@ public class ManifestLoader: ManifestLoading {
                     at: path,
                     projectDescriptionSearchPaths: searchPaths,
                     projectDescriptionHelperPlugins: plugins.projectDescriptionHelpers
-                ).flatMap { [
-                    "-I", $0.path.parentDirectory.pathString,
-                    "-L", $0.path.parentDirectory.pathString,
-                    "-F", $0.path.parentDirectory.pathString,
-                    "-l\($0.name)",
-                ] }
+                ).flatMap {
+                    [
+                        "-I", $0.path.parentDirectory.pathString,
+                        "-L", $0.path.parentDirectory.pathString,
+                        "-F", $0.path.parentDirectory.pathString,
+                        "-l\($0.name)",
+                    ]
+                }
             }
         }()
 
@@ -320,29 +343,42 @@ public class ManifestLoader: ManifestLoading {
         return arguments
     }
 
-    private func logUnexpectedImportErrorIfNeeded(in path: AbsolutePath, error: Error, manifest: Manifest) {
+    private func logUnexpectedImportErrorIfNeeded(
+        in path: AbsolutePath,
+        error: Error,
+        manifest: Manifest
+    ) {
         guard case let TuistSupport.SystemError.terminated(command, _, standardError) = error,
             manifest == .config || manifest == .plugin,
             command == "swiftc",
-            let errorMessage = String(data: standardError, encoding: .utf8) else { return }
+            let errorMessage = String(data: standardError, encoding: .utf8)
+        else { return }
 
         let defaultHelpersName = ProjectDescriptionHelpersBuilder.defaultHelpersName
 
         if errorMessage.contains(defaultHelpersName) {
             logger.error("Cannot import \(defaultHelpersName) in \(manifest.fileName(path))")
-            logger.info("Project description helpers that depend on plugins are not allowed in \(manifest.fileName(path))")
+            logger.info(
+                "Project description helpers that depend on plugins are not allowed in \(manifest.fileName(path))"
+            )
         } else if errorMessage.contains("import") {
             logger.error("Helper plugins are not allowed in \(manifest.fileName(path))")
         }
     }
 
-    private func logPluginHelperBuildErrorIfNeeded(in _: AbsolutePath, error: Error, manifest _: Manifest) {
+    private func logPluginHelperBuildErrorIfNeeded(
+        in _: AbsolutePath,
+        error: Error,
+        manifest _: Manifest
+    ) {
         guard case let TuistSupport.SystemError.terminated(command, _, standardError) = error,
             command == "swiftc",
-            let errorMessage = String(data: standardError, encoding: .utf8) else { return }
+            let errorMessage = String(data: standardError, encoding: .utf8)
+        else { return }
 
         let pluginHelpers = plugins.projectDescriptionHelpers
-        guard let pluginHelper = pluginHelpers.first(where: { errorMessage.contains($0.name) }) else { return }
+        guard let pluginHelper = pluginHelpers.first(where: { errorMessage.contains($0.name) })
+        else { return }
 
         logger.error("Unable to build plugin \(pluginHelper.name) located at \(pluginHelper.path)")
     }

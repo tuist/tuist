@@ -64,7 +64,9 @@ final class CarthageVersionFileTests: TuistUnitTestCase {
         let got = subject.allProducts
 
         // Then
-        let expected: [CarthageVersionFile.Product] = [iOSProduct, macOSProduct, watchOSProduct, tvOSProduct]
+        let expected: [CarthageVersionFile.Product] = [
+            iOSProduct, macOSProduct, watchOSProduct, tvOSProduct,
+        ]
         XCTAssertEqual(got, expected)
     }
 }

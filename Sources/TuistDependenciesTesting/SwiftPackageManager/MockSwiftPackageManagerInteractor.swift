@@ -10,15 +10,16 @@ public final class MockSwiftPackageManagerInteractor: SwiftPackageManagerInterac
     public init() {}
 
     var invokedInstall = false
-    var installStub: (
+    var installStub:
         (
-            AbsolutePath,
-            TuistGraph.SwiftPackageManagerDependencies,
-            Set<TuistGraph.Platform>,
-            Bool,
-            TSCUtility.Version?
-        ) throws -> TuistCore.DependenciesGraph
-    )?
+            (
+                AbsolutePath,
+                TuistGraph.SwiftPackageManagerDependencies,
+                Set<TuistGraph.Platform>,
+                Bool,
+                TSCUtility.Version?
+            ) throws -> TuistCore.DependenciesGraph
+        )?
 
     public func install(
         dependenciesDirectory: AbsolutePath,
@@ -28,7 +29,13 @@ public final class MockSwiftPackageManagerInteractor: SwiftPackageManagerInterac
         swiftToolsVersion: TSCUtility.Version?
     ) throws -> TuistCore.DependenciesGraph {
         invokedInstall = true
-        return try installStub?(dependenciesDirectory, dependencies, platforms, shouldUpdate, swiftToolsVersion) ?? .none
+        return try installStub?(
+            dependenciesDirectory,
+            dependencies,
+            platforms,
+            shouldUpdate,
+            swiftToolsVersion
+        ) ?? .none
     }
 
     var invokedClean = false

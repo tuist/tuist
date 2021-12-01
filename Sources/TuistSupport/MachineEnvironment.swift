@@ -22,24 +22,25 @@ public class MachineEnvironment: MachineEnvironmentRetrieving {
         guard platformExpert != 0 else {
             fatalError("Couldn't obtain the platform expert")
         }
-        let uuid = IORegistryEntryCreateCFProperty(
-            platformExpert,
-            kIOPlatformUUIDKey as CFString,
-            kCFAllocatorDefault,
-            0
-        ).takeRetainedValue() as! String // swiftlint:disable:this force_cast
+        let uuid =
+            IORegistryEntryCreateCFProperty(
+                platformExpert,
+                kIOPlatformUUIDKey as CFString,
+                kCFAllocatorDefault,
+                0
+            ).takeRetainedValue() as! String  // swiftlint:disable:this force_cast
         return uuid.checksum(algorithm: .md5)!
     }()
 
     /// The `macOSVersion` of the machine running Tuist, in the format major.minor.path, e.g: "10.15.7"
     public lazy var macOSVersion = """
-    \(ProcessInfo.processInfo.operatingSystemVersion.majorVersion).\
-    \(ProcessInfo.processInfo.operatingSystemVersion.minorVersion).\
-    \(ProcessInfo.processInfo.operatingSystemVersion.patchVersion)
-    """
+        \(ProcessInfo.processInfo.operatingSystemVersion.majorVersion).\
+        \(ProcessInfo.processInfo.operatingSystemVersion.minorVersion).\
+        \(ProcessInfo.processInfo.operatingSystemVersion.patchVersion)
+        """
 
     /// The `swiftVersion` of the machine running Tuist
-    public lazy var swiftVersion = try! System.shared // swiftlint:disable:this force_try
+    public lazy var swiftVersion = try! System.shared  // swiftlint:disable:this force_try
         .capture("/usr/bin/xcrun", "swift", "-version")
         .components(separatedBy: "Swift version ").last!
         .components(separatedBy: " ").first!

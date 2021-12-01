@@ -3,6 +3,7 @@ import TSCBasic
 import TuistCore
 import TuistSupport
 import XCTest
+
 @testable import TuistGraph
 @testable import TuistGraphTesting
 @testable import TuistSupportTesting
@@ -13,10 +14,15 @@ final class TargetErrorTests: TuistUnitTestCase {
         let invalidGlobs: [InvalidGlob] = [.init(pattern: "**/*", nonExistentPath: .root)]
 
         // When
-        let got = TargetError.invalidSourcesGlob(targetName: "Target", invalidGlobs: invalidGlobs).description
+        let got = TargetError.invalidSourcesGlob(targetName: "Target", invalidGlobs: invalidGlobs)
+            .description
 
         // Then
-        XCTAssertEqual(got, "The target Target has the following invalid source files globs:\n" + invalidGlobs.invalidGlobsDescription)
+        XCTAssertEqual(
+            got,
+            "The target Target has the following invalid source files globs:\n"
+                + invalidGlobs.invalidGlobsDescription
+        )
     }
 }
 
@@ -32,7 +38,10 @@ final class TargetTests: TuistUnitTestCase {
     func test_validSourceExtensions() {
         XCTAssertEqual(
             Target.validSourceExtensions,
-            ["m", "swift", "mm", "cpp", "cc", "c", "d", "s", "intentdefinition", "xcmappingmodel", "metal", "mlmodel"]
+            [
+                "m", "swift", "mm", "cpp", "cc", "c", "d", "s", "intentdefinition",
+                "xcmappingmodel", "metal", "mlmodel",
+            ]
         )
     }
 
@@ -101,23 +110,37 @@ final class TargetTests: TuistUnitTestCase {
         ])
 
         // When
-        let sources = try Target.sources(targetName: "Target", sources: [
-            SourceFileGlob(glob: temporaryPath.appending(RelativePath("sources/**")).pathString, excluding: [], compilerFlags: nil),
-            SourceFileGlob(glob: temporaryPath.appending(RelativePath("sources/**")).pathString, excluding: [], compilerFlags: nil),
-        ])
+        let sources = try Target.sources(
+            targetName: "Target",
+            sources: [
+                SourceFileGlob(
+                    glob: temporaryPath.appending(RelativePath("sources/**")).pathString,
+                    excluding: [],
+                    compilerFlags: nil
+                ),
+                SourceFileGlob(
+                    glob: temporaryPath.appending(RelativePath("sources/**")).pathString,
+                    excluding: [],
+                    compilerFlags: nil
+                ),
+            ]
+        )
 
         // Then
         let relativeSources = sources.map { $0.path.relative(to: temporaryPath).pathString }
 
-        XCTAssertEqual(Set(relativeSources), Set([
-            "sources/a.swift",
-            "sources/b.m",
-            "sources/c.mm",
-            "sources/d.c",
-            "sources/f.s",
-            "sources/e.cpp",
-            "sources/n.metal",
-        ]))
+        XCTAssertEqual(
+            Set(relativeSources),
+            Set([
+                "sources/a.swift",
+                "sources/b.m",
+                "sources/c.mm",
+                "sources/d.c",
+                "sources/f.s",
+                "sources/e.cpp",
+                "sources/n.metal",
+            ])
+        )
     }
 
     func test_sources_excluding() throws {
@@ -134,22 +157,30 @@ final class TargetTests: TuistUnitTestCase {
         ])
 
         // When
-        let sources = try Target.sources(targetName: "Target", sources: [
-            SourceFileGlob(
-                glob: temporaryPath.appending(RelativePath("sources/**")).pathString,
-                excluding: [temporaryPath.appending(RelativePath("sources/**/*Tests.swift")).pathString],
-                compilerFlags: nil
-            ),
-        ])
+        let sources = try Target.sources(
+            targetName: "Target",
+            sources: [
+                SourceFileGlob(
+                    glob: temporaryPath.appending(RelativePath("sources/**")).pathString,
+                    excluding: [
+                        temporaryPath.appending(RelativePath("sources/**/*Tests.swift")).pathString
+                    ],
+                    compilerFlags: nil
+                )
+            ]
+        )
 
         // Then
         let relativeSources = sources.map { $0.path.relative(to: temporaryPath).pathString }
 
-        XCTAssertEqual(Set(relativeSources), Set([
-            "sources/a.swift",
-            "sources/b.swift",
-            "sources/c/c.swift",
-        ]))
+        XCTAssertEqual(
+            Set(relativeSources),
+            Set([
+                "sources/a.swift",
+                "sources/b.swift",
+                "sources/c/c.swift",
+            ])
+        )
     }
 
     func test_sources_excluding_multiple_paths() throws {
@@ -176,22 +207,28 @@ final class TargetTests: TuistUnitTestCase {
         ]
 
         // When
-        let sources = try Target.sources(targetName: "Target", sources: [
-            SourceFileGlob(
-                glob: temporaryPath.appending(RelativePath("sources/**")).pathString,
-                excluding: excluding,
-                compilerFlags: nil
-            ),
-        ])
+        let sources = try Target.sources(
+            targetName: "Target",
+            sources: [
+                SourceFileGlob(
+                    glob: temporaryPath.appending(RelativePath("sources/**")).pathString,
+                    excluding: excluding,
+                    compilerFlags: nil
+                )
+            ]
+        )
 
         // Then
         let relativeSources = sources.map { $0.path.relative(to: temporaryPath).pathString }
 
-        XCTAssertEqual(Set(relativeSources), Set([
-            "sources/a.swift",
-            "sources/b.swift",
-            "sources/c/c.swift",
-        ]))
+        XCTAssertEqual(
+            Set(relativeSources),
+            Set([
+                "sources/a.swift",
+                "sources/b.swift",
+                "sources/c/c.swift",
+            ])
+        )
     }
 
     func test_sources_when_globs_are_invalid() throws {
@@ -201,16 +238,24 @@ final class TargetTests: TuistUnitTestCase {
             .init(
                 pattern: temporaryPath.appending(RelativePath("invalid/path/**")).pathString,
                 nonExistentPath: temporaryPath.appending(RelativePath("invalid/path"))
-            ),
+            )
         ]
         let error = TargetError.invalidSourcesGlob(
             targetName: "Target",
             invalidGlobs: invalidGlobs
         )
         // When
-        XCTAssertThrowsSpecific(try Target.sources(targetName: "Target", sources: [
-            SourceFileGlob(glob: temporaryPath.appending(RelativePath("invalid/path/**")).pathString),
-        ]), error)
+        XCTAssertThrowsSpecific(
+            try Target.sources(
+                targetName: "Target",
+                sources: [
+                    SourceFileGlob(
+                        glob: temporaryPath.appending(RelativePath("invalid/path/**")).pathString
+                    )
+                ]
+            ),
+            error
+        )
     }
 
     func test_supportsResources() {
@@ -255,17 +300,20 @@ final class TargetTests: TuistUnitTestCase {
 
         // Then
         let relativeResources = resources.map { $0.relative(to: temporaryPath).pathString }
-        XCTAssertEqual(relativeResources, [
-            "resources/d.xcassets",
-            "resources/d.scnassets",
-            "resources/g.bundle",
-            "resources/a.png",
-            "resources/b.jpg",
-            "resources/b.jpeg",
-            "resources/c.pdf",
-            "resources/e.ttf",
-            "resources/f.otf",
-        ])
+        XCTAssertEqual(
+            relativeResources,
+            [
+                "resources/d.xcassets",
+                "resources/d.scnassets",
+                "resources/g.bundle",
+                "resources/a.png",
+                "resources/b.jpg",
+                "resources/b.jpeg",
+                "resources/c.pdf",
+                "resources/e.ttf",
+                "resources/f.otf",
+            ]
+        )
     }
 
     func test_targetDependencyBuildFilesPlatformFilter_when_iOS_targets_mac() {

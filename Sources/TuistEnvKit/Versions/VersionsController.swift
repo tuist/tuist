@@ -1,7 +1,8 @@
 import Foundation
 import TSCBasic
-import struct TSCUtility.Version
 import TuistSupport
+
+import struct TSCUtility.Version
 
 protocol VersionsControlling: AnyObject {
     typealias Installation = (AbsolutePath) throws -> Void

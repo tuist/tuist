@@ -46,7 +46,10 @@ final class InitServiceTests: TuistUnitTestCase {
 
     func test_init_fails_when_template_not_found() throws {
         let templateName = "template"
-        XCTAssertThrowsSpecific(try subject.testRun(templateName: templateName), InitServiceError.templateNotFound(templateName))
+        XCTAssertThrowsSpecific(
+            try subject.testRun(templateName: templateName),
+            InitServiceError.templateNotFound(templateName)
+        )
     }
 
     func test_init_default_when_no_template() throws {
@@ -89,13 +92,14 @@ final class InitServiceTests: TuistUnitTestCase {
 }
 
 extension InitService {
-    func testRun(name: String? = nil,
-                 platform: String? = nil,
-                 path: String? = nil,
-                 templateName: String? = nil,
-                 requiredTemplateOptions: [String: String] = [:],
-                 optionalTemplateOptions: [String: String?] = [:]) throws
-    {
+    func testRun(
+        name: String? = nil,
+        platform: String? = nil,
+        path: String? = nil,
+        templateName: String? = nil,
+        requiredTemplateOptions: [String: String] = [:],
+        optionalTemplateOptions: [String: String?] = [:]
+    ) throws {
         try run(
             name: name,
             platform: platform,

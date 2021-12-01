@@ -16,7 +16,11 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let generatorPaths = GeneratorPaths(manifestDirectory: AbsolutePath("/"))
 
         // When
-        let got = try TuistGraph.TargetDependency.from(manifest: dependency, generatorPaths: generatorPaths, externalDependencies: [:])
+        let got = try TuistGraph.TargetDependency.from(
+            manifest: dependency,
+            generatorPaths: generatorPaths,
+            externalDependencies: [:]
+        )
 
         // Then
         XCTAssertEqual(got.count, 1)
@@ -37,7 +41,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
             manifest: dependency,
             generatorPaths: generatorPaths,
             externalDependencies: [
-                "library": [.xcframework(path: "/path.xcframework")],
+                "library": [.xcframework(path: "/path.xcframework")]
             ]
         )
 
@@ -60,7 +64,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
             manifest: dependency,
             generatorPaths: generatorPaths,
             externalDependencies: [
-                "library": [.project(target: "Target", path: "/Project")],
+                "library": [.project(target: "Target", path: "/Project")]
             ]
         )
 
@@ -87,7 +91,7 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
                 "library": [
                     .xcframework(path: "/path.xcframework"),
                     .project(target: "Target", path: "/Project"),
-                ],
+                ]
             ]
         )
 

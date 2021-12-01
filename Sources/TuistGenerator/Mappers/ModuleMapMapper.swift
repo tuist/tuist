@@ -5,8 +5,17 @@ import TuistGraph
 import TuistSupport
 
 enum ModuleMapMapperError: FatalError {
-    case invalidTargetDependency(sourceProject: AbsolutePath, sourceTarget: String, dependentTarget: String)
-    case invalidProjectTargetDependency(sourceProject: AbsolutePath, sourceTarget: String, dependentProject: AbsolutePath, dependentTarget: String)
+    case invalidTargetDependency(
+        sourceProject: AbsolutePath,
+        sourceTarget: String,
+        dependentTarget: String
+    )
+    case invalidProjectTargetDependency(
+        sourceProject: AbsolutePath,
+        sourceTarget: String,
+        dependentProject: AbsolutePath,
+        dependentTarget: String
+    )
 
     /// Error type.
     var type: ErrorType {
@@ -20,16 +29,21 @@ enum ModuleMapMapperError: FatalError {
         switch self {
         case let .invalidTargetDependency(sourceProject, sourceTarget, dependentTarget):
             return """
-            Target '\(sourceTarget)' of the project at path '\(sourceProject.pathString)' \
-            depends on a target '\(dependentTarget)' that can't be found. \
-            Please make sure your project configuration is correct.
-            """
-        case let .invalidProjectTargetDependency(sourceProject, sourceTarget, dependentProject, dependentTarget):
+                Target '\(sourceTarget)' of the project at path '\(sourceProject.pathString)' \
+                depends on a target '\(dependentTarget)' that can't be found. \
+                Please make sure your project configuration is correct.
+                """
+        case let .invalidProjectTargetDependency(
+            sourceProject,
+            sourceTarget,
+            dependentProject,
+            dependentTarget
+        ):
             return """
-            Target '\(sourceTarget)' of the project at path '\(sourceProject.pathString)' \
-            depends on a target '\(dependentTarget)' of the project at path '\(dependentProject.pathString)' that can't be found. \
-            Please make sure your project configuration is correct.
-            """
+                Target '\(sourceTarget)' of the project at path '\(sourceProject.pathString)' \
+                depends on a target '\(dependentTarget)' of the project at path '\(dependentProject.pathString)' that can't be found. \
+                Please make sure your project configuration is correct.
+                """
         }
     }
 }
@@ -49,8 +63,12 @@ public final class ModuleMapMapper: WorkspaceMapping {
 
     public init() {}
 
-    public func map(workspace: WorkspaceWithProjects) throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
-        let (projectsByPath, targetsByName) = Self.makeProjectsByPathWithTargetsByName(workspace: workspace)
+    public func map(
+        workspace: WorkspaceWithProjects
+    ) throws -> (WorkspaceWithProjects, [SideEffectDescriptor]) {
+        let (projectsByPath, targetsByName) = Self.makeProjectsByPathWithTargetsByName(
+            workspace: workspace
+        )
         var targetToModuleMaps: [TargetID: Set<AbsolutePath>] = [:]
         try workspace.projects.forEach { project in
             try project.targets.forEach { target in
@@ -66,14 +84,19 @@ public final class ModuleMapMapper: WorkspaceMapping {
         }
 
         var mappedWorkspace = workspace
-        for projectIndex in 0 ..< workspace.projects.count {
+        for projectIndex in 0..<workspace.projects.count {
             var mappedProject = workspace.projects[projectIndex]
-            for targetIndex in 0 ..< mappedProject.targets.count {
+            for targetIndex in 0..<mappedProject.targets.count {
                 var mappedTarget = mappedProject.targets[targetIndex]
-                let targetID = TargetID(projectPath: mappedProject.path, targetName: mappedTarget.name)
+                let targetID = TargetID(
+                    projectPath: mappedProject.path,
+                    targetName: mappedTarget.name
+                )
                 var mappedSettingsDictionary = mappedTarget.settings?.base ?? [:]
                 let hasModuleMap = mappedSettingsDictionary[Self.modulemapFileSetting] != nil
-                guard hasModuleMap || !(targetToModuleMaps[targetID]?.isEmpty ?? true) else { continue }
+                guard hasModuleMap || !(targetToModuleMaps[targetID]?.isEmpty ?? true) else {
+                    continue
+                }
 
                 if hasModuleMap {
                     mappedSettingsDictionary[Self.modulemapFileSetting] = nil
@@ -95,7 +118,9 @@ public final class ModuleMapMapper: WorkspaceMapping {
                     mappedSettingsDictionary[Self.otherCFlagsSetting] = updatedOtherCFlags
                 }
 
-                mappedTarget.settings = (mappedTarget.settings ?? .default).with(base: mappedSettingsDictionary)
+                mappedTarget.settings = (mappedTarget.settings ?? .default).with(
+                    base: mappedSettingsDictionary
+                )
                 mappedProject.targets[targetIndex] = mappedTarget
             }
             mappedWorkspace.projects[projectIndex] = mappedProject
@@ -103,7 +128,9 @@ public final class ModuleMapMapper: WorkspaceMapping {
         return (mappedWorkspace, [])
     }
 
-    private static func makeProjectsByPathWithTargetsByName(workspace: WorkspaceWithProjects) -> ([AbsolutePath: Project], [String: Target]) {
+    private static func makeProjectsByPathWithTargetsByName(
+        workspace: WorkspaceWithProjects
+    ) -> ([AbsolutePath: Project], [String: Target]) {
         var projectsByPath = [AbsolutePath: Project]()
         var targetsByName = [String: Target]()
         workspace.projects.forEach { project in
@@ -118,7 +145,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
     /// Calculates the set of module maps to be linked to a given target and populates the `targetToModuleMaps` dictionary.
     /// Each target must link the module map of its direct and indirect dependencies.
     /// The `targetToModuleMaps` is also used as cache to avoid recomputing the set for already computed targets.
-    private static func dependenciesModuleMaps( // swiftlint:disable:this function_body_length
+    private static func dependenciesModuleMaps(  // swiftlint:disable:this function_body_length
         workspace: WorkspaceWithProjects,
         project: Project,
         target: Target,
@@ -174,7 +201,9 @@ public final class ModuleMapMapper: WorkspaceMapping {
             )
 
             // direct dependency module map
-            if case let .string(dependencyModuleMap) = dependentTarget.settings?.base[Self.modulemapFileSetting] {
+            if case let .string(dependencyModuleMap) = dependentTarget.settings?.base[
+                Self.modulemapFileSetting
+            ] {
                 let pathString = dependentProject.path.pathString
                 let dependencyModuleMapPath = AbsolutePath(
                     dependencyModuleMap
@@ -186,7 +215,10 @@ public final class ModuleMapMapper: WorkspaceMapping {
             }
 
             // indirect dependency module maps
-            let dependentTargetID = TargetID(projectPath: dependentProject.path, targetName: dependentTarget.name)
+            let dependentTargetID = TargetID(
+                projectPath: dependentProject.path,
+                targetName: dependentTarget.name
+            )
             if let indirectDependencyModuleMap = targetToModuleMaps[dependentTargetID] {
                 dependenciesModuleMaps.formUnion(indirectDependencyModuleMap)
             }
@@ -200,7 +232,9 @@ public final class ModuleMapMapper: WorkspaceMapping {
         oldOtherSwiftFlags: SettingsDictionary.Value?,
         targetToModuleMaps: [TargetID: Set<AbsolutePath>]
     ) -> SettingsDictionary.Value? {
-        guard let dependenciesModuleMaps = targetToModuleMaps[targetID], !dependenciesModuleMaps.isEmpty else { return nil }
+        guard let dependenciesModuleMaps = targetToModuleMaps[targetID],
+            !dependenciesModuleMaps.isEmpty
+        else { return nil }
 
         var mappedOtherSwiftFlags: [String]
         switch oldOtherSwiftFlags ?? .array(["$(inherited)"]) {
@@ -225,7 +259,9 @@ public final class ModuleMapMapper: WorkspaceMapping {
         oldOtherCFlags: SettingsDictionary.Value?,
         targetToModuleMaps: [TargetID: Set<AbsolutePath>]
     ) -> SettingsDictionary.Value? {
-        guard let dependenciesModuleMaps = targetToModuleMaps[targetID], !dependenciesModuleMaps.isEmpty else { return nil }
+        guard let dependenciesModuleMaps = targetToModuleMaps[targetID],
+            !dependenciesModuleMaps.isEmpty
+        else { return nil }
 
         var mappedOtherCFlags: [String]
         switch oldOtherCFlags ?? .array(["$(inherited)"]) {
@@ -236,7 +272,9 @@ public final class ModuleMapMapper: WorkspaceMapping {
         }
 
         for moduleMap in dependenciesModuleMaps.sorted() {
-            mappedOtherCFlags.append("-fmodule-map-file=$(SRCROOT)/\(moduleMap.relative(to: targetID.projectPath))")
+            mappedOtherCFlags.append(
+                "-fmodule-map-file=$(SRCROOT)/\(moduleMap.relative(to: targetID.projectPath))"
+            )
         }
 
         return .array(mappedOtherCFlags)

@@ -5,8 +5,9 @@ import TuistCore
 import TuistCoreTesting
 import TuistGraph
 import TuistGraphTesting
-import XcodeProj
 import XCTest
+import XcodeProj
+
 @testable import TuistGenerator
 @testable import TuistSupportTesting
 
@@ -102,14 +103,17 @@ final class ProjectGroupsTests: XCTestCase {
 
         // Then
         let paths = subject.sortedMain.children.compactMap { $0.nameOrPath }
-        XCTAssertEqual(paths, [
-            "P",
-            "B",
-            "C",
-            "A",
-            "Frameworks",
-            "Products",
-        ])
+        XCTAssertEqual(
+            paths,
+            [
+                "P",
+                "B",
+                "C",
+                "A",
+                "Frameworks",
+                "Products",
+            ]
+        )
     }
 
     func test_targetFrameworks() throws {
@@ -163,7 +167,10 @@ final class ProjectGroupsTests: XCTestCase {
     }
 
     func test_projectGroupsError_description() {
-        XCTAssertEqual(ProjectGroupsError.missingGroup("abc").description, "Couldn't find group: abc")
+        XCTAssertEqual(
+            ProjectGroupsError.missingGroup("abc").description,
+            "Couldn't find group: abc"
+        )
     }
 
     func test_projectGroupsError_type() {

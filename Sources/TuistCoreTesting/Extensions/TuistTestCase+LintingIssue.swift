@@ -4,16 +4,25 @@ import TuistCore
 import TuistSupportTesting
 import XCTest
 
-public extension TuistTestCase {
+extension TuistTestCase {
     // MARK: - XCTAssertions
 
     /// Fails the test if the list of linting issues doesn't contain the given linting issue.
     /// - Parameters:
     ///   - issues: List of issues in which the issue will be checked.
     ///   - issue: Issue to be checked in the list. If it doesn't exist, the test will fail.
-    func XCTContainsLintingIssue(_ issues: [LintingIssue], _ issue: LintingIssue, file: StaticString = #file, line: UInt = #line) {
+    public func XCTContainsLintingIssue(
+        _ issues: [LintingIssue],
+        _ issue: LintingIssue,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) {
         if !issues.contains(issue) {
-            XCTFail("The list doesn't contain the issue '\(issue)' and it should", file: file, line: line)
+            XCTFail(
+                "The list doesn't contain the issue '\(issue)' and it should",
+                file: file,
+                line: line
+            )
         }
     }
 
@@ -21,9 +30,18 @@ public extension TuistTestCase {
     /// - Parameters:
     ///   - issues: List of issues in which the issue will be checked.
     ///   - issue: Issue to be checked in the list. If it doesn't exist, the test will fail.
-    func XCTDoesNotContainLintingIssue(_ issues: [LintingIssue], _ issue: LintingIssue, file: StaticString = #file, line: UInt = #line) {
+    public func XCTDoesNotContainLintingIssue(
+        _ issues: [LintingIssue],
+        _ issue: LintingIssue,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) {
         if issues.contains(issue) {
-            XCTFail("The list contains the issue '\(issue)' and it shouldn't", file: file, line: line)
+            XCTFail(
+                "The list contains the issue '\(issue)' and it shouldn't",
+                file: file,
+                line: line
+            )
         }
     }
 }

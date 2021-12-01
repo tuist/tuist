@@ -10,7 +10,9 @@ class MigrationCheckEmptyBuildSettingsService {
 
     // MARK: - Init
 
-    init(emptyBuildSettingsChecker: EmptyBuildSettingsChecking = EmptyBuildSettingsChecker()) {
+    init(
+        emptyBuildSettingsChecker: EmptyBuildSettingsChecking = EmptyBuildSettingsChecker()
+    ) {
         self.emptyBuildSettingsChecker = emptyBuildSettingsChecker
     }
 

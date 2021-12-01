@@ -7,7 +7,7 @@ class HashingFilesFilter {
 
     init() {
         filters = [
-            { $0.basename.uppercased() != ".DS_STORE" },
+            { $0.basename.uppercased() != ".DS_STORE" }
         ]
     }
 

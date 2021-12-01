@@ -21,7 +21,7 @@ let project = Project(
             infoPlist: "Tests.plist",
             sources: "AppCore/Tests/**",
             dependencies: [
-                .target(name: "AppCore"),
+                .target(name: "AppCore")
             ]
         ),
         Target(
@@ -34,8 +34,10 @@ let project = Project(
             dependencies: [
                 .target(name: "AppCore")
             ],
-            settings: .settings(base: ["CODE_SIGN_IDENTITY": "",
-                                      "CODE_SIGNING_REQUIRED": "NO"])
+            settings: .settings(base: [
+                "CODE_SIGN_IDENTITY": "",
+                "CODE_SIGNING_REQUIRED": "NO",
+            ])
         ),
         Target(
             name: "AppTests",
@@ -45,10 +47,12 @@ let project = Project(
             infoPlist: "Tests.plist",
             sources: "App/Tests/**",
             dependencies: [
-                .target(name: "App"),
+                .target(name: "App")
             ],
-            settings: .settings(base: ["CODE_SIGN_IDENTITY": "",
-                                      "CODE_SIGNING_REQUIRED": "NO"])
+            settings: .settings(base: [
+                "CODE_SIGN_IDENTITY": "",
+                "CODE_SIGNING_REQUIRED": "NO",
+            ])
         ),
         Target(
             name: "MacFramework",
@@ -58,8 +62,10 @@ let project = Project(
             deploymentTarget: .macOS(targetVersion: "10.15"),
             infoPlist: .file(path: .relativeToManifest("Info.plist")),
             sources: .paths([.relativeToManifest("MacFramework/Sources/**")]),
-            settings: .settings(base: ["CODE_SIGN_IDENTITY": "",
-                                      "CODE_SIGNING_REQUIRED": "NO"])
+            settings: .settings(base: [
+                "CODE_SIGN_IDENTITY": "",
+                "CODE_SIGNING_REQUIRED": "NO",
+            ])
         ),
         Target(
             name: "MacFrameworkTests",
@@ -70,10 +76,12 @@ let project = Project(
             infoPlist: "Tests.plist",
             sources: "MacFramework/Tests/**",
             dependencies: [
-                .target(name: "MacFramework"),
+                .target(name: "MacFramework")
             ],
-            settings: .settings(base: ["CODE_SIGN_IDENTITY": "",
-                                      "CODE_SIGNING_REQUIRED": "NO"])
+            settings: .settings(base: [
+                "CODE_SIGN_IDENTITY": "",
+                "CODE_SIGNING_REQUIRED": "NO",
+            ])
         ),
         Target(
             name: "AppUITests",
@@ -83,7 +91,7 @@ let project = Project(
             infoPlist: "Tests.plist",
             sources: "App/UITests/**",
             dependencies: [
-                .target(name: "App"),
+                .target(name: "App")
             ]
         ),
         Target(
@@ -97,8 +105,10 @@ let project = Project(
                 /* Target dependencies can be defined here */
                 /* .framework(path: "framework") */
             ],
-            settings: .settings(base: ["CODE_SIGN_IDENTITY": "",
-                                      "CODE_SIGNING_REQUIRED": "NO"])
+            settings: .settings(base: [
+                "CODE_SIGN_IDENTITY": "",
+                "CODE_SIGNING_REQUIRED": "NO",
+            ])
         ),
         Target(
             name: "App-dashUITests",
@@ -108,7 +118,7 @@ let project = Project(
             infoPlist: "Tests.plist",
             sources: "App/UITests/**",
             dependencies: [
-                .target(name: "App-dash"),
+                .target(name: "App-dash")
             ]
         ),
     ]

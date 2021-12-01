@@ -6,7 +6,10 @@ import XCTest
 
 final class XcodeErrorTests: TuistUnitTestCase {
     func test_description() {
-        XCTAssertEqual(XcodeError.infoPlistNotFound(.root).description, "Couldn't find Xcode's Info.plist at /. Make sure your Xcode installation is selected by running: sudo xcode-select -s /Applications/Xcode.app")
+        XCTAssertEqual(
+            XcodeError.infoPlistNotFound(.root).description,
+            "Couldn't find Xcode's Info.plist at /. Make sure your Xcode installation is selected by running: sudo xcode-select -s /Applications/Xcode.app"
+        )
     }
 
     func test_type() {
@@ -52,6 +55,9 @@ final class XcodeTests: TuistUnitTestCase {
         let infoPlistPath = contentsPath.appending(component: "Info.plist")
 
         // When
-        XCTAssertThrowsSpecific(try Xcode.read(path: temporaryPath), XcodeError.infoPlistNotFound(infoPlistPath))
+        XCTAssertThrowsSpecific(
+            try Xcode.read(path: temporaryPath),
+            XcodeError.infoPlistNotFound(infoPlistPath)
+        )
     }
 }

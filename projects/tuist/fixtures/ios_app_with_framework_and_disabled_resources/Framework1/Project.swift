@@ -19,6 +19,6 @@ let project = Project(
             infoPlist: "Config/Framework1-Info.plist",
             sources: "Sources/**",
             resources: ResourceFileElements(resources: resources)
-        ),
+        )
     ]
 )

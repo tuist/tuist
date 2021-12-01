@@ -23,11 +23,13 @@ final class ManifestLoaderTests: TuistTestCase {
         // Given
         let temporaryPath = try self.temporaryPath()
         let content = """
-        import ProjectDescription
-        let config = Config(generationOptions: [])
-        """
+            import ProjectDescription
+            let config = Config(generationOptions: [])
+            """
 
-        let manifestPath = temporaryPath.appending(component: Manifest.config.fileName(temporaryPath))
+        let manifestPath = temporaryPath.appending(
+            component: Manifest.config.fileName(temporaryPath)
+        )
         try content.write(
             to: manifestPath.url,
             atomically: true,
@@ -42,11 +44,13 @@ final class ManifestLoaderTests: TuistTestCase {
         // Given
         let temporaryPath = try self.temporaryPath()
         let content = """
-        import ProjectDescription
-        let plugin = Plugin(name: "TestPlugin")
-        """
+            import ProjectDescription
+            let plugin = Plugin(name: "TestPlugin")
+            """
 
-        let manifestPath = temporaryPath.appending(component: Manifest.plugin.fileName(temporaryPath))
+        let manifestPath = temporaryPath.appending(
+            component: Manifest.plugin.fileName(temporaryPath)
+        )
         try content.write(to: manifestPath.url, atomically: true, encoding: .utf8)
 
         // When
@@ -57,11 +61,13 @@ final class ManifestLoaderTests: TuistTestCase {
         // Given
         let temporaryPath = try self.temporaryPath()
         let content = """
-        import ProjectDescription
-        let project = Project(name: "tuist")
-        """
+            import ProjectDescription
+            let project = Project(name: "tuist")
+            """
 
-        let manifestPath = temporaryPath.appending(component: Manifest.project.fileName(temporaryPath))
+        let manifestPath = temporaryPath.appending(
+            component: Manifest.project.fileName(temporaryPath)
+        )
         try content.write(
             to: manifestPath.url,
             atomically: true,
@@ -79,11 +85,13 @@ final class ManifestLoaderTests: TuistTestCase {
         // Given
         let temporaryPath = try self.temporaryPath()
         let content = """
-        import ProjectDescription
-        let workspace = Workspace(name: "tuist", projects: [])
-        """
+            import ProjectDescription
+            let workspace = Workspace(name: "tuist", projects: [])
+            """
 
-        let manifestPath = temporaryPath.appending(component: Manifest.workspace.fileName(temporaryPath))
+        let manifestPath = temporaryPath.appending(
+            component: Manifest.workspace.fileName(temporaryPath)
+        )
         try content.write(
             to: manifestPath.url,
             atomically: true,
@@ -102,13 +110,13 @@ final class ManifestLoaderTests: TuistTestCase {
         let temporaryPath = try self.temporaryPath().appending(component: "folder")
         try fileHandler.createFolder(temporaryPath)
         let content = """
-        import ProjectDescription
+            import ProjectDescription
 
-        let template = Template(
-            description: "Template description",
-            items: []
-        )
-        """
+            let template = Template(
+                description: "Template description",
+                items: []
+            )
+            """
 
         let manifestPath = temporaryPath.appending(component: "folder.swift")
         try content.write(
@@ -128,11 +136,13 @@ final class ManifestLoaderTests: TuistTestCase {
         // Given
         let temporaryPath = try self.temporaryPath()
         let content = """
-        import ABC
-        let project
-        """
+            import ABC
+            let project
+            """
 
-        let manifestPath = temporaryPath.appending(component: Manifest.project.fileName(temporaryPath))
+        let manifestPath = temporaryPath.appending(
+            component: Manifest.project.fileName(temporaryPath)
+        )
         try content.write(
             to: manifestPath.url,
             atomically: true,
@@ -150,7 +160,10 @@ final class ManifestLoaderTests: TuistTestCase {
         XCTAssertThrowsError(
             try subject.loadProject(at: temporaryPath)
         ) { error in
-            XCTAssertEqual(error as? ManifestLoaderError, ManifestLoaderError.manifestNotFound(.project, temporaryPath))
+            XCTAssertEqual(
+                error as? ManifestLoaderError,
+                ManifestLoaderError.manifestNotFound(.project, temporaryPath)
+            )
         }
     }
 

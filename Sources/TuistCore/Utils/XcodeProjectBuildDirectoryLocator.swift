@@ -22,7 +22,9 @@ public protocol XcodeProjectBuildDirectoryLocating {
 public final class XcodeProjectBuildDirectoryLocator: XcodeProjectBuildDirectoryLocating {
     private let derivedDataLocator: DerivedDataLocating
 
-    public init(derivedDataLocator: DerivedDataLocating = DerivedDataLocator()) {
+    public init(
+        derivedDataLocator: DerivedDataLocating = DerivedDataLocator()
+    ) {
         self.derivedDataLocator = derivedDataLocator
     }
 

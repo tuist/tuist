@@ -26,11 +26,13 @@ enum HTTPClientError: FatalError {
     var description: String {
         switch self {
         case let .clientError(url, error):
-            return "The request to \(url.absoluteString) errored with: \(error.localizedDescription)"
+            return
+                "The request to \(url.absoluteString) errored with: \(error.localizedDescription)"
         case let .noData(url):
             return "The request to \(url.absoluteString) returned no data"
         case let .copyFileError(path, error):
-            return "The file could not be copied into \(path.pathString): \(error.localizedDescription)"
+            return
+                "The file could not be copied into \(path.pathString): \(error.localizedDescription)"
         case let .missingResource(url):
             return "Couldn't locate resource downloaded from \(url.absoluteString)"
         }

@@ -47,11 +47,11 @@ extension Version: Comparable {
         }
 
         guard lhs.prereleaseIdentifiers.count > 0 else {
-            return false // Non-prerelease lhs >= potentially prerelease rhs
+            return false  // Non-prerelease lhs >= potentially prerelease rhs
         }
 
         guard rhs.prereleaseIdentifiers.count > 0 else {
-            return true // Prerelease lhs < non-prerelease rhs
+            return true  // Prerelease lhs < non-prerelease rhs
         }
 
         let zippedIdentifiers = zip(lhs.prereleaseIdentifiers, rhs.prereleaseIdentifiers)
@@ -66,7 +66,7 @@ extension Version: Comparable {
             switch (typedLhsIdentifier, typedRhsIdentifier) {
             case let (int1 as Int, int2 as Int): return int1 < int2
             case let (string1 as String, string2 as String): return string1 < string2
-            case (is Int, is String): return true // Int prereleases < String prereleases
+            case (is Int, is String): return true  // Int prereleases < String prereleases
             case (is String, is Int): return false
             default:
                 return false
@@ -90,18 +90,21 @@ extension Version: CustomStringConvertible {
     }
 }
 
-public extension Version {
+extension Version {
     /// Create a version object from string.
     ///
     /// - Parameters:
     ///   - string: The string to parse.
-    init?(string: String) {
+    public init?(
+        string: String
+    ) {
         let prereleaseStartIndex = string.firstIndex(of: "-")
         let metadataStartIndex = string.firstIndex(of: "+")
 
         let requiredEndIndex = prereleaseStartIndex ?? metadataStartIndex ?? string.endIndex
         let requiredCharacters = string.prefix(upTo: requiredEndIndex)
-        let requiredComponents = requiredCharacters
+        let requiredComponents =
+            requiredCharacters
             .split(separator: ".", maxSplits: 2, omittingEmptySubsequences: false)
             .map(String.init).compactMap { Int($0) }.filter { $0 >= 0 }
 
@@ -113,7 +116,7 @@ public extension Version {
 
         func identifiers(start: String.Index?, end: String.Index) -> [String] {
             guard let start = start else { return [] }
-            let identifiers = string[string.index(after: start) ..< end]
+            let identifiers = string[string.index(after: start)..<end]
             return identifiers.split(separator: ".").map(String.init)
         }
 
@@ -129,7 +132,9 @@ public extension Version {
 }
 
 extension Version: ExpressibleByStringInterpolation {
-    public init(stringLiteral value: String) {
+    public init(
+        stringLiteral value: String
+    ) {
         guard let version = Version(string: value) else {
             fatalError("\(value) is not a valid version")
         }
@@ -143,15 +148,19 @@ extension Version: Codable {
         try container.encode(description)
     }
 
-    public init(from decoder: Decoder) throws {
+    public init(
+        from decoder: Decoder
+    ) throws {
         let container = try decoder.singleValueContainer()
         let string = try container.decode(String.self)
 
         guard let version = Version(string: string) else {
-            throw DecodingError.dataCorrupted(.init(
-                codingPath: decoder.codingPath,
-                debugDescription: "Invalid version string \(string)"
-            ))
+            throw DecodingError.dataCorrupted(
+                .init(
+                    codingPath: decoder.codingPath,
+                    debugDescription: "Invalid version string \(string)"
+                )
+            )
         }
 
         self = version
@@ -188,7 +197,9 @@ extension Range where Bound == Version {
             // At this point, one of the bounds contains prerelease identifiers.
             //
             // Reject 2.0.0-alpha when upper bound is 2.0.0.
-            if upperBound.prereleaseIdentifiers.isEmpty, upperBound.isEqualWithoutPrerelease(version) {
+            if upperBound.prereleaseIdentifiers.isEmpty,
+                upperBound.isEqualWithoutPrerelease(version)
+            {
                 return false
             }
         }

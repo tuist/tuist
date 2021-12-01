@@ -1,9 +1,9 @@
-import ProjectAutomation
 import Foundation
+import ProjectAutomation
 
 let task = Task(
     options: [
-        .option("file-name"),
+        .option("file-name")
     ]
 ) { options in
     let fileName = options["file-name"] ?? "file"

@@ -4,12 +4,18 @@ import TuistGraph
 import TuistSupport
 
 public protocol ProjectDescriptionHelpersBuilderFactoring {
-    func projectDescriptionHelpersBuilder(cacheDirectory: AbsolutePath) -> ProjectDescriptionHelpersBuilding
+    func projectDescriptionHelpersBuilder(
+        cacheDirectory: AbsolutePath
+    ) -> ProjectDescriptionHelpersBuilding
 }
 
-public final class ProjectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring {
+public final class ProjectDescriptionHelpersBuilderFactory:
+    ProjectDescriptionHelpersBuilderFactoring
+{
     public init() {}
-    public func projectDescriptionHelpersBuilder(cacheDirectory: AbsolutePath) -> ProjectDescriptionHelpersBuilding {
+    public func projectDescriptionHelpersBuilder(
+        cacheDirectory: AbsolutePath
+    ) -> ProjectDescriptionHelpersBuilding {
         ProjectDescriptionHelpersBuilder(cacheDirectory: cacheDirectory)
     }
 }

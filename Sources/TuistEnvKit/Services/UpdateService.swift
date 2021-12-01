@@ -5,7 +5,9 @@ final class UpdateService {
     /// Updater instance that runs the update.
     private let updater: Updating
 
-    init(updater: Updating = Updater()) {
+    init(
+        updater: Updating = Updater()
+    ) {
         self.updater = updater
     }
 

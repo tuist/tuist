@@ -11,11 +11,12 @@ public struct BuildAction: Equatable, Codable {
 
     // MARK: - Init
 
-    public init(targets: [TargetReference] = [],
-                preActions: [ExecutionAction] = [],
-                postActions: [ExecutionAction] = [],
-                runPostActionsOnFailure: Bool = false)
-    {
+    public init(
+        targets: [TargetReference] = [],
+        preActions: [ExecutionAction] = [],
+        postActions: [ExecutionAction] = [],
+        runPostActionsOnFailure: Bool = false
+    ) {
         self.targets = targets
         self.preActions = preActions
         self.postActions = postActions

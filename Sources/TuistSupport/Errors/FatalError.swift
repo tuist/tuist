@@ -19,7 +19,9 @@ public struct UnhandledError: FatalError {
     /// Default initializer
     ///
     /// - Parameter error: Error that will be decorated.
-    public init(error: Error) {
+    public init(
+        error: Error
+    ) {
         self.error = error
     }
 

@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TuistSupport
 import XCTest
+
 @testable import TuistEnvKit
 @testable import TuistSupportTesting
 
@@ -54,6 +55,8 @@ final class UninstallServiceTests: TuistUnitTestCase {
 
         try subject.run(version: "3.2.1")
 
-        XCTAssertPrinterOutputContains("Version 3.2.1 cannot be uninstalled because it's not installed")
+        XCTAssertPrinterOutputContains(
+            "Version 3.2.1 cannot be uninstalled because it's not installed"
+        )
     }
 }

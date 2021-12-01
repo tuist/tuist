@@ -31,10 +31,14 @@ extension ProjectOption {
         case wrapsLines
     }
 
-    public init(from decoder: Decoder) throws {
+    public init(
+        from decoder: Decoder
+    ) throws {
         let container = try decoder.container(keyedBy: OptionsCodingKeys.self)
 
-        if container.allKeys.contains(.textSettings), try container.decodeNil(forKey: .textSettings) == false {
+        if container.allKeys.contains(.textSettings),
+            try container.decodeNil(forKey: .textSettings) == false
+        {
             let textSettingsContainer = try container.nestedContainer(
                 keyedBy: TextSettingsKeys.self,
                 forKey: .textSettings
@@ -42,12 +46,20 @@ extension ProjectOption {
 
             self = .textSettings(
                 usesTabs: try textSettingsContainer.decodeIfPresent(Bool.self, forKey: .usesTabs),
-                indentWidth: try textSettingsContainer.decodeIfPresent(UInt.self, forKey: .indentWidth),
+                indentWidth: try textSettingsContainer.decodeIfPresent(
+                    UInt.self,
+                    forKey: .indentWidth
+                ),
                 tabWidth: try textSettingsContainer.decodeIfPresent(UInt.self, forKey: .tabWidth),
-                wrapsLines: try textSettingsContainer.decodeIfPresent(Bool.self, forKey: .wrapsLines)
+                wrapsLines: try textSettingsContainer.decodeIfPresent(
+                    Bool.self,
+                    forKey: .wrapsLines
+                )
             )
         } else {
-            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown enum case"))
+            throw DecodingError.dataCorrupted(
+                .init(codingPath: decoder.codingPath, debugDescription: "Unknown enum case")
+            )
         }
     }
 
@@ -56,7 +68,10 @@ extension ProjectOption {
 
         switch self {
         case let .textSettings(usesTabs, indentWidth, tabWidth, wrapsLines):
-            var associatedValues = container.nestedContainer(keyedBy: TextSettingsKeys.self, forKey: .textSettings)
+            var associatedValues = container.nestedContainer(
+                keyedBy: TextSettingsKeys.self,
+                forKey: .textSettings
+            )
             try associatedValues.encodeIfPresent(usesTabs, forKey: .usesTabs)
             try associatedValues.encodeIfPresent(indentWidth, forKey: .indentWidth)
             try associatedValues.encodeIfPresent(tabWidth, forKey: .tabWidth)

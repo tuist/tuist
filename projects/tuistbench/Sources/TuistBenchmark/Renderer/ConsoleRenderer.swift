@@ -3,7 +3,9 @@ import Foundation
 final class ConsoleRenderer: Renderer {
     private let deltaThreshold: TimeInterval
 
-    init(deltaThreshold: TimeInterval) {
+    init(
+        deltaThreshold: TimeInterval
+    ) {
         self.deltaThreshold = deltaThreshold
     }
 
@@ -19,15 +21,17 @@ final class ConsoleRenderer: Renderer {
         let cold = format(result.coldRuns.average())
         let warm = format(result.warmRuns.average())
 
-        print("""
+        print(
+            """
 
-            Fixture       : \(result.fixture)
-            Runs          : \(result.coldRuns.count)
-            Result
-                - cold : \(cold)s
-                - warm : \(warm)s
+                Fixture       : \(result.fixture)
+                Runs          : \(result.coldRuns.count)
+                Result
+                    - cold : \(cold)s
+                    - warm : \(warm)s
 
-        """)
+            """
+        )
     }
 
     private func render(result: BenchmarkResult) {
@@ -48,14 +52,16 @@ final class ConsoleRenderer: Renderer {
             threshold: deltaThreshold
         )
 
-        print("""
+        print(
+            """
 
-            Fixture       : \(result.fixture)
-            Runs          : \(result.results.coldRuns.count)
-            Result
-                - cold : \(cold)s  vs  \(coldReference)s (\(coldDelta))
-                - warm : \(warm)s  vs  \(warmReference)s (\(warmDelta))
+                Fixture       : \(result.fixture)
+                Runs          : \(result.results.coldRuns.count)
+                Result
+                    - cold : \(cold)s  vs  \(coldReference)s (\(coldDelta))
+                    - warm : \(warm)s  vs  \(warmReference)s (\(warmDelta))
 
-        """)
+            """
+        )
     }
 }

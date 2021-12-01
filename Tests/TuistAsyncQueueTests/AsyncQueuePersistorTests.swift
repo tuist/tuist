@@ -35,13 +35,17 @@ final class AsyncQueuePersistorTests: TuistUnitTestCase {
         let gotEvent = try XCTUnwrap(got?.first)
         XCTAssertEqual(gotEvent.dispatcherId, "dispatcher")
         XCTAssertEqual(gotEvent.id, event.id)
-        let normalizedDate = Date(timeIntervalSince1970: Double(Int(Double(event.date.timeIntervalSince1970))))
+        let normalizedDate = Date(
+            timeIntervalSince1970: Double(Int(Double(event.date.timeIntervalSince1970)))
+        )
         XCTAssertEqual(gotEvent.date, normalizedDate)
     }
 
     func test_write_whenDirectoryDoesntExist_itCreatesDirectory() throws {
         let temporaryDirectory = try! temporaryPath()
-        subject = AsyncQueuePersistor(directory: temporaryDirectory.appending(RelativePath("test/")))
+        subject = AsyncQueuePersistor(
+            directory: temporaryDirectory.appending(RelativePath("test/"))
+        )
 
         // Given
         let event = AnyAsyncQueueEvent(dispatcherId: "dispatcher")
@@ -54,7 +58,9 @@ final class AsyncQueuePersistorTests: TuistUnitTestCase {
         let gotEvent = try XCTUnwrap(got?.first)
         XCTAssertEqual(gotEvent.dispatcherId, "dispatcher")
         XCTAssertEqual(gotEvent.id, event.id)
-        let normalizedDate = Date(timeIntervalSince1970: Double(Int(Double(event.date.timeIntervalSince1970))))
+        let normalizedDate = Date(
+            timeIntervalSince1970: Double(Int(Double(event.date.timeIntervalSince1970)))
+        )
         XCTAssertEqual(gotEvent.date, normalizedDate)
     }
 

@@ -49,7 +49,10 @@ final class CloudHTTPRequestAuthenticatorTests: TuistUnitTestCase {
         ciChecker.isCIStub = false
         let token = "TOKEN"
         let credentials = Credentials(token: token, account: "test")
-        try credentialsStore.store(credentials: credentials, serverURL: URL(string: "https://cloud.tuist.io")!)
+        try credentialsStore.store(
+            credentials: credentials,
+            serverURL: URL(string: "https://cloud.tuist.io")!
+        )
         let request = URLRequest(url: URL(string: "https://cloud.tuist.io/path")!)
 
         // When

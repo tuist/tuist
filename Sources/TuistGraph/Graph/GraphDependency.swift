@@ -168,14 +168,19 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
     }
 
     // swiftlint:disable:next function_body_length
-    public init(from decoder: Decoder) throws {
+    public init(
+        from decoder: Decoder
+    ) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let kind = try container.decode(Kind.self, forKey: .kind)
         switch kind {
         case .xcframework:
             let path = try container.decode(AbsolutePath.self, forKey: .path)
             let infoPlist = try container.decode(XCFrameworkInfoPlist.self, forKey: .infoPlist)
-            let primaryBinaryPath = try container.decode(AbsolutePath.self, forKey: .primaryBinaryPath)
+            let primaryBinaryPath = try container.decode(
+                AbsolutePath.self,
+                forKey: .primaryBinaryPath
+            )
             let linking = try container.decode(BinaryLinking.self, forKey: .linking)
             self = .xcframework(
                 path: path,
@@ -187,9 +192,15 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
             let path = try container.decode(AbsolutePath.self, forKey: .path)
             let binaryPath = try container.decode(AbsolutePath.self, forKey: .binaryPath)
             let dsymPath = try container.decodeIfPresent(AbsolutePath.self, forKey: .dsymPath)
-            let bcsymbolmapPaths = try container.decode([AbsolutePath].self, forKey: .bcsymbolmapPaths)
+            let bcsymbolmapPaths = try container.decode(
+                [AbsolutePath].self,
+                forKey: .bcsymbolmapPaths
+            )
             let linking = try container.decode(BinaryLinking.self, forKey: .linking)
-            let architectures = try container.decode([BinaryArchitecture].self, forKey: .architectures)
+            let architectures = try container.decode(
+                [BinaryArchitecture].self,
+                forKey: .architectures
+            )
             let isCarthage = try container.decode(Bool.self, forKey: .isCarthage)
             self = .framework(
                 path: path,
@@ -204,8 +215,14 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
             let path = try container.decode(AbsolutePath.self, forKey: .path)
             let publicHeaders = try container.decode(AbsolutePath.self, forKey: .publicHeaders)
             let linking = try container.decode(BinaryLinking.self, forKey: .linking)
-            let architectures = try container.decode([BinaryArchitecture].self, forKey: .architectures)
-            let swiftModuleMap = try container.decodeIfPresent(AbsolutePath.self, forKey: .swiftModuleMap)
+            let architectures = try container.decode(
+                [BinaryArchitecture].self,
+                forKey: .architectures
+            )
+            let swiftModuleMap = try container.decodeIfPresent(
+                AbsolutePath.self,
+                forKey: .swiftModuleMap
+            )
             self = .library(
                 path: path,
                 publicHeaders: publicHeaders,
@@ -248,7 +265,15 @@ public enum GraphDependency: Hashable, CustomStringConvertible, Comparable, Coda
             try container.encode(infoPlist, forKey: .infoPlist)
             try container.encode(primaryBinaryPath, forKey: .primaryBinaryPath)
             try container.encode(linking, forKey: .linking)
-        case let .framework(path, binaryPath, dsymPath, bcsymbolmapPaths, linking, architectures, isCarthage):
+        case let .framework(
+            path,
+            binaryPath,
+            dsymPath,
+            bcsymbolmapPaths,
+            linking,
+            architectures,
+            isCarthage
+        ):
             try container.encode(Kind.framework, forKey: .kind)
             try container.encode(path, forKey: .path)
             try container.encode(binaryPath, forKey: .binaryPath)

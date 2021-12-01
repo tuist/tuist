@@ -22,7 +22,11 @@ public struct SchemeDescriptor {
     /// Whether the scheme is hidden or not.
     public var hidden: Bool
 
-    public init(xcScheme: XCScheme, shared: Bool, hidden: Bool) {
+    public init(
+        xcScheme: XCScheme,
+        shared: Bool,
+        hidden: Bool
+    ) {
         self.xcScheme = xcScheme
         self.shared = shared
         self.hidden = hidden

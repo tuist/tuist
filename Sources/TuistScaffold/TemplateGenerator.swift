@@ -12,19 +12,22 @@ public protocol TemplateGenerating {
     ///     - template: Template we are generating
     ///     - destinationPath: Path of directory where files should be generated to
     ///     - attributes: Attributes from user input
-    func generate(template: Template,
-                  to destinationPath: AbsolutePath,
-                  attributes: [String: String]) throws
+    func generate(
+        template: Template,
+        to destinationPath: AbsolutePath,
+        attributes: [String: String]
+    ) throws
 }
 
 public final class TemplateGenerator: TemplateGenerating {
     // Public initializer
     public init() {}
 
-    public func generate(template: Template,
-                         to destinationPath: AbsolutePath,
-                         attributes: [String: String]) throws
-    {
+    public func generate(
+        template: Template,
+        to destinationPath: AbsolutePath,
+        attributes: [String: String]
+    ) throws {
         let renderedItems = renderItems(
             template: template,
             attributes: attributes
@@ -44,19 +47,26 @@ public final class TemplateGenerator: TemplateGenerating {
     // MARK: - Helpers
 
     /// Renders items' paths in format  path_to_dir/{{ attribute_name }} with `attributes`
-    private func renderItems(template: Template,
-                             attributes: [String: String]) -> [Template.Item]
-    {
+    private func renderItems(
+        template: Template,
+        attributes: [String: String]
+    ) -> [Template.Item] {
         attributes.reduce(template.items) { items, attribute in
             items.map {
-                let path = RelativePath($0.path.pathString.replacingOccurrences(of: "{{ \(attribute.key) }}", with: attribute.value))
+                let path = RelativePath(
+                    $0.path.pathString.replacingOccurrences(
+                        of: "{{ \(attribute.key) }}",
+                        with: attribute.value
+                    )
+                )
 
                 var contents = $0.contents
                 if case let Template.Contents.file(path) = contents {
                     contents = .file(
                         AbsolutePath(
                             path.pathString.replacingOccurrences(
-                                of: "{{ \(attribute.key) }}", with: attribute.value
+                                of: "{{ \(attribute.key) }}",
+                                with: attribute.value
                             )
                         )
                     )
@@ -68,9 +78,10 @@ public final class TemplateGenerator: TemplateGenerating {
     }
 
     /// Generate all necessary directories
-    private func generateDirectories(renderedItems: [Template.Item],
-                                     destinationPath: AbsolutePath) throws
-    {
+    private func generateDirectories(
+        renderedItems: [Template.Item],
+        destinationPath: AbsolutePath
+    ) throws {
         try renderedItems
             .map(\.path)
             .map {
@@ -83,10 +94,11 @@ public final class TemplateGenerator: TemplateGenerating {
     }
 
     /// Generate all `renderedItems`
-    private func generateItems(renderedItems: [Template.Item],
-                               attributes: [String: String],
-                               destinationPath: AbsolutePath) throws
-    {
+    private func generateItems(
+        renderedItems: [Template.Item],
+        attributes: [String: String],
+        destinationPath: AbsolutePath
+    ) throws {
         let environment = stencilSwiftEnvironment()
         try renderedItems.forEach {
             let renderedContents: String?
@@ -108,7 +120,10 @@ public final class TemplateGenerator: TemplateGenerating {
                     renderedContents = fileContents
                 }
             case let .directory(path):
-                let destinationDirectoryPath = destinationPath.appending(components: $0.path.pathString, path.basename)
+                let destinationDirectoryPath = destinationPath.appending(
+                    components: $0.path.pathString,
+                    path.basename
+                )
                 // workaround for creating folder tree of destinationDirectoryPath
                 if !FileHandler.shared.exists(destinationDirectoryPath.parentDirectory) {
                     try FileHandler.shared.createFolder(destinationDirectoryPath.parentDirectory)
@@ -120,7 +135,9 @@ public final class TemplateGenerator: TemplateGenerating {
                 renderedContents = nil
             }
             // Generate file only when it has some content
-            guard let rendered = renderedContents, !rendered.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            guard let rendered = renderedContents,
+                !rendered.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            else { return }
             try FileHandler.shared.write(
                 rendered,
                 path: destinationPath.appending($0.path),

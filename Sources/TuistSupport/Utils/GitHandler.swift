@@ -57,7 +57,15 @@ public final class GitHandler: GitHandling {
     public func checkout(id: String, in path: AbsolutePath?) throws {
         if let path = path {
             let gitDirectory = path.appending(component: ".git")
-            try run(command: "git", "--git-dir", gitDirectory.pathString, "--work-tree", path.pathString, "checkout", id)
+            try run(
+                command: "git",
+                "--git-dir",
+                gitDirectory.pathString,
+                "--work-tree",
+                path.pathString,
+                "checkout",
+                id
+            )
         } else {
             try run(command: "git", "checkout", id)
         }

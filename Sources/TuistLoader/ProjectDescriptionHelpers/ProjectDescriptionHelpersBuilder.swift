@@ -55,7 +55,8 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
     ///   - cacheDirectory: Path to the cache directory.
     ///   - helpersDirectoryLocating: Instance to locate the helpers directory.
     public init(
-        projectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing = ProjectDescriptionHelpersHasher(),
+        projectDescriptionHelpersHasher: ProjectDescriptionHelpersHashing =
+            ProjectDescriptionHelpersHasher(),
         cacheDirectory: AbsolutePath,
         helpersDirectoryLocator: HelpersDirectoryLocating = HelpersDirectoryLocator()
     ) {
@@ -92,7 +93,11 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         projectDescriptionHelperPlugins: [ProjectDescriptionHelpersPlugin]
     ) throws -> [ProjectDescriptionHelpersModule] {
         let pluginHelpers = try projectDescriptionHelperPlugins.map {
-            try buildHelpers(name: $0.name, in: $0.path, projectDescriptionSearchPaths: projectDescriptionSearchPaths)
+            try buildHelpers(
+                name: $0.name,
+                in: $0.path,
+                projectDescriptionSearchPaths: projectDescriptionSearchPaths
+            )
         }
 
         return pluginHelpers
@@ -103,7 +108,9 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         projectDescriptionSearchPaths: ProjectDescriptionSearchPaths,
         customProjectDescriptionHelperModules: [ProjectDescriptionHelpersModule]
     ) throws -> ProjectDescriptionHelpersModule? {
-        guard let tuistHelpersDirectory = helpersDirectoryLocator.locate(at: path) else { return nil }
+        guard let tuistHelpersDirectory = helpersDirectoryLocator.locate(at: path) else {
+            return nil
+        }
         return try buildHelpers(
             name: Self.defaultHelpersName,
             in: tuistHelpersDirectory,
@@ -140,7 +147,10 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         let helpersModuleCachePath = helpersCachePath.appending(component: hash)
         let dylibName = "lib\(name).dylib"
         let modulePath = helpersModuleCachePath.appending(component: dylibName)
-        let projectDescriptionHelpersModule = ProjectDescriptionHelpersModule(name: name, path: modulePath)
+        let projectDescriptionHelpersModule = ProjectDescriptionHelpersModule(
+            name: name,
+            path: modulePath
+        )
 
         builtHelpers[path] = projectDescriptionHelpersModule
 
@@ -164,7 +174,11 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
             customProjectDescriptionHelperModules: customProjectDescriptionHelperModules
         )
 
-        try System.shared.runAndPrint(command, verbose: false, environment: Environment.shared.manifestLoadingVariables)
+        try System.shared.runAndPrint(
+            command,
+            verbose: false,
+            environment: Environment.shared.manifestLoadingVariables
+        )
 
         return projectDescriptionHelpersModule
     }
@@ -183,7 +197,8 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
             "/usr/bin/xcrun", "swiftc",
             "-module-name", moduleName,
             "-emit-module",
-            "-emit-module-path", outputDirectory.appending(component: "\(moduleName).swiftmodule").pathString,
+            "-emit-module-path",
+            outputDirectory.appending(component: "\(moduleName).swiftmodule").pathString,
             "-parse-as-library",
             "-emit-library",
             "-suppress-warnings",
@@ -193,13 +208,16 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
             "-working-directory", outputDirectory.pathString,
         ]
 
-        let helperModuleCommands = customProjectDescriptionHelperModules
-            .flatMap { [
-                "-I", $0.path.parentDirectory.pathString,
-                "-L", $0.path.parentDirectory.pathString,
-                "-F", $0.path.parentDirectory.pathString,
-                "-l\($0.name)",
-            ] }
+        let helperModuleCommands =
+            customProjectDescriptionHelperModules
+            .flatMap {
+                [
+                    "-I", $0.path.parentDirectory.pathString,
+                    "-L", $0.path.parentDirectory.pathString,
+                    "-F", $0.path.parentDirectory.pathString,
+                    "-l\($0.name)",
+                ]
+            }
 
         command.append(contentsOf: helperModuleCommands)
 

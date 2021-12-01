@@ -44,7 +44,9 @@ final class WorkspaceStructureGenerator: WorkspaceStructureGenerating {
         )
     }
 
-    private func directoryGraphToWorkspaceStructureElement(content: DirectoryStructure.Node) -> WorkspaceStructure.Element? {
+    private func directoryGraphToWorkspaceStructureElement(
+        content: DirectoryStructure.Node
+    ) -> WorkspaceStructure.Element? {
         switch content {
         case let .file(file):
             return .file(path: file)
@@ -73,11 +75,12 @@ private class DirectoryStructure {
         ".xcodeproj",
     ]
 
-    init(path: AbsolutePath,
-         projects: [AbsolutePath],
-         files: [FileElement],
-         fileHandler: FileHandling = FileHandler.shared)
-    {
+    init(
+        path: AbsolutePath,
+        projects: [AbsolutePath],
+        files: [FileElement],
+        fileHandler: FileHandling = FileHandler.shared
+    ) {
         self.path = path
         self.projects = projects
         self.files = files
@@ -143,16 +146,20 @@ extension DirectoryStructure {
         var nodes: [Node] = []
         private var directoryCache: [AbsolutePath: Graph] = [:]
 
-        required init(arrayLiteral elements: DirectoryStructure.Node...) {
+        required init(
+            arrayLiteral elements: DirectoryStructure.Node...
+        ) {
             nodes = elements
-            directoryCache = Dictionary(uniqueKeysWithValues: nodes.compactMap {
-                switch $0 {
-                case let .directory(path, graph):
-                    return (path, graph)
-                default:
-                    return nil
+            directoryCache = Dictionary(
+                uniqueKeysWithValues: nodes.compactMap {
+                    switch $0 {
+                    case let .directory(path, graph):
+                        return (path, graph)
+                    default:
+                        return nil
+                    }
                 }
-            })
+            )
         }
 
         @discardableResult
@@ -177,9 +184,10 @@ extension DirectoryStructure {
             nodes.debugDescription
         }
 
-        static func == (lhs: DirectoryStructure.Graph,
-                        rhs: DirectoryStructure.Graph) -> Bool
-        {
+        static func == (
+            lhs: DirectoryStructure.Graph,
+            rhs: DirectoryStructure.Graph
+        ) -> Bool {
             lhs.nodes == rhs.nodes
         }
     }

@@ -31,15 +31,20 @@ final class IDETemplateMacrosMapperTests: XCTestCase {
         // Then
         XCTAssertEqual(got, project)
 
-        XCTAssertEqual(sideEffects, [
-            .file(
-                .init(
-                    path: project.xcodeProjPath.appending(RelativePath("xcshareddata/IDETemplateMacros.plist")),
-                    contents: try PropertyListEncoder().encode(templateMacros),
-                    state: .present
+        XCTAssertEqual(
+            sideEffects,
+            [
+                .file(
+                    .init(
+                        path: project.xcodeProjPath.appending(
+                            RelativePath("xcshareddata/IDETemplateMacros.plist")
+                        ),
+                        contents: try PropertyListEncoder().encode(templateMacros),
+                        state: .present
+                    )
                 )
-            ),
-        ])
+            ]
+        )
     }
 
     func test_project_map_empty_template_macros() throws {
@@ -66,15 +71,20 @@ final class IDETemplateMacrosMapperTests: XCTestCase {
         // Then
         XCTAssertEqual(got, workspaceWithProjects)
 
-        XCTAssertEqual(sideEffects, [
-            .file(
-                .init(
-                    path: workspace.xcWorkspacePath.appending(RelativePath("xcshareddata/IDETemplateMacros.plist")),
-                    contents: try PropertyListEncoder().encode(templateMacros),
-                    state: .present
+        XCTAssertEqual(
+            sideEffects,
+            [
+                .file(
+                    .init(
+                        path: workspace.xcWorkspacePath.appending(
+                            RelativePath("xcshareddata/IDETemplateMacros.plist")
+                        ),
+                        contents: try PropertyListEncoder().encode(templateMacros),
+                        state: .present
+                    )
                 )
-            ),
-        ])
+            ]
+        )
     }
 
     func test_workspace_map_empty_template_macros() throws {

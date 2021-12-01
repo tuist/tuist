@@ -14,7 +14,8 @@ struct LintCodeCommand: ParsableCommand {
 
     @Option(
         name: .shortAndLong,
-        help: "The path to the directory that contains the workspace or project whose code will be linted.",
+        help:
+            "The path to the directory that contains the workspace or project whose code will be linted.",
         completion: .directory
     )
     var path: String?

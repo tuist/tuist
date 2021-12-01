@@ -5,8 +5,8 @@ import TuistCoreTesting
 import TuistGraph
 import TuistGraphTesting
 import TuistSupport
-import XcodeProj
 import XCTest
+import XcodeProj
 
 @testable import TuistGenerator
 @testable import TuistSupportTesting
@@ -30,7 +30,11 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Given
         let projectPath = AbsolutePath("/somepath/Workspace/Projects/Project")
         let xcodeProjPath = projectPath.appending(component: "Project.xcodeproj")
-        let scheme = Scheme.test(buildAction: BuildAction(targets: [TargetReference(projectPath: projectPath, name: "App")]))
+        let scheme = Scheme.test(
+            buildAction: BuildAction(targets: [
+                TargetReference(projectPath: projectPath, name: "App")
+            ])
+        )
 
         let app = Target.test(name: "App", product: .app)
         let targets = [app]
@@ -43,8 +47,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             projects: [project.path: project],
             targets: [
                 project.path: [
-                    app.name: app,
-                ],
+                    app.name: app
+                ]
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -55,7 +59,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             graphTraverser: graphTraverser,
             rootPath: AbsolutePath("/somepath/Workspace"),
             generatedProjects: [
-                xcodeProjPath: generatedProject(targets: targets, projectPath: "\(xcodeProjPath)"),
+                xcodeProjPath: generatedProject(targets: targets, projectPath: "\(xcodeProjPath)")
             ]
         )
 
@@ -66,7 +70,10 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let buildableReference = entry.buildableReference
         XCTAssertEqual(entry.buildFor, [.analyzing, .archiving, .profiling, .running, .testing])
 
-        XCTAssertEqual(buildableReference.referencedContainer, "container:Projects/Project/Project.xcodeproj")
+        XCTAssertEqual(
+            buildableReference.referencedContainer,
+            "container:Projects/Project/Project.xcodeproj"
+        )
         XCTAssertEqual(buildableReference.buildableName, "App.app")
         XCTAssertEqual(buildableReference.blueprintName, "App")
         XCTAssertEqual(buildableReference.buildableIdentifier, "primary")
@@ -79,7 +86,11 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Given
         let projectPath = AbsolutePath("/somepath/Workspace/Projects/Project")
         let xcodeProjPath = AbsolutePath("/differentpath/Workspace/project.xcodeproj")
-        let scheme = Scheme.test(buildAction: BuildAction(targets: [TargetReference(projectPath: projectPath, name: "App")]))
+        let scheme = Scheme.test(
+            buildAction: BuildAction(targets: [
+                TargetReference(projectPath: projectPath, name: "App")
+            ])
+        )
 
         let app = Target.test(name: "App", product: .app)
         let targets = [app]
@@ -92,8 +103,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             projects: [project.path: project],
             targets: [
                 project.path: [
-                    app.name: app,
-                ],
+                    app.name: app
+                ]
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -104,7 +115,10 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             graphTraverser: graphTraverser,
             rootPath: AbsolutePath("/differentpath/Workspace"),
             generatedProjects: [
-                xcodeProjPath: generatedProject(targets: targets, projectPath: xcodeProjPath.pathString),
+                xcodeProjPath: generatedProject(
+                    targets: targets,
+                    projectPath: xcodeProjPath.pathString
+                )
             ]
         )
 
@@ -156,10 +170,10 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             ],
             targets: [
                 projectA.path: [
-                    frameworkA.name: frameworkA,
+                    frameworkA.name: frameworkA
                 ],
                 projectB.path: [
-                    frameworkB.name: frameworkB,
+                    frameworkB.name: frameworkB
                 ],
             ]
         )
@@ -171,8 +185,14 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             graphTraverser: graphTraverser,
             rootPath: AbsolutePath("/somepath/Workspace"),
             generatedProjects: [
-                xcodeProjAPath: generatedProject(targets: targets, projectPath: "\(projectAPath)/project.xcodeproj"),
-                xcodeProjBPath: generatedProject(targets: targets, projectPath: "\(projectBPath)/project.xcodeproj"),
+                xcodeProjAPath: generatedProject(
+                    targets: targets,
+                    projectPath: "\(projectAPath)/project.xcodeproj"
+                ),
+                xcodeProjBPath: generatedProject(
+                    targets: targets,
+                    projectPath: "\(projectBPath)/project.xcodeproj"
+                ),
             ]
         )
 
@@ -182,18 +202,30 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let firstEntry = try XCTUnwrap(result.buildActionEntries[0])
         let firstBuildableReference = firstEntry.buildableReference
-        XCTAssertEqual(firstEntry.buildFor, [.analyzing, .archiving, .profiling, .running, .testing])
+        XCTAssertEqual(
+            firstEntry.buildFor,
+            [.analyzing, .archiving, .profiling, .running, .testing]
+        )
 
         let secondEntry = try XCTUnwrap(result.buildActionEntries[1])
         let secondBuildableReference = secondEntry.buildableReference
-        XCTAssertEqual(secondEntry.buildFor, [.analyzing, .archiving, .profiling, .running, .testing])
+        XCTAssertEqual(
+            secondEntry.buildFor,
+            [.analyzing, .archiving, .profiling, .running, .testing]
+        )
 
-        XCTAssertEqual(firstBuildableReference.referencedContainer, "container:Projects/ProjectA/project.xcodeproj")
+        XCTAssertEqual(
+            firstBuildableReference.referencedContainer,
+            "container:Projects/ProjectA/project.xcodeproj"
+        )
         XCTAssertEqual(firstBuildableReference.buildableName, "FrameworkA.framework")
         XCTAssertEqual(firstBuildableReference.blueprintName, "FrameworkA")
         XCTAssertEqual(firstBuildableReference.buildableIdentifier, "primary")
 
-        XCTAssertEqual(secondBuildableReference.referencedContainer, "container:Projects/ProjectB/project.xcodeproj")
+        XCTAssertEqual(
+            secondBuildableReference.referencedContainer,
+            "container:Projects/ProjectB/project.xcodeproj"
+        )
         XCTAssertEqual(secondBuildableReference.buildableName, "FrameworkB.framework")
         XCTAssertEqual(secondBuildableReference.blueprintName, "FrameworkB")
         XCTAssertEqual(secondBuildableReference.buildableIdentifier, "primary")
@@ -208,9 +240,21 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let xcodeProjPath = projectPath.appending(component: "Project.xcodeproj")
         let target = Target.test(name: "App", product: .app)
 
-        let preAction = ExecutionAction(title: "Pre Action", scriptText: "echo Pre Actions", target: TargetReference(projectPath: projectPath, name: "App"))
-        let postAction = ExecutionAction(title: "Post Action", scriptText: "echo Post Actions", target: TargetReference(projectPath: projectPath, name: "App"))
-        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")], preActions: [preAction], postActions: [postAction])
+        let preAction = ExecutionAction(
+            title: "Pre Action",
+            scriptText: "echo Pre Actions",
+            target: TargetReference(projectPath: projectPath, name: "App")
+        )
+        let postAction = ExecutionAction(
+            title: "Post Action",
+            scriptText: "echo Post Actions",
+            target: TargetReference(projectPath: projectPath, name: "App")
+        )
+        let buildAction = BuildAction.test(
+            targets: [TargetReference(projectPath: projectPath, name: "App")],
+            preActions: [preAction],
+            postActions: [postAction]
+        )
 
         let scheme = Scheme.test(name: "App", shared: true, buildAction: buildAction)
         let project = Project.test(
@@ -222,8 +266,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             projects: [project.path: project],
             targets: [
                 project.path: [
-                    target.name: target,
-                ],
+                    target.name: target
+                ]
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -291,10 +335,13 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Then
         // `runPostActionsOnFailure` is omitted when not enabled (Xcode automatically removes it)
         let buildActions = schemeDescriptors.compactMap(\.xcScheme.buildAction)
-        XCTAssertEqual(buildActions.map(\.runPostActionsOnFailure), [
-            true,
-            nil,
-        ])
+        XCTAssertEqual(
+            buildActions.map(\.runPostActionsOnFailure),
+            [
+                true,
+                nil,
+            ]
+        )
     }
 
     // MARK: - Test Action Tests
@@ -306,7 +353,9 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let project = Project.test(targets: [target, testTarget])
 
         let testAction = TestAction.test(
-            targets: [TestableTarget(target: TargetReference(projectPath: project.path, name: "AppTests"))],
+            targets: [
+                TestableTarget(target: TargetReference(projectPath: project.path, name: "AppTests"))
+            ],
             arguments: nil
         )
 
@@ -319,12 +368,12 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
                 project.path: [
                     target.name: target,
                     testTarget.name: testTarget,
-                ],
+                ]
             ],
             dependencies: [
                 .target(name: testTarget.name, path: project.path): [
-                    .target(name: target.name, path: project.path),
-                ],
+                    .target(name: target.name, path: project.path)
+                ]
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -359,7 +408,9 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let project = Project.test(targets: [target, testTarget])
 
         let testAction = TestAction.test(
-            targets: [TestableTarget(target: TargetReference(projectPath: project.path, name: "AppTests"))],
+            targets: [
+                TestableTarget(target: TargetReference(projectPath: project.path, name: "AppTests"))
+            ],
             arguments: nil,
             expandVariableFromTarget: TargetReference(projectPath: project.path, name: "App")
         )
@@ -373,12 +424,12 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
                 project.path: [
                     target.name: target,
                     testTarget.name: testTarget,
-                ],
+                ]
             ],
             dependencies: [
                 .target(name: testTarget.name, path: project.path): [
-                    .target(name: target.name, path: project.path),
-                ],
+                    .target(name: target.name, path: project.path)
+                ]
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -419,13 +470,22 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let testTarget = Target.test(name: "AppTests", product: .unitTests)
 
         let testAction = TestAction.test(
-            targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests"))],
+            targets: [
+                TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests"))
+            ],
             coverage: true,
             codeCoverageTargets: [TargetReference(projectPath: projectPath, name: "App")]
         )
-        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
+        let buildAction = BuildAction.test(targets: [
+            TargetReference(projectPath: projectPath, name: "App")
+        ])
 
-        let scheme = Scheme.test(name: "AppTests", shared: true, buildAction: buildAction, testAction: testAction)
+        let scheme = Scheme.test(
+            name: "AppTests",
+            shared: true,
+            buildAction: buildAction,
+            testAction: testAction
+        )
 
         let project = Project.test(path: projectPath, targets: [target, testTarget])
         let graph = Graph.test(
@@ -434,12 +494,12 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
                 project.path: [
                     target.name: target,
                     testTarget.name: testTarget,
-                ],
+                ]
             ],
             dependencies: [
                 .target(name: testTarget.name, path: project.path): [
-                    .target(name: target.name, path: project.path),
-                ],
+                    .target(name: target.name, path: project.path)
+                ]
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -526,21 +586,28 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             randomExecutionOrdering: true
         )
         let testAction = TestAction.test(targets: [testableTarget])
-        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: project.path, name: "App")])
+        let buildAction = BuildAction.test(targets: [
+            TargetReference(projectPath: project.path, name: "App")
+        ])
 
-        let scheme = Scheme.test(name: "AppTests", shared: true, buildAction: buildAction, testAction: testAction)
+        let scheme = Scheme.test(
+            name: "AppTests",
+            shared: true,
+            buildAction: buildAction,
+            testAction: testAction
+        )
         let graph = Graph.test(
             projects: [project.path: project],
             targets: [
                 project.path: [
                     target.name: target,
                     testTarget.name: testTarget,
-                ],
+                ]
             ],
             dependencies: [
                 .target(name: testTarget.name, path: project.path): [
-                    .target(name: target.name, path: project.path),
-                ],
+                    .target(name: target.name, path: project.path)
+                ]
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -566,7 +633,9 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let project = Project.test(targets: [target, testTarget])
 
         let testAction = TestAction.test(
-            targets: [TestableTarget(target: TargetReference(projectPath: project.path, name: "AppTests"))],
+            targets: [
+                TestableTarget(target: TargetReference(projectPath: project.path, name: "AppTests"))
+            ],
             arguments: nil
         )
 
@@ -579,12 +648,12 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
                 project.path: [
                     target.name: target,
                     testTarget.name: testTarget,
-                ],
+                ]
             ],
             dependencies: [
                 .target(name: testTarget.name, path: project.path): [
-                    .target(name: target.name, path: project.path),
-                ],
+                    .target(name: target.name, path: project.path)
+                ]
             ]
         )
 
@@ -618,9 +687,25 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let projectPath = AbsolutePath("/somepath/Project")
         let testTarget = Target.test(name: "AppTests", product: .unitTests)
 
-        let preAction = ExecutionAction(title: "Pre Action", scriptText: "echo Pre Actions", target: TargetReference(projectPath: projectPath, name: "AppTests"))
-        let postAction = ExecutionAction(title: "Post Action", scriptText: "echo Post Actions", target: TargetReference(projectPath: projectPath, name: "AppTests"))
-        let testAction = TestAction.test(targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests"))], preActions: [preAction], postActions: [postAction], language: "es", region: "ES")
+        let preAction = ExecutionAction(
+            title: "Pre Action",
+            scriptText: "echo Pre Actions",
+            target: TargetReference(projectPath: projectPath, name: "AppTests")
+        )
+        let postAction = ExecutionAction(
+            title: "Post Action",
+            scriptText: "echo Post Actions",
+            target: TargetReference(projectPath: projectPath, name: "AppTests")
+        )
+        let testAction = TestAction.test(
+            targets: [
+                TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests"))
+            ],
+            preActions: [preAction],
+            postActions: [postAction],
+            language: "es",
+            region: "ES"
+        )
 
         let scheme = Scheme.test(name: "AppTests", shared: true, testAction: testAction)
         let project = Project.test(path: projectPath, targets: [testTarget])
@@ -630,8 +715,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             projects: [project.path: project],
             targets: [
                 project.path: [
-                    testTarget.name: testTarget,
-                ],
+                    testTarget.name: testTarget
+                ]
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -685,14 +770,17 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             LaunchArgument(name: "arg4", isEnabled: true),
         ]
 
-        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
+        let buildAction = BuildAction.test(targets: [
+            TargetReference(projectPath: projectPath, name: "App")
+        ])
         let runAction = RunAction.test(
             configurationName: "Release",
             executable: TargetReference(projectPath: projectPath, name: "App"),
             arguments: Arguments(environment: environment, launchArguments: launchArguments),
             options: .init(
                 language: "pl",
-                storeKitConfigurationPath: "/somepath/Workspace/Projects/Project/nested/configuration/configuration.storekit",
+                storeKitConfigurationPath:
+                    "/somepath/Workspace/Projects/Project/nested/configuration/configuration.storekit",
                 simulatedLocation: .reference("New York, NY, USA")
             )
         )
@@ -710,8 +798,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             projects: [project.path: project],
             targets: [
                 project.path: [
-                    app.name: app,
-                ],
+                    app.name: app
+                ]
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -732,27 +820,39 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let buildableReference = try XCTUnwrap(result.runnable?.buildableReference)
 
         XCTAssertEqual(result.buildConfiguration, "Release")
-        XCTAssertEqual(result.commandlineArguments, XCScheme.CommandLineArguments(arguments: [
-            XCScheme.CommandLineArguments.CommandLineArgument(name: "arg1", enabled: true),
-            XCScheme.CommandLineArguments.CommandLineArgument(name: "arg2", enabled: true),
-            XCScheme.CommandLineArguments.CommandLineArgument(name: "arg3", enabled: false),
-            XCScheme.CommandLineArguments.CommandLineArgument(name: "arg4", enabled: true),
-        ]))
-        XCTAssertEqual(result.environmentVariables, [
-            XCScheme.EnvironmentVariable(variable: "env1", value: "1", enabled: true),
-            XCScheme.EnvironmentVariable(variable: "env2", value: "2", enabled: true),
-            XCScheme.EnvironmentVariable(variable: "env3", value: "3", enabled: true),
-            XCScheme.EnvironmentVariable(variable: "env4", value: "4", enabled: true),
-        ])
+        XCTAssertEqual(
+            result.commandlineArguments,
+            XCScheme.CommandLineArguments(arguments: [
+                XCScheme.CommandLineArguments.CommandLineArgument(name: "arg1", enabled: true),
+                XCScheme.CommandLineArguments.CommandLineArgument(name: "arg2", enabled: true),
+                XCScheme.CommandLineArguments.CommandLineArgument(name: "arg3", enabled: false),
+                XCScheme.CommandLineArguments.CommandLineArgument(name: "arg4", enabled: true),
+            ])
+        )
+        XCTAssertEqual(
+            result.environmentVariables,
+            [
+                XCScheme.EnvironmentVariable(variable: "env1", value: "1", enabled: true),
+                XCScheme.EnvironmentVariable(variable: "env2", value: "2", enabled: true),
+                XCScheme.EnvironmentVariable(variable: "env3", value: "3", enabled: true),
+                XCScheme.EnvironmentVariable(variable: "env4", value: "4", enabled: true),
+            ]
+        )
         XCTAssertNil(result.askForAppToLaunch)
         XCTAssertNil(result.launchAutomaticallySubstyle)
         XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
         XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.DebuggerFoundation.Launcher.LLDB")
-        XCTAssertEqual(buildableReference.referencedContainer, "container:Projects/Project/Project.xcodeproj")
+        XCTAssertEqual(
+            buildableReference.referencedContainer,
+            "container:Projects/Project/Project.xcodeproj"
+        )
         XCTAssertEqual(buildableReference.buildableName, "App.app")
         XCTAssertEqual(buildableReference.blueprintName, "App")
         XCTAssertEqual(buildableReference.buildableIdentifier, "primary")
-        XCTAssertEqual(result.storeKitConfigurationFileReference, .init(identifier: "../nested/configuration/configuration.storekit"))
+        XCTAssertEqual(
+            result.storeKitConfigurationFileReference,
+            .init(identifier: "../nested/configuration/configuration.storekit")
+        )
         XCTAssertEqual(result.locationScenarioReference?.referenceType, "1")
         XCTAssertEqual(result.locationScenarioReference?.identifier, "New York, NY, USA")
         XCTAssertEqual(result.language, "pl")
@@ -782,8 +882,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             projects: [project.path: project],
             targets: [
                 project.path: [
-                    app.name: app,
-                ],
+                    app.name: app
+                ]
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -799,12 +899,15 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Then
         let result = try XCTUnwrap(got)
 
-        XCTAssertEqual(result.commandlineArguments, XCScheme.CommandLineArguments(arguments: [
-            XCScheme.CommandLineArguments.CommandLineArgument(name: "arg4", enabled: true),
-            XCScheme.CommandLineArguments.CommandLineArgument(name: "arg2", enabled: false),
-            XCScheme.CommandLineArguments.CommandLineArgument(name: "arg1", enabled: false),
-            XCScheme.CommandLineArguments.CommandLineArgument(name: "arg3", enabled: false),
-        ]))
+        XCTAssertEqual(
+            result.commandlineArguments,
+            XCScheme.CommandLineArguments(arguments: [
+                XCScheme.CommandLineArguments.CommandLineArgument(name: "arg4", enabled: true),
+                XCScheme.CommandLineArguments.CommandLineArgument(name: "arg2", enabled: false),
+                XCScheme.CommandLineArguments.CommandLineArgument(name: "arg1", enabled: false),
+                XCScheme.CommandLineArguments.CommandLineArgument(name: "arg3", enabled: false),
+            ])
+        )
     }
 
     func test_schemeLaunchAction_when_notRunnableTarget() throws {
@@ -813,7 +916,9 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let target = Target.test(name: "Library", platform: .iOS, product: .dynamicLibrary)
 
-        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "Library")])
+        let buildAction = BuildAction.test(targets: [
+            TargetReference(projectPath: projectPath, name: "Library")
+        ])
         let launchAction = RunAction.test(
             configurationName: "Debug",
             filePath: "/usr/bin/foo",
@@ -826,8 +931,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             projects: [project.path: project],
             targets: [
                 project.path: [
-                    target.name: target,
-                ],
+                    target.name: target
+                ]
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -854,13 +959,22 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let target = Target.test(name: "Library", platform: .iOS, product: .dynamicLibrary)
 
-        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "Library")])
+        let buildAction = BuildAction.test(targets: [
+            TargetReference(projectPath: projectPath, name: "Library")
+        ])
         let testAction = TestAction.test(
-            targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "Library"))],
+            targets: [
+                TestableTarget(target: TargetReference(projectPath: projectPath, name: "Library"))
+            ],
             diagnosticsOptions: Set(arrayLiteral: .mainThreadChecker)
         )
 
-        let scheme = Scheme.test(name: "Library", buildAction: buildAction, testAction: testAction, runAction: nil)
+        let scheme = Scheme.test(
+            name: "Library",
+            buildAction: buildAction,
+            testAction: testAction,
+            runAction: nil
+        )
         let project = Project.test(
             path: projectPath,
             xcodeProjPath: projectPath.appending(component: "Project.xcodeproj"),
@@ -870,8 +984,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             projects: [project.path: project],
             targets: [
                 project.path: [
-                    target.name: target,
-                ],
+                    target.name: target
+                ]
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -913,8 +1027,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             projects: [project.path: project],
             targets: [
                 project.path: [
-                    target.name: target,
-                ],
+                    target.name: target
+                ]
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -957,10 +1071,20 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         let target = Target.test(name: "Library", platform: .iOS, product: .dynamicLibrary)
 
-        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "Library")])
-        let testAction = TestAction.test(targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "Library"))])
+        let buildAction = BuildAction.test(targets: [
+            TargetReference(projectPath: projectPath, name: "Library")
+        ])
+        let testAction = TestAction.test(targets: [
+            TestableTarget(target: TargetReference(projectPath: projectPath, name: "Library"))
+        ])
         let profileAction = ProfileAction.test(configurationName: "Beta Release", executable: nil)
-        let scheme = Scheme.test(name: "Library", buildAction: buildAction, testAction: testAction, runAction: nil, profileAction: profileAction)
+        let scheme = Scheme.test(
+            name: "Library",
+            buildAction: buildAction,
+            testAction: testAction,
+            runAction: nil,
+            profileAction: profileAction
+        )
 
         let project = Project.test(
             path: projectPath,
@@ -971,8 +1095,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             projects: [project.path: project],
             targets: [
                 project.path: [
-                    target.name: target,
-                ],
+                    target.name: target
+                ]
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -1013,7 +1137,9 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let projectPath = AbsolutePath("/somepath/Project")
         let target = Target.test(name: "App", platform: .iOS, product: .app)
 
-        let scheme = makeProfileActionScheme(Arguments(launchArguments: [LaunchArgument(name: "something", isEnabled: true)]))
+        let scheme = makeProfileActionScheme(
+            Arguments(launchArguments: [LaunchArgument(name: "something", isEnabled: true)])
+        )
         let project = Project.test(
             path: projectPath,
             xcodeProjPath: projectPath.appending(component: "Project.xcodeproj"),
@@ -1023,8 +1149,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             projects: [project.path: project],
             targets: [
                 project.path: [
-                    target.name: target,
-                ],
+                    target.name: target
+                ]
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -1056,7 +1182,10 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.ignoresPersistentStateOnLaunch, false)
         XCTAssertEqual(result.useCustomWorkingDirectory, false)
         XCTAssertEqual(result.debugDocumentVersioning, true)
-        XCTAssertEqual(result.commandlineArguments, XCScheme.CommandLineArguments(arguments: [.init(name: "something", enabled: true)]))
+        XCTAssertEqual(
+            result.commandlineArguments,
+            XCScheme.CommandLineArguments(arguments: [.init(name: "something", enabled: true)])
+        )
         XCTAssertEqual(result.environmentVariables, [])
         XCTAssertEqual(result.enableTestabilityWhenProfilingTests, true)
     }
@@ -1075,7 +1204,12 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
                 launchArguments: [.init(name: "something", isEnabled: true)]
             )
         )
-        let scheme = Scheme(name: "Scheme", buildAction: buildAction, runAction: runAction, profileAction: nil)
+        let scheme = Scheme(
+            name: "Scheme",
+            buildAction: buildAction,
+            runAction: runAction,
+            profileAction: nil
+        )
         let project = Project.test(
             path: projectPath,
             xcodeProjPath: projectPath.appending(component: "Project.xcodeproj"),
@@ -1085,8 +1219,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             projects: [project.path: project],
             targets: [
                 project.path: [
-                    target.name: target,
-                ],
+                    target.name: target
+                ]
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -1128,7 +1262,9 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Given
         let projectPath = AbsolutePath("/Project")
         let target = Target.test(name: "App", platform: .iOS, product: .app)
-        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
+        let buildAction = BuildAction.test(targets: [
+            TargetReference(projectPath: projectPath, name: "App")
+        ])
         let analyzeAction = AnalyzeAction.test(configurationName: "Beta Release")
         let scheme = Scheme.test(buildAction: buildAction, analyzeAction: analyzeAction)
 
@@ -1137,8 +1273,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             projects: [project.path: project],
             targets: [
                 project.path: [
-                    target.name: target,
-                ],
+                    target.name: target
+                ]
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -1166,7 +1302,9 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Given
         let projectPath = AbsolutePath("/Project")
         let target = Target.test(name: "App", platform: .iOS, product: .app)
-        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
+        let buildAction = BuildAction.test(targets: [
+            TargetReference(projectPath: projectPath, name: "App")
+        ])
         let archiveAction = ArchiveAction.test(
             configurationName: "Beta Release",
             revealArchiveInOrganizer: true,
@@ -1179,8 +1317,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             projects: [project.path: project],
             targets: [
                 project.path: [
-                    target.name: target,
-                ],
+                    target.name: target
+                ]
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -1207,7 +1345,10 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let unitTests = Target.test(name: "AppTests", product: .unitTests)
         let uiTests = Target.test(name: "AppUITests", product: .uiTests)
         let scheme = Scheme.test()
-        let project = Project.test(targets: [app, framework, unitTests, uiTests], schemes: [scheme])
+        let project = Project.test(
+            targets: [app, framework, unitTests, uiTests],
+            schemes: [scheme]
+        )
 
         let graph = Graph.test(
             projects: [project.path: project],
@@ -1217,17 +1358,17 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
                     framework.name: framework,
                     unitTests.name: unitTests,
                     uiTests.name: uiTests,
-                ],
+                ]
             ],
             dependencies: [
                 .target(name: app.name, path: project.path): [
-                    .target(name: framework.name, path: project.path),
+                    .target(name: framework.name, path: project.path)
                 ],
                 .target(name: unitTests.name, path: project.path): [
-                    .target(name: app.name, path: project.path),
+                    .target(name: app.name, path: project.path)
                 ],
                 .target(name: uiTests.name, path: project.path): [
-                    .target(name: app.name, path: project.path),
+                    .target(name: app.name, path: project.path)
                 ],
             ]
         )
@@ -1249,13 +1390,17 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let path = AbsolutePath("/test")
         let app = Target.test(name: "App", product: .app)
         let appExtension = Target.test(name: "AppExtension", product: .appExtension)
-        let appScheme = Scheme.test(buildAction: BuildAction(targets: [
-            TargetReference(projectPath: path, name: app.name),
-        ]))
-        let extensionScheme = Scheme.test(buildAction: BuildAction.test(targets: [
-            TargetReference(projectPath: path, name: appExtension.name),
-            TargetReference(projectPath: path, name: app.name),
-        ]))
+        let appScheme = Scheme.test(
+            buildAction: BuildAction(targets: [
+                TargetReference(projectPath: path, name: app.name)
+            ])
+        )
+        let extensionScheme = Scheme.test(
+            buildAction: BuildAction.test(targets: [
+                TargetReference(projectPath: path, name: appExtension.name),
+                TargetReference(projectPath: path, name: app.name),
+            ])
+        )
         let project = Project.test(
             path: path,
             targets: [app, appExtension],
@@ -1271,12 +1416,12 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
                 project.path: [
                     app.name: app,
                     appExtension.name: appExtension,
-                ],
+                ]
             ],
             dependencies: [
                 .target(name: app.name, path: project.path): [
-                    .target(name: appExtension.name, path: project.path),
-                ],
+                    .target(name: appExtension.name, path: project.path)
+                ]
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -1290,10 +1435,13 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
 
         // Then
         let schemeForExtension = result.map(\.xcScheme.wasCreatedForAppExtension)
-        XCTAssertEqual(schemeForExtension, [
-            nil, // Xcode omits the setting rather than have it set to `false`
-            true,
-        ])
+        XCTAssertEqual(
+            schemeForExtension,
+            [
+                nil,  // Xcode omits the setting rather than have it set to `false`
+                true,
+            ]
+        )
     }
 
     func test_generate_appExtensionSchemeLaunchAction() throws {
@@ -1305,13 +1453,15 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             TargetReference(projectPath: path, name: appExtension.name),
             TargetReference(projectPath: path, name: app.name),
         ])
-        let runAction = RunAction.test(executable: TargetReference(projectPath: path, name: app.name))
+        let runAction = RunAction.test(
+            executable: TargetReference(projectPath: path, name: app.name)
+        )
         let extensionScheme = Scheme.test(buildAction: buildAction, runAction: runAction)
         let project = Project.test(
             path: path,
             targets: [app, appExtension],
             schemes: [
-                extensionScheme,
+                extensionScheme
             ]
         )
 
@@ -1321,12 +1471,12 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
                 project.path: [
                     app.name: app,
                     appExtension.name: appExtension,
-                ],
+                ]
             ],
             dependencies: [
                 .target(name: app.name, path: project.path): [
-                    .target(name: appExtension.name, path: project.path),
-                ],
+                    .target(name: appExtension.name, path: project.path)
+                ]
             ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -1344,7 +1494,10 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(launchAction.askForAppToLaunch, true)
         XCTAssertEqual(launchAction.launchAutomaticallySubstyle, "2")
         XCTAssertEqual(launchAction.selectedDebuggerIdentifier, "")
-        XCTAssertEqual(launchAction.selectedLauncherIdentifier, "Xcode.IDEFoundation.Launcher.PosixSpawn")
+        XCTAssertEqual(
+            launchAction.selectedLauncherIdentifier,
+            "Xcode.IDEFoundation.Launcher.PosixSpawn"
+        )
     }
 
     func test_schemeGenerationLastUpgradeCheck_workspace() throws {
@@ -1417,22 +1570,32 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
     // MARK: - Helpers
 
     private func createGeneratedProjects(projects: [Project]) -> [AbsolutePath: GeneratedProject] {
-        Dictionary(uniqueKeysWithValues: projects.map {
-            (
-                $0.xcodeProjPath,
-                generatedProject(
-                    targets: $0.targets,
-                    projectPath: $0.xcodeProjPath.pathString
+        Dictionary(
+            uniqueKeysWithValues: projects.map {
+                (
+                    $0.xcodeProjPath,
+                    generatedProject(
+                        targets: $0.targets,
+                        projectPath: $0.xcodeProjPath.pathString
+                    )
                 )
-            )
-        })
+            }
+        )
     }
 
-    private func generatedProject(targets: [Target], projectPath: String = "/Project.xcodeproj") -> GeneratedProject {
+    private func generatedProject(
+        targets: [Target],
+        projectPath: String = "/Project.xcodeproj"
+    ) -> GeneratedProject {
         var pbxTargets: [String: PBXNativeTarget] = [:]
         targets.forEach { pbxTargets[$0.name] = PBXNativeTarget(name: $0.name) }
         let path = AbsolutePath(projectPath)
-        return GeneratedProject(pbxproj: .init(), path: path, targets: pbxTargets, name: path.basename)
+        return GeneratedProject(
+            pbxproj: .init(),
+            path: path,
+            targets: pbxTargets,
+            name: path.basename
+        )
     }
 
     private func makeProfileActionScheme(_ launchArguments: Arguments? = nil) -> Scheme {
@@ -1440,8 +1603,16 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let appTargetReference = TargetReference(projectPath: projectPath, name: "App")
         let buildAction = BuildAction.test(targets: [appTargetReference])
         let testAction = TestAction.test(targets: [TestableTarget(target: appTargetReference)])
-        let runAction = RunAction.test(configurationName: "Release", executable: appTargetReference, arguments: nil)
-        let profileAction = ProfileAction.test(configurationName: "Beta Release", executable: appTargetReference, arguments: launchArguments)
+        let runAction = RunAction.test(
+            configurationName: "Release",
+            executable: appTargetReference,
+            arguments: nil
+        )
+        let profileAction = ProfileAction.test(
+            configurationName: "Beta Release",
+            executable: appTargetReference,
+            arguments: launchArguments
+        )
         return Scheme.test(
             name: "App",
             buildAction: buildAction,
