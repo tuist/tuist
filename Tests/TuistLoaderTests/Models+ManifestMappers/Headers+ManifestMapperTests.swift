@@ -159,10 +159,9 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         ])
 
         let manifest = ProjectDescription.Headers(
-            public: .init(globs: ["Sources/public/**"], excluding: ["Sources/public/A2.h"]),
-            private: .init(globs: ["Sources/private/**"], excluding: ["Sources/private/B1.h"]),
-            project: .init(globs: ["Sources/project/**"])
-        )
+            public: .init([.init("Sources/public/**", excluding: "Sources/public/A2.h")]),
+            private: .init([.init("Sources/private/**", excluding: "Sources/private/B1.h")]),
+            project: "Sources/project/**")
 
         // When
         let model = try TuistGraph.Headers.from(manifest: manifest, generatorPaths: generatorPaths)
@@ -198,11 +197,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             "Sources/A2+Protected.m",
         ])
 
-        let manifest = ProjectDescription.Headers(public: .init(globs: ["Sources/**"], excluding: ["Sources/*+Protected.h",
-                                                                                                   "Sources/*+Project.h"]),
-                                                  private: nil,
-                                                  project: .init(globs: ["Sources/*+Protected.h",
-                                                                         "Sources/*+Project.h"]))
+        let manifest = ProjectDescription.Headers(
+            public: .init([.init("Sources/**", excluding: ["Sources/*+Protected.h", "Sources/*+Project.h"])]),
+            private: nil,
+            project: ["Sources/*+Protected.h","Sources/*+Project.h"]
+        )
 
         // When
         let model = try TuistGraph.Headers.from(manifest: manifest, generatorPaths: generatorPaths)
@@ -238,11 +237,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             "Sources/group/A2+Protected.m",
         ])
 
-        let manifest = ProjectDescription.Headers(public: .init(globs: ["Sources/**"], excluding: ["Sources/**/*+Protected.h",
-                                                                                                   "Sources/**/*+Project.h"]),
-                                                  private: nil,
-                                                  project: .init(globs: ["Sources/**/*+Protected.h",
-                                                                         "Sources/**/*+Project.h"]))
+        let manifest = ProjectDescription.Headers(
+            public: .init([.init("Sources/**", excluding: ["Sources/**/*+Protected.h", "Sources/**/*+Project.h"])]),
+            private: nil,
+            project: ["Sources/**/*+Protected.h","Sources/**/*+Project.h"]
+        )
 
         // When
         let model = try TuistGraph.Headers.from(manifest: manifest, generatorPaths: generatorPaths)

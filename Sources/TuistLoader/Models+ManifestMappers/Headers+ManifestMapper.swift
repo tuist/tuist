@@ -12,7 +12,7 @@ extension TuistGraph.Headers {
     ///   - manifest: Manifest representation of Headers.
     ///   - generatorPaths: Generator paths.
     static func from(manifest: ProjectDescription.Headers, generatorPaths: GeneratorPaths) throws -> TuistGraph.Headers {
-        func unfoldExcluding(_ excluding: [Path]?) throws -> Set<AbsolutePath> {
+        func resolveExcluding(_ excluding: [Path]?) throws -> Set<AbsolutePath> {
             guard let excluding = excluding else { return [] }
             var result: Set<AbsolutePath> = []
             try excluding.forEach { path in
@@ -33,19 +33,16 @@ extension TuistGraph.Headers {
             }
         }
         
-        let publicExcluding = try unfoldExcluding(manifest.public?.excluding)
-        let `public` = try manifest.public?.globs.flatMap {
-            unfoldGlob(try generatorPaths.resolve(path: $0), excluding: publicExcluding)
+        let `public`: [AbsolutePath] = try manifest.public?.globs.flatMap {
+            unfoldGlob(try generatorPaths.resolve(path: $0.glob), excluding: try resolveExcluding($0.excluding))
         } ?? []
         
-        let privateExcluding = try unfoldExcluding(manifest.private?.excluding)
-        let `private` = try manifest.private?.globs.flatMap {
-            unfoldGlob(try generatorPaths.resolve(path: $0), excluding: privateExcluding)
+        let `private`: [AbsolutePath] = try manifest.private?.globs.flatMap {
+            unfoldGlob(try generatorPaths.resolve(path: $0.glob), excluding: try resolveExcluding($0.excluding))
         } ?? []
         
-        let projectExcluding = try unfoldExcluding(manifest.project?.excluding)
-        let project = try manifest.project?.globs.flatMap {
-            unfoldGlob(try generatorPaths.resolve(path: $0), excluding: projectExcluding)
+        let project: [AbsolutePath] = try manifest.project?.globs.flatMap {
+            unfoldGlob(try generatorPaths.resolve(path: $0.glob), excluding: try resolveExcluding($0.excluding))
         } ?? []
 
         return Headers(public: `public`, private: `private`, project: project)
