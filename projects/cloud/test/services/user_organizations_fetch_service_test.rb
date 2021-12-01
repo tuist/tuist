@@ -38,7 +38,7 @@ class UserOrganizationsFetchServiceTest < ActiveSupport::TestCase
       password: "my-password",
       confirmed_at: Date.new
     )
-    organizations = [
+    [
       Organization.create!(),
       Organization.create!(),
       Organization.create!(),
@@ -50,5 +50,4 @@ class UserOrganizationsFetchServiceTest < ActiveSupport::TestCase
     # Then
     assert_empty(gotOrganizations)
   end
-
 end
