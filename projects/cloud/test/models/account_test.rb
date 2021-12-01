@@ -11,6 +11,6 @@ class UserTest < ActiveSupport::TestCase
     subject.validate
 
     # Then
-    assert_includes subject.errors.details[:name], {error: :exclusion, value: "new"}
+    assert_includes subject.errors.details[:name], { error: :exclusion, value: "new" }
   end
 end

@@ -3,7 +3,7 @@ import XCTest
 
 @testable import tvOSFramework
 
-final class tvOSFrameworkTests: XCTestCase {
+final class TVOSFrameworkTests: XCTestCase {
     func testHello() {
         let sut = tvOSFramework()
         

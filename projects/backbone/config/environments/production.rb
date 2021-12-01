@@ -114,7 +114,7 @@ Rails.application.configure do
 
 
   # Inline svg
-  config.assets.precompile += %w( '.svg' )
+  config.assets.precompile += ["'.svg'"]
   # Must include to get inline SVGs to work in deploy
   config.assets.css_compressor = :sass
 end

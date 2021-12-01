@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Mutations
   class CreateProject < ::Mutations::BaseMutation
     argument :account_id, ID, required: true

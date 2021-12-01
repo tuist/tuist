@@ -10,11 +10,11 @@ class CommandEventsController < ApplicationController
 
     respond_to do |format|
       if @command_event.save
-        format.html { redirect_to @command_event, notice: "Command event was successfully created." }
-        format.json { render :show, status: :created, location: @command_event }
+        format.html { redirect_to(@command_event, notice: "Command event was successfully created.") }
+        format.json { render(:show, status: :created, location: @command_event) }
       else
-        format.html { render :new }
-        format.json { render json: @command_event.errors, status: :unprocessable_entity }
+        format.html { render(:new) }
+        format.json { render(json: @command_event.errors, status: :unprocessable_entity) }
       end
     end
   end
@@ -33,7 +33,7 @@ class CommandEventsController < ApplicationController
         :machine_hardware_name,
         :is_ci,
         params: {} # Allow any key inside the params JSON
-        )
+      )
     end
 
     def restrict_to_development

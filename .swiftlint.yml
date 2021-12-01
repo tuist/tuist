@@ -1,18 +1,3 @@
-included:
-  - Sources
-excluded:
-  - Assets
-  - fixtures
-  - Tests
-  - .build
-  - projects/fixturegen/.build
-  - projects/tuistbench/.build
-  - bin
-  - design
-  - generated_fixtures
-  - website
-  - script
-  - vendor
 disabled_rules:
   - trailing_whitespace
   - trailing_comma
