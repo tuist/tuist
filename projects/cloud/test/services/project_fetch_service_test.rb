@@ -11,9 +11,23 @@ class ProjectFetchServiceTest < ActiveSupport::TestCase
     project = Project.create!(name: "tuist-project-2", account_id: account.id, token: Devise.friendly_token.first(16))
 
     # When
-    got = ProjectFetchService.call(name: project.name, account_name: account.name)
+    got = ProjectFetchService.call(name: project.name, account_name: account.name, current_user: user)
 
     # Then
     assert_equal project, got
+  end
+
+  test "fails to fetch a project if user does not have rights to access it" do
+    # Given
+    user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
+    organization = Organization.create!
+    account = Account.create!(owner: organization, name: "tuist")
+    Project.create!(name: "tuist-project", account_id: account.id, token: Devise.friendly_token.first(16))
+    project = Project.create!(name: "tuist-project-2", account_id: account.id, token: Devise.friendly_token.first(16))
+
+    # When / Then
+    assert_raises(ProjectFetchService::Error::Unauthorized) do
+      ProjectFetchService.call(name: project.name, account_name: account.name, current_user: user)
+    end
   end
 end

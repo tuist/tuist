@@ -3,6 +3,8 @@
 class User < ApplicationRecord
   rolify
 
+  delegate :can?, :cannot?, to: :ability
+
   # Devise
   devise :database_authenticatable, :registerable,
     :recoverable, :rememberable, :validatable,
@@ -25,5 +27,9 @@ class User < ApplicationRecord
 
   def accounts
     UserAccountsFetchService.call(user: self)
+  end
+
+  def ability
+    @ability ||= Ability.new(self)
   end
 end

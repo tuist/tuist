@@ -16,6 +16,7 @@ import {
   Organization as _,
   useChangeUserRoleMutation,
   useOrganizationQuery,
+  useMeQuery,
 } from '@/graphql/types';
 
 interface User {
@@ -101,9 +102,11 @@ const UserRolePopover = ({
 const UserItem = ({
   user,
   organizationId,
+  isAdmin,
 }: {
   user: User;
   organizationId: string;
+  isAdmin: boolean;
 }) => {
   return (
     <div style={{ padding: '10px 100px 10px 20px' }}>
@@ -115,10 +118,16 @@ const UserItem = ({
             <TextStyle variation="subdued">{user.email}</TextStyle>
           </Stack>
         </Stack.Item>
-        <UserRolePopover
-          user={user}
-          organizationId={organizationId}
-        />
+        {isAdmin ? (
+          <UserRolePopover
+            user={user}
+            organizationId={organizationId}
+          />
+        ) : (
+          <TextStyle>
+            {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+          </TextStyle>
+        )}
       </Stack>
     </div>
   );
@@ -152,6 +161,10 @@ const Organization = () => {
         role: Role.Admin,
       };
     }) ?? [];
+  const user = useMeQuery().data?.me;
+  const isAdmin =
+    (user && admins.map((admin) => admin.id).includes(user.id)) ??
+    false;
   return (
     <Page title={organizationName}>
       <Card title="Users">
@@ -167,6 +180,7 @@ const Organization = () => {
             return (
               <UserItem
                 user={item}
+                isAdmin={isAdmin}
                 organizationId={organization?.id ?? ''}
               />
             );

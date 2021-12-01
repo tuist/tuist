@@ -39,7 +39,7 @@ module Types
       argument :account_name, String, required: true
     end
     def project(name:, account_name:)
-      ProjectFetchService.call(name: name, account_name: account_name)
+      ProjectFetchService.call(name: name, account_name: account_name, current_user: context[:current_user])
     end
 
     field :organization, OrganizationType, null: true,

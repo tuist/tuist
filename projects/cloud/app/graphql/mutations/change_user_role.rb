@@ -8,7 +8,7 @@ module Mutations
     type Types::UserType
 
     def resolve(attributes)
-      ChangeUserRoleService.call(**attributes)
+      ChangeUserRoleService.call(**attributes, current_user: context[:current_user])
     end
   end
 end
