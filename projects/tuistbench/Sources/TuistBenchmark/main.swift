@@ -11,7 +11,7 @@ func main() throws {
 
     let fileHandler = FileHandler()
     let generateCommand = BenchmarkCommand(
-                   fileHandler: fileHandler,
+        fileHandler: fileHandler,
         parser: parser
     )
 
