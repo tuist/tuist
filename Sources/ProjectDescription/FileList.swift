@@ -12,13 +12,9 @@ public struct FileList: Codable, Equatable {
     ///   - glob: Relative glob pattern.
     ///   - excluding: Relative glob patterns for excluded files.
     public init(globs: [Path],
-                excluding: [Path]? = nil) {
+                excluding: [Path] = []) {
         self.globs = globs
-        self.excluding = excluding ?? []
-    }
-
-    public static func == (lhs: FileList, rhs: FileList) -> Bool {
-        lhs.globs == rhs.globs && lhs.excluding == rhs.globs
+        self.excluding = excluding
     }
 }
 

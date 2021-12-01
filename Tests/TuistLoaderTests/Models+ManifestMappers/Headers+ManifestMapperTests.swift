@@ -158,9 +158,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             "Sources/project/C2.m",
         ])
 
-        let manifest = ProjectDescription.Headers(public: .init(globs: ["Sources/public/**"], excluding: ["Sources/public/A2.h"]),
-                                                  private: .init(globs: ["Sources/private/**"], excluding: ["Sources/private/B1.h"]),
-                                                  project: .init(globs: ["Sources/project/**"], excluding: nil))
+        let manifest = ProjectDescription.Headers(
+            public: .init(globs: ["Sources/public/**"], excluding: ["Sources/public/A2.h"]),
+            private: .init(globs: ["Sources/private/**"], excluding: ["Sources/private/B1.h"]),
+            project: .init(globs: ["Sources/project/**"])
+        )
 
         // When
         let model = try TuistGraph.Headers.from(manifest: manifest, generatorPaths: generatorPaths)
@@ -200,7 +202,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
                                                                                                    "Sources/*+Project.h"]),
                                                   private: nil,
                                                   project: .init(globs: ["Sources/*+Protected.h",
-                                                                         "Sources/*+Project.h"], excluding: nil))
+                                                                         "Sources/*+Project.h"]))
 
         // When
         let model = try TuistGraph.Headers.from(manifest: manifest, generatorPaths: generatorPaths)
@@ -240,7 +242,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
                                                                                                    "Sources/**/*+Project.h"]),
                                                   private: nil,
                                                   project: .init(globs: ["Sources/**/*+Protected.h",
-                                                                         "Sources/**/*+Project.h"], excluding: nil))
+                                                                         "Sources/**/*+Project.h"]))
 
         // When
         let model = try TuistGraph.Headers.from(manifest: manifest, generatorPaths: generatorPaths)
