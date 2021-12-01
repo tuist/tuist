@@ -11,7 +11,7 @@ module Fourier
           subject = Services::Format::Swift.new(fix: false)
           Utilities::System
             .expects(:system)
-            .with(subject.vendor_path("swiftformat"), ".", "--lint")
+            .with(subject.vendor_path("swift-format"), ".", "lint", "--strict", "--recursive", "--ignore-unparsable-files", "--configuration", ".swift-format.config.json")
 
           # When/Then
           subject.call
@@ -22,7 +22,7 @@ module Fourier
           subject = Services::Format::Swift.new(fix: true)
           Utilities::System
             .expects(:system)
-            .with(subject.vendor_path("swiftformat"), ".")
+            .with(subject.vendor_path("swift-format"), ".", "--in-place", "--recursive", "--ignore-unparsable-files", "--configuration", ".swift-format.config.json")
 
           # When/Then
           subject.call

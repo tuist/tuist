@@ -12,10 +12,14 @@ module Fourier
 
         def call
           Dir.chdir(Constants::ROOT_DIRECTORY) do
-            arguments = [vendor_path("swiftformat"), "."]
-            unless fix
-              arguments << "--lint"
+            arguments = [vendor_path("swift-format"), "."]
+            if fix
+              arguments << "--in-place"
+            else
+              arguments << "lint"
+              arguments << "--strict"
             end
+            arguments += ["--recursive", "--ignore-unparsable-files", "--configuration", ".swift-format.config.json"]
             Fourier::Utilities::System.system(*arguments)
           end
         end

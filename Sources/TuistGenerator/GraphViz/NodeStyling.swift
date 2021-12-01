@@ -6,12 +6,10 @@ import TuistGraph
 extension GraphViz.Node {
     mutating func applyAttributes(attributes: NodeStyleAttributes?) {
         // For some unknown reason, the compiler requires using explicit self here
-        // swiftformat:disable redundantSelf
         self.fillColor = attributes?.fillColor
         self.textColor = attributes?.textColor
         self.strokeWidth = attributes?.strokeWidth
         self.shape = attributes?.shape
-        // swiftformat:enable redundantSelf
     }
 }
 
