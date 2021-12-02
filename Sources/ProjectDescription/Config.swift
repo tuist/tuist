@@ -257,3 +257,34 @@ extension Config.GenerationOptions.CodeCoverageMode {
         }
     }
 }
+
+extension Config.GenerationOptions.AutogenerationOptions {
+    enum CodingKeys: String, CodingKey {
+        case enabled
+        case disabled
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        if container.allKeys.contains(.enabled) {
+            let options = try container.decode(TestingOptions.self, forKey: .enabled)
+            self = .enabled(options)
+        } else if container.allKeys.contains(.disabled), try container.decode(Bool.self, forKey: .disabled) {
+            self = .disabled
+        } else {
+            fatalError()
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        switch self {
+        case let .enabled(options):
+            try container.encode(options, forKey: .enabled)
+        case .disabled:
+            try container.encode(true, forKey: .disabled)
+        }
+    }
+}
