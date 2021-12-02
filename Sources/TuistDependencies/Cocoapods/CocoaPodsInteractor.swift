@@ -15,14 +15,13 @@ final class CocoaPodsInteractor: CocoaPodsInteracting {
         self.binaryLocator = binaryLocator
     }
 
-    func run() throws {
-    }
-    
+    func run() throws {}
+
     func install(path: AbsolutePath) throws {
         let executablePath = try binaryLocator.cocoapodsInteractorPath()
         try System.shared.runAndPrint(executablePath.pathString, "install", path.pathString)
     }
-    
+
     func update(path: AbsolutePath) throws {
         let executablePath = try binaryLocator.cocoapodsInteractorPath()
         try System.shared.runAndPrint(executablePath.pathString, "update", path.pathString)

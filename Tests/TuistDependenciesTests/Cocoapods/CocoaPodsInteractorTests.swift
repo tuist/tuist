@@ -26,7 +26,7 @@ final class CocoaPodsInteractorTests: TuistTestCase {
     func test_install_runs() throws {
         try subject.install(path: "/")
     }
-    
+
     func test_update_runs() throws {
         try subject.update(path: "/")
     }
