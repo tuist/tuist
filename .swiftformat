@@ -1,7 +1,7 @@
 # file options
 
 --symlinks ignore
---exclude Tests/XCTestManifests.swift,projects/tuist/fixtures/,projects/tuist/features/,Project.swift
+--exclude Tests/XCTestManifests.swift,projects/tuist/features/
 
 # format options
 
@@ -31,6 +31,6 @@
 --semicolons inline
 --stripunusedargs always
 --trimwhitespace always
---wraparguments preserve
---wrapcollections preserve
+--maxwidth 130
+--wrapcollections before-first
 --wraparguments before-first
