@@ -229,6 +229,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="https://www.mustafadur.com"><img src="https://avatars.githubusercontent.com/u/971530?v=4" width="100px;" alt=""/><br /><sub><b>Mustafa Dur</b></sub></a></td>
     <td align="center"><a href="https://github.com/lucabartoletti"><img src="https://avatars.githubusercontent.com/u/838925?v=4" width="100px;" alt=""/><br /><sub><b>Luca Bartoletti</b></sub></a></td>
     <td align="center"><a href="https://github.com/sujata23"><img src="https://avatars.githubusercontent.com/u/1849089?v=4" width="100px;" alt=""/><br /><sub><b>Sujata Chakraborty</b></sub></a></td>
+    <td align="center"><a href="http://www.viber.com"><img src="https://avatars.githubusercontent.com/u/5096762?v=4" width="100px;" alt=""/><br /><sub><b>Pavel Trafimuk</b></sub></a></td>
   </tr>
 </table>
 
