@@ -23,7 +23,10 @@ final class ProjectEditorErrorTests: TuistUnitTestCase {
     }
 
     func test_description() {
-        XCTAssertEqual(ProjectEditorError.noEditableFiles(AbsolutePath.root).description, "There are no editable files at \(AbsolutePath.root.pathString)")
+        XCTAssertEqual(
+            ProjectEditorError.noEditableFiles(AbsolutePath.root).description,
+            "There are no editable files at \(AbsolutePath.root.pathString)"
+        )
     }
 }
 
@@ -51,7 +54,8 @@ final class ProjectEditorTests: TuistUnitTestCase {
         templatesDirectoryLocator = MockTemplatesDirectoryLocator()
         projectDescriptionHelpersBuilder = MockProjectDescriptionHelpersBuilder()
         projectDescriptionHelpersBuilderFactory = MockProjectDescriptionHelpersBuilderFactory()
-        projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilderStub = { _ in self.projectDescriptionHelpersBuilder }
+        projectDescriptionHelpersBuilderFactory
+            .projectDescriptionHelpersBuilderStub = { _ in self.projectDescriptionHelpersBuilder }
         tasksLocator = MockTasksLocator()
 
         subject = ProjectEditor(
@@ -174,7 +178,8 @@ final class ProjectEditorTests: TuistUnitTestCase {
         // Then
         XCTAssertThrowsSpecific(
             // When
-            try subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test()), ProjectEditorError.noEditableFiles(directory)
+            try subject.edit(at: directory, in: directory, onlyCurrentDirectory: false, plugins: .test()),
+            ProjectEditorError.noEditableFiles(directory)
         )
     }
 

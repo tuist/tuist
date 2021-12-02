@@ -30,7 +30,9 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
 
         // Then
         let documentationPath = temporaryPath.appending(component: "Documentation").pathString
-        XCTAssertPrinterOutputContains("'\(documentationPath)' is a directory, try using: '\(documentationPath)/**' to list its files")
+        XCTAssertPrinterOutputContains(
+            "'\(documentationPath)' is a directory, try using: '\(documentationPath)/**' to list its files"
+        )
         XCTAssertEqual(model, [])
     }
 
@@ -78,7 +80,10 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
         let error = GlobError.nonExistentDirectory(invalidGlob)
 
         // Then
-        XCTAssertThrowsSpecific(try TuistGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths), error)
+        XCTAssertThrowsSpecific(
+            try TuistGraph.ResourceFileElement.from(manifest: manifest, generatorPaths: generatorPaths),
+            error
+        )
     }
 
     func test_excluding() throws {

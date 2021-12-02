@@ -32,7 +32,11 @@ final class EmbedScriptGeneratorTests: TuistUnitTestCase {
             bcsymbolmapPaths: [bcsymbolPath]
         )
         // When
-        let got = try subject.script(sourceRootPath: framework.precompiledPath!.parentDirectory, frameworkReferences: [framework], includeSymbolsInFileLists: true)
+        let got = try subject.script(
+            sourceRootPath: framework.precompiledPath!.parentDirectory,
+            frameworkReferences: [framework],
+            includeSymbolsInFileLists: true
+        )
 
         // Then
         XCTAssertEqual(got.inputPaths, [
@@ -61,7 +65,11 @@ final class EmbedScriptGeneratorTests: TuistUnitTestCase {
             bcsymbolmapPaths: [bcsymbolPath]
         )
         // When
-        let got = try subject.script(sourceRootPath: framework.precompiledPath!.parentDirectory, frameworkReferences: [framework], includeSymbolsInFileLists: false)
+        let got = try subject.script(
+            sourceRootPath: framework.precompiledPath!.parentDirectory,
+            frameworkReferences: [framework],
+            includeSymbolsInFileLists: false
+        )
 
         // Then
         XCTAssertEqual(got.inputPaths, [

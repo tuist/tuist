@@ -68,11 +68,29 @@ final class SimulatorRuntimeVersionTests: TuistUnitTestCase {
     }
 
     func test_comparable() {
-        XCTAssertTrue(SimulatorRuntimeVersion(major: 3, minor: 2, patch: 1) < SimulatorRuntimeVersion(major: 3, minor: 2, patch: 2))
-        XCTAssertTrue(SimulatorRuntimeVersion(major: 3, minor: 2, patch: 1) <= SimulatorRuntimeVersion(major: 3, minor: 2, patch: 2))
-        XCTAssertTrue(SimulatorRuntimeVersion(major: 3, minor: 2, patch: 1) <= SimulatorRuntimeVersion(major: 3, minor: 2, patch: 1))
-        XCTAssertTrue(SimulatorRuntimeVersion(major: 4, minor: 2, patch: 1) > SimulatorRuntimeVersion(major: 3, minor: 2, patch: 2))
-        XCTAssertTrue(SimulatorRuntimeVersion(major: 4, minor: 2, patch: 1) > SimulatorRuntimeVersion(major: 4, minor: 1, patch: 2))
-        XCTAssertFalse(SimulatorRuntimeVersion(major: 4, minor: 2, patch: 1) < SimulatorRuntimeVersion(major: 4, minor: 1, patch: 2))
+        XCTAssertTrue(
+            SimulatorRuntimeVersion(major: 3, minor: 2, patch: 1) <
+                SimulatorRuntimeVersion(major: 3, minor: 2, patch: 2)
+        )
+        XCTAssertTrue(
+            SimulatorRuntimeVersion(major: 3, minor: 2, patch: 1) <=
+                SimulatorRuntimeVersion(major: 3, minor: 2, patch: 2)
+        )
+        XCTAssertTrue(
+            SimulatorRuntimeVersion(major: 3, minor: 2, patch: 1) <=
+                SimulatorRuntimeVersion(major: 3, minor: 2, patch: 1)
+        )
+        XCTAssertTrue(
+            SimulatorRuntimeVersion(major: 4, minor: 2, patch: 1) >
+                SimulatorRuntimeVersion(major: 3, minor: 2, patch: 2)
+        )
+        XCTAssertTrue(
+            SimulatorRuntimeVersion(major: 4, minor: 2, patch: 1) >
+                SimulatorRuntimeVersion(major: 4, minor: 1, patch: 2)
+        )
+        XCTAssertFalse(
+            SimulatorRuntimeVersion(major: 4, minor: 2, patch: 1) <
+                SimulatorRuntimeVersion(major: 4, minor: 1, patch: 2)
+        )
     }
 }

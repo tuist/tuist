@@ -91,8 +91,14 @@ final class SigningCipherTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(try fileHandler.readTextFile(certFile), certContent)
         XCTAssertEqual(try fileHandler.readTextFile(profileFile), profileContent)
-        XCTAssertFalse(fileHandler.exists(AbsolutePath(signingDirectory.pathString + "/ProfileFile.txt" + "." + Constants.encryptedExtension)))
-        XCTAssertFalse(fileHandler.exists(AbsolutePath(signingDirectory.pathString + "/CertFile.txt" + "." + Constants.encryptedExtension)))
+        XCTAssertFalse(
+            fileHandler
+                .exists(AbsolutePath(signingDirectory.pathString + "/ProfileFile.txt" + "." + Constants.encryptedExtension))
+        )
+        XCTAssertFalse(
+            fileHandler
+                .exists(AbsolutePath(signingDirectory.pathString + "/CertFile.txt" + "." + Constants.encryptedExtension))
+        )
     }
 
     func test_encrypt_signing() throws {

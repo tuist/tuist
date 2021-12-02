@@ -39,13 +39,14 @@ private extension SchemeLinter {
             }
 
             if let storeKitPath = runAction.options.storeKitConfigurationPath,
-                !FileHandler.shared.exists(storeKitPath)
+               !FileHandler.shared.exists(storeKitPath)
             {
                 issues.append(
                     LintingIssue(
                         reason: "StoreKit configuration file not found at path \(storeKitPath.pathString)",
                         severity: .error
-                    ))
+                    )
+                )
             }
         }
 
@@ -74,7 +75,8 @@ private extension SchemeLinter {
     }
 
     func missingBuildConfigurationIssue(buildConfigurationName: String, actionDescription: String) -> LintingIssue {
-        let reason = "The build configuration '\(buildConfigurationName)' specified in \(actionDescription) isn't defined in the project."
+        let reason =
+            "The build configuration '\(buildConfigurationName)' specified in \(actionDescription) isn't defined in the project."
         return LintingIssue(reason: reason, severity: .error)
     }
 
@@ -84,7 +86,7 @@ private extension SchemeLinter {
 
         for scheme in schemes {
             if let testAction = scheme.testAction,
-                let target = testAction.expandVariableFromTarget
+               let target = testAction.expandVariableFromTarget
             {
                 if !targetNames.contains(target.name) {
                     issues.append(missingExpandVariablesTargetIssue(missingTargetName: target.name, schemaName: scheme.name))
@@ -110,12 +112,14 @@ private extension SchemeLinter {
     }
 
     func missingCodeCoverageTargetIssue(missingTargetName: String, schemaName: String) -> LintingIssue {
-        let reason = "The target '\(missingTargetName)' specified in \(schemaName) code coverage targets list isn't defined in the project."
+        let reason =
+            "The target '\(missingTargetName)' specified in \(schemaName) code coverage targets list isn't defined in the project."
         return LintingIssue(reason: reason, severity: .error)
     }
 
     func missingExpandVariablesTargetIssue(missingTargetName: String, schemaName: String) -> LintingIssue {
-        let reason = "The target '\(missingTargetName)' specified in \(schemaName) expandVariableFromTarget isn't defined in the project."
+        let reason =
+            "The target '\(missingTargetName)' specified in \(schemaName) expandVariableFromTarget isn't defined in the project."
         return LintingIssue(reason: reason, severity: .error)
     }
 
@@ -128,7 +132,10 @@ private extension SchemeLinter {
 
         scheme.targetDependencies().forEach {
             if $0.projectPath != project.path {
-                issues.append(.init(reason: "The target '\($0.name)' specified in scheme '\(scheme.name)' is not defined in the project named '\(project.name)'. Consider using a workspace scheme instead to reference a target in another project.", severity: .error))
+                issues.append(.init(
+                    reason: "The target '\($0.name)' specified in scheme '\(scheme.name)' is not defined in the project named '\(project.name)'. Consider using a workspace scheme instead to reference a target in another project.",
+                    severity: .error
+                ))
             }
         }
 

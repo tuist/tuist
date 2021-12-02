@@ -25,7 +25,10 @@ final class CarthageDependenciesTests: XCTestCase {
     }
 
     func test_carthageDependency_binary_codable() throws {
-        let subject: CarthageDependencies.Dependency = .binary(path: "file:///some/Path/MyFramework.json", requirement: .upToNext("5.6.9"))
+        let subject: CarthageDependencies.Dependency = .binary(
+            path: "file:///some/Path/MyFramework.json",
+            requirement: .upToNext("5.6.9")
+        )
         XCTAssertCodable(subject)
     }
 

@@ -15,7 +15,13 @@ public extension XCTestCase {
     // MARK: - XCTAssertions
 
     func XCTAssertEmpty<T: Collection>(_ collection: T, file: StaticString = #file, line: UInt = #line) {
-        XCTAssertEqual(collection.count, 0, "Expected to be empty but it has \(collection.count) elements", file: file, line: line)
+        XCTAssertEqual(
+            collection.count,
+            0,
+            "Expected to be empty but it has \(collection.count) elements",
+            file: file,
+            line: line
+        )
     }
 
     func XCTAssertNotEmpty<T: Collection>(_ collection: T, file: StaticString = #file, line: UInt = #line) {
@@ -70,7 +76,12 @@ public extension XCTestCase {
     }
 
     // swiftlint:disable:next line_length
-    func XCTAssertThrowsSpecific<Error: Swift.Error & Equatable, T>(_ closure: @autoclosure () throws -> T, _ error: Error, file: StaticString = #file, line: UInt = #line) {
+    func XCTAssertThrowsSpecific<Error: Swift.Error & Equatable, T>(
+        _ closure: @autoclosure () throws -> T,
+        _ error: Error,
+        file: StaticString = #file,
+        line: UInt = #line
+    ) {
         do {
             _ = try closure()
         } catch let closureError as Error {
@@ -91,7 +102,12 @@ public extension XCTestCase {
         let jsonData = XCTTry(try encoder.encode(decoded), file: file, line: line)
         let subjectData = XCTTry(try encoder.encode(subject), file: file, line: line)
 
-        XCTAssert(jsonData == subjectData, "JSON does not match the encoded \(String(describing: subject))", file: file, line: line)
+        XCTAssert(
+            jsonData == subjectData,
+            "JSON does not match the encoded \(String(describing: subject))",
+            file: file,
+            line: line
+        )
     }
 
     func XCTAssertCodable<C: Codable & Equatable>(_ subject: C, file _: StaticString = #file, line _: UInt = #line) {
@@ -106,7 +122,9 @@ public extension XCTestCase {
         XCTAssertEqual(subject, decoded, "The subject is not equal to it's encoded & decoded version")
     }
 
-    func XCTAssertEncodableEqualToJson<C: Encodable>(_ subject: C, _ json: String, file: StaticString = #file, line: UInt = #line) {
+    func XCTAssertEncodableEqualToJson<C: Encodable>(_ subject: C, _ json: String, file: StaticString = #file,
+                                                     line: UInt = #line)
+    {
         let encoder = JSONEncoder()
         encoder.outputFormatting = .prettyPrinted
 
@@ -142,7 +160,9 @@ public extension XCTestCase {
     }
 
     /// Asserts that a `json` object decoded as a `T` type is equal to an `expected` value.
-    func XCTAssertDecodableEqualToJson<C: Decodable & Equatable>(_ json: String, _ expected: C, file: StaticString = #file, line: UInt = #line) {
+    func XCTAssertDecodableEqualToJson<C: Decodable & Equatable>(_ json: String, _ expected: C, file: StaticString = #file,
+                                                                 line: UInt = #line)
+    {
         guard let jsonData = json.data(using: .utf8) else {
             XCTFail("Invalid JSON.", file: file, line: line)
             return
@@ -166,7 +186,12 @@ public extension XCTestCase {
     }
 
     func XCTEmpty<S>(_ array: [S], file: StaticString = #file, line: UInt = #line) {
-        XCTAssertTrue(array.isEmpty, "Expected array to be empty but it's not. It contains the following elements: \(array)", file: file, line: line)
+        XCTAssertTrue(
+            array.isEmpty,
+            "Expected array to be empty but it's not. It contains the following elements: \(array)",
+            file: file,
+            line: line
+        )
     }
 
     // `XCTUnwrap` is unavailable when building using SwiftPM
@@ -191,9 +216,17 @@ public extension XCTestCase {
 
     // MARK: - HTTPResource
 
-    func XCTAssertHTTPResourceMethod<T, E: Error>(_ resource: HTTPResource<T, E>, _ method: String, file: StaticString = #file, line: UInt = #line) {
+    func XCTAssertHTTPResourceMethod<T, E: Error>(_ resource: HTTPResource<T, E>, _ method: String, file: StaticString = #file,
+                                                  line: UInt = #line)
+    {
         let request = resource.request()
-        XCTAssertEqual(request.httpMethod!, method, "Expected the HTTP request method \(method) but got \(request.httpMethod!)", file: file, line: line)
+        XCTAssertEqual(
+            request.httpMethod!,
+            method,
+            "Expected the HTTP request method \(method) but got \(request.httpMethod!)",
+            file: file,
+            line: line
+        )
     }
 
     func XCTAssertHTTPResourceContainsHeader<T, E: Error>(
@@ -209,10 +242,18 @@ public extension XCTestCase {
             XCTFail("The request doesn't contain the header \(header)", file: file, line: line)
             return
         }
-        XCTAssertEqual(headerValue, value, "Expected header \(header) to have value \(value) but got \(headerValue)", file: file, line: line)
+        XCTAssertEqual(
+            headerValue,
+            value,
+            "Expected header \(header) to have value \(value) but got \(headerValue)",
+            file: file,
+            line: line
+        )
     }
 
-    func XCTAssertHTTPResourcePath<T, E: Error>(_ resource: HTTPResource<T, E>, path: String, file: StaticString = #file, line: UInt = #line) {
+    func XCTAssertHTTPResourcePath<T, E: Error>(_ resource: HTTPResource<T, E>, path: String, file: StaticString = #file,
+                                                line: UInt = #line)
+    {
         let request = resource.request()
         let url = request.url!
         let components = URLComponents(string: url.absoluteString)!
@@ -220,11 +261,19 @@ public extension XCTestCase {
         XCTAssertEqual(requestPath, path, "Expected the path \(path) but got \(requestPath)", file: file, line: line)
     }
 
-    func XCTAssertHTTPResourceURL<T, E: Error>(_ resource: HTTPResource<T, E>, url: URL, file: StaticString = #file, line: UInt = #line) {
+    func XCTAssertHTTPResourceURL<T, E: Error>(_ resource: HTTPResource<T, E>, url: URL, file: StaticString = #file,
+                                               line: UInt = #line)
+    {
         let request = resource.request()
         let requestUrl = request.url!
         let components = URLComponents(string: requestUrl.absoluteString)!
-        XCTAssertEqual(components.url!, url, "Expected the URL \(url.absoluteString) but got \(components.url!)", file: file, line: line)
+        XCTAssertEqual(
+            components.url!,
+            url,
+            "Expected the URL \(url.absoluteString) but got \(components.url!)",
+            file: file,
+            line: line
+        )
     }
 
     @discardableResult func XCTAssertContainsElementOfType<T>(
@@ -268,7 +317,12 @@ public extension XCTestCase {
             XCTFail("Didn't found an element of type \(String(describing: after))", file: file, line: line)
             return nil
         }
-        XCTAssertTrue(elementIndex > previousElementIndex, "Expected element of type \(String(describing: element)) to be after an element of type \(String(describing: after)) but it's not", file: file, line: line)
+        XCTAssertTrue(
+            elementIndex > previousElementIndex,
+            "Expected element of type \(String(describing: element)) to be after an element of type \(String(describing: after)) but it's not",
+            file: file,
+            line: line
+        )
         return collection[elementIndex] as? T
     }
 
@@ -287,7 +341,12 @@ public extension XCTestCase {
             XCTFail("Didn't found an element of type \(String(describing: before))", file: file, line: line)
             return nil
         }
-        XCTAssertTrue(elementIndex < afterElementIndex, "Expected element of type \(String(describing: element)) to be before an element of type \(String(describing: before)) but it's not", file: file, line: line)
+        XCTAssertTrue(
+            elementIndex < afterElementIndex,
+            "Expected element of type \(String(describing: element)) to be before an element of type \(String(describing: before)) but it's not",
+            file: file,
+            line: line
+        )
         return collection[elementIndex] as? T
     }
 }

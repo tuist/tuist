@@ -4,7 +4,9 @@ public typealias SettingsDictionary = [String: SettingValue]
 
 // MARK: - SettingValue
 
-public enum SettingValue: ExpressibleByStringInterpolation, ExpressibleByArrayLiteral, ExpressibleByBooleanLiteral, Equatable, Codable {
+public enum SettingValue: ExpressibleByStringInterpolation, ExpressibleByArrayLiteral, ExpressibleByBooleanLiteral, Equatable,
+    Codable
+{
     case string(String)
     case array([String])
 
@@ -86,7 +88,9 @@ public struct Configuration: Equatable, Codable {
     ///   - settings: The base build settings to apply
     ///   - xcconfig: The xcconfig file to associate with this configuration
     /// - Returns: A debug `CustomConfiguration`
-    public static func debug(name: ConfigurationName, settings: SettingsDictionary = [:], xcconfig: Path? = nil) -> Configuration {
+    public static func debug(name: ConfigurationName, settings: SettingsDictionary = [:],
+                             xcconfig: Path? = nil) -> Configuration
+    {
         return Configuration(
             name: name,
             variant: .debug,
@@ -102,7 +106,9 @@ public struct Configuration: Equatable, Codable {
     ///   - settings: The base build settings to apply
     ///   - xcconfig: The xcconfig file to associate with this configuration
     /// - Returns: A release `CustomConfiguration`
-    public static func release(name: ConfigurationName, settings: SettingsDictionary = [:], xcconfig: Path? = nil) -> Configuration {
+    public static func release(name: ConfigurationName, settings: SettingsDictionary = [:],
+                               xcconfig: Path? = nil) -> Configuration
+    {
         return Configuration(
             name: name,
             variant: .release,
@@ -170,12 +176,12 @@ public enum DefaultSettings: Codable, Equatable {
     }
 }
 
-extension DefaultSettings {
-    public static var recommended: DefaultSettings {
+public extension DefaultSettings {
+    static var recommended: DefaultSettings {
         .recommended(excluding: [])
     }
 
-    public static var essential: DefaultSettings {
+    static var essential: DefaultSettings {
         .essential(excluding: [])
     }
 }

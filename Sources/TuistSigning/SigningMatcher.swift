@@ -45,7 +45,8 @@ final class SigningMatcher: SigningMatching {
             }
 
         // swiftlint:disable:next line_length
-        let provisioningProfiles: [TargetName: [ConfigurationName: ProvisioningProfile]] = try signingFilesLocator.locateProvisioningProfiles(from: path)
+        let provisioningProfiles: [TargetName: [ConfigurationName: ProvisioningProfile]] = try signingFilesLocator
+            .locateProvisioningProfiles(from: path)
             .map(provisioningProfileParser.parse)
             .reduce(into: [:]) { dict, profile in
                 var currentTargetDict = dict[profile.targetName] ?? [:]

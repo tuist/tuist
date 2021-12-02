@@ -1,8 +1,8 @@
 import Foundation
 import TuistGraph
 
-extension Scheme {
-    public func targetDependencies() -> [TargetReference] {
+public extension Scheme {
+    func targetDependencies() -> [TargetReference] {
         let targetSources: [[TargetReference]?] = [
             buildAction?.targets,
             buildAction?.preActions.compactMap(\.target),
@@ -18,6 +18,6 @@ extension Scheme {
         ]
 
         let targets = targetSources.compactMap { $0 }.flatMap { $0 }.uniqued()
-        return targets.sorted { ($0.name < $1.name) }
+        return targets.sorted { $0.name < $1.name }
     }
 }

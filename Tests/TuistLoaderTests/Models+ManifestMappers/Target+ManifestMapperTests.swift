@@ -18,6 +18,9 @@ final class TargetManifestMapperErrorTests: TuistUnitTestCase {
         let got = subject.description
 
         // Then
-        XCTAssertEqual(got, "The target Target has the following invalid resource globs:\n" + invalidGlobs.invalidGlobsDescription)
+        XCTAssertEqual(
+            got,
+            "The target Target has the following invalid resource globs:\n" + invalidGlobs.invalidGlobsDescription
+        )
     }
 }

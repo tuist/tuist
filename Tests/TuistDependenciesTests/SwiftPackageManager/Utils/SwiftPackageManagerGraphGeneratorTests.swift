@@ -25,40 +25,44 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
             exitstatus: 0
         )
         // swiftlint:disable line_length
-        system.stubs["/usr/bin/xcrun vtool -show-build /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest"] = (
-            stderror: nil,
-            stdout: """
-            /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture armv7):
-            Load command 8
-                  cmd LC_VERSION_MIN_IPHONEOS
-              cmdsize 16
-              version 9.0
-                  sdk 15.0
-            /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture armv7s):
-            Load command 8
-                  cmd LC_VERSION_MIN_IPHONEOS
-              cmdsize 16
-              version 9.0
-                  sdk 15.0
-            /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture arm64):
-            Load command 8
-                  cmd LC_VERSION_MIN_IPHONEOS
-              cmdsize 16
-              version 9.0
-                  sdk 15.0
-            /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture arm64e):
-            Load command 9
-                  cmd LC_BUILD_VERSION
-              cmdsize 32
-             platform IOS
-                minos 14.0
-                  sdk 15.0
-               ntools 1
-                 tool LD
-              version 711.0
-            """,
-            exitstatus: 0
-        )
+        system
+            .stubs[
+                "/usr/bin/xcrun vtool -show-build /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest"
+            ] =
+            (
+                stderror: nil,
+                stdout: """
+                /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture armv7):
+                Load command 8
+                      cmd LC_VERSION_MIN_IPHONEOS
+                  cmdsize 16
+                  version 9.0
+                      sdk 15.0
+                /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture armv7s):
+                Load command 8
+                      cmd LC_VERSION_MIN_IPHONEOS
+                  cmdsize 16
+                  version 9.0
+                      sdk 15.0
+                /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture arm64):
+                Load command 8
+                      cmd LC_VERSION_MIN_IPHONEOS
+                  cmdsize 16
+                  version 9.0
+                      sdk 15.0
+                /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture arm64e):
+                Load command 9
+                      cmd LC_BUILD_VERSION
+                  cmdsize 32
+                 platform IOS
+                    minos 14.0
+                      sdk 15.0
+                   ntools 1
+                     tool LD
+                  version 711.0
+                """,
+                exitstatus: 0
+            )
         // swiftlint:enable line_length
 
         subject = SwiftPackageManagerGraphGenerator(swiftPackageManagerController: swiftPackageManagerController)
@@ -94,7 +98,8 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
 
     func test_generate_google_measurement() throws {
         try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/nanopb/Sources/nanopb"))
-        try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/GoogleUtilities/Sources/GULAppDelegateSwizzler"))
+        try fileHandler
+            .createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/GoogleUtilities/Sources/GULAppDelegateSwizzler"))
         try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/GoogleUtilities/Sources/GULNSData"))
         try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/GoogleUtilities/Sources/GULMethodSwizzler"))
         try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/GoogleUtilities/Sources/GULNetwork"))
@@ -300,8 +305,8 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
     }
 }
 
-extension TuistCore.DependenciesGraph {
-    public func merging(with other: Self) throws -> Self {
+public extension TuistCore.DependenciesGraph {
+    func merging(with other: Self) throws -> Self {
         let mergedExternalDependencies = other.externalDependencies.reduce(into: externalDependencies) { result, entry in
             result[entry.key] = entry.value
         }

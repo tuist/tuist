@@ -59,9 +59,9 @@ public struct RunActionOptions: Equatable, Codable {
     }
 }
 
-extension RunActionOptions {
+public extension RunActionOptions {
     /// Represents a simulated location used when running the provided run action.
-    public struct SimulatedLocation: Codable, Equatable {
+    struct SimulatedLocation: Codable, Equatable {
         public let identifier: String?
         public let gpxFile: Path?
 

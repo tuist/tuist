@@ -18,7 +18,7 @@ public struct IDETemplateMacros: Codable, Hashable {
         // it is desired to also add leading space if it is not already present,
         // but if header starts with `//` then I know what I am doing and it should be kept intact
         if !fileHeader.hasPrefix("//"), let first = fileHeader.first.map(String.init),
-            first.trimmingCharacters(in: .whitespacesAndNewlines) == first
+           first.trimmingCharacters(in: .whitespacesAndNewlines) == first
         {
             fileHeader.insert(" ", at: fileHeader.startIndex)
         }

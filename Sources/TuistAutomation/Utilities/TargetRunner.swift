@@ -83,7 +83,8 @@ public final class TargetRunner: TargetRunning {
     ) throws {
         try assertCanRunTarget(target.target)
 
-        let configuration = configuration ?? target.project.settings.defaultDebugBuildConfiguration()?.name ?? BuildConfiguration.debug.name
+        let configuration = configuration ?? target.project.settings.defaultDebugBuildConfiguration()?.name ?? BuildConfiguration
+            .debug.name
         let xcodeBuildDirectory = try xcodeProjectBuildDirectoryLocator.locate(
             platform: target.target.platform,
             projectPath: workspacePath,

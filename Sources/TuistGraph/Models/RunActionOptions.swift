@@ -35,8 +35,8 @@ public struct RunActionOptions: Equatable, Codable {
     }
 }
 
-extension RunActionOptions {
-    public enum SimulatedLocation {
+public extension RunActionOptions {
+    enum SimulatedLocation {
         case gpxFile(AbsolutePath)
         case reference(String)
 

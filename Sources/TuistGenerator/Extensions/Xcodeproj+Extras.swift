@@ -1,18 +1,18 @@
 import Foundation
 import XcodeProj
 
-extension PBXFileElement {
-    public var nameOrPath: String {
+public extension PBXFileElement {
+    var nameOrPath: String {
         name ?? path ?? ""
     }
 }
 
-extension PBXFileElement {
+public extension PBXFileElement {
     /// File elements sort
     ///
     /// - Sorts elements in ascending order
     /// - Files precede Groups
-    public static func filesBeforeGroupsSort(lhs: PBXFileElement, rhs: PBXFileElement) -> Bool {
+    static func filesBeforeGroupsSort(lhs: PBXFileElement, rhs: PBXFileElement) -> Bool {
         switch (lhs, rhs) {
         case (is PBXGroup, is PBXGroup):
             return lhs.nameOrPath < rhs.nameOrPath

@@ -96,7 +96,10 @@ public final class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting
         if shouldUpdate {
             try swiftPackageManagerController.update(at: pathsProvider.destinationSwiftPackageManagerDirectory, printOutput: true)
         } else {
-            try swiftPackageManagerController.resolve(at: pathsProvider.destinationSwiftPackageManagerDirectory, printOutput: true)
+            try swiftPackageManagerController.resolve(
+                at: pathsProvider.destinationSwiftPackageManagerDirectory,
+                printOutput: true
+            )
         }
 
         try saveDependencies(

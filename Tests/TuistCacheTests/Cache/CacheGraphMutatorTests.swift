@@ -805,7 +805,11 @@ final class CacheGraphMutatorTests: TuistUnitTestCase {
 
         // Given: App
         let appProject = Project.test(path: path.appending(component: "App"), name: "App")
-        let appGraphTarget = GraphTarget.test(path: appProject.path, target: Target.test(name: "App", platform: .iOS, product: .app), project: appProject)
+        let appGraphTarget = GraphTarget.test(
+            path: appProject.path,
+            target: Target.test(name: "App", platform: .iOS, product: .app),
+            project: appProject
+        )
 
         let graphTargets = [bGraphTarget, cGraphTarget, appGraphTarget]
         let graph = Graph.test(

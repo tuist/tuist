@@ -7,9 +7,9 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
     public init() {}
 
     public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
-        let sourceTargets: Set<TargetReference> = Set(graph.targets.flatMap { (projectPath, targets) -> [TargetReference] in
+        let sourceTargets: Set<TargetReference> = Set(graph.targets.flatMap { projectPath, targets -> [TargetReference] in
             guard graph.projects[projectPath] != nil else { return [] }
-            return targets.compactMap { (_, target) -> TargetReference? in
+            return targets.compactMap { _, target -> TargetReference? in
                 if target.prune { return nil }
                 return TargetReference(projectPath: projectPath, name: target.name)
             }
@@ -64,8 +64,10 @@ public final class TreeShakePrunedTargetsGraphMapper: GraphMapping {
         return workspace
     }
 
-    fileprivate func treeShake(targets: [Target], path: AbsolutePath, graph: Graph, sourceTargets: Set<TargetReference>) -> [Target] {
-        targets.compactMap { (target) -> Target? in
+    fileprivate func treeShake(targets: [Target], path: AbsolutePath, graph: Graph,
+                               sourceTargets: Set<TargetReference>) -> [Target]
+    {
+        targets.compactMap { target -> Target? in
             guard let target = graph.targets[path, default: [:]][target.name] else { return nil }
             let targetReference = TargetReference(projectPath: path, name: target.name)
             guard sourceTargets.contains(targetReference) else { return nil }

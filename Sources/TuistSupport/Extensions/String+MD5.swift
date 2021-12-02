@@ -24,7 +24,7 @@ import Foundation
 
 public extension Data {
     var md5: String {
-        let message = withUnsafeBytes { (pointer) -> [UInt8] in
+        let message = withUnsafeBytes { pointer -> [UInt8] in
             Array(pointer)
         }
 
@@ -55,7 +55,7 @@ func arrayOfBytes<T>(_ value: T, length: Int? = nil) -> [UInt8] {
     let valuePointer = UnsafeMutablePointer<T>.allocate(capacity: 1)
     valuePointer.pointee = value
 
-    let bytes = valuePointer.withMemoryRebound(to: UInt8.self, capacity: totalBytes) { (bytesPointer) -> [UInt8] in
+    let bytes = valuePointer.withMemoryRebound(to: UInt8.self, capacity: totalBytes) { bytesPointer -> [UInt8] in
         var bytes = [UInt8](repeating: 0, count: totalBytes)
         for j in 0 ..< min(MemoryLayout<T>.size, totalBytes) {
             bytes[totalBytes - 1 - j] = (bytesPointer + j).pointee
@@ -246,7 +246,7 @@ class MD5: HashProtocol {
                     F = B ^ C ^ D
                     g = (3 * j + 5) % 16
                 case 48 ... 63:
-                    F = C ^ (B | (~D))
+                    F = C ^ (B | ~D)
                     g = (7 * j) % 16
                 default:
                     break

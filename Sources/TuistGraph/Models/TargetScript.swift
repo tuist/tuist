@@ -135,12 +135,12 @@ public struct TargetScript: Equatable, Codable {
     }
 }
 
-extension Array where Element == TargetScript {
-    public var preScripts: [TargetScript] {
+public extension Array where Element == TargetScript {
+    var preScripts: [TargetScript] {
         filter { $0.order == .pre }
     }
 
-    public var postScripts: [TargetScript] {
+    var postScripts: [TargetScript] {
         filter { $0.order == .post }
     }
 }

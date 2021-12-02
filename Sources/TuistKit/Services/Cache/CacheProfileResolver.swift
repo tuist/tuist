@@ -28,7 +28,7 @@ struct CacheProfileResolver {
         let profiles: [Cache.Profile]
         let fromConfig: Bool
         if let cacheConfig = config.cache,
-            !cacheConfig.profiles.isEmpty
+           !cacheConfig.profiles.isEmpty
         {
             fromConfig = true
             profiles = cacheConfig.profiles

@@ -21,7 +21,7 @@ public final class DerivedDataLocator: DerivedDataLocating {
 // This is taken from XCLogParser, from Spotify, at:
 // https://github.com/spotify/XCLogParser/blob/master/Sources/XcodeHasher/XcodeHasher.swift
 
-internal class XcodeProjectPathHasher {
+internal enum XcodeProjectPathHasher {
     enum HashingError: Error {
         case invalidPartitioning
     }

@@ -15,11 +15,15 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         if let buildStub = buildStub {
             return buildStub(target, scheme, clean, arguments)
         } else {
-            return Observable.error(TestError("\(String(describing: MockXcodeBuildController.self)) received an unexpected call to build"))
+            return Observable
+                .error(TestError("\(String(describing: MockXcodeBuildController.self)) received an unexpected call to build"))
         }
     }
 
-    var testStub: ((XcodeBuildTarget, String, Bool, XcodeBuildDestination, AbsolutePath?, AbsolutePath?, [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>>)? // swiftlint:disable:this line_length
+    var testStub: (
+        (XcodeBuildTarget, String, Bool, XcodeBuildDestination, AbsolutePath?, AbsolutePath?, [XcodeBuildArgument])
+            -> Observable<SystemEvent<XcodeBuildOutput>>
+    )? // swiftlint:disable:this line_length
     func test(
         _ target: XcodeBuildTarget,
         scheme: String,
@@ -32,11 +36,15 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         if let testStub = testStub {
             return testStub(target, scheme, clean, destination, derivedDataPath, resultBundlePath, arguments)
         } else {
-            return Observable.error(TestError("\(String(describing: MockXcodeBuildController.self)) received an unexpected call to test"))
+            return Observable
+                .error(TestError("\(String(describing: MockXcodeBuildController.self)) received an unexpected call to test"))
         }
     }
 
-    var archiveStub: ((XcodeBuildTarget, String, Bool, AbsolutePath, [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>>)?
+    var archiveStub: (
+        (XcodeBuildTarget, String, Bool, AbsolutePath, [XcodeBuildArgument])
+            -> Observable<SystemEvent<XcodeBuildOutput>>
+    )?
     func archive(_ target: XcodeBuildTarget,
                  scheme: String,
                  clean: Bool,
@@ -46,7 +54,8 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         if let archiveStub = archiveStub {
             return archiveStub(target, scheme, clean, archivePath, arguments)
         } else {
-            return Observable.error(TestError("\(String(describing: MockXcodeBuildController.self)) received an unexpected call to archive"))
+            return Observable
+                .error(TestError("\(String(describing: MockXcodeBuildController.self)) received an unexpected call to archive"))
         }
     }
 
@@ -55,16 +64,28 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         if let createXCFrameworkStub = createXCFrameworkStub {
             return createXCFrameworkStub(frameworks, output)
         } else {
-            return Observable.error(TestError("\(String(describing: MockXcodeBuildController.self)) received an unexpected call to createXCFramework"))
+            return Observable
+                .error(
+                    TestError(
+                        "\(String(describing: MockXcodeBuildController.self)) received an unexpected call to createXCFramework"
+                    )
+                )
         }
     }
 
     var showBuildSettingsStub: ((XcodeBuildTarget, String, String) -> Single<[String: XcodeBuildSettings]>)?
-    func showBuildSettings(_ target: XcodeBuildTarget, scheme: String, configuration: String) -> Single<[String: XcodeBuildSettings]> {
+    func showBuildSettings(_ target: XcodeBuildTarget, scheme: String,
+                           configuration: String) -> Single<[String: XcodeBuildSettings]>
+    {
         if let showBuildSettingsStub = showBuildSettingsStub {
             return showBuildSettingsStub(target, scheme, configuration)
         } else {
-            return Single.error(TestError("\(String(describing: MockXcodeBuildController.self)) received an unexpected call to showBuildSettings"))
+            return Single
+                .error(
+                    TestError(
+                        "\(String(describing: MockXcodeBuildController.self)) received an unexpected call to showBuildSettings"
+                    )
+                )
         }
     }
 }

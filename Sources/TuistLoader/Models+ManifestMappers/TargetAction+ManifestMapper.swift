@@ -10,7 +10,9 @@ extension TuistGraph.TargetScript {
     /// - Parameters:
     ///   - manifest: Manifest representation of target action.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.TargetScript, generatorPaths: GeneratorPaths) throws -> TuistGraph.TargetScript {
+    static func from(manifest: ProjectDescription.TargetScript, generatorPaths: GeneratorPaths) throws -> TuistGraph
+        .TargetScript
+    {
         let name = manifest.name
         let order = TuistGraph.TargetScript.Order.from(manifest: manifest.order)
         let inputPaths = try absolutePaths(for: manifest.inputPaths, generatorPaths: generatorPaths)

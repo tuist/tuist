@@ -77,7 +77,10 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
                 let xcframeworkPath = outputDirectory.appending(component: "\(productName).xcframework")
                 try buildXCFramework(frameworks: frameworkpaths, output: xcframeworkPath)
 
-                try FileHandler.shared.move(from: xcframeworkPath, to: outputDirectory.appending(component: xcframeworkPath.basename))
+                try FileHandler.shared.move(
+                    from: xcframeworkPath,
+                    to: outputDirectory.appending(component: xcframeworkPath.basename)
+                )
             }
         }
     }

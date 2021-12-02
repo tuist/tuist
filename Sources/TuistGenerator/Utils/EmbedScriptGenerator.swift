@@ -73,7 +73,9 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
         }
 
         for frameworkReference in frameworkReferences {
-            guard case let GraphDependencyReference.framework(path, _, _, dsymPath, bcsymbolmapPaths, _, _, _) = frameworkReference else {
+            guard case let GraphDependencyReference
+                .framework(path, _, _, dsymPath, bcsymbolmapPaths, _, _, _) = frameworkReference
+            else {
                 preconditionFailure("references need to be of type framework")
                 break
             }

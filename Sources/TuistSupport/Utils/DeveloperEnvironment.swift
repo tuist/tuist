@@ -34,7 +34,11 @@ public final class DeveloperEnvironment: DeveloperEnvironmenting {
             return _derivedDataDirectory
         }
         let location: AbsolutePath
-        if let customLocation = try? System.shared.capture("/usr/bin/defaults", "read", "com.apple.dt.Xcode IDECustomDerivedDataLocation") {
+        if let customLocation = try? System.shared.capture(
+            "/usr/bin/defaults",
+            "read",
+            "com.apple.dt.Xcode IDECustomDerivedDataLocation"
+        ) {
             location = AbsolutePath(customLocation.chomp())
         } else {
             // Default location

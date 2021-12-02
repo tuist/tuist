@@ -140,7 +140,9 @@ public class FileHandler: FileHandling {
         try withTemporaryDirectory(removeTreeOnDeinit: true, closure)
     }
 
-    public func inTemporaryDirectory<Result>(removeOnCompletion: Bool, _ closure: (AbsolutePath) throws -> Result) throws -> Result {
+    public func inTemporaryDirectory<Result>(removeOnCompletion: Bool,
+                                             _ closure: (AbsolutePath) throws -> Result) throws -> Result
+    {
         try withTemporaryDirectory(removeTreeOnDeinit: removeOnCompletion, closure)
     }
 
@@ -291,7 +293,7 @@ public class FileHandler: FileHandling {
         _ = digestData.withUnsafeMutableBytes { digestBytes -> UInt8 in
             data.withUnsafeBytes { messageBytes -> UInt8 in
                 if let messageBytesBaseAddress = messageBytes.baseAddress,
-                    let digestBytesBlindMemory = digestBytes.bindMemory(to: UInt8.self).baseAddress
+                   let digestBytesBlindMemory = digestBytes.bindMemory(to: UInt8.self).baseAddress
                 {
                     let messageLength = CC_LONG(data.count)
                     CC_MD5(messageBytesBaseAddress, messageLength, digestBytesBlindMemory)

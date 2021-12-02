@@ -78,11 +78,20 @@ public extension TuistCore.DependenciesGraph {
                             ],
                             dependencies: [
                                 .target(name: "TuistKit"),
-                                .project(target: "ALibrary", path: Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency")),
-                                .project(target: "ALibraryUtils", path: Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency")),
+                                .project(
+                                    target: "ALibrary",
+                                    path: Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency")
+                                ),
+                                .project(
+                                    target: "ALibraryUtils",
+                                    path: Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency")
+                                ),
                             ],
                             settings: Self.spmSettings(with: [
-                                "HEADER_SEARCH_PATHS": ["$(SRCROOT)/customPath/cSearchPath", "$(SRCROOT)/customPath/cxxSearchPath"],
+                                "HEADER_SEARCH_PATHS": [
+                                    "$(SRCROOT)/customPath/cSearchPath",
+                                    "$(SRCROOT)/customPath/cxxSearchPath",
+                                ],
                                 "OTHER_CFLAGS": ["CUSTOM_C_FLAG"],
                                 "OTHER_CPLUSPLUSFLAGS": ["CUSTOM_CXX_FLAG"],
                                 "OTHER_SWIFT_FLAGS": ["CUSTOM_SWIFT_FLAG1", "CUSTOM_SWIFT_FLAG2"],
@@ -101,7 +110,10 @@ public extension TuistCore.DependenciesGraph {
                                 "\(packageFolder.pathString)/Sources/TuistKit/**",
                             ],
                             dependencies: [
-                                .project(target: "AnotherLibrary", path: Self.packageFolder(spmFolder: spmFolder, packageName: "another-dependency")),
+                                .project(
+                                    target: "AnotherLibrary",
+                                    path: Self.packageFolder(spmFolder: spmFolder, packageName: "another-dependency")
+                                ),
                             ],
                             settings: Self.spmSettings()
                         ),
@@ -263,9 +275,18 @@ public extension TuistCore.DependenciesGraph {
                                     target: "GULAppDelegateSwizzler",
                                     path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
                                 ),
-                                .project(target: "GULMethodSwizzler", path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")),
-                                .project(target: "GULNSData", path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")),
-                                .project(target: "GULNetwork", path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")),
+                                .project(
+                                    target: "GULMethodSwizzler",
+                                    path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                                ),
+                                .project(
+                                    target: "GULNSData",
+                                    path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                                ),
+                                .project(
+                                    target: "GULNetwork",
+                                    path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                                ),
                                 .project(target: "nanopb", path: Self.packageFolder(spmFolder: spmFolder, packageName: "nanopb")),
                                 .sdk(name: "libsqlite3.tbd", status: .required),
                                 .sdk(name: "libc++.tbd", status: .required),
@@ -285,14 +306,25 @@ public extension TuistCore.DependenciesGraph {
                                 "\(packageFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupportWrapper/**",
                             ],
                             dependencies: [
-                                .xcframework(path: "\(artifactsFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupport.xcframework"),
+                                .xcframework(
+                                    path: "\(artifactsFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupport.xcframework"
+                                ),
                                 .project(
                                     target: "GULAppDelegateSwizzler",
                                     path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
                                 ),
-                                .project(target: "GULMethodSwizzler", path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")),
-                                .project(target: "GULNSData", path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")),
-                                .project(target: "GULNetwork", path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")),
+                                .project(
+                                    target: "GULMethodSwizzler",
+                                    path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                                ),
+                                .project(
+                                    target: "GULNSData",
+                                    path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                                ),
+                                .project(
+                                    target: "GULNetwork",
+                                    path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                                ),
                                 .project(target: "nanopb", path: Self.packageFolder(spmFolder: spmFolder, packageName: "nanopb")),
                                 .sdk(name: "libsqlite3.tbd", status: .required),
                                 .sdk(name: "libc++.tbd", status: .required),
@@ -442,13 +474,17 @@ extension DependenciesGraph {
         }
 
         if case let .array(cDefinitions) = settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] {
-            settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array(["$(inherited)"] + (cDefinitions + ["SWIFT_PACKAGE=1"]).sorted())
+            settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array(
+                ["$(inherited)"] + (cDefinitions + ["SWIFT_PACKAGE=1"])
+                    .sorted()
+            )
         } else {
             settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array(["$(inherited)", "SWIFT_PACKAGE=1"])
         }
 
         if case let .array(swiftDefinitions) = settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] {
-            settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .array(["$(inherited)"] + ["SWIFT_PACKAGE"] + swiftDefinitions)
+            settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] =
+                .array(["$(inherited)"] + ["SWIFT_PACKAGE"] + swiftDefinitions)
         } else {
             settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .array(["$(inherited)"] + ["SWIFT_PACKAGE"])
         }

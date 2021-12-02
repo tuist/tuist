@@ -177,7 +177,9 @@ public final class DependenciesController: DependenciesControlling {
             try carthageInteractor.clean(dependenciesDirectory: dependenciesDirectory)
         }
 
-        if let swiftPackageManagerDependencies = dependencies.swiftPackageManager, !swiftPackageManagerDependencies.packages.isEmpty {
+        if let swiftPackageManagerDependencies = dependencies.swiftPackageManager,
+           !swiftPackageManagerDependencies.packages.isEmpty
+        {
             let swiftPackageManagerDependenciesGraph = try swiftPackageManagerInteractor.install(
                 dependenciesDirectory: dependenciesDirectory,
                 dependencies: swiftPackageManagerDependencies,
@@ -194,8 +196,8 @@ public final class DependenciesController: DependenciesControlling {
     }
 }
 
-extension TuistCore.DependenciesGraph {
-    public func merging(with other: Self) throws -> Self {
+public extension TuistCore.DependenciesGraph {
+    func merging(with other: Self) throws -> Self {
         let mergedExternalDependencies = try other.externalDependencies.reduce(into: externalDependencies) { result, entry in
             if let alreadyPresent = result[entry.key] {
                 throw DependenciesControllerError.duplicatedDependency(entry.key, alreadyPresent, entry.value)

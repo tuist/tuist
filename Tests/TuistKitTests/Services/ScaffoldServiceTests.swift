@@ -164,8 +164,10 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
     func test_attributes_are_passed_to_generator() throws {
         // Given
         templateLoader.loadTemplateStub = { _ in
-            Template.test(attributes: [.optional("optional", default: ""),
-                                       .required("required")])
+            Template.test(attributes: [
+                .optional("optional", default: ""),
+                .required("required"),
+            ])
         }
 
         templatesDirectoryLocator.templateDirectoriesStub = { _ in
@@ -185,8 +187,10 @@ final class ScaffoldServiceTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(
-            ["optional": "optionalValue",
-             "required": "requiredValue"],
+            [
+                "optional": "optionalValue",
+                "required": "requiredValue",
+            ],
             generateAttributes
         )
     }

@@ -71,7 +71,9 @@ public final class MockFileHandler: FileHandler {
         return stubIsFolder(path)
     }
 
-    override public func inTemporaryDirectory<Result>(removeOnCompletion _: Bool, _ closure: (AbsolutePath) throws -> Result) throws -> Result {
+    override public func inTemporaryDirectory<Result>(removeOnCompletion _: Bool,
+                                                      _ closure: (AbsolutePath) throws -> Result) throws -> Result
+    {
         try closure(temporaryDirectory())
     }
 

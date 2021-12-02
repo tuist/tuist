@@ -5,8 +5,8 @@ public enum TargetType {
     case sources
 }
 
-extension Target {
-    public static func target(
+public extension Target {
+    static func target(
         name: String,
         product: Product,
         dependencies: [TargetDependency]
@@ -41,7 +41,7 @@ extension Target {
     ///     - testDependencies: Dependencies for tests.
     ///     - testingDependencies: Dependencies for the testing target.
     ///     - integrationTestsDependencies: Dependencies for the integration tests.
-    public static func module(
+    static func module(
         name: String,
         product: Product = .framework,
         hasTests: Bool = true,

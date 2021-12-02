@@ -200,9 +200,13 @@ final class ConfigGenerator: ConfigGenerating {
                 project: project
             )
         ) { $1 }
-        settings.merge(testBundleTargetDerivedSettings(target: target, graphTraverser: graphTraverser, projectPath: project.path)) { $1 }
+        settings
+            .merge(testBundleTargetDerivedSettings(target: target, graphTraverser: graphTraverser, projectPath: project.path)) {
+                $1
+            }
         settings.merge(deploymentTargetDerivedSettings(target: target)) { $1 }
-        settings.merge(watchTargetDerivedSettings(target: target, graphTraverser: graphTraverser, projectPath: project.path)) { $1 }
+        settings
+            .merge(watchTargetDerivedSettings(target: target, graphTraverser: graphTraverser, projectPath: project.path)) { $1 }
     }
 
     private func generalTargetDerivedSettings(

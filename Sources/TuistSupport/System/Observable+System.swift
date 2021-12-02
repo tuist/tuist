@@ -37,7 +37,7 @@ public extension Observable where Element == SystemEvent<String> {
 
     /// Returns an observable that collects and merges the standard output and error into a single string.
     func collectAndMergeOutput() -> Observable<String> {
-        reduce("") { (collected, event) -> String in
+        reduce("") { collected, event -> String in
             var collected = collected
             switch event {
             case let .standardError(error):
@@ -52,7 +52,7 @@ public extension Observable where Element == SystemEvent<String> {
     /// It collects the standard output and error into an object that is sent
     /// as a single event when the process completes.
     func collectOutput() -> Observable<SystemCollectedOutput> {
-        reduce(SystemCollectedOutput()) { (collected, event) -> SystemCollectedOutput in
+        reduce(SystemCollectedOutput()) { collected, event -> SystemCollectedOutput in
             var collected = collected
             switch event {
             case let .standardError(error):

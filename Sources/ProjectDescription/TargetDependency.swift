@@ -108,12 +108,12 @@ extension SDKStatus: Codable {}
 
 // MARK: - TargetDependency (Coding)
 
-extension TargetDependency {
-    public enum CodingError: Error {
+public extension TargetDependency {
+    enum CodingError: Error {
         case unknownType(String)
     }
 
-    public enum CodingKeys: String, CodingKey {
+    enum CodingKeys: String, CodingKey {
         case type
         case name
         case target
@@ -127,7 +127,7 @@ extension TargetDependency {
         case package
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         let type = try container.decode(String.self, forKey: .type)
@@ -175,7 +175,7 @@ extension TargetDependency {
         }
     }
 
-    public func encode(to encoder: Encoder) throws {
+    func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
 
         try container.encode(typeName, forKey: .type)

@@ -1,7 +1,7 @@
 import Foundation
 
 @dynamicMemberLookup
-public struct Environment {
+public enum Environment {
     public enum Value: Equatable {
         case boolean(Bool)
         case string(String)
@@ -68,7 +68,8 @@ private extension String {
 
             // Find next lowercase character
             searchRange = upperCaseRange.lowerBound ..< searchRange.upperBound
-            guard let lowerCaseRange = rangeOfCharacter(from: CharacterSet.lowercaseLetters, options: [], range: searchRange) else {
+            guard let lowerCaseRange = rangeOfCharacter(from: CharacterSet.lowercaseLetters, options: [], range: searchRange)
+            else {
                 // There are no more lower case letters. Just end here.
                 wordStart = searchRange.lowerBound
                 break

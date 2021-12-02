@@ -13,7 +13,8 @@ public enum CopyFilesManifestMapperError: FatalError {
     public var description: String {
         switch self {
         case let .invalidResourcesGlob(actionName: actionName, invalidGlobs: invalidGlobs):
-            return "The copy files action \(actionName) has the following invalid resource globs:\n" + invalidGlobs.invalidGlobsDescription
+            return "The copy files action \(actionName) has the following invalid resource globs:\n" + invalidGlobs
+                .invalidGlobsDescription
         }
     }
 }
@@ -23,7 +24,9 @@ extension TuistGraph.CopyFilesAction {
     /// - Parameters:
     ///   - manifest: Manifest representation of platform model.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.CopyFilesAction, generatorPaths: GeneratorPaths) throws -> TuistGraph.CopyFilesAction {
+    static func from(manifest: ProjectDescription.CopyFilesAction, generatorPaths: GeneratorPaths) throws -> TuistGraph
+        .CopyFilesAction
+    {
         var invalidResourceGlobs: [InvalidGlob] = []
         let files: [TuistGraph.FileElement] = try manifest.files.flatMap { manifest -> [TuistGraph.FileElement] in
             do {
@@ -86,7 +89,7 @@ extension TuistGraph.CopyFilesAction.Destination {
 
 // MARK: - Array Extension FileElement
 
-extension Array where Element == TuistGraph.FileElement {
+public extension Array where Element == TuistGraph.FileElement {
     /// Packages should be added as a whole folder not individually.
     /// (e.g. bundled file formats recognized by the OS like .pages, .numbers, .rtfd...)
     ///
@@ -106,7 +109,7 @@ extension Array where Element == TuistGraph.FileElement {
     /// ```
     ///
     /// - Returns: List of clean `AbsolutePath`s
-    public func cleanPackages() -> [Self.Element] {
+    func cleanPackages() -> [Self.Element] {
         compactMap {
             var filePath = $0.path
             while !filePath.isRoot {

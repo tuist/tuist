@@ -161,7 +161,8 @@ final class XCFrameworkMetadataProviderTests: TuistTestCase {
                 architectures: [.arm64]
             ),
         ])
-        let expectedBinaryPath = frameworkPath.appending(RelativePath("ios-arm64/MyFrameworkMissingArch.framework/MyFrameworkMissingArch"))
+        let expectedBinaryPath = frameworkPath
+            .appending(RelativePath("ios-arm64/MyFrameworkMissingArch.framework/MyFrameworkMissingArch"))
         XCTAssertEqual(metadata, XCFrameworkMetadata(
             path: frameworkPath,
             infoPlist: expectedInfoPlist,

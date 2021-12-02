@@ -22,40 +22,44 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             exitstatus: 0
         )
         // swiftlint:disable line_length
-        system.stubs["/usr/bin/xcrun vtool -show-build /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest"] = (
-            stderror: nil,
-            stdout: """
-            /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture armv7):
-            Load command 8
-                  cmd LC_VERSION_MIN_IPHONEOS
-              cmdsize 16
-              version 9.0
-                  sdk 15.0
-            /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture armv7s):
-            Load command 8
-                  cmd LC_VERSION_MIN_IPHONEOS
-              cmdsize 16
-              version 9.0
-                  sdk 15.0
-            /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture arm64):
-            Load command 8
-                  cmd LC_VERSION_MIN_IPHONEOS
-              cmdsize 16
-              version 9.0
-                  sdk 15.0
-            /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture arm64e):
-            Load command 9
-                  cmd LC_BUILD_VERSION
-              cmdsize 32
-             platform IOS
-                minos 14.0
-                  sdk 15.0
-               ntools 1
-                 tool LD
-              version 711.0
-            """,
-            exitstatus: 0
-        )
+        system
+            .stubs[
+                "/usr/bin/xcrun vtool -show-build /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest"
+            ] =
+            (
+                stderror: nil,
+                stdout: """
+                /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture armv7):
+                Load command 8
+                      cmd LC_VERSION_MIN_IPHONEOS
+                  cmdsize 16
+                  version 9.0
+                      sdk 15.0
+                /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture armv7s):
+                Load command 8
+                      cmd LC_VERSION_MIN_IPHONEOS
+                  cmdsize 16
+                  version 9.0
+                      sdk 15.0
+                /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture arm64):
+                Load command 8
+                      cmd LC_VERSION_MIN_IPHONEOS
+                  cmdsize 16
+                  version 9.0
+                      sdk 15.0
+                /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture arm64e):
+                Load command 9
+                      cmd LC_BUILD_VERSION
+                  cmdsize 32
+                 platform IOS
+                    minos 14.0
+                      sdk 15.0
+                   ntools 1
+                     tool LD
+                  version 711.0
+                """,
+                exitstatus: 0
+            )
         // swiftlint:enable line_length
         subject = PackageInfoMapper()
     }
@@ -181,7 +185,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             "Target1",
                             basePath: basePath,
                             customSources: .init(
-                                globs: [basePath.appending(RelativePath("Package/Path/\(alternativeDefaultSource)/Target1/**")).pathString]
+                                globs: [
+                                    basePath.appending(RelativePath("Package/Path/\(alternativeDefaultSource)/Target1/**"))
+                                        .pathString,
+                                ]
                             )
                         ),
                     ]
@@ -280,7 +287,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         "com_example_target-1",
                         basePath: basePath,
                         customBundleID: "com.example.target-1",
-                        customSources: .init(globs: [basePath.appending(RelativePath("Package/Path/Sources/com.example.target-1/**")).pathString])
+                        customSources: .init(globs: [
+                            basePath
+                                .appending(RelativePath("Package/Path/Sources/com.example.target-1/**")).pathString,
+                        ])
                     ),
                 ]
             )
@@ -485,11 +495,14 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         "Target1",
                         basePath: basePath,
                         customSources: [
-                            .init(stringLiteral:
+                            .init(
+                                stringLiteral:
                                 basePath.appending(RelativePath("Package/Path/Sources/Target1/Subfolder/**")).pathString
                             ),
-                            .init(stringLiteral:
-                                basePath.appending(RelativePath("Package/Path/Sources/Target1/Another/Subfolder/file.swift")).pathString
+                            .init(
+                                stringLiteral:
+                                basePath.appending(RelativePath("Package/Path/Sources/Target1/Another/Subfolder/file.swift"))
+                                    .pathString
                             ),
                         ]
                     ),
@@ -543,29 +556,52 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                             .init(
                                 Path(basePath.appending(RelativePath("Package/Path/Sources/Target1/**")).pathString),
                                 excluding: [
-                                    Path(basePath.appending(RelativePath("Package/Path/Sources/Target1/AnotherOne/Resource/**")).pathString),
+                                    Path(
+                                        basePath.appending(RelativePath("Package/Path/Sources/Target1/AnotherOne/Resource/**"))
+                                            .pathString
+                                    ),
                                 ]
                             ),
                         ]),
                         resources: [
                             .glob(
-                                pattern: Path(basePath.appending(RelativePath("Package/Path/Sources/Target1/Resource/Folder/**")).pathString),
+                                pattern: Path(
+                                    basePath.appending(RelativePath("Package/Path/Sources/Target1/Resource/Folder/**"))
+                                        .pathString
+                                ),
                                 excluding: [
-                                    Path(basePath.appending(RelativePath("Package/Path/Sources/Target1/AnotherOne/Resource/**")).pathString),
+                                    Path(
+                                        basePath.appending(RelativePath("Package/Path/Sources/Target1/AnotherOne/Resource/**"))
+                                            .pathString
+                                    ),
                                 ],
                                 tags: []
                             ),
                             .glob(
-                                pattern: Path(basePath.appending(RelativePath("Package/Path/Sources/Target1/Another/Resource/Folder/**")).pathString),
+                                pattern: Path(
+                                    basePath
+                                        .appending(RelativePath("Package/Path/Sources/Target1/Another/Resource/Folder/**"))
+                                        .pathString
+                                ),
                                 excluding: [
-                                    Path(basePath.appending(RelativePath("Package/Path/Sources/Target1/AnotherOne/Resource/**")).pathString),
+                                    Path(
+                                        basePath.appending(RelativePath("Package/Path/Sources/Target1/AnotherOne/Resource/**"))
+                                            .pathString
+                                    ),
                                 ],
                                 tags: []
                             ),
                             .glob(
-                                pattern: Path(basePath.appending(RelativePath("Package/Path/Sources/Target1/AnotherOne/Resource/Folder/**")).pathString),
+                                pattern: Path(
+                                    basePath
+                                        .appending(RelativePath("Package/Path/Sources/Target1/AnotherOne/Resource/Folder/**"))
+                                        .pathString
+                                ),
                                 excluding: [
-                                    Path(basePath.appending(RelativePath("Package/Path/Sources/Target1/AnotherOne/Resource/**")).pathString),
+                                    Path(
+                                        basePath.appending(RelativePath("Package/Path/Sources/Target1/AnotherOne/Resource/**"))
+                                            .pathString
+                                    ),
                                 ],
                                 tags: []
                             ),
@@ -885,9 +921,15 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        customSources: .init(globs: [basePath.appending(RelativePath("Package/Path/Custom/Path/Sources/Folder/**")).pathString]),
+                        customSources: .init(globs: [
+                            basePath
+                                .appending(RelativePath("Package/Path/Custom/Path/Sources/Folder/**")).pathString,
+                        ]),
                         resources: [
-                            .init(stringLiteral: basePath.appending(RelativePath("Package/Path/Custom/Path/Resource/Folder/**")).pathString),
+                            .init(
+                                stringLiteral: basePath.appending(RelativePath("Package/Path/Custom/Path/Resource/Folder/**"))
+                                    .pathString
+                            ),
                         ],
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Custom/Path/Headers"],
@@ -995,28 +1037,32 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             exitstatus: 0
         )
         // swiftlint:disable line_length
-        system.stubs["/usr/bin/xcrun vtool -show-build /Applications/Xcode.app/Contents/Developer/Platforms/AppleTVOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest"] = (
-            stderror: nil,
-            stdout: """
-            /Applications/Xcode.app/Contents/Developer/Platforms/AppleTVOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture arm64):
-            Load command 8
-                  cmd LC_VERSION_MIN_TVOS
-              cmdsize 16
-              version 9.0
-                  sdk 15.0
-            /Applications/Xcode.app/Contents/Developer/Platforms/AppleTVOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture arm64e):
-            Load command 9
-                  cmd LC_BUILD_VERSION
-               cmdsize 32
-              platform TVOS
-                 minos 14.0
-                   sdk 15.0
-                ntools 1
-                  tool LD
-               version 711.0
-            """,
-            exitstatus: 0
-        )
+        system
+            .stubs[
+                "/usr/bin/xcrun vtool -show-build /Applications/Xcode.app/Contents/Developer/Platforms/AppleTVOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest"
+            ] =
+            (
+                stderror: nil,
+                stdout: """
+                /Applications/Xcode.app/Contents/Developer/Platforms/AppleTVOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture arm64):
+                Load command 8
+                      cmd LC_VERSION_MIN_TVOS
+                  cmdsize 16
+                  version 9.0
+                      sdk 15.0
+                /Applications/Xcode.app/Contents/Developer/Platforms/AppleTVOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest (architecture arm64e):
+                Load command 9
+                      cmd LC_BUILD_VERSION
+                   cmdsize 32
+                  platform TVOS
+                     minos 14.0
+                       sdk 15.0
+                    ntools 1
+                      tool LD
+                   version 711.0
+                """,
+                exitstatus: 0
+            )
         // swiftlint:enable line_length
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(RelativePath("Package/Path/Sources/Target1"))
@@ -1111,7 +1157,12 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", basePath: basePath, platform: .iOS, deploymentTarget: .iOS(targetVersion: "13.0", devices: [.iphone, .ipad])),
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        platform: .iOS,
+                        deploymentTarget: .iOS(targetVersion: "13.0", devices: [.iphone, .ipad])
+                    ),
                 ]
             )
         )
@@ -1147,7 +1198,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", basePath: basePath, customSettings: ["HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Target1/value"]]),
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        customSettings: ["HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Target1/value"]]
+                    ),
                 ]
             )
         )
@@ -1183,7 +1238,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", basePath: basePath, customSettings: ["HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Target1/value"]]),
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        customSettings: ["HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Target1/value"]]
+                    ),
                 ]
             )
         )
@@ -1223,7 +1282,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", basePath: basePath, customSettings: ["GCC_PREPROCESSOR_DEFINITIONS": ["key1=1", "key2=value", "key3="]]),
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        customSettings: ["GCC_PREPROCESSOR_DEFINITIONS": ["key1=1", "key2=value", "key3="]]
+                    ),
                 ]
             )
         )
@@ -1262,7 +1325,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", basePath: basePath, customSettings: ["GCC_PREPROCESSOR_DEFINITIONS": ["key1=1", "key2=value"]]),
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        customSettings: ["GCC_PREPROCESSOR_DEFINITIONS": ["key1=1", "key2=value"]]
+                    ),
                 ]
             )
         )
@@ -1605,8 +1672,18 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         .test(
                             name: "Target1",
                             settings: [
-                                .init(tool: .c, name: .headerSearchPath, condition: .init(platformNames: ["tvos"], config: nil), value: ["value"]),
-                                .init(tool: .c, name: .headerSearchPath, condition: .init(platformNames: ["ios"], config: nil), value: ["otherValue"]),
+                                .init(
+                                    tool: .c,
+                                    name: .headerSearchPath,
+                                    condition: .init(platformNames: ["tvos"], config: nil),
+                                    value: ["value"]
+                                ),
+                                .init(
+                                    tool: .c,
+                                    name: .headerSearchPath,
+                                    condition: .init(platformNames: ["ios"], config: nil),
+                                    value: ["otherValue"]
+                                ),
                             ]
                         ),
                     ],
@@ -1622,7 +1699,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", basePath: basePath, customSettings: ["HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Target1/otherValue"]]),
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        customSettings: ["HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Target1/otherValue"]]
+                    ),
                 ]
             )
         )
@@ -1785,7 +1866,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         "Target1",
                         basePath: basePath,
                         dependencies: [
-                            .xcframework(path: Path(basePath.appending(RelativePath("artifacts/Package/Dependency1.xcframework")).pathString)),
+                            .xcframework(path: Path(
+                                basePath.appending(RelativePath("artifacts/Package/Dependency1.xcframework"))
+                                    .pathString
+                            )),
                         ]
                     ),
                 ]
@@ -1872,7 +1956,10 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         "Target1",
                         basePath: basePath,
                         dependencies: [
-                            .xcframework(path: Path(basePath.appending(RelativePath("artifacts/Package/Dependency1.xcframework")).pathString)),
+                            .xcframework(path: Path(
+                                basePath.appending(RelativePath("artifacts/Package/Dependency1.xcframework"))
+                                    .pathString
+                            )),
                         ]
                     ),
                 ]
@@ -1914,7 +2001,14 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", basePath: basePath, dependencies: [.xcframework(path: Path(basePath.appending(.init("Package/Dependency1/Dependency1.xcframework")).pathString))]),
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        dependencies: [.xcframework(path: Path(
+                            basePath
+                                .appending(.init("Package/Dependency1/Dependency1.xcframework")).pathString
+                        ))]
+                    ),
                 ]
             )
         )
@@ -2227,8 +2321,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     }
 }
 
-extension PackageInfoMapping {
-    fileprivate func map(
+private extension PackageInfoMapping {
+    func map(
         package: String,
         basePath: AbsolutePath = "/",
         packageInfos: [String: PackageInfo] = [:],
@@ -2275,8 +2369,8 @@ extension PackageInfoMapping {
     }
 }
 
-extension PackageInfo.Target {
-    fileprivate static func test(
+private extension PackageInfo.Target {
+    static func test(
         name: String,
         type: PackageInfo.Target.TargetType = .regular,
         path: String? = nil,
@@ -2304,8 +2398,8 @@ extension PackageInfo.Target {
     }
 }
 
-extension ProjectDescription.Project {
-    fileprivate static func test(
+private extension ProjectDescription.Project {
+    static func test(
         name: String,
         settings: ProjectDescription.Settings? = nil,
         targets: [ProjectDescription.Target]
@@ -2319,8 +2413,8 @@ extension ProjectDescription.Project {
     }
 }
 
-extension ProjectDescription.Target {
-    fileprivate static func test(
+private extension ProjectDescription.Target {
+    static func test(
         _ name: String,
         basePath: AbsolutePath = "/",
         platform: ProjectDescription.Platform = .iOS,
@@ -2341,7 +2435,8 @@ extension ProjectDescription.Target {
             bundleId: customBundleID ?? name,
             deploymentTarget: deploymentTarget,
             infoPlist: .default,
-            sources: customSources ?? .init(globs: [basePath.appending(RelativePath("Package/Path/Sources/\(name)/**")).pathString]),
+            sources: customSources ??
+                .init(globs: [basePath.appending(RelativePath("Package/Path/Sources/\(name)/**")).pathString]),
             resources: resources.isEmpty ? nil : ResourceFileElements(resources: resources),
             headers: headers,
             dependencies: dependencies,

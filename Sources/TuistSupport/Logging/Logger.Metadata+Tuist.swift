@@ -1,23 +1,23 @@
-extension Logger.Metadata {
-    public static let tuist: String = "is"
+public extension Logger.Metadata {
+    static let tuist: String = "is"
 
-    public static let successKey: String = "success"
-    public static var success: Logger.Metadata {
+    static let successKey: String = "success"
+    static var success: Logger.Metadata {
         [tuist: .string(successKey)]
     }
 
-    public static let sectionKey: String = "section"
-    public static var section: Logger.Metadata {
+    static let sectionKey: String = "section"
+    static var section: Logger.Metadata {
         [tuist: .string(sectionKey)]
     }
 
-    public static let subsectionKey: String = "subsection"
-    public static var subsection: Logger.Metadata {
+    static let subsectionKey: String = "subsection"
+    static var subsection: Logger.Metadata {
         [tuist: .string(subsectionKey)]
     }
 
-    public static let prettyKey: String = "pretty"
-    public static var pretty: Logger.Metadata {
+    static let prettyKey: String = "pretty"
+    static var pretty: Logger.Metadata {
         [tuist: .string(prettyKey)]
     }
 }

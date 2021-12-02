@@ -1,11 +1,11 @@
 import Foundation
 import struct TSCUtility.Version
 
-extension String {
+public extension String {
     // swiftlint:disable:next force_try
     private static let whitespaceRegularExpression = try! NSRegularExpression(pattern: "\\s")
 
-    public var escapingWhitespaces: String {
+    var escapingWhitespaces: String {
         String.whitespaceRegularExpression.stringByReplacingMatches(
             in: self,
             range: NSRange(startIndex..., in: self),
@@ -13,15 +13,15 @@ extension String {
         ).replacingOccurrences(of: "\0", with: "␀")
     }
 
-    public func dropSuffix(_ suffix: String) -> String {
+    func dropSuffix(_ suffix: String) -> String {
         hasSuffix(suffix) ? String(dropLast(suffix.count)) : self
     }
 
-    public func dropPrefix(_ prefix: String) -> String {
+    func dropPrefix(_ prefix: String) -> String {
         hasPrefix(prefix) ? String(dropFirst(prefix.count)) : self
     }
 
-    public func chomp(separator: String? = nil) -> String {
+    func chomp(separator: String? = nil) -> String {
         func scrub(_ separator: String) -> String {
             var e = endIndex
             while String(self[startIndex ..< e]).hasSuffix(separator), e > startIndex {
@@ -41,7 +41,7 @@ extension String {
         }
     }
 
-    public func chuzzle() -> String? {
+    func chuzzle() -> String? {
         var cc = self
 
         loop: while true {
@@ -69,7 +69,7 @@ extension String {
         return String(cc)
     }
 
-    public func nsRange(from range: Range<String.Index>) -> NSRange? {
+    func nsRange(from range: Range<String.Index>) -> NSRange? {
         guard
             let from = range.lowerBound.samePosition(in: utf16),
             let to = range.upperBound.samePosition(in: utf16) else { return nil }
@@ -80,7 +80,7 @@ extension String {
         )
     }
 
-    public func version() -> Version? {
+    func version() -> Version? {
         if components(separatedBy: ".").count == 2 {
             return Version(string: self + ".0")
         } else {
@@ -88,28 +88,28 @@ extension String {
         }
     }
 
-    public func capitalizingFirstLetter() -> String {
+    func capitalizingFirstLetter() -> String {
         prefix(1).capitalized + dropFirst()
     }
 
-    public mutating func capitalizeFirstLetter() {
+    mutating func capitalizeFirstLetter() {
         self = capitalizingFirstLetter()
     }
 
-    public var uppercasingFirst: String {
+    var uppercasingFirst: String {
         prefix(1).uppercased() + dropFirst()
     }
 
-    public var lowercasingFirst: String {
+    var lowercasingFirst: String {
         prefix(1).lowercased() + dropFirst()
     }
 
     /// A collection of all the words in the string by separating out any punctuation and spaces.
-    public var words: [String] {
+    var words: [String] {
         components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }
     }
 
-    public var camelized: String {
+    var camelized: String {
         guard !isEmpty else {
             return ""
         }
@@ -122,11 +122,11 @@ extension String {
         return ([first] + rest).joined(separator: "")
     }
 
-    public func camelCaseToKebabCase() -> String {
+    func camelCaseToKebabCase() -> String {
         convertCamelCase(separator: "-")
     }
 
-    public func camelCaseToSnakeCase() -> String {
+    func camelCaseToSnakeCase() -> String {
         convertCamelCase(separator: "_")
     }
 
@@ -153,7 +153,7 @@ extension String {
     /// hello -> hello, hello$world -> 'hello$world', input A -> 'input A'
     ///
     /// - Returns: Shell escaped string.
-    func shellEscaped() -> String {
+    internal func shellEscaped() -> String {
         // If all the characters in the string are in whitelist then no need to escape.
         guard let pos = utf8.firstIndex(where: { mustBeEscaped($0) }) else {
             return self
@@ -181,7 +181,7 @@ extension String {
     }
 
     /// Shell escapes the current string. This method is mutating version of shellEscaped().
-    mutating func shellEscape() {
+    internal mutating func shellEscape() {
         self = shellEscaped()
     }
 

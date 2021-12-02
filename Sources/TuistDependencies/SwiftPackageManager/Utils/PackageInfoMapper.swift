@@ -16,7 +16,11 @@ enum PackageInfoMapperError: FatalError, Equatable {
     case minDeploymentTargetParsingFailed(ProjectDescription.Platform)
 
     /// Thrown when no supported platforms are found for a package.
-    case noSupportedPlatforms(name: String, configured: Set<ProjectDescription.Platform>, package: Set<ProjectDescription.Platform>)
+    case noSupportedPlatforms(
+        name: String,
+        configured: Set<ProjectDescription.Platform>,
+        package: Set<ProjectDescription.Platform>
+    )
 
     /// Thrown when `PackageInfo.Target.Dependency.byName` dependency cannot be resolved.
     case unknownByNameDependency(String)
@@ -31,7 +35,10 @@ enum PackageInfoMapperError: FatalError, Equatable {
     case unknownProductTarget(package: String, product: String, target: String)
 
     /// Thrown when unsupported `PackageInfo.Target.TargetBuildSettingDescription` `Tool`/`SettingName` pair is found.
-    case unsupportedSetting(PackageInfo.Target.TargetBuildSettingDescription.Tool, PackageInfo.Target.TargetBuildSettingDescription.SettingName)
+    case unsupportedSetting(
+        PackageInfo.Target.TargetBuildSettingDescription.Tool,
+        PackageInfo.Target.TargetBuildSettingDescription.SettingName
+    )
 
     /// Error type.
     var type: ErrorType {
@@ -164,7 +171,10 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     result[target.name] = Path(packageToFolder[packageInfo.key]!.appending(RelativePath(path)).pathString)
                 } else {
                     // remote binaries are checked out by SPM in artifacts/<Package>/<Target>.xcframework
-                    result[target.name] = Path(artifactsFolderForPackage.appending(component: "\(target.name).xcframework").pathString)
+                    result[target.name] = Path(
+                        artifactsFolderForPackage.appending(component: "\(target.name).xcframework")
+                            .pathString
+                    )
                 }
             }
         }
@@ -194,37 +204,44 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
         }
 
-        let resolvedDependencies: [String: [ResolvedDependency]] = try packageInfos.values.reduce(into: [:]) { result, packageInfo in
-            try packageInfo.targets
-                .filter { targetToProducts[$0.name] != nil }
-                .forEach { target in
-                    guard result[target.name] == nil else { return }
-                    result[target.name] = try ResolvedDependency.from(
-                        dependencies: target.dependencies,
-                        packageInfo: packageInfo,
-                        packageInfos: packageInfos,
-                        productToPackage: productToPackage,
-                        targetDependencyToFramework: targetDependencyToFramework
-                    )
-                }
-        }
+        let resolvedDependencies: [String: [ResolvedDependency]] = try packageInfos.values
+            .reduce(into: [:]) { result, packageInfo in
+                try packageInfo.targets
+                    .filter { targetToProducts[$0.name] != nil }
+                    .forEach { target in
+                        guard result[target.name] == nil else { return }
+                        result[target.name] = try ResolvedDependency.from(
+                            dependencies: target.dependencies,
+                            packageInfo: packageInfo,
+                            packageInfos: packageInfos,
+                            productToPackage: productToPackage,
+                            targetDependencyToFramework: targetDependencyToFramework
+                        )
+                    }
+            }
 
-        let externalDependencies: [String: [ProjectDescription.TargetDependency]] = try packageInfos.reduce(into: [:]) { result, packageInfo in
-            try packageInfo.value.products.forEach { product in
-                result[product.name] = try product.targets.flatMap { target in
-                    try ResolvedDependency.fromTarget(name: target, targetDependencyToFramework: targetDependencyToFramework).map {
-                        switch $0 {
-                        case let .xcframework(path):
-                            return .xcframework(path: path)
-                        case let .target(name):
-                            return .project(target: name, path: Path(packageToFolder[packageInfo.key]!.pathString))
-                        case .externalTarget:
-                            throw PackageInfoMapperError.unknownProductTarget(package: packageInfo.key, product: product.name, target: target)
-                        }
+        let externalDependencies: [String: [ProjectDescription.TargetDependency]] = try packageInfos
+            .reduce(into: [:]) { result, packageInfo in
+                try packageInfo.value.products.forEach { product in
+                    result[product.name] = try product.targets.flatMap { target in
+                        try ResolvedDependency.fromTarget(name: target, targetDependencyToFramework: targetDependencyToFramework)
+                            .map {
+                                switch $0 {
+                                case let .xcframework(path):
+                                    return .xcframework(path: path)
+                                case let .target(name):
+                                    return .project(target: name, path: Path(packageToFolder[packageInfo.key]!.pathString))
+                                case .externalTarget:
+                                    throw PackageInfoMapperError.unknownProductTarget(
+                                        package: packageInfo.key,
+                                        product: product.name,
+                                        target: target
+                                    )
+                                }
+                            }
                     }
                 }
             }
-        }
 
         let targetToPlatforms: [String: ProjectDescription.Platform] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             try packageInfo.value.targets.forEach { target in
@@ -311,9 +328,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
     }
 }
 
-extension ProjectDescription.Target {
+private extension ProjectDescription.Target {
     // swiftlint:disable:next function_body_length
-    fileprivate static func from(
+    static func from(
         target: PackageInfo.Target,
         products: Set<PackageInfo.Product>,
         packageName: String,
@@ -334,7 +351,8 @@ extension ProjectDescription.Target {
             return nil
         }
 
-        guard let product = ProjectDescription.Product.from(name: target.name, products: products, productTypes: productTypes) else {
+        guard let product = ProjectDescription.Product.from(name: target.name, products: products, productTypes: productTypes)
+        else {
             logger.debug("Target \(target.name) ignored by product type")
             return nil
         }
@@ -392,14 +410,17 @@ extension ProjectDescription.Target {
     }
 }
 
-extension ProjectDescription.Platform {
-    fileprivate static func from(
+private extension ProjectDescription.Platform {
+    static func from(
         configured: Set<TuistGraph.Platform>,
         package: [PackageInfo.Platform],
         packageName: String
     ) throws -> Self {
         let configuredPlatforms = Set(configured.map(\.descriptionPlatform))
-        let packagePlatforms = Set(package.isEmpty ? ProjectDescription.Platform.allCases : try package.map { try $0.descriptionPlatform() })
+        let packagePlatforms = Set(
+            package.isEmpty ? ProjectDescription.Platform.allCases : try package
+                .map { try $0.descriptionPlatform() }
+        )
         let validPlatforms = configuredPlatforms.intersection(packagePlatforms)
 
         if validPlatforms.contains(.iOS) {
@@ -418,8 +439,8 @@ extension ProjectDescription.Platform {
     }
 }
 
-extension ProjectDescription.DeploymentTarget {
-    fileprivate static func from(
+private extension ProjectDescription.DeploymentTarget {
+    static func from(
         platform: ProjectDescription.Platform,
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         package: [PackageInfo.Platform],
@@ -442,8 +463,8 @@ extension ProjectDescription.DeploymentTarget {
     }
 }
 
-extension ProjectDescription.Product {
-    fileprivate static func from(
+private extension ProjectDescription.Product {
+    static func from(
         name: String,
         products: Set<PackageInfo.Product>,
         productTypes: [String: TuistGraph.Product]
@@ -487,8 +508,8 @@ extension ProjectDescription.Product {
     }
 }
 
-extension SourceFilesList {
-    fileprivate static func from(sources: [String]?, path: AbsolutePath, excluding: [String]) -> Self? {
+private extension SourceFilesList {
+    static func from(sources: [String]?, path: AbsolutePath, excluding: [String]) -> Self? {
         let sourcesPaths: [AbsolutePath]
         if let customSources = sources {
             sourcesPaths = customSources.map { source in
@@ -517,8 +538,8 @@ extension SourceFilesList {
     }
 }
 
-extension ResourceFileElements {
-    fileprivate static func from(resources: [PackageInfo.Target.Resource], path: AbsolutePath, excluding: [String]) -> Self? {
+private extension ResourceFileElements {
+    static func from(resources: [PackageInfo.Target.Resource], path: AbsolutePath, excluding: [String]) -> Self? {
         let resourcesPaths = resources.map { path.appending(RelativePath($0.path)) }
         guard !resourcesPaths.isEmpty else { return nil }
 
@@ -538,8 +559,8 @@ extension ResourceFileElements {
     }
 }
 
-extension ProjectDescription.TargetDependency {
-    fileprivate static func from(
+private extension ProjectDescription.TargetDependency {
+    static func from(
         resolvedDependencies: [PackageInfoMapper.ResolvedDependency],
         platform: ProjectDescription.Platform,
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
@@ -577,13 +598,14 @@ extension ProjectDescription.TargetDependency {
     }
 }
 
-extension ProjectDescription.Headers {
-    fileprivate static func from(moduleMapType: ModuleMapType, publicHeadersPath: AbsolutePath) throws -> Self? {
+private extension ProjectDescription.Headers {
+    static func from(moduleMapType: ModuleMapType, publicHeadersPath: AbsolutePath) throws -> Self? {
         // As per SPM logic, headers should be added only when using the umbrella header without modulemap:
         // https://github.com/apple/swift-package-manager/blob/9b9bed7eaf0f38eeccd0d8ca06ae08f6689d1c3f/Sources/Xcodeproj/pbxproj.swift#L588-L609
         switch moduleMapType {
         case .header, .nestedHeader:
-            let publicHeaders = FileHandler.shared.filesAndDirectoriesContained(in: publicHeadersPath)!.filter { $0.extension == "h" }
+            let publicHeaders = FileHandler.shared.filesAndDirectoriesContained(in: publicHeadersPath)!
+                .filter { $0.extension == "h" }
             return Headers(public: ProjectDescription.FileList(globs: publicHeaders.map { Path($0.pathString) }))
         case .none, .custom, .directory:
             return nil
@@ -591,9 +613,9 @@ extension ProjectDescription.Headers {
     }
 }
 
-extension ProjectDescription.Settings {
+private extension ProjectDescription.Settings {
     // swiftlint:disable:next function_body_length
-    fileprivate static func from(
+    static func from(
         target: PackageInfo.Target,
         packageFolder: AbsolutePath,
         packageName: String,
@@ -697,7 +719,9 @@ extension ProjectDescription.Settings {
 
         if !defines.isEmpty {
             let sortedDefines = defines.sorted { $0.key < $1.key }
-            settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array(["$(inherited)"] + sortedDefines.map { key, value in "\(key)=\(value)" })
+            settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array(["$(inherited)"] + sortedDefines.map { key, value in
+                "\(key)=\(value)"
+            })
         }
 
         if !swiftDefines.isEmpty {
@@ -721,19 +745,20 @@ extension ProjectDescription.Settings {
         }
 
         if let settingsToOverride = targetSettings[target.name] {
-            let projectDescriptionSettingsToOverride = ProjectDescription.SettingsDictionary.from(settingsDictionary: settingsToOverride)
+            let projectDescriptionSettingsToOverride = ProjectDescription.SettingsDictionary
+                .from(settingsDictionary: settingsToOverride)
             settingsDictionary.merge(projectDescriptionSettingsToOverride)
         }
 
         return .from(settings: baseSettings, adding: settingsDictionary, packageFolder: packageFolder)
     }
 
-    fileprivate struct PackageTarget: Hashable {
+    struct PackageTarget: Hashable {
         let package: String
         let target: PackageInfo.Target
     }
 
-    fileprivate static func recursiveTargetDependencies(
+    static func recursiveTargetDependencies(
         of target: PackageInfo.Target,
         packageName: String,
         packageInfos: [String: PackageInfo],
@@ -758,7 +783,7 @@ extension ProjectDescription.Settings {
                         return packageInfo.targets
                             .filter { $0.name == target }
                             .map {
-                                return PackageTarget(package: package, target: $0)
+                                PackageTarget(package: package, target: $0)
                             }
                     case .xcframework:
                         return []
@@ -770,8 +795,8 @@ extension ProjectDescription.Settings {
     }
 }
 
-extension PackageInfo.Target.TargetBuildSettingDescription.Setting {
-    fileprivate var extractDefine: (name: String, value: String) {
+private extension PackageInfo.Target.TargetBuildSettingDescription.Setting {
+    var extractDefine: (name: String, value: String) {
         let define = value[0]
         if define.contains("=") {
             let split = define.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
@@ -782,8 +807,8 @@ extension PackageInfo.Target.TargetBuildSettingDescription.Setting {
     }
 }
 
-extension TuistGraph.Platform {
-    fileprivate var descriptionPlatform: ProjectDescription.Platform {
+private extension TuistGraph.Platform {
+    var descriptionPlatform: ProjectDescription.Platform {
         switch self {
         case .iOS:
             return .iOS
@@ -797,8 +822,8 @@ extension TuistGraph.Platform {
     }
 }
 
-extension PackageInfo.Platform {
-    fileprivate func descriptionPlatform() throws -> ProjectDescription.Platform {
+private extension PackageInfo.Platform {
+    func descriptionPlatform() throws -> ProjectDescription.Platform {
         switch platformName {
         case "ios":
             return .iOS
@@ -814,8 +839,8 @@ extension PackageInfo.Platform {
     }
 }
 
-extension ProjectDescription.Product {
-    fileprivate static func from(product: TuistGraph.Product) -> Self {
+private extension ProjectDescription.Product {
+    static func from(product: TuistGraph.Product) -> Self {
         switch product {
         case .app:
             return .app
@@ -853,8 +878,8 @@ extension ProjectDescription.Product {
     }
 }
 
-extension ProjectDescription.SettingsDictionary {
-    fileprivate static func from(settingsDictionary: TuistGraph.SettingsDictionary) -> Self {
+private extension ProjectDescription.SettingsDictionary {
+    static func from(settingsDictionary: TuistGraph.SettingsDictionary) -> Self {
         return settingsDictionary.mapValues { value in
             switch value {
             case let .string(stringValue):
@@ -866,8 +891,8 @@ extension ProjectDescription.SettingsDictionary {
     }
 }
 
-extension ProjectDescription.Settings {
-    fileprivate static func from(
+private extension ProjectDescription.Settings {
+    static func from(
         settings: TuistGraph.Settings,
         adding: ProjectDescription.SettingsDictionary,
         packageFolder: AbsolutePath
@@ -884,8 +909,8 @@ extension ProjectDescription.Settings {
     }
 }
 
-extension ProjectDescription.Configuration {
-    fileprivate static func from(
+private extension ProjectDescription.Configuration {
+    static func from(
         buildConfiguration: BuildConfiguration,
         configuration: TuistGraph.Configuration?,
         packageFolder: AbsolutePath
@@ -902,8 +927,8 @@ extension ProjectDescription.Configuration {
     }
 }
 
-extension ProjectDescription.DefaultSettings {
-    fileprivate static func from(defaultSettings: TuistGraph.DefaultSettings) -> Self {
+private extension ProjectDescription.DefaultSettings {
+    static func from(defaultSettings: TuistGraph.DefaultSettings) -> Self {
         switch defaultSettings {
         case let .recommended(excluding):
             return .recommended(excluding: excluding)
@@ -915,8 +940,8 @@ extension ProjectDescription.DefaultSettings {
     }
 }
 
-extension ProjectDescription.DeploymentTarget {
-    fileprivate static func from(deploymentTarget: TuistGraph.DeploymentTarget) -> Self {
+private extension ProjectDescription.DeploymentTarget {
+    static func from(deploymentTarget: TuistGraph.DeploymentTarget) -> Self {
         switch deploymentTarget {
         case let .iOS(version, devices):
             return .iOS(targetVersion: version, devices: .from(devices: devices))
@@ -930,23 +955,23 @@ extension ProjectDescription.DeploymentTarget {
     }
 }
 
-extension ProjectDescription.DeploymentDevice {
-    fileprivate static func from(devices: TuistGraph.DeploymentDevice) -> Self {
+private extension ProjectDescription.DeploymentDevice {
+    static func from(devices: TuistGraph.DeploymentDevice) -> Self {
         return .init(rawValue: devices.rawValue)
     }
 }
 
-extension PackageInfo {
-    fileprivate func projectSettings(
+private extension PackageInfo {
+    func projectSettings(
         swiftToolsVersion: TSCUtility.Version?
     ) -> ProjectDescription.Settings? {
         var settingsDictionary: ProjectDescription.SettingsDictionary = [:]
 
-        if let cLanguageStandard = self.cLanguageStandard {
+        if let cLanguageStandard = cLanguageStandard {
             settingsDictionary["GCC_C_LANGUAGE_STANDARD"] = .string(cLanguageStandard)
         }
 
-        if let cxxLanguageStandard = self.cxxLanguageStandard {
+        if let cxxLanguageStandard = cxxLanguageStandard {
             settingsDictionary["CLANG_CXX_LANGUAGE_STANDARD"] = .string(cxxLanguageStandard)
         }
 
@@ -957,7 +982,7 @@ extension PackageInfo {
         return settingsDictionary.isEmpty ? nil : .settings(base: settingsDictionary)
     }
 
-    fileprivate func swiftVersion(for configuredSwiftVersion: TSCUtility.Version?) -> String? {
+    func swiftVersion(for configuredSwiftVersion: TSCUtility.Version?) -> String? {
         /// Take the latest swift version compatible with the configured one
         let maxAllowedSwiftLanguageVersion = swiftLanguageVersions?
             .filter {
@@ -995,8 +1020,8 @@ extension PackageInfo.Target {
     }
 }
 
-extension PackageInfoMapper {
-    public enum ResolvedDependency: Equatable {
+public extension PackageInfoMapper {
+    enum ResolvedDependency: Equatable {
         case target(name: String)
         case xcframework(path: Path)
         case externalTarget(package: String, target: String)
@@ -1023,7 +1048,9 @@ extension PackageInfoMapper {
                     if packageInfo.targets.contains(where: { $0.name == name }) {
                         return Self.fromTarget(name: name, targetDependencyToFramework: targetDependencyToFramework)
                     } else {
-                        guard let packageNameAndInfo = packageInfos.first(where: { $0.value.products.contains { $0.name == name } }) else {
+                        guard let packageNameAndInfo = packageInfos
+                            .first(where: { $0.value.products.contains { $0.name == name } })
+                        else {
                             throw PackageInfoMapperError.unknownByNameDependency(name)
                         }
 

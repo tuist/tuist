@@ -14,14 +14,14 @@ public protocol AsyncQueuing {
 public class AsyncQueue: AsyncQueuing {
     // MARK: - Attributes
 
-    private let disposeBag: DisposeBag = DisposeBag()
+    private let disposeBag = DisposeBag()
     private let queue: Queuing
     private let ciChecker: CIChecking
     private let persistor: AsyncQueuePersisting
     private var dispatchers: [String: AsyncQueueDispatching] = [:]
     private let persistedEventsSchedulerType: SchedulerType
 
-    public static let sharedInstance: AsyncQueue = AsyncQueue()
+    public static let sharedInstance = AsyncQueue()
 
     // MARK: - Init
 

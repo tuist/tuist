@@ -2,7 +2,7 @@ import Foundation
 import TSCBasic
 
 /// Extract version from .xccurrentversion file.
-public final class CoreDataVersionExtractor {
+public enum CoreDataVersionExtractor {
     /// Returns whether or not the provided core data model has versions
     ///
     /// - Parameter path: absolute path to Model.xcdatamodel

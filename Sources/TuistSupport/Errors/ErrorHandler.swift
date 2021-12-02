@@ -23,7 +23,8 @@ public final class ErrorHandler: ErrorHandling {
     public func fatal(error: FatalError) {
         let isSilent = error.type == .abortSilent || error.type == .bugSilent
         if !error.description.isEmpty, !isSilent {
-            logger.error("""
+            logger.error(
+                """
                 \(error.description)
                 Consider creating an issue using the following link: https://github.com/tuist/tuist/issues/new/choose
                 """

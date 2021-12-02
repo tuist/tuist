@@ -135,7 +135,8 @@ private enum GraphServiceError: FatalError {
 
 private extension GraphOutput {
     static func from(_ graph: TuistGraph.Graph) -> GraphOutput {
-        let projects = graph.projects.reduce(into: [String: ProjectOutput]()) { $0[$1.key.pathString] = ProjectOutput.from($1.value) }
+        let projects = graph.projects
+            .reduce(into: [String: ProjectOutput]()) { $0[$1.key.pathString] = ProjectOutput.from($1.value) }
 
         return GraphOutput(name: graph.name, path: graph.path.pathString, projects: projects)
     }
@@ -159,7 +160,13 @@ private extension ProjectOutput {
         let schemes = project.schemes.reduce(into: [SchemeOutput]()) { $0.append(SchemeOutput.from($1)) }
         let targets = project.targets.reduce(into: [TargetOutput]()) { $0.append(TargetOutput.from($1)) }
 
-        return ProjectOutput(name: project.name, path: project.path.pathString, packages: packages, targets: targets, schemes: schemes)
+        return ProjectOutput(
+            name: project.name,
+            path: project.path.pathString,
+            packages: packages,
+            targets: targets,
+            schemes: schemes
+        )
     }
 }
 

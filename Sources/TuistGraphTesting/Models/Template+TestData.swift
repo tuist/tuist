@@ -2,10 +2,10 @@ import Foundation
 import TSCBasic
 @testable import TuistGraph
 
-extension Template {
-    public static func test(description: String = "Template",
-                            attributes: [Attribute] = [],
-                            items: [Template.Item] = []) -> Template
+public extension Template {
+    static func test(description: String = "Template",
+                     attributes: [Attribute] = [],
+                     items: [Template.Item] = []) -> Template
     {
         Template(
             description: description,
@@ -15,9 +15,9 @@ extension Template {
     }
 }
 
-extension Template.Item {
-    public static func test(path: RelativePath,
-                            contents: Template.Contents = .string("test content")) -> Template.Item
+public extension Template.Item {
+    static func test(path: RelativePath,
+                     contents: Template.Contents = .string("test content")) -> Template.Item
     {
         Template.Item(
             path: path,

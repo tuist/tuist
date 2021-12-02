@@ -25,7 +25,8 @@ public extension GraphDependency {
 
     static func testXCFramework(path: AbsolutePath = AbsolutePath.root.appending(RelativePath("Test.xcframework")),
                                 infoPlist: XCFrameworkInfoPlist = .test(),
-                                primaryBinaryPath: AbsolutePath = AbsolutePath.root.appending(RelativePath("Test.xcframework/Test")),
+                                primaryBinaryPath: AbsolutePath = AbsolutePath.root
+                                    .appending(RelativePath("Test.xcframework/Test")),
                                 linking: BinaryLinking = .dynamic) -> GraphDependency
     {
         .xcframework(

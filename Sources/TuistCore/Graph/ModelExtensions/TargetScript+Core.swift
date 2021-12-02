@@ -3,14 +3,14 @@ import TSCBasic
 import TuistGraph
 import TuistSupport
 
-extension TargetScript {
+public extension TargetScript {
     /// Returns the shell script that should be used in the target build phase.
     ///
     /// - Parameters:
     ///   - sourceRootPath: Path to the directory where the Xcode project is generated.
     /// - Returns: Shell script that should be used in the target build phase.
     /// - Throws: An error if the tool absolute path cannot be obtained.
-    public func shellScript(sourceRootPath: AbsolutePath) throws -> String {
+    func shellScript(sourceRootPath: AbsolutePath) throws -> String {
         switch script {
         case let .embedded(text):
             return text.spm_chomp().spm_chuzzle() ?? ""

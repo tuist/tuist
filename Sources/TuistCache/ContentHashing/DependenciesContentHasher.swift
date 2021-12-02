@@ -52,16 +52,20 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
     // MARK: - DependenciesContentHashing
 
     public func hash(graphTarget: GraphTarget, hashedTargets: inout [GraphHashedTarget: String]) throws -> String {
-        let hashes = try graphTarget.target.dependencies.map { try hash(graphTarget: graphTarget, dependency: $0, hashedTargets: &hashedTargets) }
+        let hashes = try graphTarget.target.dependencies
+            .map { try hash(graphTarget: graphTarget, dependency: $0, hashedTargets: &hashedTargets) }
         return hashes.compactMap { $0 }.joined()
     }
 
     // MARK: - Private
 
-    private func hash(graphTarget: GraphTarget, dependency: TargetDependency, hashedTargets: inout [GraphHashedTarget: String]) throws -> String {
+    private func hash(graphTarget: GraphTarget, dependency: TargetDependency,
+                      hashedTargets: inout [GraphHashedTarget: String]) throws -> String
+    {
         switch dependency {
         case let .target(targetName):
-            guard let dependencyHash = hashedTargets[GraphHashedTarget(projectPath: graphTarget.path, targetName: targetName)] else {
+            guard let dependencyHash = hashedTargets[GraphHashedTarget(projectPath: graphTarget.path, targetName: targetName)]
+            else {
                 throw DependenciesContentHasherError.missingTargetHash(
                     sourceTargetName: graphTarget.target.name,
                     dependencyProjectPath: graphTarget.path,

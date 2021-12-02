@@ -16,8 +16,8 @@ public enum ProjectOption: Codable {
 
 // MARK: - Array + ProjectOption
 
-extension Array where Element == ProjectOption {
-    public var textSettings: TextSettings? {
+public extension Array where Element == ProjectOption {
+    var textSettings: TextSettings? {
         compactMap {
             switch $0 {
             case let .textSettings(textSettings):
@@ -44,12 +44,12 @@ extension ProjectOption: Hashable {
 
 // MARK: - Options + Codable
 
-extension ProjectOption {
-    enum CodingKeys: String, CodingKey {
+public extension ProjectOption {
+    internal enum CodingKeys: String, CodingKey {
         case textSettings
     }
 
-    public init(from decoder: Decoder) throws {
+    init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         if container.allKeys.contains(.textSettings), try container.decodeNil(forKey: .textSettings) == false {
@@ -61,7 +61,7 @@ extension ProjectOption {
         }
     }
 
-    public func encode(to encoder: Encoder) throws {
+    func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
 
         switch self {

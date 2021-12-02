@@ -49,8 +49,8 @@ public enum Package: Equatable, Codable {
     }
 }
 
-extension Package {
-    public enum Requirement: Codable, Equatable {
+public extension Package {
+    enum Requirement: Codable, Equatable {
         case upToNextMajor(from: Version)
         case upToNextMinor(from: Version)
         case range(from: Version, to: Version)
@@ -131,7 +131,7 @@ extension Package {
     }
 }
 
-extension Package {
+public extension Package {
     /// Create a package dependency that uses the version requirement, starting with the given minimum version,
     /// going up to the next major version.
     ///
@@ -150,7 +150,7 @@ extension Package {
     /// - Parameters:
     ///     - url: The valid Git URL of the package.
     ///     - version: The minimum version requirement.
-    public static func package(url: String, from version: Version) -> Package {
+    static func package(url: String, from version: Version) -> Package {
         .package(url: url, .upToNextMajor(from: version))
     }
 
@@ -159,7 +159,7 @@ extension Package {
     /// - Parameters:
     ///     - url: The valid Git URL of the package.
     ///     - requirement: A dependency requirement. See static methods on `Package.Dependency.Requirement` for available options.
-    public static func package(url: String, _ requirement: Package.Requirement) -> Package {
+    static func package(url: String, _ requirement: Package.Requirement) -> Package {
         .remote(url: url, requirement: requirement)
     }
 
@@ -174,7 +174,7 @@ extension Package {
     /// - Parameters:
     ///     - url: The valid Git URL of the package.
     ///     - range: The custom version range requirement.
-    public static func package(url: String, _ range: Range<Version>) -> Package {
+    static func package(url: String, _ range: Range<Version>) -> Package {
         .remote(url: url, requirement: .range(from: range.lowerBound, to: range.upperBound))
     }
 
@@ -189,7 +189,7 @@ extension Package {
     /// - Parameters:
     ///     - url: The valid Git URL of the package.
     ///     - range: The closed version range requirement.
-    public static func package(url: String, _ range: ClosedRange<Version>) -> Package {
+    static func package(url: String, _ range: ClosedRange<Version>) -> Package {
         // Increase upperbound's patch version by one.
         let upper = range.upperBound
         let upperBound = Version(
@@ -208,30 +208,30 @@ extension Package {
     /// on multiple tightly coupled packages.
     ///
     /// - Parameter path: The path of the package.
-    public static func package(path: Path) -> Package {
+    static func package(path: Path) -> Package {
         .local(path: path)
     }
 }
 
 // Mark common APIs used by mistake as unavailable to provide better error messages.
-extension Package {
+public extension Package {
     @available(*, unavailable, message: "use package(url:_:) with the .exact(Version) initializer instead")
-    public static func package(url _: String, version _: Version) -> Package {
+    static func package(url _: String, version _: Version) -> Package {
         fatalError()
     }
 
     @available(*, unavailable, message: "use package(url:_:) with the .branch(String) initializer instead")
-    public static func package(url _: String, branch _: String) -> Package {
+    static func package(url _: String, branch _: String) -> Package {
         fatalError()
     }
 
     @available(*, unavailable, message: "use package(url:_:) with the .revision(String) initializer instead")
-    public static func package(url _: String, revision _: String) -> Package {
+    static func package(url _: String, revision _: String) -> Package {
         fatalError()
     }
 
     @available(*, unavailable, message: "use package(url:_:) without the range label instead")
-    public static func package(url _: String, range _: Range<Version>) -> Package {
+    static func package(url _: String, range _: Range<Version>) -> Package {
         fatalError()
     }
 }

@@ -17,14 +17,14 @@ public enum GlobError: FatalError, Equatable {
     }
 }
 
-extension AbsolutePath {
+public extension AbsolutePath {
     /// Returns the current path.
-    public static var current: AbsolutePath {
+    static var current: AbsolutePath {
         AbsolutePath(FileManager.default.currentDirectoryPath)
     }
 
     /// Returns the URL that references the absolute path.
-    public var url: URL {
+    var url: URL {
         URL(fileURLWithPath: pathString)
     }
 
@@ -32,7 +32,7 @@ extension AbsolutePath {
     ///
     /// - Parameter pattern: Relative glob pattern used to match the paths.
     /// - Returns: List of paths that match the given pattern.
-    public func glob(_ pattern: String) -> [AbsolutePath] {
+    func glob(_ pattern: String) -> [AbsolutePath] {
         Glob(pattern: appending(RelativePath(pattern)).pathString).paths.map { AbsolutePath($0) }
     }
 
@@ -41,7 +41,7 @@ extension AbsolutePath {
     /// - Parameter pattern: Relative glob pattern used to match the paths.
     /// - Throws: an error if the directory where the first glob pattern is declared doesn't exist
     /// - Returns: List of paths that match the given pattern.
-    public func throwingGlob(_ pattern: String) throws -> [AbsolutePath] {
+    func throwingGlob(_ pattern: String) throws -> [AbsolutePath] {
         let globPath = appending(RelativePath(pattern)).pathString
 
         if globPath.isGlobComponent {
@@ -60,7 +60,7 @@ extension AbsolutePath {
     }
 
     /// Returns true if the path is a package, recognized by having a UTI `com.apple.package`
-    public var isPackage: Bool {
+    var isPackage: Bool {
         let ext = URL(fileURLWithPath: pathString).pathExtension as CFString
         guard let uti = UTTypeCreatePreferredIdentifierForTag(kUTTagClassFilenameExtension, ext, nil) else { return false }
         return UTTypeConformsTo(uti.takeRetainedValue(), kUTTypePackage)
@@ -72,7 +72,7 @@ extension AbsolutePath {
     /// If the path is one-level deep from the root directory it returns the root directory.
     ///
     /// - Returns: Path with the last component removed.
-    public func removingLastComponent() -> AbsolutePath {
+    func removingLastComponent() -> AbsolutePath {
         AbsolutePath("/\(components.dropLast().joined(separator: "/"))")
     }
 
@@ -86,7 +86,7 @@ extension AbsolutePath {
     ///
     /// - Parameter path: The other path to find a common path with
     /// - Returns: An absolute path to the common ancestor
-    public func commonAncestor(with path: AbsolutePath) -> AbsolutePath {
+    func commonAncestor(with path: AbsolutePath) -> AbsolutePath {
         var ancestorPath = AbsolutePath("/")
         for component in components.dropFirst() {
             let nextPath = ancestorPath.appending(component: component)
@@ -99,7 +99,7 @@ extension AbsolutePath {
         return ancestorPath
     }
 
-    public func upToComponentMatching(regex: String) -> AbsolutePath {
+    func upToComponentMatching(regex: String) -> AbsolutePath {
         if isRoot { return self }
         if basename.range(of: regex, options: .regularExpression) == nil {
             return parentDirectory.upToComponentMatching(regex: regex)
@@ -108,7 +108,7 @@ extension AbsolutePath {
         }
     }
 
-    public func upToComponentMatching(extension: String) -> AbsolutePath {
+    func upToComponentMatching(extension: String) -> AbsolutePath {
         if isRoot { return self }
         if self.extension == `extension` {
             return self
@@ -117,7 +117,7 @@ extension AbsolutePath {
         }
     }
 
-    public var upToLastNonGlob: AbsolutePath {
+    var upToLastNonGlob: AbsolutePath {
         guard let index = components.firstIndex(where: { $0.isGlobComponent }) else {
             return self
         }
@@ -126,7 +126,7 @@ extension AbsolutePath {
     }
 
     /// Returns the hash of the file the path points to.
-    public func sha256() -> Data? {
+    func sha256() -> Data? {
         try? SHA256Digest.file(at: url)
     }
 }

@@ -61,7 +61,8 @@ class TargetLinter: TargetLinting {
         allowed.formUnion(CharacterSet(charactersIn: "-."))
 
         if !bundleIdentifier.unicodeScalars.allSatisfy({ allowed.contains($0) }) {
-            let reason = "Invalid bundle identifier '\(bundleIdentifier)'. This string must be a uniform type identifier (UTI) that contains only alphanumeric (A-Z,a-z,0-9), hyphen (-), and period (.) characters."
+            let reason =
+                "Invalid bundle identifier '\(bundleIdentifier)'. This string must be a uniform type identifier (UTI) that contains only alphanumeric (A-Z,a-z,0-9), hyphen (-), and period (.) characters."
 
             return [LintingIssue(reason: reason, severity: .error)]
         }
@@ -72,7 +73,8 @@ class TargetLinter: TargetLinting {
         let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_")
 
         if target.productName.unicodeScalars.allSatisfy(allowed.contains) == false {
-            let reason = "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9) and underscore (_) characters."
+            let reason =
+                "Invalid product name '\(target.productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9) and underscore (_) characters."
 
             return [LintingIssue(reason: reason, severity: .warning)]
         }
@@ -91,7 +93,10 @@ class TargetLinter: TargetLinting {
         if hasNoSources, hasNoDependencies, hasNoScripts {
             return [LintingIssue(reason: "The target \(target.name) doesn't contain source files.", severity: .warning)]
         } else if !supportsSources, !sources.isEmpty {
-            return [LintingIssue(reason: "Target \(target.name) cannot contain sources. \(target.platform) \(target.product) targets don't support source files", severity: .error)]
+            return [LintingIssue(
+                reason: "Target \(target.name) cannot contain sources. \(target.platform) \(target.product) targets don't support source files",
+                severity: .error
+            )]
         }
 
         return []
@@ -131,12 +136,13 @@ class TargetLinter: TargetLinting {
     }
 
     private func validateCoreDataModelVersionsExist(target: Target) -> [LintingIssue] {
-        target.coreDataModels.compactMap { (coreDataModel) -> LintingIssue? in
+        target.coreDataModels.compactMap { coreDataModel -> LintingIssue? in
             let versionFileName = "\(coreDataModel.currentVersion).xcdatamodel"
             let versionPath = coreDataModel.path.appending(component: versionFileName)
 
             if !FileHandler.shared.exists(versionPath) {
-                let reason = "The default version of the Core Data model at path \(coreDataModel.path.pathString), \(coreDataModel.currentVersion), does not exist. There should be a file at \(versionPath.pathString)"
+                let reason =
+                    "The default version of the Core Data model at path \(coreDataModel.path.pathString), \(coreDataModel.currentVersion), does not exist. There should be a file at \(versionPath.pathString)"
                 return LintingIssue(reason: reason, severity: .error)
             }
             return nil
@@ -146,10 +152,11 @@ class TargetLinter: TargetLinting {
     private func lintInfoplistExists(target: Target) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         if let infoPlist = target.infoPlist,
-            case let InfoPlist.file(path: path) = infoPlist,
-            !FileHandler.shared.exists(path)
+           case let InfoPlist.file(path: path) = infoPlist,
+           !FileHandler.shared.exists(path)
         {
-            issues.append(LintingIssue(reason: "Info.plist file not found at path \(infoPlist.path!.pathString)", severity: .error))
+            issues
+                .append(LintingIssue(reason: "Info.plist file not found at path \(infoPlist.path!.pathString)", severity: .error))
         }
         return issues
     }
@@ -190,7 +197,10 @@ class TargetLinter: TargetLinting {
         if !deploymentTarget.version.matches(pattern: osVersionRegex) { return [versionFormatIssue] }
 
         let platform = target.platform
-        let inconsistentPlatformIssue = LintingIssue(reason: "Found an inconsistency between a platform `\(platform.caseValue)` and deployment target `\(deploymentTarget.platform)`", severity: .error)
+        let inconsistentPlatformIssue = LintingIssue(
+            reason: "Found an inconsistency between a platform `\(platform.caseValue)` and deployment target `\(deploymentTarget.platform)`",
+            severity: .error
+        )
 
         switch deploymentTarget {
         case .iOS: if platform != .iOS { return [inconsistentPlatformIssue] }
@@ -208,7 +218,7 @@ class TargetLinter: TargetLinting {
         ]
 
         if let invalidProducts = invalidProductsForPlatforms[target.platform],
-            invalidProducts.contains(target.product)
+           invalidProducts.contains(target.product)
         {
             return [
                 LintingIssue(
@@ -227,7 +237,10 @@ class TargetLinter: TargetLinting {
         target.dependencies.forEach { seen[$0, default: 0] += 1 }
         let duplicates = seen.enumerated().filter { $0.element.value > 1 }
         return duplicates.map {
-            .init(reason: "Target '\(target.name)' has duplicate \($0.element.key.typeName) dependency specified: '\($0.element.key.name)'", severity: .warning)
+            .init(
+                reason: "Target '\(target.name)' has duplicate \($0.element.key.typeName) dependency specified: '\($0.element.key.name)'",
+                severity: .warning
+            )
         }
     }
 

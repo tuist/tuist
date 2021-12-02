@@ -79,7 +79,10 @@ public extension DependenciesGraph {
         return .init(
             externalDependencies: [
                 "GoogleAppMeasurement": [.project(target: "GoogleAppMeasurementTarget", path: packageFolder)],
-                "GoogleAppMeasurementWithoutAdIdSupport": [.project(target: "GoogleAppMeasurementWithoutAdIdSupportTarget", path: packageFolder)],
+                "GoogleAppMeasurementWithoutAdIdSupport": [.project(
+                    target: "GoogleAppMeasurementWithoutAdIdSupportTarget",
+                    path: packageFolder
+                )],
             ],
             externalProjects: [:]
         )

@@ -1,14 +1,14 @@
 import Foundation
 import TuistGraph
 
-extension Project {
+public extension Project {
     /// It returns the project targets sorted based on the target type and the dependencies between them.
     /// The most dependent and non-tests targets are sorted first in the list.
     ///
     /// - Parameter graph: Dependencies graph.
     /// - Returns: Sorted targets.
-    public func sortedTargetsForProjectScheme(graph: Graph) -> [Target] {
-        targets.sorted { (first, second) -> Bool in
+    func sortedTargetsForProjectScheme(graph: Graph) -> [Target] {
+        targets.sorted { first, second -> Bool in
             // First criteria: Test bundles at the end
             if first.product.testsBundle, !second.product.testsBundle {
                 return false

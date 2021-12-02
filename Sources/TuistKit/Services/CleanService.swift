@@ -8,8 +8,8 @@ import TuistSupport
 final class CleanService {
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
     init(
-        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory())
-    {
+        cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory()
+    ) {
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
     }
 

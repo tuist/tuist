@@ -7,8 +7,15 @@ import TuistGraph
 final class MockGeneratorFactory: GeneratorFactorying {
     var invokedFocus = false
     var invokedFocusCount = 0
-    var invokedFocusParameters: (config: Config, sources: Set<String>, xcframeworks: Bool, cacheProfile: TuistGraph.Cache.Profile, ignoreCache: Bool)?
-    var invokedFocusParametersList = [(config: Config, sources: Set<String>, xcframeworks: Bool, cacheProfile: TuistGraph.Cache.Profile, ignoreCache: Bool)]()
+    var invokedFocusParameters: (
+        config: Config,
+        sources: Set<String>,
+        xcframeworks: Bool,
+        cacheProfile: TuistGraph.Cache.Profile,
+        ignoreCache: Bool
+    )?
+    var invokedFocusParametersList =
+        [(config: Config, sources: Set<String>, xcframeworks: Bool, cacheProfile: TuistGraph.Cache.Profile, ignoreCache: Bool)]()
     var stubbedFocusResult: Generating!
 
     func focus(config: Config,
@@ -26,8 +33,14 @@ final class MockGeneratorFactory: GeneratorFactorying {
 
     var invokedTest = false
     var invokedTestCount = 0
-    var invokedTestParameters: (config: Config, automationPath: AbsolutePath, testsCacheDirectory: AbsolutePath, skipUITests: Bool)?
-    var invokedTestParametersList = [(config: Config, automationPath: AbsolutePath, testsCacheDirectory: AbsolutePath, skipUITests: Bool)]()
+    var invokedTestParameters: (
+        config: Config,
+        automationPath: AbsolutePath,
+        testsCacheDirectory: AbsolutePath,
+        skipUITests: Bool
+    )?
+    var invokedTestParametersList =
+        [(config: Config, automationPath: AbsolutePath, testsCacheDirectory: AbsolutePath, skipUITests: Bool)]()
     var stubbedTestResult: Generating!
 
     func test(

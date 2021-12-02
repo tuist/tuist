@@ -2,8 +2,8 @@ import Foundation
 import TuistGraph
 import XcodeProj
 
-extension Product {
-    public var xcodeValue: PBXProductType {
+public extension Product {
+    var xcodeValue: PBXProductType {
         switch self {
         case .app:
             return .application
