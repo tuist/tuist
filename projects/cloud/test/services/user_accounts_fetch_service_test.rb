@@ -56,7 +56,7 @@ class UserAccountsFetchServiceTest < ActiveSupport::TestCase
       Organization.create!(),
       Organization.create!(),
     ]
-    organization_accounts = [
+    [
       Account.create!(name: "organization-0", owner: organizations[0]),
       Account.create!(name: "organization-1", owner: organizations[1]),
       Account.create!(name: "organization-2", owner: organizations[2]),

@@ -7,7 +7,7 @@ on:
   pull_request:
     paths:
       - projects/backbone/**
-
+      - projects/fourier/**
 env:
   RAILS_ENV: test
   RAILS_MASTER_KEY: ${{ secrets.BACKBONE_RAILS_MASTER_KEY }}
@@ -67,31 +67,34 @@ jobs:
         working-directory: projects/backbone
         run: |
           bundle exec rails test
-  rubocop:
-    name: Rubocop
-    runs-on: ubuntu-latest
+  lint:
+    name: Lint
+    runs-on: macOS-11
+    strategy:
+      matrix:
+        xcode: ['13.0']
     steps:
-      - uses: actions/checkout@v2
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+      - uses: actions/checkout@v1
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
+      - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ env.RUBY_VERSION }}
       - uses: actions/cache@v2
         with:
           path: vendor/bundle
-          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}${{ hashFiles('**/Gemfile.lock') }}
           restore-keys: |
             ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
-      - name: Install dependencies
-        working-directory: projects/backbone
+      - name: Bundle install
         run: |
-          gem install bundler
           bundle config path vendor/bundle
-          bundle install --jobs=4 --retry=3
-      - name: Rubocop
-        working-directory: projects/backbone
-        run: |
-          bundle exec rubocop
+          bundle install --jobs 4 --retry 3
+      - name: Install Bundler dependencies
+        run: bundle install
+      - name: Run
+        run: ./fourier lint backbone
+
   assets_precompile:
     name: Assets precompile
     runs-on: ubuntu-latest

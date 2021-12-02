@@ -17,6 +17,7 @@ on:
       - projects/tuist/fixtures/**
       - .github/workflows/tuist.yml
       - .package.resolved
+      - projects/fourier/**
 
 concurrency:
   group: tuist-${{ github.head_ref }}
@@ -150,3 +151,59 @@ jobs:
           bundle install --jobs 4 --retry 3
       - name: Run tests
         run: ./fourier test tuist acceptance projects/tuist/features/${{ matrix.feature }}.feature
+  
+  lint:
+    name: Lint
+    runs-on: macOS-11
+    strategy:
+      matrix:
+        xcode: ['13.0']
+    steps:
+      - uses: actions/checkout@v1
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+      - uses: actions/cache@v2
+        with:
+          path: vendor/bundle
+          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}${{ hashFiles('**/Gemfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
+      - name: Bundle install
+        run: |
+          bundle config path vendor/bundle
+          bundle install --jobs 4 --retry 3
+      - name: Install Bundler dependencies
+        run: bundle install
+      - name: Run
+        run: ./fourier lint tuist
+  
+  lint-lockfiles:
+    name: Lint lockfiles
+    runs-on: macOS-11
+    strategy:
+      matrix:
+        xcode: ['13.0']
+    steps:
+      - uses: actions/checkout@v1
+      - name: Select Xcode
+        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ env.RUBY_VERSION }}
+      - uses: actions/cache@v2
+        with:
+          path: vendor/bundle
+          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}${{ hashFiles('**/Gemfile.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
+      - name: Bundle install
+        run: |
+          bundle config path vendor/bundle
+          bundle install --jobs 4 --retry 3
+      - name: Install Bundler dependencies
+        run: bundle install
+      - name: Run
+        run: ./fourier lint lockfiles

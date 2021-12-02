@@ -20,11 +20,9 @@ AllCops:
   DisplayStyleGuide: true
   Include:
     - Gemfile
-    - projects/fourier/**/*.rb
 
   Exclude:
+    - node_modules/**/*
     - vendor/**/*
-    - projects/website/node_modules/**/*
-    - projects/tuist/fixtures/**/*
-    - projects/backbone/**/*
-    - projects/cloud/**/*
+    - db/schema.rb
+    - bin/**/*
