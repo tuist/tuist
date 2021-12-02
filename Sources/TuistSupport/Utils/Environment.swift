@@ -35,12 +35,14 @@ public protocol Environmenting: AnyObject {
 
     /// Returns true unless the user specifically opted out from stats
     var isStatsEnabled: Bool { get }
+
+    /// Sets up the local environment.
+    func bootstrap() throws
 }
 
 /// Local environment controller.
 public class Environment: Environmenting {
-    public static var shared: Environmenting { environment }
-    private static let environment = Environment()
+    public static var shared: Environmenting = Environment()
 
     /// Returns the default local directory.
     static let defaultDirectory = AbsolutePath(URL(fileURLWithPath: NSHomeDirectory()).path).appending(component: ".tuist")
@@ -61,7 +63,7 @@ public class Environment: Environmenting {
         )
     }
 
-    /// Default environment constroller constructor.
+    /// Default environment constructor.
     ///
     /// - Parameters:
     ///   - directory: Directory where the Tuist environment files will be stored.
@@ -74,10 +76,10 @@ public class Environment: Environmenting {
     // MARK: - EnvironmentControlling
 
     /// Sets up the local environment.
-    public static func bootstrap() throws {
-        try [environment.directory, environment.versionsDirectory].forEach {
-            if !environment.fileHandler.exists($0) {
-                try environment.fileHandler.createFolder($0)
+    public func bootstrap() throws {
+        try [directory, versionsDirectory].forEach {
+            if !fileHandler.exists($0) {
+                try fileHandler.createFolder($0)
             }
         }
     }
