@@ -17,7 +17,7 @@ class ProjectFetchService < ApplicationService
   def call
     account = Account.find_by(name: account_name)
     project = Project.find_by(account_id: account.id, name: name)
-    raise Error::Unauthorized unless current_user.can?(:read, project)
+    raise Error::Unauthorized unless ProjectPolicy.new(current_user, project).show?
     project
   end
 end
