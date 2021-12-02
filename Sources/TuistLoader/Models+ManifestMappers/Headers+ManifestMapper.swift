@@ -23,7 +23,7 @@ extension TuistGraph.Headers {
             }
             return result
         }
-        
+
         func unfoldGlob(_ path: AbsolutePath, excluding: Set<AbsolutePath>) -> [AbsolutePath] {
             FileHandler.shared.glob(AbsolutePath.root, glob: String(path.pathString.dropFirst())).filter {
                 guard let fileExtension = $0.extension else {
@@ -32,15 +32,14 @@ extension TuistGraph.Headers {
                 return TuistGraph.Headers.extensions.contains(".\(fileExtension)") && !excluding.contains($0)
             }
         }
-        
         let `public`: [AbsolutePath] = try manifest.public?.globs.flatMap {
             unfoldGlob(try generatorPaths.resolve(path: $0.glob), excluding: try resolveExcluding($0.excluding))
         } ?? []
-        
+
         let `private`: [AbsolutePath] = try manifest.private?.globs.flatMap {
             unfoldGlob(try generatorPaths.resolve(path: $0.glob), excluding: try resolveExcluding($0.excluding))
         } ?? []
-        
+
         let project: [AbsolutePath] = try manifest.project?.globs.flatMap {
             unfoldGlob(try generatorPaths.resolve(path: $0.glob), excluding: try resolveExcluding($0.excluding))
         } ?? []

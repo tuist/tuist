@@ -136,7 +136,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             "Sources/project/D/D1.h",
         ].map { temporaryPath.appending(RelativePath($0)) })
     }
-    
+
     func test_from_and_excluding() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
@@ -161,7 +161,8 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         let manifest = ProjectDescription.Headers(
             public: .list([.glob("Sources/public/**", excluding: "Sources/public/A2.h")]),
             private: .list([.glob("Sources/private/**", excluding: "Sources/private/B1.h")]),
-            project: "Sources/project/**")
+            project: "Sources/project/**"
+        )
 
         // When
         let model = try TuistGraph.Headers.from(manifest: manifest, generatorPaths: generatorPaths)
@@ -180,7 +181,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             "Sources/project/C2.h",
         ].map { temporaryPath.appending(RelativePath($0)) })
     }
-    
+
     func test_from_and_excluding_same_folder() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
@@ -190,7 +191,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             "Sources/A1.m",
             "Sources/A2.h",
             "Sources/A2.m",
-            
+
             "Sources/A1+Project.h",
             "Sources/A1+Project.m",
             "Sources/A2+Protected.h",
@@ -200,7 +201,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         let manifest = ProjectDescription.Headers(
             public: .list([.glob("Sources/**", excluding: ["Sources/*+Protected.h", "Sources/*+Project.h"])]),
             private: nil,
-            project: ["Sources/*+Protected.h","Sources/*+Project.h"]
+            project: ["Sources/*+Protected.h", "Sources/*+Project.h"]
         )
 
         // When
@@ -220,7 +221,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             "Sources/A2+Protected.h",
         ].sorted().map { temporaryPath.appending(RelativePath($0)) })
     }
-    
+
     func test_from_and_excluding_in_nested_folder() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
@@ -230,7 +231,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             "Sources/group/A1.m",
             "Sources/group/A2.h",
             "Sources/group/A2.m",
-            
+
             "Sources/group/A1+Project.h",
             "Sources/group/A1+Project.m",
             "Sources/group/A2+Protected.h",
@@ -240,7 +241,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         let manifest = ProjectDescription.Headers(
             public: .list([.glob("Sources/**", excluding: ["Sources/**/*+Protected.h", "Sources/**/*+Project.h"])]),
             private: nil,
-            project: ["Sources/**/*+Protected.h","Sources/**/*+Project.h"]
+            project: ["Sources/**/*+Protected.h", "Sources/**/*+Project.h"]
         )
 
         // When
