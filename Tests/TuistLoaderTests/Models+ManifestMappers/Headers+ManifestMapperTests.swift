@@ -261,4 +261,92 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             "Sources/group/A2+Protected.h",
         ].sorted().map { temporaryPath.appending(RelativePath($0)) })
     }
+
+    func test_intersections_rules_none() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        try createFiles([
+            "Sources/group/A1.h",
+            "Sources/group/A1.m",
+            "Sources/group/A1+Project.h",
+            "Sources/group/A1+Project.m",
+            "Sources/group/A2.h",
+            "Sources/group/A2.m",
+            "Sources/group/A2+Protected.h",
+            "Sources/group/A2+Protected.m",
+            "Sources/group/A3.h",
+            "Sources/group/A3.m",
+        ])
+
+        let manifest = ProjectDescription.Headers(
+            public: .list([.glob("Sources/**", excluding: ["Sources/**/*+Protected.h", "Sources/**/*+Project.h"])]),
+            private: nil,
+            project: ["Sources/**"]
+        )
+
+        // When
+        let model = try TuistGraph.Headers.from(manifest: manifest, generatorPaths: generatorPaths)
+
+        // Then
+        XCTAssertEqual(model.public, [
+            "Sources/group/A1.h",
+            "Sources/group/A2.h",
+            "Sources/group/A3.h",
+        ].map { temporaryPath.appending(RelativePath($0)) })
+
+        XCTAssertEqual(model.private, [
+        ].map { temporaryPath.appending(RelativePath($0)) })
+
+        XCTAssertEqual(model.project.sorted(), [
+            "Sources/group/A1.h",
+            "Sources/group/A1+Project.h",
+            "Sources/group/A2.h",
+            "Sources/group/A2+Protected.h",
+            "Sources/group/A3.h",
+        ].sorted().map { temporaryPath.appending(RelativePath($0)) })
+    }
+
+    func test_intersections_rules_exclude() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        try createFiles([
+            "Sources/group/A1.h",
+            "Sources/group/A1.m",
+            "Sources/group/A1+Project.h",
+            "Sources/group/A1+Project.m",
+            "Sources/group/A2.h",
+            "Sources/group/A2.m",
+            "Sources/group/A2+Protected.h",
+            "Sources/group/A2+Protected.m",
+            "Sources/group/A3.h",
+            "Sources/group/A3.m",
+        ])
+
+        let manifest = ProjectDescription.Headers(
+            public: .list([.glob("Sources/**", excluding: ["Sources/**/*+Protected.h", "Sources/**/*+Project.h"])]),
+            private: nil,
+            project: ["Sources/**"],
+            intersectRule: .autoExclude
+        )
+
+        // When
+        let model = try TuistGraph.Headers.from(manifest: manifest, generatorPaths: generatorPaths)
+
+        // Then
+        XCTAssertEqual(model.public, [
+            "Sources/group/A1.h",
+            "Sources/group/A2.h",
+            "Sources/group/A3.h",
+        ].map { temporaryPath.appending(RelativePath($0)) })
+
+        XCTAssertEqual(model.private, [
+        ].map { temporaryPath.appending(RelativePath($0)) })
+
+        XCTAssertEqual(model.project.sorted(), [
+            "Sources/group/A1+Project.h",
+            "Sources/group/A2+Protected.h",
+        ].sorted().map { temporaryPath.appending(RelativePath($0)) })
+    }
 }
