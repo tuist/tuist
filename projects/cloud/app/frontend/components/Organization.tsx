@@ -48,23 +48,19 @@ const UserRolePopover = ({
       setCurrentRole(newRole);
     },
   });
-  const changeRole = useCallback(
-    ({ newRole }: { newRole: Role }) => {
-      changeUserRoleMutation({
-        variables: {
-          input: {
-            userId: user.id,
-            organizationId: organizationId,
-            currentRole: currentRole,
-            newRole: newRole,
-          },
+  const changeRole = useCallback(({ newRole }: { newRole: Role }) => {
+    changeUserRoleMutation({
+      variables: {
+        input: {
+          userId: user.id,
+          organizationId: organizationId,
+          role: newRole,
         },
-      });
-      toggleRolePopoverActive();
-      setNewRole(newRole);
-    },
-    [currentRole, setCurrentRole],
-  );
+      },
+    });
+    toggleRolePopoverActive();
+    setNewRole(newRole);
+  }, []);
 
   return (
     <div style={{ width: 100 }}>

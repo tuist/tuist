@@ -26,9 +26,8 @@ export type Account = {
 export type ChangeUserRoleInput = {
   /** A unique identifier for the client performing the mutation. */
   clientMutationId?: InputMaybe<Scalars['String']>;
-  currentRole: Role;
-  newRole: Role;
   organizationId: Scalars['String'];
+  role: Role;
   userId: Scalars['ID'];
 };
 

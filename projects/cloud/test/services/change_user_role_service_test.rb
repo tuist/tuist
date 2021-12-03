@@ -15,9 +15,8 @@ class ChangeUserRoleServiceTest < ActiveSupport::TestCase
     got = ChangeUserRoleService.call(
       user_id: user.id,
       organization_id: organization.id,
-      current_role: :admin,
-      new_role: :user,
-      current_user: current_user
+      role: :user,
+      acting_user: current_user
     )
 
     # Then
@@ -37,9 +36,8 @@ class ChangeUserRoleServiceTest < ActiveSupport::TestCase
     got = ChangeUserRoleService.call(
       user_id: user.id,
       organization_id: organization.id,
-      current_role: :user,
-      new_role: :admin,
-      current_user: current_user
+      role: :admin,
+      acting_user: current_user
     )
 
     # Then
@@ -60,9 +58,8 @@ class ChangeUserRoleServiceTest < ActiveSupport::TestCase
       ChangeUserRoleService.call(
         user_id: user.id,
         organization_id: organization.id,
-        current_role: :user,
-        new_role: :admin,
-        current_user: current_user
+        role: :admin,
+        acting_user: current_user
       )
     end
   end

@@ -125,23 +125,7 @@
               "deprecationReason": null
             },
             {
-              "name": "currentRole",
-              "description": null,
-              "type": {
-                "kind": "NON_NULL",
-                "name": null,
-                "ofType": {
-                  "kind": "ENUM",
-                  "name": "Role",
-                  "ofType": null
-                }
-              },
-              "defaultValue": null,
-              "isDeprecated": false,
-              "deprecationReason": null
-            },
-            {
-              "name": "newRole",
+              "name": "role",
               "description": null,
               "type": {
                 "kind": "NON_NULL",
