@@ -240,7 +240,7 @@ extension Config.GenerationOptions.CodeCoverageMode {
             let targets = try container.decode([TargetReference].self, forKey: .targets)
             self = .targets(targets)
         } else {
-            fatalError()
+            throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "Unable to find valid key when decoding Config.GenerationOptions.CodeCoverageMode"))
         }
     }
 
@@ -273,7 +273,7 @@ extension Config.GenerationOptions.AutogenerationOptions {
         } else if container.allKeys.contains(.disabled), try container.decode(Bool.self, forKey: .disabled) {
             self = .disabled
         } else {
-            fatalError()
+            throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "Unable to find valid key when decoding Config.GenerationOptions.AutogenerationOptions"))
         }
     }
 
