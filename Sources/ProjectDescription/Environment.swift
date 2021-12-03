@@ -26,12 +26,12 @@ public enum Environment {
     }
 }
 
-public extension Optional where Wrapped == Environment.Value {
+extension Optional where Wrapped == Environment.Value {
     /// Retrieve the Environment value as a string or return the specified default string value
     /// - Parameters:
     ///   - default: default String value to be returned
     /// - Returns: String
-    func getString(default defaultString: String) -> String {
+    public func getString(default defaultString: String) -> String {
         if case let .string(value) = self { return value }
         return defaultString
     }
@@ -40,15 +40,15 @@ public extension Optional where Wrapped == Environment.Value {
     /// - Parameters:
     ///   - default: default Boolean value to be returned
     /// - Returns: Bool
-    func getBoolean(default defaultBoolean: Bool) -> Bool {
+    public func getBoolean(default defaultBoolean: Bool) -> Bool {
         if case let .boolean(value) = self { return value }
         return defaultBoolean
     }
 }
 
-private extension String {
+extension String {
     // Taken from https://github.com/apple/swift/blob/88b093e9d77d6201935a2c2fb13f27d961836777/stdlib/public/Darwin/Foundation/JSONEncoder.swift#L161
-    func camelCaseToSnakeCase() -> String {
+    fileprivate func camelCaseToSnakeCase() -> String {
         guard !isEmpty else { return self }
 
         var words: [Range<String.Index>] = []

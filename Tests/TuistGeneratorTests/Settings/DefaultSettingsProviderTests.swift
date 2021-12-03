@@ -807,11 +807,11 @@ final class DictionaryStringAnyExtensionTests: XCTestCase {
     }
 }
 
-private extension XCTestCase {
-    func XCTAssertSettings(_ first: [String: SettingValue],
-                           containsAll second: [String: SettingValue],
-                           file: StaticString = #file,
-                           line: UInt = #line)
+extension XCTestCase {
+    fileprivate func XCTAssertSettings(_ first: [String: SettingValue],
+                                       containsAll second: [String: SettingValue],
+                                       file: StaticString = #file,
+                                       line: UInt = #line)
     {
         for (key, expectedValue) in second {
             let result = first[key]

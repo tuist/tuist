@@ -689,8 +689,8 @@ public final class System: Systeming {
     }
 }
 
-public extension Systeming {
-    func publisher(_ arguments: [String], pipedToArguments: [String]) -> AnyPublisher<SystemEvent<Data>, Error> {
+extension Systeming {
+    public func publisher(_ arguments: [String], pipedToArguments: [String]) -> AnyPublisher<SystemEvent<Data>, Error> {
         AnyPublisher.create { subscriber -> Cancellable in
             let disposable = self.observable(arguments, pipedToArguments: pipedToArguments).subscribe { event in
                 switch event {
@@ -708,7 +708,7 @@ public extension Systeming {
         }
     }
 
-    func publisher(_ arguments: [String]) -> AnyPublisher<SystemEvent<Data>, Error> {
+    public func publisher(_ arguments: [String]) -> AnyPublisher<SystemEvent<Data>, Error> {
         AnyPublisher.create { subscriber -> Cancellable in
             let disposable = self.observable(arguments).subscribe { event in
                 switch event {
@@ -726,7 +726,7 @@ public extension Systeming {
         }
     }
 
-    func publisher(_ arguments: [String], verbose: Bool) -> AnyPublisher<SystemEvent<Data>, Error> {
+    public func publisher(_ arguments: [String], verbose: Bool) -> AnyPublisher<SystemEvent<Data>, Error> {
         AnyPublisher.create { subscriber -> Cancellable in
             let disposable = self.observable(arguments, verbose: verbose).subscribe { event in
                 switch event {

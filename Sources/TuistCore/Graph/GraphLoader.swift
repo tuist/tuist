@@ -359,8 +359,8 @@ public final class GraphLoader: GraphLoading {
     }
 }
 
-private extension Package {
-    var name: String {
+extension Package {
+    fileprivate var name: String {
         switch self {
         case let .local(path: path):
             return path.pathString

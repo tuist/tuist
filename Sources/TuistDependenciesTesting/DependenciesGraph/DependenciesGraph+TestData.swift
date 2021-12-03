@@ -4,9 +4,9 @@ import TSCBasic
 import TuistCore
 import TuistDependencies
 
-public extension TuistCore.DependenciesGraph {
+extension TuistCore.DependenciesGraph {
     /// A snapshot of `graph.json` file.
-    static var testJson: String {
+    public static var testJson: String {
         """
         {
           "externalDependencies" : {
@@ -22,14 +22,14 @@ public extension TuistCore.DependenciesGraph {
         """
     }
 
-    static func test(
+    public static func test(
         externalDependencies: [String: [TargetDependency]] = [:],
         externalProjects: [Path: Project] = [:]
     ) -> Self {
         return .init(externalDependencies: externalDependencies, externalProjects: externalProjects)
     }
 
-    static func testXCFramework(
+    public static func testXCFramework(
         name: String = "Test",
         path: Path = Path(AbsolutePath.root.appending(RelativePath("Test.xcframework")).pathString)
     ) -> Self {
@@ -42,7 +42,7 @@ public extension TuistCore.DependenciesGraph {
     }
 
     // swiftlint:disable:next function_body_length
-    static func test(spmFolder: Path, packageFolder: Path) -> Self {
+    public static func test(spmFolder: Path, packageFolder: Path) -> Self {
         return .init(
             externalDependencies: [
                 "Tuist": [.project(target: "Tuist", path: packageFolder)],
@@ -124,7 +124,7 @@ public extension TuistCore.DependenciesGraph {
         )
     }
 
-    static func aDependency(spmFolder: Path) -> Self {
+    public static func aDependency(spmFolder: Path) -> Self {
         let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency")
         return .init(
             externalDependencies: [
@@ -171,7 +171,7 @@ public extension TuistCore.DependenciesGraph {
         )
     }
 
-    static func anotherDependency(spmFolder: Path) -> Self {
+    public static func anotherDependency(spmFolder: Path) -> Self {
         let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "another-dependency")
         return .init(
             externalDependencies: [
@@ -202,7 +202,7 @@ public extension TuistCore.DependenciesGraph {
         )
     }
 
-    static func alamofire(spmFolder: Path) -> Self {
+    public static func alamofire(spmFolder: Path) -> Self {
         let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "Alamofire")
         return .init(
             externalDependencies: [
@@ -238,7 +238,7 @@ public extension TuistCore.DependenciesGraph {
     }
 
     // swiftlint:disable:next function_body_length
-    static func googleAppMeasurement(spmFolder: Path) -> Self {
+    public static func googleAppMeasurement(spmFolder: Path) -> Self {
         let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleAppMeasurement")
         let artifactsFolder = Self.artifactsFolder(spmFolder: spmFolder, packageName: "GoogleAppMeasurement")
 
@@ -341,7 +341,7 @@ public extension TuistCore.DependenciesGraph {
     }
 
     // swiftlint:disable:next function_body_length
-    static func googleUtilities(spmFolder: Path, customProductTypes: [String: Product] = [:]) -> Self {
+    public static func googleUtilities(spmFolder: Path, customProductTypes: [String: Product] = [:]) -> Self {
         let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
         return .init(
             externalDependencies: [
@@ -409,7 +409,7 @@ public extension TuistCore.DependenciesGraph {
         )
     }
 
-    static func nanopb(spmFolder: Path) -> Self {
+    public static func nanopb(spmFolder: Path) -> Self {
         let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "nanopb")
         return .init(
             externalDependencies: [

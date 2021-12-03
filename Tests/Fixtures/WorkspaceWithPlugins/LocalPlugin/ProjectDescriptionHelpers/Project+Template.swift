@@ -1,7 +1,7 @@
 import ProjectDescription
 
-public extension Target {
-    static func app(name: String, dependencies: [TargetDependency] = []) -> Target {
+extension Target {
+    public static func app(name: String, dependencies: [TargetDependency] = []) -> Target {
         Target(
             name: name,
             platform: .iOS,
@@ -14,7 +14,7 @@ public extension Target {
         )
     }
 
-    static func framework(name: String, dependencies: [TargetDependency] = []) -> Target {
+    public static func framework(name: String, dependencies: [TargetDependency] = []) -> Target {
         Target(
             name: name,
             platform: .iOS,
@@ -28,12 +28,12 @@ public extension Target {
     }
 }
 
-public extension String {
+extension String {
     /// Returns a canonical bundle Id for the target with the
     /// given name
     /// - parameter target: the name of the target
     /// - returns: the bundle id for the given target
-    static func bundleId(for target: String) -> String {
+    public static func bundleId(for target: String) -> String {
         return "io.tuist.\(target)"
     }
 }

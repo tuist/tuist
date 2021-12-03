@@ -25,8 +25,8 @@ public enum Platform: String, CaseIterable, Codable {
     ]
 }
 
-public extension Platform {
-    var xcodeSdkRoot: String {
+extension Platform {
+    public var xcodeSdkRoot: String {
         switch self {
         case .macOS:
             return "macosx"
@@ -40,7 +40,7 @@ public extension Platform {
     }
 
     /// Returns whether the platform has simulators.
-    var hasSimulators: Bool {
+    public var hasSimulators: Bool {
         switch self {
         case .macOS: return false
         default: return true
@@ -49,7 +49,7 @@ public extension Platform {
 
     /// It returns the destination that should be used to
     /// compile a product for this platform's simulator.
-    var xcodeSimulatorDestination: String? {
+    public var xcodeSimulatorDestination: String? {
         switch self {
         case .macOS: return nil
         default: return "platform=\(caseValue) Simulator"
@@ -58,7 +58,7 @@ public extension Platform {
 
     /// Returns the SDK of the platform's simulator
     /// If the platform doesn't have simulators, like macOS, it returns nil.
-    var xcodeSimulatorSDK: String? {
+    public var xcodeSimulatorSDK: String? {
         switch self {
         case .tvOS: return "appletvsimulator"
         case .iOS: return "iphonesimulator"
@@ -68,7 +68,7 @@ public extension Platform {
     }
 
     /// Returns the SDK to build for the platform's device.
-    var xcodeDeviceSDK: String {
+    public var xcodeDeviceSDK: String {
         switch self {
         case .tvOS:
             return "appletvos"
@@ -81,7 +81,7 @@ public extension Platform {
         }
     }
 
-    var xcodeSupportedPlatforms: String {
+    public var xcodeSupportedPlatforms: String {
         switch self {
         case .tvOS:
             return "appletvsimulator appletvos"
@@ -95,7 +95,7 @@ public extension Platform {
     }
 
     /// The SDK Root Path within Xcode's developer directory
-    var xcodeSdkRootPath: String {
+    public var xcodeSdkRootPath: String {
         switch self {
         case .iOS:
             return "Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk"
@@ -108,7 +108,7 @@ public extension Platform {
         }
     }
 
-    var xcodeDeveloperSdkRootPath: String? {
+    public var xcodeDeveloperSdkRootPath: String? {
         switch self {
         case .iOS:
             return "Platforms/iPhoneOS.platform/Developer/Library"
@@ -121,7 +121,7 @@ public extension Platform {
     }
 
     /// Returns the directory name whose Carthage uses to save frameworks.
-    var carthageDirectory: String {
+    public var carthageDirectory: String {
         switch self {
         case .iOS, .watchOS, .tvOS:
             return caseValue

@@ -1,22 +1,22 @@
 import ProjectDescription
 
-public extension Project {
-    static func app(name: String, platform: Platform, dependencies: [TargetDependency] = []) -> Project {
+extension Project {
+    public static func app(name: String, platform: Platform, dependencies: [TargetDependency] = []) -> Project {
         return project(name: name, product: .app, platform: platform, dependencies: dependencies, infoPlist: [
             "CFBundleShortVersionString": "1.0",
             "CFBundleVersion": "1",
         ])
     }
 
-    static func framework(name: String, platform: Platform, dependencies: [TargetDependency] = []) -> Project {
+    public static func framework(name: String, platform: Platform, dependencies: [TargetDependency] = []) -> Project {
         return project(name: name, product: .framework, platform: platform, dependencies: dependencies)
     }
 
-    static func project(name: String,
-                        product: Product,
-                        platform: Platform,
-                        dependencies: [TargetDependency] = [],
-                        infoPlist: [String: InfoPlist.Value] = [:]) -> Project
+    public static func project(name: String,
+                               product: Product,
+                               platform: Platform,
+                               dependencies: [TargetDependency] = [],
+                               infoPlist: [String: InfoPlist.Value] = [:]) -> Project
     {
         return Project(
             name: name,

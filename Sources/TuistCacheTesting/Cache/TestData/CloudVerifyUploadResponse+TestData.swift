@@ -1,7 +1,7 @@
 @testable import TuistCache
 
-public extension CloudVerifyUploadResponse {
-    static func test(uploadedSize: Int = 0) -> CloudVerifyUploadResponse {
+extension CloudVerifyUploadResponse {
+    public static func test(uploadedSize: Int = 0) -> CloudVerifyUploadResponse {
         CloudVerifyUploadResponse(uploadedSize: uploadedSize)
     }
 }

@@ -20,8 +20,8 @@ public struct InvalidGlob: Equatable, CustomStringConvertible {
     }
 }
 
-public extension Array where Element == InvalidGlob {
-    var invalidGlobsDescription: String {
+extension Array where Element == InvalidGlob {
+    public var invalidGlobsDescription: String {
         map { "- " + String(describing: $0) }.joined(separator: "\n")
     }
 }

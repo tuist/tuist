@@ -199,8 +199,8 @@ final class RunServiceTests: TuistUnitTestCase {
     }
 }
 
-private extension RunService {
-    func run(
+extension RunService {
+    fileprivate func run(
         schemeName: String = Scheme.test().name,
         generate: Bool = false,
         clean: Bool = false,

@@ -232,16 +232,16 @@ public final class SimulatorController: SimulatorControlling {
     }
 }
 
-public extension SimulatorControlling {
-    func findAvailableDevice(platform: Platform) -> Single<SimulatorDeviceAndRuntime> {
+extension SimulatorControlling {
+    public func findAvailableDevice(platform: Platform) -> Single<SimulatorDeviceAndRuntime> {
         self.findAvailableDevice(platform: platform, version: nil, minVersion: nil, deviceName: nil)
     }
 }
 
-private extension SimulatorDevice {
+extension SimulatorDevice {
     /// Attempts to boot the simulator.
     /// - returns: The `SimulatorDevice` with updated `isShutdown` field.
-    func booted() throws -> Self {
+    fileprivate func booted() throws -> Self {
         guard isShutdown else { return self }
         try System.shared.run(["/usr/bin/xcrun", "simctl", "boot", udid])
         return SimulatorDevice(

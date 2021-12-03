@@ -2,8 +2,8 @@ import Foundation
 import TSCBasic
 @testable import TuistGraph
 
-public extension TestAction {
-    static func test(
+extension TestAction {
+    public static func test(
         targets: [TestableTarget] = [TestableTarget(target: TargetReference(projectPath: "/Project", name: "AppTests"))],
         arguments: Arguments? = Arguments.test(),
         configurationName: String = BuildConfiguration.debug.name,

@@ -1,7 +1,7 @@
 import ProjectDescription
 
-public extension Project {
-    static func app(
+extension Project {
+    public static func app(
         name: String,
         dependencies: [TargetDependency]
     ) -> Project {
@@ -28,7 +28,7 @@ public extension Project {
         )
     }
 
-    static func framework(
+    public static func framework(
         name: String,
         dependencies: [TargetDependency]
     ) -> Project {
@@ -55,8 +55,8 @@ public extension Project {
     }
 }
 
-public extension Target {
-    static func main(
+extension Target {
+    public static func main(
         name: String,
         product: Product,
         dependencies: [TargetDependency],
@@ -75,7 +75,7 @@ public extension Target {
         )
     }
 
-    static func test(
+    public static func test(
         name: String
     ) -> Target {
         return Target(
@@ -144,8 +144,8 @@ extension Scheme {
     }
 }
 
-public extension Settings {
-    static let `default`: Settings = .settings(
+extension Settings {
+    public static let `default`: Settings = .settings(
         base: [:],
         configurations: [
             .debug(

@@ -2,8 +2,8 @@ import Foundation
 import RxSwift
 import TuistSupport
 
-public extension Observable where Element == SystemEvent<XcodeBuildOutput> {
-    func printFormattedOutput() -> Observable<SystemEvent<XcodeBuildOutput>> {
+extension Observable where Element == SystemEvent<XcodeBuildOutput> {
+    public func printFormattedOutput() -> Observable<SystemEvent<XcodeBuildOutput>> {
         `do`(onNext: { event in
             switch event {
             case let .standardError(error):
@@ -14,7 +14,7 @@ public extension Observable where Element == SystemEvent<XcodeBuildOutput> {
         })
     }
 
-    func printRawErrors() -> Observable<SystemEvent<XcodeBuildOutput>> {
+    public func printRawErrors() -> Observable<SystemEvent<XcodeBuildOutput>> {
         `do`(onNext: { event in
             switch event {
             case let .standardError(error):

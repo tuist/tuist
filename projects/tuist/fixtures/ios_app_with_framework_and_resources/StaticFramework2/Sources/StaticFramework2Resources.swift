@@ -14,10 +14,10 @@ public class StaticFramework2Resources {
     }
 }
 
-private extension Bundle {
+extension Bundle {
     private class BundleFinder {}
 
-    static var staticFramework2: Bundle {
+    fileprivate static var staticFramework2: Bundle {
         let hostBundle = Bundle(for: BundleFinder.self)
         let path = hostBundle.path(
             forResource: "StaticFramework2Resources",

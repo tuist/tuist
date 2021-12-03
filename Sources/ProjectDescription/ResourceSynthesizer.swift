@@ -321,8 +321,8 @@ public struct ResourceSynthesizer: Codable, Equatable {
     }
 }
 
-public extension Array where Element == ResourceSynthesizer {
-    static var `default`: Self {
+extension Array where Element == ResourceSynthesizer {
+    public static var `default`: Self {
         [
             .strings(),
             .assets(),

@@ -9,29 +9,29 @@
 
 import Foundation
 
-public extension HTTPStatusCode {
+extension HTTPStatusCode {
     /// Informational - Request received, continuing process.
-    var isInformational: Bool {
+    public var isInformational: Bool {
         isIn(range: 100 ... 199)
     }
 
     /// Success - The action was successfully received, understood, and accepted.
-    var isSuccess: Bool {
+    public var isSuccess: Bool {
         isIn(range: 200 ... 299)
     }
 
     /// Redirection - Further action must be taken in order to complete the request.
-    var isRedirection: Bool {
+    public var isRedirection: Bool {
         isIn(range: 300 ... 399)
     }
 
     /// Client Error - The request contains bad syntax or cannot be fulfilled.
-    var isClientError: Bool {
+    public var isClientError: Bool {
         isIn(range: 400 ... 499)
     }
 
     /// Server Error - The server failed to fulfill an apparently valid request.
-    var isServerError: Bool {
+    public var isServerError: Bool {
         isIn(range: 500 ... 599)
     }
 
@@ -41,9 +41,9 @@ public extension HTTPStatusCode {
     }
 }
 
-public extension HTTPStatusCode {
+extension HTTPStatusCode {
     /// - returns: a localized string suitable for displaying to users that describes the specified status code.
-    var localizedReasonPhrase: String {
+    public var localizedReasonPhrase: String {
         HTTPURLResponse.localizedString(forStatusCode: rawValue)
     }
 }
@@ -62,9 +62,9 @@ extension HTTPStatusCode: CustomDebugStringConvertible, CustomStringConvertible 
 
 // MARK: - HTTP URL Response
 
-public extension HTTPStatusCode {
+extension HTTPStatusCode {
     /// Obtains a possible status code from an optional HTTP URL response.
-    init?(HTTPResponse: HTTPURLResponse?) {
+    public init?(HTTPResponse: HTTPURLResponse?) {
         guard let statusCodeValue = HTTPResponse?.statusCode else {
             return nil
         }
@@ -80,18 +80,18 @@ public extension HTTPStatusCode {
     }
 }
 
-public extension HTTPURLResponse {
+extension HTTPURLResponse {
     /**
      * Marked internal to expose (as `statusCodeValue`) for Objective-C interoperability only.
      *
      * - returns: the receiver’s HTTP status code.
      */
-    @objc(statusCodeValue) var statusCodeEnum: HTTPStatusCode {
+    @objc(statusCodeValue) public var statusCodeEnum: HTTPStatusCode {
         HTTPStatusCode(HTTPResponse: self)!
     }
 
     /// - returns: the receiver’s HTTP status code.
-    var statusCodeValue: HTTPStatusCode? {
+    public var statusCodeValue: HTTPStatusCode? {
         HTTPStatusCode(HTTPResponse: self)
     }
 
@@ -107,12 +107,12 @@ public extension HTTPURLResponse {
      */
     @available(iOS, introduced: 7.0)
     @objc(initWithURL:statusCodeValue:HTTPVersion:headerFields:)
-    convenience init?(url: URL, statusCode: HTTPStatusCode, httpVersion: String?, headerFields: [String: String]?) {
+    public convenience init?(url: URL, statusCode: HTTPStatusCode, httpVersion: String?, headerFields: [String: String]?) {
         self.init(url: url, statusCode: statusCode.rawValue, httpVersion: httpVersion, headerFields: headerFields)
     }
 }
 
-public extension HTTPURLResponse {
+extension HTTPURLResponse {
     /// - deprecated: Renamed to `init(url:statusCode:httpVersion:headerFields)` to correct Swift 3 naming convention.
     @available(
         *,
@@ -121,7 +121,7 @@ public extension HTTPURLResponse {
         message: "Renamed to correct Swift 3 naming convention"
     )
     @nonobjc
-    convenience init?(url: URL, statusCode: HTTPStatusCode, HTTPVersion: String?, headerFields: [String: String]?) {
+    public convenience init?(url: URL, statusCode: HTTPStatusCode, HTTPVersion: String?, headerFields: [String: String]?) {
         self.init(url: url, statusCode: statusCode, httpVersion: HTTPVersion, headerFields: headerFields)
     }
 }
@@ -132,14 +132,14 @@ public extension HTTPURLResponse {
 // swiftlint:disable:next identifier_name
 private let __Unavailable: HTTPStatusCode! = nil
 
-public extension HTTPStatusCode {
+extension HTTPStatusCode {
     /// Checkpoint: 103
     ///
     /// Used in the resumable requests proposal to resume aborted PUT or POST requests.
     ///
     /// - seealso: [Original proposal](https://web.archive.org/web/20151013212135/http://code.google.com/p/gears/wiki/ResumableHttpRequestsProposal)
     @available(*, unavailable, renamed: "earlyHints", message: "Replaced by RFC standard code with different meaning")
-    static let checkpoint = __Unavailable
+    public static let checkpoint = __Unavailable
 
     /// Switch Proxy: 306
     ///
@@ -147,13 +147,13 @@ public extension HTTPStatusCode {
     ///
     /// - seealso: [Original draft](https://tools.ietf.org/html/draft-cohen-http-305-306-responses-00)
     @available(*, unavailable, message: "No longer used")
-    static let switchProxy = __Unavailable
+    public static let switchProxy = __Unavailable
 
     /// Authentication Timeout: 419
     ///
     /// Removed from Wikipedia page.
     @available(*, unavailable, message: "No longer available")
-    static let authenticationTimeout = __Unavailable
+    public static let authenticationTimeout = __Unavailable
 
     /// Method Failure: 419
     ///
@@ -161,11 +161,11 @@ public extension HTTPStatusCode {
     ///
     /// - seealso: [Spring Framework: HttpStatus enum documentation - `METHOD_FAILURE`](https://docs.spring.io/spring/docs/current/javadoc-api/org/springframework/http/HttpStatus.html#METHOD_FAILURE)
     @available(*, unavailable, message: "Deprecated")
-    static let springFrameworkMethodFailure = __Unavailable
+    public static let springFrameworkMethodFailure = __Unavailable
 
     /// Request Header Too Large: 494
     ///
     /// Removed and replaced with `RequestHeaderFieldsTooLarge` - 431
     @available(*, unavailable, renamed: "requestHeaderFieldsTooLarge", message: "Changed to a 431 status code")
-    static let requestHeaderTooLarge = __Unavailable
+    public static let requestHeaderTooLarge = __Unavailable
 }

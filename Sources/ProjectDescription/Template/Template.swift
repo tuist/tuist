@@ -124,12 +124,12 @@ public struct Template: Codable, Equatable {
     }
 }
 
-public extension Template.Item {
+extension Template.Item {
     /// - Parameters:
     ///     - path: Path where to generate file
     ///     - contents: String Contents
     /// - Returns: `Template.Item` that is `.string`
-    static func string(path: String, contents: String) -> Template.Item {
+    public static func string(path: String, contents: String) -> Template.Item {
         Template.Item(path: path, contents: .string(contents))
     }
 
@@ -137,7 +137,7 @@ public extension Template.Item {
     ///     - path: Path where to generate file
     ///     - templatePath: Path of file where the template is defined
     /// - Returns: `Template.Item` that is `.file`
-    static func file(path: String, templatePath: Path) -> Template.Item {
+    public static func file(path: String, templatePath: Path) -> Template.Item {
         Template.Item(path: path, contents: .file(templatePath))
     }
 
@@ -145,13 +145,13 @@ public extension Template.Item {
     ///     - path: Path where will be copied the folder
     ///     - sourcePath: Path of folder which will be copied
     /// - Returns: `Template.Item` that is `.directory`
-    static func directory(path: String, sourcePath: Path) -> Template.Item {
+    public static func directory(path: String, sourcePath: Path) -> Template.Item {
         Template.Item(path: path, contents: .directory(sourcePath))
     }
 }
 
-public extension String.StringInterpolation {
-    mutating func appendInterpolation(_ value: Template.Attribute) {
+extension String.StringInterpolation {
+    public mutating func appendInterpolation(_ value: Template.Attribute) {
         switch value {
         case let .required(name), let .optional(name, default: _):
             appendInterpolation("{{ \(name) }}")

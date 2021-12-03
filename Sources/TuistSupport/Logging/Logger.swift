@@ -14,8 +14,8 @@ public struct LoggingConfig {
     public var verbose: Bool
 }
 
-public extension LoggingConfig {
-    static var `default`: LoggingConfig {
+extension LoggingConfig {
+    public static var `default`: LoggingConfig {
         let env = ProcessInfo.processInfo.environment
 
         let osLog = env[Constants.EnvironmentVariables.osLog] != nil

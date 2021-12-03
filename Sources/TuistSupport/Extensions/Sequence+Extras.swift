@@ -1,7 +1,7 @@
 import Foundation
 
-public extension Sequence {
-    func reduceWithIndex<Result>(
+extension Sequence {
+    public func reduceWithIndex<Result>(
         into initialResult: Result,
         _ updateAccumulatingResult: (inout Result, Self.Element, Int) throws -> Void
     ) rethrows -> Result {

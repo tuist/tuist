@@ -49,8 +49,8 @@ extension Package {
     }
 }
 
-public extension TuistGraph.Package {
-    var isRemote: Bool {
+extension TuistGraph.Package {
+    public var isRemote: Bool {
         switch self {
         case .remote:
             return true

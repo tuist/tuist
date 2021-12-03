@@ -89,7 +89,7 @@ extension TuistGraph.CopyFilesAction.Destination {
 
 // MARK: - Array Extension FileElement
 
-public extension Array where Element == TuistGraph.FileElement {
+extension Array where Element == TuistGraph.FileElement {
     /// Packages should be added as a whole folder not individually.
     /// (e.g. bundled file formats recognized by the OS like .pages, .numbers, .rtfd...)
     ///
@@ -109,7 +109,7 @@ public extension Array where Element == TuistGraph.FileElement {
     /// ```
     ///
     /// - Returns: List of clean `AbsolutePath`s
-    func cleanPackages() -> [Self.Element] {
+    public func cleanPackages() -> [Self.Element] {
         compactMap {
             var filePath = $0.path
             while !filePath.isRoot {

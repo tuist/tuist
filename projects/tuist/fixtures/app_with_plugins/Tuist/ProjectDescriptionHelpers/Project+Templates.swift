@@ -1,8 +1,8 @@
 import ProjectDescription
 
-public extension Project {
+extension Project {
     /// Helper function to create the Project for this ExampleApp
-    static func app(name: String, platform: Platform, additionalTargets _: [String]) -> Project {
+    public static func app(name: String, platform: Platform, additionalTargets _: [String]) -> Project {
         let mainTarget = Target(
             name: name,
             platform: platform,

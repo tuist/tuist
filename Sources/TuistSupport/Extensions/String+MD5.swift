@@ -22,8 +22,8 @@
 
 import Foundation
 
-public extension Data {
-    var md5: String {
+extension Data {
+    public var md5: String {
         let message = withUnsafeBytes { pointer -> [UInt8] in
             Array(pointer)
         }
@@ -38,8 +38,8 @@ public extension Data {
     }
 }
 
-public extension String {
-    var md5: String {
+extension String {
+    public var md5: String {
         if let data = data(using: .utf8, allowLossyConversion: true) {
             return data.md5
         } else {

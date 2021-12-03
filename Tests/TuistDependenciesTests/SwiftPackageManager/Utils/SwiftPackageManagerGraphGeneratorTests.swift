@@ -305,8 +305,8 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
     }
 }
 
-public extension TuistCore.DependenciesGraph {
-    func merging(with other: Self) throws -> Self {
+extension TuistCore.DependenciesGraph {
+    public func merging(with other: Self) throws -> Self {
         let mergedExternalDependencies = other.externalDependencies.reduce(into: externalDependencies) { result, entry in
             result[entry.key] = entry.value
         }

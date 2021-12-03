@@ -1,8 +1,8 @@
 import Foundation
 import TuistGraph
 
-public extension Scheme {
-    func targetDependencies() -> [TargetReference] {
+extension Scheme {
+    public func targetDependencies() -> [TargetReference] {
         let targetSources: [[TargetReference]?] = [
             buildAction?.targets,
             buildAction?.preActions.compactMap(\.target),

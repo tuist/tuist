@@ -2,8 +2,8 @@ import Foundation
 import TuistGraph
 import XcodeProj
 
-public extension Requirement {
-    var xcodeprojValue: XCRemoteSwiftPackageReference.VersionRequirement {
+extension Requirement {
+    public var xcodeprojValue: XCRemoteSwiftPackageReference.VersionRequirement {
         switch self {
         case let .branch(branch):
             return .branch(branch)

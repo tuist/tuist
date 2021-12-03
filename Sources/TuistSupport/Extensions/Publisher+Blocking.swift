@@ -1,12 +1,12 @@
 import Combine
 import Foundation
 
-public extension Publisher {
+extension Publisher {
     /// It blocks the current thread until the publisher finishes.
     /// - Parameter timeout: Timeout
     /// - Throws: Error thrown by the publisher or as a result of a time out caused by the publishing not finishing in time.
     /// - Returns: List of events sent through the publisher.
-    func toBlocking(timeout: DispatchTime = .now() + .seconds(10)) throws -> [Output] {
+    public func toBlocking(timeout: DispatchTime = .now() + .seconds(10)) throws -> [Output] {
         // swiftlint:disable identifier_name
         let semaphore = DispatchSemaphore(value: 0)
         var values: [Output] = []

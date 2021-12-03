@@ -262,8 +262,8 @@ class TargetLinter: TargetLinting {
     }
 }
 
-private extension TargetDependency {
-    var typeName: String {
+extension TargetDependency {
+    fileprivate var typeName: String {
         switch self {
         case .target:
             return "target"
@@ -284,7 +284,7 @@ private extension TargetDependency {
         }
     }
 
-    var name: String {
+    fileprivate var name: String {
         switch self {
         case let .target(name):
             return name

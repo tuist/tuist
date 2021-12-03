@@ -2321,8 +2321,8 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
     }
 }
 
-private extension PackageInfoMapping {
-    func map(
+extension PackageInfoMapping {
+    fileprivate func map(
         package: String,
         basePath: AbsolutePath = "/",
         packageInfos: [String: PackageInfo] = [:],
@@ -2369,8 +2369,8 @@ private extension PackageInfoMapping {
     }
 }
 
-private extension PackageInfo.Target {
-    static func test(
+extension PackageInfo.Target {
+    fileprivate static func test(
         name: String,
         type: PackageInfo.Target.TargetType = .regular,
         path: String? = nil,
@@ -2398,8 +2398,8 @@ private extension PackageInfo.Target {
     }
 }
 
-private extension ProjectDescription.Project {
-    static func test(
+extension ProjectDescription.Project {
+    fileprivate static func test(
         name: String,
         settings: ProjectDescription.Settings? = nil,
         targets: [ProjectDescription.Target]
@@ -2413,8 +2413,8 @@ private extension ProjectDescription.Project {
     }
 }
 
-private extension ProjectDescription.Target {
-    static func test(
+extension ProjectDescription.Target {
+    fileprivate static func test(
         _ name: String,
         basePath: AbsolutePath = "/",
         platform: ProjectDescription.Platform = .iOS,

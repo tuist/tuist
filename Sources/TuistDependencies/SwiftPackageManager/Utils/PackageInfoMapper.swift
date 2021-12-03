@@ -328,9 +328,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
     }
 }
 
-private extension ProjectDescription.Target {
+extension ProjectDescription.Target {
     // swiftlint:disable:next function_body_length
-    static func from(
+    fileprivate static func from(
         target: PackageInfo.Target,
         products: Set<PackageInfo.Product>,
         packageName: String,
@@ -410,8 +410,8 @@ private extension ProjectDescription.Target {
     }
 }
 
-private extension ProjectDescription.Platform {
-    static func from(
+extension ProjectDescription.Platform {
+    fileprivate static func from(
         configured: Set<TuistGraph.Platform>,
         package: [PackageInfo.Platform],
         packageName: String
@@ -439,8 +439,8 @@ private extension ProjectDescription.Platform {
     }
 }
 
-private extension ProjectDescription.DeploymentTarget {
-    static func from(
+extension ProjectDescription.DeploymentTarget {
+    fileprivate static func from(
         platform: ProjectDescription.Platform,
         minDeploymentTargets: [ProjectDescription.Platform: ProjectDescription.DeploymentTarget],
         package: [PackageInfo.Platform],
@@ -463,8 +463,8 @@ private extension ProjectDescription.DeploymentTarget {
     }
 }
 
-private extension ProjectDescription.Product {
-    static func from(
+extension ProjectDescription.Product {
+    fileprivate static func from(
         name: String,
         products: Set<PackageInfo.Product>,
         productTypes: [String: TuistGraph.Product]
@@ -508,8 +508,8 @@ private extension ProjectDescription.Product {
     }
 }
 
-private extension SourceFilesList {
-    static func from(sources: [String]?, path: AbsolutePath, excluding: [String]) -> Self? {
+extension SourceFilesList {
+    fileprivate static func from(sources: [String]?, path: AbsolutePath, excluding: [String]) -> Self? {
         let sourcesPaths: [AbsolutePath]
         if let customSources = sources {
             sourcesPaths = customSources.map { source in
@@ -538,8 +538,8 @@ private extension SourceFilesList {
     }
 }
 
-private extension ResourceFileElements {
-    static func from(resources: [PackageInfo.Target.Resource], path: AbsolutePath, excluding: [String]) -> Self? {
+extension ResourceFileElements {
+    fileprivate static func from(resources: [PackageInfo.Target.Resource], path: AbsolutePath, excluding: [String]) -> Self? {
         let resourcesPaths = resources.map { path.appending(RelativePath($0.path)) }
         guard !resourcesPaths.isEmpty else { return nil }
 
@@ -559,8 +559,8 @@ private extension ResourceFileElements {
     }
 }
 
-private extension ProjectDescription.TargetDependency {
-    static func from(
+extension ProjectDescription.TargetDependency {
+    fileprivate static func from(
         resolvedDependencies: [PackageInfoMapper.ResolvedDependency],
         platform: ProjectDescription.Platform,
         settings: [PackageInfo.Target.TargetBuildSettingDescription.Setting],
@@ -598,8 +598,8 @@ private extension ProjectDescription.TargetDependency {
     }
 }
 
-private extension ProjectDescription.Headers {
-    static func from(moduleMapType: ModuleMapType, publicHeadersPath: AbsolutePath) throws -> Self? {
+extension ProjectDescription.Headers {
+    fileprivate static func from(moduleMapType: ModuleMapType, publicHeadersPath: AbsolutePath) throws -> Self? {
         // As per SPM logic, headers should be added only when using the umbrella header without modulemap:
         // https://github.com/apple/swift-package-manager/blob/9b9bed7eaf0f38eeccd0d8ca06ae08f6689d1c3f/Sources/Xcodeproj/pbxproj.swift#L588-L609
         switch moduleMapType {
@@ -613,9 +613,9 @@ private extension ProjectDescription.Headers {
     }
 }
 
-private extension ProjectDescription.Settings {
+extension ProjectDescription.Settings {
     // swiftlint:disable:next function_body_length
-    static func from(
+    fileprivate static func from(
         target: PackageInfo.Target,
         packageFolder: AbsolutePath,
         packageName: String,
@@ -753,12 +753,12 @@ private extension ProjectDescription.Settings {
         return .from(settings: baseSettings, adding: settingsDictionary, packageFolder: packageFolder)
     }
 
-    struct PackageTarget: Hashable {
+    fileprivate struct PackageTarget: Hashable {
         let package: String
         let target: PackageInfo.Target
     }
 
-    static func recursiveTargetDependencies(
+    fileprivate static func recursiveTargetDependencies(
         of target: PackageInfo.Target,
         packageName: String,
         packageInfos: [String: PackageInfo],
@@ -795,8 +795,8 @@ private extension ProjectDescription.Settings {
     }
 }
 
-private extension PackageInfo.Target.TargetBuildSettingDescription.Setting {
-    var extractDefine: (name: String, value: String) {
+extension PackageInfo.Target.TargetBuildSettingDescription.Setting {
+    fileprivate var extractDefine: (name: String, value: String) {
         let define = value[0]
         if define.contains("=") {
             let split = define.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
@@ -807,8 +807,8 @@ private extension PackageInfo.Target.TargetBuildSettingDescription.Setting {
     }
 }
 
-private extension TuistGraph.Platform {
-    var descriptionPlatform: ProjectDescription.Platform {
+extension TuistGraph.Platform {
+    fileprivate var descriptionPlatform: ProjectDescription.Platform {
         switch self {
         case .iOS:
             return .iOS
@@ -822,8 +822,8 @@ private extension TuistGraph.Platform {
     }
 }
 
-private extension PackageInfo.Platform {
-    func descriptionPlatform() throws -> ProjectDescription.Platform {
+extension PackageInfo.Platform {
+    fileprivate func descriptionPlatform() throws -> ProjectDescription.Platform {
         switch platformName {
         case "ios":
             return .iOS
@@ -839,8 +839,8 @@ private extension PackageInfo.Platform {
     }
 }
 
-private extension ProjectDescription.Product {
-    static func from(product: TuistGraph.Product) -> Self {
+extension ProjectDescription.Product {
+    fileprivate static func from(product: TuistGraph.Product) -> Self {
         switch product {
         case .app:
             return .app
@@ -878,8 +878,8 @@ private extension ProjectDescription.Product {
     }
 }
 
-private extension ProjectDescription.SettingsDictionary {
-    static func from(settingsDictionary: TuistGraph.SettingsDictionary) -> Self {
+extension ProjectDescription.SettingsDictionary {
+    fileprivate static func from(settingsDictionary: TuistGraph.SettingsDictionary) -> Self {
         return settingsDictionary.mapValues { value in
             switch value {
             case let .string(stringValue):
@@ -891,8 +891,8 @@ private extension ProjectDescription.SettingsDictionary {
     }
 }
 
-private extension ProjectDescription.Settings {
-    static func from(
+extension ProjectDescription.Settings {
+    fileprivate static func from(
         settings: TuistGraph.Settings,
         adding: ProjectDescription.SettingsDictionary,
         packageFolder: AbsolutePath
@@ -909,8 +909,8 @@ private extension ProjectDescription.Settings {
     }
 }
 
-private extension ProjectDescription.Configuration {
-    static func from(
+extension ProjectDescription.Configuration {
+    fileprivate static func from(
         buildConfiguration: BuildConfiguration,
         configuration: TuistGraph.Configuration?,
         packageFolder: AbsolutePath
@@ -927,8 +927,8 @@ private extension ProjectDescription.Configuration {
     }
 }
 
-private extension ProjectDescription.DefaultSettings {
-    static func from(defaultSettings: TuistGraph.DefaultSettings) -> Self {
+extension ProjectDescription.DefaultSettings {
+    fileprivate static func from(defaultSettings: TuistGraph.DefaultSettings) -> Self {
         switch defaultSettings {
         case let .recommended(excluding):
             return .recommended(excluding: excluding)
@@ -940,8 +940,8 @@ private extension ProjectDescription.DefaultSettings {
     }
 }
 
-private extension ProjectDescription.DeploymentTarget {
-    static func from(deploymentTarget: TuistGraph.DeploymentTarget) -> Self {
+extension ProjectDescription.DeploymentTarget {
+    fileprivate static func from(deploymentTarget: TuistGraph.DeploymentTarget) -> Self {
         switch deploymentTarget {
         case let .iOS(version, devices):
             return .iOS(targetVersion: version, devices: .from(devices: devices))
@@ -955,14 +955,14 @@ private extension ProjectDescription.DeploymentTarget {
     }
 }
 
-private extension ProjectDescription.DeploymentDevice {
-    static func from(devices: TuistGraph.DeploymentDevice) -> Self {
+extension ProjectDescription.DeploymentDevice {
+    fileprivate static func from(devices: TuistGraph.DeploymentDevice) -> Self {
         return .init(rawValue: devices.rawValue)
     }
 }
 
-private extension PackageInfo {
-    func projectSettings(
+extension PackageInfo {
+    fileprivate func projectSettings(
         swiftToolsVersion: TSCUtility.Version?
     ) -> ProjectDescription.Settings? {
         var settingsDictionary: ProjectDescription.SettingsDictionary = [:]
@@ -982,7 +982,7 @@ private extension PackageInfo {
         return settingsDictionary.isEmpty ? nil : .settings(base: settingsDictionary)
     }
 
-    func swiftVersion(for configuredSwiftVersion: TSCUtility.Version?) -> String? {
+    fileprivate func swiftVersion(for configuredSwiftVersion: TSCUtility.Version?) -> String? {
         /// Take the latest swift version compatible with the configured one
         let maxAllowedSwiftLanguageVersion = swiftLanguageVersions?
             .filter {
@@ -1020,8 +1020,8 @@ extension PackageInfo.Target {
     }
 }
 
-public extension PackageInfoMapper {
-    enum ResolvedDependency: Equatable {
+extension PackageInfoMapper {
+    public enum ResolvedDependency: Equatable {
         case target(name: String)
         case xcframework(path: Path)
         case externalTarget(package: String, target: String)

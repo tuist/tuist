@@ -33,11 +33,11 @@ public struct SwiftPackageManagerDependencies: Equatable {
     }
 }
 
-public extension SwiftPackageManagerDependencies {
+extension SwiftPackageManagerDependencies {
     /// Returns `Package.swift` representation.
     ///
     /// **NOTE** It is a temporary solution until Apple resolves: https://forums.swift.org/t/pitch-package-editor-commands/42224
-    func manifestValue() -> String {
+    public func manifestValue() -> String {
         """
         import PackageDescription
 
@@ -53,9 +53,9 @@ public extension SwiftPackageManagerDependencies {
 
 // MARK: - Package.manifestValue()
 
-private extension Package {
+extension Package {
     /// Returns `Package.swift` representation.
-    var manifestValue: String {
+    fileprivate var manifestValue: String {
         switch self {
         case let .local(path):
             return #".package(path: "\#(path)")"#
@@ -67,9 +67,9 @@ private extension Package {
 
 // MARK: - Requirement.manifestValue()
 
-private extension Requirement {
+extension Requirement {
     /// Returns `Package.swift` representation.
-    var manifestValue: String {
+    fileprivate var manifestValue: String {
         switch self {
         case let .exact(version):
             return #".exact("\#(version)")"#

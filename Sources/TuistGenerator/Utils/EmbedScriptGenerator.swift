@@ -255,9 +255,9 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
     // swiftlint:enable line_length
 }
 
-private extension RelativePath {
+extension RelativePath {
     /// Returns the basename without the extension.
-    var basenameWithoutExt: String {
+    fileprivate var basenameWithoutExt: String {
         if let ext = self.extension {
             return String(basename.dropLast(ext.count + 1))
         }

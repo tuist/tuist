@@ -17,9 +17,9 @@ public enum TargetError: FatalError, Equatable {
     }
 }
 
-public extension Target {
+extension Target {
     /// Returns the product name including the extension.
-    var productNameWithExtension: String {
+    public var productNameWithExtension: String {
         switch product {
         case .staticLibrary, .dynamicLibrary:
             return "lib\(productName).\(product.xcodeValue.fileExtension!)"
@@ -32,7 +32,7 @@ public extension Target {
 
     /// Returns true if the file at the given path is a resource.
     /// - Parameter path: Path to the file to be checked.
-    static func isResource(path: AbsolutePath) -> Bool {
+    public static func isResource(path: AbsolutePath) -> Bool {
         if path.isPackage {
             return true
         } else if !FileHandler.shared.isFolder(path) {
@@ -48,7 +48,7 @@ public extension Target {
     /// This method unfolds the source file globs subtracting the paths that are excluded and ignoring
     /// the files that don't have a supported source extension.
     /// - Parameter sources: List of source file glob to be unfolded.
-    static func sources(targetName: String, sources: [SourceFileGlob]) throws -> [TuistGraph.SourceFile] {
+    public static func sources(targetName: String, sources: [SourceFileGlob]) throws -> [TuistGraph.SourceFile] {
         var sourceFiles: [AbsolutePath: TuistGraph.SourceFile] = [:]
         var invalidGlobs: [InvalidGlob] = []
 

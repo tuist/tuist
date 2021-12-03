@@ -82,8 +82,8 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
     }
 }
 
-private extension GraphDependency {
-    var isExternal: Bool {
+extension GraphDependency {
+    fileprivate var isExternal: Bool {
         switch self {
         case .target:
             return false
@@ -92,7 +92,7 @@ private extension GraphDependency {
         }
     }
 
-    var name: String {
+    fileprivate var name: String {
         switch self {
         case let .target(name: name, path: _):
             return name

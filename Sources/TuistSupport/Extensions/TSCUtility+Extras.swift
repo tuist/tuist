@@ -1,11 +1,11 @@
 import TSCUtility
 
-public extension Version {
+extension Version {
     /// Create a version object from string.
     /// It does not have to be formatted to SPM's standards (i.e. minor and patch versions can be omitted if zero)
     /// - Parameters:
     ///   - unformattedString: The string to parse.
-    init?(unformattedString: String) {
+    public init?(unformattedString: String) {
         let versionComponents = unformattedString.split(separator: ".")
 
         guard 1 ... 3 ~= versionComponents.count else { return nil }
@@ -15,7 +15,7 @@ public extension Version {
         self.init(string: formattedVersionComponents.joined(separator: "."))
     }
 
-    var xcodeStringValue: String {
+    public var xcodeStringValue: String {
         "\(major)\(minor)\(patch)"
     }
 }

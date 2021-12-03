@@ -13,24 +13,24 @@ public struct SchemeLanguage: Codable, Equatable, ExpressibleByStringLiteral {
 }
 
 // Pre-defined languages
-public extension SchemeLanguage {
-    static var doubleLengthPseudoLanguage: SchemeLanguage {
+extension SchemeLanguage {
+    public static var doubleLengthPseudoLanguage: SchemeLanguage {
         SchemeLanguage(identifier: "IDELaunchSchemeLanguageDoubleLocalizedStrings")
     }
 
-    static var rightToLeftPseudoLanguage: SchemeLanguage {
+    public static var rightToLeftPseudoLanguage: SchemeLanguage {
         SchemeLanguage(identifier: "IDELaunchSchemeLanguageRightToLeftLayoutDirection")
     }
 
-    static var accentedPseudoLanguage: SchemeLanguage {
+    public static var accentedPseudoLanguage: SchemeLanguage {
         SchemeLanguage(identifier: "IDELaunchSchemeLanguageAccentedLatin")
     }
 
-    static var boundedStringPseudoLanguage: SchemeLanguage {
+    public static var boundedStringPseudoLanguage: SchemeLanguage {
         SchemeLanguage(identifier: "IDELaunchSchemeLanguageBoundedString")
     }
 
-    static var rightToLeftWithStringsPseudoLanguage: SchemeLanguage {
+    public static var rightToLeftWithStringsPseudoLanguage: SchemeLanguage {
         SchemeLanguage(identifier: "IDELaunchSchemeLanguageRLO")
     }
 }

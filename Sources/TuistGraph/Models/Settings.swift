@@ -59,12 +59,12 @@ public enum DefaultSettings: Codable {
     case none
 }
 
-public extension DefaultSettings {
-    static var recommended: DefaultSettings {
+extension DefaultSettings {
+    public static var recommended: DefaultSettings {
         .recommended(excluding: [])
     }
 
-    static var essential: DefaultSettings {
+    public static var essential: DefaultSettings {
         .essential(excluding: [])
     }
 }
@@ -107,11 +107,11 @@ public struct Settings: Equatable, Codable {
     }
 }
 
-public extension Settings {
+extension Settings {
     /// Finds the default debug `BuildConfiguration` if it exists, otherwise returns the first debug configuration available.
     ///
     /// - Returns: The default debug `BuildConfiguration`
-    func defaultDebugBuildConfiguration() -> BuildConfiguration? {
+    public func defaultDebugBuildConfiguration() -> BuildConfiguration? {
         let debugConfigurations = configurations.keys
             .filter { $0.variant == .debug }
             .sorted()
@@ -122,7 +122,7 @@ public extension Settings {
     /// Finds the default release `BuildConfiguration` if it exists, otherwise returns the first release configuration available.
     ///
     /// - Returns: The default release `BuildConfiguration`
-    func defaultReleaseBuildConfiguration() -> BuildConfiguration? {
+    public func defaultReleaseBuildConfiguration() -> BuildConfiguration? {
         let releaseConfigurations = configurations.keys
             .filter { $0.variant == .release }
             .sorted()
@@ -131,20 +131,20 @@ public extension Settings {
     }
 }
 
-public extension Dictionary where Key == BuildConfiguration, Value == Configuration? {
-    func sortedByBuildConfigurationName() -> [(key: BuildConfiguration, value: Configuration?)] {
+extension Dictionary where Key == BuildConfiguration, Value == Configuration? {
+    public func sortedByBuildConfigurationName() -> [(key: BuildConfiguration, value: Configuration?)] {
         sorted(by: { first, second -> Bool in first.key < second.key })
     }
 
-    func xcconfigs() -> [AbsolutePath] {
+    public func xcconfigs() -> [AbsolutePath] {
         sortedByBuildConfigurationName()
             .map(\.value)
             .compactMap { $0?.xcconfig }
     }
 }
 
-public extension Dictionary where Key == String, Value == SettingValue {
-    func toAny() -> [String: Any] {
+extension Dictionary where Key == String, Value == SettingValue {
+    public func toAny() -> [String: Any] {
         mapValues { value in
             switch value {
             case let .array(array):

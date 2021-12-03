@@ -39,14 +39,14 @@ public struct Workspace: Equatable, Codable {
     }
 }
 
-public extension Workspace {
-    func with(name: String) -> Workspace {
+extension Workspace {
+    public func with(name: String) -> Workspace {
         var copy = self
         copy.name = name
         return copy
     }
 
-    func adding(files: [AbsolutePath]) -> Workspace {
+    public func adding(files: [AbsolutePath]) -> Workspace {
         Workspace(
             path: path,
             xcWorkspacePath: xcWorkspacePath,
@@ -59,7 +59,7 @@ public extension Workspace {
         )
     }
 
-    func replacing(projects: [AbsolutePath]) -> Workspace {
+    public func replacing(projects: [AbsolutePath]) -> Workspace {
         Workspace(
             path: path,
             xcWorkspacePath: xcWorkspacePath,
@@ -72,7 +72,7 @@ public extension Workspace {
         )
     }
 
-    func merging(projects otherProjects: [AbsolutePath]) -> Workspace {
+    public func merging(projects otherProjects: [AbsolutePath]) -> Workspace {
         Workspace(
             path: path,
             xcWorkspacePath: xcWorkspacePath,
@@ -85,7 +85,7 @@ public extension Workspace {
         )
     }
 
-    func codeCoverageTargets(mode: CodeCoverageMode?, projects: [Project]) -> [TargetReference] {
+    public func codeCoverageTargets(mode: CodeCoverageMode?, projects: [Project]) -> [TargetReference] {
         switch mode {
         case .all, .none: return []
         case let .targets(targets): return targets

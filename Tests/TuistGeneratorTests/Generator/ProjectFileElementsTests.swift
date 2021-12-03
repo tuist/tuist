@@ -865,9 +865,9 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
     }
 }
 
-private extension PBXGroup {
+extension PBXGroup {
     /// Retuns all the child variant groups (recursively)
-    var debugVariantGroupPaths: [String] {
+    fileprivate var debugVariantGroupPaths: [String] {
         children.flatMap { (element: PBXFileElement) -> [String] in
             switch element {
             case let group as PBXVariantGroup:

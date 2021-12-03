@@ -118,8 +118,8 @@ public struct TextTable<T> {
     }
 }
 
-public extension TextTable {
-    struct Column {
+extension TextTable {
+    public struct Column {
         let title: String
         let value: CustomStringConvertible
 

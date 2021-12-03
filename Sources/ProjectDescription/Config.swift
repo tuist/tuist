@@ -100,7 +100,7 @@ public struct Config: Codable, Equatable {
     }
 }
 
-public extension Config.GenerationOptions {
+extension Config.GenerationOptions {
     internal enum CodingKeys: String, CodingKey {
         case xcodeProjectName
         case organizationName
@@ -115,7 +115,7 @@ public extension Config.GenerationOptions {
         case lastXcodeUpgradeCheck
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         if container.allKeys.contains(.xcodeProjectName), try container.decodeNil(forKey: .xcodeProjectName) == false {
@@ -168,7 +168,7 @@ public extension Config.GenerationOptions {
         }
     }
 
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
 
         switch self {
@@ -202,14 +202,14 @@ public extension Config.GenerationOptions {
     }
 }
 
-public extension Config.GenerationOptions.CodeCoverageMode {
+extension Config.GenerationOptions.CodeCoverageMode {
     internal enum CodingKeys: String, CodingKey {
         case all
         case relevant
         case targets
     }
 
-    init(from decoder: Decoder) throws {
+    public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         if container.allKeys.contains(.all), try container.decode(Bool.self, forKey: .all) {
@@ -224,7 +224,7 @@ public extension Config.GenerationOptions.CodeCoverageMode {
         }
     }
 
-    func encode(to encoder: Encoder) throws {
+    public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
 
         switch self {

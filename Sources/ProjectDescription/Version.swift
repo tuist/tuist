@@ -90,12 +90,12 @@ extension Version: CustomStringConvertible {
     }
 }
 
-public extension Version {
+extension Version {
     /// Create a version object from string.
     ///
     /// - Parameters:
     ///   - string: The string to parse.
-    init?(string: String) {
+    public init?(string: String) {
         let prereleaseStartIndex = string.firstIndex(of: "-")
         let metadataStartIndex = string.firstIndex(of: "+")
 
@@ -160,24 +160,24 @@ extension Version: Codable {
 
 // MARK: - Range operations
 
-public extension ClosedRange where Bound == Version {
+extension ClosedRange where Bound == Version {
     /// Marked as unavailable because we have custom rules for contains.
-    func contains(_: Version) -> Bool {
+    public func contains(_: Version) -> Bool {
         // Unfortunately, we can't use unavailable here.
         fatalError("contains(_:) is unavailable, use contains(version:)")
     }
 }
 
-public extension Range where Bound == Version {
+extension Range where Bound == Version {
     /// Marked as unavailable because we have custom rules for contains.
-    func contains(_: Version) -> Bool {
+    public func contains(_: Version) -> Bool {
         // Unfortunately, we can't use unavailable here.
         fatalError("contains(_:) is unavailable, use contains(version:)")
     }
 }
 
-public extension Range where Bound == Version {
-    func contains(version: Version) -> Bool {
+extension Range where Bound == Version {
+    public func contains(version: Version) -> Bool {
         // Special cases if version contains prerelease identifiers.
         if !version.prereleaseIdentifiers.isEmpty {
             // If the ranage does not contain prerelease identifiers, return false.

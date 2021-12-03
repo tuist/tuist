@@ -38,8 +38,8 @@ public struct PluginLocation: Codable, Equatable {
 
 // MARK: - Codable
 
-public extension PluginLocation {
-    enum LocationType: Codable, Equatable {
+extension PluginLocation {
+    public enum LocationType: Codable, Equatable {
         case local(path: Path)
         case gitWithTag(url: String, tag: String)
         case gitWithSha(url: String, sha: String)
