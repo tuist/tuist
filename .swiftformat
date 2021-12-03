@@ -34,3 +34,4 @@
 --maxwidth 130
 --wrapcollections before-first
 --wraparguments before-first
+--extensionacl on-declarations
