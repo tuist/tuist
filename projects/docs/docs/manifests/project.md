@@ -229,8 +229,8 @@ It represents the target headers:
 
 It represents a list of glob patterns that refer to files:
 
-| Property | Description                | Type            | Required | Default |
-| -------- | -------------------------- | --------------- | -------- | ------- |
+| Property | Description                | Type                                | Required | Default |
+| -------- | -------------------------- | ----------------------------------- | -------- | ------- |
 | `globs`  | Glob pattern to the files. | [`[FileListGlob]`](#file-list-glob) | Yes      |         |
 
 :::note ExpressibleByStringLiteral and ExpressibleByArrayLiteral
