@@ -15,23 +15,3 @@ public enum AutogenerationOptions: Hashable {
     case disabled
     case enabled(TestingOptions)
 }
-
-public extension AutogenerationOptions {
-    var parallelizable: Bool {
-        switch self {
-        case .disabled:
-            return false
-        case let .enabled(options):
-            return options.contains(.parallelizable)
-        }
-    }
-
-    var randomExecutionOrdering: Bool {
-        switch self {
-        case .disabled:
-            return false
-        case let .enabled(options):
-            return options.contains(.randomExecutionOrdering)
-        }
-    }
-}

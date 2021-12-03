@@ -69,10 +69,10 @@ public struct Config: Equatable, Hashable {
         }.first
     }
 
-    public var autogenerationOptions: AutogenerationOptions? {
-        generationOptions.compactMap { option -> AutogenerationOptions? in
+    public var autogenerationTestingOptions: AutogenerationOptions.TestingOptions? {
+        generationOptions.compactMap { option -> AutogenerationOptions.TestingOptions? in
             switch option {
-            case let .autogenerationOptions(options): return options
+            case let .autogenerationOptions(.enabled(options)): return options
             default: return nil
             }
         }.first
