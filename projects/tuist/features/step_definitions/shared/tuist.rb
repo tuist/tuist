@@ -6,7 +6,7 @@ Given(/tuist is available/) do
   # On CI we expect tuist to be built already by the previous job `release_build`, so we skip `swift build`
 
   if ENV["CI"].nil?
-    ["tuist", "ProjectDescription", "ProjectAutomation"].each do |product|
+    ["tuist", "ProjectDescription", "ProjectAutomation", "tuistenv"].each do |product|
       system(
         "swift",
         "build",
