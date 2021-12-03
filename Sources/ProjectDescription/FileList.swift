@@ -24,22 +24,6 @@ public struct FileList: Codable, Equatable {
     public init(globs: [Path]) {
         self.init(globs.map { .glob($0) })
     }
-
-    public enum CodingKeys: String, CodingKey {
-        case globs
-    }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-
-        // previously globs property had [Path] type
-        if let paths = try? container.decode([Path].self, forKey: .globs) {
-            self.init(globs: paths)
-        } else {
-            let globs = try container.decode([FileListGlob].self, forKey: .globs)
-            self.init(globs)
-        }
-    }
 }
 
 extension FileList: ExpressibleByStringInterpolation {
