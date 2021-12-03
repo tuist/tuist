@@ -24,24 +24,38 @@ extension TuistGraph.Headers {
             return result
         }
 
-        func unfoldGlob(_ path: AbsolutePath, excluding: Set<AbsolutePath>) -> [AbsolutePath] {
+        func unfoldGlob(_ path: AbsolutePath,
+                        excluding: Set<AbsolutePath>,
+                        pathsFromPreviousScopes: [AbsolutePath]) -> [AbsolutePath]
+        {
             FileHandler.shared.glob(AbsolutePath.root, glob: String(path.pathString.dropFirst())).filter {
                 guard let fileExtension = $0.extension else {
                     return false
                 }
-                return TuistGraph.Headers.extensions.contains(".\(fileExtension)") && !excluding.contains($0)
+                guard TuistGraph.Headers.extensions.contains(".\(fileExtension)") else {
+                    return false
+                }
+                guard !excluding.contains($0) else {
+                    return false
+                }
+                switch manifest.intersectRule {
+                case .autoExclude:
+                    return !pathsFromPreviousScopes.contains($0)
+                case nil, .some(.none):
+                    return true
+                }
             }
         }
         let `public`: [AbsolutePath] = try manifest.public?.globs.flatMap {
-            unfoldGlob(try generatorPaths.resolve(path: $0.glob), excluding: try resolveExcluding($0.excluding))
+            unfoldGlob(try generatorPaths.resolve(path: $0.glob), excluding: try resolveExcluding($0.excluding), pathsFromPreviousScopes: [])
         } ?? []
 
         let `private`: [AbsolutePath] = try manifest.private?.globs.flatMap {
-            unfoldGlob(try generatorPaths.resolve(path: $0.glob), excluding: try resolveExcluding($0.excluding))
+            unfoldGlob(try generatorPaths.resolve(path: $0.glob), excluding: try resolveExcluding($0.excluding), pathsFromPreviousScopes: `public`)
         } ?? []
 
         let project: [AbsolutePath] = try manifest.project?.globs.flatMap {
-            unfoldGlob(try generatorPaths.resolve(path: $0.glob), excluding: try resolveExcluding($0.excluding))
+            unfoldGlob(try generatorPaths.resolve(path: $0.glob), excluding: try resolveExcluding($0.excluding), pathsFromPreviousScopes: `public` + `private`)
         } ?? []
 
         return Headers(public: `public`, private: `private`, project: project)
