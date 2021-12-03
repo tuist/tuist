@@ -1,7 +1,16 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-lib_path = File.expand_path("../lib", File.dirname(__FILE__))
-$LOAD_PATH.unshift(lib_path) unless $LOAD_PATH.include?(lib_path)
+additional_load_paths = [File.expand_path("../lib", File.dirname(__FILE__)), File.expand_path("../vendor/thor", File.dirname(__FILE__))]
+additional_load_paths.each do |additional_path|
+  $LOAD_PATH.unshift(additional_path) unless $LOAD_PATH.include?(additional_path)
+end
 
 require "cocoapods_interactor"
+
+begin
+  CocoaPodsInteractor::CLI.start(ARGV)
+rescue CocoaPodsInteractor::Utilities::Errors::Error => error
+  CocoaPodsInteractor::Utilities::Output.error(error.message)
+  Kernel.exit(1)
+end
