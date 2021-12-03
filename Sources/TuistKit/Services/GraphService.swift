@@ -8,6 +8,7 @@ import TuistGraph
 import TuistLoader
 import TuistPlugin
 import TuistSupport
+import ProjectAutomation
 
 final class GraphService {
     private let graphVizMapper: GraphToGraphVizMapping
@@ -59,7 +60,7 @@ final class GraphService {
 
             try export(graph: graphVizGraph, at: filePath, withFormat: format, layoutAlgorithm: layoutAlgorithm)
         case .json:
-            let outputGraph = GraphOutput.from(graph)
+            let outputGraph = ProjectAutomation.Graph.from(graph)
             try outputGraph.export(to: filePath)
         }
 
@@ -133,11 +134,11 @@ private enum GraphServiceError: FatalError {
     }
 }
 
-private extension GraphOutput {
-    static func from(_ graph: TuistGraph.Graph) -> GraphOutput {
-        let projects = graph.projects.reduce(into: [String: ProjectOutput]()) { $0[$1.key.pathString] = ProjectOutput.from($1.value) }
+private extension ProjectAutomation.Graph {
+    static func from(_ graph: TuistGraph.Graph) -> ProjectAutomation.Graph {
+        let projects = graph.projects.reduce(into: [String: ProjectAutomation.Project]()) { $0[$1.key.pathString] = ProjectAutomation.Project.from($1.value) }
 
-        return GraphOutput(name: graph.name, path: graph.path.pathString, projects: projects)
+        return ProjectAutomation.Graph(name: graph.name, path: graph.path.pathString, projects: projects)
     }
 
     func export(to filePath: AbsolutePath) throws {
@@ -153,35 +154,35 @@ private extension GraphOutput {
     }
 }
 
-private extension ProjectOutput {
-    static func from(_ project: Project) -> ProjectOutput {
-        let packages = project.packages.reduce(into: [PackageOutput]()) { $0.append(PackageOutput.from($1)) }
-        let schemes = project.schemes.reduce(into: [SchemeOutput]()) { $0.append(SchemeOutput.from($1)) }
-        let targets = project.targets.reduce(into: [TargetOutput]()) { $0.append(TargetOutput.from($1)) }
+private extension ProjectAutomation.Project {
+    static func from(_ project: TuistGraph.Project) -> ProjectAutomation.Project {
+        let packages = project.packages.reduce(into: [ProjectAutomation.Package]()) { $0.append(ProjectAutomation.Package.from($1)) }
+        let schemes = project.schemes.reduce(into: [ProjectAutomation.Scheme]()) { $0.append(ProjectAutomation.Scheme.from($1)) }
+        let targets = project.targets.reduce(into: [ProjectAutomation.Target]()) { $0.append(ProjectAutomation.Target.from($1)) }
 
-        return ProjectOutput(name: project.name, path: project.path.pathString, packages: packages, targets: targets, schemes: schemes)
+        return ProjectAutomation.Project(name: project.name, path: project.path.pathString, packages: packages, targets: targets, schemes: schemes)
     }
 }
 
-private extension PackageOutput {
-    static func from(_ package: Package) -> PackageOutput {
+private extension ProjectAutomation.Package {
+    static func from(_ package: TuistGraph.Package) -> ProjectAutomation.Package {
         switch package {
         case let .remote(url, _):
-            return PackageOutput(kind: PackageOutput.PackageKind.remote, path: url)
+            return ProjectAutomation.Package(kind: ProjectAutomation.Package.PackageKind.remote, path: url)
         case let .local(path):
-            return PackageOutput(kind: PackageOutput.PackageKind.local, path: path.pathString)
+            return ProjectAutomation.Package(kind: ProjectAutomation.Package.PackageKind.local, path: path.pathString)
         }
     }
 }
 
-private extension TargetOutput {
-    static func from(_ target: Target) -> TargetOutput {
-        return TargetOutput(name: target.name, product: target.product.rawValue)
+private extension ProjectAutomation.Target {
+    static func from(_ target: TuistGraph.Target) -> ProjectAutomation.Target {
+        return ProjectAutomation.Target(name: target.name, product: target.product.rawValue)
     }
 }
 
-private extension SchemeOutput {
-    static func from(_ scheme: Scheme) -> SchemeOutput {
+private extension ProjectAutomation.Scheme {
+    static func from(_ scheme: TuistGraph.Scheme) -> ProjectAutomation.Scheme {
         var testTargets = [String]()
         if let testAction = scheme.testAction {
             for testTarget in testAction.targets {
@@ -189,6 +190,6 @@ private extension SchemeOutput {
             }
         }
 
-        return SchemeOutput(name: scheme.name, testActionTargets: testTargets)
+        return ProjectAutomation.Scheme(name: scheme.name, testActionTargets: testTargets)
     }
 }
