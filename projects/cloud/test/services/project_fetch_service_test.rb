@@ -11,7 +11,7 @@ class ProjectFetchServiceTest < ActiveSupport::TestCase
     project = Project.create!(name: "tuist-project-2", account_id: account.id, token: Devise.friendly_token.first(16))
 
     # When
-    got = ProjectFetchService.call(name: project.name, account_name: account.name, current_user: user)
+    got = ProjectFetchService.call(name: project.name, account_name: account.name, user: user)
 
     # Then
     assert_equal project, got
@@ -27,7 +27,7 @@ class ProjectFetchServiceTest < ActiveSupport::TestCase
 
     # When / Then
     assert_raises(ProjectFetchService::Error::Unauthorized) do
-      ProjectFetchService.call(name: project.name, account_name: account.name, current_user: user)
+      ProjectFetchService.call(name: project.name, account_name: account.name, user: user)
     end
   end
 end

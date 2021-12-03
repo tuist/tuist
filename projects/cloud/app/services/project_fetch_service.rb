@@ -5,19 +5,19 @@ class ProjectFetchService < ApplicationService
     Unauthorized = Class.new(StandardError)
   end
 
-  attr_reader :name, :account_name, :current_user
+  attr_reader :name, :account_name, :user
 
-  def initialize(name:, account_name:, current_user:)
+  def initialize(name:, account_name:, user:)
     super()
     @name = name
     @account_name = account_name
-    @current_user = current_user
+    @user = user
   end
 
   def call
     account = Account.find_by(name: account_name)
     project = Project.find_by(account_id: account.id, name: name)
-    raise Error::Unauthorized unless ProjectPolicy.new(current_user, project).show?
+    raise Error::Unauthorized unless ProjectPolicy.new(user, project).show?
     project
   end
 end
