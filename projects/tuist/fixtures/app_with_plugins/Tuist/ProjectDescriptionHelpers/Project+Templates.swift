@@ -1,8 +1,8 @@
 import ProjectDescription
 
-extension Project {
+public extension Project {
     /// Helper function to create the Project for this ExampleApp
-    public static func app(name: String, platform: Platform, additionalTargets: [String]) -> Project {
+    static func app(name: String, platform: Platform, additionalTargets _: [String]) -> Project {
         let mainTarget = Target(
             name: name,
             platform: platform,
@@ -15,7 +15,7 @@ extension Project {
             ],
             dependencies: []
         )
-        
+
         return Project(
             name: name,
             organizationName: "tuist.io",
@@ -26,7 +26,7 @@ extension Project {
                     name: "Lottie",
                     parser: .json,
                     extensions: ["lottie"]
-                )
+                ),
             ]
         )
     }

@@ -1,11 +1,10 @@
-import Foundation
 import CoreData
-
+import Foundation
 
 final class MyModel {
     private lazy var persistentContainer: NSPersistentContainer = {
         let container = NSPersistentContainer(name: "Users")
-        container.loadPersistentStores(completionHandler: { (storeDescription, error) in
+        container.loadPersistentStores(completionHandler: { _, error in
             if let error = error as NSError? {
                 fatalError("Unresolved error \(error), \(error.userInfo)")
             }
@@ -16,7 +15,7 @@ final class MyModel {
     func save() {
         let context = persistentContainer.viewContext
         let user = User(context: context)
-        let identifier = Int64.random(in: 0...1000)
+        let identifier = Int64.random(in: 0 ... 1000)
         user.name = "Foo_\(identifier)"
         user.identifier = identifier
 

@@ -1,7 +1,7 @@
 import ProjectDescription
 
-extension Project {
-    public static func app(
+public extension Project {
+    static func app(
         name: String,
         dependencies: [TargetDependency]
     ) -> Project {
@@ -16,19 +16,19 @@ extension Project {
                     dependencies: dependencies,
                     resources: ["Resources/**"]
                 ),
-                .test(name: name)
+                .test(name: name),
             ],
             schemes: [
                 .scheme(
                     name: name,
                     mainTargetName: name,
                     testTargetName: "\(name)Tests"
-                )
+                ),
             ]
         )
     }
 
-    public static func framework(
+    static func framework(
         name: String,
         dependencies: [TargetDependency]
     ) -> Project {
@@ -42,14 +42,14 @@ extension Project {
                     product: .framework,
                     dependencies: dependencies
                 ),
-                .test(name: name)
+                .test(name: name),
             ],
             schemes: [
                 .scheme(
                     name: name,
                     mainTargetName: name,
                     testTargetName: "\(name)Tests"
-                )
+                ),
             ]
         )
     }
@@ -113,16 +113,16 @@ extension Scheme {
             projectPath: nil,
             target: testTargetName
         )
-        
+
         return Scheme(
             name: name,
             shared: true,
             buildAction: .buildAction(targets: [
-                main
+                main,
             ]),
             testAction: .targets(
                 [
-                    TestableTarget(target: test)
+                    TestableTarget(target: test),
                 ],
                 configuration: "debug"
             ),
@@ -144,26 +144,26 @@ extension Scheme {
     }
 }
 
-extension Settings {
-    public static let `default`: Settings = .settings(
+public extension Settings {
+    static let `default`: Settings = .settings(
         base: [:],
         configurations: [
             .debug(
                 name: "debug",
                 settings: [
                     "OTHER_SWIFT_FLAGS": [
-                        "-DDEBUG_MACRO"
-                    ]
+                        "-DDEBUG_MACRO",
+                    ],
                 ]
             ),
             .release(
                 name: "release",
                 settings: [
                     "OTHER_SWIFT_FLAGS": [
-                        "-DRELEASE_MARCO"
-                    ]
+                        "-DRELEASE_MARCO",
+                    ],
                 ]
-            )
+            ),
         ],
         defaultSettings: .recommended
     )

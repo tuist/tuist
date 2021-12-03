@@ -1,5 +1,5 @@
 import Foundation
 
 public protocol FeatureAContract {
-	func run()
+    func run()
 }

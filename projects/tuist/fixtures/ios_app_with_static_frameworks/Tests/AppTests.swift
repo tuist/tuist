@@ -1,8 +1,8 @@
-import Foundation
-import XCTest
-import PrebuiltStaticFramework
-import AppTestsSupport
 import A
+import AppTestsSupport
+import Foundation
+import PrebuiltStaticFramework
+import XCTest
 
 @testable import App
 

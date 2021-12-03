@@ -5,7 +5,7 @@ import ProjectDescription
 // are computed, as such we need to support non-literal declarations.
 let resourcesDirectory = "Resources"
 let resources: [ResourceFileElement] = [
-    "\(resourcesDirectory)/framework_resource.txt"
+    "\(resourcesDirectory)/framework_resource.txt",
 ]
 
 let project = Project(

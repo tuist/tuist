@@ -1,7 +1,5 @@
 import Foundation
 
 public struct DynamicLib {
-    public init() {
-
-    }
+    public init() {}
 }

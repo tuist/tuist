@@ -32,10 +32,12 @@ let project = Project(
             infoPlist: .file(path: .relativeToManifest("Info.plist")),
             sources: .paths([.relativeToManifest("App/Sources/**")]),
             dependencies: [
-                .target(name: "AppCore")
+                .target(name: "AppCore"),
             ],
-            settings: .settings(base: ["CODE_SIGN_IDENTITY": "",
-                                      "CODE_SIGNING_REQUIRED": "NO"])
+            settings: .settings(base: [
+                "CODE_SIGN_IDENTITY": "",
+                "CODE_SIGNING_REQUIRED": "NO",
+            ])
         ),
         Target(
             name: "AppTests",
@@ -47,8 +49,10 @@ let project = Project(
             dependencies: [
                 .target(name: "App"),
             ],
-            settings: .settings(base: ["CODE_SIGN_IDENTITY": "",
-                                      "CODE_SIGNING_REQUIRED": "NO"])
+            settings: .settings(base: [
+                "CODE_SIGN_IDENTITY": "",
+                "CODE_SIGNING_REQUIRED": "NO",
+            ])
         ),
         Target(
             name: "MacFramework",
@@ -58,8 +62,10 @@ let project = Project(
             deploymentTarget: .macOS(targetVersion: "10.15"),
             infoPlist: .file(path: .relativeToManifest("Info.plist")),
             sources: .paths([.relativeToManifest("MacFramework/Sources/**")]),
-            settings: .settings(base: ["CODE_SIGN_IDENTITY": "",
-                                      "CODE_SIGNING_REQUIRED": "NO"])
+            settings: .settings(base: [
+                "CODE_SIGN_IDENTITY": "",
+                "CODE_SIGNING_REQUIRED": "NO",
+            ])
         ),
         Target(
             name: "MacFrameworkTests",
@@ -72,8 +78,10 @@ let project = Project(
             dependencies: [
                 .target(name: "MacFramework"),
             ],
-            settings: .settings(base: ["CODE_SIGN_IDENTITY": "",
-                                      "CODE_SIGNING_REQUIRED": "NO"])
+            settings: .settings(base: [
+                "CODE_SIGN_IDENTITY": "",
+                "CODE_SIGNING_REQUIRED": "NO",
+            ])
         ),
         Target(
             name: "AppUITests",
@@ -97,8 +105,10 @@ let project = Project(
                 /* Target dependencies can be defined here */
                 /* .framework(path: "framework") */
             ],
-            settings: .settings(base: ["CODE_SIGN_IDENTITY": "",
-                                      "CODE_SIGNING_REQUIRED": "NO"])
+            settings: .settings(base: [
+                "CODE_SIGN_IDENTITY": "",
+                "CODE_SIGNING_REQUIRED": "NO",
+            ])
         ),
         Target(
             name: "App-dashUITests",

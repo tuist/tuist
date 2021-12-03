@@ -1,6 +1,4 @@
 public class LibraryBClass {
     public var text = "LibraryBClass"
-    public init() {
-        
-    }
+    public init() {}
 }

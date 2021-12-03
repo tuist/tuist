@@ -12,7 +12,7 @@ let templateThree = Template(
     description: "Custom template",
     attributes: [
         nameAttributeThree,
-        platformAttributeThree
+        platformAttributeThree,
     ],
     items: [
         .string(path: "\(nameAttributeThree)/custom.swift", contents: testContentsThree),

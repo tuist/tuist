@@ -21,7 +21,7 @@ let project = Project(
             infoPlist: .default,
             sources: ["Targets/App/Tests/**"],
             dependencies: [
-                .target(name: "App")
+                .target(name: "App"),
             ]
         ),
         Target(
@@ -54,7 +54,7 @@ let project = Project(
             settings: .settings(
                 base: [
                     "CODE_SIGN_IDENTITY": "",
-                    "CODE_SIGNING_REQUIRED": "NO"
+                    "CODE_SIGNING_REQUIRED": "NO",
                 ]
             )
         ),
@@ -72,7 +72,7 @@ let project = Project(
             settings: .settings(
                 base: [
                     "CODE_SIGN_IDENTITY": "",
-                    "CODE_SIGNING_REQUIRED": "NO"
+                    "CODE_SIGNING_REQUIRED": "NO",
                 ]
             )
         ),

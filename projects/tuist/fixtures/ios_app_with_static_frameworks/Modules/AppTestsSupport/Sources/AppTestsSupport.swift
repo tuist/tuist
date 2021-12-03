@@ -1,7 +1,7 @@
 import Foundation
 import PrebuiltStaticFramework
 
-public class AppTestsSupport {
+public enum AppTestsSupport {
     public static let value: String = "appTestsSupportValue"
 
     public static func printFromAppTestsSupport() {

@@ -1,7 +1,5 @@
 import Foundation
 
 public struct StaticLib {
-    public init() {
-
-    }
+    public init() {}
 }

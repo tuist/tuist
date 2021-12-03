@@ -1,18 +1,16 @@
-import UIKit
+import FrameworkA
 import LibraryA
 import LibraryB
-import FrameworkA
+import UIKit
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
-
     var window: UIWindow?
 
     func application(
-        _ application: UIApplication,
-        didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil
+        _: UIApplication,
+        didFinishLaunchingWithOptions _: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
-
         useFrameworkCode()
         usePackageCode()
 
@@ -27,7 +25,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     private func useFrameworkCode() {
         print(FrameworkAClass().text)
     }
-    
+
     private func usePackageCode() {
         print(LibraryAClass().text)
         print(LibraryBClass().text)

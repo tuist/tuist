@@ -1,5 +1,3 @@
 import UIKit
 
-final class TestView: UIView {
-    
-}
+final class TestView: UIView {}
