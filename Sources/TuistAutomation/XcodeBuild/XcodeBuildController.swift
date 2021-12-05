@@ -142,10 +142,12 @@ public final class XcodeBuildController: XcodeBuildControlling {
         return run(command: command, isVerbose: environment.isVerbose)
     }
 
-    public func showBuildSettings(_ target: XcodeBuildTarget,
-                                  scheme: String,
-                                  configuration: String) -> Single<[String: XcodeBuildSettings]>
-    {
+    // swiftlint:disable:next function_body_length
+    public func showBuildSettings(
+        _ target: XcodeBuildTarget,
+        scheme: String,
+        configuration: String
+    ) -> Single<[String: XcodeBuildSettings]> {
         var command = ["/usr/bin/xcrun", "xcodebuild", "archive", "-showBuildSettings", "-skipUnavailableActions"]
 
         // Configuration

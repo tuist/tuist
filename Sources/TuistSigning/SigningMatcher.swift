@@ -44,7 +44,6 @@ final class SigningMatcher: SigningMatching {
                 dict[certificate.fingerprint] = certificate
             }
 
-        // swiftlint:disable:next line_length
         let provisioningProfiles: [TargetName: [ConfigurationName: ProvisioningProfile]] = try signingFilesLocator
             .locateProvisioningProfiles(from: path)
             .map(provisioningProfileParser.parse)

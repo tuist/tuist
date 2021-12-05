@@ -106,10 +106,11 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
         }
     }
 
-    // swiftlint:disable:next large_tuple
-    private func readMetadatasFromFatHeader(binary: FileHandle,
-                                            binaryPath: AbsolutePath) throws -> [(BinaryArchitecture, BinaryLinking, UUID?)]
-    {
+    private func readMetadatasFromFatHeader(
+        binary: FileHandle,
+        binaryPath: AbsolutePath
+        // swiftlint:disable:next large_tuple
+    ) throws -> [(BinaryArchitecture, BinaryLinking, UUID?)] {
         let currentOffset = binary.currentOffset
         let magic: UInt32 = binary.read()
         binary.seek(to: currentOffset)

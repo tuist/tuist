@@ -52,6 +52,7 @@ final class BuildService {
         self.configLoader = configLoader
     }
 
+    // swiftlint:disable:next function_body_length
     func run(
         schemeName: String?,
         generate: Bool,

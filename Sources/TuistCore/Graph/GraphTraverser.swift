@@ -323,7 +323,6 @@ public class GraphTraverser: GraphTraversing {
 
             let transitiveStaticTargetReferences = transitiveStaticTargets
 
-            // swiftlint:disable:next identifier_name
             let staticDependenciesDynamicLibrariesAndFrameworks = transitiveStaticTargets.flatMap { dependency in
                 self.graph.dependencies[dependency, default: []]
                     .lazy
@@ -331,7 +330,6 @@ public class GraphTraverser: GraphTraversing {
                     .filter(isDependencyDynamicTarget)
             }
 
-            // swiftlint:disable:next identifier_name
             let staticDependenciesPrecompiledLibrariesAndFrameworks = transitiveStaticTargets.flatMap { dependency in
                 self.graph.dependencies[dependency, default: []]
                     .lazy

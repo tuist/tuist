@@ -75,7 +75,6 @@ extension XCTestCase {
         return value
     }
 
-    // swiftlint:disable:next line_length
     public func XCTAssertThrowsSpecific<Error: Swift.Error & Equatable, T>(
         _ closure: @autoclosure () throws -> T,
         _ error: Error,

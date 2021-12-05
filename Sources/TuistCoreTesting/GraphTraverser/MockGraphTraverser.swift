@@ -181,7 +181,7 @@ final class MockGraphTraverser: GraphTraversing {
     var invokedTestTargetsDependingOnCount = 0
     var invokedTestTargetsDependingOnParameters: (path: AbsolutePath, name: String)?
     var invokedTestTargetsDependingOnParametersList =
-        [(path: AbsolutePath, name: String)]() // swiftlint:disable:this identifier_name
+        [(path: AbsolutePath, name: String)]()
     var stubbedTestTargetsDependingOnResult: Set<GraphTarget>! = []
 
     func testTargetsDependingOn(path: AbsolutePath, name: String) -> Set<GraphTarget> {
@@ -194,14 +194,14 @@ final class MockGraphTraverser: GraphTraversing {
 
     var invokedDirectLocalTargetDependencies = false
 
-    var invokedDirectLocalTargetDependenciesCount = 0 // swiftlint:disable:this identifier_name
+    var invokedDirectLocalTargetDependenciesCount = 0
     var invokedDirectLocalTargetDependenciesParameters: (
         path: AbsolutePath,
         name: String
-    )? // swiftlint:disable:this identifier_name
+    )?
     var invokedDirectLocalTargetDependenciesParametersList =
-        [(path: AbsolutePath, name: String)]() // swiftlint:disable:this identifier_name
-    var stubbedDirectLocalTargetDependenciesResult: Set<GraphTarget>! = [] // swiftlint:disable:this identifier_name
+        [(path: AbsolutePath, name: String)]()
+    var stubbedDirectLocalTargetDependenciesResult: Set<GraphTarget>! = []
 
     func directLocalTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget> {
         invokedDirectLocalTargetDependencies = true
@@ -213,9 +213,9 @@ final class MockGraphTraverser: GraphTraversing {
 
     var invokedDirectTargetDependencies = false
     var invokedDirectTargetDependenciesCount = 0
-    var invokedDirectTargetDependenciesParameters: (path: AbsolutePath, name: String)? // swiftlint:disable:this identifier_name
+    var invokedDirectTargetDependenciesParameters: (path: AbsolutePath, name: String)?
     var invokedDirectTargetDependenciesParametersList =
-        [(path: AbsolutePath, name: String)]() // swiftlint:disable:this identifier_name
+        [(path: AbsolutePath, name: String)]()
     var stubbedDirectTargetDependenciesResult: Set<GraphTarget>! = []
 
     func directTargetDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget> {
@@ -228,9 +228,9 @@ final class MockGraphTraverser: GraphTraversing {
 
     var invokedAppExtensionDependencies = false
     var invokedAppExtensionDependenciesCount = 0
-    var invokedAppExtensionDependenciesParameters: (path: AbsolutePath, name: String)? // swiftlint:disable:this identifier_name
+    var invokedAppExtensionDependenciesParameters: (path: AbsolutePath, name: String)?
     var invokedAppExtensionDependenciesParametersList =
-        [(path: AbsolutePath, name: String)]() // swiftlint:disable:this identifier_name
+        [(path: AbsolutePath, name: String)]()
     var stubbedAppExtensionDependenciesResult: Set<GraphTarget>! = []
 
     func appExtensionDependencies(path: AbsolutePath, name: String) -> Set<GraphTarget> {
@@ -243,9 +243,9 @@ final class MockGraphTraverser: GraphTraversing {
 
     var invokedResourceBundleDependencies = false
     var invokedResourceBundleDependenciesCount = 0
-    var invokedResourceBundleDependenciesParameters: (path: AbsolutePath, name: String)? // swiftlint:disable:this identifier_name
+    var invokedResourceBundleDependenciesParameters: (path: AbsolutePath, name: String)?
     var invokedResourceBundleDependenciesParametersList =
-        [(path: AbsolutePath, name: String)]() // swiftlint:disable:this identifier_name
+        [(path: AbsolutePath, name: String)]()
     var stubbedResourceBundleDependenciesResult: Set<GraphDependencyReference>! = []
 
     func resourceBundleDependencies(path: AbsolutePath, name: String) -> Set<GraphDependencyReference> {
@@ -258,9 +258,9 @@ final class MockGraphTraverser: GraphTraversing {
 
     var invokedDirectStaticDependencies = false
     var invokedDirectStaticDependenciesCount = 0
-    var invokedDirectStaticDependenciesParameters: (path: AbsolutePath, name: String)? // swiftlint:disable:this identifier_name
+    var invokedDirectStaticDependenciesParameters: (path: AbsolutePath, name: String)?
     var invokedDirectStaticDependenciesParametersList =
-        [(path: AbsolutePath, name: String)]() // swiftlint:disable:this identifier_name
+        [(path: AbsolutePath, name: String)]()
     var stubbedDirectStaticDependenciesResult: Set<GraphDependencyReference>! = []
 
     func directStaticDependencies(path: AbsolutePath, name: String) -> Set<GraphDependencyReference> {
@@ -289,7 +289,7 @@ final class MockGraphTraverser: GraphTraversing {
     var invokedEmbeddableFrameworksCount = 0
     var invokedEmbeddableFrameworksParameters: (path: AbsolutePath, name: String)?
     var invokedEmbeddableFrameworksParametersList =
-        [(path: AbsolutePath, name: String)]() // swiftlint:disable:this identifier_name
+        [(path: AbsolutePath, name: String)]()
     var stubbedEmbeddableFrameworksResult: Set<GraphDependencyReference>! = []
 
     func embeddableFrameworks(path: AbsolutePath, name: String) -> Set<GraphDependencyReference> {
@@ -304,7 +304,7 @@ final class MockGraphTraverser: GraphTraversing {
     var invokedLinkableDependenciesCount = 0
     var invokedLinkableDependenciesParameters: (path: AbsolutePath, name: String)?
     var invokedLinkableDependenciesParametersList =
-        [(path: AbsolutePath, name: String)]() // swiftlint:disable:this identifier_name
+        [(path: AbsolutePath, name: String)]()
     var stubbedLinkableDependenciesError: Error?
     var stubbedLinkableDependenciesResult: Set<GraphDependencyReference>! = []
 
@@ -321,9 +321,9 @@ final class MockGraphTraverser: GraphTraversing {
 
     var invokedSearchablePathDependencies = false
     var invokedSearchablePathDependenciesCount = 0
-    var invokedSearchablePathDependenciesParameters: (path: AbsolutePath, name: String)? // swiftlint:disable:this identifier_name
+    var invokedSearchablePathDependenciesParameters: (path: AbsolutePath, name: String)?
     var invokedSearchablePathDependenciesParametersList =
-        [(path: AbsolutePath, name: String)]() // swiftlint:disable:this identifier_name
+        [(path: AbsolutePath, name: String)]()
     var stubbedSearchablePathDependenciesError: Error?
     var stubbedSearchablePathDependenciesResult: Set<GraphDependencyReference>! = []
 
@@ -342,7 +342,7 @@ final class MockGraphTraverser: GraphTraversing {
     var invokedCopyProductDependenciesCount = 0
     var invokedCopyProductDependenciesParameters: (path: AbsolutePath, name: String)?
     var invokedCopyProductDependenciesParametersList =
-        [(path: AbsolutePath, name: String)]() // swiftlint:disable:this identifier_name
+        [(path: AbsolutePath, name: String)]()
     var stubbedCopyProductDependenciesResult: Set<GraphDependencyReference>! = []
 
     func copyProductDependencies(path: AbsolutePath, name: String) -> Set<GraphDependencyReference> {
@@ -354,14 +354,14 @@ final class MockGraphTraverser: GraphTraversing {
     }
 
     var invokedLibrariesPublicHeadersFolders = false
-    var invokedLibrariesPublicHeadersFoldersCount = 0 // swiftlint:disable:this identifier_name
+    var invokedLibrariesPublicHeadersFoldersCount = 0
     var invokedLibrariesPublicHeadersFoldersParameters: (
         path: AbsolutePath,
         name: String
-    )? // swiftlint:disable:this identifier_name
+    )?
     var invokedLibrariesPublicHeadersFoldersParametersList =
-        [(path: AbsolutePath, name: String)]() // swiftlint:disable:this identifier_name
-    var stubbedLibrariesPublicHeadersFoldersResult: Set<AbsolutePath>! = [] // swiftlint:disable:this identifier_name
+        [(path: AbsolutePath, name: String)]()
+    var stubbedLibrariesPublicHeadersFoldersResult: Set<AbsolutePath>! = []
 
     func librariesPublicHeadersFolders(path: AbsolutePath, name: String) -> Set<AbsolutePath> {
         invokedLibrariesPublicHeadersFolders = true
@@ -375,7 +375,7 @@ final class MockGraphTraverser: GraphTraversing {
     var invokedLibrariesSearchPathsCount = 0
     var invokedLibrariesSearchPathsParameters: (path: AbsolutePath, name: String)?
     var invokedLibrariesSearchPathsParametersList =
-        [(path: AbsolutePath, name: String)]() // swiftlint:disable:this identifier_name
+        [(path: AbsolutePath, name: String)]()
     var stubbedLibrariesSearchPathsResult: Set<AbsolutePath>! = []
 
     func librariesSearchPaths(path: AbsolutePath, name: String) -> Set<AbsolutePath> {
@@ -388,9 +388,9 @@ final class MockGraphTraverser: GraphTraversing {
 
     var invokedLibrariesSwiftIncludePaths = false
     var invokedLibrariesSwiftIncludePathsCount = 0
-    var invokedLibrariesSwiftIncludePathsParameters: (path: AbsolutePath, name: String)? // swiftlint:disable:this identifier_name
+    var invokedLibrariesSwiftIncludePathsParameters: (path: AbsolutePath, name: String)?
     var invokedLibrariesSwiftIncludePathsParametersList =
-        [(path: AbsolutePath, name: String)]() // swiftlint:disable:this identifier_name
+        [(path: AbsolutePath, name: String)]()
     var stubbedLibrariesSwiftIncludePathsResult: Set<AbsolutePath>! = []
 
     func librariesSwiftIncludePaths(path: AbsolutePath, name: String) -> Set<AbsolutePath> {
@@ -432,7 +432,7 @@ final class MockGraphTraverser: GraphTraversing {
     var invokedAllProjectDependencies = false
     var invokedAllProjectDependenciesCount = 0
     var invokedAllProjectDependenciesParameters: (path: AbsolutePath, Void)?
-    var invokedAllProjectDependenciesParametersList = [(path: AbsolutePath, Void)]() // swiftlint:disable:this identifier_name
+    var invokedAllProjectDependenciesParametersList = [(path: AbsolutePath, Void)]()
     var stubbedAllProjectDependenciesError: Error?
     var stubbedAllProjectDependenciesResult: Set<GraphDependencyReference>! = []
 

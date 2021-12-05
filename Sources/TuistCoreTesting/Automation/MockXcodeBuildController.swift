@@ -23,7 +23,7 @@ final class MockXcodeBuildController: XcodeBuildControlling {
     var testStub: (
         (XcodeBuildTarget, String, Bool, XcodeBuildDestination, AbsolutePath?, AbsolutePath?, [XcodeBuildArgument])
             -> Observable<SystemEvent<XcodeBuildOutput>>
-    )? // swiftlint:disable:this line_length
+    )?
     func test(
         _ target: XcodeBuildTarget,
         scheme: String,

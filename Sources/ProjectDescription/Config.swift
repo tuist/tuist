@@ -115,6 +115,7 @@ extension Config.GenerationOptions {
         case lastXcodeUpgradeCheck
     }
 
+    // swiftlint:disable:next function_body_length
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 

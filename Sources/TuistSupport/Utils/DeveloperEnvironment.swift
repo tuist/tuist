@@ -58,6 +58,4 @@ public final class DeveloperEnvironment: DeveloperEnvironmenting {
         _architecture = MacArchitecture(rawValue: output)
         return _architecture!
     }
-
-    // swiftlint:enable identifier_name
 }
