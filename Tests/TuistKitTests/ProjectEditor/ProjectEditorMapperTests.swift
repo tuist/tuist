@@ -125,7 +125,10 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(dependenciesTarget.name, "Dependencies")
         XCTAssertEqual(dependenciesTarget.platform, .macOS)
         XCTAssertEqual(dependenciesTarget.product, .staticFramework)
-        XCTAssertEqual(dependenciesTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
+        XCTAssertEqual(
+            dependenciesTarget.settings,
+            expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory])
+        )
         XCTAssertEqual(dependenciesTarget.sources.map(\.path), [dependenciesPath])
         XCTAssertEqual(dependenciesTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(dependenciesTarget.dependencies)
@@ -158,8 +161,10 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(project.path, sourceRootPath.appending(component: projectName))
         XCTAssertEqual(project.name, projectName)
         XCTAssertEqual(project.settings, Settings(
-            base: ["ONLY_ACTIVE_ARCH": "NO",
-                   "EXCLUDED_ARCHS": "x86_64"],
+            base: [
+                "ONLY_ACTIVE_ARCH": "NO",
+                "EXCLUDED_ARCHS": "x86_64",
+            ],
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         ))
@@ -232,8 +237,10 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(project.path, sourceRootPath.appending(component: projectName))
         XCTAssertEqual(project.name, projectName)
         XCTAssertEqual(project.settings, Settings(
-            base: ["ONLY_ACTIVE_ARCH": "NO",
-                   "EXCLUDED_ARCHS": "x86_64"],
+            base: [
+                "ONLY_ACTIVE_ARCH": "NO",
+                "EXCLUDED_ARCHS": "x86_64",
+            ],
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         ))
@@ -304,7 +311,10 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(manifestOneTarget.name, "ModuleManifests")
         XCTAssertEqual(manifestOneTarget.platform, .macOS)
         XCTAssertEqual(manifestOneTarget.product, .staticFramework)
-        XCTAssertEqual(manifestOneTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
+        XCTAssertEqual(
+            manifestOneTarget.settings,
+            expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory])
+        )
         XCTAssertEqual(manifestOneTarget.sources.map(\.path), [try XCTUnwrap(projectManifestPaths.last)])
         XCTAssertEqual(manifestOneTarget.filesGroup, .group(name: projectName))
         XCTAssertEmpty(manifestOneTarget.dependencies)
@@ -314,7 +324,10 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
 
         XCTAssertEqual(manifestTwoTarget.platform, .macOS)
         XCTAssertEqual(manifestTwoTarget.product, .staticFramework)
-        XCTAssertEqual(manifestTwoTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
+        XCTAssertEqual(
+            manifestTwoTarget.settings,
+            expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory])
+        )
         XCTAssertEqual(manifestTwoTarget.sources.map(\.path), [try XCTUnwrap(projectManifestPaths.first)])
         XCTAssertEqual(manifestTwoTarget.filesGroup, .group(name: projectName))
         XCTAssertEmpty(manifestTwoTarget.dependencies)
@@ -334,8 +347,10 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(project.path, sourceRootPath.appending(component: projectName))
         XCTAssertEqual(project.name, projectName)
         XCTAssertEqual(project.settings, Settings(
-            base: ["ONLY_ACTIVE_ARCH": "NO",
-                   "EXCLUDED_ARCHS": "x86_64"],
+            base: [
+                "ONLY_ACTIVE_ARCH": "NO",
+                "EXCLUDED_ARCHS": "x86_64",
+            ],
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         ))
@@ -410,8 +425,10 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(project.path, sourceRootPath.appending(component: projectName))
         XCTAssertEqual(project.name, projectName)
         XCTAssertEqual(project.settings, Settings(
-            base: ["ONLY_ACTIVE_ARCH": "NO",
-                   "EXCLUDED_ARCHS": "x86_64"],
+            base: [
+                "ONLY_ACTIVE_ARCH": "NO",
+                "EXCLUDED_ARCHS": "x86_64",
+            ],
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         ))
@@ -478,7 +495,10 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
 
         XCTAssertEqual(firstPluginTarget.platform, .macOS)
         XCTAssertEqual(firstPluginTarget.product, .staticFramework)
-        XCTAssertEqual(firstPluginTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
+        XCTAssertEqual(
+            firstPluginTarget.settings,
+            expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory])
+        )
         XCTAssertEqual(firstPluginTarget.sources.map(\.path), [pluginManifestPaths[0]])
         XCTAssertEqual(firstPluginTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(firstPluginTarget.dependencies)
@@ -488,7 +508,10 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
 
         XCTAssertEqual(secondPluginTarget.platform, .macOS)
         XCTAssertEqual(secondPluginTarget.product, .staticFramework)
-        XCTAssertEqual(secondPluginTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
+        XCTAssertEqual(
+            secondPluginTarget.settings,
+            expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory])
+        )
         XCTAssertEqual(secondPluginTarget.sources.map(\.path), [pluginManifestPaths[1]])
         XCTAssertEqual(secondPluginTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(secondPluginTarget.dependencies)
@@ -497,8 +520,10 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(project.path, sourceRootPath.appending(component: projectName))
         XCTAssertEqual(project.name, projectName)
         XCTAssertEqual(project.settings, Settings(
-            base: ["ONLY_ACTIVE_ARCH": "NO",
-                   "EXCLUDED_ARCHS": "x86_64"],
+            base: [
+                "ONLY_ACTIVE_ARCH": "NO",
+                "EXCLUDED_ARCHS": "x86_64",
+            ],
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         ))
@@ -626,7 +651,15 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
 
         XCTAssertEqual(manifestsTarget.platform, .macOS)
         XCTAssertEqual(manifestsTarget.product, .staticFramework)
-        XCTAssertEqual(manifestsTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory, pluginHelpersPath.parentDirectory, pluginHelpersPath.parentDirectory.parentDirectory]))
+        XCTAssertEqual(
+            manifestsTarget.settings,
+            expectedSettings(includePaths: [
+                sourceRootPath,
+                sourceRootPath.parentDirectory,
+                pluginHelpersPath.parentDirectory,
+                pluginHelpersPath.parentDirectory.parentDirectory,
+            ])
+        )
         XCTAssertEqual(manifestsTarget.sources.map(\.path), projectManifestPaths)
         XCTAssertEqual(manifestsTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(manifestsTarget.dependencies)
@@ -635,8 +668,10 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(project.path, sourceRootPath.appending(component: projectName))
         XCTAssertEqual(project.name, projectName)
         XCTAssertEqual(project.settings, Settings(
-            base: ["ONLY_ACTIVE_ARCH": "NO",
-                   "EXCLUDED_ARCHS": "x86_64"],
+            base: [
+                "ONLY_ACTIVE_ARCH": "NO",
+                "EXCLUDED_ARCHS": "x86_64",
+            ],
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         ))

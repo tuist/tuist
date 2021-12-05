@@ -88,7 +88,11 @@ final class ManifestGraphLoader: ManifestGraphLoading {
         let plugins = try loadPlugins(at: path)
         let dependenciesGraph = try dependenciesGraphController.load(at: path)
         let manifests = try recursiveManifestLoader.loadProject(at: path)
-        let models = try convert(projects: manifests.projects, plugins: plugins, externalDependencies: dependenciesGraph.externalDependencies) +
+        let models = try convert(
+            projects: manifests.projects,
+            plugins: plugins,
+            externalDependencies: dependenciesGraph.externalDependencies
+        ) +
             dependenciesGraph.externalProjects.values
         return try graphLoader.loadProject(at: path, projects: models)
     }
@@ -98,7 +102,11 @@ final class ManifestGraphLoader: ManifestGraphLoading {
         let dependenciesGraph = try dependenciesGraphController.load(at: path)
         let manifests = try recursiveManifestLoader.loadWorkspace(at: path)
         let workspace = try converter.convert(manifest: manifests.workspace, path: manifests.path)
-        let models = try convert(projects: manifests.projects, plugins: plugins, externalDependencies: dependenciesGraph.externalDependencies) +
+        let models = try convert(
+            projects: manifests.projects,
+            plugins: plugins,
+            externalDependencies: dependenciesGraph.externalDependencies
+        ) +
             dependenciesGraph.externalProjects.values
         return try graphLoader.loadWorkspace(workspace: workspace, projects: models)
     }
@@ -111,7 +119,12 @@ final class ManifestGraphLoader: ManifestGraphLoading {
     ) throws -> [TuistGraph.Project] {
         let tuples = projects.map { (path: $0.key, manifest: $0.value) }
         return try tuples.map(context: context) {
-            try converter.convert(manifest: $0.manifest, path: $0.path, plugins: plugins, externalDependencies: externalDependencies)
+            try converter.convert(
+                manifest: $0.manifest,
+                path: $0.path,
+                plugins: plugins,
+                externalDependencies: externalDependencies
+            )
         }
     }
 }

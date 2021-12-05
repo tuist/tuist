@@ -37,7 +37,10 @@ final class PackageLinterTests: TuistUnitTestCase {
 
         let got = subject.lint(package)
 
-        XCTContainsLintingIssue(got, LintingIssue(reason: "Package with remote URL (\(url)) does not have a valid URL.", severity: .error))
+        XCTContainsLintingIssue(
+            got,
+            LintingIssue(reason: "Package with remote URL (\(url)) does not have a valid URL.", severity: .error)
+        )
     }
 
     func test_lint_when_a_local_path_exists() {

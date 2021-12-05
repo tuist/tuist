@@ -1,7 +1,7 @@
 import B
 import C
 
-public class A {
+public enum A {
     public static let value: String = "aValue"
 
     public static func printFromA() {

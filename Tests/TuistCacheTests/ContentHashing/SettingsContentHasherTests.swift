@@ -35,7 +35,8 @@ final class SettingsContentHasherTests: TuistUnitTestCase {
         let settings = Settings(
             base: ["CURRENT_PROJECT_VERSION": SettingValue.string("1")],
             configurations: [
-                BuildConfiguration.debug("dev"): Configuration(settings: ["SWIFT_VERSION": SettingValue.string("5")], xcconfig: filePath1),
+                BuildConfiguration
+                    .debug("dev"): Configuration(settings: ["SWIFT_VERSION": SettingValue.string("5")], xcconfig: filePath1),
             ],
             defaultSettings: .recommended
         )
@@ -44,7 +45,10 @@ final class SettingsContentHasherTests: TuistUnitTestCase {
         let hash = try subject.hash(settings: settings)
 
         // Then
-        XCTAssertEqual(hash, "CURRENT_PROJECT_VERSION:string(\"1\")-hash;devdebugSWIFT_VERSION:string(\"5\")-hashxconfigHash;recommended")
+        XCTAssertEqual(
+            hash,
+            "CURRENT_PROJECT_VERSION:string(\"1\")-hash;devdebugSWIFT_VERSION:string(\"5\")-hashxconfigHash;recommended"
+        )
     }
 
     func test_hash_whenEssential_withoutXCConfig_callsContentHasherWithExpectedStrings() throws {
@@ -54,7 +58,8 @@ final class SettingsContentHasherTests: TuistUnitTestCase {
         let settings = Settings(
             base: ["CURRENT_PROJECT_VERSION": SettingValue.string("2")],
             configurations: [
-                BuildConfiguration.release("prod"): Configuration(settings: ["SWIFT_VERSION": SettingValue.string("5")], xcconfig: nil),
+                BuildConfiguration
+                    .release("prod"): Configuration(settings: ["SWIFT_VERSION": SettingValue.string("5")], xcconfig: nil),
             ],
             defaultSettings: .essential
         )

@@ -142,10 +142,12 @@ public final class XcodeBuildController: XcodeBuildControlling {
         return run(command: command, isVerbose: environment.isVerbose)
     }
 
-    public func showBuildSettings(_ target: XcodeBuildTarget,
-                                  scheme: String,
-                                  configuration: String) -> Single<[String: XcodeBuildSettings]>
-    {
+    // swiftlint:disable:next function_body_length
+    public func showBuildSettings(
+        _ target: XcodeBuildTarget,
+        scheme: String,
+        configuration: String
+    ) -> Single<[String: XcodeBuildSettings]> {
         var command = ["/usr/bin/xcrun", "xcodebuild", "archive", "-showBuildSettings", "-skipUnavailableActions"]
 
         // Configuration
@@ -167,13 +169,17 @@ public final class XcodeBuildController: XcodeBuildControlling {
             .timeout(DispatchTimeInterval.seconds(20), scheduler: ConcurrentDispatchQueueScheduler(queue: .global()))
             .retry(5)
             .flatMap { string -> Observable<XcodeBuildSettings> in
-                Observable.create { (observer) -> Disposable in
+                Observable.create { observer -> Disposable in
                     var currentSettings: [String: String] = [:]
                     var currentTarget: String?
 
                     let flushTarget = { () -> Void in
                         if let currentTarget = currentTarget {
-                            let buildSettings = XcodeBuildSettings(currentSettings, target: currentTarget, configuration: configuration)
+                            let buildSettings = XcodeBuildSettings(
+                                currentSettings,
+                                target: currentTarget,
+                                configuration: configuration
+                            )
                             observer.onNext(buildSettings)
                         }
 
@@ -182,7 +188,10 @@ public final class XcodeBuildController: XcodeBuildControlling {
                     }
 
                     string.enumerateLines { line, _ in
-                        if let result = XcodeBuildController.targetSettingsRegex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) {
+                        if let result = XcodeBuildController.targetSettingsRegex.firstMatch(
+                            in: line,
+                            range: NSRange(line.startIndex..., in: line)
+                        ) {
                             let targetRange = Range(result.range(at: 1), in: line)!
 
                             flushTarget()
@@ -205,7 +214,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
                     return Disposables.create()
                 }
             }
-            .reduce([String: XcodeBuildSettings](), accumulator: { (acc, buildSettings) -> [String: XcodeBuildSettings] in
+            .reduce([String: XcodeBuildSettings](), accumulator: { acc, buildSettings -> [String: XcodeBuildSettings] in
                 var acc = acc
                 acc[buildSettings.target] = buildSettings
                 return acc

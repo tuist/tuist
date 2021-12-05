@@ -737,45 +737,57 @@ final class DefaultSettingsProvider_iOSTests: TuistUnitTestCase {
 final class DictionaryStringAnyExtensionTests: XCTestCase {
     func testToSettings_whenOnlyStrings() throws {
         // Given
-        let subject: [String: Any] = ["A": "A_VALUE",
-                                      "B": "B_VALUE"]
+        let subject: [String: Any] = [
+            "A": "A_VALUE",
+            "B": "B_VALUE",
+        ]
 
         // When
         let got = try subject.toSettings()
 
         // Then
-        XCTAssertEqual(got, ["A": .string("A_VALUE"),
-                             "B": .string("B_VALUE")])
+        XCTAssertEqual(got, [
+            "A": .string("A_VALUE"),
+            "B": .string("B_VALUE"),
+        ])
     }
 
     func testToSettings_whenStringsAndArray() throws {
         // Given
-        let subject: [String: Any] = ["A": "A_VALUE",
-                                      "B": "B_VALUE",
-                                      "C": ["C_1", "C_2"],
-                                      "D": ["D_1", "D_2"]]
+        let subject: [String: Any] = [
+            "A": "A_VALUE",
+            "B": "B_VALUE",
+            "C": ["C_1", "C_2"],
+            "D": ["D_1", "D_2"],
+        ]
 
         // When
         let got = try subject.toSettings()
 
         // Then
-        XCTAssertEqual(got, ["A": .string("A_VALUE"),
-                             "B": .string("B_VALUE"),
-                             "C": .array(["C_1", "C_2"]),
-                             "D": .array(["D_1", "D_2"])])
+        XCTAssertEqual(got, [
+            "A": .string("A_VALUE"),
+            "B": .string("B_VALUE"),
+            "C": .array(["C_1", "C_2"]),
+            "D": .array(["D_1", "D_2"]),
+        ])
     }
 
     func testToSettings_whenArraysOnly() throws {
         // Given
-        let subject: [String: Any] = ["A": ["A_1", "A_2"],
-                                      "B": ["B_1", "B_2"]]
+        let subject: [String: Any] = [
+            "A": ["A_1", "A_2"],
+            "B": ["B_1", "B_2"],
+        ]
 
         // When
         let got = try subject.toSettings()
 
         // Then
-        XCTAssertEqual(got, ["A": .array(["A_1", "A_2"]),
-                             "B": .array(["B_1", "B_2"])])
+        XCTAssertEqual(got, [
+            "A": .array(["A_1", "A_2"]),
+            "B": .array(["B_1", "B_2"]),
+        ])
     }
 
     func testToSettings_whenInvaludContent() throws {
@@ -795,11 +807,11 @@ final class DictionaryStringAnyExtensionTests: XCTestCase {
     }
 }
 
-private extension XCTestCase {
-    func XCTAssertSettings(_ first: [String: SettingValue],
-                           containsAll second: [String: SettingValue],
-                           file: StaticString = #file,
-                           line: UInt = #line)
+extension XCTestCase {
+    fileprivate func XCTAssertSettings(_ first: [String: SettingValue],
+                                       containsAll second: [String: SettingValue],
+                                       file: StaticString = #file,
+                                       line: UInt = #line)
     {
         for (key, expectedValue) in second {
             let result = first[key]

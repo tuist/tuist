@@ -35,7 +35,8 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
         let got = try subject.lintXcodeVersion(config: config)
 
         // Then
-        let expectedMessage = "The project, which only supports the versions of Xcode 3.2.1, is not compatible with your selected version of Xcode, 4.3.2"
+        let expectedMessage =
+            "The project, which only supports the versions of Xcode 3.2.1, is not compatible with your selected version of Xcode, 4.3.2"
         XCTAssertTrue(got.contains(LintingIssue(reason: expectedMessage, severity: .error)))
     }
 

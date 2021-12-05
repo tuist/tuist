@@ -261,8 +261,10 @@ final class ProjectDescriptorGeneratorTests: TuistUnitTestCase {
         let path = try temporaryPath()
         let graph = Graph.test(path: path)
         let graphTraverser = GraphTraverser(graph: graph)
-        let resources: [ResourceFileElement] = [.file(path: "/", tags: ["fileTag", "commonTag"]),
-                                                .folderReference(path: "/", tags: ["folderTag", "commonTag"])]
+        let resources: [ResourceFileElement] = [
+            .file(path: "/", tags: ["fileTag", "commonTag"]),
+            .folderReference(path: "/", tags: ["folderTag", "commonTag"]),
+        ]
         let project = Project.test(
             path: path,
             targets: [.test(resources: resources)]

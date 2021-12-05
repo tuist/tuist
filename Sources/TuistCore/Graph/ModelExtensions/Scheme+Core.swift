@@ -18,6 +18,6 @@ extension Scheme {
         ]
 
         let targets = targetSources.compactMap { $0 }.flatMap { $0 }.uniqued()
-        return targets.sorted { ($0.name < $1.name) }
+        return targets.sorted { $0.name < $1.name }
     }
 }

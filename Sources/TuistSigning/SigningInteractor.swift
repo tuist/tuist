@@ -52,7 +52,8 @@ public final class SigningInteractor: SigningInteracting {
         let entryPath = graphTraverser.path
         guard
             let signingDirectory = try signingFilesLocator.locateSigningDirectory(from: entryPath),
-            let derivedDirectory = rootDirectoryLocator.locate(from: entryPath)?.appending(component: Constants.DerivedDirectory.name)
+            let derivedDirectory = rootDirectoryLocator.locate(from: entryPath)?
+            .appending(component: Constants.DerivedDirectory.name)
         else { return }
 
         let keychainPath = derivedDirectory.appending(component: Constants.DerivedDirectory.signingKeychain)

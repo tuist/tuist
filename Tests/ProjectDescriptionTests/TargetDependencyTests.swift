@@ -19,7 +19,11 @@ final class TargetDependencyTests: XCTestCase {
     }
 
     func test_toJSON_when_library() {
-        let subject = TargetDependency.library(path: "/path/library.a", publicHeaders: "/path/headers", swiftModuleMap: "/path/modulemap")
+        let subject = TargetDependency.library(
+            path: "/path/library.a",
+            publicHeaders: "/path/headers",
+            swiftModuleMap: "/path/modulemap"
+        )
         XCTAssertCodable(subject)
     }
 

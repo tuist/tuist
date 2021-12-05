@@ -16,7 +16,10 @@ final class TargetErrorTests: TuistUnitTestCase {
         let got = TargetError.invalidSourcesGlob(targetName: "Target", invalidGlobs: invalidGlobs).description
 
         // Then
-        XCTAssertEqual(got, "The target Target has the following invalid source files globs:\n" + invalidGlobs.invalidGlobsDescription)
+        XCTAssertEqual(
+            got,
+            "The target Target has the following invalid source files globs:\n" + invalidGlobs.invalidGlobsDescription
+        )
     }
 }
 
@@ -102,8 +105,16 @@ final class TargetTests: TuistUnitTestCase {
 
         // When
         let sources = try Target.sources(targetName: "Target", sources: [
-            SourceFileGlob(glob: temporaryPath.appending(RelativePath("sources/**")).pathString, excluding: [], compilerFlags: nil),
-            SourceFileGlob(glob: temporaryPath.appending(RelativePath("sources/**")).pathString, excluding: [], compilerFlags: nil),
+            SourceFileGlob(
+                glob: temporaryPath.appending(RelativePath("sources/**")).pathString,
+                excluding: [],
+                compilerFlags: nil
+            ),
+            SourceFileGlob(
+                glob: temporaryPath.appending(RelativePath("sources/**")).pathString,
+                excluding: [],
+                compilerFlags: nil
+            ),
         ])
 
         // Then

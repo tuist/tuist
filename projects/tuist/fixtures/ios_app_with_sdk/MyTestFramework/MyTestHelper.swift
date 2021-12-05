@@ -1,10 +1,7 @@
 import XCTest
 
 public class MyTestHelper {
-    public init() {
+    public init() {}
 
-    }
-
-    public func customAssert(_ value: Bool, file: StaticString = #file, line: Int = #line) {
-    }
+    public func customAssert(_: Bool, file _: StaticString = #file, line _: Int = #line) {}
 }

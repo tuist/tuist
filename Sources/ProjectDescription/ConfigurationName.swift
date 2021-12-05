@@ -25,14 +25,14 @@ public struct ConfigurationName: ExpressibleByStringLiteral, Codable, Equatable 
 
 // Defaults provided by Tuist
 
-public extension ConfigurationName {
+extension ConfigurationName {
     /// Returns a configuration named "Debug"
-    static var debug: ConfigurationName {
+    public static var debug: ConfigurationName {
         ConfigurationName("Debug")
     }
 
     // Returns a configuration named "Release"
-    static var release: ConfigurationName {
+    public static var release: ConfigurationName {
         ConfigurationName("Release")
     }
 }

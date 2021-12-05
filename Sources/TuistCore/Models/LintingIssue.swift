@@ -35,8 +35,8 @@ public struct LintingIssue: CustomStringConvertible, Equatable {
 
 // MARK: - Array Extension (Linting issues)
 
-public extension Array where Element == LintingIssue {
-    func printAndThrowIfNeeded() throws {
+extension Array where Element == LintingIssue {
+    public func printAndThrowIfNeeded() throws {
         if count == 0 { return }
 
         let errorIssues = filter { $0.severity == .error }

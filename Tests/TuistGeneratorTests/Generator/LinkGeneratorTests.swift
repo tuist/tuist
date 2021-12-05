@@ -13,7 +13,10 @@ final class LinkGeneratorPathTests: TuistUnitTestCase {
     func test_xcodeValue() {
         let path = AbsolutePath("/my-path")
         XCTAssertEqual(LinkGeneratorPath.absolutePath(path).xcodeValue(sourceRootPath: .root), "$(SRCROOT)/my-path")
-        XCTAssertEqual(LinkGeneratorPath.string("$(DEVELOPER_FRAMEWORKS_DIR)").xcodeValue(sourceRootPath: .root), "$(DEVELOPER_FRAMEWORKS_DIR)")
+        XCTAssertEqual(
+            LinkGeneratorPath.string("$(DEVELOPER_FRAMEWORKS_DIR)").xcodeValue(sourceRootPath: .root),
+            "$(DEVELOPER_FRAMEWORKS_DIR)"
+        )
     }
 }
 
@@ -34,9 +37,18 @@ final class LinkGeneratorTests: XCTestCase {
     }
 
     func test_linkGeneratorError_description() {
-        XCTAssertEqual(LinkGeneratorError.missingProduct(name: "name").description, "Couldn't find a reference for the product name.")
-        XCTAssertEqual(LinkGeneratorError.missingReference(path: AbsolutePath("/")).description, "Couldn't find a reference for the file at path /.")
-        XCTAssertEqual(LinkGeneratorError.missingConfigurationList(targetName: "target").description, "The target target doesn't have a configuration list.")
+        XCTAssertEqual(
+            LinkGeneratorError.missingProduct(name: "name").description,
+            "Couldn't find a reference for the product name."
+        )
+        XCTAssertEqual(
+            LinkGeneratorError.missingReference(path: AbsolutePath("/")).description,
+            "Couldn't find a reference for the file at path /."
+        )
+        XCTAssertEqual(
+            LinkGeneratorError.missingConfigurationList(targetName: "target").description,
+            "The target target doesn't have a configuration list."
+        )
     }
 
     func test_linkGeneratorError_type() {
@@ -174,7 +186,10 @@ final class LinkGeneratorTests: XCTestCase {
                 graphTraverser: graphTraverser
             )
 
-            XCTAssert(embedScriptGenerator.scriptArgs.last?.2 == true, "Expected `includeSymbolsInFileLists == true` for product `\(product)`")
+            XCTAssert(
+                embedScriptGenerator.scriptArgs.last?.2 == true,
+                "Expected `includeSymbolsInFileLists == true` for product `\(product)`"
+            )
         }
     }
 
@@ -212,7 +227,10 @@ final class LinkGeneratorTests: XCTestCase {
                 graphTraverser: graphTraverser
             )
 
-            XCTAssert(embedScriptGenerator.scriptArgs.last?.2 == false, "Expected `includeSymbolsInFileLists == false` for product `\(product)`")
+            XCTAssert(
+                embedScriptGenerator.scriptArgs.last?.2 == false,
+                "Expected `includeSymbolsInFileLists == false` for product `\(product)`"
+            )
         }
     }
 
@@ -699,7 +717,8 @@ final class LinkGeneratorTests: XCTestCase {
         // Given
         let path = AbsolutePath("/path/")
         var dependencies: Set<GraphDependencyReference> = []
-        dependencies.insert(GraphDependencyReference.testProduct(target: "StaticDependency", productName: "libStaticDependency.a"))
+        dependencies
+            .insert(GraphDependencyReference.testProduct(target: "StaticDependency", productName: "libStaticDependency.a"))
         let staticDependency = Target.test(name: "StaticDependency", product: .staticLibrary)
         let target = Target.test()
         let graphTraverser = MockGraphTraverser()

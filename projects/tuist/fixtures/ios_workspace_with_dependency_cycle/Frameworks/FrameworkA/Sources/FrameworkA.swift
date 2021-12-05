@@ -1,5 +1,3 @@
 import Foundation
 
-class FrameworkA {
-
-}
+class FrameworkA {}

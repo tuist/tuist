@@ -24,7 +24,8 @@ enum FileClientError: LocalizedError, FatalError {
             output = "Received unexpected response from the network with \(urlRequest.descriptionForError)"
             output.append(pathSubstring(path))
         case let .serverSideError(request, response, path):
-            output = "Got error code: \(response.statusCode) returned by the server after performing \(request.descriptionForError)"
+            output =
+                "Got error code: \(response.statusCode) returned by the server after performing \(request.descriptionForError)"
             output.append(pathSubstring(path))
         case let .noLocalURL(request):
             output = "Could not locate file on disk the downloaded file after performing \(request.descriptionForError)"

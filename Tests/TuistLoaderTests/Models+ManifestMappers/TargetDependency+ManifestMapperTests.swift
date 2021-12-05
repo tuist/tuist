@@ -16,7 +16,11 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         let generatorPaths = GeneratorPaths(manifestDirectory: AbsolutePath("/"))
 
         // When
-        let got = try TuistGraph.TargetDependency.from(manifest: dependency, generatorPaths: generatorPaths, externalDependencies: [:])
+        let got = try TuistGraph.TargetDependency.from(
+            manifest: dependency,
+            generatorPaths: generatorPaths,
+            externalDependencies: [:]
+        )
 
         // Then
         XCTAssertEqual(got.count, 1)

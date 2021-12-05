@@ -479,7 +479,10 @@ final class GraphLoaderTests: TuistUnitTestCase {
         XCTAssertEqual(graph.packages, [
             "/A": ["/Packages/PackageLibraryA": .local(path: "/Packages/PackageLibraryA")],
             "/B": ["/Packages/PackageLibraryA": .local(path: "/Packages/PackageLibraryA")],
-            "/C": ["https://example.com/package-library-b": .remote(url: "https://example.com/package-library-b", requirement: .branch("testing"))],
+            "/C": ["https://example.com/package-library-b": .remote(
+                url: "https://example.com/package-library-b",
+                requirement: .branch("testing")
+            )],
         ])
         XCTAssertEqual(graph.dependencies, [
             .target(name: "A", path: "/A"): Set([
@@ -818,8 +821,8 @@ final class GraphLoaderTests: TuistUnitTestCase {
     }
 }
 
-private extension GraphLoadingError {
-    var isCycleError: Bool {
+extension GraphLoadingError {
+    fileprivate var isCycleError: Bool {
         switch self {
         case .circularDependency:
             return true

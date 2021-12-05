@@ -7,6 +7,6 @@ let project = Project.app(
         .project(
             target: "FrameworkA",
             path: .relativeToRoot("FrameworkA")
-        )
+        ),
     ]
 )

@@ -25,7 +25,10 @@ class GeneratorPathsErrorTests: TuistUnitTestCase {
         let error = GeneratorPathsError.rootDirectoryNotFound(path)
 
         // Then
-        XCTAssertEqual(error.description, "Couldn't locate the root directory from path \(path.pathString). The root directory is the closest directory that contains a Tuist or a .git directory.")
+        XCTAssertEqual(
+            error.description,
+            "Couldn't locate the root directory from path \(path.pathString). The root directory is the closest directory that contains a Tuist or a .git directory."
+        )
     }
 }
 

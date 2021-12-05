@@ -114,10 +114,15 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
         case .macOS: return .just("platform=OS X,arch=x86_64")
         }
 
-        return simulatorController.findAvailableDevice(platform: mappedPlatform, version: version, minVersion: nil, deviceName: deviceName)
-            .flatMap { (deviceAndRuntime) -> Single<String> in
-                .just("id=\(deviceAndRuntime.device.udid)")
-            }
+        return simulatorController.findAvailableDevice(
+            platform: mappedPlatform,
+            version: version,
+            minVersion: nil,
+            deviceName: deviceName
+        )
+        .flatMap { deviceAndRuntime -> Single<String> in
+            .just("id=\(deviceAndRuntime.device.udid)")
+        }
     }
 
     fileprivate func xcodebuild(projectTarget: XcodeBuildTarget,

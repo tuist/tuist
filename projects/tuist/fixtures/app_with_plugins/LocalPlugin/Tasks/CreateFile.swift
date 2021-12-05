@@ -1,7 +1,7 @@
-import ProjectAutomation
 import Foundation
+import ProjectAutomation
 
-let task = Task() { options in
+let task = Task { _ in
     try "File created with a plugin".write(
         to: URL(fileURLWithPath: "plugin-file.txt"),
         atomically: true,

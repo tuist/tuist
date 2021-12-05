@@ -144,9 +144,9 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
                 name: script.name,
                 inputPaths: script.inputPaths.map { $0.relative(to: sourceRootPath).pathString },
                 outputPaths: script.outputPaths.map { $0.relative(to: sourceRootPath).pathString },
-                inputFileListPaths: script.inputFileListPaths.map { $0.relative(to: sourceRootPath).pathString }, // swiftlint:disable:this line_length
+                inputFileListPaths: script.inputFileListPaths.map { $0.relative(to: sourceRootPath).pathString },
 
-                outputFileListPaths: script.outputFileListPaths.map { $0.relative(to: sourceRootPath).pathString }, // swiftlint:disable:this line_length
+                outputFileListPaths: script.outputFileListPaths.map { $0.relative(to: sourceRootPath).pathString },
 
                 shellPath: script.shellPath,
                 shellScript: script.shellScript(sourceRootPath: sourceRootPath),

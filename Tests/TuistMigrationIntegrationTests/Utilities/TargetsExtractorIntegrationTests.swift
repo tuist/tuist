@@ -24,7 +24,10 @@ final class TargetsExtractorIntegrationTests: TuistTestCase {
         let xcodeprojPath = AbsolutePath("/invalid/path.xcodeproj")
 
         // Then
-        XCTAssertThrowsSpecific(try subject.targetsSortedByDependencies(xcodeprojPath: xcodeprojPath), TargetsExtractorError.missingXcodeProj(xcodeprojPath))
+        XCTAssertThrowsSpecific(
+            try subject.targetsSortedByDependencies(xcodeprojPath: xcodeprojPath),
+            TargetsExtractorError.missingXcodeProj(xcodeprojPath)
+        )
     }
 
     func test_when_existing_xcodeproj_path_with_targets() throws {

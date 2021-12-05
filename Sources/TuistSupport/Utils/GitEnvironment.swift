@@ -67,23 +67,27 @@ public class GitEnvironment: GitEnvironmenting {
 
     // https://github.com/Carthage/Carthage/blob/19a7f97112052394f3ecc33dac3c67e5384b7514/Source/CarthageKit/GitHub.swift#L85
     public func githubCredentials() -> AnyPublisher<GithubCredentials?, Error> {
-        System.shared.publisher(["/usr/bin/env", "echo", "url=https://github.com"], pipedToArguments: ["/usr/bin/env", "git", "credential", "fill"])
-            .mapToString()
-            .collectAndMergeOutput()
-            .flatMap { (output: String) -> AnyPublisher<GithubCredentials?, Error> in
-                //                            protocol=https
-                //                            host=github.com
-                //                            username=pepibumur
-                //                            password=foo
-                let lines = output.split(separator: "\n")
-                let values = lines.reduce(into: [String: String]()) { result, next in
-                    let components = next.split(separator: "=")
-                    guard components.count == 2 else { return }
-                    result[String(components.first!).spm_chomp()] = String(components.last!).spm_chomp()
-                }
-                guard let username = values["username"], let password = values["password"] else { return AnyPublisher(value: nil) }
-                return AnyPublisher(value: GithubCredentials(username: username, password: password))
+        System.shared.publisher(
+            ["/usr/bin/env", "echo", "url=https://github.com"],
+            pipedToArguments: ["/usr/bin/env", "git", "credential", "fill"]
+        )
+        .mapToString()
+        .collectAndMergeOutput()
+        .flatMap { (output: String) -> AnyPublisher<GithubCredentials?, Error> in
+            //                            protocol=https
+            //                            host=github.com
+            //                            username=pepibumur
+            //                            password=foo
+            let lines = output.split(separator: "\n")
+            let values = lines.reduce(into: [String: String]()) { result, next in
+                let components = next.split(separator: "=")
+                guard components.count == 2 else { return }
+                result[String(components.first!).spm_chomp()] = String(components.last!).spm_chomp()
             }
-            .eraseToAnyPublisher()
+            guard let username = values["username"],
+                  let password = values["password"] else { return AnyPublisher(value: nil) }
+            return AnyPublisher(value: GithubCredentials(username: username, password: password))
+        }
+        .eraseToAnyPublisher()
     }
 }

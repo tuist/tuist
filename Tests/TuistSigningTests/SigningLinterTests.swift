@@ -27,7 +27,8 @@ final class SigningLinterTests: TuistUnitTestCase {
         let expectedIssues = [
             LintingIssue(
                 reason: """
-                Certificate \(certificate.name)'s development team \(certificate.developmentTeam) does not correspond to \(provisioningProfile.teamId).
+                Certificate \(certificate.name)'s development team \(certificate
+                    .developmentTeam) does not correspond to \(provisioningProfile.teamId).
                 Make sure they are the same.
                 """,
                 severity: .error
@@ -89,7 +90,8 @@ final class SigningLinterTests: TuistUnitTestCase {
             got,
             [LintingIssue(
                 reason: """
-                App id \(provisioningProfile.appId) does not correspond to \(provisioningProfile.teamId).\(target.bundleId). Make sure the provisioning profile has been added to the right target.
+                App id \(provisioningProfile.appId) does not correspond to \(provisioningProfile.teamId).\(target
+                    .bundleId). Make sure the provisioning profile has been added to the right target.
                 """,
                 severity: .error
             )]
@@ -127,7 +129,8 @@ final class SigningLinterTests: TuistUnitTestCase {
             got,
             [LintingIssue(
                 reason: """
-                App id \(provisioningProfile.appId) does not correspond to \(provisioningProfile.teamId).\(target.bundleId). Make sure the provisioning profile has been added to the right target.
+                App id \(provisioningProfile.appId) does not correspond to \(provisioningProfile.teamId).\(target
+                    .bundleId). Make sure the provisioning profile has been added to the right target.
                 """,
                 severity: .error
             )]

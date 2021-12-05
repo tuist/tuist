@@ -34,7 +34,12 @@ public struct OSLogHandler: LogHandler {
             metadataLog = nil
         }
 
-        os_log("%{public}@", log: os, type: .init(level: level), "\(timestamp()) \(level) \(URL(fileURLWithPath: file).lastPathComponent):\(line) \(message.description) \(metadataLog == nil ? "" : " -- \(metadataLog!)")")
+        os_log(
+            "%{public}@",
+            log: os,
+            type: .init(level: level),
+            "\(timestamp()) \(level) \(URL(fileURLWithPath: file).lastPathComponent):\(line) \(message.description) \(metadataLog == nil ? "" : " -- \(metadataLog!)")"
+        )
     }
 
     public var metadata = Logger.Metadata()

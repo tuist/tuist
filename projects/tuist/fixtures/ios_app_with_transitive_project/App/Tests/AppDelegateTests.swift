@@ -1,5 +1,5 @@
-@testable import App
 import XCTest
+@testable import App
 
 class AppDelegateTests: XCTestCase {
     func testHello() {

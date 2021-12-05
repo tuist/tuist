@@ -27,7 +27,7 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
     // MARK: - Attributes
 
     let directory: AbsolutePath
-    let jsonEncoder: JSONEncoder = JSONEncoder()
+    let jsonEncoder = JSONEncoder()
 
     // MARK: - Init
 
@@ -36,7 +36,7 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
     }
 
     func write<T: AsyncQueueEvent>(event: T) -> Completable {
-        Completable.create { (observer) -> Disposable in
+        Completable.create { observer -> Disposable in
             let path = self.directory.appending(component: self.filename(event: event))
             do {
                 try self.createDirectoryIfNeeded()
@@ -55,7 +55,7 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
     }
 
     func delete(filename: String) -> Completable {
-        Completable.create { (observer) -> Disposable in
+        Completable.create { observer -> Disposable in
             let path = self.directory.appending(component: filename)
             guard FileHandler.shared.exists(path) else { return Disposables.create() }
             do {
@@ -69,15 +69,15 @@ final class AsyncQueuePersistor: AsyncQueuePersisting {
     }
 
     func readAll() -> Single<[AsyncQueueEventTuple]> {
-        Single.create { (observer) -> Disposable in
+        Single.create { observer -> Disposable in
             let paths = FileHandler.shared.glob(self.directory, glob: "*.json")
             var events: [AsyncQueueEventTuple] = []
             paths.forEach { eventPath in
                 let fileName = eventPath.basenameWithoutExt
                 let components = fileName.split(separator: ".")
                 guard components.count == 3,
-                    let timestamp = Double(components[0]),
-                    let id = UUID(uuidString: String(components[2]))
+                      let timestamp = Double(components[0]),
+                      let id = UUID(uuidString: String(components[2]))
                 else {
                     /// Changing the naming convention is a breaking change. When detected
                     /// we delete the event.

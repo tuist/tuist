@@ -51,6 +51,8 @@ final class EmptyBuildSettingsCheckerIntegrationTests: TuistTestCase {
             xcodeprojPath: xcodeprojPath,
             targetName: nil
         ), EmptyBuildSettingsCheckerError.nonEmptyBuildSettings(["Debug", "Release"]))
-        XCTAssertPrinterOutputContains("The build setting 'GCC_WARN_UNUSED_VARIABLE' of build configuration 'Debug' is not empty.")
+        XCTAssertPrinterOutputContains(
+            "The build setting 'GCC_WARN_UNUSED_VARIABLE' of build configuration 'Debug' is not empty."
+        )
     }
 }

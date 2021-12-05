@@ -164,12 +164,12 @@ public final class XcodeProjWriter: XcodeProjWriting {
     }
 }
 
-private extension ProjectDescriptor {
-    var sharedSchemeDescriptors: [SchemeDescriptor] {
+extension ProjectDescriptor {
+    fileprivate var sharedSchemeDescriptors: [SchemeDescriptor] {
         schemeDescriptors.filter { $0.shared }
     }
 
-    var userSchemeDescriptors: [SchemeDescriptor] {
+    fileprivate var userSchemeDescriptors: [SchemeDescriptor] {
         schemeDescriptors.filter { !$0.shared }
     }
 }

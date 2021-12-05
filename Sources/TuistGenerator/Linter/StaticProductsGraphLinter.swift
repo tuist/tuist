@@ -80,8 +80,8 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
 
         // Linking node case
         guard case let GraphDependency.target(targetName, targetPath) = dependency,
-            let dependencyTarget = graphTraverser.target(path: targetPath, name: targetName),
-            dependencyTarget.target.canLinkStaticProducts()
+              let dependencyTarget = graphTraverser.target(path: targetPath, name: targetName),
+              dependencyTarget.target.canLinkStaticProducts()
         else {
             return results
         }
@@ -106,12 +106,12 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
         // during generation - as such those shouldn't be flagged
         //
         // reference: https://github.com/tuist/tuist/pull/664
-        let apps: Set<GraphDependency> = linkedBy.filter { (dependency) -> Bool in
+        let apps: Set<GraphDependency> = linkedBy.filter { dependency -> Bool in
             guard case let GraphDependency.target(targetName, targetPath) = dependency else { return false }
             guard let target = graphTraverser.target(path: targetPath, name: targetName) else { return false }
             return target.target.product == .app
         }
-        let hostedTestBundles = linkedBy.filter { (dependency) -> Bool in
+        let hostedTestBundles = linkedBy.filter { dependency -> Bool in
             guard case let GraphDependency.target(targetName, targetPath) = dependency else { return false }
             guard let target = graphTraverser.target(path: targetPath, name: targetName) else { return false }
 
@@ -198,7 +198,8 @@ class StaticProductsGraphLinter: StaticProductsGraphLinting {
     private func lintIssue(from warning: StaticDependencyWarning) -> LintingIssue {
         let names = warning.linkingDependencies.map(\.description).listed()
         return LintingIssue(
-            reason: "\(warning.staticProduct) has been linked from \(names), it is a static product so may introduce unwanted side effects.".uppercasingFirst,
+            reason: "\(warning.staticProduct) has been linked from \(names), it is a static product so may introduce unwanted side effects."
+                .uppercasingFirst,
             severity: .warning
         )
     }

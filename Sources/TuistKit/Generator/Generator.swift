@@ -13,7 +13,8 @@ import TuistSupport
 protocol Generating {
     @discardableResult
     func load(path: AbsolutePath) throws -> Graph
-    func loadProject(path: AbsolutePath) throws -> (TuistGraph.Project, Graph, [SideEffectDescriptor]) // swiftlint:disable:this large_tuple
+    func loadProject(path: AbsolutePath) throws
+        -> (TuistGraph.Project, Graph, [SideEffectDescriptor]) // swiftlint:disable:this large_tuple
     func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath
     func generateWithGraph(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, Graph)
     func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph)
@@ -27,7 +28,8 @@ class Generator: Generating {
     private let environmentLinter: EnvironmentLinting = EnvironmentLinter()
     private let generator: DescriptorGenerating = DescriptorGenerator()
     private let writer: XcodeProjWriting = XcodeProjWriter()
-    private let swiftPackageManagerInteractor: TuistGenerator.SwiftPackageManagerInteracting = TuistGenerator.SwiftPackageManagerInteractor()
+    private let swiftPackageManagerInteractor: TuistGenerator.SwiftPackageManagerInteracting = TuistGenerator
+        .SwiftPackageManagerInteractor()
     private let signingInteractor: SigningInteracting = SigningInteractor()
     private let sideEffectDescriptorExecutor: SideEffectDescriptorExecuting
     private let graphMapper: GraphMapping
@@ -116,7 +118,11 @@ class Generator: Generating {
         }.printAndThrowIfNeeded()
 
         // Convert to models
-        let models = try convert(projects: projects, plugins: plugins, externalDependencies: dependenciesGraph.externalDependencies) +
+        let models = try convert(
+            projects: projects,
+            plugins: plugins,
+            externalDependencies: dependenciesGraph.externalDependencies
+        ) +
             dependenciesGraph.externalProjects.values
 
         // Apply any registered model mappers
@@ -242,7 +248,11 @@ class Generator: Generating {
         }.printAndThrowIfNeeded()
 
         // Convert to models
-        let projects = try convert(projects: manifests.projects, plugins: plugins, externalDependencies: dependenciesGraph.externalDependencies) +
+        let projects = try convert(
+            projects: manifests.projects,
+            plugins: plugins,
+            externalDependencies: dependenciesGraph.externalDependencies
+        ) +
             dependenciesGraph.externalProjects.values
 
         let workspaceName = manifests.projects[path]?.name ?? "Workspace"
@@ -303,7 +313,11 @@ class Generator: Generating {
         // Convert to models
         let models = (
             workspace: try converter.convert(manifest: manifests.workspace, path: manifests.path),
-            projects: try convert(projects: manifests.projects, plugins: plugins, externalDependencies: dependenciesGraph.externalDependencies) +
+            projects: try convert(
+                projects: manifests.projects,
+                plugins: plugins,
+                externalDependencies: dependenciesGraph.externalDependencies
+            ) +
                 dependenciesGraph.externalProjects.values
         )
 
@@ -333,7 +347,12 @@ class Generator: Generating {
     ) throws -> [TuistGraph.Project] {
         let tuples = projects.map { (path: $0.key, manifest: $0.value) }
         return try tuples.map(context: context) {
-            try converter.convert(manifest: $0.manifest, path: $0.path, plugins: plugins, externalDependencies: externalDependencies)
+            try converter.convert(
+                manifest: $0.manifest,
+                path: $0.path,
+                plugins: plugins,
+                externalDependencies: externalDependencies
+            )
         }
     }
 }

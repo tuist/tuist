@@ -45,7 +45,7 @@ extension ProjectOption: Hashable {
 // MARK: - Options + Codable
 
 extension ProjectOption {
-    enum CodingKeys: String, CodingKey {
+    internal enum CodingKeys: String, CodingKey {
         case textSettings
     }
 

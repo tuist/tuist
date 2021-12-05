@@ -10,7 +10,8 @@ public protocol GraphToGraphVizMapping {
     ///
     /// - Parameter graph: Graph to be converted into a GraphViz.Graph.
     /// - Returns: The GraphViz.Graph representation.
-    func map(graph: TuistGraph.Graph, skipTestTargets: Bool, skipExternalDependencies: Bool, targetsToFilter: [String]) -> GraphViz.Graph
+    func map(graph: TuistGraph.Graph, skipTestTargets: Bool, skipExternalDependencies: Bool, targetsToFilter: [String])
+        -> GraphViz.Graph
 }
 
 public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
@@ -20,7 +21,9 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
     ///
     /// - Parameter graph: Graph to be converted into a GraphViz.Graph.
     /// - Returns: The GraphViz.Graph representation.
-    public func map(graph: TuistGraph.Graph, skipTestTargets: Bool, skipExternalDependencies: Bool, targetsToFilter: [String]) -> GraphViz.Graph {
+    public func map(graph: TuistGraph.Graph, skipTestTargets: Bool, skipExternalDependencies: Bool,
+                    targetsToFilter: [String]) -> GraphViz.Graph
+    {
         var nodes: [GraphViz.Node] = []
         var dependencies: [GraphViz.Edge] = []
         var graphVizGraph = GraphViz.Graph(directed: true)
@@ -79,8 +82,8 @@ public final class GraphToGraphVizMapper: GraphToGraphVizMapping {
     }
 }
 
-private extension GraphDependency {
-    var isExternal: Bool {
+extension GraphDependency {
+    fileprivate var isExternal: Bool {
         switch self {
         case .target:
             return false
@@ -89,7 +92,7 @@ private extension GraphDependency {
         }
     }
 
-    var name: String {
+    fileprivate var name: String {
         switch self {
         case let .target(name: name, path: _):
             return name

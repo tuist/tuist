@@ -10,7 +10,12 @@ import XCTest
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
 
-private typealias GeneratorParameters = (sources: Set<String>, xcframeworks: Bool, cacheProfile: TuistGraph.Cache.Profile, ignoreCache: Bool)
+private typealias GeneratorParameters = (
+    sources: Set<String>,
+    xcframeworks: Bool,
+    cacheProfile: TuistGraph.Cache.Profile,
+    ignoreCache: Bool
+)
 
 final class FocusServiceTests: TuistUnitTestCase {
     var subject: FocusService!
@@ -41,7 +46,10 @@ final class FocusServiceTests: TuistUnitTestCase {
             throw error
         }
 
-        XCTAssertThrowsError(try subject.run(path: nil, sources: ["Target"], noOpen: true, xcframeworks: false, profile: nil, ignoreCache: false)) {
+        XCTAssertThrowsError(
+            try subject
+                .run(path: nil, sources: ["Target"], noOpen: true, xcframeworks: false, profile: nil, ignoreCache: false)
+        ) {
             XCTAssertEqual($0 as NSError?, error)
         }
     }

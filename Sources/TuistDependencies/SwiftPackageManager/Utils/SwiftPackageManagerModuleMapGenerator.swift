@@ -26,7 +26,9 @@ public protocol SwiftPackageManagerModuleMapGenerating {
 public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerModuleMapGenerating {
     public init() {}
 
-    public func generate(moduleName: String, publicHeadersPath: AbsolutePath) throws -> (type: ModuleMapType, path: AbsolutePath?) {
+    public func generate(moduleName: String,
+                         publicHeadersPath: AbsolutePath) throws -> (type: ModuleMapType, path: AbsolutePath?)
+    {
         let umbrellaHeaderPath = publicHeadersPath.appending(component: moduleName + ".h")
         let nestedUmbrellaHeaderPath = publicHeadersPath.appending(component: moduleName).appending(component: moduleName + ".h")
 
@@ -77,9 +79,9 @@ public final class SwiftPackageManagerModuleMapGenerator: SwiftPackageManagerMod
         if publicHeadersFolderContent.contains(publicHeadersPath.appending(moduleMapPath)) {
             return publicHeadersPath.appending(moduleMapPath)
         } else if publicHeadersFolderContent.count == 1,
-            let nestedHeadersPath = publicHeadersFolderContent.first,
-            FileHandler.shared.isFolder(nestedHeadersPath),
-            FileHandler.shared.exists(nestedHeadersPath.appending(moduleMapPath))
+                  let nestedHeadersPath = publicHeadersFolderContent.first,
+                  FileHandler.shared.isFolder(nestedHeadersPath),
+                  FileHandler.shared.exists(nestedHeadersPath.appending(moduleMapPath))
         {
             return nestedHeadersPath.appending(moduleMapPath)
         } else {

@@ -6,7 +6,7 @@ import XCTest
 final class MacFrameworkTests: XCTestCase {
     func testHello() {
         let sut = MacFramework()
-        
+
         XCTAssertEqual("MacFramework.hello()", sut.hello())
     }
 }

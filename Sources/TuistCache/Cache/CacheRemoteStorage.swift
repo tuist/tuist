@@ -34,7 +34,9 @@ public final class CacheRemoteStorage: CacheStoring {
 
     // MARK: - Init
 
-    public convenience init(cloudConfig: Cloud, cloudClient: CloudClienting, cacheDirectoriesProvider: CacheDirectoriesProviding) {
+    public convenience init(cloudConfig: Cloud, cloudClient: CloudClienting,
+                            cacheDirectoriesProvider: CacheDirectoriesProviding)
+    {
         self.init(
             cloudClient: cloudClient,
             fileArchiverFactory: FileArchivingFactory(),
@@ -115,7 +117,7 @@ public final class CacheRemoteStorage: CacheStoring {
 
             return cloudClient
                 .request(storeResource)
-                .map { (responseTuple) -> URL in responseTuple.object.data.url }
+                .map { responseTuple -> URL in responseTuple.object.data.url }
                 .flatMapCompletable { (url: URL) in
                     let deleteCompletable = self.deleteZipArchiveCompletable(archiver: archiver)
                     return self.fileClient.upload(file: destinationZipPath, hash: hash, to: url)

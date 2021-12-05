@@ -55,7 +55,9 @@ public protocol BuildGraphInspecting {
 public final class BuildGraphInspector: BuildGraphInspecting {
     public init() {}
 
-    public func buildArguments(project: Project, target: Target, configuration: String?, skipSigning: Bool) -> [XcodeBuildArgument] {
+    public func buildArguments(project: Project, target: Target, configuration: String?,
+                               skipSigning: Bool) -> [XcodeBuildArgument]
+    {
         var arguments: [XcodeBuildArgument]
         if target.platform == .macOS {
             arguments = [.sdk(target.platform.xcodeDeviceSDK)]
@@ -68,7 +70,10 @@ public final class BuildGraphInspector: BuildGraphInspecting {
             if (target.settings ?? project.settings)?.configurations.first(where: { $0.key.name == configuration }) != nil {
                 arguments.append(.configuration(configuration))
             } else {
-                logger.warning("The scheme's targets don't have the given configuration \(configuration). Defaulting to the scheme's default.")
+                logger
+                    .warning(
+                        "The scheme's targets don't have the given configuration \(configuration). Defaulting to the scheme's default."
+                    )
             }
         }
 

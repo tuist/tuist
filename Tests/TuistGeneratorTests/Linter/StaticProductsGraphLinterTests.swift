@@ -40,8 +40,10 @@ class StaticProductsGraphLinterTests: XCTestCase {
             path: path,
             projects: [path: project],
             packages: [path: ["Package": package]],
-            targets: [path: [app.name: app,
-                             framework.name: framework]],
+            targets: [path: [
+                app.name: app,
+                framework.name: framework,
+            ]],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -63,7 +65,11 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let project = Project.test(targets: [app, framework])
         let appDependency = GraphDependency.target(name: app.name, path: path)
         let frameworkDependency = GraphDependency.target(name: framework.name, path: path)
-        let libraryDependency = GraphDependency.testLibrary(path: "/path/to/library", publicHeaders: "/path/to/library/include", linking: .static)
+        let libraryDependency = GraphDependency.testLibrary(
+            path: "/path/to/library",
+            publicHeaders: "/path/to/library/include",
+            linking: .static
+        )
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             appDependency: Set([frameworkDependency, libraryDependency]),
@@ -73,8 +79,10 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [app.name: app,
-                             framework.name: framework]],
+            targets: [path: [
+                app.name: app,
+                framework.name: framework,
+            ]],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -108,9 +116,11 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [app.name: app,
-                             framework.name: framework,
-                             staticFramework.name: staticFramework]],
+            targets: [path: [
+                app.name: app,
+                framework.name: framework,
+                staticFramework.name: staticFramework,
+            ]],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -134,7 +144,8 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let frameworkA = Target.test(name: "FrameworkA", product: .framework)
         let frameworkB = Target.test(name: "FrameworkB", product: .framework)
         let frameworkC = Target.test(name: "FrameworkC", product: .framework)
-        let project = Project.test(targets: [app, staticFrameworkA, staticFrameworkB, staticFrameworkC, frameworkA, frameworkB, frameworkC])
+        let project = Project
+            .test(targets: [app, staticFrameworkA, staticFrameworkB, staticFrameworkC, frameworkA, frameworkB, frameworkC])
 
         let appDependency = GraphDependency.target(name: app.name, path: path)
         let staticFrameworkAdependency = GraphDependency.target(name: staticFrameworkA.name, path: path)
@@ -156,13 +167,15 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [app.name: app,
-                             staticFrameworkA.name: staticFrameworkA,
-                             staticFrameworkB.name: staticFrameworkB,
-                             staticFrameworkC.name: staticFrameworkC,
-                             frameworkA.name: frameworkA,
-                             frameworkB.name: frameworkB,
-                             frameworkC.name: frameworkC]],
+            targets: [path: [
+                app.name: app,
+                staticFrameworkA.name: staticFrameworkA,
+                staticFrameworkB.name: staticFrameworkB,
+                staticFrameworkC.name: staticFrameworkC,
+                frameworkA.name: frameworkA,
+                frameworkB.name: frameworkB,
+                frameworkC.name: frameworkC,
+            ]],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -186,7 +199,8 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let frameworkA = Target.test(name: "FrameworkA", product: .framework)
         let frameworkB = Target.test(name: "FrameworkB", product: .framework)
         let frameworkC = Target.test(name: "FrameworkC", product: .framework)
-        let project = Project.test(targets: [app, staticFrameworkA, staticFrameworkB, staticFrameworkC, frameworkA, frameworkB, frameworkC])
+        let project = Project
+            .test(targets: [app, staticFrameworkA, staticFrameworkB, staticFrameworkC, frameworkA, frameworkB, frameworkC])
 
         let appDependency = GraphDependency.target(name: app.name, path: path)
         let staticFrameworkAdependency = GraphDependency.target(name: staticFrameworkA.name, path: path)
@@ -208,13 +222,15 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [app.name: app,
-                             staticFrameworkA.name: staticFrameworkA,
-                             staticFrameworkB.name: staticFrameworkB,
-                             staticFrameworkC.name: staticFrameworkC,
-                             frameworkA.name: frameworkA,
-                             frameworkB.name: frameworkB,
-                             frameworkC.name: frameworkC]],
+            targets: [path: [
+                app.name: app,
+                staticFrameworkA.name: staticFrameworkA,
+                staticFrameworkB.name: staticFrameworkB,
+                staticFrameworkC.name: staticFrameworkC,
+                frameworkA.name: frameworkA,
+                frameworkB.name: frameworkB,
+                frameworkC.name: frameworkC,
+            ]],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -257,12 +273,14 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [app.name: app,
-                             staticFrameworkA.name: staticFrameworkA,
-                             frameworkA.name: frameworkA,
-                             frameworkB.name: frameworkB,
-                             frameworkC.name: frameworkC,
-                             frameworkD.name: frameworkD]],
+            targets: [path: [
+                app.name: app,
+                staticFrameworkA.name: staticFrameworkA,
+                frameworkA.name: frameworkA,
+                frameworkB.name: frameworkB,
+                frameworkC.name: frameworkC,
+                frameworkD.name: frameworkD,
+            ]],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -297,9 +315,11 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [app.name: app,
-                             staticFramework.name: staticFramework,
-                             framework.name: framework]],
+            targets: [path: [
+                app.name: app,
+                staticFramework.name: staticFramework,
+                framework.name: framework,
+            ]],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -321,7 +341,8 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let frameworkA = Target.test(name: "FrameworkA", product: .framework)
         let frameworkB = Target.test(name: "FrameworkB", product: .framework)
         let frameworkC = Target.test(name: "FrameworkC", product: .framework)
-        let project = Project.test(targets: [app, frameworkA, frameworkB, frameworkC, staticFrameworkA, staticFrameworkB, staticFrameworkC])
+        let project = Project
+            .test(targets: [app, frameworkA, frameworkB, frameworkC, staticFrameworkA, staticFrameworkB, staticFrameworkC])
 
         let appDependency = GraphDependency.target(name: app.name, path: path)
         let frameworkADependency = GraphDependency.target(name: frameworkA.name, path: path)
@@ -343,13 +364,15 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [app.name: app,
-                             frameworkA.name: frameworkA,
-                             frameworkB.name: frameworkB,
-                             frameworkC.name: frameworkC,
-                             staticFrameworkA.name: staticFrameworkA,
-                             staticFrameworkB.name: staticFrameworkB,
-                             staticFrameworkC.name: staticFrameworkC]],
+            targets: [path: [
+                app.name: app,
+                frameworkA.name: frameworkA,
+                frameworkB.name: frameworkB,
+                frameworkC.name: frameworkC,
+                staticFrameworkA.name: staticFrameworkA,
+                staticFrameworkB.name: staticFrameworkB,
+                staticFrameworkC.name: staticFrameworkC,
+            ]],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -381,9 +404,11 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [app.name: app,
-                             staticFramework.name: staticFramework,
-                             frameworkTests.name: frameworkTests]],
+            targets: [path: [
+                app.name: app,
+                staticFramework.name: staticFramework,
+                frameworkTests.name: frameworkTests,
+            ]],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -418,10 +443,12 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [app.name: app,
-                             framework.name: framework,
-                             staticFramework.name: staticFramework,
-                             frameworkTests.name: frameworkTests]],
+            targets: [path: [
+                app.name: app,
+                framework.name: framework,
+                staticFramework.name: staticFramework,
+                frameworkTests.name: frameworkTests,
+            ]],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -455,9 +482,11 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [app.name: app,
-                             appTestsTarget.name: appTestsTarget,
-                             staticFramework.name: staticFramework]],
+            targets: [path: [
+                app.name: app,
+                appTestsTarget.name: appTestsTarget,
+                staticFramework.name: staticFramework,
+            ]],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -488,10 +517,21 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let staticFrameworkBTests = Target.test(name: "StaticFrameworkBTests", product: .unitTests)
         let staticFrameworkCTests = Target.test(name: "StaticFrameworkCTests", product: .unitTests)
 
-        let project = Project.test(targets: [app, appTests, appUITests,
-                                             frameworkA, frameworkB, frameworkC, frameworkTests,
-                                             staticFrameworkA, staticFrameworkB, staticFrameworkC,
-                                             staticFrameworkATests, staticFrameworkBTests, staticFrameworkCTests])
+        let project = Project.test(targets: [
+            app,
+            appTests,
+            appUITests,
+            frameworkA,
+            frameworkB,
+            frameworkC,
+            frameworkTests,
+            staticFrameworkA,
+            staticFrameworkB,
+            staticFrameworkC,
+            staticFrameworkATests,
+            staticFrameworkBTests,
+            staticFrameworkCTests,
+        ])
 
         let appDependency = GraphDependency.target(name: app.name, path: path)
         let appTestsDependency = GraphDependency.target(name: appTests.name, path: path)
@@ -526,19 +566,21 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [app.name: app,
-                             appTests.name: appTests,
-                             appUITests.name: appUITests,
-                             frameworkA.name: frameworkA,
-                             frameworkB.name: frameworkB,
-                             frameworkC.name: frameworkC,
-                             frameworkTests.name: frameworkTests,
-                             staticFrameworkA.name: staticFrameworkA,
-                             staticFrameworkB.name: staticFrameworkB,
-                             staticFrameworkC.name: staticFrameworkC,
-                             staticFrameworkATests.name: staticFrameworkATests,
-                             staticFrameworkBTests.name: staticFrameworkBTests,
-                             staticFrameworkCTests.name: staticFrameworkCTests]],
+            targets: [path: [
+                app.name: app,
+                appTests.name: appTests,
+                appUITests.name: appUITests,
+                frameworkA.name: frameworkA,
+                frameworkB.name: frameworkB,
+                frameworkC.name: frameworkC,
+                frameworkTests.name: frameworkTests,
+                staticFrameworkA.name: staticFrameworkA,
+                staticFrameworkB.name: staticFrameworkB,
+                staticFrameworkC.name: staticFrameworkC,
+                staticFrameworkATests.name: staticFrameworkATests,
+                staticFrameworkBTests.name: staticFrameworkBTests,
+                staticFrameworkCTests.name: staticFrameworkCTests,
+            ]],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -565,9 +607,17 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let staticFrameworkB = Target.test(name: "StaticFrameworkB", product: .staticFramework)
         let staticFrameworkC = Target.test(name: "StaticFrameworkC", product: .staticFramework)
 
-        let project = Project.test(targets: [app, appTests,
-                                             frameworkA, frameworkB, frameworkC, frameworkTests,
-                                             staticFrameworkA, staticFrameworkB, staticFrameworkC])
+        let project = Project.test(targets: [
+            app,
+            appTests,
+            frameworkA,
+            frameworkB,
+            frameworkC,
+            frameworkTests,
+            staticFrameworkA,
+            staticFrameworkB,
+            staticFrameworkC,
+        ])
 
         let appDependency = GraphDependency.target(name: app.name, path: path)
         let appTestsDependency = GraphDependency.target(name: appTests.name, path: path)
@@ -594,15 +644,17 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [app.name: app,
-                             appTests.name: appTests,
-                             frameworkA.name: frameworkA,
-                             frameworkB.name: frameworkB,
-                             frameworkC.name: frameworkC,
-                             frameworkTests.name: frameworkTests,
-                             staticFrameworkA.name: staticFrameworkA,
-                             staticFrameworkB.name: staticFrameworkB,
-                             staticFrameworkC.name: staticFrameworkC]],
+            targets: [path: [
+                app.name: app,
+                appTests.name: appTests,
+                frameworkA.name: frameworkA,
+                frameworkB.name: frameworkB,
+                frameworkC.name: frameworkC,
+                frameworkTests.name: frameworkTests,
+                staticFrameworkA.name: staticFrameworkA,
+                staticFrameworkB.name: staticFrameworkB,
+                staticFrameworkC.name: staticFrameworkC,
+            ]],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -644,11 +696,13 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [app.name: app,
-                             appTests.name: appTests,
-                             appUITests.name: appUITests,
-                             frameworkA.name: frameworkA,
-                             staticFrameworkA.name: staticFrameworkA]],
+            targets: [path: [
+                app.name: app,
+                appTests.name: appTests,
+                appUITests.name: appUITests,
+                frameworkA.name: frameworkA,
+                staticFrameworkA.name: staticFrameworkA,
+            ]],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -686,10 +740,12 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [app.name: app,
-                             appUITests.name: appUITests,
-                             frameworkA.name: frameworkA,
-                             staticFrameworkA.name: staticFrameworkA]],
+            targets: [path: [
+                app.name: app,
+                appUITests.name: appUITests,
+                frameworkA.name: frameworkA,
+                staticFrameworkA.name: staticFrameworkA,
+            ]],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -729,10 +785,12 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [app.name: app,
-                             appUITests.name: appUITests,
-                             frameworkA.name: frameworkA,
-                             staticFrameworkA.name: staticFrameworkA]],
+            targets: [path: [
+                app.name: app,
+                appUITests.name: appUITests,
+                frameworkA.name: frameworkA,
+                staticFrameworkA.name: staticFrameworkA,
+            ]],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -771,10 +829,12 @@ class StaticProductsGraphLinterTests: XCTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [app.name: app,
-                             appUITests.name: appUITests,
-                             frameworkA.name: frameworkA,
-                             staticFrameworkA.name: staticFrameworkA]],
+            targets: [path: [
+                app.name: app,
+                appUITests.name: appUITests,
+                frameworkA.name: frameworkA,
+                staticFrameworkA.name: staticFrameworkA,
+            ]],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -1036,7 +1096,9 @@ class StaticProductsGraphLinterTests: XCTestCase {
     // MARK: - Helpers
 
     private func warning(product node: String, type: String = "Target", linkedBy: [GraphDependency]) -> LintingIssue {
-        let reason = "\(type) \'\(node)\' has been linked from \(linkedBy.map(\.description).listed()), it is a static product so may introduce unwanted side effects.".uppercasingFirst
+        let reason =
+            "\(type) \'\(node)\' has been linked from \(linkedBy.map(\.description).listed()), it is a static product so may introduce unwanted side effects."
+                .uppercasingFirst
         return LintingIssue(
             reason: reason,
             severity: .warning

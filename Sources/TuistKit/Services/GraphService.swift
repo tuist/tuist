@@ -133,14 +133,15 @@ private enum GraphServiceError: FatalError {
     }
 }
 
-private extension GraphOutput {
-    static func from(_ graph: TuistGraph.Graph) -> GraphOutput {
-        let projects = graph.projects.reduce(into: [String: ProjectOutput]()) { $0[$1.key.pathString] = ProjectOutput.from($1.value) }
+extension GraphOutput {
+    fileprivate static func from(_ graph: TuistGraph.Graph) -> GraphOutput {
+        let projects = graph.projects
+            .reduce(into: [String: ProjectOutput]()) { $0[$1.key.pathString] = ProjectOutput.from($1.value) }
 
         return GraphOutput(name: graph.name, path: graph.path.pathString, projects: projects)
     }
 
-    func export(to filePath: AbsolutePath) throws {
+    fileprivate func export(to filePath: AbsolutePath) throws {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .prettyPrinted, .withoutEscapingSlashes]
         let jsonData = try encoder.encode(self)
@@ -153,18 +154,24 @@ private extension GraphOutput {
     }
 }
 
-private extension ProjectOutput {
-    static func from(_ project: Project) -> ProjectOutput {
+extension ProjectOutput {
+    fileprivate static func from(_ project: Project) -> ProjectOutput {
         let packages = project.packages.reduce(into: [PackageOutput]()) { $0.append(PackageOutput.from($1)) }
         let schemes = project.schemes.reduce(into: [SchemeOutput]()) { $0.append(SchemeOutput.from($1)) }
         let targets = project.targets.reduce(into: [TargetOutput]()) { $0.append(TargetOutput.from($1)) }
 
-        return ProjectOutput(name: project.name, path: project.path.pathString, packages: packages, targets: targets, schemes: schemes)
+        return ProjectOutput(
+            name: project.name,
+            path: project.path.pathString,
+            packages: packages,
+            targets: targets,
+            schemes: schemes
+        )
     }
 }
 
-private extension PackageOutput {
-    static func from(_ package: Package) -> PackageOutput {
+extension PackageOutput {
+    fileprivate static func from(_ package: Package) -> PackageOutput {
         switch package {
         case let .remote(url, _):
             return PackageOutput(kind: PackageOutput.PackageKind.remote, path: url)
@@ -174,14 +181,14 @@ private extension PackageOutput {
     }
 }
 
-private extension TargetOutput {
-    static func from(_ target: Target) -> TargetOutput {
+extension TargetOutput {
+    fileprivate static func from(_ target: Target) -> TargetOutput {
         return TargetOutput(name: target.name, product: target.product.rawValue)
     }
 }
 
-private extension SchemeOutput {
-    static func from(_ scheme: Scheme) -> SchemeOutput {
+extension SchemeOutput {
+    fileprivate static func from(_ scheme: Scheme) -> SchemeOutput {
         var testTargets = [String]()
         if let testAction = scheme.testAction {
             for testTarget in testAction.targets {

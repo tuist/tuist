@@ -93,7 +93,8 @@ final class CacheControllerTests: TuistUnitTestCase {
         let graph = Graph.test(
             workspace: .test(schemes: [scheme]),
             projects: [project.path: project],
-            targets: nodeWithHashes.keys.reduce(into: [project.path: [String: Target]()]) { $0[project.path]?[$1.target.name] = $1.target },
+            targets: nodeWithHashes.keys
+                .reduce(into: [project.path: [String: Target]()]) { $0[project.path]?[$1.target.name] = $1.target },
             dependencies: [
                 .target(name: bGraphTarget.target.name, path: bGraphTarget.path): [
                     .target(name: aGraphTarget.target.name, path: aGraphTarget.path),
@@ -108,11 +109,11 @@ final class CacheControllerTests: TuistUnitTestCase {
             XCTAssertEqual(loadPath, path)
             return Set(arrayLiteral: .project)
         }
-        generator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graph) in
+        generator.generateWithGraphStub = { loadPath, _ -> (AbsolutePath, Graph) in
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
-        focusedGenerator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graph) in
+        focusedGenerator.generateWithGraphStub = { loadPath, _ -> (AbsolutePath, Graph) in
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
@@ -171,7 +172,8 @@ final class CacheControllerTests: TuistUnitTestCase {
         let graph = Graph.test(
             workspace: .test(schemes: [scheme]),
             projects: [project.path: project],
-            targets: nodeWithHashes.keys.reduce(into: [project.path: [String: Target]()]) { $0[project.path]?[$1.target.name] = $1.target },
+            targets: nodeWithHashes.keys
+                .reduce(into: [project.path: [String: Target]()]) { $0[project.path]?[$1.target.name] = $1.target },
             dependencies: [
                 .target(name: bGraphTarget.target.name, path: bGraphTarget.path): [
                     .target(name: aGraphTarget.target.name, path: aGraphTarget.path),
@@ -186,11 +188,11 @@ final class CacheControllerTests: TuistUnitTestCase {
             XCTAssertEqual(loadPath, path)
             return Set(arrayLiteral: .project)
         }
-        generator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graph) in
+        generator.generateWithGraphStub = { loadPath, _ -> (AbsolutePath, Graph) in
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
-        focusedGenerator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graph) in
+        focusedGenerator.generateWithGraphStub = { loadPath, _ -> (AbsolutePath, Graph) in
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
@@ -240,7 +242,8 @@ final class CacheControllerTests: TuistUnitTestCase {
         let graph = Graph.test(
             workspace: .test(schemes: [scheme]),
             projects: [project.path: project],
-            targets: nodeWithHashes.keys.reduce(into: [project.path: [String: Target]()]) { $0[project.path]?[$1.target.name] = $1.target },
+            targets: nodeWithHashes.keys
+                .reduce(into: [project.path: [String: Target]()]) { $0[project.path]?[$1.target.name] = $1.target },
             dependencies: [
                 .target(name: bGraphTarget.target.name, path: bGraphTarget.path): [
                     .target(name: aGraphTarget.target.name, path: aGraphTarget.path),
@@ -262,7 +265,7 @@ final class CacheControllerTests: TuistUnitTestCase {
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
-        focusedGenerator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graph) in
+        focusedGenerator.generateWithGraphStub = { loadPath, _ -> (AbsolutePath, Graph) in
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
@@ -315,7 +318,8 @@ final class CacheControllerTests: TuistUnitTestCase {
         let graph = Graph.test(
             workspace: .test(schemes: [scheme]),
             projects: [project.path: project],
-            targets: nodeWithHashes.keys.reduce(into: [project.path: [String: Target]()]) { $0[project.path]?[$1.target.name] = $1.target },
+            targets: nodeWithHashes.keys
+                .reduce(into: [project.path: [String: Target]()]) { $0[project.path]?[$1.target.name] = $1.target },
             dependencies: [
                 .target(name: bGraphTarget.target.name, path: bGraphTarget.path): [
                     .target(name: aGraphTarget.target.name, path: aGraphTarget.path),
@@ -330,11 +334,11 @@ final class CacheControllerTests: TuistUnitTestCase {
             XCTAssertEqual(loadPath, path)
             return Set(arrayLiteral: .project)
         }
-        generator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graph) in
+        generator.generateWithGraphStub = { loadPath, _ -> (AbsolutePath, Graph) in
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
-        focusedGenerator.generateWithGraphStub = { (loadPath, _) -> (AbsolutePath, Graph) in
+        focusedGenerator.generateWithGraphStub = { loadPath, _ -> (AbsolutePath, Graph) in
             XCTAssertEqual(loadPath, path)
             return (xcworkspacePath, graph)
         }
@@ -379,7 +383,8 @@ final class CacheControllerTests: TuistUnitTestCase {
         let graphTargets = [aGraphTarget, bGraphTarget, cGraphTarget]
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: graphTargets.reduce(into: [project.path: [String: Target]()]) { $0[project.path]?[$1.target.name] = $1.target },
+            targets: graphTargets
+                .reduce(into: [project.path: [String: Target]()]) { $0[project.path]?[$1.target.name] = $1.target },
             dependencies: [
                 // `bTarget` is a dependency of `aTarget`.
                 .target(name: aGraphTarget.target.name, path: aGraphTarget.path): [
@@ -428,7 +433,8 @@ final class CacheControllerTests: TuistUnitTestCase {
         let bGraphTarget = GraphTarget.test(path: project.path, target: bTarget, project: project)
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [aGraphTarget, bGraphTarget].reduce(into: [project.path: [String: Target]()]) { $0[project.path]?[$1.target.name] = $1.target },
+            targets: [aGraphTarget, bGraphTarget]
+                .reduce(into: [project.path: [String: Target]()]) { $0[project.path]?[$1.target.name] = $1.target },
             dependencies: [
                 // `bTarget` is a dependency of `aTarget`.
                 .target(name: aGraphTarget.target.name, path: aGraphTarget.path): [

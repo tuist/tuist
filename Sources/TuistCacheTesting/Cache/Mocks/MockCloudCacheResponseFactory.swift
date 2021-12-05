@@ -21,7 +21,9 @@ public class MockCloudCacheResourceFactory: CloudCacheResourceFactorying {
         parseError: { _, _ in CloudEmptyResponseError() }
     )
 
-    public func existsResource(name: String, hash: String) throws -> HTTPResource<CloudResponse<CloudEmptyResponse>, CloudEmptyResponseError> {
+    public func existsResource(name: String,
+                               hash: String) throws -> HTTPResource<CloudResponse<CloudEmptyResponse>, CloudEmptyResponseError>
+    {
         invokedExistsResource = true
         invokedExistsResourceCount += 1
         invokedExistsResourceParameters = (name, hash, ())
@@ -56,7 +58,12 @@ public class MockCloudCacheResourceFactory: CloudCacheResourceFactorying {
 
     public var invokedStoreResource = false
     public var invokedStoreResourceCount = 0
-    public var invokedStoreResourceParameters: (name: String, hash: String, contentMD5: String)? // swiftlint:disable:this large_tuple
+    // swiftlint:disable:next large_tuple
+    public var invokedStoreResourceParameters: (
+        name: String,
+        hash: String,
+        contentMD5: String
+    )?
     public var invokedStoreResourceParametersList = [(name: String, hash: String, contentMD5: String)]()
     public var stubbedStoreResourceError: Error?
     public var stubbedStoreResourceResult: CloudCacheResource = HTTPResource(
@@ -78,8 +85,12 @@ public class MockCloudCacheResourceFactory: CloudCacheResourceFactorying {
 
     public var invokedVerifyUploadResource = false
     public var invokedVerifyUploadResourceCount = 0
-    public var invokedVerifyUploadResourceParameters: (name: String, hash: String, contentMD5: String)? // swiftlint:disable:this large_tuple
-    // swiftlint:disable:next identifier_name
+    // swiftlint:disable:next large_tuple
+    public var invokedVerifyUploadResourceParameters: (
+        name: String,
+        hash: String,
+        contentMD5: String
+    )?
     public var invokedVerifyUploadResourceParametersList = [(name: String, hash: String, contentMD5: String)]()
     public var stubbedVerifyUploadResourceError: Error?
     public var stubbedVerifyUploadResourceResult: CloudVerifyUploadResource = HTTPResource(

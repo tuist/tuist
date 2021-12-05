@@ -13,7 +13,10 @@ final class BundleServiceErrorTests: XCTestCase {
 
     func test_description() {
         let path = AbsolutePath("/test")
-        XCTAssertEqual(BundleServiceError.missingVersionFile(path).description, "Couldn't find a .tuist-version file in the directory \(path.pathString)")
+        XCTAssertEqual(
+            BundleServiceError.missingVersionFile(path).description,
+            "Couldn't find a .tuist-version file in the directory \(path.pathString)"
+        )
     }
 }
 

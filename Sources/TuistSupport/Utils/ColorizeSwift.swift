@@ -11,7 +11,7 @@ import Foundation
 
 public typealias TerminalStyleCode = (open: String, close: String)
 
-public struct TerminalStyle {
+public enum TerminalStyle {
     public static let bold: TerminalStyleCode = ("\u{001B}[1m", "\u{001B}[22m")
     public static let dim: TerminalStyleCode = ("\u{001B}[2m", "\u{001B}[22m")
     public static let italic: TerminalStyleCode = ("\u{001B}[3m", "\u{001B}[23m")

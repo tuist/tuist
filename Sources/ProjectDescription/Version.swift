@@ -90,12 +90,12 @@ extension Version: CustomStringConvertible {
     }
 }
 
-public extension Version {
+extension Version {
     /// Create a version object from string.
     ///
     /// - Parameters:
     ///   - string: The string to parse.
-    init?(string: String) {
+    public init?(string: String) {
         let prereleaseStartIndex = string.firstIndex(of: "-")
         let metadataStartIndex = string.firstIndex(of: "+")
 

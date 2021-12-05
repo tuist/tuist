@@ -1,5 +1,5 @@
-import WatchKit
 import LibraryA
+import WatchKit
 
 class ExtensionDelegate: NSObject, WKExtensionDelegate {
     private let libraryClass = LibraryAClass()
@@ -27,7 +27,11 @@ class ExtensionDelegate: NSObject, WKExtensionDelegate {
                 backgroundTask.setTaskCompletedWithSnapshot(false)
             case let snapshotTask as WKSnapshotRefreshBackgroundTask:
                 // Snapshot tasks have a unique completion call, make sure to set your expiration date
-                snapshotTask.setTaskCompleted(restoredDefaultState: true, estimatedSnapshotExpiration: Date.distantFuture, userInfo: nil)
+                snapshotTask.setTaskCompleted(
+                    restoredDefaultState: true,
+                    estimatedSnapshotExpiration: Date.distantFuture,
+                    userInfo: nil
+                )
             case let connectivityTask as WKWatchConnectivityRefreshBackgroundTask:
                 // Be sure to complete the connectivity task once you’re done.
                 connectivityTask.setTaskCompletedWithSnapshot(false)
@@ -46,5 +50,4 @@ class ExtensionDelegate: NSObject, WKExtensionDelegate {
             }
         }
     }
-
 }

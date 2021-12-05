@@ -23,7 +23,10 @@ let dependencies = Dependencies(
             .package(url: "https://github.com/kylef/PathKit.git", .upToNextMajor(from: "1.0.0")),
         ],
         productTypes: ["RxSwift": .framework, "Checksum": .framework],
-        targetSettings: ["TSCTestSupport": ["ENABLE_TESTING_SEARCH_PATHS": "YES"], "RxTest": ["ENABLE_TESTING_SEARCH_PATHS": "YES"]]
+        targetSettings: [
+            "TSCTestSupport": ["ENABLE_TESTING_SEARCH_PATHS": "YES"],
+            "RxTest": ["ENABLE_TESTING_SEARCH_PATHS": "YES"],
+        ]
     ),
     platforms: [.macOS]
 )

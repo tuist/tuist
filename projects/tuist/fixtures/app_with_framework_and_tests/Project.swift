@@ -51,6 +51,6 @@ let project = Project(
         Scheme(
             name: "AppCustomScheme",
             buildAction: .buildAction(targets: [TargetReference("App")])
-        )
+        ),
     ]
 )

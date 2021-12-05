@@ -1,7 +1,5 @@
 import Foundation
 
 public struct StaticFramework {
-    public init() {
-
-    }
+    public init() {}
 }
