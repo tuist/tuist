@@ -70,12 +70,22 @@ public struct Config: Equatable, Hashable {
     }
 
     public var autogenerationTestingOptions: AutogenerationOptions.TestingOptions? {
-        generationOptions.compactMap { option -> AutogenerationOptions.TestingOptions? in
+        let autogenerationOptions = generationOptions.compactMap { option -> AutogenerationOptions? in
             switch option {
-            case let .autogenerationOptions(.enabled(options)): return options
+            case let .autogenerationOptions(options): return options
             default: return nil
             }
         }.first
+
+        switch autogenerationOptions {
+        case let .enabled(options):
+            return options
+        case .disabled:
+            return nil
+        case nil:
+            // no value provided is equivalent to .enabled([])
+            return []
+        }
     }
 
     /// Initializes the tuist cofiguration.
