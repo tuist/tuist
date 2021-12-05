@@ -3,6 +3,14 @@
 module Fourier
   module Commands
     class Update < Base
+      desc "swiftformat", "Update the vendored swiftformat binary"
+      def swiftformat
+        Dir.mktmpdir do |swift_build_directory|
+          puts(::CLI::UI.fmt("Updating {{info:swiftformat}}"))
+          Services::Update::Swiftformat.call(swift_build_directory: swift_build_directory)
+        end
+      end
+
       desc "swiftlint", "Update the vendored swiftlint binary"
       def swiftlint
         puts(::CLI::UI.fmt("Updating {{info:swiftlint}}"))

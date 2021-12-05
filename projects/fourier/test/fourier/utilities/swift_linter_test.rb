@@ -11,7 +11,7 @@ module Fourier
         directories = ["/test"]
         fix = true
         arguments = [
-          File.join(Fourier::Constants::VENDOR_DIRECTORY, "swiftlint"),
+          File.join(Fourier::Constants::VENDOR_DIRECTORY, "swiftlint", "swiftlint"),
         ]
         if fix
           arguments << "autocorrect" if fix
