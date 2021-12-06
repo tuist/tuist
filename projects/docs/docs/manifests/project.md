@@ -229,9 +229,22 @@ It represents the target headers:
 
 It represents a list of glob patterns that refer to files:
 
-| Property | Description                | Type            | Required | Default |
-| -------- | -------------------------- | --------------- | -------- | ------- |
-| `globs`  | Glob pattern to the files. | [`[Path]`](#path) | Yes      |         |
+| Property | Description                | Type                                | Required | Default |
+| -------- | -------------------------- | ----------------------------------- | -------- | ------- |
+| `globs`  | Glob pattern to the files. | [`[FileListGlob]`](#file-list-glob) | Yes      |         |
+
+:::note ExpressibleByStringLiteral and ExpressibleByArrayLiteral
+The list of files can be initialized with a string that represents the glob pattern, or an array of strings, which represents a list of glob patterns.
+:::
+
+#### File list glob
+
+It represents a glob pattern that refers to files:
+
+| Property        | Description                                                                  | Type              | Required | Default |
+| --------------- | ---------------------------------------------------------------------------- | ----------------- | -------- | ------- |
+| `glob`          | Glob pattern to the files.                                                   | [`Path`](#path)   | Yes      |         |
+| `excluding`     | Glob patterns for source files that will be excluded.                        | [`[Path]`](#path) | No       | `[]`    |
 
 ### Core Data Model
 
