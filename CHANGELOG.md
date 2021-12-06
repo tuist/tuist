@@ -7,7 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Add support for `excluding` parameter to `FileList` [#3773](https://github.com/tuist/tuist/pull/3773) by [@pavel-trafimuk](https://github.com/pavel-trafimuk)
-- Add support for `intersectionRule` parameter to `Headers` [#TBD](https://github.com/tuist/tuist/pull/TBD) by [@pavel-trafimuk](https://github.com/pavel-trafimuk)
+- Add support for `intersectionRule` parameter to `Headers` [#3792](https://github.com/tuist/tuist/pull/3792) by [@pavel-trafimuk](https://github.com/pavel-trafimuk)
 
 
 ### Fixed
