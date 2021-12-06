@@ -27,7 +27,7 @@ public final class Tuist {
         }
     }
     
-    static func graph() throws -> Graph {
+    public static func graph() throws -> Graph {
         // If a task is executed via `tuist`, it gets passed the binary path as a last argument.
         // Otherwise, fallback to go
         let tuist = CommandLine.arguments.last ?? "tuist"
