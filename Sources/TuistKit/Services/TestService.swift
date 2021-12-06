@@ -78,6 +78,7 @@ final class TestService {
         deviceName: String?,
         osVersion: String?,
         skipUITests: Bool,
+        showSchemes: Bool,
         resultBundlePath: AbsolutePath?
     ) throws {
         // Load config
@@ -113,6 +114,14 @@ final class TestService {
             level: .debug,
             "Found the following testable schemes: \(Set(testableSchemes.map(\.name)).joined(separator: ", "))"
         )
+
+        if showSchemes {
+            logger.log(
+                level: .info,
+                "Found the following testable schemes: \(Set(testableSchemes.map(\.name)).joined(separator: ", "))"
+            )
+            return
+        }
 
         if let schemeName = schemeName {
             guard

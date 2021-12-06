@@ -53,6 +53,12 @@ struct TestCommand: ParsableCommand {
     )
     var skipUITests: Bool = false
 
+    @Flag(
+        name: .long,
+        help: "When passed, it shows the testable schemes."
+    )
+    var showSchemes: Bool = false
+
     @Option(
         name: [.long, .customShort("T")],
         help: "Path where test result bundle will be saved."
@@ -76,6 +82,7 @@ struct TestCommand: ParsableCommand {
             deviceName: device,
             osVersion: os,
             skipUITests: skipUITests,
+            showSchemes: showSchemes,
             resultBundlePath: resultBundlePath.map {
                 AbsolutePath(
                     $0,
