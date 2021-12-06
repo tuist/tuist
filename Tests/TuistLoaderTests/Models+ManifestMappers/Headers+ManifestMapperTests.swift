@@ -328,7 +328,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             public: .list([.glob("Sources/**", excluding: ["Sources/**/*+Protected.h", "Sources/**/*+Project.h"])]),
             private: nil,
             project: ["Sources/**"],
-            intersectRule: .autoExclude
+            intersectionRule: .autoExclude
         )
 
         // When

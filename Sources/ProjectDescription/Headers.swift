@@ -3,15 +3,15 @@ import Foundation
 /// Headers
 public struct Headers: Codable, Equatable {
 
-    /// Determine how to resolve intersect cases
-    public enum IntersectRule: Int, Codable {
+    /// Determine how to resolve intersection cases
+    public enum IntersectionRule: Int, Codable {
         /// Resolving by manually entered
         /// excluded list in each scope.
-        /// Default behaviour
+        /// Default behavior
         case none
 
         /// All subsequent scopes
-        /// will exclude file lists of previous scopes.
+        /// will exclude file lists from previous scopes.
         case autoExclude
     }
 
@@ -25,16 +25,16 @@ public struct Headers: Codable, Equatable {
     public let project: FileList?
 
     // optional, as Codable doesn't support default values
-    public let intersectRule: IntersectRule?
+    public let intersectionRule: IntersectionRule?
 
     public init(public: FileList? = nil,
                 private: FileList? = nil,
                 project: FileList? = nil,
-                intersectRule: IntersectRule = .none)
+                intersectionRule: IntersectionRule = .none)
     {
         self.public = `public`
         self.private = `private`
         self.project = project
-        self.intersectRule = intersectRule
+        self.intersectionRule = intersectionRule
     }
 }
