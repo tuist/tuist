@@ -47,15 +47,21 @@ extension TuistGraph.Headers {
             }
         }
         let `public`: [AbsolutePath] = try manifest.public?.globs.flatMap {
-            unfoldGlob(try generatorPaths.resolve(path: $0.glob), excluding: try resolveExcluding($0.excluding), pathsFromPreviousScopes: [])
+            unfoldGlob(try generatorPaths.resolve(path: $0.glob),
+                       excluding: try resolveExcluding($0.excluding),
+                       pathsFromPreviousScopes: [])
         } ?? []
 
         let `private`: [AbsolutePath] = try manifest.private?.globs.flatMap {
-            unfoldGlob(try generatorPaths.resolve(path: $0.glob), excluding: try resolveExcluding($0.excluding), pathsFromPreviousScopes: `public`)
+            unfoldGlob(try generatorPaths.resolve(path: $0.glob),
+                       excluding: try resolveExcluding($0.excluding),
+                       pathsFromPreviousScopes: `public`)
         } ?? []
 
         let project: [AbsolutePath] = try manifest.project?.globs.flatMap {
-            unfoldGlob(try generatorPaths.resolve(path: $0.glob), excluding: try resolveExcluding($0.excluding), pathsFromPreviousScopes: `public` + `private`)
+            unfoldGlob(try generatorPaths.resolve(path: $0.glob),
+                       excluding: try resolveExcluding($0.excluding),
+                       pathsFromPreviousScopes: `public` + `private`)
         } ?? []
 
         return Headers(public: `public`, private: `private`, project: project)
