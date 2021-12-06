@@ -43,14 +43,20 @@ class InitService {
     private let templateLoader: TemplateLoading
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateGenerator: TemplateGenerating
+    private let fileHandler: FileHandling
+    private let gitHandler: GitHandling
 
     init(templateLoader: TemplateLoading = TemplateLoader(),
          templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
-         templateGenerator: TemplateGenerating = TemplateGenerator())
+         templateGenerator: TemplateGenerating = TemplateGenerator(),
+         fileHandler: FileHandling = FileHandler.shared,
+         gitHandler: GitHandling = GitHandler())
     {
         self.templateLoader = templateLoader
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.templateGenerator = templateGenerator
+        self.fileHandler = fileHandler
+        self.gitHandler = gitHandler
     }
 
     func loadTemplateOptions(templateName: String,
@@ -92,10 +98,26 @@ class InitService {
 
         let directories = try templatesDirectoryLocator.templateDirectories(at: path)
         if let templateName = templateName {
-            guard
-                let templateDirectory = directories.first(where: { $0.basename == templateName })
-            else { throw InitServiceError.templateNotFound(templateName) }
-            let template = try templateLoader.loadTemplate(at: templateDirectory)
+            var template: Template
+            var tempPath: AbsolutePath?
+            if isURLFormattedString(templateName) {
+                let tempFolderName = AbsolutePath.current.removingLastComponent()
+                    .appending(.init("\(templateName)")).url.lastPathComponent
+                tempPath = .current.removingLastComponent().appending(.init("\(tempFolderName)"))
+                guard
+                    let tempPath = tempPath else { return }
+                try fileHandler.createFolder(tempPath)
+                try gitHandler.clone(url: templateName, to: tempPath)
+                template = try templateLoader.loadTemplate(at: tempPath)
+
+            } else {
+                guard
+                    let templateDirectory = directories.first(where: { $0.basename == templateName })
+                else { throw InitServiceError.templateNotFound(templateName) }
+
+                template = try templateLoader.loadTemplate(at: templateDirectory)
+            }
+
             let parsedAttributes = try parseAttributes(
                 name: name,
                 platform: platform,
@@ -109,6 +131,9 @@ class InitService {
                 to: path,
                 attributes: parsedAttributes
             )
+            guard let tempPath = tempPath else { return }
+            try fileHandler.delete(tempPath)
+
         } else {
             guard
                 let templateDirectory = directories.first(where: { $0.basename == "default" })
@@ -134,6 +159,15 @@ class InitService {
         if !path.glob("*").isEmpty {
             throw InitServiceError.nonEmptyDirectory(path)
         }
+    }
+
+    /// Checks if string is URL valid format.
+    ///
+    /// - Parameter string: string to be checked
+    /// - Returns: Bool
+    private func isURLFormattedString(_ string: String) -> Bool {
+        let pattern = "(?i)https?://(?:www\\.)?\\S+(?:/|\\b)"
+        return string.matches(pattern: pattern)
     }
 
     /// Parses all `attributes` from `template`
