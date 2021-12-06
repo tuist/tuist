@@ -20,7 +20,12 @@ public struct FileList: Codable, Equatable {
         self.globs = globs
     }
 
-    // for backward compatibility when globs property had [Path] type
+    /// - deprecated: use `list(_ globs: [FileListGlob])` to create FileList instance.
+    @available(
+        *,
+        deprecated,
+        message: "Use `list(_ globs: [FileListGlob])`. Interface was changed to use new globs type"
+    )
     public init(globs: [Path]) {
         self.init(globs.map { .glob($0) })
     }
@@ -28,7 +33,7 @@ public struct FileList: Codable, Equatable {
 
 extension FileList: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
-        self.init(globs: [.init(stringLiteral: value)])
+        self.init([.init(stringLiteral: value)])
     }
 }
 
