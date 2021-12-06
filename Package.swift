@@ -225,7 +225,9 @@ let package = Package(
         ),
         .target(
             name: "ProjectAutomation",
-            dependencies: []
+            dependencies: [
+                swiftToolsSupportDependency,
+            ]
         ),
         .target(
             name: "TuistSupport",
