@@ -91,10 +91,12 @@ final class ContentHasherTests: TuistUnitTestCase {
         let folderPath = try temporaryPath().appending(component: "assets.xcassets")
         try mockFileHandler.createFolder(folderPath)
 
-        let files = ["foo": "bar",
-                     "foo2": "bar2",
-                     ".ds_store": "should be ignored",
-                     ".DS_STORE": "should be ignored too"]
+        let files = [
+            "foo": "bar",
+            "foo2": "bar2",
+            ".ds_store": "should be ignored",
+            ".DS_STORE": "should be ignored too",
+        ]
 
         try writeFiles(to: folderPath, files: files)
 

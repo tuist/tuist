@@ -13,7 +13,11 @@ public class CloudClient: CloudClienting {
     private var noRedirectDelegate: NoRedirectDelegate? // swiftlint:disable:this weak_delegate
     lazy var requestDispatcher: HTTPRequestDispatching = {
         noRedirectDelegate = NoRedirectDelegate()
-        return HTTPRequestDispatcher(session: URLSession(configuration: .default, delegate: noRedirectDelegate, delegateQueue: nil))
+        return HTTPRequestDispatcher(session: URLSession(
+            configuration: .default,
+            delegate: noRedirectDelegate,
+            delegateQueue: nil
+        ))
     }()
 
     // MARK: - Init
@@ -25,7 +29,7 @@ public class CloudClient: CloudClienting {
     // MARK: - Public
 
     public func request<T, E>(_ resource: HTTPResource<T, E>) -> Single<(object: T, response: HTTPURLResponse)> {
-        Single<HTTPResource<T, E>>.create { (observer) -> Disposable in
+        Single<HTTPResource<T, E>>.create { observer -> Disposable in
             do {
                 observer(.success(try self.resourceWithHeaders(resource)))
             } catch {
@@ -38,7 +42,7 @@ public class CloudClient: CloudClienting {
     // MARK: - Fileprivate
 
     private func resourceWithHeaders<T, E>(_ resource: HTTPResource<T, E>) throws -> HTTPResource<T, E> {
-        try resource.mappingRequest { (request) -> URLRequest in
+        try resource.mappingRequest { request -> URLRequest in
             var request = request
             if request.allHTTPHeaderFields == nil { request.allHTTPHeaderFields = [:] }
             request.allHTTPHeaderFields?["Content-Type"] = "application/json;"

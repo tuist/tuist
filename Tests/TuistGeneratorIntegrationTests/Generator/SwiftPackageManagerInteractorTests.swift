@@ -59,7 +59,15 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
     func test_generate_usesSystemGitCredentials() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
-        let config = Config(compatibleXcodeVersions: .all, cloud: nil, cache: nil, swiftVersion: nil, plugins: [], generationOptions: [.resolveDependenciesWithSystemScm], path: nil)
+        let config = Config(
+            compatibleXcodeVersions: .all,
+            cloud: nil,
+            cache: nil,
+            swiftVersion: nil,
+            plugins: [],
+            generationOptions: [.resolveDependenciesWithSystemScm],
+            path: nil
+        )
 
         let target = anyTarget(dependencies: [
             .package(product: "Example"),
@@ -80,7 +88,16 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         let workspacePath = temporaryPath.appending(component: "\(project.name).xcworkspace")
-        system.succeedCommand(["xcodebuild", "-resolvePackageDependencies", "-scmProvider", "system", "-workspace", workspacePath.pathString, "-list"])
+        system
+            .succeedCommand([
+                "xcodebuild",
+                "-resolvePackageDependencies",
+                "-scmProvider",
+                "system",
+                "-workspace",
+                workspacePath.pathString,
+                "-list",
+            ])
         try createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
 
         // When
@@ -127,7 +144,8 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         try subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename)
 
         // Then
-        let workspacePackageResolvedPath = temporaryPath.appending(RelativePath("\(workspace.name).xcworkspace/xcshareddata/swiftpm/Package.resolved"))
+        let workspacePackageResolvedPath = temporaryPath
+            .appending(RelativePath("\(workspace.name).xcworkspace/xcshareddata/swiftpm/Package.resolved"))
         XCTAssertEqual(
             try FileHandler.shared.readTextFile(workspacePackageResolvedPath),
             "package"

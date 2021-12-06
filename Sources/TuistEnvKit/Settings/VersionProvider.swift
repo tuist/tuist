@@ -48,7 +48,7 @@ class VersionProvider: VersionProviding {
 
     func versions() -> AnyPublisher<[Version], Error> {
         return requestDispatcher.dispatch(resource: changelogResource())
-            .flatMapLatest { (content, _) -> AnyPublisher<[Version], Error> in
+            .flatMapLatest { content, _ -> AnyPublisher<[Version], Error> in
                 do {
                     let versions = try self.parseVersionsFromChangelog(content)
                     return AnyPublisher(value: versions)

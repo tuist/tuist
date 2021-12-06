@@ -33,11 +33,12 @@ public final class GenerateInfoPlistProjectMapper: ProjectMapping {
     // MARK: - ProjectMapping
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
-        let results = try project.targets.reduce(into: (targets: [Target](), sideEffects: [SideEffectDescriptor]())) { results, target in
-            let (updatedTarget, sideEffects) = try map(target: target, project: project)
-            results.targets.append(updatedTarget)
-            results.sideEffects.append(contentsOf: sideEffects)
-        }
+        let results = try project.targets
+            .reduce(into: (targets: [Target](), sideEffects: [SideEffectDescriptor]())) { results, target in
+                let (updatedTarget, sideEffects) = try map(target: target, project: project)
+                results.targets.append(updatedTarget)
+                results.sideEffects.append(contentsOf: sideEffects)
+            }
 
         return (project.with(targets: results.targets), results.sideEffects)
     }

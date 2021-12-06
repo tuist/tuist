@@ -605,7 +605,10 @@ final class ConfigGeneratorTests: TuistUnitTestCase {
             path: project.path,
             projects: [project.path: project],
             targets: [project.path: [appTarget.name: appTarget, target.name: target]],
-            dependencies: [GraphDependency.target(name: target.name, path: project.path): Set([.target(name: appTarget.name, path: project.path)])]
+            dependencies: [
+                GraphDependency
+                    .target(name: target.name, path: project.path): Set([.target(name: appTarget.name, path: project.path)]),
+            ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 

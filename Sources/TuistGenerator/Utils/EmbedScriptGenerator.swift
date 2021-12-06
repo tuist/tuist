@@ -73,7 +73,9 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
         }
 
         for frameworkReference in frameworkReferences {
-            guard case let GraphDependencyReference.framework(path, _, _, dsymPath, bcsymbolmapPaths, _, _, _) = frameworkReference else {
+            guard case let GraphDependencyReference
+                .framework(path, _, _, dsymPath, bcsymbolmapPaths, _, _, _) = frameworkReference
+            else {
                 preconditionFailure("references need to be of type framework")
                 break
             }
@@ -253,9 +255,9 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
     // swiftlint:enable line_length
 }
 
-private extension RelativePath {
+extension RelativePath {
     /// Returns the basename without the extension.
-    var basenameWithoutExt: String {
+    fileprivate var basenameWithoutExt: String {
         if let ext = self.extension {
             return String(basename.dropLast(ext.count + 1))
         }

@@ -23,7 +23,7 @@ class TargetScriptLinter: TargetScriptLinting {
 
     private func lintEmbeddedScriptNotEmpty(_ script: TargetScript) -> [LintingIssue] {
         guard let script = script.embeddedScript,
-            script.isEmpty
+              script.isEmpty
         else { return [] }
 
         return [

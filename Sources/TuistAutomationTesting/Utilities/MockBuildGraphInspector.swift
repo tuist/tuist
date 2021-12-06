@@ -37,7 +37,9 @@ public final class MockBuildGraphInspector: BuildGraphInspecting {
     }
 
     public var buildArgumentsStub: ((Project, Target, String?, Bool) -> [XcodeBuildArgument])?
-    public func buildArguments(project: Project, target: Target, configuration: String?, skipSigning: Bool) -> [XcodeBuildArgument] {
+    public func buildArguments(project: Project, target: Target, configuration: String?,
+                               skipSigning: Bool) -> [XcodeBuildArgument]
+    {
         if let buildArgumentsStub = buildArgumentsStub {
             return buildArgumentsStub(project, target, configuration, skipSigning)
         } else {

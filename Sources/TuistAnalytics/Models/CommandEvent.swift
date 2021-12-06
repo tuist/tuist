@@ -15,7 +15,7 @@ public struct CommandEvent: Codable, Equatable, AsyncQueueEvent {
     public let machineHardwareName: String
     public let isCI: Bool
 
-    public let id: UUID = UUID()
+    public let id = UUID()
     public let date = Date()
     public let dispatcherId = TuistAnalyticsDispatcher.dispatcherId
 

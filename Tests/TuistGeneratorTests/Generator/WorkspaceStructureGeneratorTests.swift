@@ -352,7 +352,9 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
             try closure(currentPath)
         }
 
-        func inTemporaryDirectory<Result>(removeOnCompletion _: Bool, _ closure: (AbsolutePath) throws -> Result) throws -> Result {
+        func inTemporaryDirectory<Result>(removeOnCompletion _: Bool,
+                                          _ closure: (AbsolutePath) throws -> Result) throws -> Result
+        {
             try closure(currentPath)
         }
 

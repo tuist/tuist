@@ -1,5 +1,5 @@
 import Foundation
 
 public class Framework {
-  public init() {}
+    public init() {}
 }

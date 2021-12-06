@@ -23,7 +23,11 @@ final class CocoaPodsInteractorTests: TuistTestCase {
         super.tearDown()
     }
 
-    func test_it_runs() throws {
-        try subject.run()
+    func test_install_runs() throws {
+        try subject.install(path: "/")
+    }
+
+    func test_update_runs() throws {
+        try subject.update(path: "/")
     }
 }

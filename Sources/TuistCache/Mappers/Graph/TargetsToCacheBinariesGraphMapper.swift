@@ -117,7 +117,7 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
     }
 
     private func hashes(graph: Graph) -> Single<[GraphTarget: String]> {
-        Single.create { (observer) -> Disposable in
+        Single.create { observer -> Disposable in
             do {
                 let hashes = try self.cacheGraphContentHasher.contentHashes(
                     for: graph,
@@ -149,7 +149,7 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
             .zip(
                 hashes.map(context: .concurrent) { target, hash in
                     self.cache.exists(name: target.target.name, hash: hash)
-                        .flatMap { (exists) -> Single<(target: GraphTarget, path: AbsolutePath?)> in
+                        .flatMap { exists -> Single<(target: GraphTarget, path: AbsolutePath?)> in
                             guard exists else { return Single.just((target: target, path: nil)) }
                             return self.cache.fetch(name: target.target.name, hash: hash).map { (target: target, path: $0) }
                         }

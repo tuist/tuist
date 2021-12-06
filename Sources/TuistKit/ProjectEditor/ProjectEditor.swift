@@ -77,7 +77,8 @@ final class ProjectEditor: ProjectEditing {
         writer: XcodeProjWriting = XcodeProjWriter(),
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory(),
-        projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring = ProjectDescriptionHelpersBuilderFactory(),
+        projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring =
+            ProjectDescriptionHelpersBuilderFactory(),
         tasksLocator: TasksLocating = TasksLocator()
     ) {
         self.generator = generator
@@ -126,7 +127,8 @@ final class ProjectEditor: ProjectEditing {
         let configPath = manifestFilesLocator.locateConfig(at: editingPath)
         let cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories(config: nil)
         let projectDescriptionHelpersBuilder = projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilder(
-            cacheDirectory: cacheDirectory.cacheDirectory(for: .projectDescriptionHelpers))
+            cacheDirectory: cacheDirectory.cacheDirectory(for: .projectDescriptionHelpers)
+        )
         let dependenciesPath = manifestFilesLocator.locateDependencies(at: editingPath)
 
         let helpers = helpersDirectoryLocator.locate(at: editingPath).map {

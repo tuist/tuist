@@ -16,6 +16,9 @@ identifier_name:
   min_length:
     error: 1
     warning: 1
+  max_length:
+    warning: 60
+    error: 80
 inclusive_language:
   override_allowed_terms:
     - masterKey

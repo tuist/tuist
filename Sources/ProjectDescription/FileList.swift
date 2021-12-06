@@ -20,31 +20,20 @@ public struct FileList: Codable, Equatable {
         self.globs = globs
     }
 
-    // for backward compatibility when globs property had [Path] type
+    /// - deprecated: use `list(_ globs: [FileListGlob])` to create FileList instance.
+    @available(
+        *,
+        deprecated,
+        message: "Use `list(_ globs: [FileListGlob])`. Interface was changed to use new globs type"
+    )
     public init(globs: [Path]) {
         self.init(globs.map { .glob($0) })
-    }
-
-    public enum CodingKeys: String, CodingKey {
-        case globs
-    }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-
-        // previously globs property had [Path] type
-        if let paths = try? container.decode([Path].self, forKey: .globs) {
-            self.init(globs: paths)
-        } else {
-            let globs = try container.decode([FileListGlob].self, forKey: .globs)
-            self.init(globs)
-        }
     }
 }
 
 extension FileList: ExpressibleByStringInterpolation {
     public init(stringLiteral value: String) {
-        self.init(globs: [.init(stringLiteral: value)])
+        self.init([.init(stringLiteral: value)])
     }
 }
 

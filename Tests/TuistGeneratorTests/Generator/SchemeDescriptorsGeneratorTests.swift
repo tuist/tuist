@@ -208,9 +208,21 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let xcodeProjPath = projectPath.appending(component: "Project.xcodeproj")
         let target = Target.test(name: "App", product: .app)
 
-        let preAction = ExecutionAction(title: "Pre Action", scriptText: "echo Pre Actions", target: TargetReference(projectPath: projectPath, name: "App"))
-        let postAction = ExecutionAction(title: "Post Action", scriptText: "echo Post Actions", target: TargetReference(projectPath: projectPath, name: "App"))
-        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")], preActions: [preAction], postActions: [postAction])
+        let preAction = ExecutionAction(
+            title: "Pre Action",
+            scriptText: "echo Pre Actions",
+            target: TargetReference(projectPath: projectPath, name: "App")
+        )
+        let postAction = ExecutionAction(
+            title: "Post Action",
+            scriptText: "echo Post Actions",
+            target: TargetReference(projectPath: projectPath, name: "App")
+        )
+        let buildAction = BuildAction.test(
+            targets: [TargetReference(projectPath: projectPath, name: "App")],
+            preActions: [preAction],
+            postActions: [postAction]
+        )
 
         let scheme = Scheme.test(name: "App", shared: true, buildAction: buildAction)
         let project = Project.test(
@@ -618,9 +630,23 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let projectPath = AbsolutePath("/somepath/Project")
         let testTarget = Target.test(name: "AppTests", product: .unitTests)
 
-        let preAction = ExecutionAction(title: "Pre Action", scriptText: "echo Pre Actions", target: TargetReference(projectPath: projectPath, name: "AppTests"))
-        let postAction = ExecutionAction(title: "Post Action", scriptText: "echo Post Actions", target: TargetReference(projectPath: projectPath, name: "AppTests"))
-        let testAction = TestAction.test(targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests"))], preActions: [preAction], postActions: [postAction], language: "es", region: "ES")
+        let preAction = ExecutionAction(
+            title: "Pre Action",
+            scriptText: "echo Pre Actions",
+            target: TargetReference(projectPath: projectPath, name: "AppTests")
+        )
+        let postAction = ExecutionAction(
+            title: "Post Action",
+            scriptText: "echo Post Actions",
+            target: TargetReference(projectPath: projectPath, name: "AppTests")
+        )
+        let testAction = TestAction.test(
+            targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "AppTests"))],
+            preActions: [preAction],
+            postActions: [postAction],
+            language: "es",
+            region: "ES"
+        )
 
         let scheme = Scheme.test(name: "AppTests", shared: true, testAction: testAction)
         let project = Project.test(path: projectPath, targets: [testTarget])
@@ -752,7 +778,10 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(buildableReference.buildableName, "App.app")
         XCTAssertEqual(buildableReference.blueprintName, "App")
         XCTAssertEqual(buildableReference.buildableIdentifier, "primary")
-        XCTAssertEqual(result.storeKitConfigurationFileReference, .init(identifier: "../nested/configuration/configuration.storekit"))
+        XCTAssertEqual(
+            result.storeKitConfigurationFileReference,
+            .init(identifier: "../nested/configuration/configuration.storekit")
+        )
         XCTAssertEqual(result.locationScenarioReference?.referenceType, "1")
         XCTAssertEqual(result.locationScenarioReference?.identifier, "New York, NY, USA")
         XCTAssertEqual(result.language, "pl")
@@ -958,9 +987,16 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let target = Target.test(name: "Library", platform: .iOS, product: .dynamicLibrary)
 
         let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "Library")])
-        let testAction = TestAction.test(targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "Library"))])
+        let testAction = TestAction
+            .test(targets: [TestableTarget(target: TargetReference(projectPath: projectPath, name: "Library"))])
         let profileAction = ProfileAction.test(configurationName: "Beta Release", executable: nil)
-        let scheme = Scheme.test(name: "Library", buildAction: buildAction, testAction: testAction, runAction: nil, profileAction: profileAction)
+        let scheme = Scheme.test(
+            name: "Library",
+            buildAction: buildAction,
+            testAction: testAction,
+            runAction: nil,
+            profileAction: profileAction
+        )
 
         let project = Project.test(
             path: projectPath,
@@ -1056,7 +1092,10 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.ignoresPersistentStateOnLaunch, false)
         XCTAssertEqual(result.useCustomWorkingDirectory, false)
         XCTAssertEqual(result.debugDocumentVersioning, true)
-        XCTAssertEqual(result.commandlineArguments, XCScheme.CommandLineArguments(arguments: [.init(name: "something", enabled: true)]))
+        XCTAssertEqual(
+            result.commandlineArguments,
+            XCScheme.CommandLineArguments(arguments: [.init(name: "something", enabled: true)])
+        )
         XCTAssertEqual(result.environmentVariables, [])
         XCTAssertEqual(result.enableTestabilityWhenProfilingTests, true)
     }
@@ -1441,7 +1480,11 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let buildAction = BuildAction.test(targets: [appTargetReference])
         let testAction = TestAction.test(targets: [TestableTarget(target: appTargetReference)])
         let runAction = RunAction.test(configurationName: "Release", executable: appTargetReference, arguments: nil)
-        let profileAction = ProfileAction.test(configurationName: "Beta Release", executable: appTargetReference, arguments: launchArguments)
+        let profileAction = ProfileAction.test(
+            configurationName: "Beta Release",
+            executable: appTargetReference,
+            arguments: launchArguments
+        )
         return Scheme.test(
             name: "App",
             buildAction: buildAction,

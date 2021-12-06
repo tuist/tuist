@@ -91,7 +91,8 @@ public final class TargetBuilder: TargetBuilding {
             .last()
 
         if let buildOutputPath = buildOutputPath {
-            let configuration = configuration ?? target.project.settings.defaultDebugBuildConfiguration()?.name ?? BuildConfiguration.debug.name
+            let configuration = configuration ?? target.project.settings.defaultDebugBuildConfiguration()?
+                .name ?? BuildConfiguration.debug.name
             try copyBuildProducts(
                 to: buildOutputPath,
                 projectPath: workspacePath,

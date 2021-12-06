@@ -6,7 +6,7 @@ import XCTest
 final class TVOSFrameworkTests: XCTestCase {
     func testHello() {
         let sut = tvOSFramework()
-        
+
         XCTAssertEqual("tvOSFramework.hello()", sut.hello())
     }
 }

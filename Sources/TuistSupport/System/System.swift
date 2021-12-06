@@ -96,7 +96,12 @@ public protocol Systeming {
     ///   - environment: Environment that should be used when running the task.
     ///   - redirection: Instance through which the output will be redirected.
     /// - Throws: An error if the command fails.
-    func runAndPrint(_ arguments: [String], verbose: Bool, environment: [String: String], redirection: TSCBasic.Process.OutputRedirection) throws
+    func runAndPrint(
+        _ arguments: [String],
+        verbose: Bool,
+        environment: [String: String],
+        redirection: TSCBasic.Process.OutputRedirection
+    ) throws
 
     /// Runs a command in the shell and wraps the standard output and error in a observable.
     /// - Parameters:
@@ -138,7 +143,8 @@ public protocol Systeming {
     ///   - arguments: Command.
     ///   - environment: Environment that should be used when running the command.
     ///   - secondArguments: Second Command.
-    func observable(_ arguments: [String], environment: [String: String], pipeTo secondArguments: [String]) -> Observable<SystemEvent<Data>>
+    func observable(_ arguments: [String], environment: [String: String], pipeTo secondArguments: [String])
+        -> Observable<SystemEvent<Data>>
 
     /// Runs a command in the shell asynchronously.
     /// When the process that triggers the command gets killed, the command continues its execution.
@@ -460,7 +466,7 @@ public final class System: Systeming {
     }
 
     public func observable(_ arguments: [String], verbose: Bool, environment: [String: String]) -> Observable<SystemEvent<Data>> {
-        Observable.create { (observer) -> Disposable in
+        Observable.create { observer -> Disposable in
             let synchronizationQueue = DispatchQueue(label: "io.tuist.support.system")
             var errorData: [UInt8] = []
             let process = Process(
@@ -515,7 +521,7 @@ public final class System: Systeming {
                            environment: [String: String],
                            pipeTo secondArguments: [String]) -> Observable<SystemEvent<Data>>
     {
-        Observable.create { (observer) -> Disposable in
+        Observable.create { observer -> Disposable in
             let synchronizationQueue = DispatchQueue(label: "io.tuist.support.system")
             var errorData: [UInt8] = []
             var processOne = System.process(arguments, environment: environment)
@@ -672,8 +678,8 @@ public final class System: Systeming {
     /// - Parameter process: The process to pipe
     /// - Returns: Tuple that contains the output and error Pipe.
     static func pipeOutput(_ process: inout Foundation.Process) -> (stdOut: Pipe, stdErr: Pipe) {
-        let stdOut: Pipe = Pipe()
-        let stdErr: Pipe = Pipe()
+        let stdOut = Pipe()
+        let stdErr = Pipe()
 
         // Redirect output of Process Two
         process.standardOutput = stdOut
@@ -685,7 +691,7 @@ public final class System: Systeming {
 
 extension Systeming {
     public func publisher(_ arguments: [String], pipedToArguments: [String]) -> AnyPublisher<SystemEvent<Data>, Error> {
-        AnyPublisher.create { (subscriber) -> Cancellable in
+        AnyPublisher.create { subscriber -> Cancellable in
             let disposable = self.observable(arguments, pipedToArguments: pipedToArguments).subscribe { event in
                 switch event {
                 case .completed:
@@ -703,7 +709,7 @@ extension Systeming {
     }
 
     public func publisher(_ arguments: [String]) -> AnyPublisher<SystemEvent<Data>, Error> {
-        AnyPublisher.create { (subscriber) -> Cancellable in
+        AnyPublisher.create { subscriber -> Cancellable in
             let disposable = self.observable(arguments).subscribe { event in
                 switch event {
                 case .completed:
@@ -721,7 +727,7 @@ extension Systeming {
     }
 
     public func publisher(_ arguments: [String], verbose: Bool) -> AnyPublisher<SystemEvent<Data>, Error> {
-        AnyPublisher.create { (subscriber) -> Cancellable in
+        AnyPublisher.create { subscriber -> Cancellable in
             let disposable = self.observable(arguments, verbose: verbose).subscribe { event in
                 switch event {
                 case .completed:

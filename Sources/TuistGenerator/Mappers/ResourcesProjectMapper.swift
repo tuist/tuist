@@ -130,7 +130,8 @@ public class ResourcesProjectMapper: ProjectMapping {
             private class BundleFinder {}
 
             extension Foundation.Bundle {
-                /// Since \(targetName) is a \(target.product), the bundle containing the resources is copied into the final product.
+                /// Since \(targetName) is a \(target
+                .product), the bundle containing the resources is copied into the final product.
                 static var module: Bundle = {
                     return Bundle(for: BundleFinder.self)
                 }()

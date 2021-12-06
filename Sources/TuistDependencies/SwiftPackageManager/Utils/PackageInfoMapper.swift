@@ -16,7 +16,11 @@ enum PackageInfoMapperError: FatalError, Equatable {
     case minDeploymentTargetParsingFailed(ProjectDescription.Platform)
 
     /// Thrown when no supported platforms are found for a package.
-    case noSupportedPlatforms(name: String, configured: Set<ProjectDescription.Platform>, package: Set<ProjectDescription.Platform>)
+    case noSupportedPlatforms(
+        name: String,
+        configured: Set<ProjectDescription.Platform>,
+        package: Set<ProjectDescription.Platform>
+    )
 
     /// Thrown when `PackageInfo.Target.Dependency.byName` dependency cannot be resolved.
     case unknownByNameDependency(String)
@@ -31,7 +35,10 @@ enum PackageInfoMapperError: FatalError, Equatable {
     case unknownProductTarget(package: String, product: String, target: String)
 
     /// Thrown when unsupported `PackageInfo.Target.TargetBuildSettingDescription` `Tool`/`SettingName` pair is found.
-    case unsupportedSetting(PackageInfo.Target.TargetBuildSettingDescription.Tool, PackageInfo.Target.TargetBuildSettingDescription.SettingName)
+    case unsupportedSetting(
+        PackageInfo.Target.TargetBuildSettingDescription.Tool,
+        PackageInfo.Target.TargetBuildSettingDescription.SettingName
+    )
 
     /// Error type.
     var type: ErrorType {
@@ -164,7 +171,10 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     result[target.name] = Path(packageToFolder[packageInfo.key]!.appending(RelativePath(path)).pathString)
                 } else {
                     // remote binaries are checked out by SPM in artifacts/<Package>/<Target>.xcframework
-                    result[target.name] = Path(artifactsFolderForPackage.appending(component: "\(target.name).xcframework").pathString)
+                    result[target.name] = Path(
+                        artifactsFolderForPackage.appending(component: "\(target.name).xcframework")
+                            .pathString
+                    )
                 }
             }
         }
@@ -194,37 +204,44 @@ public final class PackageInfoMapper: PackageInfoMapping {
             }
         }
 
-        let resolvedDependencies: [String: [ResolvedDependency]] = try packageInfos.values.reduce(into: [:]) { result, packageInfo in
-            try packageInfo.targets
-                .filter { targetToProducts[$0.name] != nil }
-                .forEach { target in
-                    guard result[target.name] == nil else { return }
-                    result[target.name] = try ResolvedDependency.from(
-                        dependencies: target.dependencies,
-                        packageInfo: packageInfo,
-                        packageInfos: packageInfos,
-                        productToPackage: productToPackage,
-                        targetDependencyToFramework: targetDependencyToFramework
-                    )
-                }
-        }
+        let resolvedDependencies: [String: [ResolvedDependency]] = try packageInfos.values
+            .reduce(into: [:]) { result, packageInfo in
+                try packageInfo.targets
+                    .filter { targetToProducts[$0.name] != nil }
+                    .forEach { target in
+                        guard result[target.name] == nil else { return }
+                        result[target.name] = try ResolvedDependency.from(
+                            dependencies: target.dependencies,
+                            packageInfo: packageInfo,
+                            packageInfos: packageInfos,
+                            productToPackage: productToPackage,
+                            targetDependencyToFramework: targetDependencyToFramework
+                        )
+                    }
+            }
 
-        let externalDependencies: [String: [ProjectDescription.TargetDependency]] = try packageInfos.reduce(into: [:]) { result, packageInfo in
-            try packageInfo.value.products.forEach { product in
-                result[product.name] = try product.targets.flatMap { target in
-                    try ResolvedDependency.fromTarget(name: target, targetDependencyToFramework: targetDependencyToFramework).map {
-                        switch $0 {
-                        case let .xcframework(path):
-                            return .xcframework(path: path)
-                        case let .target(name):
-                            return .project(target: name, path: Path(packageToFolder[packageInfo.key]!.pathString))
-                        case .externalTarget:
-                            throw PackageInfoMapperError.unknownProductTarget(package: packageInfo.key, product: product.name, target: target)
-                        }
+        let externalDependencies: [String: [ProjectDescription.TargetDependency]] = try packageInfos
+            .reduce(into: [:]) { result, packageInfo in
+                try packageInfo.value.products.forEach { product in
+                    result[product.name] = try product.targets.flatMap { target in
+                        try ResolvedDependency.fromTarget(name: target, targetDependencyToFramework: targetDependencyToFramework)
+                            .map {
+                                switch $0 {
+                                case let .xcframework(path):
+                                    return .xcframework(path: path)
+                                case let .target(name):
+                                    return .project(target: name, path: Path(packageToFolder[packageInfo.key]!.pathString))
+                                case .externalTarget:
+                                    throw PackageInfoMapperError.unknownProductTarget(
+                                        package: packageInfo.key,
+                                        product: product.name,
+                                        target: target
+                                    )
+                                }
+                            }
                     }
                 }
             }
-        }
 
         let targetToPlatforms: [String: ProjectDescription.Platform] = try packageInfos.reduce(into: [:]) { result, packageInfo in
             try packageInfo.value.targets.forEach { target in
@@ -334,7 +351,8 @@ extension ProjectDescription.Target {
             return nil
         }
 
-        guard let product = ProjectDescription.Product.from(name: target.name, products: products, productTypes: productTypes) else {
+        guard let product = ProjectDescription.Product.from(name: target.name, products: products, productTypes: productTypes)
+        else {
             logger.debug("Target \(target.name) ignored by product type")
             return nil
         }
@@ -399,7 +417,10 @@ extension ProjectDescription.Platform {
         packageName: String
     ) throws -> Self {
         let configuredPlatforms = Set(configured.map(\.descriptionPlatform))
-        let packagePlatforms = Set(package.isEmpty ? ProjectDescription.Platform.allCases : try package.map { try $0.descriptionPlatform() })
+        let packagePlatforms = Set(
+            package.isEmpty ? ProjectDescription.Platform.allCases : try package
+                .map { try $0.descriptionPlatform() }
+        )
         let validPlatforms = configuredPlatforms.intersection(packagePlatforms)
 
         if validPlatforms.contains(.iOS) {
@@ -583,7 +604,8 @@ extension ProjectDescription.Headers {
         // https://github.com/apple/swift-package-manager/blob/9b9bed7eaf0f38eeccd0d8ca06ae08f6689d1c3f/Sources/Xcodeproj/pbxproj.swift#L588-L609
         switch moduleMapType {
         case .header, .nestedHeader:
-            let publicHeaders = FileHandler.shared.filesAndDirectoriesContained(in: publicHeadersPath)!.filter { $0.extension == "h" }
+            let publicHeaders = FileHandler.shared.filesAndDirectoriesContained(in: publicHeadersPath)!
+                .filter { $0.extension == "h" }
             return Headers(public: ProjectDescription.FileList(globs: publicHeaders.map { Path($0.pathString) }))
         case .none, .custom, .directory:
             return nil
@@ -697,7 +719,9 @@ extension ProjectDescription.Settings {
 
         if !defines.isEmpty {
             let sortedDefines = defines.sorted { $0.key < $1.key }
-            settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array(["$(inherited)"] + sortedDefines.map { key, value in "\(key)=\(value)" })
+            settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array(["$(inherited)"] + sortedDefines.map { key, value in
+                "\(key)=\(value)"
+            })
         }
 
         if !swiftDefines.isEmpty {
@@ -721,7 +745,8 @@ extension ProjectDescription.Settings {
         }
 
         if let settingsToOverride = targetSettings[target.name] {
-            let projectDescriptionSettingsToOverride = ProjectDescription.SettingsDictionary.from(settingsDictionary: settingsToOverride)
+            let projectDescriptionSettingsToOverride = ProjectDescription.SettingsDictionary
+                .from(settingsDictionary: settingsToOverride)
             settingsDictionary.merge(projectDescriptionSettingsToOverride)
         }
 
@@ -758,7 +783,7 @@ extension ProjectDescription.Settings {
                         return packageInfo.targets
                             .filter { $0.name == target }
                             .map {
-                                return PackageTarget(package: package, target: $0)
+                                PackageTarget(package: package, target: $0)
                             }
                     case .xcframework:
                         return []
@@ -942,11 +967,11 @@ extension PackageInfo {
     ) -> ProjectDescription.Settings? {
         var settingsDictionary: ProjectDescription.SettingsDictionary = [:]
 
-        if let cLanguageStandard = self.cLanguageStandard {
+        if let cLanguageStandard = cLanguageStandard {
             settingsDictionary["GCC_C_LANGUAGE_STANDARD"] = .string(cLanguageStandard)
         }
 
-        if let cxxLanguageStandard = self.cxxLanguageStandard {
+        if let cxxLanguageStandard = cxxLanguageStandard {
             settingsDictionary["CLANG_CXX_LANGUAGE_STANDARD"] = .string(cxxLanguageStandard)
         }
 
@@ -1023,7 +1048,9 @@ extension PackageInfoMapper {
                     if packageInfo.targets.contains(where: { $0.name == name }) {
                         return Self.fromTarget(name: name, targetDependencyToFramework: targetDependencyToFramework)
                     } else {
-                        guard let packageNameAndInfo = packageInfos.first(where: { $0.value.products.contains { $0.name == name } }) else {
+                        guard let packageNameAndInfo = packageInfos
+                            .first(where: { $0.value.products.contains { $0.name == name } })
+                        else {
                             throw PackageInfoMapperError.unknownByNameDependency(name)
                         }
 

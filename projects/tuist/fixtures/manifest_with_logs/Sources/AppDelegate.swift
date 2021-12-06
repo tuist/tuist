@@ -1,7 +1,6 @@
 import AppKit
 
 class AppDelegate: NSObject, NSApplicationDelegate {
-
     var window: NSWindow!
     var view: NSView!
 
@@ -21,10 +20,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         window.title = "Window!"
     }
 
-    func applicationDidFinishLaunching(_ aNotification: Notification) {
+    func applicationDidFinishLaunching(_: Notification) {
         window.center()
         window.contentView = view
         window.makeKeyAndOrderFront(nil)
     }
-
 }

@@ -15,7 +15,8 @@ enum InitServiceError: FatalError, Equatable {
 
     var type: ErrorType {
         switch self {
-        case .ungettableProjectName, .nonEmptyDirectory, .templateNotFound, .templateNotProvided, .attributeNotProvided, .invalidValue:
+        case .ungettableProjectName, .nonEmptyDirectory, .templateNotFound, .templateNotProvided, .attributeNotProvided,
+             .invalidValue:
             return .abort
         }
     }

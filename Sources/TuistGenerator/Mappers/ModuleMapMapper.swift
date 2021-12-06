@@ -6,7 +6,12 @@ import TuistSupport
 
 enum ModuleMapMapperError: FatalError {
     case invalidTargetDependency(sourceProject: AbsolutePath, sourceTarget: String, dependentTarget: String)
-    case invalidProjectTargetDependency(sourceProject: AbsolutePath, sourceTarget: String, dependentProject: AbsolutePath, dependentTarget: String)
+    case invalidProjectTargetDependency(
+        sourceProject: AbsolutePath,
+        sourceTarget: String,
+        dependentProject: AbsolutePath,
+        dependentTarget: String
+    )
 
     /// Error type.
     var type: ErrorType {
@@ -27,7 +32,8 @@ enum ModuleMapMapperError: FatalError {
         case let .invalidProjectTargetDependency(sourceProject, sourceTarget, dependentProject, dependentTarget):
             return """
             Target '\(sourceTarget)' of the project at path '\(sourceProject.pathString)' \
-            depends on a target '\(dependentTarget)' of the project at path '\(dependentProject.pathString)' that can't be found. \
+            depends on a target '\(dependentTarget)' of the project at path '\(dependentProject
+                .pathString)' that can't be found. \
             Please make sure your project configuration is correct.
             """
         }
@@ -103,7 +109,9 @@ public final class ModuleMapMapper: WorkspaceMapping {
         return (mappedWorkspace, [])
     }
 
-    private static func makeProjectsByPathWithTargetsByName(workspace: WorkspaceWithProjects) -> ([AbsolutePath: Project], [String: Target]) {
+    private static func makeProjectsByPathWithTargetsByName(workspace: WorkspaceWithProjects)
+        -> ([AbsolutePath: Project], [String: Target])
+    {
         var projectsByPath = [AbsolutePath: Project]()
         var targetsByName = [String: Target]()
         workspace.projects.forEach { project in
@@ -149,7 +157,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
                 dependentTarget = dependentTargetFromName
             case let .project(name, path):
                 guard let dependentProjectFromPath = projectsByPath[path],
-                    let dependentTargetFromName = targetsByName[name]
+                      let dependentTargetFromName = targetsByName[name]
                 else {
                     throw ModuleMapMapperError.invalidProjectTargetDependency(
                         sourceProject: project.path,

@@ -18,10 +18,17 @@ extension TuistTestCase {
     {
         XCTAssertEqual(settings.base.count, manifest.base.count, file: file, line: line)
 
-        let sortedConfigurations = settings.configurations.sorted { (l, r) -> Bool in l.key.name < r.key.name }
+        let sortedConfigurations = settings.configurations.sorted { l, r -> Bool in l.key.name < r.key.name }
         let sortedManifestConfigurations = manifest.configurations.sorted(by: { $0.name.rawValue < $1.name.rawValue })
         for (configuration, manifestConfiguration) in zip(sortedConfigurations, sortedManifestConfigurations) {
-            XCTAssertBuildConfigurationMatchesManifest(configuration: configuration, matches: manifestConfiguration, at: path, generatorPaths: generatorPaths, file: file, line: line)
+            XCTAssertBuildConfigurationMatchesManifest(
+                configuration: configuration,
+                matches: manifestConfiguration,
+                at: path,
+                generatorPaths: generatorPaths,
+                file: file,
+                line: line
+            )
         }
     }
 
@@ -37,11 +44,30 @@ extension TuistTestCase {
         XCTAssertTrue(target.platform == manifest.platform, file: file, line: line)
         XCTAssertTrue(target.product == manifest.product, file: file, line: line)
         XCTAssertEqual(target.infoPlist?.path, try generatorPaths.resolve(path: manifest.infoPlist.path!), file: file, line: line)
-        XCTAssertEqual(target.entitlements, try manifest.entitlements.map { try generatorPaths.resolve(path: $0) }, file: file, line: line)
+        XCTAssertEqual(
+            target.entitlements,
+            try manifest.entitlements.map { try generatorPaths.resolve(path: $0) },
+            file: file,
+            line: line
+        )
         XCTAssertEqual(target.environment, manifest.environment, file: file, line: line)
-        try assert(coreDataModels: target.coreDataModels, matches: manifest.coreDataModels, at: path, generatorPaths: generatorPaths, file: file, line: line)
+        try assert(
+            coreDataModels: target.coreDataModels,
+            matches: manifest.coreDataModels,
+            at: path,
+            generatorPaths: generatorPaths,
+            file: file,
+            line: line
+        )
         try optionalAssert(target.settings, manifest.settings, file: file, line: line) {
-            XCTAssertSettingsMatchesManifest(settings: $0, matches: $1, at: path, generatorPaths: generatorPaths, file: file, line: line)
+            XCTAssertSettingsMatchesManifest(
+                settings: $0,
+                matches: $1,
+                at: path,
+                generatorPaths: generatorPaths,
+                file: file,
+                line: line
+            )
         }
     }
 
@@ -76,7 +102,10 @@ extension TuistTestCase {
     {
         XCTAssertEqual(coreDataModels.count, manifests.count, file: file, line: line)
         XCTAssertTrue(
-            try coreDataModels.elementsEqual(manifests, by: { try coreDataModel($0, matches: $1, at: path, generatorPaths: generatorPaths) }),
+            try coreDataModels.elementsEqual(
+                manifests,
+                by: { try coreDataModel($0, matches: $1, at: path, generatorPaths: generatorPaths) }
+            ),
             file: file,
             line: line
         )

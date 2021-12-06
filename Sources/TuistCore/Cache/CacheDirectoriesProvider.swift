@@ -10,7 +10,8 @@ public protocol CacheDirectoriesProviding {
 
 public final class CacheDirectoriesProvider: CacheDirectoriesProviding {
     public let cacheDirectory: AbsolutePath
-    private static let defaultDirectory = AbsolutePath(URL(fileURLWithPath: NSHomeDirectory()).path).appending(component: ".tuist")
+    private static let defaultDirectory = AbsolutePath(URL(fileURLWithPath: NSHomeDirectory()).path)
+        .appending(component: ".tuist")
 
     public init(config: Config?) {
         if let cacheDirectory = config?.cache?.path {

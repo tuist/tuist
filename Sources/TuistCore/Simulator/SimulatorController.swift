@@ -104,13 +104,13 @@ public final class SimulatorController: SimulatorControlling {
                     let data = output.standardOutput.data(using: .utf8)!
                     let json = try JSONSerialization.jsonObject(with: data, options: [])
                     guard let dictionary = json as? [String: Any],
-                        let devicesJSON = dictionary["devices"] as? [String: [[String: Any]]]
+                          let devicesJSON = dictionary["devices"] as? [String: [[String: Any]]]
                     else {
                         return .just([])
                     }
 
-                    let devices = try devicesJSON.flatMap { (runtimeIdentifier, devicesJSON) -> [SimulatorDevice] in
-                        try devicesJSON.map { (deviceJSON) -> SimulatorDevice in
+                    let devices = try devicesJSON.flatMap { runtimeIdentifier, devicesJSON -> [SimulatorDevice] in
+                        try devicesJSON.map { deviceJSON -> SimulatorDevice in
                             var deviceJSON = deviceJSON
                             deviceJSON["runtimeIdentifier"] = runtimeIdentifier
                             let deviceJSONData = try JSONSerialization.data(withJSONObject: deviceJSON, options: [])
@@ -135,7 +135,7 @@ public final class SimulatorController: SimulatorControlling {
                     let data = output.standardOutput.data(using: .utf8)!
                     let json = try JSONSerialization.jsonObject(with: data, options: [])
                     guard let dictionary = json as? [String: Any],
-                        let runtimesJSON = dictionary["runtimes"] as? [Any]
+                          let runtimesJSON = dictionary["runtimes"] as? [Any]
                     else {
                         return .just([])
                     }
@@ -151,11 +151,11 @@ public final class SimulatorController: SimulatorControlling {
 
     public func devicesAndRuntimes() -> Single<[SimulatorDeviceAndRuntime]> {
         runtimes()
-            .flatMap { (runtimes) -> Single<([SimulatorDevice], [SimulatorRuntime])> in
+            .flatMap { runtimes -> Single<([SimulatorDevice], [SimulatorRuntime])> in
                 self.devices().map { ($0, runtimes) }
             }
-            .map { (input) -> [SimulatorDeviceAndRuntime] in
-                input.0.compactMap { (device) -> SimulatorDeviceAndRuntime? in
+            .map { input -> [SimulatorDeviceAndRuntime] in
+                input.0.compactMap { device -> SimulatorDeviceAndRuntime? in
                     guard let runtime = input.1.first(where: { $0.identifier == device.runtimeIdentifier }) else { return nil }
                     return SimulatorDeviceAndRuntime(device: device, runtime: runtime)
                 }
@@ -226,22 +226,22 @@ public final class SimulatorController: SimulatorControlling {
             minVersion: nil,
             deviceName: deviceName
         )
-        .flatMap { (deviceAndRuntime) -> Single<String> in
+        .flatMap { deviceAndRuntime -> Single<String> in
             .just("id=\(deviceAndRuntime.device.udid)")
         }
     }
 }
 
-public extension SimulatorControlling {
-    func findAvailableDevice(platform: Platform) -> Single<SimulatorDeviceAndRuntime> {
+extension SimulatorControlling {
+    public func findAvailableDevice(platform: Platform) -> Single<SimulatorDeviceAndRuntime> {
         self.findAvailableDevice(platform: platform, version: nil, minVersion: nil, deviceName: nil)
     }
 }
 
-private extension SimulatorDevice {
+extension SimulatorDevice {
     /// Attempts to boot the simulator.
     /// - returns: The `SimulatorDevice` with updated `isShutdown` field.
-    func booted() throws -> Self {
+    fileprivate func booted() throws -> Self {
         guard isShutdown else { return self }
         try System.shared.run(["/usr/bin/xcrun", "simctl", "boot", udid])
         return SimulatorDevice(

@@ -52,6 +52,7 @@ final class BuildService {
         self.configLoader = configLoader
     }
 
+    // swiftlint:disable:next function_body_length
     func run(
         schemeName: String?,
         generate: Bool,
@@ -76,7 +77,10 @@ final class BuildService {
         let graphTraverser = GraphTraverser(graph: graph)
         let buildableSchemes = buildGraphInspector.buildableSchemes(graphTraverser: graphTraverser)
 
-        logger.log(level: .debug, "Found the following buildable schemes: \(buildableSchemes.map(\.name).joined(separator: ", "))")
+        logger.log(
+            level: .debug,
+            "Found the following buildable schemes: \(buildableSchemes.map(\.name).joined(separator: ", "))"
+        )
 
         if let schemeName = schemeName {
             guard let scheme = buildableSchemes.first(where: { $0.name == schemeName }) else {

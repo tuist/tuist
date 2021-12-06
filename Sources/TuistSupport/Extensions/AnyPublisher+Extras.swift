@@ -1,8 +1,8 @@
 import Combine
 import CombineExt
 
-public extension AnyPublisher {
-    init(value: Output) {
+extension AnyPublisher {
+    public init(value: Output) {
         self = AnyPublisher.create { subscriber in
             subscriber.send(value)
             subscriber.send(completion: .finished)
@@ -10,14 +10,14 @@ public extension AnyPublisher {
         }
     }
 
-    init(error: Failure) {
+    public init(error: Failure) {
         self = AnyPublisher.create { subscriber in
             subscriber.send(completion: .failure(error))
             return AnyCancellable {}
         }
     }
 
-    init(result: Result<Output, Failure>) {
+    public init(result: Result<Output, Failure>) {
         self = AnyPublisher.create { subscriber in
             switch result {
             case let .success(value):

@@ -3,6 +3,4 @@ import XCTest
 
 @testable import UIComponents
 
-final class UIComponentATests: XCTestCase {
-
-}
+final class UIComponentATests: XCTestCase {}

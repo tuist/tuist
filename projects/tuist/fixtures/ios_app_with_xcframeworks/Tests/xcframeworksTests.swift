@@ -3,6 +3,4 @@ import XCTest
 
 @testable import App
 
-final class xcframeworksTests: XCTestCase {
-
-}
+final class xcframeworksTests: XCTestCase {}

@@ -52,7 +52,7 @@ public final class CodeLinter: CodeLinting {
 
     private func swiftLintConfigPath(path: AbsolutePath) -> AbsolutePath? {
         guard let rootPath = rootDirectoryLocator.locate(from: path) else { return nil }
-        return ["yml", "yaml"].compactMap { (fileExtension) -> AbsolutePath? in
+        return ["yml", "yaml"].compactMap { fileExtension -> AbsolutePath? in
             let swiftlintPath = rootPath.appending(RelativePath("\(Constants.tuistDirectoryName)/.swiftlint.\(fileExtension)"))
             return (FileHandler.shared.exists(swiftlintPath)) ? swiftlintPath : nil
         }.first
@@ -71,9 +71,11 @@ public final class CodeLinter: CodeLinting {
                                          configPath: AbsolutePath?,
                                          strict: Bool) -> [String]
     {
-        var arguments = [swiftLintPath.pathString,
-                         "lint",
-                         "--use-script-input-files"]
+        var arguments = [
+            swiftLintPath.pathString,
+            "lint",
+            "--use-script-input-files",
+        ]
 
         if let configPath = configPath {
             arguments += ["--config", configPath.pathString]

@@ -44,10 +44,12 @@ extension SystemFrameworkMetadataProviding {
 public final class SystemFrameworkMetadataProvider: SystemFrameworkMetadataProviding {
     public init() {}
 
-    public func loadMetadata(sdkName: String, status: SDKStatus, platform: Platform, source: SDKSource) throws -> SystemFrameworkMetadata {
+    public func loadMetadata(sdkName: String, status: SDKStatus, platform: Platform,
+                             source: SDKSource) throws -> SystemFrameworkMetadata
+    {
         let sdkNamePath = AbsolutePath("/\(sdkName)")
         guard let sdkExtension = sdkNamePath.extension,
-            let sdkType = SDKType(rawValue: sdkExtension)
+              let sdkType = SDKType(rawValue: sdkExtension)
         else {
             throw SystemFrameworkMetadataProviderError.unsupportedSDK(name: sdkName)
         }

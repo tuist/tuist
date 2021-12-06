@@ -90,7 +90,11 @@ final class ProjectDescriptorGenerator: ProjectDescriptorGenerating {
             groups: groups,
             pbxproj: pbxproj
         )
-        let configurationList = try configGenerator.generateProjectConfig(project: project, pbxproj: pbxproj, fileElements: fileElements)
+        let configurationList = try configGenerator.generateProjectConfig(
+            project: project,
+            pbxproj: pbxproj,
+            fileElements: fileElements
+        )
         let pbxProject = try generatePbxproject(
             project: project,
             projectFileElements: fileElements,

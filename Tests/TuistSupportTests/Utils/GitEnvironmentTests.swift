@@ -10,7 +10,10 @@ final class GitEnvironmentErrorTests: TuistUnitTestCase {
     }
 
     func test_description_when_githubCredentialsFillError() {
-        XCTAssertEqual(GitEnvironmentError.githubCredentialsFillError("test").description, "Trying to get your environment's credentials for https://github.com failed with the following error: test")
+        XCTAssertEqual(
+            GitEnvironmentError.githubCredentialsFillError("test").description,
+            "Trying to get your environment's credentials for https://github.com failed with the following error: test"
+        )
     }
 }
 

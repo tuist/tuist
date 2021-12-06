@@ -295,8 +295,8 @@ final class BuildServiceTests: TuistUnitTestCase {
 
 // MARK: - Helpers
 
-private extension BuildService {
-    func testRun(
+extension BuildService {
+    fileprivate func testRun(
         schemeName: String? = nil,
         generate: Bool = false,
         clean: Bool = true,

@@ -177,7 +177,9 @@ public final class DependenciesController: DependenciesControlling {
             try carthageInteractor.clean(dependenciesDirectory: dependenciesDirectory)
         }
 
-        if let swiftPackageManagerDependencies = dependencies.swiftPackageManager, !swiftPackageManagerDependencies.packages.isEmpty {
+        if let swiftPackageManagerDependencies = dependencies.swiftPackageManager,
+           !swiftPackageManagerDependencies.packages.isEmpty
+        {
             let swiftPackageManagerDependenciesGraph = try swiftPackageManagerInteractor.install(
                 dependenciesDirectory: dependenciesDirectory,
                 dependencies: swiftPackageManagerDependencies,

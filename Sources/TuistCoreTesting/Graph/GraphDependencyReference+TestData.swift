@@ -3,8 +3,8 @@ import TSCBasic
 import TuistCore
 import TuistGraph
 
-public extension GraphDependencyReference {
-    static func testFramework(
+extension GraphDependencyReference {
+    public static func testFramework(
         path: AbsolutePath = "/frameworks/tuist.framework",
         binaryPath: AbsolutePath = "/frameworks/tuist.framework/tuist",
         isCarthage: Bool = false,
@@ -26,7 +26,7 @@ public extension GraphDependencyReference {
         )
     }
 
-    static func testXCFramework(
+    public static func testXCFramework(
         path: AbsolutePath = "/frameworks/tuist.xcframework",
         infoPlist: XCFrameworkInfoPlist = .test(),
         primaryBinaryPath: AbsolutePath = "/frameworks/tuist.xcframework/ios-arm64/tuist",
@@ -41,10 +41,10 @@ public extension GraphDependencyReference {
         )
     }
 
-    static func testLibrary(path: AbsolutePath = "/libraries/library.a",
-                            linking: BinaryLinking = .static,
-                            architectures: [BinaryArchitecture] = [BinaryArchitecture.arm64],
-                            product: Product = .staticLibrary) -> GraphDependencyReference
+    public static func testLibrary(path: AbsolutePath = "/libraries/library.a",
+                                   linking: BinaryLinking = .static,
+                                   architectures: [BinaryArchitecture] = [BinaryArchitecture.arm64],
+                                   product: Product = .staticLibrary) -> GraphDependencyReference
     {
         GraphDependencyReference.library(
             path: path,
@@ -54,9 +54,9 @@ public extension GraphDependencyReference {
         )
     }
 
-    static func testSDK(path: AbsolutePath = "/path/CoreData.framework",
-                        status: SDKStatus = .required,
-                        source: SDKSource = .system) -> GraphDependencyReference
+    public static func testSDK(path: AbsolutePath = "/path/CoreData.framework",
+                               status: SDKStatus = .required,
+                               source: SDKSource = .system) -> GraphDependencyReference
     {
         GraphDependencyReference.sdk(
             path: path,
@@ -65,9 +65,9 @@ public extension GraphDependencyReference {
         )
     }
 
-    static func testProduct(target: String = "Target",
-                            productName: String = "Target.framework",
-                            platformFilter: BuildFilePlatformFilter = .ios) -> GraphDependencyReference
+    public static func testProduct(target: String = "Target",
+                                   productName: String = "Target.framework",
+                                   platformFilter: BuildFilePlatformFilter = .ios) -> GraphDependencyReference
     {
         GraphDependencyReference.product(
             target: target,

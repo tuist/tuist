@@ -52,17 +52,21 @@ final class TemplateGeneratorTests: TuistTestCase {
         }
         let template = Template.test(items: items)
         let destinationPath = try temporaryPath()
-        let expectedDirectories = [RelativePath("test_name"),
-                                   RelativePath("test"),
-                                   RelativePath("test_name/nested_dir")].map(destinationPath.appending)
+        let expectedDirectories = [
+            RelativePath("test_name"),
+            RelativePath("test"),
+            RelativePath("test_name/nested_dir"),
+        ].map(destinationPath.appending)
 
         // When
         try subject.generate(
             template: template,
             to: destinationPath,
-            attributes: ["name": "test_name",
-                         "aName": "test",
-                         "bName": "nested_dir"]
+            attributes: [
+                "name": "test_name",
+                "aName": "test",
+                "bName": "nested_dir",
+            ]
         )
 
         // Then
@@ -154,7 +158,10 @@ final class TemplateGeneratorTests: TuistTestCase {
         let bContent = "test b content"
         let items = [
             Template.Item(path: RelativePath("a/file"), contents: .file(sourcePath.appending(component: "testFile"))),
-            Template.Item(path: RelativePath("b/{{ name }}/file"), contents: .file(sourcePath.appending(components: "bTestFile"))),
+            Template.Item(
+                path: RelativePath("b/{{ name }}/file"),
+                contents: .file(sourcePath.appending(components: "bTestFile"))
+            ),
         ]
         let template = Template.test(items: items)
         try FileHandler.shared.write(aContent, path: sourcePath.appending(component: "testFile"), atomically: true)

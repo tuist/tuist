@@ -1,6 +1,6 @@
 import Framework1
-import UIKit
 import StaticFramework
+import UIKit
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate {
@@ -14,7 +14,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         print("AppDelegate -> \(framework1.hello())")
         print("Main bundle image: \(String(describing: UIImage(named: "tuist")))")
     }
-    
 
     func hello() -> String {
         return "AppDelegate.hello()"

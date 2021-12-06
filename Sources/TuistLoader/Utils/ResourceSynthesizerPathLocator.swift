@@ -61,7 +61,10 @@ final class ResourceSynthesizerPathLocator: ResourceSynthesizerPathLocating {
             .appending(components: "\(resourceName).stencil")
         guard
             FileHandler.shared.exists(resourceTemplatePath)
-        else { throw ResourceSynthesizerPathLocatorError.resourceTemplateNotFound(name: "\(resourceName).stencil", plugin: plugin.name) }
+        else {
+            throw ResourceSynthesizerPathLocatorError
+                .resourceTemplateNotFound(name: "\(resourceName).stencil", plugin: plugin.name)
+        }
 
         return resourceTemplatePath
     }
@@ -72,7 +75,11 @@ final class ResourceSynthesizerPathLocator: ResourceSynthesizerPathLocating {
     ) -> AbsolutePath? {
         guard let rootDirectory = rootDirectoryLocator.locate(from: path) else { return nil }
         let templatePath = rootDirectory
-            .appending(components: Constants.tuistDirectoryName, Constants.resourceSynthesizersDirectoryName, "\(resourceName).stencil")
+            .appending(
+                components: Constants.tuistDirectoryName,
+                Constants.resourceSynthesizersDirectoryName,
+                "\(resourceName).stencil"
+            )
         return FileHandler.shared.exists(templatePath) ? templatePath : nil
     }
 }

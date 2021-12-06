@@ -39,8 +39,14 @@ class SchemeLinterTests: TuistTestCase {
         // Then
         XCTAssertEqual(got.first?.severity, .error)
         XCTAssertEqual(got.last?.severity, .error)
-        XCTAssertEqual(got.first?.reason, "The build configuration 'CustomDebug' specified in the scheme's run action isn't defined in the project.")
-        XCTAssertEqual(got.last?.reason, "The build configuration 'Alpha' specified in the scheme's test action isn't defined in the project.")
+        XCTAssertEqual(
+            got.first?.reason,
+            "The build configuration 'CustomDebug' specified in the scheme's run action isn't defined in the project."
+        )
+        XCTAssertEqual(
+            got.last?.reason,
+            "The build configuration 'Alpha' specified in the scheme's test action isn't defined in the project."
+        )
     }
 
     func test_lint_referenceLocalTarget() {
@@ -75,7 +81,10 @@ class SchemeLinterTests: TuistTestCase {
 
         // Then
         XCTAssertEqual(got.first?.severity, .error)
-        XCTAssertEqual(got.first?.reason, "The target 'Framework' specified in scheme 'SchemeWithTargetThatDoesNotExist' is not defined in the project named 'Project'. Consider using a workspace scheme instead to reference a target in another project.")
+        XCTAssertEqual(
+            got.first?.reason,
+            "The target 'Framework' specified in scheme 'SchemeWithTargetThatDoesNotExist' is not defined in the project named 'Project'. Consider using a workspace scheme instead to reference a target in another project."
+        )
     }
 
     func test_lint_referenceRemoteTargetTestAction() {
@@ -110,7 +119,10 @@ class SchemeLinterTests: TuistTestCase {
 
         // Then
         XCTAssertEqual(got.first?.severity, .error)
-        XCTAssertEqual(got.first?.reason, "The target 'Framework' specified in scheme 'SchemeWithTargetThatDoesNotExist' is not defined in the project named 'Project'. Consider using a workspace scheme instead to reference a target in another project.")
+        XCTAssertEqual(
+            got.first?.reason,
+            "The target 'Framework' specified in scheme 'SchemeWithTargetThatDoesNotExist' is not defined in the project named 'Project'. Consider using a workspace scheme instead to reference a target in another project."
+        )
     }
 
     func test_lint_referenceRemoteTargetExecutionAction() {
@@ -135,7 +147,10 @@ class SchemeLinterTests: TuistTestCase {
 
         // Then
         XCTAssertEqual(got.first?.severity, .error)
-        XCTAssertEqual(got.first?.reason, "The target 'Target2' specified in scheme 'SchemeWithTargetThatDoesNotExist' is not defined in the project named 'Project'. Consider using a workspace scheme instead to reference a target in another project.")
+        XCTAssertEqual(
+            got.first?.reason,
+            "The target 'Target2' specified in scheme 'SchemeWithTargetThatDoesNotExist' is not defined in the project named 'Project'. Consider using a workspace scheme instead to reference a target in another project."
+        )
     }
 
     func test_lint_missingStoreKitConfiguration() {
@@ -160,7 +175,10 @@ class SchemeLinterTests: TuistTestCase {
 
         // Then
         XCTAssertEqual(got.first?.severity, .error)
-        XCTAssertEqual(got.first?.reason, "StoreKit configuration file not found at path /non/existing/path/configuration.storekit")
+        XCTAssertEqual(
+            got.first?.reason,
+            "StoreKit configuration file not found at path /non/existing/path/configuration.storekit"
+        )
     }
 
     func test_lint_existingStoreKitConfiguration() {

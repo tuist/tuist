@@ -26,7 +26,8 @@ final class TargetLinterTests: TuistUnitTestCase {
         let XCTAssertInvalidProductName: (String) -> Void = { productName in
             let target = Target.test(productName: productName)
             let got = self.subject.lint(target: target)
-            let reason = "Invalid product name '\(productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9) and underscore (_) characters."
+            let reason =
+                "Invalid product name '\(productName)'. This string must contain only alphanumeric (A-Z,a-z,0-9) and underscore (_) characters."
             self.XCTContainsLintingIssue(got, LintingIssue(reason: reason, severity: .warning))
         }
 
@@ -48,7 +49,8 @@ final class TargetLinterTests: TuistUnitTestCase {
         let XCTAssertInvalidBundleId: (String) -> Void = { bundleId in
             let target = Target.test(bundleId: bundleId)
             let got = self.subject.lint(target: target)
-            let reason = "Invalid bundle identifier '\(bundleId)'. This string must be a uniform type identifier (UTI) that contains only alphanumeric (A-Z,a-z,0-9), hyphen (-), and period (.) characters."
+            let reason =
+                "Invalid bundle identifier '\(bundleId)'. This string must be a uniform type identifier (UTI) that contains only alphanumeric (A-Z,a-z,0-9), hyphen (-), and period (.) characters."
             self.XCTContainsLintingIssue(got, LintingIssue(reason: reason, severity: .error))
         }
         let XCTAssertValidBundleId: (String) -> Void = { bundleId in
@@ -68,7 +70,10 @@ final class TargetLinterTests: TuistUnitTestCase {
         let target = Target.test(sources: [])
         let got = subject.lint(target: target)
 
-        XCTContainsLintingIssue(got, LintingIssue(reason: "The target \(target.name) doesn't contain source files.", severity: .warning))
+        XCTContainsLintingIssue(
+            got,
+            LintingIssue(reason: "The target \(target.name) doesn't contain source files.", severity: .warning)
+        )
     }
 
     func test_lint_when_target_no_source_files_but_has_dependency() {
@@ -103,8 +108,20 @@ final class TargetLinterTests: TuistUnitTestCase {
 
         let got = subject.lint(target: target)
 
-        XCTContainsLintingIssue(got, LintingIssue(reason: "Info.plist at path \(infoPlistPath.pathString) being copied into the target \(target.name) product.", severity: .warning))
-        XCTDoesNotContainLintingIssue(got, LintingIssue(reason: "Info.plist at path \(googeServiceInfoPlistPath.pathString) being copied into the target \(target.name) product.", severity: .warning))
+        XCTContainsLintingIssue(
+            got,
+            LintingIssue(
+                reason: "Info.plist at path \(infoPlistPath.pathString) being copied into the target \(target.name) product.",
+                severity: .warning
+            )
+        )
+        XCTDoesNotContainLintingIssue(
+            got,
+            LintingIssue(
+                reason: "Info.plist at path \(googeServiceInfoPlistPath.pathString) being copied into the target \(target.name) product.",
+                severity: .warning
+            )
+        )
     }
 
     func test_lint_when_a_entitlements_file_is_being_copied() {
@@ -113,7 +130,13 @@ final class TargetLinterTests: TuistUnitTestCase {
 
         let got = subject.lint(target: target)
 
-        XCTContainsLintingIssue(got, LintingIssue(reason: "Entitlements file at path \(path.pathString) being copied into the target \(target.name) product.", severity: .warning))
+        XCTContainsLintingIssue(
+            got,
+            LintingIssue(
+                reason: "Entitlements file at path \(path.pathString) being copied into the target \(target.name) product.",
+                severity: .warning
+            )
+        )
     }
 
     func test_lint_when_entitlements_not_missing() throws {
@@ -123,7 +146,10 @@ final class TargetLinterTests: TuistUnitTestCase {
 
         let got = subject.lint(target: target)
 
-        XCTContainsLintingIssue(got, LintingIssue(reason: "Info.plist file not found at path \(path.pathString)", severity: .error))
+        XCTContainsLintingIssue(
+            got,
+            LintingIssue(reason: "Info.plist file not found at path \(path.pathString)", severity: .error)
+        )
     }
 
     func test_lint_when_infoplist_not_found() throws {
@@ -133,7 +159,10 @@ final class TargetLinterTests: TuistUnitTestCase {
 
         let got = subject.lint(target: target)
 
-        XCTContainsLintingIssue(got, LintingIssue(reason: "Entitlements file not found at path \(path.pathString)", severity: .error))
+        XCTContainsLintingIssue(
+            got,
+            LintingIssue(reason: "Entitlements file not found at path \(path.pathString)", severity: .error)
+        )
     }
 
     func test_lint_when_library_has_resources() throws {
@@ -145,10 +174,22 @@ final class TargetLinterTests: TuistUnitTestCase {
         let dynamicLibrary = Target.test(product: .dynamicLibrary, resources: [element])
 
         let staticResult = subject.lint(target: staticLibrary)
-        XCTContainsLintingIssue(staticResult, LintingIssue(reason: "Target \(staticLibrary.name) cannot contain resources. static library targets do not support resources", severity: .error))
+        XCTContainsLintingIssue(
+            staticResult,
+            LintingIssue(
+                reason: "Target \(staticLibrary.name) cannot contain resources. static library targets do not support resources",
+                severity: .error
+            )
+        )
 
         let dynamicResult = subject.lint(target: dynamicLibrary)
-        XCTContainsLintingIssue(dynamicResult, LintingIssue(reason: "Target \(dynamicLibrary.name) cannot contain resources. dynamic library targets do not support resources", severity: .error))
+        XCTContainsLintingIssue(
+            dynamicResult,
+            LintingIssue(
+                reason: "Target \(dynamicLibrary.name) cannot contain resources. dynamic library targets do not support resources",
+                severity: .error
+            )
+        )
     }
 
     func test_lint_when_ios_bundle_has_sources() {
@@ -166,7 +207,13 @@ final class TargetLinterTests: TuistUnitTestCase {
         let result = subject.lint(target: bundle)
 
         // Then
-        XCTContainsLintingIssue(result, LintingIssue(reason: "Target \(bundle.name) cannot contain sources. iOS bundle targets don't support source files", severity: .error))
+        XCTContainsLintingIssue(
+            result,
+            LintingIssue(
+                reason: "Target \(bundle.name) cannot contain sources. iOS bundle targets don't support source files",
+                severity: .error
+            )
+        )
     }
 
     func test_lint_valid_ios_bundle() {
@@ -196,7 +243,10 @@ final class TargetLinterTests: TuistUnitTestCase {
             let got = subject.lint(target: target)
 
             // Then
-            XCTDoesNotContainLintingIssue(got, LintingIssue(reason: "The version of deployment target is incorrect", severity: .error))
+            XCTDoesNotContainLintingIssue(
+                got,
+                LintingIssue(reason: "The version of deployment target is incorrect", severity: .error)
+            )
         }
     }
 
@@ -215,10 +265,12 @@ final class TargetLinterTests: TuistUnitTestCase {
     }
 
     func test_lint_when_target_platform_and_deployment_target_property_mismatch() throws {
-        let invalidCombinations: [(Platform, DeploymentTarget)] = [(.iOS, .macOS("10.0.0")),
-                                                                   (.watchOS, .macOS("10.0.0")),
-                                                                   (.macOS, .watchOS("10.0.0")),
-                                                                   (.tvOS, .macOS("10.0.0"))]
+        let invalidCombinations: [(Platform, DeploymentTarget)] = [
+            (.iOS, .macOS("10.0.0")),
+            (.watchOS, .macOS("10.0.0")),
+            (.macOS, .watchOS("10.0.0")),
+            (.tvOS, .macOS("10.0.0")),
+        ]
         for combinations in invalidCombinations {
             // Given
             let target = Target.test(platform: combinations.0, deploymentTarget: combinations.1)
@@ -227,7 +279,13 @@ final class TargetLinterTests: TuistUnitTestCase {
             let got = subject.lint(target: target)
 
             // Then
-            XCTContainsLintingIssue(got, LintingIssue(reason: "Found an inconsistency between a platform `\(combinations.0.caseValue)` and deployment target `\(combinations.1.platform)`", severity: .error))
+            XCTContainsLintingIssue(
+                got,
+                LintingIssue(
+                    reason: "Found an inconsistency between a platform `\(combinations.0.caseValue)` and deployment target `\(combinations.1.platform)`",
+                    severity: .error
+                )
+            )
         }
     }
 
@@ -243,7 +301,10 @@ final class TargetLinterTests: TuistUnitTestCase {
 
         // Then
         let expectedIssues: [LintingIssue] = [
-            LintingIssue(reason: "'WatchApp_for_iOS' for platform 'iOS' can't have a product type 'watch 2 application'", severity: .error),
+            LintingIssue(
+                reason: "'WatchApp_for_iOS' for platform 'iOS' can't have a product type 'watch 2 application'",
+                severity: .error
+            ),
             LintingIssue(
                 reason: "'Watch2Extension_for_iOS' for platform 'iOS' can't have a product type 'watch 2 extension'",
                 severity: .error

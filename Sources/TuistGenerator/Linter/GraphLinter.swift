@@ -53,7 +53,10 @@ public class GraphLinter: GraphLinting {
         switch mode {
         case .none, .all: return []
         case .relevant:
-            let targets = graphTraverser.workspace.codeCoverageTargets(mode: mode, projects: Array(graphTraverser.projects.values))
+            let targets = graphTraverser.workspace.codeCoverageTargets(
+                mode: mode,
+                projects: Array(graphTraverser.projects.values)
+            )
 
             if targets.isEmpty {
                 return [
@@ -90,8 +93,8 @@ public class GraphLinter: GraphLinting {
 
     func lintDependencies(graphTraverser: GraphTraversing) -> [LintingIssue] {
         var issues: [LintingIssue] = []
-        let dependencyIssues = graphTraverser.dependencies.flatMap { (fromDependency, toDependencies) -> [LintingIssue] in
-            toDependencies.flatMap { (toDependency) -> [LintingIssue] in
+        let dependencyIssues = graphTraverser.dependencies.flatMap { fromDependency, toDependencies -> [LintingIssue] in
+            toDependencies.flatMap { toDependency -> [LintingIssue] in
                 guard case let GraphDependency.target(fromTargetName, fromTargetPath) = fromDependency else { return [] }
                 guard case let GraphDependency.target(toTargetName, toTargetPath) = toDependency else { return [] }
                 guard let fromTarget = graphTraverser.target(path: fromTargetPath, name: fromTargetName) else { return [] }
@@ -122,14 +125,16 @@ public class GraphLinter: GraphLinting {
         )
 
         if !GraphLinter.validLinks.keys.contains(fromTarget) {
-            let reason = "Target \(from.target.name) has a platform '\(from.target.platform)' and product '\(from.target.product)' invalid or not supported yet."
+            let reason =
+                "Target \(from.target.name) has a platform '\(from.target.platform)' and product '\(from.target.product)' invalid or not supported yet."
             let issue = LintingIssue(reason: reason, severity: .error)
             issues.append(issue)
         }
         let supportedTargets = GraphLinter.validLinks[fromTarget]
 
         if supportedTargets == nil || supportedTargets?.contains(toTarget) == false {
-            let reason = "Target \(from.target.name) has a dependency with target \(to.target.name) of type \(to.target.product) for platform '\(to.target.platform)' which is invalid or not supported yet."
+            let reason =
+                "Target \(from.target.name) has a dependency with target \(to.target.name) of type \(to.target.product) for platform '\(to.target.platform)' which is invalid or not supported yet."
             let issue = LintingIssue(reason: reason, severity: .error)
             issues.append(issue)
         }
@@ -155,7 +160,8 @@ public class GraphLinter: GraphLinting {
         return mismatchingBuildConfigurations.map {
             let expectedConfigurations = knownConfigurations.sorted()
             let configurations = $0.buildConfigurations.sorted()
-            let reason = "The project '\($0.name)' has missing or mismatching configurations. It has \(configurations), other projects have \(expectedConfigurations)"
+            let reason =
+                "The project '\($0.name)' has missing or mismatching configurations. It has \(configurations), other projects have \(expectedConfigurations)"
             return LintingIssue(
                 reason: reason,
                 severity: .warning
@@ -178,7 +184,8 @@ public class GraphLinter: GraphLinting {
         }
 
         if version.major < 11 {
-            let reason = "The project contains package dependencies but the selected version of Xcode is not compatible. Need at least 11 but got \(version)"
+            let reason =
+                "The project contains package dependencies but the selected version of Xcode is not compatible. Need at least 11 but got \(version)"
             return [LintingIssue(reason: reason, severity: .error)]
         }
 
@@ -226,8 +233,11 @@ public class GraphLinter: GraphLinting {
 
             return watchApps.flatMap { watchApp -> [LintingIssue] in
                 let watchAppIssues = lint(watchApp: watchApp, parentApp: app)
-                let watchExtensions = graphTraverser.directLocalTargetDependencies(path: watchApp.path, name: watchApp.target.name)
-                    .filter { $0.target.product == .watch2Extension }
+                let watchExtensions = graphTraverser.directLocalTargetDependencies(
+                    path: watchApp.path,
+                    name: watchApp.target.name
+                )
+                .filter { $0.target.product == .watch2Extension }
 
                 let watchExtensionIssues = watchExtensions.flatMap { watchExtension in
                     lint(watchExtension: watchExtension, parentWatchApp: watchApp)
@@ -243,7 +253,9 @@ public class GraphLinter: GraphLinting {
         guard watchApp.target.bundleId.hasPrefix(parentApp.target.bundleId) else {
             return [
                 LintingIssue(reason: """
-                Watch app '\(watchApp.target.name)' bundleId: \(watchApp.target.bundleId) isn't prefixed with its parent's app '\(parentApp.target.bundleId)' bundleId '\(parentApp.target.bundleId)'
+                Watch app '\(watchApp.target.name)' bundleId: \(watchApp.target
+                    .bundleId) isn't prefixed with its parent's app '\(parentApp.target.bundleId)' bundleId '\(parentApp.target
+                    .bundleId)'
                 """, severity: .error),
             ]
         }
@@ -254,7 +266,9 @@ public class GraphLinter: GraphLinting {
         guard watchExtension.target.bundleId.hasPrefix(parentWatchApp.target.bundleId) else {
             return [
                 LintingIssue(reason: """
-                Watch extension '\(watchExtension.target.name)' bundleId: \(watchExtension.target.bundleId) isn't prefixed with its parent's watch app '\(parentWatchApp.target.bundleId)' bundleId '\(parentWatchApp.target.bundleId)'
+                Watch extension '\(watchExtension.target.name)' bundleId: \(watchExtension.target
+                    .bundleId) isn't prefixed with its parent's watch app '\(parentWatchApp.target
+                    .bundleId)' bundleId '\(parentWatchApp.target.bundleId)'
                 """, severity: .error),
             ]
         }
@@ -267,16 +281,26 @@ public class GraphLinter: GraphLinting {
         if !appClip.target.bundleId.hasPrefix(parentApp.target.bundleId) {
             foundIssues.append(
                 LintingIssue(reason: """
-                AppClip '\(appClip.target.name)' bundleId: \(appClip.target.bundleId) isn't prefixed with its parent's app '\(parentApp.target.name)' bundleId '\(parentApp.target.bundleId)'
-                """, severity: .error))
+                AppClip '\(appClip.target.name)' bundleId: \(appClip.target
+                    .bundleId) isn't prefixed with its parent's app '\(parentApp.target.name)' bundleId '\(parentApp.target
+                    .bundleId)'
+                """, severity: .error)
+            )
         }
 
         if let entitlements = appClip.target.entitlements {
             if !FileHandler.shared.exists(entitlements) {
-                foundIssues.append(LintingIssue(reason: "The entitlements at path '\(entitlements)' referenced by target does not exist", severity: .error))
+                foundIssues
+                    .append(LintingIssue(
+                        reason: "The entitlements at path '\(entitlements)' referenced by target does not exist",
+                        severity: .error
+                    ))
             }
         } else {
-            foundIssues.append(LintingIssue(reason: "An AppClip '\(appClip.target.name)' requires its Parent Application Identifiers Entitlement to be set", severity: .error))
+            foundIssues.append(LintingIssue(
+                reason: "An AppClip '\(appClip.target.name)' requires its Parent Application Identifiers Entitlement to be set",
+                severity: .error
+            ))
         }
 
         return foundIssues
@@ -317,7 +341,8 @@ public class GraphLinter: GraphLinting {
                 return nil
             }
 
-            let reason = "The bundle identifier '\(bundleIdKey.bundleId)' is being used by multiple targets: \(targetNames.sorted().listed())."
+            let reason =
+                "The bundle identifier '\(bundleIdKey.bundleId)' is being used by multiple targets: \(targetNames.sorted().listed())."
             return LintingIssue(reason: reason, severity: .warning)
         }.sorted(by: { $0.reason < $1.reason })
     }

@@ -4,12 +4,13 @@ import PackageDescription
 let package = Package(
     name: "LocalPackage",
     platforms: [
-        .iOS(.v14)
+        .iOS(.v14),
     ],
     products: [
         .library(
             name: "MyFramework",
-            targets: ["MyFramework"])
+            targets: ["MyFramework"]
+        ),
     ],
     dependencies: [
         // Dependencies declare other packages that this package depends on.
@@ -19,6 +20,6 @@ let package = Package(
         .binaryTarget(
             name: "MyFramework",
             path: "MyFramework/prebuilt/MyFramework.xcframework"
-        )
+        ),
     ]
 )

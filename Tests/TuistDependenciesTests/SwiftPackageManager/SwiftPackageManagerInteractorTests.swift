@@ -63,15 +63,16 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             XCTAssertNil(version) // swift-tools-version is not specified
         }
 
-        swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms, baseSettings, targetSettings, swiftToolsVersion in
-            XCTAssertEqual(path, swiftPackageManagerBuildDirectory)
-            XCTAssertEqual(platforms, [.iOS])
-            XCTAssertEqual(automaticProductType, [:])
-            XCTAssertEqual(baseSettings, .default)
-            XCTAssertEqual(targetSettings, [:])
-            XCTAssertNil(swiftToolsVersion)
-            return .test()
-        }
+        swiftPackageManagerGraphGenerator
+            .generateStub = { path, automaticProductType, platforms, baseSettings, targetSettings, swiftToolsVersion in
+                XCTAssertEqual(path, swiftPackageManagerBuildDirectory)
+                XCTAssertEqual(platforms, [.iOS])
+                XCTAssertEqual(automaticProductType, [:])
+                XCTAssertEqual(baseSettings, .default)
+                XCTAssertEqual(targetSettings, [:])
+                XCTAssertNil(swiftToolsVersion)
+                return .test()
+            }
 
         // When
         let dependenciesGraph = try subject.install(
@@ -147,18 +148,22 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         }
         swiftPackageManagerController.setToolsVersionStub = { path, version in
             XCTAssertEqual(path, swiftPackageManagerDirectory)
-            XCTAssertEqual(version, swiftToolsVersion.description) // version should be equal to the version that has been specified
+            XCTAssertEqual(
+                version,
+                swiftToolsVersion.description
+            ) // version should be equal to the version that has been specified
         }
 
-        swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms, baseSettings, targetSettings, swiftVersion in
-            XCTAssertEqual(path, swiftPackageManagerBuildDirectory)
-            XCTAssertEqual(automaticProductType, [:])
-            XCTAssertEqual(platforms, [.iOS])
-            XCTAssertEqual(baseSettings, .default)
-            XCTAssertEqual(targetSettings, [:])
-            XCTAssertEqual(swiftVersion, swiftToolsVersion)
-            return .test()
-        }
+        swiftPackageManagerGraphGenerator
+            .generateStub = { path, automaticProductType, platforms, baseSettings, targetSettings, swiftVersion in
+                XCTAssertEqual(path, swiftPackageManagerBuildDirectory)
+                XCTAssertEqual(automaticProductType, [:])
+                XCTAssertEqual(platforms, [.iOS])
+                XCTAssertEqual(baseSettings, .default)
+                XCTAssertEqual(targetSettings, [:])
+                XCTAssertEqual(swiftVersion, swiftToolsVersion)
+                return .test()
+            }
 
         // When
         let dependenciesGraph = try subject.install(
@@ -236,15 +241,16 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
             XCTAssertNil(version) // swift-tools-version is not specified
         }
 
-        swiftPackageManagerGraphGenerator.generateStub = { path, automaticProductType, platforms, baseSettings, targetSettings, swiftToolsVersion in
-            XCTAssertEqual(path, swiftPackageManagerBuildDirectory)
-            XCTAssertEqual(automaticProductType, [:])
-            XCTAssertEqual(platforms, [.iOS])
-            XCTAssertEqual(baseSettings, .default)
-            XCTAssertEqual(targetSettings, [:])
-            XCTAssertNil(swiftToolsVersion)
-            return .test()
-        }
+        swiftPackageManagerGraphGenerator
+            .generateStub = { path, automaticProductType, platforms, baseSettings, targetSettings, swiftToolsVersion in
+                XCTAssertEqual(path, swiftPackageManagerBuildDirectory)
+                XCTAssertEqual(automaticProductType, [:])
+                XCTAssertEqual(platforms, [.iOS])
+                XCTAssertEqual(baseSettings, .default)
+                XCTAssertEqual(targetSettings, [:])
+                XCTAssertNil(swiftToolsVersion)
+                return .test()
+            }
 
         // When
         let dependenciesGraph = try subject.install(
@@ -334,8 +340,8 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
 
 // MARK: - Helpers
 
-private extension SwiftPackageManagerInteractorTests {
-    func simulateSPMOutput(at path: AbsolutePath) throws {
+extension SwiftPackageManagerInteractorTests {
+    fileprivate func simulateSPMOutput(at path: AbsolutePath) throws {
         try [
             "Package.swift",
             "Package.resolved",

@@ -22,7 +22,11 @@ public struct TuistAnalyticsDispatcher: AsyncQueueDispatching {
         if let cloud = cloud {
             backends = [
                 backbone,
-                TuistAnalyticsCloudBackend(config: cloud, resourceFactory: CloudAnalyticsResourceFactory(cloudConfig: cloud), client: cloudClient),
+                TuistAnalyticsCloudBackend(
+                    config: cloud,
+                    resourceFactory: CloudAnalyticsResourceFactory(cloudConfig: cloud),
+                    client: cloudClient
+                ),
             ]
         } else {
             backends = [backbone]
