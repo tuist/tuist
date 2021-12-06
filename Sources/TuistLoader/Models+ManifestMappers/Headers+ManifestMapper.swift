@@ -38,7 +38,7 @@ extension TuistGraph.Headers {
                 guard !excluding.contains($0) else {
                     return false
                 }
-                switch manifest.intersectRule {
+                switch manifest.intersectionRule {
                 case .autoExclude:
                     return !pathsFromPreviousScopes.contains($0)
                 case nil, .some(.none):

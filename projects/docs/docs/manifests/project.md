@@ -219,11 +219,12 @@ The following example shows the definition of a copy files action that copy font
 
 It represents the target headers:
 
-| Property  | Description                                               | Type                     | Required | Default |
-| --------- | --------------------------------------------------------- | ------------------------ | -------- | ------- |
-| `public`  | Relative glob pattern that points to the public headers.  | [`FileList`](#file-list) | No       |         |
-| `private` | Relative glob pattern that points to the private headers. | [`FileList`](#file-list) | No       |         |
-| `project` | Relative glob pattern that points to the project headers. | [`FileList`](#file-list) | No       |         |
+| Property           | Description                                                                           | Type                                     | Required | Default |
+| ------------------ | ------------------------------------------------------------------------------------- | ---------------------------------------- | -------- | ------- |
+| `public`           | Relative glob pattern that points to the public headers.                              | [`FileList`](#file-list)                 | No       |         |
+| `private`          | Relative glob pattern that points to the private headers.                             | [`FileList`](#file-list)                 | No       |         |
+| `project`          | Relative glob pattern that points to the project headers.                             | [`FileList`](#file-list)                 | No       |         |
+| `intersectionRule` | Rule, which determines how to resolve intersections in public/private/project scopes  | [`IntersectionRule`](#intersection-rule) | No       | `.none` |
 
 ### File List
 
@@ -245,6 +246,15 @@ It represents a glob pattern that refers to files:
 | --------------- | ---------------------------------------------------------------------------- | ----------------- | -------- | ------- |
 | `glob`          | Glob pattern to the files.                                                   | [`Path`](#path)   | Yes      |         |
 | `excluding`     | Glob patterns for source files that will be excluded.                        | [`[Path]`](#path) | No       | `[]`    |
+
+### Intersection Rule
+
+It determines how to resolve found intersections in public/private/project scopes:
+
+| Case          | Description                                                                                                                           |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------- |
+| `none`        | Nothing to do, should be resolved manually                                                                                            |
+| `autoExclude` | All subsequent scopes will exclude files from previous scopes (means all found `public` headers will be exluded from `project` scope) |
 
 ### Core Data Model
 
