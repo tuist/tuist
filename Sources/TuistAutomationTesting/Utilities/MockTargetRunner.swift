@@ -6,7 +6,10 @@ import TuistGraph
 public final class MockTargetRunner: TargetRunning {
     public init() {}
 
-    public var runTargetStub: ((GraphTarget, AbsolutePath, String, String?, Version?, Version?, String?, [String]) throws -> Void)?
+    public var runTargetStub: (
+        (GraphTarget, AbsolutePath, String, String?, Version?, Version?, String?, [String]) throws
+            -> Void
+    )?
     public func runTarget(
         _ target: GraphTarget,
         workspacePath: AbsolutePath,

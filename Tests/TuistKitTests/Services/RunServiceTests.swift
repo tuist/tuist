@@ -148,17 +148,18 @@ final class RunServiceTests: TuistUnitTestCase {
         let version = Version(string: "15.0.0")
         let deviceName = "iPhone 11"
         let arguments = ["-arg1", "--arg2", "SomeArgument"]
-        targetRunner.runTargetStub = { _, _workspacePath, _schemeName, _configuration, _minVersion, _version, _deviceName, _arguments in
-            // Then
-            XCTAssertEqual(_workspacePath, workspacePath)
-            XCTAssertEqual(_schemeName, schemeName)
-            XCTAssertEqual(_configuration, configuration)
-            XCTAssertEqual(_minVersion, minVersion)
-            XCTAssertEqual(_version, version)
-            XCTAssertEqual(_deviceName, deviceName)
-            XCTAssertEqual(_arguments, arguments)
-            expectation.fulfill()
-        }
+        targetRunner
+            .runTargetStub = { _, _workspacePath, _schemeName, _configuration, _minVersion, _version, _deviceName, _arguments in
+                // Then
+                XCTAssertEqual(_workspacePath, workspacePath)
+                XCTAssertEqual(_schemeName, schemeName)
+                XCTAssertEqual(_configuration, configuration)
+                XCTAssertEqual(_minVersion, minVersion)
+                XCTAssertEqual(_version, version)
+                XCTAssertEqual(_deviceName, deviceName)
+                XCTAssertEqual(_arguments, arguments)
+                expectation.fulfill()
+            }
         generator.generateWithGraphStub = { _, _ in (workspacePath, .test()) }
         targetRunner.assertCanRunTargetStub = { _ in }
         buildGraphInspector.workspacePathStub = { _ in workspacePath }
@@ -198,8 +199,8 @@ final class RunServiceTests: TuistUnitTestCase {
     }
 }
 
-private extension RunService {
-    func run(
+extension RunService {
+    fileprivate func run(
         schemeName: String = Scheme.test().name,
         generate: Bool = false,
         clean: Bool = false,

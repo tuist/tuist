@@ -105,9 +105,9 @@ private enum KnownGraphDependencyReference: CaseIterable {
     }
 }
 
-private extension GraphDependencyReference {
+extension GraphDependencyReference {
     // This is added to enforce keeping `KnownGraphDependencyReference` and `GraphDependencyReference` in sync
-    var correspondingKnownType: KnownGraphDependencyReference {
+    fileprivate var correspondingKnownType: KnownGraphDependencyReference {
         switch self {
         case .xcframework:
             return .xcframework

@@ -43,14 +43,24 @@ final class ProjectLinterTests: XCTestCase {
         let target = Target.test(name: "A")
         let project = Project.test(targets: [target, target])
         let got = subject.lint(project)
-        XCTAssertTrue(got.contains(LintingIssue(reason: "Targets A from project at \(project.path.pathString) have duplicates.", severity: .error)))
+        XCTAssertTrue(
+            got
+                .contains(LintingIssue(
+                    reason: "Targets A from project at \(project.path.pathString) have duplicates.",
+                    severity: .error
+                ))
+        )
     }
 
     func test_lint_valid_watchTargetBundleIdentifiers() throws {
         // Given
         let app = Target.test(name: "App", product: .app, bundleId: "app")
         let watchApp = Target.test(name: "WatchApp", product: .watch2App, bundleId: "app.watchapp")
-        let watchExtension = Target.test(name: "WatchExtension", product: .watch2Extension, bundleId: "app.watchapp.watchextension")
+        let watchExtension = Target.test(
+            name: "WatchExtension",
+            product: .watch2Extension,
+            bundleId: "app.watchapp.watchextension"
+        )
         let project = Project.test(targets: [app, watchApp, watchExtension])
 
         // When

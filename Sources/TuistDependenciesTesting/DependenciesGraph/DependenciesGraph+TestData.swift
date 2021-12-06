@@ -4,9 +4,9 @@ import TSCBasic
 import TuistCore
 import TuistDependencies
 
-public extension TuistCore.DependenciesGraph {
+extension TuistCore.DependenciesGraph {
     /// A snapshot of `graph.json` file.
-    static var testJson: String {
+    public static var testJson: String {
         """
         {
           "externalDependencies" : {
@@ -22,14 +22,14 @@ public extension TuistCore.DependenciesGraph {
         """
     }
 
-    static func test(
+    public static func test(
         externalDependencies: [String: [TargetDependency]] = [:],
         externalProjects: [Path: Project] = [:]
     ) -> Self {
         return .init(externalDependencies: externalDependencies, externalProjects: externalProjects)
     }
 
-    static func testXCFramework(
+    public static func testXCFramework(
         name: String = "Test",
         path: Path = Path(AbsolutePath.root.appending(RelativePath("Test.xcframework")).pathString)
     ) -> Self {
@@ -42,7 +42,7 @@ public extension TuistCore.DependenciesGraph {
     }
 
     // swiftlint:disable:next function_body_length
-    static func test(spmFolder: Path, packageFolder: Path) -> Self {
+    public static func test(spmFolder: Path, packageFolder: Path) -> Self {
         return .init(
             externalDependencies: [
                 "Tuist": [.project(target: "Tuist", path: packageFolder)],
@@ -78,11 +78,20 @@ public extension TuistCore.DependenciesGraph {
                             ],
                             dependencies: [
                                 .target(name: "TuistKit"),
-                                .project(target: "ALibrary", path: Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency")),
-                                .project(target: "ALibraryUtils", path: Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency")),
+                                .project(
+                                    target: "ALibrary",
+                                    path: Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency")
+                                ),
+                                .project(
+                                    target: "ALibraryUtils",
+                                    path: Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency")
+                                ),
                             ],
                             settings: Self.spmSettings(with: [
-                                "HEADER_SEARCH_PATHS": ["$(SRCROOT)/customPath/cSearchPath", "$(SRCROOT)/customPath/cxxSearchPath"],
+                                "HEADER_SEARCH_PATHS": [
+                                    "$(SRCROOT)/customPath/cSearchPath",
+                                    "$(SRCROOT)/customPath/cxxSearchPath",
+                                ],
                                 "OTHER_CFLAGS": ["CUSTOM_C_FLAG"],
                                 "OTHER_CPLUSPLUSFLAGS": ["CUSTOM_CXX_FLAG"],
                                 "OTHER_SWIFT_FLAGS": ["CUSTOM_SWIFT_FLAG1", "CUSTOM_SWIFT_FLAG2"],
@@ -101,7 +110,10 @@ public extension TuistCore.DependenciesGraph {
                                 "\(packageFolder.pathString)/Sources/TuistKit/**",
                             ],
                             dependencies: [
-                                .project(target: "AnotherLibrary", path: Self.packageFolder(spmFolder: spmFolder, packageName: "another-dependency")),
+                                .project(
+                                    target: "AnotherLibrary",
+                                    path: Self.packageFolder(spmFolder: spmFolder, packageName: "another-dependency")
+                                ),
                             ],
                             settings: Self.spmSettings()
                         ),
@@ -112,7 +124,7 @@ public extension TuistCore.DependenciesGraph {
         )
     }
 
-    static func aDependency(spmFolder: Path) -> Self {
+    public static func aDependency(spmFolder: Path) -> Self {
         let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "ADependency")
         return .init(
             externalDependencies: [
@@ -159,7 +171,7 @@ public extension TuistCore.DependenciesGraph {
         )
     }
 
-    static func anotherDependency(spmFolder: Path) -> Self {
+    public static func anotherDependency(spmFolder: Path) -> Self {
         let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "another-dependency")
         return .init(
             externalDependencies: [
@@ -190,7 +202,7 @@ public extension TuistCore.DependenciesGraph {
         )
     }
 
-    static func alamofire(spmFolder: Path) -> Self {
+    public static func alamofire(spmFolder: Path) -> Self {
         let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "Alamofire")
         return .init(
             externalDependencies: [
@@ -226,7 +238,7 @@ public extension TuistCore.DependenciesGraph {
     }
 
     // swiftlint:disable:next function_body_length
-    static func googleAppMeasurement(spmFolder: Path) -> Self {
+    public static func googleAppMeasurement(spmFolder: Path) -> Self {
         let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleAppMeasurement")
         let artifactsFolder = Self.artifactsFolder(spmFolder: spmFolder, packageName: "GoogleAppMeasurement")
 
@@ -263,9 +275,18 @@ public extension TuistCore.DependenciesGraph {
                                     target: "GULAppDelegateSwizzler",
                                     path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
                                 ),
-                                .project(target: "GULMethodSwizzler", path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")),
-                                .project(target: "GULNSData", path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")),
-                                .project(target: "GULNetwork", path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")),
+                                .project(
+                                    target: "GULMethodSwizzler",
+                                    path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                                ),
+                                .project(
+                                    target: "GULNSData",
+                                    path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                                ),
+                                .project(
+                                    target: "GULNetwork",
+                                    path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                                ),
                                 .project(target: "nanopb", path: Self.packageFolder(spmFolder: spmFolder, packageName: "nanopb")),
                                 .sdk(name: "libsqlite3.tbd", status: .required),
                                 .sdk(name: "libc++.tbd", status: .required),
@@ -285,14 +306,25 @@ public extension TuistCore.DependenciesGraph {
                                 "\(packageFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupportWrapper/**",
                             ],
                             dependencies: [
-                                .xcframework(path: "\(artifactsFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupport.xcframework"),
+                                .xcframework(
+                                    path: "\(artifactsFolder.pathString)/GoogleAppMeasurementWithoutAdIdSupport.xcframework"
+                                ),
                                 .project(
                                     target: "GULAppDelegateSwizzler",
                                     path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
                                 ),
-                                .project(target: "GULMethodSwizzler", path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")),
-                                .project(target: "GULNSData", path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")),
-                                .project(target: "GULNetwork", path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")),
+                                .project(
+                                    target: "GULMethodSwizzler",
+                                    path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                                ),
+                                .project(
+                                    target: "GULNSData",
+                                    path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                                ),
+                                .project(
+                                    target: "GULNetwork",
+                                    path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
+                                ),
                                 .project(target: "nanopb", path: Self.packageFolder(spmFolder: spmFolder, packageName: "nanopb")),
                                 .sdk(name: "libsqlite3.tbd", status: .required),
                                 .sdk(name: "libc++.tbd", status: .required),
@@ -309,7 +341,7 @@ public extension TuistCore.DependenciesGraph {
     }
 
     // swiftlint:disable:next function_body_length
-    static func googleUtilities(spmFolder: Path, customProductTypes: [String: Product] = [:]) -> Self {
+    public static func googleUtilities(spmFolder: Path, customProductTypes: [String: Product] = [:]) -> Self {
         let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
         return .init(
             externalDependencies: [
@@ -377,7 +409,7 @@ public extension TuistCore.DependenciesGraph {
         )
     }
 
-    static func nanopb(spmFolder: Path) -> Self {
+    public static func nanopb(spmFolder: Path) -> Self {
         let packageFolder = Self.packageFolder(spmFolder: spmFolder, packageName: "nanopb")
         return .init(
             externalDependencies: [
@@ -442,13 +474,17 @@ extension DependenciesGraph {
         }
 
         if case let .array(cDefinitions) = settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] {
-            settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array(["$(inherited)"] + (cDefinitions + ["SWIFT_PACKAGE=1"]).sorted())
+            settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array(
+                ["$(inherited)"] + (cDefinitions + ["SWIFT_PACKAGE=1"])
+                    .sorted()
+            )
         } else {
             settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array(["$(inherited)", "SWIFT_PACKAGE=1"])
         }
 
         if case let .array(swiftDefinitions) = settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] {
-            settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .array(["$(inherited)"] + ["SWIFT_PACKAGE"] + swiftDefinitions)
+            settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] =
+                .array(["$(inherited)"] + ["SWIFT_PACKAGE"] + swiftDefinitions)
         } else {
             settingsDictionary["SWIFT_ACTIVE_COMPILATION_CONDITIONS"] = .array(["$(inherited)"] + ["SWIFT_PACKAGE"])
         }

@@ -2,14 +2,14 @@ import Foundation
 import TSCBasic
 import TuistGraph
 
-public extension Graph {
-    static func test(name: String = "graph",
-                     path: AbsolutePath = .root,
-                     workspace: Workspace = .test(),
-                     projects: [AbsolutePath: Project] = [:],
-                     packages: [AbsolutePath: [String: Package]] = [:],
-                     targets: [AbsolutePath: [String: Target]] = [:],
-                     dependencies: [GraphDependency: Set<GraphDependency>] = [:]) -> Graph
+extension Graph {
+    public static func test(name: String = "graph",
+                            path: AbsolutePath = .root,
+                            workspace: Workspace = .test(),
+                            projects: [AbsolutePath: Project] = [:],
+                            packages: [AbsolutePath: [String: Package]] = [:],
+                            targets: [AbsolutePath: [String: Target]] = [:],
+                            dependencies: [GraphDependency: Set<GraphDependency>] = [:]) -> Graph
     {
         Graph(
             name: name,

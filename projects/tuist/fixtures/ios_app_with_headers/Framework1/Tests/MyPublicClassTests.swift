@@ -4,7 +4,7 @@ import XCTest
 class MyPublicClassTests: XCTestCase {
     func testHello() {
         let sut = MyPublicClass()
-        
+
         XCTAssertEqual("MyPublicClass.hello", sut.hello())
     }
 }

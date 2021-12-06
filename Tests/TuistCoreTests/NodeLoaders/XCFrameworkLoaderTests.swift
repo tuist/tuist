@@ -47,7 +47,10 @@ final class XCFrameworkLoaderTests: TuistUnitTestCase {
         let xcframeworkPath = path.appending(component: "tuist.xcframework")
 
         // Then
-        XCTAssertThrowsSpecific(try subject.load(path: xcframeworkPath), XCFrameworkLoaderError.xcframeworkNotFound(xcframeworkPath))
+        XCTAssertThrowsSpecific(
+            try subject.load(path: xcframeworkPath),
+            XCFrameworkLoaderError.xcframeworkNotFound(xcframeworkPath)
+        )
     }
 
     func test_load_when_the_xcframework_exists() throws {

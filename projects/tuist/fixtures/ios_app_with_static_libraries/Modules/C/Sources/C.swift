@@ -1,6 +1,6 @@
 import Foundation
 
-public class C {
+public enum C {
     public static let value: String = "cValue"
 
     public static func printFromC() {

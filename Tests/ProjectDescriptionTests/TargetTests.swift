@@ -57,9 +57,11 @@ final class TargetTests: XCTestCase {
                 SourceFileGlob("Intents/Project.intentdefinition", codeGen: .project),
                 SourceFileGlob("Intents/Disabled.intentdefinition", codeGen: .disabled),
             ]),
-            resources: ["resources/*",
-                        .glob(pattern: "file.type", tags: ["tag"]),
-                        .folderReference(path: "resource/", tags: ["tag"])],
+            resources: [
+                "resources/*",
+                .glob(pattern: "file.type", tags: ["tag"]),
+                .folderReference(path: "resource/", tags: ["tag"]),
+            ],
             headers: Headers(
                 public: ["public/*"],
                 private: ["private/*"],

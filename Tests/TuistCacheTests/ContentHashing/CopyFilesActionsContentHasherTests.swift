@@ -33,11 +33,12 @@ final class CopyFilesActionsContentHasherTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    private func makeCopyFilesAction(name: String = "Copy Fonts",
-                                     destination: CopyFilesAction.Destination = .resources,
-                                     subpath: String? = "Fonts",
-                                     files: [FileElement] = [.file(path: "/file1.ttf"), .file(path: "/file2.ttf")]) -> CopyFilesAction
-    {
+    private func makeCopyFilesAction(
+        name: String = "Copy Fonts",
+        destination: CopyFilesAction.Destination = .resources,
+        subpath: String? = "Fonts",
+        files: [FileElement] = [.file(path: "/file1.ttf"), .file(path: "/file2.ttf")]
+    ) -> CopyFilesAction {
         CopyFilesAction(
             name: name,
             destination: destination,

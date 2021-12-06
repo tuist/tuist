@@ -64,7 +64,10 @@ final class SigningFilesLocatorTests: TuistUnitTestCase {
         // Given
         let rootDirectory = try temporaryPath()
         rootDirectoryLocator.locateStub = rootDirectory
-        let expectedSigningDirectory = rootDirectory.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
+        let expectedSigningDirectory = rootDirectory.appending(
+            components: Constants.tuistDirectoryName,
+            Constants.signingDirectoryName
+        )
         try fileHandler.createFolder(expectedSigningDirectory)
 
         // When

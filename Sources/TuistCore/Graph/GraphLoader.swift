@@ -130,7 +130,7 @@ public final class GraphLoader: GraphLoading {
             throw GraphLoadingError.missingProject(path)
         }
         guard let referencedTargetProject = cache.allTargets[path],
-            let target = referencedTargetProject[name]
+              let target = referencedTargetProject[name]
         else {
             throw GraphLoadingError.targetNotFound(name, path)
         }
@@ -281,7 +281,12 @@ public final class GraphLoader: GraphLoading {
                          status: SDKStatus,
                          source: SDKSource) throws -> GraphDependency
     {
-        let metadata = try systemFrameworkMetadataProvider.loadMetadata(sdkName: name, status: status, platform: platform, source: source)
+        let metadata = try systemFrameworkMetadataProvider.loadMetadata(
+            sdkName: name,
+            status: status,
+            platform: platform,
+            source: source
+        )
         return .sdk(name: metadata.name, path: metadata.path, status: metadata.status, source: metadata.source)
     }
 
@@ -354,8 +359,8 @@ public final class GraphLoader: GraphLoading {
     }
 }
 
-private extension Package {
-    var name: String {
+extension Package {
+    fileprivate var name: String {
         switch self {
         case let .local(path: path):
             return path.pathString

@@ -297,7 +297,8 @@ extension PackageInfo.Target.Dependency: Decodable {
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         guard let key = values.allKeys.first(where: values.contains) else {
-            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Did not find a matching key"))
+            throw DecodingError
+                .dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Did not find a matching key"))
         }
 
         var unkeyedValues = try values.nestedUnkeyedContainer(forKey: key)
@@ -331,7 +332,8 @@ extension PackageInfo.Product.ProductType: Decodable {
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
         guard let key = values.allKeys.first(where: values.contains) else {
-            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Did not find a matching key"))
+            throw DecodingError
+                .dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Did not find a matching key"))
         }
         switch key {
         case .library:

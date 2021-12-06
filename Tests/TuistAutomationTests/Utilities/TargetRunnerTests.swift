@@ -157,7 +157,10 @@ final class TargetRunnerTests: TuistUnitTestCase {
         xcodeProjectBuildDirectoryLocator.locateStub = { _, _, _ in outputPath }
         xcodeBuildController.showBuildSettingsStub = { _, _, _ in
             let settings = ["PRODUCT_BUNDLE_IDENTIFIER": bundleId]
-            return .just([graphTarget.target.name: XcodeBuildSettings(settings, target: graphTarget.target.name, configuration: "Debug")])
+            return .just([
+                graphTarget.target
+                    .name: XcodeBuildSettings(settings, target: graphTarget.target.name, configuration: "Debug"),
+            ])
         }
         simulatorController.findAvailableDeviceStub = { _platform, _version, _minVersion, _deviceName in
             XCTAssertEqual(_platform, .iOS)

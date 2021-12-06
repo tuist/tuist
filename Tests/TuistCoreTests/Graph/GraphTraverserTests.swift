@@ -158,10 +158,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let unitTests = Target.test(name: "UnitTests", product: .unitTests)
         let uiTests = Target.test(name: "UITests", product: .uiTests)
         let targets: [AbsolutePath: [String: Target]] = [
-            path: [framework.name: framework,
-                   dependantFramework.name: dependantFramework,
-                   unitTests.name: unitTests,
-                   uiTests.name: uiTests],
+            path: [
+                framework.name: framework,
+                dependantFramework.name: dependantFramework,
+                unitTests.name: unitTests,
+                uiTests.name: uiTests,
+            ],
         ]
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: unitTests.name, path: path): Set([.target(name: framework.name, path: path)]),
@@ -191,8 +193,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let framework = Target.test(name: "Framework", product: .framework)
         let staticLibrary = Target.test(name: "StaticLibrary", product: .staticLibrary)
         let targets: [AbsolutePath: [String: Target]] = [
-            path: [framework.name: framework,
-                   staticLibrary.name: staticLibrary],
+            path: [
+                framework.name: framework,
+                staticLibrary.name: staticLibrary,
+            ],
         ]
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: framework.name, path: path): Set([.target(name: staticLibrary.name, path: path)]),
@@ -210,7 +214,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.directStaticDependencies(path: path, name: framework.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [.product(target: staticLibrary.name, productName: staticLibrary.productNameWithExtension, platformFilter: .ios)])
+        XCTAssertEqual(
+            got,
+            [.product(target: staticLibrary.name, productName: staticLibrary.productNameWithExtension, platformFilter: .ios)]
+        )
     }
 
     func test_directLocalTargetDependencies() {
@@ -353,9 +360,11 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
-            targets: [project.path: [app.name: app,
-                                     watchApp.name: watchApp,
-                                     bundle.name: bundle]],
+            targets: [project.path: [
+                app.name: app,
+                watchApp.name: watchApp,
+                bundle.name: bundle,
+            ]],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -385,9 +394,11 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
-            targets: [project.path: [app.name: app,
-                                     staticLibrary.name: staticLibrary,
-                                     bundle.name: bundle]],
+            targets: [project.path: [
+                app.name: app,
+                staticLibrary.name: staticLibrary,
+                bundle.name: bundle,
+            ]],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -417,8 +428,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
-            targets: [project.path: [staticLibrary.name: staticLibrary,
-                                     bundle.name: bundle]],
+            targets: [project.path: [
+                staticLibrary.name: staticLibrary,
+                bundle.name: bundle,
+            ]],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -445,8 +458,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
-            targets: [project.path: [app.name: app,
-                                     bundle.name: bundle]],
+            targets: [project.path: [
+                app.name: app,
+                bundle.name: bundle,
+            ]],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -476,10 +491,14 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // Given: Value Graph
         let graph = Graph.test(
             path: .root,
-            projects: [projectA.path: projectA,
-                       projectB.path: projectB],
-            targets: [projectA.path: [bundle.name: bundle],
-                      projectB.path: [app.name: app]],
+            projects: [
+                projectA.path: projectA,
+                projectB.path: projectB,
+            ],
+            targets: [
+                projectA.path: [bundle.name: bundle],
+                projectB.path: [app.name: app],
+            ],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -511,11 +530,17 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // Given: Value Graph
         let graph = Graph.test(
             path: .root,
-            projects: [projectA.path: projectA,
-                       projectB.path: projectB],
-            targets: [projectA.path: [bundle.name: bundle,
-                                      staticFramework.name: staticFramework],
-                      projectB.path: [app.name: app]],
+            projects: [
+                projectA.path: projectA,
+                projectB.path: projectB,
+            ],
+            targets: [
+                projectA.path: [
+                    bundle.name: bundle,
+                    staticFramework.name: staticFramework,
+                ],
+                projectB.path: [app.name: app],
+            ],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -543,8 +568,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: bundle1.name, path: projectA.path): Set([]),
             .target(name: bundle2.name, path: projectA.path): Set([]),
-            .target(name: staticFramework1.name, path: projectA.path): Set([.target(name: bundle1.name, path: projectA.path),
-                                                                            .target(name: staticFramework2.name, path: projectA.path)]),
+            .target(name: staticFramework1.name, path: projectA.path): Set([
+                .target(name: bundle1.name, path: projectA.path),
+                .target(
+                    name: staticFramework2.name,
+                    path: projectA.path
+                ),
+            ]),
             .target(name: staticFramework2.name, path: projectA.path): Set([.target(name: bundle2.name, path: projectA.path)]),
             .target(name: app.name, path: projectB.path): Set([.target(name: staticFramework1.name, path: projectA.path)]),
         ]
@@ -552,13 +582,19 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // Given: Value Graph
         let graph = Graph.test(
             path: .root,
-            projects: [projectA.path: projectA,
-                       projectB.path: projectB],
-            targets: [projectA.path: [bundle1.name: bundle1,
-                                      bundle2.name: bundle2,
-                                      staticFramework1.name: staticFramework1,
-                                      staticFramework2.name: staticFramework2],
-                      projectB.path: [app.name: app]],
+            projects: [
+                projectA.path: projectA,
+                projectB.path: projectB,
+            ],
+            targets: [
+                projectA.path: [
+                    bundle1.name: bundle1,
+                    bundle2.name: bundle2,
+                    staticFramework1.name: staticFramework1,
+                    staticFramework2.name: staticFramework2,
+                ],
+                projectB.path: [app.name: app],
+            ],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -589,31 +625,46 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: bundle.name, path: projectA.path): Set([]),
-            .target(name: staticFramework1.name, path: projectA.path): Set([.target(name: staticFramework2.name, path: projectA.path)]),
+            .target(
+                name: staticFramework1.name,
+                path: projectA.path
+            ): Set([.target(name: staticFramework2.name, path: projectA.path)]),
             .target(name: staticFramework2.name, path: projectA.path): Set([.target(name: bundle.name, path: projectA.path)]),
-            .target(name: dynamicFramework.name, path: projectA.path): Set([.target(name: staticFramework2.name, path: projectA.path)]),
+            .target(
+                name: dynamicFramework.name,
+                path: projectA.path
+            ): Set([.target(name: staticFramework2.name, path: projectA.path)]),
             .target(name: app.name, path: projectB.path): Set([.target(name: dynamicFramework.name, path: projectA.path)]),
         ]
 
         // Given: Value Graph
         let graph = Graph.test(
             path: .root,
-            projects: [projectA.path: projectA,
-                       projectB.path: projectB],
-            targets: [projectA.path: [bundle.name: bundle,
-                                      staticFramework1.name: staticFramework1,
-                                      staticFramework2.name: staticFramework2,
-                                      dynamicFramework.name: dynamicFramework],
-                      projectB.path: [app.name: app]],
+            projects: [
+                projectA.path: projectA,
+                projectB.path: projectB,
+            ],
+            targets: [
+                projectA.path: [
+                    bundle.name: bundle,
+                    staticFramework1.name: staticFramework1,
+                    staticFramework2.name: staticFramework2,
+                    dynamicFramework.name: dynamicFramework,
+                ],
+                projectB.path: [app.name: app],
+            ],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
 
         // When
         let appResults = subject.resourceBundleDependencies(path: projectB.path, name: app.name).sorted()
-        let dynamicFrameworkResults = subject.resourceBundleDependencies(path: projectA.path, name: dynamicFramework.name).sorted()
-        let staticFramework1Results = subject.resourceBundleDependencies(path: projectA.path, name: staticFramework1.name).sorted()
-        let staticFramework2Results = subject.resourceBundleDependencies(path: projectA.path, name: staticFramework2.name).sorted()
+        let dynamicFrameworkResults = subject.resourceBundleDependencies(path: projectA.path, name: dynamicFramework.name)
+            .sorted()
+        let staticFramework1Results = subject.resourceBundleDependencies(path: projectA.path, name: staticFramework1.name)
+            .sorted()
+        let staticFramework2Results = subject.resourceBundleDependencies(path: projectA.path, name: staticFramework2.name)
+            .sorted()
 
         // Then
         XCTAssertEqual(appResults, [])
@@ -843,9 +894,11 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
-            targets: [project.path: [app.name: app,
-                                     staticLibrary.name: staticLibrary,
-                                     bundle.name: bundle]],
+            targets: [project.path: [
+                app.name: app,
+                staticLibrary.name: staticLibrary,
+                bundle.name: bundle,
+            ]],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -873,8 +926,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let bundle = Target.test(name: "Bundle", product: .bundle)
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: app.name, path: project.path): Set([.target(name: staticLibrary.name, path: project.path),
-                                                              .target(name: frameworkA.name, path: project.path)]),
+            .target(name: app.name, path: project.path): Set([
+                .target(name: staticLibrary.name, path: project.path),
+                .target(name: frameworkA.name, path: project.path),
+            ]),
             .target(name: staticLibrary.name, path: project.path): Set([.target(name: bundle.name, path: project.path)]),
             .target(name: bundle.name, path: project.path): Set([]),
             .target(name: frameworkB.name, path: project.path): Set([]),
@@ -884,11 +939,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
-            targets: [project.path: [app.name: app,
-                                     staticLibrary.name: staticLibrary,
-                                     bundle.name: bundle,
-                                     frameworkA.name: frameworkA,
-                                     frameworkB.name: frameworkB]],
+            targets: [project.path: [
+                app.name: app,
+                staticLibrary.name: staticLibrary,
+                bundle.name: bundle,
+                frameworkA.name: frameworkA,
+                frameworkB.name: frameworkB,
+            ]],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -928,8 +985,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
-            targets: [project.path: [target.name: target,
-                                     dependency.name: dependency]],
+            targets: [project.path: [
+                target.name: target,
+                dependency.name: dependency,
+            ]],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -955,8 +1014,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
-            targets: [project.path: [target.name: target,
-                                     dependency.name: dependency]],
+            targets: [project.path: [
+                target.name: target,
+                dependency.name: dependency,
+            ]],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -982,8 +1043,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: project.path,
             projects: [project.path: project],
-            targets: [project.path: [app.name: app,
-                                     messageExtension.name: messageExtension]],
+            targets: [project.path: [
+                app.name: app,
+                messageExtension.name: messageExtension,
+            ]],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -1007,7 +1070,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let graph = Graph.test(
             projects: [project.path: project],
             targets: [project.path: [app.name: app, appClip.name: appClip]],
-            dependencies: [.target(name: app.name, path: project.path): Set(arrayLiteral: .target(name: appClip.name, path: project.path))]
+            dependencies: [.target(
+                name: app.name,
+                path: project.path
+            ): Set(arrayLiteral: .target(name: appClip.name, path: project.path))]
         )
         let subject = GraphTraverser(graph: graph)
 
@@ -1029,7 +1095,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
             projects: [project.path: project],
             targets: [project.path: [dependency.name: dependency, target.name: target]],
             dependencies: [
-                .target(name: target.name, path: project.path): Set(arrayLiteral: .target(name: dependency.name, path: project.path)),
+                .target(
+                    name: target.name,
+                    path: project.path
+                ): Set(arrayLiteral: .target(name: dependency.name, path: project.path)),
             ]
         )
         let subject = GraphTraverser(graph: graph)
@@ -1052,7 +1121,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
             projects: [project.path: project],
             targets: [project.path: [dependency.name: dependency, target.name: target]],
             dependencies: [
-                .target(name: target.name, path: project.path): Set(arrayLiteral: .target(name: dependency.name, path: project.path)),
+                .target(
+                    name: target.name,
+                    path: project.path
+                ): Set(arrayLiteral: .target(name: dependency.name, path: project.path)),
             ]
         )
         let subject = GraphTraverser(graph: graph)
@@ -1061,7 +1133,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = subject.embeddableFrameworks(path: project.path, name: target.name).sorted()
 
         // Then
-        XCTAssertEqual(got.first, GraphDependencyReference.product(target: "Dependency", productName: "Dependency.framework", platformFilter: .ios))
+        XCTAssertEqual(
+            got.first,
+            GraphDependencyReference.product(target: "Dependency", productName: "Dependency.framework", platformFilter: .ios)
+        )
     }
 
     func test_embeddableFrameworks_when_dependencyIsAFramework() throws {
@@ -1213,15 +1288,23 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Given: Value Graph
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: watchExtension.name, path: project.path): Set(arrayLiteral: .target(name: frameworkA.name, path: project.path)),
+            .target(
+                name: watchExtension.name,
+                path: project.path
+            ): Set(arrayLiteral: .target(name: frameworkA.name, path: project.path)),
             .target(name: frameworkB.name, path: project.path): Set(),
-            .target(name: frameworkA.name, path: project.path): Set(arrayLiteral: .target(name: frameworkB.name, path: project.path)),
+            .target(
+                name: frameworkA.name,
+                path: project.path
+            ): Set(arrayLiteral: .target(name: frameworkB.name, path: project.path)),
         ]
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [project.path: [frameworkA.name: frameworkA,
-                                     frameworkB.name: frameworkB,
-                                     watchExtension.name: watchExtension]],
+            targets: [project.path: [
+                frameworkA.name: frameworkA,
+                frameworkB.name: frameworkB,
+                watchExtension.name: watchExtension,
+            ]],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -1255,9 +1338,11 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ]
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [project.path: [app.name: app,
-                                     tests.name: tests,
-                                     framework.name: framework]],
+            targets: [project.path: [
+                app.name: app,
+                tests.name: tests,
+                framework.name: framework,
+            ]],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -1287,12 +1372,17 @@ final class GraphTraverserTests: TuistUnitTestCase {
         )
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: target.name, path: project.path): Set(),
-            .target(name: unitTests.name, path: project.path): Set(arrayLiteral: .target(name: target.name, path: project.path), precompiledDependency),
+            .target(name: unitTests.name, path: project.path): Set(
+                arrayLiteral: .target(name: target.name, path: project.path),
+                precompiledDependency
+            ),
         ]
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [project.path: [unitTests.name: unitTests,
-                                     target.name: target]],
+            targets: [project.path: [
+                unitTests.name: unitTests,
+                target.name: target,
+            ]],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -1322,17 +1412,28 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Given: Value Graph
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: app.name, path: project.path): Set(arrayLiteral: .target(name: staticFramework.name, path: project.path)),
+            .target(
+                name: app.name,
+                path: project.path
+            ): Set(arrayLiteral: .target(name: staticFramework.name, path: project.path)),
             .target(name: framework.name, path: project.path): Set(),
-            .target(name: staticFramework.name, path: project.path): Set(arrayLiteral: .target(name: framework.name, path: project.path)),
-            .target(name: tests.name, path: project.path): Set(arrayLiteral: .target(name: app.name, path: project.path), .target(name: staticFramework.name, path: project.path)),
+            .target(
+                name: staticFramework.name,
+                path: project.path
+            ): Set(arrayLiteral: .target(name: framework.name, path: project.path)),
+            .target(name: tests.name, path: project.path): Set(
+                arrayLiteral: .target(name: app.name, path: project.path),
+                .target(name: staticFramework.name, path: project.path)
+            ),
         ]
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [project.path: [framework.name: framework,
-                                     staticFramework.name: staticFramework,
-                                     app.name: app,
-                                     tests.name: tests]],
+            targets: [project.path: [
+                framework.name: framework,
+                staticFramework.name: staticFramework,
+                app.name: app,
+                tests.name: tests,
+            ]],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -1367,8 +1468,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ]
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [project.path: [app.name: app,
-                                     uiTests.name: uiTests]],
+            targets: [project.path: [
+                app.name: app,
+                uiTests.name: uiTests,
+            ]],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -1474,7 +1577,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got.first, GraphDependencyReference(precompiledDependency))
     }
 
-    func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledStaticBinaryWithPrecompiledStaticBinaryDependency() throws {
+    func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledStaticBinaryWithPrecompiledStaticBinaryDependency(
+    ) throws {
         // App ---(depends on)---> Precompiled static binary (A) ---> Precompiled static binary (B)
 
         // Given
@@ -1529,7 +1633,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertTrue(embeddable.isEmpty)
     }
 
-    func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicBinaryWithPrecompiledDynamicBinaryDependency() throws {
+    func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicBinaryWithPrecompiledDynamicBinaryDependency(
+    ) throws {
         // App ---(depends on)---> Precompiled dynamic binary (A) ----> Precompiled dynamic binary (B)
 
         // Given
@@ -1587,7 +1692,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
-    func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledStaticBinaryWithPrecompiledDynamicBinaryDependency() throws {
+    func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledStaticBinaryWithPrecompiledDynamicBinaryDependency(
+    ) throws {
         // App ---(depends on)---> Precompiled static binary (A) ----> Precompiled dynamic binary (B)
 
         // Given
@@ -1644,7 +1750,8 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ])
     }
 
-    func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicBinaryWithPrecompiledStaticBinaryDependency() throws {
+    func test_linkableAndEmbeddableDependencies_when_appDependensOnPrecompiledDynamicBinaryWithPrecompiledStaticBinaryDependency(
+    ) throws {
         // App ---(depends on)---> Precompiled dynamic binary (A) ----> Precompiled static binary (B)
 
         // Given
@@ -1736,14 +1843,19 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // Given: Value Graph
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: target.name, path: project.path): Set(arrayLiteral: .target(name: dependency.name, path: project.path)),
-            .target(name: dependency.name, path: project.path): Set(arrayLiteral: .target(name: staticDependency.name, path: project.path)),
+            .target(
+                name: dependency.name,
+                path: project.path
+            ): Set(arrayLiteral: .target(name: staticDependency.name, path: project.path)),
             .target(name: staticDependency.name, path: project.path): Set(),
         ]
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [project.path: [target.name: target,
-                                     dependency.name: dependency,
-                                     staticDependency.name: staticDependency]],
+            targets: [project.path: [
+                target.name: target,
+                dependency.name: dependency,
+                staticDependency.name: staticDependency,
+            ]],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -1761,7 +1873,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let frameworkGot = try subject.linkableDependencies(path: project.path, name: dependency.name)
 
         XCTAssertEqual(frameworkGot.count, 1)
-        XCTAssertTrue(frameworkGot.contains(.product(target: "StaticDependency", productName: "libStaticDependency.a", platformFilter: .ios)))
+        XCTAssertTrue(
+            frameworkGot
+                .contains(.product(target: "StaticDependency", productName: "libStaticDependency.a", platformFilter: .ios))
+        )
     }
 
     func test_linkableDependencies_transitiveDynamicLibrariesOneStaticHop() throws {
@@ -1781,15 +1896,23 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Given: Value Graph
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: app.name, path: project.path): Set(arrayLiteral: .target(name: staticFramework.name, path: project.path)),
-            .target(name: staticFramework.name, path: project.path): Set(arrayLiteral: .target(name: dynamicFramework.name, path: project.path)),
+            .target(
+                name: app.name,
+                path: project.path
+            ): Set(arrayLiteral: .target(name: staticFramework.name, path: project.path)),
+            .target(
+                name: staticFramework.name,
+                path: project.path
+            ): Set(arrayLiteral: .target(name: dynamicFramework.name, path: project.path)),
             .target(name: dynamicFramework.name, path: project.path): Set(),
         ]
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [project.path: [app.name: app,
-                                     staticFramework.name: staticFramework,
-                                     dynamicFramework.name: dynamicFramework]],
+            targets: [project.path: [
+                app.name: app,
+                staticFramework.name: staticFramework,
+                dynamicFramework.name: dynamicFramework,
+            ]],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -1798,8 +1921,18 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let got = try subject.linkableDependencies(path: project.path, name: app.name).sorted()
 
         // Then
-        XCTAssertEqual(got, [GraphDependencyReference.product(target: "DynamicFramework", productName: "DynamicFramework.framework", platformFilter: .ios),
-                             GraphDependencyReference.product(target: "StaticFramework", productName: "StaticFramework.framework", platformFilter: .ios)])
+        XCTAssertEqual(
+            got,
+            [
+                GraphDependencyReference
+                    .product(target: "DynamicFramework", productName: "DynamicFramework.framework", platformFilter: .ios),
+                GraphDependencyReference.product(
+                    target: "StaticFramework",
+                    productName: "StaticFramework.framework",
+                    platformFilter: .ios
+                ),
+            ]
+        )
     }
 
     func test_linkableDependencies_transitiveDynamicLibrariesThreeHops() throws {
@@ -1829,19 +1962,33 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Given: Value Graph
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: app.name, path: project.path): Set(arrayLiteral: .target(name: dynamicFramework1.name, path: project.path)),
-            .target(name: dynamicFramework1.name, path: project.path): Set(arrayLiteral: .target(name: staticFramework1.name, path: project.path)),
-            .target(name: staticFramework1.name, path: project.path): Set(arrayLiteral: .target(name: staticFramework2.name, path: project.path)),
-            .target(name: staticFramework2.name, path: project.path): Set(arrayLiteral: .target(name: dynamicFramework2.name, path: project.path)),
+            .target(
+                name: app.name,
+                path: project.path
+            ): Set(arrayLiteral: .target(name: dynamicFramework1.name, path: project.path)),
+            .target(
+                name: dynamicFramework1.name,
+                path: project.path
+            ): Set(arrayLiteral: .target(name: staticFramework1.name, path: project.path)),
+            .target(
+                name: staticFramework1.name,
+                path: project.path
+            ): Set(arrayLiteral: .target(name: staticFramework2.name, path: project.path)),
+            .target(
+                name: staticFramework2.name,
+                path: project.path
+            ): Set(arrayLiteral: .target(name: dynamicFramework2.name, path: project.path)),
             .target(name: dynamicFramework2.name, path: project.path): Set(),
         ]
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [project.path: [app.name: app,
-                                     dynamicFramework1.name: dynamicFramework1,
-                                     dynamicFramework2.name: dynamicFramework2,
-                                     staticFramework1.name: staticFramework1,
-                                     staticFramework2.name: staticFramework2]],
+            targets: [project.path: [
+                app.name: app,
+                dynamicFramework1.name: dynamicFramework1,
+                dynamicFramework2.name: dynamicFramework2,
+                staticFramework1.name: staticFramework1,
+                staticFramework2.name: staticFramework2,
+            ]],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -1852,12 +1999,28 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(appGot, [
-            GraphDependencyReference.product(target: "DynamicFramework1", productName: "DynamicFramework1.framework", platformFilter: .ios),
+            GraphDependencyReference.product(
+                target: "DynamicFramework1",
+                productName: "DynamicFramework1.framework",
+                platformFilter: .ios
+            ),
         ])
         XCTAssertEqual(dynamicFramework1Got, [
-            GraphDependencyReference.product(target: "DynamicFramework2", productName: "DynamicFramework2.framework", platformFilter: .ios),
-            GraphDependencyReference.product(target: "StaticFramework1", productName: "libStaticFramework1.a", platformFilter: .ios),
-            GraphDependencyReference.product(target: "StaticFramework2", productName: "libStaticFramework2.a", platformFilter: .ios),
+            GraphDependencyReference.product(
+                target: "DynamicFramework2",
+                productName: "DynamicFramework2.framework",
+                platformFilter: .ios
+            ),
+            GraphDependencyReference.product(
+                target: "StaticFramework1",
+                productName: "libStaticFramework1.a",
+                platformFilter: .ios
+            ),
+            GraphDependencyReference.product(
+                target: "StaticFramework2",
+                productName: "libStaticFramework2.a",
+                platformFilter: .ios
+            ),
         ])
     }
 
@@ -1895,21 +2058,38 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Given: Value Graph
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: app.name, path: project.path): Set(arrayLiteral: .target(name: dynamicFramework1.name, path: project.path)),
-            .target(name: dynamicFramework1.name, path: project.path): Set(arrayLiteral: .target(name: dynamicFramework2.name, path: project.path)),
-            .target(name: dynamicFramework2.name, path: project.path): Set(arrayLiteral: .target(name: staticFramework1.name, path: project.path)),
-            .target(name: staticFramework1.name, path: project.path): Set(arrayLiteral: .target(name: staticFramework2.name, path: project.path)),
-            .target(name: staticFramework2.name, path: project.path): Set(arrayLiteral: .target(name: dynamicFramework3.name, path: project.path)),
+            .target(
+                name: app.name,
+                path: project.path
+            ): Set(arrayLiteral: .target(name: dynamicFramework1.name, path: project.path)),
+            .target(
+                name: dynamicFramework1.name,
+                path: project.path
+            ): Set(arrayLiteral: .target(name: dynamicFramework2.name, path: project.path)),
+            .target(
+                name: dynamicFramework2.name,
+                path: project.path
+            ): Set(arrayLiteral: .target(name: staticFramework1.name, path: project.path)),
+            .target(
+                name: staticFramework1.name,
+                path: project.path
+            ): Set(arrayLiteral: .target(name: staticFramework2.name, path: project.path)),
+            .target(
+                name: staticFramework2.name,
+                path: project.path
+            ): Set(arrayLiteral: .target(name: dynamicFramework3.name, path: project.path)),
             .target(name: dynamicFramework3.name, path: project.path): Set(),
         ]
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [project.path: [app.name: app,
-                                     dynamicFramework1.name: dynamicFramework1,
-                                     dynamicFramework2.name: dynamicFramework2,
-                                     staticFramework1.name: staticFramework1,
-                                     staticFramework2.name: staticFramework2,
-                                     dynamicFramework3.name: dynamicFramework3]],
+            targets: [project.path: [
+                app.name: app,
+                dynamicFramework1.name: dynamicFramework1,
+                dynamicFramework2.name: dynamicFramework2,
+                staticFramework1.name: staticFramework1,
+                staticFramework2.name: staticFramework2,
+                dynamicFramework3.name: dynamicFramework3,
+            ]],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -1918,7 +2098,13 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let dynamicFramework1Got = try subject.linkableDependencies(path: project.path, name: dynamicFramework1.name).sorted()
 
         // Then
-        XCTAssertEqual(dynamicFramework1Got, [GraphDependencyReference.product(target: "DynamicFramework2", productName: "DynamicFramework2.framework", platformFilter: .ios)])
+        XCTAssertEqual(
+            dynamicFramework1Got,
+            [
+                GraphDependencyReference
+                    .product(target: "DynamicFramework2", productName: "DynamicFramework2.framework", platformFilter: .ios),
+            ]
+        )
     }
 
     func test_linkableDependencies_transitiveSDKDependenciesStatic() throws {
@@ -1938,8 +2124,14 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Given: Value Graph
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: app.name, path: project.path): Set(arrayLiteral: .target(name: staticFrameworkB.name, path: project.path)),
-            .target(name: staticFrameworkB.name, path: project.path): Set(arrayLiteral: .target(name: staticFrameworkA.name, path: project.path)),
+            .target(
+                name: app.name,
+                path: project.path
+            ): Set(arrayLiteral: .target(name: staticFrameworkB.name, path: project.path)),
+            .target(
+                name: staticFrameworkB.name,
+                path: project.path
+            ): Set(arrayLiteral: .target(name: staticFrameworkA.name, path: project.path)),
             .target(name: staticFrameworkA.name, path: project.path): Set(arrayLiteral: .sdk(
                 name: "some.framework",
                 path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/some.framework",
@@ -1949,9 +2141,11 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ]
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [project.path: [app.name: app,
-                                     staticFrameworkB.name: staticFrameworkB,
-                                     staticFrameworkA.name: staticFrameworkA]],
+            targets: [project.path: [
+                app.name: app,
+                staticFrameworkB.name: staticFrameworkB,
+                staticFrameworkA.name: staticFrameworkA,
+            ]],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -1982,8 +2176,14 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Given: Value Graph
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: app.name, path: project.path): Set(arrayLiteral: .target(name: dynamicFramework.name, path: project.path)),
-            .target(name: dynamicFramework.name, path: project.path): Set(arrayLiteral: .target(name: staticFramework.name, path: project.path)),
+            .target(
+                name: app.name,
+                path: project.path
+            ): Set(arrayLiteral: .target(name: dynamicFramework.name, path: project.path)),
+            .target(
+                name: dynamicFramework.name,
+                path: project.path
+            ): Set(arrayLiteral: .target(name: staticFramework.name, path: project.path)),
             .target(name: staticFramework.name, path: project.path): Set(arrayLiteral: .sdk(
                 name: "some.framework",
                 path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/some.framework",
@@ -1993,9 +2193,11 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ]
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [project.path: [app.name: app,
-                                     staticFramework.name: staticFramework,
-                                     dynamicFramework.name: dynamicFramework]],
+            targets: [project.path: [
+                app.name: app,
+                staticFramework.name: staticFramework,
+                dynamicFramework.name: dynamicFramework,
+            ]],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -2029,7 +2231,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Given: Value Graph
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: app.name, path: project.path): Set(arrayLiteral: .target(name: staticFramework.name, path: project.path)),
+            .target(
+                name: app.name,
+                path: project.path
+            ): Set(arrayLiteral: .target(name: staticFramework.name, path: project.path)),
             .target(name: staticFramework.name, path: project.path): Set(arrayLiteral: .sdk(
                 name: "some.framework",
                 path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/some.framework",
@@ -2039,8 +2244,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ]
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [project.path: [app.name: app,
-                                     staticFramework.name: staticFramework]],
+            targets: [project.path: [
+                app.name: app,
+                staticFramework.name: staticFramework,
+            ]],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -2057,8 +2264,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let staticFramework = Target.test(
             name: "StaticFrameworkA",
             product: .staticFramework,
-            dependencies: [.sdk(name: "thingone.framework", status: .optional),
-                           .sdk(name: "thingtwo.framework", status: .required)]
+            dependencies: [
+                .sdk(name: "thingone.framework", status: .optional),
+                .sdk(name: "thingtwo.framework", status: .required),
+            ]
         )
 
         let project = Project.test(path: "/path/a")
@@ -2093,8 +2302,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(
             got.compactMap(sdkDependency),
-            [SDKPathAndStatus(name: "thingone.framework", status: .optional),
-             SDKPathAndStatus(name: "thingtwo.framework", status: .required)]
+            [
+                SDKPathAndStatus(name: "thingone.framework", status: .optional),
+                SDKPathAndStatus(name: "thingtwo.framework", status: .required),
+            ]
         )
     }
 
@@ -2133,8 +2344,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ]
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [project.path: [staticFrameworkA.name: staticFrameworkA,
-                                     staticFrameworkB.name: staticFrameworkB]],
+            targets: [project.path: [
+                staticFrameworkA.name: staticFrameworkA,
+                staticFrameworkB.name: staticFrameworkB,
+            ]],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -2303,15 +2516,23 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Given: Value Graph
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: watchExtension.name, path: project.path): Set(arrayLiteral: .target(name: frameworkA.name, path: project.path)),
-            .target(name: frameworkA.name, path: project.path): Set(arrayLiteral: .target(name: frameworkB.name, path: project.path)),
+            .target(
+                name: watchExtension.name,
+                path: project.path
+            ): Set(arrayLiteral: .target(name: frameworkA.name, path: project.path)),
+            .target(
+                name: frameworkA.name,
+                path: project.path
+            ): Set(arrayLiteral: .target(name: frameworkB.name, path: project.path)),
             .target(name: frameworkB.name, path: project.path): Set(),
         ]
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [project.path: [watchExtension.name: watchExtension,
-                                     frameworkA.name: frameworkA,
-                                     frameworkB.name: frameworkB]],
+            targets: [project.path: [
+                watchExtension.name: watchExtension,
+                frameworkA.name: frameworkA,
+                frameworkB.name: frameworkB,
+            ]],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -2334,15 +2555,23 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Given: Value Graph
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: watchExtension.name, path: project.path): Set(arrayLiteral: .target(name: frameworkA.name, path: project.path)),
-            .target(name: frameworkA.name, path: project.path): Set(arrayLiteral: .target(name: frameworkB.name, path: project.path)),
+            .target(
+                name: watchExtension.name,
+                path: project.path
+            ): Set(arrayLiteral: .target(name: frameworkA.name, path: project.path)),
+            .target(
+                name: frameworkA.name,
+                path: project.path
+            ): Set(arrayLiteral: .target(name: frameworkB.name, path: project.path)),
             .target(name: frameworkB.name, path: project.path): Set(),
         ]
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [project.path: [watchExtension.name: watchExtension,
-                                     frameworkA.name: frameworkA,
-                                     frameworkB.name: frameworkB]],
+            targets: [project.path: [
+                watchExtension.name: watchExtension,
+                frameworkA.name: frameworkA,
+                frameworkB.name: frameworkB,
+            ]],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -2370,7 +2599,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Given: Value Graph
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: app.name, path: project.path): Set(arrayLiteral: .target(name: staticFramework.name, path: project.path)),
+            .target(
+                name: app.name,
+                path: project.path
+            ): Set(arrayLiteral: .target(name: staticFramework.name, path: project.path)),
             .target(name: staticFramework.name, path: project.path): Set(),
             .target(name: tests.name, path: project.path): Set(
                 arrayLiteral: .target(name: staticFramework.name, path: project.path),
@@ -2379,9 +2611,11 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ]
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [project.path: [app.name: app,
-                                     staticFramework.name: staticFramework,
-                                     tests.name: tests]],
+            targets: [project.path: [
+                app.name: app,
+                staticFramework.name: staticFramework,
+                tests.name: tests,
+            ]],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -2415,9 +2649,11 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ]
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [project.path: [app.name: app,
-                                     framework.name: framework,
-                                     tests.name: tests]],
+            targets: [project.path: [
+                app.name: app,
+                framework.name: framework,
+                tests.name: tests,
+            ]],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -2450,9 +2686,11 @@ final class GraphTraverserTests: TuistUnitTestCase {
         ]
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [project.path: [app.name: app,
-                                     framework.name: framework,
-                                     tests.name: tests]],
+            targets: [project.path: [
+                app.name: app,
+                framework.name: framework,
+                tests.name: tests,
+            ]],
             dependencies: dependencies
         )
         let subject = GraphTraverser(graph: graph)
@@ -2471,7 +2709,12 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Given: Value Graph
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: target.name, path: project.path): Set(arrayLiteral: .sdk(name: "AppClip.framework", path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/AppClip.framework", status: .required, source: .system)),
+            .target(name: target.name, path: project.path): Set(arrayLiteral: .sdk(
+                name: "AppClip.framework",
+                path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/AppClip.framework",
+                status: .required,
+                source: .system
+            )),
         ]
         let graph = Graph.test(
             projects: [project.path: project],
@@ -2930,10 +3173,15 @@ final class GraphTraverserTests: TuistUnitTestCase {
         )
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [project.path: [unitTests.name: unitTests,
-                                     app.name: app]],
+            targets: [project.path: [
+                unitTests.name: unitTests,
+                app.name: app,
+            ]],
             dependencies: [
-                .target(name: unitTests.name, path: project.path): Set([precompiledDependency, .target(name: app.name, path: project.path)]),
+                .target(
+                    name: unitTests.name,
+                    path: project.path
+                ): Set([precompiledDependency, .target(name: app.name, path: project.path)]),
                 .target(name: app.name, path: project.path): Set([]),
                 precompiledDependency: Set(),
             ]
@@ -2956,8 +3204,10 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // Given: Value Graph
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [project.path: [app.name: app,
-                                     watchApp.name: watchApp]],
+            targets: [project.path: [
+                app.name: app,
+                watchApp.name: watchApp,
+            ]],
             dependencies: [
                 .target(name: app.name, path: project.path): Set([.target(name: watchApp.name, path: project.path)]),
                 .target(name: watchApp.name, path: project.path): Set([]),
@@ -2981,10 +3231,15 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // Given: Value Graph
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [project.path: [watchAppExtension.name: watchAppExtension,
-                                     watchApp.name: watchApp]],
+            targets: [project.path: [
+                watchAppExtension.name: watchAppExtension,
+                watchApp.name: watchApp,
+            ]],
             dependencies: [
-                .target(name: watchApp.name, path: project.path): Set([.target(name: watchAppExtension.name, path: project.path)]),
+                .target(
+                    name: watchApp.name,
+                    path: project.path
+                ): Set([.target(name: watchAppExtension.name, path: project.path)]),
                 .target(name: watchAppExtension.name, path: project.path): Set([]),
             ]
         )
@@ -3007,9 +3262,11 @@ final class GraphTraverserTests: TuistUnitTestCase {
         // Given: Value Graph
         let graph = Graph.test(
             projects: [project.path: project],
-            targets: [project.path: [macosApp.name: macosApp,
-                                     tvosApp.name: tvosApp,
-                                     framework.name: framework]],
+            targets: [project.path: [
+                macosApp.name: macosApp,
+                tvosApp.name: tvosApp,
+                framework.name: framework,
+            ]],
             dependencies: [
                 .target(name: macosApp.name, path: project.path): Set(),
                 .target(name: tvosApp.name, path: project.path): Set(),
@@ -3036,10 +3293,14 @@ final class GraphTraverserTests: TuistUnitTestCase {
         let firstTarget = Target.test(name: "first")
         let secondTarget = Target.test(name: "second")
         let graph = Graph.test(
-            projects: [firstPath: firstProject,
-                       secondPath: secondProject],
-            targets: [firstPath: [firstTarget.name: firstTarget],
-                      secondPath: [secondTarget.name: secondTarget]]
+            projects: [
+                firstPath: firstProject,
+                secondPath: secondProject,
+            ],
+            targets: [
+                firstPath: [firstTarget.name: firstTarget],
+                secondPath: [secondTarget.name: secondTarget],
+            ]
         )
         let graphTraverser = GraphTraverser(graph: graph)
 

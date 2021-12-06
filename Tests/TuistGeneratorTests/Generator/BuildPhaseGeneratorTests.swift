@@ -131,7 +131,13 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let target = PBXNativeTarget(name: "Test")
         let pbxproj = PBXProj()
         pbxproj.add(object: target)
-        let targetScript = RawScriptBuildPhase(name: "Test", script: "Script", showEnvVarsInLog: true, hashable: false, shellPath: "/bin/zsh")
+        let targetScript = RawScriptBuildPhase(
+            name: "Test",
+            script: "Script",
+            showEnvVarsInLog: true,
+            hashable: false,
+            shellPath: "/bin/zsh"
+        )
         let targetScripts = [targetScript]
 
         // When
@@ -551,8 +557,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
     func test_generateResourcesBuildPhase_whenContainsResourcesTags() throws {
         // Given
         let temporaryPath = try self.temporaryPath()
-        let resources: [ResourceFileElement] = [.file(path: "/file.type", tags: ["fileTag"]),
-                                                .folderReference(path: "/folder", tags: ["folderTag"])]
+        let resources: [ResourceFileElement] = [
+            .file(path: "/file.type", tags: ["fileTag"]),
+            .folderReference(path: "/folder", tags: ["folderTag"]),
+        ]
         let target = Target.test(resources: resources)
         let fileElements = ProjectFileElements()
         let pbxproj = PBXProj()
@@ -612,8 +620,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: bundle1.name, path: project.path): Set(),
             .target(name: bundle2.name, path: project.path): Set(),
-            .target(name: app.name, path: project.path): Set([.target(name: bundle1.name, path: project.path),
-                                                              .target(name: bundle2.name, path: project.path)]),
+            .target(name: app.name, path: project.path): Set([
+                .target(name: bundle1.name, path: project.path),
+                .target(name: bundle2.name, path: project.path),
+            ]),
         ]
         let graph = Graph.test(
             path: path,
@@ -788,8 +798,10 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         ])
         XCTAssertEqual(
             pbxBuildPhase?.files?.compactMap { $0.settings as? [String: [String]] },
-            [["ATTRIBUTES": ["RemoveHeadersOnCopy"]],
-             ["ATTRIBUTES": ["RemoveHeadersOnCopy"]]]
+            [
+                ["ATTRIBUTES": ["RemoveHeadersOnCopy"]],
+                ["ATTRIBUTES": ["RemoveHeadersOnCopy"]],
+            ]
         )
     }
 
@@ -901,7 +913,12 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
                 ),
             ]
         )
-        let project = Project.test(path: path, sourceRootPath: path, xcodeProjPath: path.appending(component: "Project.xcodeproj"), targets: [target])
+        let project = Project.test(
+            path: path,
+            sourceRootPath: path,
+            xcodeProjPath: path.appending(component: "Project.xcodeproj"),
+            targets: [target]
+        )
         let groups = ProjectGroups.generate(
             project: project,
             pbxproj: pbxproj
@@ -972,7 +989,12 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
                 ),
             ]
         )
-        let project = Project.test(path: path, sourceRootPath: path, xcodeProjPath: path.appending(component: "Project.xcodeproj"), targets: [target])
+        let project = Project.test(
+            path: path,
+            sourceRootPath: path,
+            xcodeProjPath: path.appending(component: "Project.xcodeproj"),
+            targets: [target]
+        )
         let groups = ProjectGroups.generate(
             project: project,
             pbxproj: pbxproj

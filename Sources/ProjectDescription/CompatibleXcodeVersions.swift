@@ -52,7 +52,11 @@ public enum CompatibleXcodeVersions: ExpressibleByArrayLiteral, ExpressibleByStr
         case "list":
             self = .list(try container.decode([String].self, forKey: .value))
         default:
-            throw DecodingError.dataCorruptedError(forKey: CodignKeys.type, in: container, debugDescription: "Invalid type \(type)")
+            throw DecodingError.dataCorruptedError(
+                forKey: CodignKeys.type,
+                in: container,
+                debugDescription: "Invalid type \(type)"
+            )
         }
     }
 }

@@ -298,7 +298,13 @@ final class InfoPlistContentProviderTests: XCTestCase {
         let value = lhs?["CFBundlePackageType"] as? String
 
         if let packageType = packageType {
-            XCTAssertEqual(value, packageType, "Expected package type \(packageType) but got \(value ?? "")", file: file, line: line)
+            XCTAssertEqual(
+                value,
+                packageType,
+                "Expected package type \(packageType) but got \(value ?? "")",
+                file: file,
+                line: line
+            )
         } else {
             XCTAssertNil(value, "Expected package type to be nil and got \(value ?? "")", file: file, line: line)
         }

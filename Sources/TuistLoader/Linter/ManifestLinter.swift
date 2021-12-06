@@ -15,7 +15,7 @@ public class AnyManifestLinter: ManifestLinting {
     }
 
     public func lint(project: ProjectDescription.Project) -> [LintingIssue] {
-        if let lint = self.lint {
+        if let lint = lint {
             return lint(project)
         } else {
             return []
@@ -54,7 +54,10 @@ public class ManifestLinter: ManifestLinting {
         let configurationNames = settings.configurations.map(\.name.rawValue)
 
         return configurationNames.spm_findDuplicates().map {
-            LintingIssue(reason: "The configuration '\($0)' is declared multiple times within '\(declarationLocation)' settings. The last declared configuration will be used.", severity: .warning)
+            LintingIssue(
+                reason: "The configuration '\($0)' is declared multiple times within '\(declarationLocation)' settings. The last declared configuration will be used.",
+                severity: .warning
+            )
         }
     }
 
@@ -62,7 +65,10 @@ public class ManifestLinter: ManifestLinting {
         let currentVersions = coredataModels.compactMap(\.currentVersion)
 
         return currentVersions.map {
-            LintingIssue(reason: "The current core data model version '\(String(describing: $0))' will be infered automatically in '\(declarationLocation)' settings. It is not need it to set the current version anymore.", severity: .warning)
+            LintingIssue(
+                reason: "The current core data model version '\(String(describing: $0))' will be infered automatically in '\(declarationLocation)' settings. It is not need it to set the current version anymore.",
+                severity: .warning
+            )
         }
     }
 }

@@ -115,8 +115,10 @@ public final class MockSystem: Systeming {
         observable(arguments, verbose: verbose, environment: [:])
     }
 
-    public func observable(_ arguments: [String], verbose _: Bool, environment _: [String: String]) -> Observable<SystemEvent<Data>> {
-        Observable.create { (observer) -> Disposable in
+    public func observable(_ arguments: [String], verbose _: Bool,
+                           environment _: [String: String]) -> Observable<SystemEvent<Data>>
+    {
+        Observable.create { observer -> Disposable in
             let command = arguments.joined(separator: " ")
             guard let stub = self.stubs[command] else {
                 observer.onError(TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data()))
@@ -141,8 +143,10 @@ public final class MockSystem: Systeming {
         observable(arguments, environment: [:], pipeTo: pipedToArguments)
     }
 
-    public func observable(_ arguments: [String], environment _: [String: String], pipeTo _: [String]) -> Observable<SystemEvent<Data>> {
-        Observable.create { (observer) -> Disposable in
+    public func observable(_ arguments: [String], environment _: [String: String],
+                           pipeTo _: [String]) -> Observable<SystemEvent<Data>>
+    {
+        Observable.create { observer -> Disposable in
             let command = arguments.joined(separator: " ")
             guard let stub = self.stubs[command] else {
                 observer.onError(TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data()))
@@ -179,7 +183,7 @@ public final class MockSystem: Systeming {
 
     var swiftVersionStub: (() throws -> String)?
     public func swiftVersion() throws -> String {
-        if let swiftVersionStub = self.swiftVersionStub {
+        if let swiftVersionStub = swiftVersionStub {
             return try swiftVersionStub()
         } else {
             throw TestError("Call to non-stubbed method swiftVersion")

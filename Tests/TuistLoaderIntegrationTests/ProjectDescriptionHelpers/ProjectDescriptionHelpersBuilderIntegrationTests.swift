@@ -36,7 +36,11 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
         let helpersPath = path.appending(RelativePath("\(Constants.tuistDirectoryName)/\(Constants.helpersDirectoryName)"))
         try FileHandler.shared.createFolder(path.appending(component: Constants.tuistDirectoryName))
         try FileHandler.shared.createFolder(helpersPath)
-        try FileHandler.shared.write("import Foundation; class Test {}", path: helpersPath.appending(component: "Helper.swift"), atomically: true)
+        try FileHandler.shared.write(
+            "import Foundation; class Test {}",
+            path: helpersPath.appending(component: "Helper.swift"),
+            atomically: true
+        )
         let projectDescriptionPath = try resourceLocator.projectDescription()
         let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
 
@@ -62,7 +66,11 @@ final class ProjectDescriptionHelpersBuilderIntegrationTests: TuistTestCase {
         let helpersPluginPath = path.appending(components: "Plugin", Constants.helpersDirectoryName)
         try FileHandler.shared.createFolder(path.appending(component: "Plugin"))
         try FileHandler.shared.createFolder(helpersPluginPath)
-        try FileHandler.shared.write("import Foundation; class Test {}", path: helpersPluginPath.appending(component: "Helper.swift"), atomically: true)
+        try FileHandler.shared.write(
+            "import Foundation; class Test {}",
+            path: helpersPluginPath.appending(component: "Helper.swift"),
+            atomically: true
+        )
         let projectDescriptionPath = try resourceLocator.projectDescription()
         let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
         let plugins = [ProjectDescriptionHelpersPlugin(name: "Plugin", path: helpersPluginPath, location: .local)]

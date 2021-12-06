@@ -60,7 +60,7 @@ class ProjectFileElements {
         let projectFileElements = projectFiles(project: project)
         files.formUnion(projectFileElements)
 
-        let sortedFiles = files.sorted { (one, two) -> Bool in
+        let sortedFiles = files.sorted { one, two -> Bool in
             one.path < two.path
         }
 
@@ -509,7 +509,12 @@ class ProjectFileElements {
                         pbxproj: PBXProj)
     {
         let lastKnownFileType = fileAbsolutePath.extension.flatMap { Xcode.filetype(extension: $0) }
-        let file = PBXFileReference(sourceTree: .group, name: name, lastKnownFileType: lastKnownFileType, path: fileRelativePath.pathString)
+        let file = PBXFileReference(
+            sourceTree: .group,
+            name: name,
+            lastKnownFileType: lastKnownFileType,
+            path: fileRelativePath.pathString
+        )
         pbxproj.add(object: file)
         toGroup.children.append(file)
         elements[fileAbsolutePath] = file

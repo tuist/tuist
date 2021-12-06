@@ -39,14 +39,14 @@ public final class CacheLocalStorage: CacheStoring {
     // MARK: - CacheStoring
 
     public func exists(name _: String, hash: String) -> Single<Bool> {
-        Single.create { (completed) -> Disposable in
+        Single.create { completed -> Disposable in
             completed(.success(self.lookupCompiledArtifact(directory: self.cacheDirectory.appending(component: hash)) != nil))
             return Disposables.create()
         }
     }
 
     public func fetch(name _: String, hash: String) -> Single<AbsolutePath> {
-        Single.create { (completed) -> Disposable in
+        Single.create { completed -> Disposable in
             if let path = self.lookupCompiledArtifact(directory: self.cacheDirectory.appending(component: hash)) {
                 completed(.success(path))
             } else {
@@ -57,7 +57,7 @@ public final class CacheLocalStorage: CacheStoring {
     }
 
     public func store(name _: String, hash: String, paths: [AbsolutePath]) -> Completable {
-        let copy = Completable.create { (completed) -> Disposable in
+        let copy = Completable.create { completed -> Disposable in
             let hashFolder = self.cacheDirectory.appending(component: hash)
 
             do {
@@ -94,7 +94,7 @@ public final class CacheLocalStorage: CacheStoring {
     }
 
     fileprivate func createCacheDirectory() -> Completable {
-        Completable.create { (completed) -> Disposable in
+        Completable.create { completed -> Disposable in
             do {
                 if !FileHandler.shared.exists(self.cacheDirectory) {
                     try FileHandler.shared.createFolder(self.cacheDirectory)

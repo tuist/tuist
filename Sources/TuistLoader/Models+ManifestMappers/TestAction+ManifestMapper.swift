@@ -37,7 +37,8 @@ extension TuistGraph.TestAction {
             language = nil
             region = nil
         } else {
-            targets = try manifest.targets.map { try TuistGraph.TestableTarget.from(manifest: $0, generatorPaths: generatorPaths) }
+            targets = try manifest.targets
+                .map { try TuistGraph.TestableTarget.from(manifest: $0, generatorPaths: generatorPaths) }
             arguments = manifest.arguments.map { TuistGraph.Arguments.from(manifest: $0) }
             coverage = manifest.options.coverage
             codeCoverageTargets = try manifest.options.codeCoverageTargets.map {

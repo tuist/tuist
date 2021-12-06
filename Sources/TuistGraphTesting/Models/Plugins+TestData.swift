@@ -2,8 +2,8 @@ import Foundation
 import TSCBasic
 @testable import TuistGraph
 
-public extension Plugins {
-    static func test(
+extension Plugins {
+    public static func test(
         projectDescriptionHelpers: [ProjectDescriptionHelpersPlugin] = [],
         templatePaths: [AbsolutePath] = [],
         resourceSynthesizers: [PluginResourceSynthesizer] = [],

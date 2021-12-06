@@ -100,8 +100,10 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         let customConfiguration = Configuration(settings: ["A": "A", "C": "C"])
         let projectSettings = Settings(
             base: ["A": "A_BASE", "B": "B_BASE"],
-            configurations: [.debug("Custom"): customConfiguration,
-                             .release: nil]
+            configurations: [
+                .debug("Custom"): customConfiguration,
+                .release: nil,
+            ]
         )
 
         // When
@@ -150,18 +152,26 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
 
     func testGenerateWhenMultipleConfigurations() throws {
         // Given
-        let projectDebugConfiguration = Configuration(settings: ["A": "A_PROJECT_DEBUG",
-                                                                 "B": "B_PROJECT_DEBUG"])
-        let projectReleaseConfiguration = Configuration(settings: ["A": "A_PROJECT_RELEASE",
-                                                                   "C": "C_PROJECT_RELEASE"])
-        let projectSettings = Settings(configurations: [.debug: projectDebugConfiguration,
-                                                        .release("ProjectRelease"): projectReleaseConfiguration])
+        let projectDebugConfiguration = Configuration(settings: [
+            "A": "A_PROJECT_DEBUG",
+            "B": "B_PROJECT_DEBUG",
+        ])
+        let projectReleaseConfiguration = Configuration(settings: [
+            "A": "A_PROJECT_RELEASE",
+            "C": "C_PROJECT_RELEASE",
+        ])
+        let projectSettings = Settings(configurations: [
+            .debug: projectDebugConfiguration,
+            .release("ProjectRelease"): projectReleaseConfiguration,
+        ])
 
         let targetDebugConfiguration = Configuration(settings: ["B": "B_TARGET_DEBUG"])
         let targetStagingConfiguration = Configuration(settings: ["B": "B_TARGET_STAGING"])
 
-        let targetSettings = Settings(configurations: [.debug: targetDebugConfiguration,
-                                                       .release("Staging"): targetStagingConfiguration])
+        let targetSettings = Settings(configurations: [
+            .debug: targetDebugConfiguration,
+            .release("Staging"): targetStagingConfiguration,
+        ])
 
         // When
         try generateWorkspace(projectSettings: projectSettings, targetSettings: targetSettings)
@@ -206,21 +216,25 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         PROJECT_XCCONFIG=YES
         """)
         let projectDebugConfiguration = Configuration(
-            settings: ["C": "C_PROJECT",
-                       "D": "D_PROJECT",
-                       "E": "E_PROJECT",
-                       "F": "F_PROJECT",
-                       "PROJECT": "YES"],
+            settings: [
+                "C": "C_PROJECT",
+                "D": "D_PROJECT",
+                "E": "E_PROJECT",
+                "F": "F_PROJECT",
+                "PROJECT": "YES",
+            ],
             xcconfig: projectDebugFilePath
         )
 
         let projectSettings = Settings(
-            base: ["B": "B_PROJECT_BASE",
-                   "C": "C_PROJECT_BASE",
-                   "D": "D_PROJECT_BASE",
-                   "E": "E_PROJECT_BASE",
-                   "F": "F_PROJECT_BASE",
-                   "PROJECT_BASE": "YES"],
+            base: [
+                "B": "B_PROJECT_BASE",
+                "C": "C_PROJECT_BASE",
+                "D": "D_PROJECT_BASE",
+                "E": "E_PROJECT_BASE",
+                "F": "F_PROJECT_BASE",
+                "PROJECT_BASE": "YES",
+            ],
             configurations: [.debug: projectDebugConfiguration]
         )
 
@@ -232,14 +246,18 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         """)
 
         let targetDebugConfiguration = Configuration(
-            settings: ["F": "F_TARGET",
-                       "TARGET": "YES"],
+            settings: [
+                "F": "F_TARGET",
+                "TARGET": "YES",
+            ],
             xcconfig: targetDebugFilePath
         )
         let targetSettings = Settings(
-            base: ["E": "E_TARGET_BASE",
-                   "F": "E_TARGET_BASE",
-                   "TARGET_BASE": "YES"],
+            base: [
+                "E": "E_TARGET_BASE",
+                "F": "E_TARGET_BASE",
+                "TARGET_BASE": "YES",
+            ],
             configurations: [.debug: targetDebugConfiguration]
         )
 
@@ -267,16 +285,22 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
 
     func testGenerateWhenCustomConfigurations() throws {
         // Given
-        let projectDebugConfiguration = Configuration(settings: ["A": "A_PROJECT_DEBUG",
-                                                                 "B": "B_PROJECT_DEBUG"])
-        let projectCustomDebugConfiguration = Configuration(settings: ["A": "A_PROJECT_RELEASE",
-                                                                       "C": "C_PROJECT_RELEASE"])
+        let projectDebugConfiguration = Configuration(settings: [
+            "A": "A_PROJECT_DEBUG",
+            "B": "B_PROJECT_DEBUG",
+        ])
+        let projectCustomDebugConfiguration = Configuration(settings: [
+            "A": "A_PROJECT_RELEASE",
+            "C": "C_PROJECT_RELEASE",
+        ])
         let projectReleaseConfiguration = Configuration(settings: [:])
         let projectCustomReleaseConfiguration = Configuration(settings: ["E": "E_PROJECT_RELEASE"])
-        let projectSettings = Settings(configurations: [.debug: projectDebugConfiguration,
-                                                        .debug("CustomDebug"): projectCustomDebugConfiguration,
-                                                        .release: projectReleaseConfiguration,
-                                                        .release("CustomRelease"): projectCustomReleaseConfiguration])
+        let projectSettings = Settings(configurations: [
+            .debug: projectDebugConfiguration,
+            .debug("CustomDebug"): projectCustomDebugConfiguration,
+            .release: projectReleaseConfiguration,
+            .release("CustomRelease"): projectCustomReleaseConfiguration,
+        ])
 
         // When
         try generateWorkspace(projectSettings: projectSettings, targetSettings: nil)
@@ -347,7 +371,15 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     }
 
     private func createConfig() -> Config {
-        Config(compatibleXcodeVersions: .all, cloud: nil, cache: .default, swiftVersion: nil, plugins: [], generationOptions: [], path: nil)
+        Config(
+            compatibleXcodeVersions: .all,
+            cloud: nil,
+            cache: .default,
+            swiftVersion: nil,
+            plugins: [],
+            generationOptions: [],
+            path: nil
+        )
     }
 
     private func createWorkspace(path: AbsolutePath, projects: [String]) throws -> Workspace {
@@ -359,7 +391,13 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
         )
     }
 
-    private func createProject(path: AbsolutePath, settings: Settings, targets: [Target], packages: [Package] = [], schemes: [Scheme]) -> Project {
+    private func createProject(
+        path: AbsolutePath,
+        settings: Settings,
+        targets: [Target],
+        packages: [Package] = [],
+        schemes: [Scheme]
+    ) -> Project {
         Project(
             path: path,
             sourceRootPath: path,

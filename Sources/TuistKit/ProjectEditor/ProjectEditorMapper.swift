@@ -203,7 +203,10 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         }()
 
         let manifestTargetSettings = Settings(
-            base: targetBaseSettings(for: [projectDescriptionPath] + pluginProjectDescriptionHelpersModule.map(\.path), swiftVersion: swiftVersion),
+            base: targetBaseSettings(
+                for: [projectDescriptionPath] + pluginProjectDescriptionHelpersModule.map(\.path),
+                swiftVersion: swiftVersion
+            ),
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         )
@@ -234,7 +237,13 @@ final class ProjectEditorMapper: ProjectEditorMapping {
 
         let buildAction = BuildAction(targets: targets.map { TargetReference(projectPath: projectPath, name: $0.name) })
         let arguments = Arguments(launchArguments: [LaunchArgument(name: "generate --path \(sourceRootPath)", isEnabled: true)])
-        let runAction = RunAction(configurationName: "Debug", executable: nil, filePath: tuistPath, arguments: arguments, diagnosticsOptions: Set())
+        let runAction = RunAction(
+            configurationName: "Debug",
+            executable: nil,
+            filePath: tuistPath,
+            arguments: arguments,
+            diagnosticsOptions: Set()
+        )
         let scheme = Scheme(name: projectName, shared: true, buildAction: buildAction, runAction: runAction)
         let projectSettings = Settings(
             base: [

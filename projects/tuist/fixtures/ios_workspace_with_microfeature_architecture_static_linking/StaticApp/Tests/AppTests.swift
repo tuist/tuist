@@ -3,6 +3,4 @@ import XCTest
 
 @testable import StaticApp
 
-final class StaticAppTests: XCTestCase {
-
-}
+final class StaticAppTests: XCTestCase {}

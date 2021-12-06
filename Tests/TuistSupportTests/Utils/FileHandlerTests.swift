@@ -6,7 +6,10 @@ import XCTest
 
 final class FileHandlerErrorTests: XCTestCase {
     func test_description() {
-        XCTAssertEqual(FileHandlerError.invalidTextEncoding(AbsolutePath("/path")).description, "The file at /path is not a utf8 text file")
+        XCTAssertEqual(
+            FileHandlerError.invalidTextEncoding(AbsolutePath("/path")).description,
+            "The file at /path is not a utf8 text file"
+        )
         XCTAssertEqual(FileHandlerError.writingError(AbsolutePath("/path")).description, "Couldn't write to the file /path")
     }
 }

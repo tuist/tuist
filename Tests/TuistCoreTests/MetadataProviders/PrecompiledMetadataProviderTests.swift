@@ -81,7 +81,8 @@ final class PrecompiledMetadataProviderTests: TuistUnitTestCase {
 
     func test_metadata_xcframework() throws {
         // Given
-        let binaryPath = fixturePath(path: RelativePath("MyFramework.xcframework/ios-x86_64-simulator/MyFramework.framework/MyFramework"))
+        let binaryPath =
+            fixturePath(path: RelativePath("MyFramework.xcframework/ios-x86_64-simulator/MyFramework.framework/MyFramework"))
 
         // When
         let architectures = try subject.architectures(binaryPath: binaryPath)

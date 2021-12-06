@@ -4,8 +4,8 @@ class ContentProvider: TVTopShelfContentProvider {
     override func loadTopShelfContent(completionHandler: @escaping (TVTopShelfContent?) -> Void) {
         completionHandler(TVTopShelfSectionedContent(sections: [
             TVTopShelfItemCollection(items: [
-                makeItem()
-            ])
+                makeItem(),
+            ]),
         ]))
     }
 

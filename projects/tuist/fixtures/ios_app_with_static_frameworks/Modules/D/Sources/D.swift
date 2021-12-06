@@ -1,5 +1,5 @@
 
-public class D {
+public enum D {
     public static let value: String = "dValue"
 
     public static func printFromD() {

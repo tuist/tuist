@@ -2,8 +2,8 @@ import Foundation
 import TSCBasic
 @testable import TuistGraph
 
-public extension FrameworkMetadata {
-    static func test(
+extension FrameworkMetadata {
+    public static func test(
         path: AbsolutePath = "/Frameworks/TestFramework.xframework",
         binaryPath: AbsolutePath = "/Frameworks/TestFramework.xframework/TestFramework",
         dsymPath: AbsolutePath? = nil,

@@ -11,7 +11,8 @@ public enum TargetError: FatalError, Equatable {
     public var description: String {
         switch self {
         case let .invalidSourcesGlob(targetName: targetName, invalidGlobs: invalidGlobs):
-            return "The target \(targetName) has the following invalid source files globs:\n" + invalidGlobs.invalidGlobsDescription
+            return "The target \(targetName) has the following invalid source files globs:\n" + invalidGlobs
+                .invalidGlobsDescription
         }
     }
 }

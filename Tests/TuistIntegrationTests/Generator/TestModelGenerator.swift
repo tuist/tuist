@@ -64,22 +64,30 @@ final class TestModelGenerator {
         }
         let unitTestsTargetNames = (0 ..< config.testTargets).map { "\(name)TestAppTests\($0)" }
         let targetSettings = Settings(
-            base: ["A1": "A_VALUE",
-                   "B1": "B_VALUE",
-                   "C1": "C_VALUE"],
-            configurations: [.debug: nil,
-                             .release: nil,
-                             .debug("CustomDebug"): nil,
-                             .release("CustomRelease"): nil]
+            base: [
+                "A1": "A_VALUE",
+                "B1": "B_VALUE",
+                "C1": "C_VALUE",
+            ],
+            configurations: [
+                .debug: nil,
+                .release: nil,
+                .debug("CustomDebug"): nil,
+                .release("CustomRelease"): nil,
+            ]
         )
         let projectSettings = Settings(
-            base: ["A2": "A_VALUE",
-                   "B2": "B_VALUE",
-                   "C2": "C_VALUE"],
-            configurations: [.debug: nil,
-                             .release: nil,
-                             .debug("CustomDebug2"): nil,
-                             .release("CustomRelease2"): nil]
+            base: [
+                "A2": "A_VALUE",
+                "B2": "B_VALUE",
+                "C2": "C_VALUE",
+            ],
+            configurations: [
+                .debug: nil,
+                .release: nil,
+                .debug("CustomDebug2"): nil,
+                .release("CustomRelease2"): nil,
+            ]
         )
         let projectPath = pathTo(name)
         let dependencies = try createDependencies(relativeTo: projectPath)
@@ -130,7 +138,14 @@ final class TestModelGenerator {
         )
     }
 
-    private func createProject(path: AbsolutePath, name: String, settings: Settings, targets: [Target], packages: [Package] = [], schemes: [Scheme]) -> Project {
+    private func createProject(
+        path: AbsolutePath,
+        name: String,
+        settings: Settings,
+        targets: [Target],
+        packages: [Package] = [],
+        schemes: [Scheme]
+    ) -> Project {
         Project(
             path: path,
             sourceRootPath: path,
@@ -151,7 +166,13 @@ final class TestModelGenerator {
         )
     }
 
-    private func createTarget(path: AbsolutePath, name: String, product: Product = .app, settings: Settings?, dependencies: [String]) -> Target {
+    private func createTarget(
+        path: AbsolutePath,
+        name: String,
+        product: Product = .app,
+        settings: Settings?,
+        dependencies: [String]
+    ) -> Target {
         Target(
             name: name,
             platform: .iOS,

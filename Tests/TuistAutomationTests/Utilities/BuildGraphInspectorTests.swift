@@ -113,7 +113,12 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let target = Target.test(settings: nil)
 
         // When
-        let got = subject.buildArguments(project: .test(settings: settings), target: target, configuration: "Release", skipSigning: false)
+        let got = subject.buildArguments(
+            project: .test(settings: settings),
+            target: target,
+            configuration: "Release",
+            skipSigning: false
+        )
 
         // Then
         XCTAssertTrue(got.contains(.configuration("Release")))
@@ -157,7 +162,10 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let path = try temporaryPath()
         let projectPath = path.appending(component: "Project.xcodeproj")
         let coreProjectPath = path.appending(component: "CoreProject.xcodeproj")
-        let coreScheme = Scheme.test(name: "Core", buildAction: .test(targets: [.init(projectPath: coreProjectPath, name: "Core")]))
+        let coreScheme = Scheme.test(
+            name: "Core",
+            buildAction: .test(targets: [.init(projectPath: coreProjectPath, name: "Core")])
+        )
         let kitScheme = Scheme.test(name: "Kit", buildAction: .test(targets: [.init(projectPath: projectPath, name: "Kit")]))
         let coreProject = Project.test(path: coreProjectPath, schemes: [coreScheme])
         let kitProject = Project.test(path: projectPath, schemes: [kitScheme])

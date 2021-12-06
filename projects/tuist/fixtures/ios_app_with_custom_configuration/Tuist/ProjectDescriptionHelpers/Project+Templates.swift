@@ -16,14 +16,14 @@ extension Project {
                     dependencies: dependencies,
                     resources: ["Resources/**"]
                 ),
-                .test(name: name)
+                .test(name: name),
             ],
             schemes: [
                 .scheme(
                     name: name,
                     mainTargetName: name,
                     testTargetName: "\(name)Tests"
-                )
+                ),
             ]
         )
     }
@@ -42,21 +42,21 @@ extension Project {
                     product: .framework,
                     dependencies: dependencies
                 ),
-                .test(name: name)
+                .test(name: name),
             ],
             schemes: [
                 .scheme(
                     name: name,
                     mainTargetName: name,
                     testTargetName: "\(name)Tests"
-                )
+                ),
             ]
         )
     }
 }
 
-public extension Target {
-    static func main(
+extension Target {
+    public static func main(
         name: String,
         product: Product,
         dependencies: [TargetDependency],
@@ -75,7 +75,7 @@ public extension Target {
         )
     }
 
-    static func test(
+    public static func test(
         name: String
     ) -> Target {
         return Target(
@@ -113,16 +113,16 @@ extension Scheme {
             projectPath: nil,
             target: testTargetName
         )
-        
+
         return Scheme(
             name: name,
             shared: true,
             buildAction: .buildAction(targets: [
-                main
+                main,
             ]),
             testAction: .targets(
                 [
-                    TestableTarget(target: test)
+                    TestableTarget(target: test),
                 ],
                 configuration: "debug"
             ),
@@ -152,18 +152,18 @@ extension Settings {
                 name: "debug",
                 settings: [
                     "OTHER_SWIFT_FLAGS": [
-                        "-DDEBUG_MACRO"
-                    ]
+                        "-DDEBUG_MACRO",
+                    ],
                 ]
             ),
             .release(
                 name: "release",
                 settings: [
                     "OTHER_SWIFT_FLAGS": [
-                        "-DRELEASE_MARCO"
-                    ]
+                        "-DRELEASE_MARCO",
+                    ],
                 ]
-            )
+            ),
         ],
         defaultSettings: .recommended
     )

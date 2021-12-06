@@ -36,8 +36,16 @@ final class SettingsLinterTests: TuistUnitTestCase {
         let got = subject.lint(project: project)
 
         // Then
-        XCTAssertEqual(got, [LintingIssue(reason: "Configuration file not found at path \(debugPath.pathString)", severity: .error),
-                             LintingIssue(reason: "Configuration file not found at path \(releasePath.pathString)", severity: .error)])
+        XCTAssertEqual(
+            got,
+            [
+                LintingIssue(reason: "Configuration file not found at path \(debugPath.pathString)", severity: .error),
+                LintingIssue(
+                    reason: "Configuration file not found at path \(releasePath.pathString)",
+                    severity: .error
+                ),
+            ]
+        )
     }
 
     func test_lint_target_when_config_files_are_missing() throws {
@@ -55,8 +63,16 @@ final class SettingsLinterTests: TuistUnitTestCase {
         let got = subject.lint(target: target)
 
         // Then
-        XCTAssertEqual(got, [LintingIssue(reason: "Configuration file not found at path \(debugPath.pathString)", severity: .error),
-                             LintingIssue(reason: "Configuration file not found at path \(releasePath.pathString)", severity: .error)])
+        XCTAssertEqual(
+            got,
+            [
+                LintingIssue(reason: "Configuration file not found at path \(debugPath.pathString)", severity: .error),
+                LintingIssue(
+                    reason: "Configuration file not found at path \(releasePath.pathString)",
+                    severity: .error
+                ),
+            ]
+        )
     }
 
     func test_lint_project_when_no_configurations() {
@@ -102,6 +118,12 @@ final class SettingsLinterTests: TuistUnitTestCase {
         let got = subject.lint(target: target)
 
         // Then
-        XCTAssertEqual(got, [LintingIssue(reason: "Found an inconsistency between a platform `iOS` and deployment target `macOS`", severity: .error)])
+        XCTAssertEqual(
+            got,
+            [LintingIssue(
+                reason: "Found an inconsistency between a platform `iOS` and deployment target `macOS`",
+                severity: .error
+            )]
+        )
     }
 }

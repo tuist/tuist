@@ -106,8 +106,11 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
         }
     }
 
-    // swiftlint:disable:next large_tuple
-    private func readMetadatasFromFatHeader(binary: FileHandle, binaryPath: AbsolutePath) throws -> [(BinaryArchitecture, BinaryLinking, UUID?)] {
+    private func readMetadatasFromFatHeader(
+        binary: FileHandle,
+        binaryPath: AbsolutePath
+        // swiftlint:disable:next large_tuple
+    ) throws -> [(BinaryArchitecture, BinaryLinking, UUID?)] {
         let currentOffset = binary.currentOffset
         let magic: UInt32 = binary.read()
         binary.seek(to: currentOffset)
@@ -262,18 +265,18 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
     }
 }
 
-private extension FileHandle {
-    var currentOffset: UInt64 { offsetInFile }
+extension FileHandle {
+    fileprivate var currentOffset: UInt64 { offsetInFile }
 
-    func seek(to offset: UInt64) {
+    fileprivate func seek(to offset: UInt64) {
         seek(toFileOffset: offset)
     }
 
-    func read<T>() -> T {
+    fileprivate func read<T>() -> T {
         readData(ofLength: MemoryLayout<T>.size).withUnsafeBytes { $0.load(as: T.self) }
     }
 
-    func readString(ofLength length: Int) -> String? {
+    fileprivate func readString(ofLength length: Int) -> String? {
         let sizeData = readData(ofLength: length)
         return String(data: sizeData, encoding: .ascii)
     }

@@ -101,8 +101,10 @@ final class SigningInstallerTests: TuistUnitTestCase {
     private func isProfileInstalled(_ profile: ProvisioningProfile) throws -> Bool {
         let homeDirectoryPath = try temporaryPath()
         fileHandler.homeDirectoryStub = homeDirectoryPath
-        let provisioningProfilesDirectoryPath = homeDirectoryPath.appending(RelativePath("Library/MobileDevice/Provisioning Profiles"))
-        let destinationProvisioningProfilePath = provisioningProfilesDirectoryPath.appending(component: "\(profile.uuid).mobileprovision")
+        let provisioningProfilesDirectoryPath = homeDirectoryPath
+            .appending(RelativePath("Library/MobileDevice/Provisioning Profiles"))
+        let destinationProvisioningProfilePath = provisioningProfilesDirectoryPath
+            .appending(component: "\(profile.uuid).mobileprovision")
 
         return fileHandler.exists(destinationProvisioningProfilePath)
     }

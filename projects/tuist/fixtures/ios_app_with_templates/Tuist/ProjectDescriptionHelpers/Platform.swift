@@ -1,7 +1,7 @@
 import ProjectDescription
 
-public extension Platform {
-    var caseValue: String {
+extension Platform {
+    public var caseValue: String {
         switch self {
         case .iOS:
             return "iOS"

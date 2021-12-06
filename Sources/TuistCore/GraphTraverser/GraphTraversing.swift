@@ -172,8 +172,8 @@ public protocol GraphTraversing {
     func dependsOnXCTest(path: AbsolutePath, name: String) -> Bool
 }
 
-public extension GraphTraversing {
-    func apps() -> Set<GraphTarget> {
+extension GraphTraversing {
+    public func apps() -> Set<GraphTarget> {
         targets(product: .app)
     }
 }

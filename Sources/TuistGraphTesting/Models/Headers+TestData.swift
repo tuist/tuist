@@ -2,10 +2,10 @@ import Foundation
 import TSCBasic
 @testable import TuistGraph
 
-public extension Headers {
-    static func test(public: [AbsolutePath] = [],
-                     private: [AbsolutePath] = [],
-                     project: [AbsolutePath] = []) -> Headers
+extension Headers {
+    public static func test(public: [AbsolutePath] = [],
+                            private: [AbsolutePath] = [],
+                            project: [AbsolutePath] = []) -> Headers
     {
         Headers(
             public: `public`,

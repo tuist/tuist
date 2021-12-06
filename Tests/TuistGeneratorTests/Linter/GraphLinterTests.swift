@@ -46,7 +46,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         let result = subject.lint(graphTraverser: graphTraverser)
 
         // Then
-        XCTAssertTrue(result.contains(LintingIssue(reason: "Framework not found at path \(frameworkBPath.pathString)", severity: .error)))
+        XCTAssertTrue(
+            result
+                .contains(LintingIssue(reason: "Framework not found at path \(frameworkBPath.pathString)", severity: .error))
+        )
     }
 
     func test_lint_when_packages_and_xcode_10() throws {
@@ -62,7 +65,8 @@ final class GraphLinterTests: TuistUnitTestCase {
         let result = subject.lint(graphTraverser: graphTraverser)
 
         // Then
-        let reason = "The project contains package dependencies but the selected version of Xcode is not compatible. Need at least 11 but got \(versionStub)"
+        let reason =
+            "The project contains package dependencies but the selected version of Xcode is not compatible. Need at least 11 but got \(versionStub)"
         XCTAssertTrue(result.contains(LintingIssue(reason: reason, severity: .error)))
     }
 
@@ -79,7 +83,8 @@ final class GraphLinterTests: TuistUnitTestCase {
         let result = subject.lint(graphTraverser: graphTraverser)
 
         // Then
-        let reason = "The project contains package dependencies but the selected version of Xcode is not compatible. Need at least 11 but got \(versionStub)"
+        let reason =
+            "The project contains package dependencies but the selected version of Xcode is not compatible. Need at least 11 but got \(versionStub)"
         XCTAssertFalse(result.contains(LintingIssue(reason: reason, severity: .error)))
     }
 
@@ -115,9 +120,11 @@ final class GraphLinterTests: TuistUnitTestCase {
         )
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: app.name, path: path): Set([.target(name: staticFrameworkA.name, path: path),
-                                                      .target(name: staticFrameworkB.name, path: path),
-                                                      .target(name: staticLibrary.name, path: path)]),
+            .target(name: app.name, path: path): Set([
+                .target(name: staticFrameworkA.name, path: path),
+                .target(name: staticFrameworkB.name, path: path),
+                .target(name: staticLibrary.name, path: path),
+            ]),
             .target(name: staticFrameworkA.name, path: path): Set([.target(name: staticFrameworkB.name, path: path)]),
             .target(name: staticFrameworkB.name, path: path): Set([.target(name: staticLibrary.name, path: path)]),
             .target(name: staticLibrary.name, path: path): Set([]),
@@ -126,10 +133,12 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [appTarget.name: appTarget,
-                             staticFrameworkA.name: staticFrameworkA,
-                             staticFrameworkB.name: staticFrameworkB,
-                             staticLibrary.name: staticLibrary]],
+            targets: [path: [
+                appTarget.name: appTarget,
+                staticFrameworkA.name: staticFrameworkA,
+                staticFrameworkB.name: staticFrameworkB,
+                staticLibrary.name: staticLibrary,
+            ]],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -157,9 +166,11 @@ final class GraphLinterTests: TuistUnitTestCase {
         )
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: app.name, path: path): Set([.target(name: staticLibraryA.name, path: path),
-                                                      .target(name: staticLibraryB.name, path: path),
-                                                      .target(name: staticFramework.name, path: path)]),
+            .target(name: app.name, path: path): Set([
+                .target(name: staticLibraryA.name, path: path),
+                .target(name: staticLibraryB.name, path: path),
+                .target(name: staticFramework.name, path: path),
+            ]),
             .target(name: staticLibraryA.name, path: path): Set([.target(name: staticLibraryB.name, path: path)]),
             .target(name: staticLibraryB.name, path: path): Set([.target(name: staticFramework.name, path: path)]),
             .target(name: staticFramework.name, path: path): Set([]),
@@ -168,10 +179,12 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [appTarget.name: appTarget,
-                             staticLibraryA.name: staticLibraryA,
-                             staticLibraryB.name: staticLibraryB,
-                             staticFramework.name: staticFramework]],
+            targets: [path: [
+                appTarget.name: appTarget,
+                staticLibraryA.name: staticLibraryA,
+                staticLibraryB.name: staticLibraryB,
+                staticFramework.name: staticFramework,
+            ]],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -198,8 +211,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [bundle.name: bundle,
-                             framework.name: framework]],
+            targets: [path: [
+                bundle.name: bundle,
+                framework.name: framework,
+            ]],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -226,8 +241,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [bundle.name: bundle,
-                             application.name: application]],
+            targets: [path: [
+                bundle.name: bundle,
+                application.name: application,
+            ]],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -256,9 +273,11 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [bundle.name: bundle,
-                             unitTests.name: unitTests,
-                             uiTests.name: uiTests]],
+            targets: [path: [
+                bundle.name: bundle,
+                unitTests.name: unitTests,
+                uiTests.name: uiTests,
+            ]],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -287,9 +306,11 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [staticFramework.name: staticFramework,
-                             staticLibrary.name: staticLibrary,
-                             dynamicFramework.name: dynamicFramework]],
+            targets: [path: [
+                staticFramework.name: staticFramework,
+                staticLibrary.name: staticLibrary,
+                dynamicFramework.name: dynamicFramework,
+            ]],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -310,7 +331,13 @@ final class GraphLinterTests: TuistUnitTestCase {
         let project = Project.empty(path: path)
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: macStaticFramework.name, path: path): Set([.target(name: iosStaticFramework.name, path: path), .target(name: iosStaticLibrary.name, path: path)]),
+            .target(
+                name: macStaticFramework.name,
+                path: path
+            ): Set([
+                .target(name: iosStaticFramework.name, path: path),
+                .target(name: iosStaticLibrary.name, path: path),
+            ]),
             .target(name: iosStaticFramework.name, path: path): Set([]),
             .target(name: iosStaticLibrary.name, path: path): Set([]),
         ]
@@ -318,9 +345,11 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [macStaticFramework.name: macStaticFramework,
-                             iosStaticFramework.name: iosStaticFramework,
-                             iosStaticLibrary.name: iosStaticLibrary]],
+            targets: [path: [
+                macStaticFramework.name: macStaticFramework,
+                iosStaticFramework.name: iosStaticFramework,
+                iosStaticLibrary.name: iosStaticLibrary,
+            ]],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -347,8 +376,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [watchExtension.name: watchExtension,
-                             watchApp.name: watchApp]],
+            targets: [path: [
+                watchExtension.name: watchExtension,
+                watchApp.name: watchApp,
+            ]],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -375,8 +406,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: path,
             projects: [path: project],
-            targets: [path: [invalidDependency.name: invalidDependency,
-                             watchApp.name: watchApp]],
+            targets: [path: [
+                invalidDependency.name: invalidDependency,
+                watchApp.name: watchApp,
+            ]],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -399,11 +432,19 @@ final class GraphLinterTests: TuistUnitTestCase {
         ]
         let targetA = Target.empty(name: "TargetA", product: .framework)
         let projectAPath: AbsolutePath = "/path/to/a"
-        let projectA = Project.empty(path: projectAPath, name: "ProjectA", settings: Settings(configurations: customConfigurations))
+        let projectA = Project.empty(
+            path: projectAPath,
+            name: "ProjectA",
+            settings: Settings(configurations: customConfigurations)
+        )
 
         let targetB = Target.empty(name: "TargetB", product: .framework)
         let projectBPath: AbsolutePath = "/path/to/b"
-        let projectB = Project.empty(path: projectBPath, name: "ProjectB", settings: Settings(configurations: customConfigurations))
+        let projectB = Project.empty(
+            path: projectBPath,
+            name: "ProjectB",
+            settings: Settings(configurations: customConfigurations)
+        )
 
         let targetC = Target.empty(name: "TargetC", product: .framework)
         let projectCPath: AbsolutePath = "/path/to/c"
@@ -417,12 +458,16 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: path,
             workspace: Workspace.test(projects: [projectAPath, projectBPath, projectCPath]),
-            projects: [projectAPath: projectA,
-                       projectBPath: projectB,
-                       projectCPath: projectC],
-            targets: [projectAPath: [targetA.name: targetA],
-                      projectBPath: [targetB.name: targetB],
-                      projectCPath: [targetC.name: targetC]],
+            projects: [
+                projectAPath: projectA,
+                projectBPath: projectB,
+                projectCPath: projectC,
+            ],
+            targets: [
+                projectAPath: [targetA.name: targetA],
+                projectBPath: [targetB.name: targetB],
+                projectCPath: [targetC.name: targetC],
+            ],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -450,11 +495,19 @@ final class GraphLinterTests: TuistUnitTestCase {
         ]
         let targetA = Target.empty(name: "TargetA", product: .framework)
         let projectAPath: AbsolutePath = "/path/to/a"
-        let projectA = Project.empty(path: projectAPath, name: "ProjectA", settings: Settings(configurations: customConfigurations))
+        let projectA = Project.empty(
+            path: projectAPath,
+            name: "ProjectA",
+            settings: Settings(configurations: customConfigurations)
+        )
 
         let targetB = Target.empty(name: "TargetB", product: .framework)
         let projectBPath: AbsolutePath = "/path/to/b"
-        let projectB = Project.empty(path: projectBPath, name: "ProjectB", settings: Settings(configurations: customConfigurations))
+        let projectB = Project.empty(
+            path: projectBPath,
+            name: "ProjectB",
+            settings: Settings(configurations: customConfigurations)
+        )
 
         let mismatchingConfigurations: [BuildConfiguration: Configuration?] = [
             .release("Debug"): nil,
@@ -464,7 +517,11 @@ final class GraphLinterTests: TuistUnitTestCase {
         ]
         let targetC = Target.empty(name: "TargetC", product: .framework)
         let projectCPath: AbsolutePath = "/path/to/c"
-        let projectC = Project.empty(path: projectCPath, name: "ProjectC", settings: Settings(configurations: mismatchingConfigurations))
+        let projectC = Project.empty(
+            path: projectCPath,
+            name: "ProjectC",
+            settings: Settings(configurations: mismatchingConfigurations)
+        )
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: targetA.name, path: projectAPath): Set([.target(name: targetB.name, path: projectBPath)]),
@@ -475,12 +532,16 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: path,
             workspace: Workspace.test(projects: [projectAPath]),
-            projects: [projectAPath: projectA,
-                       projectBPath: projectB,
-                       projectCPath: projectC],
-            targets: [projectAPath: [targetA.name: targetA],
-                      projectBPath: [targetB.name: targetB],
-                      projectCPath: [targetC.name: targetC]],
+            projects: [
+                projectAPath: projectA,
+                projectBPath: projectB,
+                projectCPath: projectC,
+            ],
+            targets: [
+                projectAPath: [targetA.name: targetA],
+                projectBPath: [targetB.name: targetB],
+                projectCPath: [targetC.name: targetC],
+            ],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -510,11 +571,19 @@ final class GraphLinterTests: TuistUnitTestCase {
         ]
         let targetA = Target.empty(name: "TargetA", product: .framework)
         let projectAPath: AbsolutePath = "/path/to/a"
-        let projectA = Project.empty(path: projectAPath, name: "ProjectA", settings: Settings(configurations: customConfigurations))
+        let projectA = Project.empty(
+            path: projectAPath,
+            name: "ProjectA",
+            settings: Settings(configurations: customConfigurations)
+        )
 
         let targetB = Target.empty(name: "TargetB", product: .framework)
         let projectBPath: AbsolutePath = "/path/to/b"
-        let projectB = Project.empty(path: projectBPath, name: "ProjectB", settings: Settings(configurations: customConfigurations))
+        let projectB = Project.empty(
+            path: projectBPath,
+            name: "ProjectB",
+            settings: Settings(configurations: customConfigurations)
+        )
 
         let additionalConfigurations: [BuildConfiguration: Configuration?] = [
             .debug("Debug"): nil,
@@ -524,7 +593,11 @@ final class GraphLinterTests: TuistUnitTestCase {
         ]
         let targetC = Target.empty(name: "TargetC", product: .framework)
         let projectCPath: AbsolutePath = "/path/to/c"
-        let projectC = Project.empty(path: projectCPath, name: "ProjectC", settings: Settings(configurations: additionalConfigurations))
+        let projectC = Project.empty(
+            path: projectCPath,
+            name: "ProjectC",
+            settings: Settings(configurations: additionalConfigurations)
+        )
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
             .target(name: targetA.name, path: projectAPath): Set([.target(name: targetB.name, path: projectBPath)]),
@@ -535,12 +608,16 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graph = Graph.test(
             path: path,
             workspace: Workspace.test(projects: [projectAPath, projectBPath]),
-            projects: [projectAPath: projectA,
-                       projectBPath: projectB,
-                       projectCPath: projectC],
-            targets: [projectAPath: [targetA.name: targetA],
-                      projectBPath: [targetB.name: targetB],
-                      projectCPath: [targetC.name: targetC]],
+            projects: [
+                projectAPath: projectA,
+                projectBPath: projectB,
+                projectCPath: projectC,
+            ],
+            targets: [
+                projectAPath: [targetA.name: targetA],
+                projectBPath: [targetB.name: targetB],
+                projectCPath: [targetC.name: targetC],
+            ],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -862,7 +939,13 @@ final class GraphLinterTests: TuistUnitTestCase {
         let project = Project.test(path: temporaryPath, targets: [app, appClip1, appClip2])
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: app.name, path: temporaryPath): Set([.target(name: appClip1.name, path: temporaryPath), .target(name: appClip2.name, path: temporaryPath)]),
+            .target(
+                name: app.name,
+                path: temporaryPath
+            ): Set([
+                .target(name: appClip1.name, path: temporaryPath),
+                .target(name: appClip2.name, path: temporaryPath),
+            ]),
             .target(name: appClip1.name, path: temporaryPath): Set([]),
             .target(name: appClip2.name, path: temporaryPath): Set([]),
         ]
@@ -1040,7 +1123,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         let project = Project.test(path: path, targets: [tool, staticLib, staticFmwk])
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: tool.name, path: path): Set([.target(name: staticLib.name, path: path), .target(name: staticFmwk.name, path: path)]),
+            .target(
+                name: tool.name,
+                path: path
+            ): Set([.target(name: staticLib.name, path: path), .target(name: staticFmwk.name, path: path)]),
             .target(name: staticLib.name, path: path): Set([]),
             .target(name: staticFmwk.name, path: path): Set([]),
         ]
@@ -1076,8 +1162,10 @@ final class GraphLinterTests: TuistUnitTestCase {
         )
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: app.name, path: path): Set([.target(name: frameworkA.name, path: frameworks1.path),
-                                                      .target(name: frameworkB.name, path: frameworks1.path)]),
+            .target(name: app.name, path: path): Set([
+                .target(name: frameworkA.name, path: frameworks1.path),
+                .target(name: frameworkB.name, path: frameworks1.path),
+            ]),
         ]
 
         let project = Project.test(path: path, targets: [appTarget, frameworkA, frameworkB])
@@ -1086,8 +1174,10 @@ final class GraphLinterTests: TuistUnitTestCase {
             path: path,
             workspace: Workspace.test(projects: [path]),
             projects: [path: project],
-            targets: [path: [appTarget.name: appTarget],
-                      frameworks1.path: [frameworkA.name: frameworkA, frameworkB.name: frameworkB]],
+            targets: [
+                path: [appTarget.name: appTarget],
+                frameworks1.path: [frameworkA.name: frameworkA, frameworkB.name: frameworkB],
+            ],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -1128,24 +1218,31 @@ final class GraphLinterTests: TuistUnitTestCase {
         )
 
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: app.name, path: path): Set([.target(name: frameworkA.name, path: frameworks1.path),
-                                                      .target(name: frameworkB.name, path: frameworks1.path),
-                                                      .target(name: frameworkC.name, path: frameworks2.path),
-                                                      .target(name: frameworkD.name, path: frameworks2.path),
-                                                      .target(name: frameworkE.name, path: frameworks3.path),
-                                                      .target(name: frameworkF.name, path: frameworks3.path)]),
+            .target(name: app.name, path: path): Set([
+                .target(name: frameworkA.name, path: frameworks1.path),
+                .target(name: frameworkB.name, path: frameworks1.path),
+                .target(name: frameworkC.name, path: frameworks2.path),
+                .target(name: frameworkD.name, path: frameworks2.path),
+                .target(name: frameworkE.name, path: frameworks3.path),
+                .target(name: frameworkF.name, path: frameworks3.path),
+            ]),
         ]
 
-        let project = Project.test(path: path, targets: [appTarget, frameworkA, frameworkB, frameworkC, frameworkD, frameworkE, frameworkF])
+        let project = Project.test(
+            path: path,
+            targets: [appTarget, frameworkA, frameworkB, frameworkC, frameworkD, frameworkE, frameworkF]
+        )
 
         let graph = Graph.test(
             path: path,
             workspace: Workspace.test(projects: [path]),
             projects: [path: project],
-            targets: [path: [appTarget.name: appTarget],
-                      frameworks1.path: [frameworkA.name: frameworkA, frameworkB.name: frameworkB],
-                      frameworks2.path: [frameworkC.name: frameworkC, frameworkD.name: frameworkD],
-                      frameworks3.path: [frameworkE.name: frameworkE, frameworkF.name: frameworkF]],
+            targets: [
+                path: [appTarget.name: appTarget],
+                frameworks1.path: [frameworkA.name: frameworkA, frameworkB.name: frameworkB],
+                frameworks2.path: [frameworkC.name: frameworkC, frameworkD.name: frameworkD],
+                frameworks3.path: [frameworkE.name: frameworkE, frameworkF.name: frameworkF],
+            ],
             dependencies: dependencies
         )
         let graphTraverser = GraphTraverser(graph: graph)
@@ -1155,8 +1252,14 @@ final class GraphLinterTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(got, [
-            LintingIssue(reason: "The bundle identifier 'com.tuist.frameworks.test' is being used by multiple targets: frameworkA, frameworkB, and frameworkF.", severity: .warning),
-            LintingIssue(reason: "The bundle identifier 'com.tuist.frameworks.test2' is being used by multiple targets: frameworkC and frameworkE.", severity: .warning),
+            LintingIssue(
+                reason: "The bundle identifier 'com.tuist.frameworks.test' is being used by multiple targets: frameworkA, frameworkB, and frameworkF.",
+                severity: .warning
+            ),
+            LintingIssue(
+                reason: "The bundle identifier 'com.tuist.frameworks.test2' is being used by multiple targets: frameworkC and frameworkE.",
+                severity: .warning
+            ),
         ])
     }
 

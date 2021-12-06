@@ -2,12 +2,12 @@ import Foundation
 import TSCBasic
 @testable import TuistGraph
 
-public extension ArchiveAction {
-    static func test(configurationName: String = "Beta Release",
-                     revealArchiveInOrganizer: Bool = true,
-                     customArchiveName: String? = nil,
-                     preActions: [ExecutionAction] = [],
-                     postActions: [ExecutionAction] = []) -> ArchiveAction
+extension ArchiveAction {
+    public static func test(configurationName: String = "Beta Release",
+                            revealArchiveInOrganizer: Bool = true,
+                            customArchiveName: String? = nil,
+                            preActions: [ExecutionAction] = [],
+                            postActions: [ExecutionAction] = []) -> ArchiveAction
     {
         ArchiveAction(
             configurationName: configurationName,

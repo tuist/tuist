@@ -89,18 +89,21 @@ public final class ManifestModelConverter: ManifestModelConverting {
             }
         }
 
-        let externalProjects = try [AbsolutePath: TuistGraph.Project](uniqueKeysWithValues: manifest.externalProjects.map { project in
-            let projectPath = AbsolutePath(project.key.pathString)
-            var project = try convert(
-                manifest: project.value,
-                path: projectPath,
-                plugins: .none,
-                externalDependencies: externalDependencies
-            )
-            // Disable all lastUpgradeCheck related warnings on projects generated from dependencies
-            project.lastUpgradeCheck = Version(99, 9, 9)
-            return (projectPath, project)
-        })
+        let externalProjects = try [AbsolutePath: TuistGraph.Project](
+            uniqueKeysWithValues: manifest.externalProjects
+                .map { project in
+                    let projectPath = AbsolutePath(project.key.pathString)
+                    var project = try convert(
+                        manifest: project.value,
+                        path: projectPath,
+                        plugins: .none,
+                        externalDependencies: externalDependencies
+                    )
+                    // Disable all lastUpgradeCheck related warnings on projects generated from dependencies
+                    project.lastUpgradeCheck = Version(99, 9, 9)
+                    return (projectPath, project)
+                }
+        )
 
         return .init(externalDependencies: externalDependencies, externalProjects: externalProjects)
     }

@@ -30,7 +30,9 @@ final class FileElementManifestMapperTests: TuistUnitTestCase {
 
         // Then
         let documentationPath = temporaryPath.appending(component: "Documentation").pathString
-        XCTAssertPrinterOutputContains("'\(documentationPath)' is a directory, try using: '\(documentationPath)/**' to list its files")
+        XCTAssertPrinterOutputContains(
+            "'\(documentationPath)' is a directory, try using: '\(documentationPath)/**' to list its files"
+        )
         XCTAssertEqual(model, [])
     }
 

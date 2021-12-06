@@ -43,7 +43,8 @@ public class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
     public init() {}
 
     public func extract(xcodeprojPath: AbsolutePath, targetName: String?, xcconfigPath: AbsolutePath) throws {
-        guard FileHandler.shared.exists(xcodeprojPath) else { throw SettingsToXCConfigExtractorError.missingXcodeProj(xcodeprojPath) }
+        guard FileHandler.shared.exists(xcodeprojPath)
+        else { throw SettingsToXCConfigExtractorError.missingXcodeProj(xcodeprojPath) }
         let project = try XcodeProj(path: Path(xcodeprojPath.pathString))
         let pbxproj = project.pbxproj
         let buildConfigurations = try self.buildConfigurations(pbxproj: pbxproj, targetName: targetName)
@@ -59,7 +60,7 @@ public class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
 
         /// We get the build settings that are in common to define them as SETTING_KEY=SETTING_VALUE
         /// Otherwise, we have to define them as SETTING_KEY[config=Config]=SETTING_VALUE
-        let commonBuildSettings = repeatedBuildSettingsKeys.filter { (buildSetting) -> Bool in
+        let commonBuildSettings = repeatedBuildSettingsKeys.filter { buildSetting -> Bool in
             let values = buildConfigurations.map { $0.buildSettings[buildSetting]! }
             let stringValues = values.compactMap { $0 as? String }
             if values.count != stringValues.count { return false }
@@ -86,8 +87,10 @@ public class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
         if !FileHandler.shared.exists(xcconfigPath.parentDirectory) {
             try FileHandler.shared.createFolder(xcconfigPath.parentDirectory)
         }
-        let buildSettingsContent = [commonBuildSettingsLines.sorted().joined(separator: "\n"),
-                                    buildSettingsLines.sorted().joined(separator: "\n")].joined(separator: "\n\n")
+        let buildSettingsContent = [
+            commonBuildSettingsLines.sorted().joined(separator: "\n"),
+            buildSettingsLines.sorted().joined(separator: "\n"),
+        ].joined(separator: "\n\n")
         try FileHandler.shared.write(buildSettingsContent, path: xcconfigPath, atomically: true)
         logger.info("Build settings successfully extracted into \(xcconfigPath.pathString)", metadata: .success)
     }

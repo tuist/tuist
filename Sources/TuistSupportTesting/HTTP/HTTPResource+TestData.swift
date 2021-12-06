@@ -1,8 +1,8 @@
 import Foundation
 import TuistSupport
 
-public extension HTTPResource {
-    static func void() -> HTTPResource<Void, E> {
+extension HTTPResource {
+    public static func void() -> HTTPResource<Void, E> {
         return HTTPResource<Void, E> {
             return URLRequest(url: URL(string: "https://test.tuist.io")!)
         } parse: { _, _ in
@@ -12,7 +12,7 @@ public extension HTTPResource {
         }
     }
 
-    static func noop() -> HTTPResource<Void, Error> {
+    public static func noop() -> HTTPResource<Void, Error> {
         return HTTPResource<Void, Error> {
             return URLRequest(url: URL(string: "https://test.tuist.io")!)
         } parse: { _, _ in

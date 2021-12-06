@@ -49,7 +49,10 @@ public final class TemplateGenerator: TemplateGenerating {
     {
         attributes.reduce(template.items) { items, attribute in
             items.map {
-                let path = RelativePath($0.path.pathString.replacingOccurrences(of: "{{ \(attribute.key) }}", with: attribute.value))
+                let path = RelativePath(
+                    $0.path.pathString
+                        .replacingOccurrences(of: "{{ \(attribute.key) }}", with: attribute.value)
+                )
 
                 var contents = $0.contents
                 if case let Template.Contents.file(path) = contents {
@@ -120,7 +123,8 @@ public final class TemplateGenerator: TemplateGenerating {
                 renderedContents = nil
             }
             // Generate file only when it has some content
-            guard let rendered = renderedContents, !rendered.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+            guard let rendered = renderedContents,
+                  !rendered.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
             try FileHandler.shared.write(
                 rendered,
                 path: destinationPath.appending($0.path),
