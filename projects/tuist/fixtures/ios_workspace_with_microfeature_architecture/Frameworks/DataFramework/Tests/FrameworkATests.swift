@@ -3,6 +3,4 @@ import XCTest
 
 @testable import Data
 
-final class DataClassTests: XCTestCase {
-
-}
+final class DataClassTests: XCTestCase {}

@@ -453,11 +453,16 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
     func test_generateProduct() throws {
         // Given
         let pbxproj = PBXProj()
-        let project = Project.test(path: .root, sourceRootPath: .root, xcodeProjPath: AbsolutePath.root.appending(component: "Project.xcodeproj"), targets: [
-            .test(name: "App", product: .app),
-            .test(name: "Framework", product: .framework),
-            .test(name: "Library", product: .staticLibrary),
-        ])
+        let project = Project.test(
+            path: .root,
+            sourceRootPath: .root,
+            xcodeProjPath: AbsolutePath.root.appending(component: "Project.xcodeproj"),
+            targets: [
+                .test(name: "App", product: .app),
+                .test(name: "Framework", product: .framework),
+                .test(name: "Library", product: .staticLibrary),
+            ]
+        )
         let graph = Graph.test()
         let graphTraverser = GraphTraverser(graph: graph)
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
@@ -764,7 +769,8 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
     }
 
     func test_closestRelativeElementPath() {
-        let pathRelativeToSourceRoot = AbsolutePath("/a/framework/framework.framework").relative(to: AbsolutePath("/a/b/c/project"))
+        let pathRelativeToSourceRoot = AbsolutePath("/a/framework/framework.framework")
+            .relative(to: AbsolutePath("/a/b/c/project"))
         let got = subject.closestRelativeElementPath(pathRelativeToSourceRoot: pathRelativeToSourceRoot)
         XCTAssertEqual(got, RelativePath("../../../framework"))
     }
@@ -773,7 +779,11 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         // Given
         let pbxproj = PBXProj()
         let sourceRootPath = AbsolutePath("/a/project/")
-        let project = Project.test(path: sourceRootPath, sourceRootPath: sourceRootPath, xcodeProjPath: sourceRootPath.appending(component: "Project.xcodeproj"))
+        let project = Project.test(
+            path: sourceRootPath,
+            sourceRootPath: sourceRootPath,
+            xcodeProjPath: sourceRootPath.appending(component: "Project.xcodeproj")
+        )
         let groups = ProjectGroups.generate(project: project, pbxproj: pbxproj)
 
         let sdkPath = try temporaryPath().appending(component: "ARKit.framework")
@@ -813,7 +823,11 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         )
         let graphTarget: GraphTarget = .test(path: project.path, target: target, project: project)
         let groups = ProjectGroups.generate(
-            project: .test(path: .root, sourceRootPath: .root, xcodeProjPath: AbsolutePath.root.appending(component: "Project.xcodeproj")),
+            project: .test(
+                path: .root,
+                sourceRootPath: .root,
+                xcodeProjPath: AbsolutePath.root.appending(component: "Project.xcodeproj")
+            ),
             pbxproj: pbxproj
         )
 
@@ -851,9 +865,9 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
     }
 }
 
-private extension PBXGroup {
+extension PBXGroup {
     /// Retuns all the child variant groups (recursively)
-    var debugVariantGroupPaths: [String] {
+    fileprivate var debugVariantGroupPaths: [String] {
         children.flatMap { (element: PBXFileElement) -> [String] in
             switch element {
             case let group as PBXVariantGroup:

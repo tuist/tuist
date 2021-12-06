@@ -66,7 +66,7 @@ public final class URLSessionScheduler: URLSessionScheduling {
     }
 
     public func single(request: URLRequest) -> Single<Data> {
-        Single.create { (subscriber) -> Disposable in
+        Single.create { subscriber -> Disposable in
             let task = self.session.dataTask(with: request) { data, response, error in
                 let statusCode = (response as? HTTPURLResponse)?.statusCodeValue
 

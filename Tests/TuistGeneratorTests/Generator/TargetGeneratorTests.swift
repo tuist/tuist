@@ -165,7 +165,12 @@ final class TargetGeneratorTests: XCTestCase {
                 ),
             ]
         )
-        let project = Project.test(path: path, sourceRootPath: path, xcodeProjPath: path.appending(component: "Project.xcodeproj"), targets: [target])
+        let project = Project.test(
+            path: path,
+            sourceRootPath: path,
+            xcodeProjPath: path.appending(component: "Project.xcodeproj"),
+            targets: [target]
+        )
         let groups = ProjectGroups.generate(
             project: project,
             pbxproj: pbxproj

@@ -133,11 +133,13 @@ public final class SigningCipher: SigningCiphering {
     // MARK: - Helpers
 
     private func locateUnencryptedSigningFiles(at path: AbsolutePath) throws -> [AbsolutePath] {
-        try signingFilesLocator.locateUnencryptedCertificates(from: path) + signingFilesLocator.locateUnencryptedPrivateKeys(from: path)
+        try signingFilesLocator.locateUnencryptedCertificates(from: path) + signingFilesLocator
+            .locateUnencryptedPrivateKeys(from: path)
     }
 
     private func locateEncryptedSigningFiles(at path: AbsolutePath) throws -> [AbsolutePath] {
-        try signingFilesLocator.locateEncryptedCertificates(from: path) + signingFilesLocator.locateEncryptedPrivateKeys(from: path)
+        try signingFilesLocator.locateEncryptedCertificates(from: path) + signingFilesLocator
+            .locateEncryptedPrivateKeys(from: path)
     }
 
     /// - Returns: Files that are already correctly encrypted

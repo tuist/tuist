@@ -23,8 +23,8 @@ let project = Project(
             infoPlist: "Support/Tests.plist",
             sources: "Tests/**",
             dependencies: [
-                .target(name: "App")
+                .target(name: "App"),
             ]
-        )
+        ),
     ]
 )

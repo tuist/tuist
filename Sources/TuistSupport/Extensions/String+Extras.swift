@@ -153,7 +153,7 @@ extension String {
     /// hello -> hello, hello$world -> 'hello$world', input A -> 'input A'
     ///
     /// - Returns: Shell escaped string.
-    func shellEscaped() -> String {
+    internal func shellEscaped() -> String {
         // If all the characters in the string are in whitelist then no need to escape.
         guard let pos = utf8.firstIndex(where: { mustBeEscaped($0) }) else {
             return self
@@ -181,7 +181,7 @@ extension String {
     }
 
     /// Shell escapes the current string. This method is mutating version of shellEscaped().
-    mutating func shellEscape() {
+    internal mutating func shellEscape() {
         self = shellEscaped()
     }
 
@@ -207,13 +207,13 @@ extension String {
     }
 }
 
-public extension Array where Element: CustomStringConvertible {
+extension Array where Element: CustomStringConvertible {
     /// Returns a sentence listing the elements contained in the array.
     /// ["Framework"] results in "Framework"
     /// ["Framework", "App"] results in "Framework and App"
     /// ["Framework", "App", "Tests"] results in "Framework, App, and Tests"
     /// - Returns: <#description#>
-    func listed() -> String {
+    public func listed() -> String {
         let listFormatter = ListFormatter()
         listFormatter.locale = Locale(identifier: "en-US")
         return listFormatter.string(from: self) ?? ""

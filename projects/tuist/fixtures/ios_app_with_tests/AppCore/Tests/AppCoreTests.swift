@@ -6,7 +6,7 @@ import XCTest
 final class AppCoreTests: XCTestCase {
     func testHello() {
         let sut = AppCore()
-        
+
         XCTAssertEqual("AppCore.hello()", sut.hello())
     }
 }

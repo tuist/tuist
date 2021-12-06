@@ -63,7 +63,10 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         manifestGraphLoader.stubLoadGraph = graph
 
         // When
-        XCTAssertThrowsSpecific(try subject.run(path: project.path.pathString, targetName: fakeNoExistTargetName, strict: false), LintCodeServiceError.targetNotFound(fakeNoExistTargetName))
+        XCTAssertThrowsSpecific(
+            try subject.run(path: project.path.pathString, targetName: fakeNoExistTargetName, strict: false),
+            LintCodeServiceError.targetNotFound(fakeNoExistTargetName)
+        )
     }
 
     func test_run_throws_an_error_when_target_to_lint_has_no_sources() throws {
@@ -85,7 +88,10 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         manifestGraphLoader.stubLoadGraph = graph
 
         // When
-        XCTAssertThrowsSpecific(try subject.run(path: project.path.pathString, targetName: target01.name, strict: false), LintCodeServiceError.lintableFilesForTargetNotFound(target01.name))
+        XCTAssertThrowsSpecific(
+            try subject.run(path: project.path.pathString, targetName: target01.name, strict: false),
+            LintCodeServiceError.lintableFilesForTargetNotFound(target01.name)
+        )
     }
 
     func test_run_throws_an_error_when_code_liner_throws_error() throws {

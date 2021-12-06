@@ -51,14 +51,20 @@ final class SettingsLinter: SettingsLinting {
 
     private func lintNonEmptyConfig(project: Project) -> [LintingIssue] {
         guard !project.settings.configurations.isEmpty else {
-            return [LintingIssue(reason: "The project at path \(project.path.pathString) has no configurations", severity: .error)]
+            return [LintingIssue(
+                reason: "The project at path \(project.path.pathString) has no configurations",
+                severity: .error
+            )]
         }
         return []
     }
 
     // TODO_MAJOR_CHANGE: Merge deploymentTarget and platform arguments together.
     private func lint(platform: Platform, isCompatibleWith deploymentTarget: DeploymentTarget) -> [LintingIssue] {
-        let issue = LintingIssue(reason: "Found an inconsistency between a platform `\(platform.caseValue)` and deployment target `\(deploymentTarget.platform)`", severity: .error)
+        let issue = LintingIssue(
+            reason: "Found an inconsistency between a platform `\(platform.caseValue)` and deployment target `\(deploymentTarget.platform)`",
+            severity: .error
+        )
 
         switch deploymentTarget {
         case .iOS: if platform != .iOS { return [issue] }

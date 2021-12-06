@@ -199,7 +199,8 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
             .single()
 
         // Then
-        let expectedPath = cacheDirectoriesProvider.cacheDirectory(for: .builds).appending(RelativePath("\(hash)/myFramework.xcframework"))
+        let expectedPath = cacheDirectoriesProvider.cacheDirectory(for: .builds)
+            .appending(RelativePath("\(hash)/myFramework.xcframework"))
         XCTAssertEqual(result, expectedPath)
     }
 
@@ -388,7 +389,10 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         let uploadURLObject = CloudResponse<CloudCacheResponse>(status: "uploadURLObject status", data: cacheResponse)
 
         let cloudVerifyUploadResponse = CloudVerifyUploadResponse.test()
-        let verifyUploadObject = CloudResponse<CloudVerifyUploadResponse>(status: "cloudVerifyUploadResponse status", data: cloudVerifyUploadResponse)
+        let verifyUploadObject = CloudResponse<CloudVerifyUploadResponse>(
+            status: "cloudVerifyUploadResponse status",
+            data: cloudVerifyUploadResponse
+        )
 
         cloudClient.mock(objectPerURLRequest: [
             uploadURLRequest: uploadURLObject,
@@ -417,7 +421,10 @@ final class CacheRemoteStorageTests: TuistUnitTestCase {
         let uploadURLObject = CloudResponse<CloudCacheResponse>(status: "uploadURLObject status", data: cacheResponse)
 
         let cloudVerifyUploadResponse = CloudVerifyUploadResponse.test()
-        let verifyUploadObject = CloudResponse<CloudVerifyUploadResponse>(status: "cloudVerifyUploadResponse status", data: cloudVerifyUploadResponse)
+        let verifyUploadObject = CloudResponse<CloudVerifyUploadResponse>(
+            status: "cloudVerifyUploadResponse status",
+            data: cloudVerifyUploadResponse
+        )
         let verifyUploadError = CloudResponseError.test()
 
         cloudClient.mock(

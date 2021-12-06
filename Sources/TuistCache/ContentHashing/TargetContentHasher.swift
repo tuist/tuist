@@ -6,7 +6,8 @@ import TuistSupport
 
 public protocol TargetContentHashing {
     func contentHash(for target: GraphTarget, hashedTargets: inout [GraphHashedTarget: String]) throws -> String
-    func contentHash(for target: GraphTarget, hashedTargets: inout [GraphHashedTarget: String], additionalStrings: [String]) throws -> String
+    func contentHash(for target: GraphTarget, hashedTargets: inout [GraphHashedTarget: String],
+                     additionalStrings: [String]) throws -> String
 }
 
 /// `TargetContentHasher`

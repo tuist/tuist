@@ -23,7 +23,9 @@ struct CacheWarmCommand: ParsableCommand {
     """)
     var targets: [String] = []
 
-    @Flag(help: "If passed, the command doesn't cache the targets passed in the `--targets` argument, but only their dependencies")
+    @Flag(
+        help: "If passed, the command doesn't cache the targets passed in the `--targets` argument, but only their dependencies"
+    )
     var dependenciesOnly: Bool = false
 
     func run() throws {

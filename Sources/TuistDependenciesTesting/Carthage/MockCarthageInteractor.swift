@@ -10,7 +10,10 @@ public final class MockCarthageInteractor: CarthageInteracting {
     public init() {}
 
     var invokedInstall = false
-    var installStub: ((AbsolutePath, TuistGraph.CarthageDependencies, Set<TuistGraph.Platform>, Bool) throws -> TuistCore.DependenciesGraph)?
+    var installStub: (
+        (AbsolutePath, TuistGraph.CarthageDependencies, Set<TuistGraph.Platform>, Bool) throws -> TuistCore
+            .DependenciesGraph
+    )?
 
     public func install(
         dependenciesDirectory: AbsolutePath,

@@ -1,6 +1,6 @@
-import Foundation
 import D
-public class C {
+import Foundation
+public enum C {
     public static let value: String = "cValue"
 
     public static func printFromC() {

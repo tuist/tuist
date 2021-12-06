@@ -31,14 +31,18 @@ final class ProvisioningProfileParser: ProvisioningProfileParsing {
     private let securityController: SecurityControlling
     private let certificateParser: CertificateParsing
 
-    init(securityController: SecurityControlling = SecurityController(), certificateParser: CertificateParsing = CertificateParser()) {
+    init(
+        securityController: SecurityControlling = SecurityController(),
+        certificateParser: CertificateParsing = CertificateParser()
+    ) {
         self.securityController = securityController
         self.certificateParser = certificateParser
     }
 
     func parse(at path: AbsolutePath) throws -> ProvisioningProfile {
         let provisioningProfileComponents = path.basenameWithoutExt.components(separatedBy: ".")
-        guard provisioningProfileComponents.count == 2 else { throw ProvisioningProfileParserError.invalidFormat(path.pathString) }
+        guard provisioningProfileComponents.count == 2
+        else { throw ProvisioningProfileParserError.invalidFormat(path.pathString) }
         let targetName = provisioningProfileComponents[0]
         let configurationName = provisioningProfileComponents[1]
 

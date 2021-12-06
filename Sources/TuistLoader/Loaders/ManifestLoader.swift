@@ -322,9 +322,9 @@ public class ManifestLoader: ManifestLoading {
 
     private func logUnexpectedImportErrorIfNeeded(in path: AbsolutePath, error: Error, manifest: Manifest) {
         guard case let TuistSupport.SystemError.terminated(command, _, standardError) = error,
-            manifest == .config || manifest == .plugin,
-            command == "swiftc",
-            let errorMessage = String(data: standardError, encoding: .utf8) else { return }
+              manifest == .config || manifest == .plugin,
+              command == "swiftc",
+              let errorMessage = String(data: standardError, encoding: .utf8) else { return }
 
         let defaultHelpersName = ProjectDescriptionHelpersBuilder.defaultHelpersName
 
@@ -338,8 +338,8 @@ public class ManifestLoader: ManifestLoading {
 
     private func logPluginHelperBuildErrorIfNeeded(in _: AbsolutePath, error: Error, manifest _: Manifest) {
         guard case let TuistSupport.SystemError.terminated(command, _, standardError) = error,
-            command == "swiftc",
-            let errorMessage = String(data: standardError, encoding: .utf8) else { return }
+              command == "swiftc",
+              let errorMessage = String(data: standardError, encoding: .utf8) else { return }
 
         let pluginHelpers = plugins.projectDescriptionHelpers
         guard let pluginHelper = pluginHelpers.first(where: { errorMessage.contains($0.name) }) else { return }

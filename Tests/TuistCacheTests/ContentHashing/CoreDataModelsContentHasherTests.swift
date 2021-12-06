@@ -13,7 +13,8 @@ final class CoreDataModelsContentHasherTests: TuistUnitTestCase {
     private var subject: CoreDataModelsContentHasher!
     private var coreDataModel: CoreDataModel!
     private var mockContentHasher: MockContentHasher!
-    private let defaultValuesHash = "05c9d517e2cf12b45786787dae929a23" // Expected hash for the CoreDataModel created with the buildCoreDataModel function using default values
+    private let defaultValuesHash =
+        "05c9d517e2cf12b45786787dae929a23" // Expected hash for the CoreDataModel created with the buildCoreDataModel function using default values
 
     override func setUp() {
         super.setUp()

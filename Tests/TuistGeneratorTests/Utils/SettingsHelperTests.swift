@@ -70,9 +70,11 @@ final class SettingsHelpersTests: XCTestCase {
         subject.extend(buildSettings: &settings, with: ["A": "$(inherited) A_VALUE_2", "C": "C_VALUE"])
 
         // Then
-        XCTAssertEqual(settings, ["A": ["$(inherited) A_VALUE_2", "A_VALUE"],
-                                  "B": "B_VALUE",
-                                  "C": "C_VALUE"])
+        XCTAssertEqual(settings, [
+            "A": ["$(inherited) A_VALUE_2", "A_VALUE"],
+            "B": "B_VALUE",
+            "C": "C_VALUE",
+        ])
     }
 
     func testExtend_whenArraySettings() {

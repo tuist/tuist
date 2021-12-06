@@ -22,9 +22,9 @@ extension CarthageDependencies: ExpressibleByArrayLiteral {
 
 // MARK: - CarthageDependencies.Dependency & CarthageDependencies.Requirement & CarthageDependencies.Options
 
-public extension CarthageDependencies {
+extension CarthageDependencies {
     /// Specifies origin of Carthage dependency.
-    enum Dependency: Codable, Equatable {
+    public enum Dependency: Codable, Equatable {
         /// GitHub repositories (both GitHub.com and GitHub Enterprise).
         case github(path: String, requirement: Requirement)
         /// Other Git repositories.
@@ -34,7 +34,7 @@ public extension CarthageDependencies {
     }
 
     /// Specifies version requirement for Carthage dependency.
-    enum Requirement: Codable, Equatable {
+    public enum Requirement: Codable, Equatable {
         case exact(Version)
         case upToNext(Version)
         case atLeast(Version)

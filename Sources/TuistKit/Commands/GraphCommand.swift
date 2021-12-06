@@ -58,10 +58,12 @@ struct GraphCommand: ParsableCommand, HasTrackableParameters {
     var outputPath: String?
 
     func run() throws {
-        GraphCommand.analyticsDelegate?.willRun(withParameters: ["format": format.rawValue,
-                                                                 "algorithm": layoutAlgorithm.rawValue,
-                                                                 "skip_external_dependencies": String(skipExternalDependencies),
-                                                                 "skip_test_targets": String(skipExternalDependencies)])
+        GraphCommand.analyticsDelegate?.willRun(withParameters: [
+            "format": format.rawValue,
+            "algorithm": layoutAlgorithm.rawValue,
+            "skip_external_dependencies": String(skipExternalDependencies),
+            "skip_test_targets": String(skipExternalDependencies),
+        ])
         try GraphService().run(
             format: format,
             layoutAlgorithm: layoutAlgorithm,
@@ -69,7 +71,8 @@ struct GraphCommand: ParsableCommand, HasTrackableParameters {
             skipExternalDependencies: skipExternalDependencies,
             targetsToFilter: targets,
             path: path.map { AbsolutePath($0) } ?? FileHandler.shared.currentPath,
-            outputPath: outputPath.map { AbsolutePath($0, relativeTo: FileHandler.shared.currentPath) } ?? FileHandler.shared.currentPath
+            outputPath: outputPath.map { AbsolutePath($0, relativeTo: FileHandler.shared.currentPath) } ?? FileHandler.shared
+                .currentPath
         )
     }
 }

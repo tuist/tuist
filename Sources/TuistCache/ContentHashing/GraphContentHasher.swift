@@ -17,13 +17,13 @@ public protocol GraphContentHashing {
     ) throws -> [GraphTarget: String]
 }
 
-public extension GraphContentHashing {
+extension GraphContentHashing {
     /// Hashes graph
     /// - Parameters:
     ///     - graph: Graph to hash
     ///     - filter: If `true`, `TargetNode` is hashed, otherwise it is skipped
     ///     - additionalStrings: Additional strings to be used when hashing graph
-    func contentHashes(
+    public func contentHashes(
         for graph: Graph,
         filter: (GraphTarget) -> Bool = { _ in true },
         additionalStrings: [String] = []

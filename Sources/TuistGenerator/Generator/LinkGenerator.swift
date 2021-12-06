@@ -516,8 +516,8 @@ final class LinkGenerator: LinkGenerating {
     }
 }
 
-private extension XCBuildConfiguration {
-    func append(setting name: String, value: String) {
+extension XCBuildConfiguration {
+    fileprivate func append(setting name: String, value: String) {
         guard !value.isEmpty else {
             return
         }

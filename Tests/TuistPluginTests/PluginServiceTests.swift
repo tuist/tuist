@@ -73,7 +73,8 @@ final class PluginServiceTests: TuistTestCase {
 
         // Then
         let expectedHelpersPath = pluginPath.appending(component: Constants.helpersDirectoryName)
-        let expectedPlugins = Plugins.test(projectDescriptionHelpers: [.init(name: pluginName, path: expectedHelpersPath, location: .local)])
+        let expectedPlugins = Plugins
+            .test(projectDescriptionHelpers: [.init(name: pluginName, path: expectedHelpersPath, location: .local)])
         XCTAssertEqual(plugins, expectedPlugins)
     }
 
@@ -102,7 +103,8 @@ final class PluginServiceTests: TuistTestCase {
 
         // Then
         let expectedHelpersPath = cachedPluginPath.appending(component: Constants.helpersDirectoryName)
-        let expectedPlugins = Plugins.test(projectDescriptionHelpers: [.init(name: pluginName, path: expectedHelpersPath, location: .remote)])
+        let expectedPlugins = Plugins
+            .test(projectDescriptionHelpers: [.init(name: pluginName, path: expectedHelpersPath, location: .remote)])
         XCTAssertEqual(plugins, expectedPlugins)
     }
 

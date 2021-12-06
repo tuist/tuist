@@ -1,14 +1,14 @@
 import Foundation
 @testable import TuistCore
 
-public extension CloudResponseError.Error {
-    static func test(code: String = "Code", message: String = "Message") -> CloudResponseError.Error {
+extension CloudResponseError.Error {
+    public static func test(code: String = "Code", message: String = "Message") -> CloudResponseError.Error {
         .init(code: code, message: message)
     }
 }
 
-public extension CloudResponseError {
-    static func test(status: String = "Error status", errors: [Error]? = [.test()]) -> CloudResponseError {
+extension CloudResponseError {
+    public static func test(status: String = "Error status", errors: [Error]? = [.test()]) -> CloudResponseError {
         .init(status: status, errors: errors)
     }
 }

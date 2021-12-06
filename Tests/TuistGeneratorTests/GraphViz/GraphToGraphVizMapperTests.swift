@@ -78,7 +78,12 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         expected.append(GraphViz.Edge(from: tuist, to: core))
 
         // When
-        let got = subject.map(graph: graph, skipTestTargets: false, skipExternalDependencies: true, targetsToFilter: ["Tuist iOS"])
+        let got = subject.map(
+            graph: graph,
+            skipTestTargets: false,
+            skipExternalDependencies: true,
+            targetsToFilter: ["Tuist iOS"]
+        )
 
         // Then
         let gotNodeIds = got.nodes.map(\.id).sorted()

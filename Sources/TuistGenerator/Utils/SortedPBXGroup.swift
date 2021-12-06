@@ -22,7 +22,7 @@ class SortedPBXGroup {
     // The sorting implementation was taken from https://github.com/yonaskolb/XcodeGen/blob/d64cfff8a1ca01fd8f18cbb41f72230983c4a192/Sources/XcodeGenKit/PBXProjGenerator.swift
     // We require exactly the same sort which places groups over files while using the PBXGroup from Xcodeproj.
     private func sort(with group: PBXGroup) {
-        group.children.sort { (child1, child2) -> Bool in
+        group.children.sort { child1, child2 -> Bool in
             let sortOrder1 = child1.getSortOrder()
             let sortOrder2 = child2.getSortOrder()
             if sortOrder1 != sortOrder2 {
@@ -35,14 +35,14 @@ class SortedPBXGroup {
     }
 }
 
-private extension PBXGroup {
-    var childGroups: [PBXGroup] {
+extension PBXGroup {
+    fileprivate var childGroups: [PBXGroup] {
         children.compactMap { $0 as? PBXGroup }
     }
 }
 
-private extension PBXFileElement {
-    func getSortOrder() -> Int {
+extension PBXFileElement {
+    fileprivate func getSortOrder() -> Int {
         switch self {
         case is PBXGroup:
             return -1
@@ -51,11 +51,11 @@ private extension PBXFileElement {
         }
     }
 
-    static func sortByNameThenPath(_ lhs: PBXFileElement, _ rhs: PBXFileElement) -> Bool {
+    fileprivate static func sortByNameThenPath(_ lhs: PBXFileElement, _ rhs: PBXFileElement) -> Bool {
         lhs.namePathSortString.localizedStandardCompare(rhs.namePathSortString) == .orderedAscending
     }
 
-    var namePathSortString: String {
+    fileprivate var namePathSortString: String {
         "\(name ?? path ?? "")\t\(name ?? "")\t\(path ?? "")"
     }
 }

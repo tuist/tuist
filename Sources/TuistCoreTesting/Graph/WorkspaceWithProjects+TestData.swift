@@ -3,8 +3,8 @@ import TSCBasic
 import TuistGraph
 @testable import TuistCore
 
-public extension WorkspaceWithProjects {
-    static func test(
+extension WorkspaceWithProjects {
+    public static func test(
         workspace: Workspace = .test(),
         projects: [Project] = [.test()]
     ) -> WorkspaceWithProjects {

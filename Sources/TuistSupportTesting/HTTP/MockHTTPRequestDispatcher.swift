@@ -24,7 +24,9 @@ public class MockHTTPRequestDispatcher: HTTPRequestDispatching {
         }
     }
 
-    public func dispatch<T, E>(resource: HTTPResource<T, E>) -> AnyPublisher<(object: T, response: HTTPURLResponse), Error> where E: Error {
+    public func dispatch<T, E>(resource: HTTPResource<T, E>) -> AnyPublisher<(object: T, response: HTTPURLResponse), Error>
+        where E: Error
+    {
         AnyPublisher.create { subscriber in
             if T.self != Void.self {
                 fatalError(

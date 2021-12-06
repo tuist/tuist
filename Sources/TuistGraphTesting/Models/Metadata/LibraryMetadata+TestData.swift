@@ -2,8 +2,8 @@ import Foundation
 import TSCBasic
 @testable import TuistGraph
 
-public extension LibraryMetadata {
-    static func test(
+extension LibraryMetadata {
+    public static func test(
         path: AbsolutePath = "/Libraries/libTest/libTest.a",
         publicHeaders: AbsolutePath = "/Libraries/libTest/include",
         swiftModuleMap: AbsolutePath? = "/Libraries/libTest/libTest.swiftmodule",

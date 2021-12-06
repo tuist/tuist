@@ -1,5 +1,5 @@
-import ProjectAutomation
 import Foundation
+import ProjectAutomation
 
 let task = Task(
     options: [

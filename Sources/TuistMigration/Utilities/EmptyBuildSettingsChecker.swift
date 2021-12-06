@@ -50,11 +50,12 @@ public class EmptyBuildSettingsChecker: EmptyBuildSettingsChecking {
     // MARK: - EmptyBuildSettingsChecking
 
     public func check(xcodeprojPath: AbsolutePath, targetName: String?) throws {
-        guard FileHandler.shared.exists(xcodeprojPath) else { throw EmptyBuildSettingsCheckerError.missingXcodeProj(xcodeprojPath) }
+        guard FileHandler.shared.exists(xcodeprojPath)
+        else { throw EmptyBuildSettingsCheckerError.missingXcodeProj(xcodeprojPath) }
         let project = try XcodeProj(path: Path(xcodeprojPath.pathString))
         let pbxproj = project.pbxproj
         let buildConfigurations = try self.buildConfigurations(pbxproj: pbxproj, targetName: targetName)
-        let nonEmptyBuildSettings = buildConfigurations.compactMap { (config) -> String? in
+        let nonEmptyBuildSettings = buildConfigurations.compactMap { config -> String? in
             if config.buildSettings.isEmpty { return nil }
             config.buildSettings.forEach { key, _ in
                 logger.info("The build setting '\(key)' of build configuration '\(config.name)' is not empty.")
