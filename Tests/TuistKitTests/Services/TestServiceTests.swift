@@ -311,6 +311,28 @@ final class TestServiceTests: TuistUnitTestCase {
             expectedResourceBundlePath
         )
     }
+
+    func test_run_uses_show_schemes_flag() throws {
+        // Given
+        generator.generateWithGraphStub = { path, _ in
+            (path, Graph.test())
+        }
+        buildGraphInspector.projectSchemesStub = { _ in
+            [
+                Scheme.test(name: "ProjectScheme"),
+                Scheme.test(name: "ProjectScheme2"),
+            ]
+        }
+
+        // When
+        try? subject.testRun(
+            path: try temporaryPath(),
+            showSchemes: true
+        )
+
+        // Then
+        XCTAssertPrinterOutputContains("Found the following testable schemes: ProjectScheme, ProjectScheme2")
+    }
 }
 
 // MARK: - Helpers
@@ -324,6 +346,7 @@ extension TestService {
         deviceName: String? = nil,
         osVersion: String? = nil,
         skipUiTests: Bool = false,
+        showSchemes: Bool = false,
         resultBundlePath: AbsolutePath? = nil
     ) throws {
         try run(
@@ -334,6 +357,7 @@ extension TestService {
             deviceName: deviceName,
             osVersion: osVersion,
             skipUITests: skipUiTests,
+            showSchemes: showSchemes,
             resultBundlePath: resultBundlePath
         )
     }
