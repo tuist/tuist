@@ -29,7 +29,10 @@ module Fourier
               .with("u=rwx", File.join(content_path, "swiftlint"))
             FileUtils
               .expects(:copy_entry)
-              .with(content_path, Swiftlint::OUTPUT_DIRECTORY, false, false, true)
+              .with(content_path, Swiftlint::OUTPUT_DIRECTORY_TUIST, false, false, true)
+            FileUtils
+              .expects(:copy_entry)
+              .with(content_path, Swiftlint::OUTPUT_DIRECTORY_FOURIER, false, false, true)
 
             # When
             Services::Update::Swiftlint.call

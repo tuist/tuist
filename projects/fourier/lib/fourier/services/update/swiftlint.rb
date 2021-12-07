@@ -10,14 +10,16 @@ module Fourier
       class Swiftlint < Base
         VERSION = "0.45.0"
         PORTABLE_BINARY_URL = "https://github.com/realm/SwiftLint/releases/download/#{VERSION}/portable_swiftlint.zip"
-        OUTPUT_DIRECTORY = File.join(Constants::TUIST_VENDOR_DIRECTORY, "swiftlint")
+        OUTPUT_DIRECTORY_TUIST = File.join(Constants::TUIST_VENDOR_DIRECTORY, "swiftlint")
+        OUTPUT_DIRECTORY_FOURIER = File.join(Constants::VENDOR_DIRECTORY, "swiftlint")
 
         def call
           Dir.mktmpdir do |temporary_dir|
             binary_zip_path = download(temporary_dir: temporary_dir)
             binary_directory_path = extract(binary_zip_path)
             FileUtils.chmod("u=rwx", File.join(binary_directory_path, "swiftlint"))
-            FileUtils.copy_entry(binary_directory_path, OUTPUT_DIRECTORY, false, false, true)
+            FileUtils.copy_entry(binary_directory_path, OUTPUT_DIRECTORY_TUIST, false, false, true)
+            FileUtils.copy_entry(binary_directory_path, OUTPUT_DIRECTORY_FOURIER, false, false, true)
           end
         end
 
