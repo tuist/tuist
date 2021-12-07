@@ -24,46 +24,50 @@ extension TuistGraph.Headers {
             return result
         }
 
-        func unfoldGlob(_ path: AbsolutePath,
-                        excluding: Set<AbsolutePath>,
-                        pathsFromPreviousScopes: [AbsolutePath]) -> [AbsolutePath]
-        {
+        func unfoldGlob(_ path: AbsolutePath, excluding: Set<AbsolutePath>) -> [AbsolutePath] {
             FileHandler.shared.glob(AbsolutePath.root, glob: String(path.pathString.dropFirst())).filter {
                 guard let fileExtension = $0.extension else {
                     return false
                 }
-                guard TuistGraph.Headers.extensions.contains(".\(fileExtension)") else {
-                    return false
-                }
-                guard !excluding.contains($0) else {
-                    return false
-                }
-                switch manifest.intersectionRule {
-                case .autoExclude:
-                    return !pathsFromPreviousScopes.contains($0)
-                case nil, .some(.none):
-                    return true
-                }
+                return TuistGraph.Headers.extensions.contains(".\(fileExtension)") && !excluding.contains($0)
             }
         }
-        let `public`: [AbsolutePath] = try manifest.public?.globs.flatMap {
-            unfoldGlob(try generatorPaths.resolve(path: $0.glob),
-                       excluding: try resolveExcluding($0.excluding),
-                       pathsFromPreviousScopes: [])
-        } ?? []
 
-        let `private`: [AbsolutePath] = try manifest.private?.globs.flatMap {
-            unfoldGlob(try generatorPaths.resolve(path: $0.glob),
-                       excluding: try resolveExcluding($0.excluding),
-                       pathsFromPreviousScopes: `public`)
-        } ?? []
+        var autoExlcudedPaths = Set<AbsolutePath>()
+        let `public`: [AbsolutePath]
+        let `private`: [AbsolutePath]
+        let project: [AbsolutePath]
 
-        let project: [AbsolutePath] = try manifest.project?.globs.flatMap {
-            unfoldGlob(try generatorPaths.resolve(path: $0.glob),
-                       excluding: try resolveExcluding($0.excluding),
-                       pathsFromPreviousScopes: `public` + `private`)
-        } ?? []
+        func resolveHeaders(_ list: FileList?, autoExcludedPaths: Set<AbsolutePath>) throws -> [AbsolutePath] {
+            guard let list = list else { return [] }
+            return try list.globs.flatMap {
+                unfoldGlob(try generatorPaths.resolve(path: $0.glob),
+                           excluding: (try resolveExcluding($0.excluding)).union(autoExlcudedPaths)
+                )
+            } ?? []
+        }
 
+        switch manifest.exclusionRule {
+        case .none:
+            `public` = try resolveHeaders(manifest.public)
+            `private` = try resolveHeaders(manifest.private)
+            project = try resolveHeaders(manifest.project)
+            
+        case .projectExcludesPrivateAndPublic:
+            `public` = try resolveHeaders(manifest.public)
+            autoExlcudedPaths.formUnion(`public`)
+            `private` = try resolveHeaders(manifest.private)
+            autoExlcudedPaths.formUnion(`private`)
+            project = try resolveHeaders(manifest.project)
+
+        case .publicExcludesPrivateAndProject:
+            project = try resolveHeaders(manifest.project)
+            autoExlcudedPaths.formUnion(project)
+            `private` = try resolveHeaders(manifest.private)
+            autoExlcudedPaths.formUnion(`private`)
+            `public` = try resolveHeaders(manifest.public)
+        }
+        
         return Headers(public: `public`, private: `private`, project: project)
     }
 }
