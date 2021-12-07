@@ -98,17 +98,24 @@ class InitService {
 
         let directories = try templatesDirectoryLocator.templateDirectories(at: path)
         if let templateName = templateName {
-            var template: Template
-            var tempPath: AbsolutePath?
-            if isURLFormattedString(templateName) {
-                let tempFolderName = AbsolutePath.current.removingLastComponent()
-                    .appending(.init("\(templateName)")).url.lastPathComponent
-                tempPath = .current.removingLastComponent().appending(.init("\(tempFolderName)"))
-                guard
-                    let tempPath = tempPath else { return }
-                try fileHandler.createFolder(tempPath)
-                try gitHandler.clone(url: templateName, to: tempPath)
-                template = try templateLoader.loadTemplate(at: tempPath)
+            var template: Template?
+            if templateName.isURL {
+                try fileHandler.inTemporaryDirectory { temporaryDirectory in
+                    let templateDirectoryName = temporaryDirectory.appending(.init("\(templateName)")).url.lastPathComponent
+                    let templateDirectory = temporaryDirectory.appending(.init("\(templateDirectoryName)"))
+                    try fileHandler.createFolder(templateDirectory)
+                    try gitHandler.clone(url: templateName, to: templateDirectory)
+                    template = try templateLoader.loadTemplate(at: templateDirectory)
+                    guard let template = template else { return }
+                    try generateTemplate(
+                        template,
+                        requiredTemplateOptions: requiredTemplateOptions,
+                        optionalTemplateOptions: optionalTemplateOptions,
+                        name: name,
+                        platform: platform,
+                        path: path
+                    )
+                }
 
             } else {
                 guard
@@ -116,23 +123,16 @@ class InitService {
                 else { throw InitServiceError.templateNotFound(templateName) }
 
                 template = try templateLoader.loadTemplate(at: templateDirectory)
+                guard let template = template else { return }
+                try generateTemplate(
+                    template,
+                    requiredTemplateOptions: requiredTemplateOptions,
+                    optionalTemplateOptions: optionalTemplateOptions,
+                    name: name,
+                    platform: platform,
+                    path: path
+                )
             }
-
-            let parsedAttributes = try parseAttributes(
-                name: name,
-                platform: platform,
-                requiredTemplateOptions: requiredTemplateOptions,
-                optionalTemplateOptions: optionalTemplateOptions,
-                template: template
-            )
-
-            try templateGenerator.generate(
-                template: template,
-                to: path,
-                attributes: parsedAttributes
-            )
-            guard let tempPath = tempPath else { return }
-            try fileHandler.delete(tempPath)
 
         } else {
             guard
@@ -159,15 +159,6 @@ class InitService {
         if !path.glob("*").isEmpty {
             throw InitServiceError.nonEmptyDirectory(path)
         }
-    }
-
-    /// Checks if string is URL valid format.
-    ///
-    /// - Parameter string: string to be checked
-    /// - Returns: Bool
-    private func isURLFormattedString(_ string: String) -> Bool {
-        let pattern = "(?i)https?://(?:www\\.)?\\S+(?:/|\\b)"
-        return string.matches(pattern: pattern)
     }
 
     /// Parses all `attributes` from `template`
@@ -249,5 +240,27 @@ class InitService {
         } else {
             return .iOS
         }
+    }
+
+    private func generateTemplate(_ template: Template,
+                                  requiredTemplateOptions: [String: String],
+                                  optionalTemplateOptions: [String: String?],
+                                  name: String,
+                                  platform: Platform,
+                                  path: AbsolutePath) throws
+    {
+        let parsedAttributes = try parseAttributes(
+            name: name,
+            platform: platform,
+            requiredTemplateOptions: requiredTemplateOptions,
+            optionalTemplateOptions: optionalTemplateOptions,
+            template: template
+        )
+
+        try templateGenerator.generate(
+            template: template,
+            to: path,
+            attributes: parsedAttributes
+        )
     }
 }

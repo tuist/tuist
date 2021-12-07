@@ -104,6 +104,11 @@ extension String {
         prefix(1).lowercased() + dropFirst()
     }
 
+    public var isURL: Bool {
+        let pattern = "(?i)https?://(?:www\\.)?\\S+(?:/|\\b)"
+        return self.matches(pattern: pattern)
+    }
+
     /// A collection of all the words in the string by separating out any punctuation and spaces.
     public var words: [String] {
         components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }

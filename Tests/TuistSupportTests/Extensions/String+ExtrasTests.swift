@@ -17,6 +17,28 @@ final class StringExtrasTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got, "frameworkIOSResources")
     }
+
+    func test_string_doesnt_match_URL_regex() {
+        // Given
+        let stringToEvaluate = "not a url string"
+
+        // When
+        let result = stringToEvaluate.isURL
+
+        // Then
+        XCTAssertFalse(result)
+    }
+
+    func test_string_does_match_URL_regex() {
+        // Given
+        let stringToEvaluate = "https://itsaurl.url"
+
+        // When
+        let result = stringToEvaluate.isURL
+
+        // Then
+        XCTAssertTrue(result)
+    }
 }
 
 final class StringsArrayTests: TuistUnitTestCase {
