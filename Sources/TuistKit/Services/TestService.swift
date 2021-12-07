@@ -110,16 +110,14 @@ final class TestService {
 
         let testableSchemes = buildGraphInspector.testableSchemes(graphTraverser: graphTraverser) +
             buildGraphInspector.projectSchemes(graphTraverser: graphTraverser)
+        let testableSchemesString = Set(testableSchemes.map(\.name)).joined(separator: ", ")
         logger.log(
             level: .debug,
-            "Found the following testable schemes: \(Set(testableSchemes.map(\.name)).joined(separator: ", "))"
+            "Found the following testable schemes: \(testableSchemesString)"
         )
 
         if showSchemes {
-            logger.log(
-                level: .info,
-                "Found the following testable schemes: \(Set(testableSchemes.map(\.name)).joined(separator: ", "))"
-            )
+            logger.pretty("Found the following testable schemes: \(.keystroke(.raw(testableSchemesString)))")
             return
         }
 
