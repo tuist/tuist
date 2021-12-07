@@ -6,7 +6,7 @@ module Fourier
       class << self
         def lint(directories:, fix: false)
           arguments = [
-            File.join(Fourier::Constants::VENDOR_DIRECTORY, "swiftlint"),
+            File.join(Fourier::Constants::VENDOR_DIRECTORY, "swiftlint", "swiftlint"),
           ]
           if fix
             arguments << "autocorrect"
