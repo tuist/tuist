@@ -7,6 +7,9 @@ public struct Dependencies: Codable, Equatable {
 
     /// The description of dependencies that can be installed using Swift Package Manager.
     public let swiftPackageManager: SwiftPackageManagerDependencies?
+    
+    /// The description of the CocoaPods dependencies.
+    public let cocoaPods: CocoaPodsDependencies?
 
     /// Set of platforms for which you want to install dependencies.
     public let platforms: Set<Platform>
@@ -19,10 +22,12 @@ public struct Dependencies: Codable, Equatable {
     public init(
         carthage: CarthageDependencies? = nil,
         swiftPackageManager: SwiftPackageManagerDependencies? = nil,
+        cocoaPods: CocoaPodsDependencies? = nil,
         platforms: Set<Platform> = Set(Platform.allCases)
     ) {
         self.carthage = carthage
         self.swiftPackageManager = swiftPackageManager
+        self.cocoaPods = cocoaPods
         self.platforms = platforms
         dumpIfNeeded(self)
     }
