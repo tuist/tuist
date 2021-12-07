@@ -105,8 +105,10 @@ extension String {
     }
 
     public var isURL: Bool {
-        let pattern = "(?i)https?://(?:www\\.)?\\S+(?:/|\\b)"
-        return self.matches(pattern: pattern)
+        let patternOne = "(\\w+://)(.+@)*([\\w\\d\\.]+)(:[\\d]+){0,1}/*(.*)"
+        let patternTwo = "file://(.*)"
+        let patternThree = "(.+@)*([\\w\\d\\.]+):(.*)"
+        return self.matches(pattern: patternOne) || self.matches(pattern: patternTwo) || self.matches(pattern: patternThree)
     }
 
     /// A collection of all the words in the string by separating out any punctuation and spaces.

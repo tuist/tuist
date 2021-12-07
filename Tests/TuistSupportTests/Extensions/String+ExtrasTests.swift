@@ -29,9 +29,20 @@ final class StringExtrasTests: TuistUnitTestCase {
         XCTAssertFalse(result)
     }
 
-    func test_string_does_match_URL_regex() {
+    func test_string_does_match_http_URL_regex() {
         // Given
         let stringToEvaluate = "https://itsaurl.url"
+
+        // When
+        let result = stringToEvaluate.isURL
+
+        // Then
+        XCTAssertTrue(result)
+    }
+
+    func test_string_does_match_ssh_URL_regex() {
+        // Given
+        let stringToEvaluate = "git@github.com:user/repo.git"
 
         // When
         let result = stringToEvaluate.isURL

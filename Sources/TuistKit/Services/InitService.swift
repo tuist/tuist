@@ -12,11 +12,12 @@ enum InitServiceError: FatalError, Equatable {
     case templateNotProvided
     case attributeNotProvided(String)
     case invalidValue(argument: String, error: String)
+    case invalidRemoteTemplate(url: String)
 
     var type: ErrorType {
         switch self {
         case .ungettableProjectName, .nonEmptyDirectory, .templateNotFound, .templateNotProvided, .attributeNotProvided,
-             .invalidValue:
+             .invalidValue, .invalidRemoteTemplate:
             return .abort
         }
     }
@@ -35,6 +36,8 @@ enum InitServiceError: FatalError, Equatable {
             return "You must provide \(name) option. Add --\(name) desired_value to your command."
         case let .invalidValue(argument: argument, error: error):
             return "\(error) for argument \(argument); use --help to print usage"
+        case let .invalidRemoteTemplate(url):
+            return "Error creating project from remote template. Template URL: \(url)"
         }
     }
 }
@@ -100,21 +103,15 @@ class InitService {
         if let templateName = templateName {
             var template: Template?
             if templateName.isURL {
-                try fileHandler.inTemporaryDirectory { temporaryDirectory in
-                    let templateDirectoryName = temporaryDirectory.appending(.init("\(templateName)")).url.lastPathComponent
-                    let templateDirectory = temporaryDirectory.appending(.init("\(templateDirectoryName)"))
-                    try fileHandler.createFolder(templateDirectory)
-                    try gitHandler.clone(url: templateName, to: templateDirectory)
-                    template = try templateLoader.loadTemplate(at: templateDirectory)
-                    guard let template = template else { return }
-                    try generateTemplate(
-                        template,
-                        requiredTemplateOptions: requiredTemplateOptions,
-                        optionalTemplateOptions: optionalTemplateOptions,
-                        name: name,
-                        platform: platform,
-                        path: path
-                    )
+                do {
+                    let temporaryDirectory = try fileHandler.temporaryDirectory()
+                        .appending(component: "Template")
+                    try fileHandler.createFolder(temporaryDirectory)
+                    try gitHandler.clone(url: templateName, to: temporaryDirectory)
+                    template = try templateLoader.loadTemplate(at: temporaryDirectory)
+
+                } catch {
+                    throw InitServiceError.invalidRemoteTemplate(url: templateName)
                 }
 
             } else {
@@ -123,16 +120,23 @@ class InitService {
                 else { throw InitServiceError.templateNotFound(templateName) }
 
                 template = try templateLoader.loadTemplate(at: templateDirectory)
-                guard let template = template else { return }
-                try generateTemplate(
-                    template,
-                    requiredTemplateOptions: requiredTemplateOptions,
-                    optionalTemplateOptions: optionalTemplateOptions,
-                    name: name,
-                    platform: platform,
-                    path: path
-                )
             }
+            guard
+                let template = template else { return }
+
+            let parsedAttributes = try parseAttributes(
+                name: name,
+                platform: platform,
+                requiredTemplateOptions: requiredTemplateOptions,
+                optionalTemplateOptions: optionalTemplateOptions,
+                template: template
+            )
+
+            try templateGenerator.generate(
+                template: template,
+                to: path,
+                attributes: parsedAttributes
+            )
 
         } else {
             guard
@@ -240,27 +244,5 @@ class InitService {
         } else {
             return .iOS
         }
-    }
-
-    private func generateTemplate(_ template: Template,
-                                  requiredTemplateOptions: [String: String],
-                                  optionalTemplateOptions: [String: String?],
-                                  name: String,
-                                  platform: Platform,
-                                  path: AbsolutePath) throws
-    {
-        let parsedAttributes = try parseAttributes(
-            name: name,
-            platform: platform,
-            requiredTemplateOptions: requiredTemplateOptions,
-            optionalTemplateOptions: optionalTemplateOptions,
-            template: template
-        )
-
-        try templateGenerator.generate(
-            template: template,
-            to: path,
-            attributes: parsedAttributes
-        )
     }
 }
