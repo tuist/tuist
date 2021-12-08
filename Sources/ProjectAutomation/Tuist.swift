@@ -31,18 +31,27 @@ public final class Tuist {
         // If a task is executed via `tuist`, it gets passed the binary path as a last argument.
         // Otherwise, fallback to go
         let tuistBinaryPath = ProcessInfo.processInfo.environment["TUIST_CONFIG_BINARY_PATH"] ?? "tuist"
-        guard
-            let graphOutput = try capture([tuistBinaryPath, "graph", "--format", "json"]).data(using: .utf8)
-        else { throw TuistError.invalidData }
-        return try JSONDecoder().decode(Graph.self, from: graphOutput)
+        return try withTemporaryDirectory { temporaryDirectory -> Graph in
+            let graphPath = temporaryDirectory.appending(component: "graph.json")
+            try run(
+                [
+                    tuistBinaryPath,
+                    "graph",
+                    "--format", "json",
+                    "--output-path", graphPath.parentDirectory.pathString
+                ]
+            )
+            let graphData = try Data(contentsOf: graphPath.asURL)
+            return try JSONDecoder().decode(Graph.self, from: graphData)
+        }
     }
     
-    private static func capture(
+    private static func run(
         _ arguments: [String]
-    ) throws -> String {
+    ) throws {
         let process = Process(
             arguments: arguments,
-            outputRedirection: .collect,
+            outputRedirection: .none,
             startNewProcessGroup: false
         )
 
@@ -50,8 +59,6 @@ public final class Tuist {
         let result = try process.waitUntilExit()
 
         try result.throwIfErrored()
-
-        return try result.utf8Output()
     }
 }
 
