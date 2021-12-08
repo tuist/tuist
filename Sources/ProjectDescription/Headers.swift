@@ -2,7 +2,6 @@ import Foundation
 
 /// Headers
 public struct Headers: Codable, Equatable {
-
     /// Determine how to resolve cases,
     /// when the same files found in different header scopes
     public enum AutomaticExclusionRule: Int, Codable {

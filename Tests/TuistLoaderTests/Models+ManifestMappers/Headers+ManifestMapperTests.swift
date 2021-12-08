@@ -338,10 +338,15 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         ])
 
         let manifest = ProjectDescription.Headers(
-            public: .list([.glob("Sources/**", excluding: ["Sources/**/*+Protected.h",
-                                                           "Sources/**/*+Project.h",
-                                                           "Sources/**/*+Private.h",
-                                                          ])]),
+            public: .list([
+                .glob("Sources/**",
+                      excluding: [
+                        "Sources/**/*+Protected.h",
+                        "Sources/**/*+Project.h",
+                        "Sources/**/*+Private.h"
+                      ]
+                     )
+            ]),
             private: ["Sources/**/*+Private.h"],
             project: ["Sources/**"],
             exclusionRule: .projectExcludesPrivateAndPublic
@@ -402,7 +407,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(model.public, [
             "Sources/group/A1.h",
             "Sources/group/A2.h",
-            "Sources/group/A3.h",
+            "Sources/group/A3.h"
         ].map { temporaryPath.appending(RelativePath($0)) })
 
         XCTAssertEqual(model.private, [
@@ -411,7 +416,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
 
         XCTAssertEqual(model.project.sorted(), [
             "Sources/group/A1+Project.h",
-            "Sources/group/A2+Protected.h",
+            "Sources/group/A2+Protected.h"
         ].sorted().map { temporaryPath.appending(RelativePath($0)) })
     }
 }

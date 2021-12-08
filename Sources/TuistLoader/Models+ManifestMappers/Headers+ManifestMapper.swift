@@ -41,8 +41,9 @@ extension TuistGraph.Headers {
         func resolveHeaders(_ list: FileList?) throws -> [AbsolutePath] {
             guard let list = list else { return [] }
             return try list.globs.flatMap {
-                unfoldGlob(try generatorPaths.resolve(path: $0.glob),
-                           excluding: (try resolveExcluding($0.excluding)).union(autoExlcudedPaths)
+                unfoldGlob(
+                    try generatorPaths.resolve(path: $0.glob),
+                    excluding: (try resolveExcluding($0.excluding)).union(autoExlcudedPaths)
                 )
             }
         }
