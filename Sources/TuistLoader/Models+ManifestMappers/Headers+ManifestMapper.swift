@@ -38,13 +38,13 @@ extension TuistGraph.Headers {
         let `private`: [AbsolutePath]
         let project: [AbsolutePath]
 
-        func resolveHeaders(_ list: FileList?, autoExcludedPaths: Set<AbsolutePath>) throws -> [AbsolutePath] {
+        func resolveHeaders(_ list: FileList?) throws -> [AbsolutePath] {
             guard let list = list else { return [] }
             return try list.globs.flatMap {
                 unfoldGlob(try generatorPaths.resolve(path: $0.glob),
                            excluding: (try resolveExcluding($0.excluding)).union(autoExlcudedPaths)
                 )
-            } ?? []
+            }
         }
 
         switch manifest.exclusionRule {
