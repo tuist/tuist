@@ -11,6 +11,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Fix default template to work with `tvos` platform [#3759](https://github.com/tuist/tuist/pull/3759) by [@ezraberch](https://github.com/ezraberch)
+- Fix curl in the installer script so that it fails if unable to download the Tuist release assets. [#3803](https://github.com/tuist/tuist/pull/3803) by [@luispadron](https://github.com/luispadron)
 
 ## 2.3.2 - Discoteque
 
