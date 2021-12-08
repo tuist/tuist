@@ -30,9 +30,9 @@ public final class Tuist {
     public static func graph() throws -> Graph {
         // If a task is executed via `tuist`, it gets passed the binary path as a last argument.
         // Otherwise, fallback to go
-        let tuist = CommandLine.arguments.last ?? "tuist"
+        let tuistBinaryPath = ProcessInfo.processInfo.environment["TUIST_CONFIG_BINARY_PATH"] ?? "tuist"
         guard
-            let graphOutput = try capture([tuist, "graph", "--format", "json"]).data(using: .utf8)
+            let graphOutput = try capture([tuistBinaryPath, "graph", "--format", "json"]).data(using: .utf8)
         else { throw TuistError.invalidData }
         return try JSONDecoder().decode(Graph.self, from: graphOutput)
     }

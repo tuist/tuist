@@ -84,10 +84,12 @@ final class PluginArchiveService {
                 .map(artifactsPath.appending)
         )
         let zipName = "\(plugin.name).tuist-plugin.zip"
-        let zipPath = try archiver.zip(name: zipName)
+        let temporaryZipPath = try archiver.zip(name: zipName)
+        // TODO: Remove if it exists
+        let zipPath = path.appending(component: zipName)
         try FileHandler.shared.copy(
-            from: zipPath,
-            to: path.appending(component: zipName)
+            from: temporaryZipPath,
+            to: zipPath
         )
         try archiver.delete()
 

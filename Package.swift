@@ -27,7 +27,6 @@ let package = Package(
         ),
         .library(
             name: "ProjectAutomation",
-            type: .dynamic,
             targets: ["ProjectAutomation"]
         ),
         .library(

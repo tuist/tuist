@@ -2,6 +2,7 @@ import Foundation
 import TuistLoader
 import TuistPlugin
 import TuistSupport
+import TuistCore
 
 enum TuistServiceError: FatalError {
     case taskUnavailable
@@ -33,7 +34,10 @@ final class TuistService: NSObject {
         self.configLoader = configLoader
     }
 
-    func run(_ arguments: [String]) throws {
+    func run(
+        arguments: [String],
+        tuistBinaryPath: String
+    ) throws {
         var arguments = arguments
 
         let commandName = "tuist-\(arguments[0])"
@@ -50,7 +54,12 @@ final class TuistService: NSObject {
         } else {
             throw TuistServiceError.taskUnavailable
         }
+        
 
-        try System.shared.runAndPrint(arguments)
+        try System.shared.runAndPrint(
+            arguments,
+            verbose: Environment.shared.isVerbose,
+            environment: [Constants.EnvironmentVariables.tuistBinaryPath: tuistBinaryPath]
+        )
     }
 }

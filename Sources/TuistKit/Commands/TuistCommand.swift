@@ -88,7 +88,10 @@ public struct TuistCommand: ParsableCommand {
 
     private static func executeTask(with processedArguments: [String]) throws {
         do {
-            try TuistService().run(processedArguments)
+            try TuistService().run(
+                arguments: processedArguments,
+                tuistBinaryPath: processArguments()!.first!
+            )
         } catch TuistServiceError.taskUnavailable {
             do {
                 _ = try parseAsRoot(processedArguments)

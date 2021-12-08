@@ -4,7 +4,7 @@ import ProjectDescription
      plugins: [
          .local(path: .relativeToManifest("../../LocalPlugin")),
          // TODO: Change back to tuist organization
-         .git(url: "https://github.com/fortmarek/ExampleTuistPlugin", tag: "0.3.0")
+         .git(url: "https://github.com/fortmarek/ExampleTuistPlugin", tag: "0.4.0")
      ],
      generationOptions: []
  )
