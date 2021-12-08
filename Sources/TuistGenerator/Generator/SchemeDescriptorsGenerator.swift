@@ -467,9 +467,29 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             )
         }
 
+        let preActions = try scheme.runAction?.preActions.map {
+            try schemeExecutionAction(
+                action: $0,
+                graphTraverser: graphTraverser,
+                generatedProjects: generatedProjects,
+                rootPath: rootPath
+            )
+        } ?? []
+
+        let postActions = try scheme.runAction?.postActions.map {
+            try schemeExecutionAction(
+                action: $0,
+                graphTraverser: graphTraverser,
+                generatedProjects: generatedProjects,
+                rootPath: rootPath
+            )
+        } ?? []
+
         return XCScheme.LaunchAction(
             runnable: buildableProductRunnable,
             buildConfiguration: buildConfiguration,
+            preActions: preActions,
+            postActions: postActions,
             macroExpansion: macroExpansion,
             selectedDebuggerIdentifier: launchActionConstants.debugger,
             selectedLauncherIdentifier: launchActionConstants.launcher,
@@ -537,9 +557,30 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         let buildConfiguration = scheme.profileAction?
             .configurationName ?? defaultReleaseBuildConfigurationName(in: graphTarget.project)
+
+        let preActions = try scheme.profileAction?.preActions.map {
+            try schemeExecutionAction(
+                action: $0,
+                graphTraverser: graphTraverser,
+                generatedProjects: generatedProjects,
+                rootPath: rootPath
+            )
+        } ?? []
+
+        let postActions = try scheme.profileAction?.postActions.map {
+            try schemeExecutionAction(
+                action: $0,
+                graphTraverser: graphTraverser,
+                generatedProjects: generatedProjects,
+                rootPath: rootPath
+            )
+        } ?? []
+
         return XCScheme.ProfileAction(
             buildableProductRunnable: buildableProductRunnable,
             buildConfiguration: buildConfiguration,
+            preActions: preActions,
+            postActions: postActions,
             macroExpansion: macroExpansion,
             shouldUseLaunchSchemeArgsEnv: shouldUseLaunchSchemeArgsEnv,
             commandlineArguments: commandlineArguments,
