@@ -53,7 +53,7 @@ extension TuistGraph.Headers {
             `public` = try resolveHeaders(manifest.public)
             `private` = try resolveHeaders(manifest.private)
             project = try resolveHeaders(manifest.project)
-            
+
         case .projectExcludesPrivateAndPublic:
             `public` = try resolveHeaders(manifest.public)
             autoExlcudedPaths.formUnion(`public`)
@@ -68,7 +68,7 @@ extension TuistGraph.Headers {
             autoExlcudedPaths.formUnion(`private`)
             `public` = try resolveHeaders(manifest.public)
         }
-        
+
         return Headers(public: `public`, private: `private`, project: project)
     }
 }
