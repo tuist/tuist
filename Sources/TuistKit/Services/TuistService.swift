@@ -3,6 +3,7 @@ import TuistLoader
 import TuistPlugin
 import TuistSupport
 import TuistCore
+import TSCBasic
 
 enum TuistServiceError: FatalError {
     case taskUnavailable
@@ -41,8 +42,18 @@ final class TuistService: NSObject {
         var arguments = arguments
 
         let commandName = "tuist-\(arguments[0])"
+        
+        let path: AbsolutePath
+        if let pathOptionIndex = arguments.firstIndex(of: "--path") ?? arguments.firstIndex(of: "--p") {
+            path = AbsolutePath(
+                arguments[pathOptionIndex + 1],
+                relativeTo: FileHandler.shared.currentPath
+            )
+        } else {
+            path = FileHandler.shared.currentPath
+        }
 
-        let config = try configLoader.loadConfig(path: FileHandler.shared.currentPath)
+        let config = try configLoader.loadConfig(path: path)
         let pluginExecutables = try pluginService.remotePluginPaths(using: config)
             .compactMap(\.releasePath)
             .flatMap(FileHandler.shared.contentsOfDirectory)
