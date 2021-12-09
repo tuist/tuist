@@ -31,7 +31,7 @@ final class TuistServiceTests: TuistUnitTestCase {
 
     func test_run_when_command_not_found() throws {
         XCTAssertThrowsSpecific(
-            try subject.run(["my-command"]),
+            try subject.run(arguments: ["my-command"], tuistBinaryPath: ""),
             TuistServiceError.taskUnavailable
         )
     }
@@ -54,7 +54,7 @@ final class TuistServiceTests: TuistUnitTestCase {
 
         // When/Then
         XCTAssertNoThrow(
-            try subject.run(["command-b"])
+            try subject.run(arguments: ["command-b"], tuistBinaryPath: "")
         )
     }
 
@@ -69,7 +69,7 @@ final class TuistServiceTests: TuistUnitTestCase {
 
         // When/Then
         XCTAssertNoThrow(
-            try subject.run(["my-command", "argument-one"])
+            try subject.run(arguments: ["my-command", "argument-one"], tuistBinaryPath: "")
         )
         XCTAssertEqual(whichCommand, "tuist-my-command")
     }

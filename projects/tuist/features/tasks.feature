@@ -7,3 +7,4 @@ Feature: Run tasks
     Then current directory is added to PATH
     Then tuist runs create-file
     Then content of a file named plugin-file.txt should be equal to File created with a plugin
+    Then tuist runs inspect-graph

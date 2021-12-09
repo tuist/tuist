@@ -1,11 +1,11 @@
 import Foundation
 import TSCBasic
 
+/// Tuist includes all methods to interact with your tuist project
 public final class Tuist {
     enum TuistError: Error {
         case signalled(command: String, code: Int32, standardError: Data)
         case terminated(command: String, code: Int32, standardError: Data)
-        case invalidData
         
         public var description: String {
             switch self {
@@ -21,12 +21,11 @@ public final class Tuist {
                 } else {
                     return "The '\(command)' command exited with error code \(code)"
                 }
-            case .invalidData:
-                return "Invalid data returned tuist graph command"
             }
         }
     }
     
+    /// Returns graph at the current path.
     public static func graph() throws -> Graph {
         // If a task is executed via `tuist`, it gets passed the binary path as a last argument.
         // Otherwise, fallback to go
