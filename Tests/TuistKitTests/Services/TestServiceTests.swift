@@ -312,7 +312,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_run_uses_show_schemes_flag() throws {
+    func test_run_uses_list_schemes_flag() throws {
         // Given
         generator.generateWithGraphStub = { path, _ in
             (path, Graph.test())
@@ -325,9 +325,9 @@ final class TestServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try? subject.testRun(
+        try subject.testRun(
             path: try temporaryPath(),
-            showSchemes: true
+            listSchemes: true
         )
 
         // Then
@@ -346,7 +346,7 @@ extension TestService {
         deviceName: String? = nil,
         osVersion: String? = nil,
         skipUiTests: Bool = false,
-        showSchemes: Bool = false,
+        listSchemes: Bool = false,
         resultBundlePath: AbsolutePath? = nil
     ) throws {
         try run(
@@ -357,7 +357,7 @@ extension TestService {
             deviceName: deviceName,
             osVersion: osVersion,
             skipUITests: skipUiTests,
-            showSchemes: showSchemes,
+            listSchemes: listSchemes,
             resultBundlePath: resultBundlePath
         )
     }

@@ -7,7 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Add support for `excluding` parameter to `FileList` [#3773](https://github.com/tuist/tuist/pull/3773) by [@pavel-trafimuk](https://github.com/pavel-trafimuk)
-- Add `--show-schemes` flag to `tuist test` command [#3799](https://github.com/tuist/tuist/pull/3799) by [@Alexsilvacodes](https://github.com/Alexsilvacodes).
+- Add `--list-schemes` flag to `tuist test` and `tuist build` commands [#3799](https://github.com/tuist/tuist/pull/3799) by [@Alexsilvacodes](https://github.com/Alexsilvacodes).
 
 ### Fixed
 

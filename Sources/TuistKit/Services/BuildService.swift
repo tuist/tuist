@@ -57,6 +57,7 @@ final class BuildService {
         schemeName: String?,
         generate: Bool,
         clean: Bool,
+        listSchemes: Bool,
         configuration: String?,
         buildOutputPath: AbsolutePath?,
         path: AbsolutePath
@@ -76,11 +77,14 @@ final class BuildService {
 
         let graphTraverser = GraphTraverser(graph: graph)
         let buildableSchemes = buildGraphInspector.buildableSchemes(graphTraverser: graphTraverser)
+        let buildableSchemesString = Set(buildableSchemes.map(\.name)).sorted(by: { $0 < $1 }).joined(separator: ", ")
 
-        logger.log(
-            level: .debug,
-            "Found the following buildable schemes: \(buildableSchemes.map(\.name).joined(separator: ", "))"
-        )
+        if listSchemes {
+            logger.pretty("Found the following buildable schemes: \(.keystroke(.raw(buildableSchemesString)))")
+            return
+        } else {
+            logger.log(level: .debug, "Found the following buildable schemes: \(buildableSchemesString)")
+        }
 
         if let schemeName = schemeName {
             guard let scheme = buildableSchemes.first(where: { $0.name == schemeName }) else {

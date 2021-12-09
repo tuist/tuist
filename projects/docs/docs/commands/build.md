@@ -56,3 +56,13 @@ Sometimes for CI or when creating automations you may like to customize the buil
 
 `tuist build --build-output-path .build`
 
+### Arguments
+
+| Argument               | Short | Description                                                                      | Default           | Required |
+| ---------------------- | ----- | -------------------------------------------------------------------------------- | ----------------- | -------- |
+| `--generate`           | n/a   | `Force the generation of the project before building.`                           | False             | No       |
+| `--clean`              | n/a   | `When passed, it cleans the project before building it.`                         | False             | No       |
+| `--list-schemes`       | n/a   | `When passed, it lists the buildable schemes.`                                    | False             | No       |
+| `--path`               | `-p`  | `The path to the directory that contains the project to be built.`               | Current directory | No       |
+| `--configuration`      | `-C`  | `The configuration to be used when building the scheme.`                         |                   | No       |
+| `--build-output-path`  | n/a   | `The directory where build products will be copied to when the project is built` | Current directory | No       |

@@ -55,9 +55,9 @@ struct TestCommand: ParsableCommand {
 
     @Flag(
         name: .long,
-        help: "When passed, it shows the testable schemes."
+        help: "When passed, it lists the testable schemes."
     )
-    var showSchemes: Bool = false
+    var listSchemes: Bool = false
 
     @Option(
         name: [.long, .customShort("T")],
@@ -82,7 +82,7 @@ struct TestCommand: ParsableCommand {
             deviceName: device,
             osVersion: os,
             skipUITests: skipUITests,
-            showSchemes: showSchemes,
+            listSchemes: listSchemes,
             resultBundlePath: resultBundlePath.map {
                 AbsolutePath(
                     $0,

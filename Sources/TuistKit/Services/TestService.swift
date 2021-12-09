@@ -78,7 +78,7 @@ final class TestService {
         deviceName: String?,
         osVersion: String?,
         skipUITests: Bool,
-        showSchemes: Bool,
+        listSchemes: Bool,
         resultBundlePath: AbsolutePath?
     ) throws {
         // Load config
@@ -110,15 +110,13 @@ final class TestService {
 
         let testableSchemes = buildGraphInspector.testableSchemes(graphTraverser: graphTraverser) +
             buildGraphInspector.projectSchemes(graphTraverser: graphTraverser)
-        let testableSchemesString = Set(testableSchemes.map(\.name)).joined(separator: ", ")
-        logger.log(
-            level: .debug,
-            "Found the following testable schemes: \(testableSchemesString)"
-        )
+        let testableSchemesString = Set(testableSchemes.map(\.name)).sorted(by: { $0 < $1 }).joined(separator: ", ")
 
-        if showSchemes {
+        if listSchemes {
             logger.pretty("Found the following testable schemes: \(.keystroke(.raw(testableSchemesString)))")
             return
+        } else {
+            logger.log(level: .debug, "Found the following testable schemes: \(testableSchemesString)")
         }
 
         if let schemeName = schemeName {

@@ -291,6 +291,38 @@ final class BuildServiceTests: TuistUnitTestCase {
         // Then
         XCTAssertPrinterContains("Found the following buildable schemes: A, B", at: .debug, ==)
     }
+
+    func test_run_uses_list_schemes_flag() throws {
+        // Given
+        let path = try temporaryPath()
+        let workspacePath = path.appending(component: "App.xcworkspace")
+        let graph = Graph.test()
+        let schemeA = Scheme.test(name: "A")
+        let schemeB = Scheme.test(name: "B")
+        generator.loadStub = { _path in
+            XCTAssertEqual(_path, path)
+            return graph
+        }
+        buildGraphInspector.workspacePathStub = { _path in
+            XCTAssertEqual(_path, path)
+            return workspacePath
+        }
+        buildGraphInspector.buildableSchemesStub = { _ in
+            [
+                schemeA,
+                schemeB,
+            ]
+        }
+
+        // When
+        try subject.testRun(
+            listSchemes: true,
+            path: path
+        )
+
+        // Then
+        XCTAssertPrinterOutputContains("Found the following buildable schemes: A, B")
+    }
 }
 
 // MARK: - Helpers
@@ -300,6 +332,7 @@ extension BuildService {
         schemeName: String? = nil,
         generate: Bool = false,
         clean: Bool = true,
+        listSchemes: Bool = false,
         configuration: String? = nil,
         buildOutputPath: AbsolutePath? = nil,
         path: AbsolutePath
@@ -308,6 +341,7 @@ extension BuildService {
             schemeName: schemeName,
             generate: generate,
             clean: clean,
+            listSchemes: listSchemes,
             configuration: configuration,
             buildOutputPath: buildOutputPath,
             path: path
