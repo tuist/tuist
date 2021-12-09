@@ -12,9 +12,6 @@ public struct Plugins: Equatable {
     /// List of paths pointing to resource templates
     public let resourceSynthesizers: [PluginResourceSynthesizer]
 
-    /// List of tasks plugins.
-    public let tasks: [PluginTasks]
-
     /// Creates a `Plugins`.
     ///
     /// - Parameters:
@@ -24,20 +21,17 @@ public struct Plugins: Equatable {
     public init(
         projectDescriptionHelpers: [ProjectDescriptionHelpersPlugin],
         templatePaths: [AbsolutePath],
-        resourceSynthesizers: [PluginResourceSynthesizer],
-        tasks: [PluginTasks]
+        resourceSynthesizers: [PluginResourceSynthesizer]
     ) {
         self.projectDescriptionHelpers = projectDescriptionHelpers
         templateDirectories = templatePaths
         self.resourceSynthesizers = resourceSynthesizers
-        self.tasks = tasks
     }
 
     /// An empty `Plugins`.
     public static let none: Plugins = .init(
         projectDescriptionHelpers: [],
         templatePaths: [],
-        resourceSynthesizers: [],
-        tasks: []
+        resourceSynthesizers: []
     )
 }

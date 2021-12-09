@@ -332,67 +332,6 @@ final class PluginServiceTests: TuistUnitTestCase {
         XCTAssertEqual(plugins, expectedPlugins)
     }
 
-    func test_loadPlugins_WHEN_localTasks() throws {
-        // Given
-        let pluginPath = try temporaryPath()
-        let pluginName = "TestPlugin"
-        let tasksPath = pluginPath.appending(components: Constants.tasksDirectoryName)
-
-        try makeDirectories(tasksPath)
-
-        // When
-        manifestLoader.loadConfigStub = { _ in
-            .test(plugins: [.local(path: .relativeToRoot(pluginPath.pathString))])
-        }
-
-        manifestLoader.loadPluginStub = { _ in
-            ProjectDescription.Plugin(name: pluginName)
-        }
-
-        let config = mockConfig(plugins: [TuistGraph.PluginLocation.local(path: pluginPath.pathString)])
-
-        // Then
-        let plugins = try subject.loadPlugins(using: config)
-        let expectedPlugins = Plugins.test(
-            tasks: [
-                PluginTasks(name: pluginName, path: tasksPath),
-            ]
-        )
-        XCTAssertEqual(plugins, expectedPlugins)
-    }
-
-    func test_loadPlugins_WHEN_gitTasks() throws {
-        // Given
-        let pluginGitUrl = "https://url/to/repo.git"
-        let pluginGitReference = "1.0.0"
-        let pluginFingerprint = "\(pluginGitUrl)-\(pluginGitReference)".md5
-        let cachedPluginPath = cacheDirectoriesProvider.cacheDirectory(for: .plugins).appending(components: pluginFingerprint, PluginServiceConstants.repository)
-        let pluginName = "TestPlugin"
-        let tasksPath = cachedPluginPath.appending(components: Constants.tasksDirectoryName)
-
-        try makeDirectories(tasksPath)
-
-        // When
-        manifestLoader.loadConfigStub = { _ in
-            .test(plugins: [ProjectDescription.PluginLocation.git(url: pluginGitUrl, tag: pluginGitReference)])
-        }
-
-        manifestLoader.loadPluginStub = { _ in
-            ProjectDescription.Plugin(name: pluginName)
-        }
-
-        let config = mockConfig(plugins: [TuistGraph.PluginLocation.git(url: pluginGitUrl, gitReference: .tag(pluginGitReference))])
-
-        // Then
-        let plugins = try subject.loadPlugins(using: config)
-        let expectedPlugins = Plugins.test(
-            tasks: [
-                PluginTasks(name: pluginName, path: tasksPath),
-            ]
-        )
-        XCTAssertEqual(plugins, expectedPlugins)
-    }
-
     func test_loadPlugins_WHEN_localTemplate() throws {
         // Given
         let pluginPath = try temporaryPath()

@@ -24,7 +24,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_edit_when_there_are_helpers_and_setup_and_config_and_dependencies_and_tasks() throws {
+    func test_edit_when_there_are_helpers_and_setup_and_config_and_dependencies() throws {
         // Given
         let sourceRootPath = try temporaryPath()
         let projectManifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }
@@ -36,10 +36,6 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
         let projectName = "Manifests"
         let projectsGroup = ProjectGroup.group(name: projectName)
-        let tasksPaths = [
-            sourceRootPath.appending(component: "TaskOne.swift"),
-            sourceRootPath.appending(component: "TaskTwo.swift"),
-        ]
 
         // When
         let graph = try subject.map(
@@ -54,9 +50,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             pluginProjectDescriptionHelpersModule: [],
             helpers: helperPaths,
             templates: templates,
-            tasks: tasksPaths,
-            projectDescriptionPath: projectDescriptionPath,
-            projectAutomationPath: sourceRootPath.appending(component: "ProjectAutomation.framework")
+            projectDescriptionPath: projectDescriptionPath
         )
 
         let project = try XCTUnwrap(graph.projects.values.first)
@@ -130,30 +124,6 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(dependenciesTarget.filesGroup, projectsGroup)
         XCTAssertEmpty(dependenciesTarget.dependencies)
 
-        // Generated TaskOne target
-        let taskOneTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "TaskOne" }))
-        XCTAssertTrue(targets.contains(taskOneTarget))
-
-        XCTAssertEqual(taskOneTarget.name, "TaskOne")
-        XCTAssertEqual(taskOneTarget.platform, .macOS)
-        XCTAssertEqual(taskOneTarget.product, .staticFramework)
-        XCTAssertEqual(taskOneTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
-        XCTAssertEqual(taskOneTarget.sources.map(\.path), [tasksPaths[0]])
-        XCTAssertEqual(taskOneTarget.filesGroup, projectsGroup)
-        XCTAssertEmpty(taskOneTarget.dependencies)
-
-        // Generated TaskTwo target
-        let taskTwoTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "TaskTwo" }))
-        XCTAssertTrue(targets.contains(taskTwoTarget))
-
-        XCTAssertEqual(taskTwoTarget.name, "TaskTwo")
-        XCTAssertEqual(taskTwoTarget.platform, .macOS)
-        XCTAssertEqual(taskTwoTarget.product, .staticFramework)
-        XCTAssertEqual(taskTwoTarget.settings, expectedSettings(includePaths: [sourceRootPath, sourceRootPath.parentDirectory]))
-        XCTAssertEqual(taskTwoTarget.sources.map(\.path), [tasksPaths[1]])
-        XCTAssertEqual(taskTwoTarget.filesGroup, projectsGroup)
-        XCTAssertEmpty(taskTwoTarget.dependencies)
-
         // Generated Project
         XCTAssertEqual(project.path, sourceRootPath.appending(component: projectName))
         XCTAssertEqual(project.name, projectName)
@@ -203,9 +173,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             pluginProjectDescriptionHelpersModule: [],
             helpers: helperPaths,
             templates: templates,
-            tasks: [],
-            projectDescriptionPath: projectDescriptionPath,
-            projectAutomationPath: sourceRootPath.appending(component: "ProjectAutomation.framework")
+            projectDescriptionPath: projectDescriptionPath
         )
 
         let project = try XCTUnwrap(graph.projects.values.first)
@@ -282,9 +250,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             pluginProjectDescriptionHelpersModule: [],
             helpers: helperPaths,
             templates: templates,
-            tasks: [],
-            projectDescriptionPath: projectDescriptionPath,
-            projectAutomationPath: sourceRootPath.appending(component: "ProjectAutomation.framework")
+            projectDescriptionPath: projectDescriptionPath
         )
 
         let project = try XCTUnwrap(graph.projects.values.first)
@@ -381,9 +347,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             pluginProjectDescriptionHelpersModule: [],
             helpers: helperPaths,
             templates: templates,
-            tasks: [],
-            projectDescriptionPath: projectDescriptionPath,
-            projectAutomationPath: sourceRootPath.appending(component: "ProjectAutomation.framework")
+            projectDescriptionPath: projectDescriptionPath
         )
 
         let project = try XCTUnwrap(graph.projects.values.first)
@@ -458,9 +422,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             pluginProjectDescriptionHelpersModule: [],
             helpers: helperPaths,
             templates: templates,
-            tasks: [],
-            projectDescriptionPath: projectDescriptionPath,
-            projectAutomationPath: sourceRootPath.appending(component: "ProjectAutomation.framework")
+            projectDescriptionPath: projectDescriptionPath
         )
 
         let project = try XCTUnwrap(graph.projects.values.first)
@@ -566,9 +528,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             pluginProjectDescriptionHelpersModule: [],
             helpers: helperPaths,
             templates: templates,
-            tasks: [],
-            projectDescriptionPath: projectDescriptionPath,
-            projectAutomationPath: sourceRootPath.appending(component: "ProjectAutomation.framework")
+            projectDescriptionPath: projectDescriptionPath
         )
 
         // Then
@@ -606,9 +566,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             pluginProjectDescriptionHelpersModule: [.init(name: "Plugin", path: pluginHelpersPath)],
             helpers: helperPaths,
             templates: templates,
-            tasks: [],
-            projectDescriptionPath: projectDescriptionPath,
-            projectAutomationPath: sourceRootPath.appending(component: "ProjectAutomation.framework")
+            projectDescriptionPath: projectDescriptionPath
         )
 
         let project = try XCTUnwrap(graph.projects.values.first)

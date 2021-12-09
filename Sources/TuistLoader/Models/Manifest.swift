@@ -8,7 +8,6 @@ public enum Manifest: CaseIterable {
     case template
     case dependencies
     case plugin
-    case task
 
     /// - Parameters:
     ///     - path: Path to the folder that contains the manifest
@@ -27,8 +26,6 @@ public enum Manifest: CaseIterable {
             return "Dependencies.swift"
         case .plugin:
             return "Plugin.swift"
-        case .task:
-            return "\(path.basenameWithoutExt).swift"
         }
     }
 }

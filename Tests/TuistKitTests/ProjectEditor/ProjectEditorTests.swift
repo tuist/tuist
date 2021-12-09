@@ -9,7 +9,6 @@ import TuistPluginTesting
 import TuistSupport
 import XCTest
 
-import TuistTasksTesting
 @testable import TuistCoreTesting
 @testable import TuistGeneratorTesting
 @testable import TuistKit
@@ -37,7 +36,6 @@ final class ProjectEditorTests: TuistUnitTestCase {
     private var templatesDirectoryLocator: MockTemplatesDirectoryLocator!
     private var projectDescriptionHelpersBuilder: MockProjectDescriptionHelpersBuilder!
     private var projectDescriptionHelpersBuilderFactory: MockProjectDescriptionHelpersBuilderFactory!
-    private var tasksLocator: MockTasksLocator!
     private var subject: ProjectEditor!
 
     override func setUp() {
@@ -52,7 +50,6 @@ final class ProjectEditorTests: TuistUnitTestCase {
         projectDescriptionHelpersBuilder = MockProjectDescriptionHelpersBuilder()
         projectDescriptionHelpersBuilderFactory = MockProjectDescriptionHelpersBuilderFactory()
         projectDescriptionHelpersBuilderFactory.projectDescriptionHelpersBuilderStub = { _ in self.projectDescriptionHelpersBuilder }
-        tasksLocator = MockTasksLocator()
 
         subject = ProjectEditor(
             generator: generator,
@@ -62,8 +59,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
             helpersDirectoryLocator: helpersDirectoryLocator,
             writer: writer,
             templatesDirectoryLocator: templatesDirectoryLocator,
-            projectDescriptionHelpersBuilderFactory: projectDescriptionHelpersBuilderFactory,
-            tasksLocator: tasksLocator
+            projectDescriptionHelpersBuilderFactory: projectDescriptionHelpersBuilderFactory
         )
     }
 
@@ -74,7 +70,6 @@ final class ProjectEditorTests: TuistUnitTestCase {
         manifestFilesLocator = nil
         helpersDirectoryLocator = nil
         templatesDirectoryLocator = nil
-        tasksLocator = nil
         subject = nil
         super.tearDown()
     }
@@ -83,7 +78,6 @@ final class ProjectEditorTests: TuistUnitTestCase {
         // Given
         let directory = try temporaryPath()
         let projectDescriptionPath = directory.appending(component: "ProjectDescription.framework")
-        let projectAutomationPath = directory.appending(component: "ProjectAutomation.framework")
         let graph = Graph.test(name: "Edit")
         let helpersDirectory = directory.appending(component: "ProjectDescriptionHelpers")
         try FileHandler.shared.createFolder(helpersDirectory)
@@ -98,10 +92,6 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let tuistPath = AbsolutePath(ProcessInfo.processInfo.arguments.first!)
         let configPath = directory.appending(components: "Tuist", "Config.swift")
         let dependenciesPath = directory.appending(components: "Tuist", "Dependencies.swif")
-        let locateTasksPaths = [
-            directory.appending(components: "Tuist", "Tasks", "TaskOne.swift"),
-            directory.appending(components: "Tuist", "Tasks", "TaskTwo.swift"),
-        ]
         try FileHandler.shared.createFolder(directory.appending(component: "a folder"))
         try FileHandler.shared.write(
             """
@@ -113,7 +103,6 @@ final class ProjectEditorTests: TuistUnitTestCase {
         )
 
         resourceLocator.projectDescriptionStub = { projectDescriptionPath }
-        resourceLocator.projectAutomationStub = { projectAutomationPath }
         manifestFilesLocator.locateProjectManifestsStub = { _, excluding, _ in
             XCTAssertEqual(
                 excluding,
@@ -128,9 +117,6 @@ final class ProjectEditorTests: TuistUnitTestCase {
         manifestFilesLocator.locateConfigStub = configPath
         manifestFilesLocator.locateDependenciesStub = dependenciesPath
         helpersDirectoryLocator.locateStub = helpersDirectory
-        tasksLocator.locateTasksStub = { _ in
-            locateTasksPaths
-        }
         projectEditorMapper.mapStub = graph
         generator.generateWorkspaceStub = { _ in
             .test(xcworkspacePath: directory.appending(component: "Edit.xcworkspacepath"))
@@ -146,10 +132,8 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEqual(mapArgs?.helpers, helpers)
         XCTAssertEqual(mapArgs?.sourceRootPath, directory)
         XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath)
-        XCTAssertEqual(mapArgs?.projectAutomationPath, projectAutomationPath)
         XCTAssertEqual(mapArgs?.configPath, configPath)
         XCTAssertEqual(mapArgs?.dependenciesPath, dependenciesPath)
-        XCTAssertEqual(mapArgs?.tasks, locateTasksPaths)
     }
 
     func test_edit_when_there_are_no_editable_files() throws {

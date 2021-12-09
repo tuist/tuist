@@ -16,7 +16,6 @@ public struct TuistCommand: ParsableCommand {
                 CleanCommand.self,
                 DumpCommand.self,
                 EditCommand.self,
-                ExecCommand.self,
                 FetchCommand.self,
                 FocusCommand.self,
                 GenerateCommand.self,
@@ -55,9 +54,6 @@ public struct TuistCommand: ParsableCommand {
                 }
                 if processedArguments.first == InitCommand.configuration.commandName {
                     try InitCommand.preprocess(processedArguments)
-                }
-                if processedArguments.first == ExecCommand.configuration.commandName {
-                    try ExecCommand.preprocess(processedArguments)
                 }
                 let command = try parseAsRoot(processedArguments)
                 executeCommand = { try execute(command) }

@@ -57,7 +57,7 @@ Xcode needs to be installed in your system. If not, you can install it from the 
 To edit the tuist's manifests, simply run `./fourier edit tuist`.
 
 To run other commands, you can use `swift run tuist command` (tuist with current changes) or `tuist run command` (tuist in your system).
-If you have not built `ProjectDescription` and `ProjectAutomation` before (or you have recently changed these frameworks), run `swift build --product ProjectDescription` and `swift build --product ProjectAutomation`.
+If you have not built `ProjectDescription` before (or you have recently changed the framework), run `swift build --product ProjectDescription`.
 
 You can also leverage all the other tuist features that you know and love with the additional benefit of being able to validate your current changes
 on a complex project. If _any_ feature does not work as expected, feel free to raise an issue.
