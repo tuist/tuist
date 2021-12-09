@@ -43,8 +43,8 @@ public struct TuistCommand: ParsableCommand {
     public static func main(_ arguments: [String]? = nil) -> Never {
         let errorHandler = ErrorHandler()
         var command: ParsableCommand
+        let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
         do {
-            let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
             if processedArguments.first == ScaffoldCommand.configuration.commandName {
                 try ScaffoldCommand.preprocess(processedArguments)
             }
@@ -58,6 +58,10 @@ public struct TuistCommand: ParsableCommand {
         } catch {
             let exitCode = self.exitCode(for: error).rawValue
             if exitCode == 0 {
+                var logger = logger
+                if isGeneratingCompletionScript(arguments: processedArguments), logger.logLevel > .info {
+                    logger.logLevel = .info
+                }
                 logger.info("\(fullMessage(for: error))")
             } else {
                 logger.error("\(fullMessage(for: error))")
@@ -94,5 +98,9 @@ public struct TuistCommand: ParsableCommand {
     static func processArguments(_ arguments: [String]? = nil) -> [String]? {
         let arguments = arguments ?? Array(ProcessInfo.processInfo.arguments)
         return arguments.filter { $0 != "--verbose" }
+    }
+
+    static func isGeneratingCompletionScript(arguments: [String]?) -> Bool {
+        arguments?.contains("--generate-completion-script") ?? false
     }
 }
