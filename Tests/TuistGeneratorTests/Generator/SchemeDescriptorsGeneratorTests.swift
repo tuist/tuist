@@ -925,6 +925,62 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertFalse(result.disableMainThreadChecker)
     }
 
+    func test_schemeLaunchAction_with_executionAction() throws {
+        // Given
+        let projectPath = AbsolutePath("/somepath/Project")
+        let xcodeProjPath = projectPath.appending(component: "Project.xcodeproj")
+        let target = Target.test(name: "App")
+
+        let preAction = ExecutionAction(
+            title: "Pre Action",
+            scriptText: "echo Pre Actions",
+            target: TargetReference(projectPath: projectPath, name: "App")
+        )
+        let postAction = ExecutionAction(
+            title: "Post Action",
+            scriptText: "echo Post Actions",
+            target: TargetReference(projectPath: projectPath, name: "App")
+        )
+
+        let launchAction = RunAction.test(
+            preActions: [preAction],
+            postActions: [postAction],
+            executable: TargetReference(projectPath: projectPath, name: "App")
+        )
+
+        let scheme = Scheme.test(
+            runAction: launchAction
+        )
+        let project = Project.test(
+            path: projectPath,
+            xcodeProjPath: xcodeProjPath,
+            targets: [target]
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    target.name: target,
+                ],
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeLaunchAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: projectPath,
+            generatedProjects: createGeneratedProjects(projects: [project])
+        )
+
+        // Then
+        XCTAssertEqual(got?.preActions.first?.title, "Pre Action")
+        XCTAssertEqual(got?.preActions.first?.scriptText, "echo Pre Actions")
+        XCTAssertEqual(got?.postActions.first?.title, "Post Action")
+        XCTAssertEqual(got?.postActions.first?.scriptText, "echo Post Actions")
+    }
+
     // MARK: - Profile Action Tests
 
     func test_schemeProfileAction_when_runnableTarget() throws {
@@ -1159,6 +1215,56 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(result.debugDocumentVersioning, true)
         XCTAssertNil(result.commandlineArguments)
         XCTAssertNil(result.environmentVariables)
+    }
+
+    func test_schemeProfileAction_with_executionAction() throws {
+        // Given
+        let projectPath = AbsolutePath("/somepath/Project")
+        let xcodeProjPath = projectPath.appending(component: "Project.xcodeproj")
+        let target = Target.test(name: "App")
+
+        let preAction = ExecutionAction(
+            title: "Pre Action",
+            scriptText: "echo Pre Actions",
+            target: TargetReference(projectPath: projectPath, name: "App")
+        )
+        let postAction = ExecutionAction(
+            title: "Post Action",
+            scriptText: "echo Post Actions",
+            target: TargetReference(projectPath: projectPath, name: "App")
+        )
+        let scheme = makeProfileActionScheme(
+            preActions: [preAction],
+            postActions: [postAction]
+        )
+        let project = Project.test(
+            path: projectPath,
+            xcodeProjPath: xcodeProjPath,
+            targets: [target]
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    target.name: target,
+                ],
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeProfileAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: projectPath,
+            generatedProjects: createGeneratedProjects(projects: [project])
+        )
+
+        // Then
+        XCTAssertEqual(got?.preActions.first?.title, "Pre Action")
+        XCTAssertEqual(got?.preActions.first?.scriptText, "echo Pre Actions")
+        XCTAssertEqual(got?.postActions.first?.title, "Post Action")
+        XCTAssertEqual(got?.postActions.first?.scriptText, "echo Post Actions")
     }
 
     // MARK: - Analyze Action Tests
@@ -1474,7 +1580,11 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         return GeneratedProject(pbxproj: .init(), path: path, targets: pbxTargets, name: path.basename)
     }
 
-    private func makeProfileActionScheme(_ launchArguments: Arguments? = nil) -> Scheme {
+    private func makeProfileActionScheme(
+        _ launchArguments: Arguments? = nil,
+        preActions: [ExecutionAction] = [],
+        postActions: [ExecutionAction] = []
+    ) -> Scheme {
         let projectPath = AbsolutePath("/somepath/Project")
         let appTargetReference = TargetReference(projectPath: projectPath, name: "App")
         let buildAction = BuildAction.test(targets: [appTargetReference])
@@ -1482,6 +1592,8 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         let runAction = RunAction.test(configurationName: "Release", executable: appTargetReference, arguments: nil)
         let profileAction = ProfileAction.test(
             configurationName: "Beta Release",
+            preActions: preActions,
+            postActions: postActions,
             executable: appTargetReference,
             arguments: launchArguments
         )

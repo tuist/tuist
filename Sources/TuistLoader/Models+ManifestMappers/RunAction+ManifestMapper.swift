@@ -13,6 +13,21 @@ extension TuistGraph.RunAction {
                      generatorPaths: GeneratorPaths) throws -> TuistGraph.RunAction
     {
         let configurationName = manifest.configuration.rawValue
+
+        let preActions = try manifest.preActions.map {
+            try TuistGraph.ExecutionAction.from(
+                manifest: $0,
+                generatorPaths: generatorPaths
+            )
+        }
+
+        let postActions = try manifest.postActions.map {
+            try TuistGraph.ExecutionAction.from(
+                manifest: $0,
+                generatorPaths: generatorPaths
+            )
+        }
+
         let arguments = manifest.arguments.map { TuistGraph.Arguments.from(manifest: $0) }
 
         var executableResolved: TuistGraph.TargetReference?
@@ -29,6 +44,8 @@ extension TuistGraph.RunAction {
 
         return TuistGraph.RunAction(
             configurationName: configurationName,
+            preActions: preActions,
+            postActions: postActions,
             executable: executableResolved,
             filePath: nil,
             arguments: arguments,
