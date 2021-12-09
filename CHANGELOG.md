@@ -4,10 +4,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
-### Fixed
-
-- Fix shell completion script generated in directory containing `.tuist_version` file [#3804](https://github.com/tuist/tuist/pull/3804) by [@mikchmie](https://github.com/mikchmie)
-
 ### Added
 
 - Add support for `excluding` parameter to `FileList` [#3773](https://github.com/tuist/tuist/pull/3773) by [@pavel-trafimuk](https://github.com/pavel-trafimuk)
@@ -15,6 +11,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Fix default template to work with `tvos` platform [#3759](https://github.com/tuist/tuist/pull/3759) by [@ezraberch](https://github.com/ezraberch)
+- Fix shell completion script generated in directory containing `.tuist_version` file [#3804](https://github.com/tuist/tuist/pull/3804) by [@mikchmie](https://github.com/mikchmie)
 
 ## 2.3.2 - Discoteque
 
