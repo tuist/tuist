@@ -8,6 +8,7 @@ public struct TestAction: Equatable, Codable {
     public var targets: [TestableTarget]
     public var arguments: Arguments?
     public var configurationName: String
+    public var attachDebugger: Bool
     public var coverage: Bool
     public var codeCoverageTargets: [TargetReference]
     public var expandVariableFromTarget: TargetReference?
@@ -22,6 +23,7 @@ public struct TestAction: Equatable, Codable {
     public init(targets: [TestableTarget],
                 arguments: Arguments?,
                 configurationName: String,
+                attachDebugger: Bool,
                 coverage: Bool,
                 codeCoverageTargets: [TargetReference],
                 expandVariableFromTarget: TargetReference?,
@@ -36,6 +38,7 @@ public struct TestAction: Equatable, Codable {
         self.targets = targets
         self.arguments = arguments
         self.configurationName = configurationName
+        self.attachDebugger = attachDebugger
         self.coverage = coverage
         self.preActions = preActions
         self.postActions = postActions
