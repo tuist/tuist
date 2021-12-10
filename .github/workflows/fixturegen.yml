@@ -18,7 +18,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  RUBY_VERSION: '3.0.2'
+  RUBY_VERSION: '3.0.3'
 
 jobs:
   test:
