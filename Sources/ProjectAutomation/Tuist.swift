@@ -6,7 +6,7 @@ public final class Tuist {
     enum TuistError: Error {
         case signalled(command: String, code: Int32, standardError: Data)
         case terminated(command: String, code: Int32, standardError: Data)
-        
+
         public var description: String {
             switch self {
             case let .signalled(command, code, data):
@@ -24,7 +24,7 @@ public final class Tuist {
             }
         }
     }
-    
+
     /// Returns graph at the current path.
     public static func graph() throws -> Graph {
         // If a task is executed via `tuist`, it gets passed the binary path as a last argument.
@@ -37,14 +37,14 @@ public final class Tuist {
                     tuistBinaryPath,
                     "graph",
                     "--format", "json",
-                    "--output-path", graphPath.parentDirectory.pathString
+                    "--output-path", graphPath.parentDirectory.pathString,
                 ]
             )
             let graphData = try Data(contentsOf: graphPath.asURL)
             return try JSONDecoder().decode(Graph.self, from: graphData)
         }
     }
-    
+
     private static func run(
         _ arguments: [String]
     ) throws {
@@ -77,7 +77,7 @@ extension ProcessResult {
             }
         }
     }
-    
+
     /// It returns the command that the process executed.
     /// If the command is executed through xcrun, then the name of the tool is returned instead.
     /// - Returns: Returns the command that the process executed.

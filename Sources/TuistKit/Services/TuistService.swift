@@ -1,9 +1,9 @@
 import Foundation
+import TSCBasic
+import TuistCore
 import TuistLoader
 import TuistPlugin
 import TuistSupport
-import TuistCore
-import TSCBasic
 
 enum TuistServiceError: FatalError {
     case taskUnavailable
@@ -42,7 +42,7 @@ final class TuistService: NSObject {
         var arguments = arguments
 
         let commandName = "tuist-\(arguments[0])"
-        
+
         let path: AbsolutePath
         if let pathOptionIndex = arguments.firstIndex(of: "--path") ?? arguments.firstIndex(of: "--p") {
             path = AbsolutePath(
@@ -65,7 +65,6 @@ final class TuistService: NSObject {
         } else {
             throw TuistServiceError.taskUnavailable
         }
-        
 
         try System.shared.runAndPrint(
             arguments,

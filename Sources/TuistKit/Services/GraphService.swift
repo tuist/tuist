@@ -1,6 +1,7 @@
 import DOT
 import Foundation
 import GraphViz
+import ProjectAutomation
 import TSCBasic
 import TuistCore
 import TuistGenerator
@@ -8,7 +9,6 @@ import TuistGraph
 import TuistLoader
 import TuistPlugin
 import TuistSupport
-import ProjectAutomation
 
 final class GraphService {
     private let graphVizMapper: GraphToGraphVizMapping

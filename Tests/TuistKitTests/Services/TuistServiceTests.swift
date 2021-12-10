@@ -1,9 +1,9 @@
+import TSCBasic
 import TuistLoaderTesting
 import TuistPlugin
 import TuistPluginTesting
 import TuistSupport
 import TuistSupportTesting
-import TSCBasic
 import XCTest
 
 @testable import TuistKit

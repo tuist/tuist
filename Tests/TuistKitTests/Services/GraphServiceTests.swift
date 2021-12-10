@@ -1,13 +1,13 @@
 import DOT
 import Foundation
 import GraphViz
+import ProjectAutomation
 import TSCBasic
 import TuistGraph
 import TuistPlugin
 import TuistSupport
 import XcodeProj
 import XCTest
-import ProjectAutomation
 
 @testable import TuistCoreTesting
 @testable import TuistKit
