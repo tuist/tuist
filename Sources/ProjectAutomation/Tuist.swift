@@ -62,9 +62,9 @@ public final class Tuist {
 }
 
 extension ProcessResult {
-    /// Throws a SystemError if the result is unsuccessful.
+    /// Throws a TuistError if the result is unsuccessful.
     ///
-    /// - Throws: A SystemError.
+    /// - Throws: A TuistError.
     func throwIfErrored() throws {
         switch exitStatus {
         case let .signalled(code):
