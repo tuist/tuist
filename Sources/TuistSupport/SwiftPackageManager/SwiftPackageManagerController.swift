@@ -99,12 +99,12 @@ public final class SwiftPackageManagerController: SwiftPackageManagerControlling
 
         let arm64Target = "arm64-apple-macosx"
         let x64Target = "x86_64-apple-macosx"
-        try System.shared.runAndPrint(
+        try System.shared.run(
             buildCommand + [
                 arm64Target,
             ]
         )
-        try System.shared.runAndPrint(
+        try System.shared.run(
             buildCommand + [
                 x64Target,
             ]

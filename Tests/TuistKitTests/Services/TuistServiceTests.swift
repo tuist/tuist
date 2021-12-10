@@ -3,6 +3,7 @@ import TuistPlugin
 import TuistPluginTesting
 import TuistSupport
 import TuistSupportTesting
+import TSCBasic
 import XCTest
 
 @testable import TuistKit
@@ -38,14 +39,21 @@ final class TuistServiceTests: TuistUnitTestCase {
 
     func test_run_when_plugin_executable() throws {
         // Given
-        let pluginReleasePath = try temporaryPath()
+        let path = try temporaryPath()
+        let projectPath = path.appending(component: "Project")
+        let pluginReleasePath = path.appending(component: "Plugins")
         try fileHandler.touch(pluginReleasePath.appending(component: "tuist-command-a"))
         try fileHandler.touch(pluginReleasePath.appending(component: "tuist-command-b"))
-        system.succeedCommand(pluginReleasePath.appending(component: "tuist-command-b").pathString)
+        system.succeedCommand(pluginReleasePath.appending(component: "tuist-command-b").pathString, "--path", projectPath.pathString)
+        var loadConfigPath: AbsolutePath?
+        configLoader.loadConfigStub = { configPath in
+            loadConfigPath = configPath
+            return .default
+        }
         pluginService.remotePluginPathsStub = { _ in
             [
                 RemotePluginPaths(
-                    repositoryPath: try self.temporaryPath(),
+                    repositoryPath: path,
                     releasePath: pluginReleasePath
                 ),
             ]
@@ -54,8 +62,9 @@ final class TuistServiceTests: TuistUnitTestCase {
 
         // When/Then
         XCTAssertNoThrow(
-            try subject.run(arguments: ["command-b"], tuistBinaryPath: "")
+            try subject.run(arguments: ["command-b", "--path", projectPath.pathString], tuistBinaryPath: "")
         )
+        XCTAssertEqual(loadConfigPath, projectPath)
     }
 
     func test_run_when_command_is_global() throws {

@@ -72,6 +72,7 @@ final class PluginArchiveService {
         let artifactsPath = temporaryDirectory.appending(component: "artifacts")
         try taskProducts
             .forEach { product in
+                logger.notice("Building \(product)...")
                 try swiftPackageManagerController.buildFatReleaseBinary(
                     packagePath: path,
                     product: product,
