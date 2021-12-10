@@ -16,7 +16,7 @@ concurrency:
 
 env:
   TUIST_STATS_OPT_OUT: true
-  RUBY_VERSION: '3.0.2'
+  RUBY_VERSION: '3.0.3'
 
 jobs:
   test:
