@@ -5,6 +5,10 @@ Request for comments document (if applies):
 
 > Describe here the purpose of your PR.
 
+### How to test the changes locally 🧐
+
+> Include a set of steps for the reviewer to test the changes locally.
+
 ### Checklist ✅
 
 - [ ] The code architecture and patterns are consistent with the rest of the codebase.
