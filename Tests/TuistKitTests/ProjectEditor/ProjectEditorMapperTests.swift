@@ -62,7 +62,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(graph.name, "TestManifests")
 
-        XCTAssertEqual(targets.count, 7)
+        XCTAssertEqual(targets.count, 5)
         XCTAssertEqual(project.targets.sorted { $0.name < $1.name }, targets)
 
         // Generated Manifests target
