@@ -357,7 +357,7 @@ GEM
       gli
       hashie
       websocket-driver
-    spring (3.1.1)
+    spring (4.0.0)
     sprockets (4.0.2)
       concurrent-ruby (~> 1.0)
       rack (> 1, < 3)
