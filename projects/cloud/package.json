@@ -25,7 +25,7 @@
     "eslint-plugin-prettier": "^3.4.1",
     "eslint-plugin-react": "^7.27.1",
     "graphql": "^15.7.2",
-    "jest": "^27.4.3",
+    "jest": "^27.4.4",
     "prettier": "^2.5.1",
     "rollup": "^2.61.0",
     "ts-jest": "^27.1.1",
