@@ -8,7 +8,7 @@ module Mutations
 
     def resolve(attributes)
       begin
-        ChangeUserRoleService.call(**attributes, acting_user: context[:current_user])
+        ChangeUserRoleService.call(**attributes, role_changer: context[:current_user])
       rescue ChangeUserRoleService::Error::Unauthorized
         raise GraphQL::ExecutionError, "You do not have a permission to change a role for this user."
       end

@@ -16,7 +16,7 @@ class ChangeUserRoleServiceTest < ActiveSupport::TestCase
       user_id: user.id,
       organization_id: organization.id,
       role: :user,
-      acting_user: current_user
+      role_changer: current_user
     )
 
     # Then
@@ -37,7 +37,7 @@ class ChangeUserRoleServiceTest < ActiveSupport::TestCase
       user_id: user.id,
       organization_id: organization.id,
       role: :admin,
-      acting_user: current_user
+      role_changer: current_user
     )
 
     # Then
@@ -59,7 +59,7 @@ class ChangeUserRoleServiceTest < ActiveSupport::TestCase
         user_id: user.id,
         organization_id: organization.id,
         role: :admin,
-        acting_user: current_user
+        role_changer: current_user
       )
     end
   end

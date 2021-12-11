@@ -1,18 +1,18 @@
 # frozen_string_literal: true
 
 class ChangeUserRoleService < ApplicationService
-  attr_reader :user_id, :organization_id, :role, :acting_user
+  attr_reader :user_id, :organization_id, :role, :role_changer
 
   module Error
     Unauthorized = Class.new(StandardError)
   end
 
-  def initialize(user_id:, organization_id:, role:, acting_user:)
+  def initialize(user_id:, organization_id:, role:, role_changer:)
     super()
     @user_id = user_id
     @organization_id = organization_id
     @role = role
-    @acting_user = acting_user
+    @role_changer = role_changer
   end
 
   def call
@@ -21,7 +21,7 @@ class ChangeUserRoleService < ApplicationService
     return user if current_role == role
     ActiveRecord::Base.transaction do
       organization = Organization.find(organization_id)
-      raise Error::Unauthorized unless OrganizationPolicy.new(acting_user, organization).update?
+      raise Error::Unauthorized unless OrganizationPolicy.new(role_changer, organization).update?
       user.remove_role(current_role.name, organization)
       user.add_role(role, organization)
       user
