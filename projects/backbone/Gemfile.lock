@@ -327,7 +327,7 @@ GEM
       thread_safe (~> 0.1)
     uber (0.1.0)
     unicode-display_width (1.8.0)
-    vite_rails (3.0.1)
+    vite_rails (3.0.2)
       railties (>= 5.1, < 8)
       vite_ruby (~> 3.0)
     vite_ruby (3.0.3)
