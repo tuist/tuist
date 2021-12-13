@@ -280,6 +280,9 @@ public final class PluginService: PluginServicing {
                 try? FileHandler.shared.delete(downloadPath)
                 try? FileHandler.shared.delete(downloadZipPath)
             }
+            if FileHandler.shared.exists(downloadZipPath) {
+                try FileHandler.shared.delete(downloadZipPath)
+            }
             try FileHandler.shared.move(from: downloadPath, to: downloadZipPath)
 
             // Unzip
