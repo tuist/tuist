@@ -24,7 +24,7 @@ public final class Tuist {
             }
         }
     }
-    
+
     /// Returns graph at the current path.
     public static func graph() throws -> Graph {
         try graph(at: nil)
@@ -34,9 +34,9 @@ public final class Tuist {
     public static func graph(at path: String) throws -> Graph {
         try graph(at: path as String?)
     }
-    
+
     // MARK: - Helpers
-    
+
     private static func graph(at path: String?) throws -> Graph {
         // If a task is executed via `tuist`, it gets passed the binary path as a last argument.
         // Otherwise, fallback to go
