@@ -8,6 +8,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Add support for `excluding` parameter to `FileList` [#3773](https://github.com/tuist/tuist/pull/3773) by [@pavel-trafimuk](https://github.com/pavel-trafimuk)
 - Add ability to define `preActions` and `postActions` for `RunAction` and `ProfileAction` [#3787](https://github.com/tuist/tuist/pull/3787) by [@hisaac](https://github.com/hisaac)
+- Add ability to control whether a debugger is attached to an app or test process by setting `attachDebugger` on `RunAction` or `TestAction`, respectively [#3813])https://github.com/tuist/tuist/pull/3813) by [@svenmuennich](https://github.com/svenmuennich/)
 
 ### Fixed
 

@@ -43,14 +43,12 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         static let defaultVersion = "1.3"
 
         struct LaunchAction {
-            var debugger: String
             var launcher: String
             var askForAppToLaunch: Bool?
             var launchAutomaticallySubstyle: String?
 
             static var `default`: LaunchAction {
                 LaunchAction(
-                    debugger: XCScheme.defaultDebugger,
                     launcher: XCScheme.defaultLauncher,
                     askForAppToLaunch: nil,
                     launchAutomaticallySubstyle: nil
@@ -59,7 +57,6 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
             static var `extension`: LaunchAction {
                 LaunchAction(
-                    debugger: "",
                     launcher: "Xcode.IDEFoundation.Launcher.PosixSpawn",
                     askForAppToLaunch: true,
                     launchAutomaticallySubstyle: "2"
@@ -370,6 +367,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             testPlans: testPlans,
             preActions: preActions,
             postActions: postActions,
+            selectedDebuggerIdentifier: testAction.attachDebugger ? XCScheme.defaultDebugger : "",
             shouldUseLaunchSchemeArgsEnv: shouldUseLaunchSchemeArgsEnv,
             codeCoverageEnabled: testAction.coverage,
             codeCoverageTargets: codeCoverageTargets,
@@ -439,8 +437,21 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         let buildConfiguration = scheme.runAction?.configurationName ?? defaultBuildConfiguration
         let disableMainThreadChecker = scheme.runAction?.diagnosticsOptions.contains(.mainThreadChecker) == false
+
+        let launchActionConstants: Constants.LaunchAction
+        let debuggerIdentifier: String
         let isSchemeForAppExtension = self.isSchemeForAppExtension(scheme: scheme, graphTraverser: graphTraverser)
-        let launchActionConstants: Constants.LaunchAction = isSchemeForAppExtension == true ? .extension : .default
+        if isSchemeForAppExtension == true {
+            launchActionConstants = .extension
+            debuggerIdentifier = ""
+        } else {
+            launchActionConstants = .default
+            if let runAction = scheme.runAction {
+                debuggerIdentifier = runAction.attachDebugger ? XCScheme.defaultDebugger : ""
+            } else {
+                debuggerIdentifier = XCScheme.defaultDebugger
+            }
+        }
 
         let graphTarget = graphTraverser.target(path: target.projectPath, name: target.name)
 
@@ -491,7 +502,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
             preActions: preActions,
             postActions: postActions,
             macroExpansion: macroExpansion,
-            selectedDebuggerIdentifier: launchActionConstants.debugger,
+            selectedDebuggerIdentifier: debuggerIdentifier,
             selectedLauncherIdentifier: launchActionConstants.launcher,
             askForAppToLaunch: launchActionConstants.askForAppToLaunch,
             pathRunnable: pathRunnable,

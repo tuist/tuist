@@ -76,6 +76,7 @@ extension TuistGraph.TestAction {
             targets: targets,
             arguments: arguments,
             configurationName: configurationName,
+            attachDebugger: manifest.attachDebugger,
             coverage: coverage,
             codeCoverageTargets: codeCoverageTargets,
             expandVariableFromTarget: expandVariablesFromTarget,

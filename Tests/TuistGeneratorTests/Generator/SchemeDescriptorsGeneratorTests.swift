@@ -352,6 +352,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         // Then
         let result = try XCTUnwrap(got)
         XCTAssertEqual(result.buildConfiguration, "Debug")
+        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
         XCTAssertEqual(result.shouldUseLaunchSchemeArgsEnv, true)
         XCTAssertNil(result.macroExpansion)
         let testable = try XCTUnwrap(result.testables.first)
@@ -570,6 +571,49 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(testableTargetReference.skipped, false)
         XCTAssertEqual(testableTargetReference.parallelizable, true)
         XCTAssertEqual(testableTargetReference.randomExecutionOrdering, true)
+    }
+
+    func test_schemeTestAction_with_disabled_attachDebugger() throws {
+        // Given
+        let target = Target.test(name: "App", product: .app)
+        let testTarget = Target.test(name: "AppTests", product: .unitTests)
+        let project = Project.test(targets: [target, testTarget])
+
+        let testAction = TestAction.test(
+            targets: [TestableTarget(target: TargetReference(projectPath: project.path, name: "AppTests"))],
+            attachDebugger: false
+        )
+
+        let scheme = Scheme.test(name: "AppTests", testAction: testAction)
+        let generatedProjects = createGeneratedProjects(projects: [project])
+
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    target.name: target,
+                    testTarget.name: testTarget,
+                ],
+            ],
+            dependencies: [
+                .target(name: testTarget.name, path: project.path): [
+                    .target(name: target.name, path: project.path),
+                ],
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeTestAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: project.path,
+            generatedProjects: generatedProjects
+        )
+
+        // Then
+        let result = try XCTUnwrap(got)
+        XCTAssertEqual(result.selectedDebuggerIdentifier, "")
     }
 
     func test_schemeBuildAction() throws {
@@ -979,6 +1023,181 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         XCTAssertEqual(got?.preActions.first?.scriptText, "echo Pre Actions")
         XCTAssertEqual(got?.postActions.first?.title, "Post Action")
         XCTAssertEqual(got?.postActions.first?.scriptText, "echo Post Actions")
+    }
+
+    func test_schemeLaunchAction_with_disabled_attachDebugger() throws {
+        // Given
+        let projectPath = AbsolutePath("/somepath/Workspace/Projects/Project")
+        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
+        let runAction = RunAction.test(
+            configurationName: "Release",
+            attachDebugger: false,
+            executable: TargetReference(projectPath: projectPath, name: "App")
+        )
+        let scheme = Scheme.test(buildAction: buildAction, runAction: runAction)
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(
+            path: projectPath,
+            xcodeProjPath: projectPath.appending(component: "Project.xcodeproj"),
+            targets: [app]
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    app.name: app,
+                ],
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeLaunchAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: AbsolutePath("/somepath/Workspace"),
+            generatedProjects: createGeneratedProjects(projects: [project])
+        )
+
+        // Then
+        let result = try XCTUnwrap(got)
+        XCTAssertEqual(result.selectedDebuggerIdentifier, "")
+    }
+
+    func test_schemeLaunchAction_without_explicit_runAction() throws {
+        // Given
+        let projectPath = AbsolutePath("/somepath/Workspace/Projects/Project")
+        let buildAction = BuildAction.test(targets: [TargetReference(projectPath: projectPath, name: "App")])
+        let scheme = Scheme.test(buildAction: buildAction, runAction: nil)
+        let app = Target.test(name: "App", product: .app)
+        let project = Project.test(
+            path: projectPath,
+            xcodeProjPath: projectPath.appending(component: "Project.xcodeproj"),
+            targets: [app]
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    app.name: app,
+                ],
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeLaunchAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: AbsolutePath("/somepath/Workspace"),
+            generatedProjects: createGeneratedProjects(projects: [project])
+        )
+
+        // Then
+        let result = try XCTUnwrap(got)
+        XCTAssertEqual(result.selectedDebuggerIdentifier, "Xcode.DebuggerFoundation.Debugger.LLDB")
+    }
+
+    func test_schemeLaunchAction_for_app_extension() throws {
+        // Given
+        let path = AbsolutePath("/somepath/Workspace/Projects/Project")
+        let app = Target.test(name: "App", product: .app)
+        let appExtension = Target.test(name: "AppExtension", product: .appExtension)
+        let buildAction = BuildAction.test(targets: [
+            TargetReference(projectPath: path, name: appExtension.name),
+            TargetReference(projectPath: path, name: app.name),
+        ])
+        let runAction = RunAction.test(executable: TargetReference(projectPath: path, name: app.name))
+        let extensionScheme = Scheme.test(buildAction: buildAction, runAction: runAction)
+        let project = Project.test(
+            path: path,
+            targets: [app, appExtension],
+            schemes: [
+                extensionScheme,
+            ]
+        )
+
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    app.name: app,
+                    appExtension.name: appExtension,
+                ],
+            ],
+            dependencies: [
+                .target(name: app.name, path: project.path): [
+                    .target(name: appExtension.name, path: project.path),
+                ],
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeLaunchAction(
+            scheme: extensionScheme,
+            graphTraverser: graphTraverser,
+            rootPath: AbsolutePath("/somepath/Workspace"),
+            generatedProjects: createGeneratedProjects(projects: [project])
+        )
+
+        // Then
+        let result = try XCTUnwrap(got)
+        XCTAssertEqual(result.selectedDebuggerIdentifier, "")
+        XCTAssertEqual(result.selectedLauncherIdentifier, "Xcode.IDEFoundation.Launcher.PosixSpawn")
+        XCTAssertEqual(result.askForAppToLaunch, true)
+        XCTAssertEqual(result.launchAutomaticallySubstyle, "2")
+    }
+
+    func test_schemeLaunchAction_for_app_extension_with_disabled_attachDebugger() throws {
+        // Given
+        let path = AbsolutePath("/somepath/Workspace/Projects/Project")
+        let app = Target.test(name: "App", product: .app)
+        let appExtension = Target.test(name: "AppExtension", product: .appExtension)
+        let buildAction = BuildAction.test(targets: [
+            TargetReference(projectPath: path, name: appExtension.name),
+            TargetReference(projectPath: path, name: app.name),
+        ])
+        let runAction = RunAction.test(
+            attachDebugger: false,
+            executable: TargetReference(projectPath: path, name: app.name)
+        )
+        let extensionScheme = Scheme.test(buildAction: buildAction, runAction: runAction)
+        let project = Project.test(
+            path: path,
+            targets: [app, appExtension],
+            schemes: [
+                extensionScheme,
+            ]
+        )
+
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    app.name: app,
+                    appExtension.name: appExtension,
+                ],
+            ],
+            dependencies: [
+                .target(name: app.name, path: project.path): [
+                    .target(name: appExtension.name, path: project.path),
+                ],
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeLaunchAction(
+            scheme: extensionScheme,
+            graphTraverser: graphTraverser,
+            rootPath: AbsolutePath("/somepath/Workspace"),
+            generatedProjects: createGeneratedProjects(projects: [project])
+        )
+
+        // Then
+        let result = try XCTUnwrap(got)
+        XCTAssertEqual(result.selectedDebuggerIdentifier, "")
     }
 
     // MARK: - Profile Action Tests
@@ -1439,57 +1658,6 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             nil, // Xcode omits the setting rather than have it set to `false`
             true,
         ])
-    }
-
-    func test_generate_appExtensionSchemeLaunchAction() throws {
-        // Given
-        let path = AbsolutePath("/test")
-        let app = Target.test(name: "App", product: .app)
-        let appExtension = Target.test(name: "AppExtension", product: .appExtension)
-        let buildAction = BuildAction.test(targets: [
-            TargetReference(projectPath: path, name: appExtension.name),
-            TargetReference(projectPath: path, name: app.name),
-        ])
-        let runAction = RunAction.test(executable: TargetReference(projectPath: path, name: app.name))
-        let extensionScheme = Scheme.test(buildAction: buildAction, runAction: runAction)
-        let project = Project.test(
-            path: path,
-            targets: [app, appExtension],
-            schemes: [
-                extensionScheme,
-            ]
-        )
-
-        let graph = Graph.test(
-            projects: [project.path: project],
-            targets: [
-                project.path: [
-                    app.name: app,
-                    appExtension.name: appExtension,
-                ],
-            ],
-            dependencies: [
-                .target(name: app.name, path: project.path): [
-                    .target(name: appExtension.name, path: project.path),
-                ],
-            ]
-        )
-        let graphTraverser = GraphTraverser(graph: graph)
-
-        // When
-        let result = try subject.generateProjectSchemes(
-            project: project,
-            generatedProject: generatedProject(targets: project.targets),
-            graphTraverser: graphTraverser
-        )
-
-        // Then
-        let scheme = try XCTUnwrap(result.first)
-        let launchAction = try XCTUnwrap(scheme.xcScheme.launchAction)
-        XCTAssertEqual(launchAction.askForAppToLaunch, true)
-        XCTAssertEqual(launchAction.launchAutomaticallySubstyle, "2")
-        XCTAssertEqual(launchAction.selectedDebuggerIdentifier, "")
-        XCTAssertEqual(launchAction.selectedLauncherIdentifier, "Xcode.IDEFoundation.Launcher.PosixSpawn")
     }
 
     func test_schemeGenerationLastUpgradeCheck_workspace() throws {
