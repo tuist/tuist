@@ -24,22 +24,35 @@ public final class Tuist {
             }
         }
     }
-
+    
     /// Returns graph at the current path.
     public static func graph() throws -> Graph {
+        try graph(at: nil)
+    }
+
+    /// Returns graph at the given path.
+    public static func graph(at path: String) throws -> Graph {
+        try graph(at: path as String?)
+    }
+    
+    // MARK: - Helpers
+    
+    private static func graph(at path: String?) throws -> Graph {
         // If a task is executed via `tuist`, it gets passed the binary path as a last argument.
         // Otherwise, fallback to go
         let tuistBinaryPath = ProcessInfo.processInfo.environment["TUIST_CONFIG_BINARY_PATH"] ?? "tuist"
         return try withTemporaryDirectory { temporaryDirectory -> Graph in
             let graphPath = temporaryDirectory.appending(component: "graph.json")
-            try run(
-                [
-                    tuistBinaryPath,
-                    "graph",
-                    "--format", "json",
-                    "--output-path", graphPath.parentDirectory.pathString,
-                ]
-            )
+            var arguments = [
+                tuistBinaryPath,
+                "graph",
+                "--format", "json",
+                "--output-path", graphPath.parentDirectory.pathString,
+            ]
+            if let path = path {
+                arguments += ["--path", path]
+            }
+            try run(arguments)
             let graphData = try Data(contentsOf: graphPath.asURL)
             return try JSONDecoder().decode(Graph.self, from: graphData)
         }
