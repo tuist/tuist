@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 Then(/tuist does fetch/) do
-  output, err, status = Open3.capture3(@tuist, "fetch", "--path", @dir)
-  puts output
+  _, err, status = Open3.capture3(@tuist, "fetch", "--path", @dir)
   flunk(err) unless status.success?
 end
