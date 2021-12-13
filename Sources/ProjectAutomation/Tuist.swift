@@ -52,17 +52,24 @@ public final class Tuist {
             if let path = path {
                 arguments += ["--path", path]
             }
-            try run(arguments)
+            try run(
+                arguments,
+                environment: [
+                    "TUIST_CONFIG_FORCE_CONFIG_CACHE_DIRECTORY": ProcessInfo.processInfo.environment["TUIST_CONFIG_FORCE_CONFIG_CACHE_DIRECTORY"] ?? ""
+                ]
+            )
             let graphData = try Data(contentsOf: graphPath.asURL)
             return try JSONDecoder().decode(Graph.self, from: graphData)
         }
     }
 
     private static func run(
-        _ arguments: [String]
+        _ arguments: [String],
+        environment: [String: String]
     ) throws {
         let process = Process(
             arguments: arguments,
+            environment: environment,
             outputRedirection: .none,
             startNewProcessGroup: false
         )

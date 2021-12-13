@@ -247,6 +247,7 @@ public final class PluginService: PluginServicing {
         }
 
         logger.notice("Cloning plugin from \(url) @ \(gitId)", metadata: .subsection)
+        logger.notice("\(pluginRepositoryDirectory.pathString)", metadata: .subsection)
         try gitHandler.clone(url: url, to: pluginRepositoryDirectory)
         try gitHandler.checkout(id: gitId, in: pluginRepositoryDirectory)
     }

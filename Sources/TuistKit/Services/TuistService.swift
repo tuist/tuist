@@ -69,7 +69,10 @@ final class TuistService: NSObject {
         try System.shared.runAndPrint(
             arguments,
             verbose: Environment.shared.isVerbose,
-            environment: [Constants.EnvironmentVariables.tuistBinaryPath: tuistBinaryPath]
+            environment: [
+                Constants.EnvironmentVariables.tuistBinaryPath: tuistBinaryPath,
+                Constants.EnvironmentVariables.forceConfigCacheDirectory: Environment.shared.tuistConfigVariables[Constants.EnvironmentVariables.forceConfigCacheDirectory] ?? ""
+            ]
         )
     }
 }
