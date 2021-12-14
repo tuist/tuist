@@ -1,6 +1,7 @@
 import DOT
 import Foundation
 import GraphViz
+import ProjectAutomation
 import TSCBasic
 import TuistGraph
 import TuistPlugin
@@ -87,9 +88,9 @@ final class GraphServiceTests: TuistUnitTestCase {
         )
         let got = try FileHandler.shared.readTextFile(graphPath)
 
-        let result = try JSONDecoder().decode(GraphOutput.self, from: got.data(using: .utf8)!)
+        let result = try JSONDecoder().decode(ProjectAutomation.Graph.self, from: got.data(using: .utf8)!)
         // Then
-        XCTAssertEqual(result, GraphOutput(name: "graph", path: "/", projects: [:]))
+        XCTAssertEqual(result, ProjectAutomation.Graph(name: "graph", path: "/", projects: [:]))
         XCTAssertPrinterOutputContains("""
         Deleting existing graph at \(graphPath.pathString)
         Graph exported to \(graphPath.pathString)

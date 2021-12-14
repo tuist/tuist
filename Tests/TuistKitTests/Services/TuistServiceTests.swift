@@ -1,3 +1,4 @@
+import TSCBasic
 import TuistLoaderTesting
 import TuistPlugin
 import TuistPluginTesting
@@ -31,21 +32,32 @@ final class TuistServiceTests: TuistUnitTestCase {
 
     func test_run_when_command_not_found() throws {
         XCTAssertThrowsSpecific(
-            try subject.run(["my-command"]),
+            try subject.run(arguments: ["my-command"], tuistBinaryPath: ""),
             TuistServiceError.taskUnavailable
         )
     }
 
     func test_run_when_plugin_executable() throws {
         // Given
-        let pluginReleasePath = try temporaryPath()
+        let path = try temporaryPath()
+        let projectPath = path.appending(component: "Project")
+        let pluginReleasePath = path.appending(component: "Plugins")
         try fileHandler.touch(pluginReleasePath.appending(component: "tuist-command-a"))
         try fileHandler.touch(pluginReleasePath.appending(component: "tuist-command-b"))
-        system.succeedCommand(pluginReleasePath.appending(component: "tuist-command-b").pathString)
+        system.succeedCommand(
+            pluginReleasePath.appending(component: "tuist-command-b").pathString,
+            "--path",
+            projectPath.pathString
+        )
+        var loadConfigPath: AbsolutePath?
+        configLoader.loadConfigStub = { configPath in
+            loadConfigPath = configPath
+            return .default
+        }
         pluginService.remotePluginPathsStub = { _ in
             [
                 RemotePluginPaths(
-                    repositoryPath: try self.temporaryPath(),
+                    repositoryPath: path,
                     releasePath: pluginReleasePath
                 ),
             ]
@@ -54,8 +66,9 @@ final class TuistServiceTests: TuistUnitTestCase {
 
         // When/Then
         XCTAssertNoThrow(
-            try subject.run(["command-b"])
+            try subject.run(arguments: ["command-b", "--path", projectPath.pathString], tuistBinaryPath: "")
         )
+        XCTAssertEqual(loadConfigPath, projectPath)
     }
 
     func test_run_when_command_is_global() throws {
@@ -69,7 +82,7 @@ final class TuistServiceTests: TuistUnitTestCase {
 
         // When/Then
         XCTAssertNoThrow(
-            try subject.run(["my-command", "argument-one"])
+            try subject.run(arguments: ["my-command", "argument-one"], tuistBinaryPath: "")
         )
         XCTAssertEqual(whichCommand, "tuist-my-command")
     }

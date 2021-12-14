@@ -61,7 +61,10 @@ final class CleanServiceTests: TuistUnitTestCase {
         }
         cacheDirectoriesProvider.cacheDirectoryStub = cachePath
         let projectPath = try temporaryPath()
-        let dependenciesPath = projectPath.appending(components: Constants.tuistDirectoryName, Constants.DependenciesDirectory.name)
+        let dependenciesPath = projectPath.appending(
+            components: Constants.tuistDirectoryName,
+            Constants.DependenciesDirectory.name
+        )
         try fileHandler.createFolder(dependenciesPath)
 
         // When

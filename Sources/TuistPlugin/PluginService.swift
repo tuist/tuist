@@ -144,7 +144,6 @@ public final class PluginService: PluginServicing {
         }
     }
 
-    // swiftlint:disable:next function_body_length
     public func loadPlugins(using config: Config) throws -> Plugins {
         guard !config.plugins.isEmpty else { return .none }
 
@@ -190,19 +189,10 @@ public final class PluginService: PluginServicing {
         .filter { _, path in FileHandler.shared.exists(path) }
         .map(PluginResourceSynthesizer.init)
 
-        let tasks = zip(
-            (localPluginManifests + remotePluginManifests).map(\.name),
-            pluginPaths
-                .map { $0.appending(component: Constants.tasksDirectoryName) }
-        )
-        .filter { _, path in FileHandler.shared.exists(path) }
-        .map(PluginTasks.init)
-
         return Plugins(
             projectDescriptionHelpers: localProjectDescriptionHelperPlugins + remoteProjectDescriptionHelperPlugins,
             templatePaths: templatePaths,
-            resourceSynthesizers: resourceSynthesizerPlugins,
-            tasks: tasks
+            resourceSynthesizers: resourceSynthesizerPlugins
         )
     }
 
@@ -256,6 +246,7 @@ public final class PluginService: PluginServicing {
         }
 
         logger.notice("Cloning plugin from \(url) @ \(gitId)", metadata: .subsection)
+        logger.notice("\(pluginRepositoryDirectory.pathString)", metadata: .subsection)
         try gitHandler.clone(url: url, to: pluginRepositoryDirectory)
         try gitHandler.checkout(id: gitId, in: pluginRepositoryDirectory)
     }
@@ -263,7 +254,8 @@ public final class PluginService: PluginServicing {
     private func fetchGitPluginRelease(pluginCacheDirectory: AbsolutePath, url: String, gitTag: String) throws {
         let pluginRepositoryDirectory = pluginCacheDirectory.appending(component: PluginServiceConstants.repository)
         // If `Package.swift` exists for the plugin, a Github release should for the given `gitTag` should also exist
-        guard FileHandler.shared.exists(pluginRepositoryDirectory.appending(component: Constants.DependenciesDirectory.packageSwiftName))
+        guard FileHandler.shared
+            .exists(pluginRepositoryDirectory.appending(component: Constants.DependenciesDirectory.packageSwiftName))
         else { return }
 
         let pluginReleaseDirectory = pluginCacheDirectory.appending(component: PluginServiceConstants.release)
@@ -274,7 +266,8 @@ public final class PluginService: PluginServicing {
 
         let plugin = try manifestLoader.loadPlugin(at: pluginRepositoryDirectory)
         guard
-            let releaseURL = URL(string: url)?.appendingPathComponent("releases/download/\(gitTag)/\(plugin.name).tuist-plugin.zip")
+            let releaseURL = URL(string: url)?
+            .appendingPathComponent("releases/download/\(gitTag)/\(plugin.name).tuist-plugin.zip")
         else { throw PluginServiceError.invalidURL(url) }
 
         logger.debug("Cloning plugin release from \(url) @ \(gitTag)")
@@ -288,6 +281,9 @@ public final class PluginService: PluginServicing {
             defer {
                 try? FileHandler.shared.delete(downloadPath)
                 try? FileHandler.shared.delete(downloadZipPath)
+            }
+            if FileHandler.shared.exists(downloadZipPath) {
+                try FileHandler.shared.delete(downloadZipPath)
             }
             try FileHandler.shared.move(from: downloadPath, to: downloadZipPath)
 
@@ -335,8 +331,8 @@ public final class PluginService: PluginServicing {
     }
 }
 
-private extension PluginLocation.GitReference {
-    var raw: String {
+extension PluginLocation.GitReference {
+    fileprivate var raw: String {
         switch self {
         case let .tag(tag):
             return tag

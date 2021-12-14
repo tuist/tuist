@@ -4,8 +4,12 @@ Then(/^content of a file named ([a-zA-Z\-_\.]+) should be equal to (.+)$/) do |f
   assert_equal File.read(file), content
 end
 
-Then(/^tuist runs ([a-zA-Z\-_]+)$/) do |command|
+Then(/^tuist runs ([a-zA-Z\-_]+) with the current directory$/) do |command|
   system(@tuist, command, @dir)
+end
+
+Then(/^tuist runs ([a-zA-Z\-_]+)$/) do |command|
+  system(@tuist, command, "--path", @dir)
 end
 
 Then(/^current directory is added to PATH$/) do

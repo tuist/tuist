@@ -1,7 +1,7 @@
 import Foundation
 
 /// The structure defining the output schema of a Xcode project.
-public struct ProjectOutput: Codable, Equatable {
+public struct Project: Codable, Equatable {
     /// The name of the project.
     public let name: String
 
@@ -9,20 +9,20 @@ public struct ProjectOutput: Codable, Equatable {
     public let path: String
 
     /// The Swift packages that this project depends on.
-    public let packages: [PackageOutput]
+    public let packages: [Package]
 
     /// The targets this project produces.
-    public let targets: [TargetOutput]
+    public let targets: [Target]
 
     /// The schemes available to this project.
-    public let schemes: [SchemeOutput]
+    public let schemes: [Scheme]
 
     public init(
         name: String,
         path: String,
-        packages: [PackageOutput] = [PackageOutput](),
-        targets: [TargetOutput] = [TargetOutput](),
-        schemes: [SchemeOutput] = [SchemeOutput]()
+        packages: [Package] = [Package](),
+        targets: [Target] = [Target](),
+        schemes: [Scheme] = [Scheme]()
     ) {
         self.name = name
         self.path = path
