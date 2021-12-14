@@ -3,6 +3,34 @@ import TSCBasic
 import TSCUtility
 
 public struct Workspace: Equatable, Codable {
+    /// Contains options related to the workspace generation.
+    public enum GenerationOptions: Codable, Equatable {
+        /// Represents the behavior Xcode will apply to the workspace regarding
+        /// schema generation using the `IDEWorkspaceSharedSettings_AutocreateContextsIfNeeded` key.
+        /// - seealso: `WorkspaceSettingsDescriptor`
+        public enum AutomaticSchemaGeneration: String, Codable, Equatable {
+            /// Will not add the key to the settings file.
+            case `default`
+
+            /// Will add the key with the value set to `false`.
+            case disabled
+
+            /// Will add the key with the value set to `true`.
+            case enabled
+
+            public var value: Bool? {
+                switch self {
+                case .default: return nil
+                case .disabled: return false
+                case .enabled: return true
+                }
+            }
+        }
+
+        /// Tuist generates a WorkspaceSettings.xcsettings file, setting the related key to the associated value.
+        case automaticSchemaGeneration(AutomaticSchemaGeneration)
+    }
+
     // MARK: - Attributes
 
     /// Path to where the manifest / root directory of this workspace is located
@@ -15,6 +43,7 @@ public struct Workspace: Equatable, Codable {
     public var ideTemplateMacros: IDETemplateMacros?
     public var additionalFiles: [FileElement]
     public var lastUpgradeCheck: Version?
+    public var generationOptions: [GenerationOptions]
 
     // MARK: - Init
 
@@ -24,6 +53,7 @@ public struct Workspace: Equatable, Codable {
         name: String,
         projects: [AbsolutePath],
         schemes: [Scheme] = [],
+        generationOptions: [GenerationOptions] = [],
         ideTemplateMacros: IDETemplateMacros? = nil,
         additionalFiles: [FileElement] = [],
         lastUpgradeCheck: Version? = nil
@@ -33,6 +63,7 @@ public struct Workspace: Equatable, Codable {
         self.name = name
         self.projects = projects
         self.schemes = schemes
+        self.generationOptions = generationOptions
         self.ideTemplateMacros = ideTemplateMacros
         self.additionalFiles = additionalFiles
         self.lastUpgradeCheck = lastUpgradeCheck
@@ -53,6 +84,7 @@ extension Workspace {
             name: name,
             projects: projects,
             schemes: schemes,
+            generationOptions: generationOptions,
             ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles + files.map { .file(path: $0) },
             lastUpgradeCheck: lastUpgradeCheck
@@ -66,6 +98,7 @@ extension Workspace {
             name: name,
             projects: projects,
             schemes: schemes,
+            generationOptions: generationOptions,
             ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles,
             lastUpgradeCheck: lastUpgradeCheck
@@ -79,6 +112,7 @@ extension Workspace {
             name: name,
             projects: Array(Set(projects + otherProjects)),
             schemes: schemes,
+            generationOptions: generationOptions,
             ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles,
             lastUpgradeCheck: lastUpgradeCheck
@@ -114,6 +148,31 @@ extension Workspace {
             }
 
             return Array(resultTargets)
+        }
+    }
+}
+
+extension Workspace.GenerationOptions {
+    private enum CodingKeys: String, CodingKey {
+        case automaticSchemaGeneration
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        if container.allKeys.contains(.automaticSchemaGeneration) {
+            self = .automaticSchemaGeneration(try container.decode(Workspace.GenerationOptions.AutomaticSchemaGeneration.self, forKey: .automaticSchemaGeneration))
+        } else {
+            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown enum case"))
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        switch self {
+        case let .automaticSchemaGeneration(value):
+            try container.encode(value, forKey: .automaticSchemaGeneration)
         }
     }
 }

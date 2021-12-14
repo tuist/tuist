@@ -12,7 +12,8 @@ extension Workspace {
         schemes: [Scheme] = [],
         ideTemplateMacros: IDETemplateMacros? = nil,
         additionalFiles: [FileElement] = [],
-        lastUpgradeCheck: Version? = nil
+        lastUpgradeCheck: Version? = nil,
+        generationOptions: [GenerationOptions] = []
     ) -> Workspace {
         Workspace(
             path: path,
@@ -20,6 +21,7 @@ extension Workspace {
             name: name,
             projects: projects,
             schemes: schemes,
+            generationOptions: generationOptions,
             ideTemplateMacros: ideTemplateMacros,
             additionalFiles: additionalFiles,
             lastUpgradeCheck: lastUpgradeCheck
