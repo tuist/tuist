@@ -46,7 +46,7 @@ The pipeline consists of the following stages & steps that are performed sequent
   - Additionally if `ProjectDescriptionHelpers` are used, those are also compiled and cached
 - **Lint Manifests**: Manifests undergo a series of checks that may produce warnings or fail the generation process
   - The lint checks can be found in `ManifestLinter`
-- **Convert Manifests to Models**: Manifests (`ProjectDescription` types) are converted to Models (`TuistGraph` types) using `ManifestModelConvertor`
+- **Convert Manifests to Models**: Manifests (`ProjectDescription` types) are converted to Models (`TuistGraph` types) using `ManifestModelConverter`
   - This is where the manifest glob patterns (e.g. `Sources/**`) are evaluated and expanded to explicit absolute paths
   - Manifests are converted concurrently
 
