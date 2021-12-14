@@ -26,7 +26,7 @@
   },
   "version": "0.1.0",
   "devDependencies": {
-    "vite": "^2.7.1",
+    "vite": "^2.7.2",
     "vite-plugin-ruby": "^3.0.4"
   }
 }
