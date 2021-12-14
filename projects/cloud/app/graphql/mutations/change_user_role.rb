@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Mutations
   class ChangeUserRole < ::Mutations::BaseMutation
     argument :user_id, ID, required: true
@@ -7,11 +9,7 @@ module Mutations
     type Types::UserType
 
     def resolve(attributes)
-      begin
-        ChangeUserRoleService.call(**attributes, role_changer: context[:current_user])
-      rescue ChangeUserRoleService::Error::Unauthorized
-        raise GraphQL::ExecutionError, "You do not have a permission to change a role for this user."
-      end
+      ChangeUserRoleService.call(**attributes, role_changer: context[:current_user])
     end
   end
 end

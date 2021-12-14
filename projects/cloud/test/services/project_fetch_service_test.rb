@@ -30,4 +30,16 @@ class ProjectFetchServiceTest < ActiveSupport::TestCase
       ProjectFetchService.call(name: project.name, account_name: account.name, user: user)
     end
   end
+
+  test "fails with project not found if the project does not exist" do
+    # Given
+    user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
+    organization = Organization.create!
+    account = Account.create!(owner: organization, name: "tuist")
+
+    # When / Then
+    assert_raises(ProjectFetchService::Error::ProjectNotFound) do
+      ProjectFetchService.call(name: "non-existent-name", account_name: account.name, user: user)
+    end
+  end
 end

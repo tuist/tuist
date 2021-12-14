@@ -1,3 +1,4 @@
-class CloudError < GraphQL::Error
+# frozen_string_literal: true
 
+class CloudError < StandardError
 end

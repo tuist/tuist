@@ -39,11 +39,7 @@ module Types
       argument :account_name, String, required: true
     end
     def project(name:, account_name:)
-      begin
-        ProjectFetchService.call(name: name, account_name: account_name, user: context[:current_user])
-      rescue ProjectFetchService::Error::Unauthorized
-        raise GraphQL::ExecutionError, "You do not have a permission to view a project #{account_name}/#{name}"
-      end
+      ProjectFetchService.call(name: name, account_name: account_name, user: context[:current_user])
     end
 
     field :organization, OrganizationType, null: true,
