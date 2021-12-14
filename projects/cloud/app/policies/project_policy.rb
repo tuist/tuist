@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 class ProjectPolicy < ApplicationPolicy
   def show?
     if record.account.owner_type == "User"

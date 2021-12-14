@@ -22,6 +22,4 @@ class UserCreateService < ApplicationService
       user.reload
     end
   end
-
-
 end

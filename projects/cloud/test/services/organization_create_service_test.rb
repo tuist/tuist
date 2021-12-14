@@ -6,7 +6,7 @@ class OrganizationCreateServiceTest < ActiveSupport::TestCase
   test "creates the organization and adds the creator as an admin" do
     # Given
     user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
-    account = Account.create!(owner: user, name: "test")
+    Account.create!(owner: user, name: "test")
     organization_name = "Tuist"
 
     # When
@@ -23,7 +23,7 @@ class OrganizationCreateServiceTest < ActiveSupport::TestCase
   test "the organization name is suffixed if an organization with the same name already exists" do
     # Given
     user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
-    account = Account.create!(owner: user, name: "test")
+    Account.create!(owner: user, name: "test")
     organization_name = "Tuist"
 
     # When

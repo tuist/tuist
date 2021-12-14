@@ -16,7 +16,7 @@ class OrganizationCreateService < ApplicationService
         name: name,
         owner: organization
       )
-      creator.add_role :admin, organization
+      creator.add_role(:admin, organization)
       organization
     end
   end
