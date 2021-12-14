@@ -55,7 +55,9 @@ public final class Tuist {
             try run(
                 arguments,
                 environment: [
-                    "TUIST_CONFIG_FORCE_CONFIG_CACHE_DIRECTORY": ProcessInfo.processInfo.environment["TUIST_CONFIG_FORCE_CONFIG_CACHE_DIRECTORY"] ?? "",
+                    "TUIST_CONFIG_FORCE_CONFIG_CACHE_DIRECTORY": ProcessInfo.processInfo.environment[
+                        "TUIST_CONFIG_FORCE_CONFIG_CACHE_DIRECTORY"
+                    ] ?? "",
                 ]
             )
             let graphData = try Data(contentsOf: graphPath.asURL)

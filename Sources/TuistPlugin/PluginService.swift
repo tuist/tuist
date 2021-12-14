@@ -144,7 +144,6 @@ public final class PluginService: PluginServicing {
         }
     }
 
-    // swiftlint:disable:next function_body_length
     public func loadPlugins(using config: Config) throws -> Plugins {
         guard !config.plugins.isEmpty else { return .none }
 
