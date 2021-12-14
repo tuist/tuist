@@ -1,4 +1,6 @@
 import Foundation
+import TSCBasic
+import TuistCore
 import TuistLoader
 import TuistPlugin
 import TuistSupport
@@ -33,12 +35,25 @@ final class TuistService: NSObject {
         self.configLoader = configLoader
     }
 
-    func run(_ arguments: [String]) throws {
+    func run(
+        arguments: [String],
+        tuistBinaryPath: String
+    ) throws {
         var arguments = arguments
 
         let commandName = "tuist-\(arguments[0])"
 
-        let config = try configLoader.loadConfig(path: FileHandler.shared.currentPath)
+        let path: AbsolutePath
+        if let pathOptionIndex = arguments.firstIndex(of: "--path") ?? arguments.firstIndex(of: "--p") {
+            path = AbsolutePath(
+                arguments[pathOptionIndex + 1],
+                relativeTo: FileHandler.shared.currentPath
+            )
+        } else {
+            path = FileHandler.shared.currentPath
+        }
+
+        let config = try configLoader.loadConfig(path: path)
         let pluginExecutables = try pluginService.remotePluginPaths(using: config)
             .compactMap(\.releasePath)
             .flatMap(FileHandler.shared.contentsOfDirectory)
@@ -51,6 +66,15 @@ final class TuistService: NSObject {
             throw TuistServiceError.taskUnavailable
         }
 
-        try System.shared.runAndPrint(arguments)
+        try System.shared.runAndPrint(
+            arguments,
+            verbose: Environment.shared.isVerbose,
+            environment: [
+                Constants.EnvironmentVariables.tuistBinaryPath: tuistBinaryPath,
+                Constants.EnvironmentVariables.forceConfigCacheDirectory: Environment.shared.tuistConfigVariables[
+                    Constants.EnvironmentVariables.forceConfigCacheDirectory
+                ] ?? "",
+            ]
+        )
     }
 }

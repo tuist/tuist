@@ -37,7 +37,8 @@ final class PluginArchiveService {
             .filter { $0.hasPrefix("tuist-") }
 
         if taskProducts.isEmpty {
-            logger.warning("No tasks found - make sure you have executable products with `tuist-` prefix defined in your manifest.")
+            logger
+                .warning("No tasks found - make sure you have executable products with `tuist-` prefix defined in your manifest.")
             return
         }
 
@@ -72,6 +73,7 @@ final class PluginArchiveService {
         let artifactsPath = temporaryDirectory.appending(component: "artifacts")
         try taskProducts
             .forEach { product in
+                logger.notice("Building \(product)...")
                 try swiftPackageManagerController.buildFatReleaseBinary(
                     packagePath: path,
                     product: product,
@@ -84,10 +86,14 @@ final class PluginArchiveService {
                 .map(artifactsPath.appending)
         )
         let zipName = "\(plugin.name).tuist-plugin.zip"
-        let zipPath = try archiver.zip(name: zipName)
+        let temporaryZipPath = try archiver.zip(name: zipName)
+        let zipPath = path.appending(component: zipName)
+        if FileHandler.shared.exists(zipPath) {
+            try FileHandler.shared.delete(zipPath)
+        }
         try FileHandler.shared.copy(
-            from: zipPath,
-            to: path.appending(component: zipName)
+            from: temporaryZipPath,
+            to: zipPath
         )
         try archiver.delete()
 

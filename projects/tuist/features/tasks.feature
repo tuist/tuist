@@ -5,5 +5,6 @@ Feature: Run tasks
     Then I copy the fixture app_with_plugins into the working directory
     Then tuist does fetch
     Then current directory is added to PATH
-    Then tuist runs create-file
+    Then tuist runs create-file with the current directory
     Then content of a file named plugin-file.txt should be equal to File created with a plugin
+    Then tuist runs inspect-graph

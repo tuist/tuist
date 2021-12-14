@@ -84,8 +84,6 @@ jobs:
         run: swift build -c release --product tuistenv
       - name: Build ProjectDescription for release
         run: swift build -c release --product ProjectDescription
-      - name: Build ProjectAutomation for release
-        run: swift build -c release --product ProjectAutomation
 
   acceptance_tests:
     name: ${{ matrix.feature }} acceptance tests with Xcode ${{ matrix.xcode }}

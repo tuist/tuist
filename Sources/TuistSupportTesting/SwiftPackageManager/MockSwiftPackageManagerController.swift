@@ -30,7 +30,14 @@ public final class MockSwiftPackageManagerController: SwiftPackageManagerControl
     public func loadPackageInfo(at path: AbsolutePath) throws -> PackageInfo {
         invokedLoadPackageInfo = true
         return try loadPackageInfoStub?(path)
-            ?? .init(products: [], targets: [], platforms: [], cLanguageStandard: nil, cxxLanguageStandard: nil, swiftLanguageVersions: nil)
+            ?? .init(
+                products: [],
+                targets: [],
+                platforms: [],
+                cLanguageStandard: nil,
+                cxxLanguageStandard: nil,
+                swiftLanguageVersions: nil
+            )
     }
 
     public var invokedBuildFatReleaseBinary = false

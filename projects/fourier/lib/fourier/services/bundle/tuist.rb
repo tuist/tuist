@@ -24,8 +24,6 @@ module Fourier
             Dir.mktmpdir do |swift_build_directory|
               build_project_library(name: "ProjectDescription", output_directory: build_directory,
                 swift_build_directory: swift_build_directory)
-              build_project_library(name: "ProjectAutomation", output_directory: build_directory,
-                swift_build_directory: swift_build_directory)
 
               Utilities::Output.section("Building Tuist...")
               build_tuist(output_directory: build_directory, swift_build_directory: swift_build_directory)
@@ -54,8 +52,6 @@ module Fourier
                   "tuist",
                   "ProjectDescription.framework",
                   "ProjectDescription.framework.dSYM",
-                  "ProjectAutomation.framework",
-                  "ProjectAutomation.framework.dSYM",
                   "Templates",
                   "vendor",
                   "cocoapods-interactor"
