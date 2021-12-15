@@ -78,6 +78,7 @@ const UserItem = ({
   user: User;
   isAdmin: boolean;
 }) => {
+  const { organizationStore } = useContext(HomeStoreContext);
   return (
     <div style={{ padding: '10px 100px 10px 20px' }}>
       <Stack alignment={'center'}>
@@ -94,6 +95,16 @@ const UserItem = ({
           <TextStyle>
             {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
           </TextStyle>
+        )}
+        {isAdmin && (
+          <Button
+            destructive={true}
+            onClick={() => {
+              organizationStore.removeMember(user.id);
+            }}
+          >
+            Remove user
+          </Button>
         )}
       </Stack>
     </div>

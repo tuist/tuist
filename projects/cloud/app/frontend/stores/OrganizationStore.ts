@@ -5,6 +5,7 @@ import {
   OrganizationQuery,
   OrganizationDocument,
   Role,
+  RemoveUserDocument,
 } from '../graphql/types';
 
 class OrganizationStore {
@@ -53,6 +54,32 @@ class OrganizationStore {
         avatarUrl: user.avatarUrl ?? undefined,
         role: Role.Admin,
       };
+    });
+  }
+
+  async removeMember(memberId: string) {
+    if (!this.organization) {
+      return;
+    }
+    await this.client.mutate({
+      mutation: RemoveUserDocument,
+      variables: {
+        input: {
+          organizationId: this.organization.id,
+          userId: memberId,
+        },
+      },
+    });
+    runInAction(() => {
+      if (!this.organization) {
+        return;
+      }
+      this.organization.users = this.organization.users.filter(
+        (user) => user.id !== memberId,
+      );
+      this.organization.admins = this.organization.admins.filter(
+        (user) => user.id !== memberId,
+      );
     });
   }
 
