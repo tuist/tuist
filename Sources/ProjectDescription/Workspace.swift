@@ -76,7 +76,10 @@ extension Workspace.GenerationOptions {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         if container.allKeys.contains(.automaticSchemaGeneration) {
-            let mode = try container.decode(Workspace.GenerationOptions.AutomaticSchemaGeneration.self, forKey: .automaticSchemaGeneration)
+            let mode = try container.decode(
+                Workspace.GenerationOptions.AutomaticSchemaGeneration.self,
+                forKey: .automaticSchemaGeneration
+            )
             self = .automaticSchemaGeneration(mode)
         } else {
             throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown enum case"))

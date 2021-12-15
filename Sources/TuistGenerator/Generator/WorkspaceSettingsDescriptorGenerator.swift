@@ -19,13 +19,15 @@ final class WorkspaceSettingsDescriptorGenerator: WorkspaceSettingsDescriptorGen
             return nil
         }
 
-        let generationBehavior = workspace.generationOptions.map { option -> Workspace.GenerationOptions.AutomaticSchemaGeneration? in
-            switch option {
-            case let .automaticSchemaGeneration(behavior): return behavior
+        let generationBehavior = workspace.generationOptions
+            .map { option -> Workspace.GenerationOptions.AutomaticSchemaGeneration? in
+                switch option {
+                case let .automaticSchemaGeneration(behavior):
+                    return behavior
+                }
             }
-        }
-        .first
-        .map(\.?.value)
+            .first
+            .map(\.?.value)
 
         if let generationBehavior = generationBehavior {
             return WorkspaceSettingsDescriptor(automaticSchemaGeneration: generationBehavior)
