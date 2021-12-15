@@ -8,7 +8,7 @@ public struct Workspace: Codable, Equatable {
         /// Represents the behavior Xcode will apply to the workspace regarding
         /// schema generation using the `IDEWorkspaceSharedSettings_AutocreateContextsIfNeeded` key.
         /// - seealso: `WorkspaceSettingsDescriptor`
-        public enum AutomaticSchemeGeneration: String, Codable, Equatable {
+        public enum AutomaticSchemeMode: String, Codable, Equatable {
             /// Will not add the key to the settings file.
             case `default`
 
@@ -20,7 +20,7 @@ public struct Workspace: Codable, Equatable {
         }
 
         /// Tuist generates a WorkspaceSettings.xcsettings file, setting the related key to the associated value.
-        case automaticSchemeGeneration(AutomaticSchemeGeneration)
+        case automaticXcodeSchemes(AutomaticSchemeMode)
     }
 
     /// Name of the workspace
@@ -69,18 +69,18 @@ public struct Workspace: Codable, Equatable {
 
 extension Workspace.GenerationOptions {
     private enum CodingKeys: String, CodingKey {
-        case automaticSchemeGeneration
+        case automaticXcodeSchemes
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
-        if container.allKeys.contains(.automaticSchemeGeneration) {
+        if container.allKeys.contains(.automaticXcodeSchemes) {
             let mode = try container.decode(
-                Workspace.GenerationOptions.AutomaticSchemeGeneration.self,
-                forKey: .automaticSchemeGeneration
+                Workspace.GenerationOptions.AutomaticSchemeMode.self,
+                forKey: .automaticXcodeSchemes
             )
-            self = .automaticSchemeGeneration(mode)
+            self = .automaticXcodeSchemes(mode)
         } else {
             throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown enum case"))
         }
@@ -90,8 +90,8 @@ extension Workspace.GenerationOptions {
         var container = encoder.container(keyedBy: CodingKeys.self)
 
         switch self {
-        case let .automaticSchemeGeneration(value):
-            try container.encode(value, forKey: .automaticSchemeGeneration)
+        case let .automaticXcodeSchemes(value):
+            try container.encode(value, forKey: .automaticXcodeSchemes)
         }
     }
 }

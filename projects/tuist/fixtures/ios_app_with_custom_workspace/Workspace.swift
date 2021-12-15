@@ -9,5 +9,8 @@ let workspace = Workspace(
     additionalFiles: [
         "Documentation/**",
         .folderReference(path: "Website"),
+    ],
+    generationOptions: [
+        .automaticXcodeSchemes(.disabled),
     ]
 )

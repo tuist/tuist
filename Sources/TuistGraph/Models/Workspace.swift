@@ -154,17 +154,17 @@ extension Workspace {
 
 extension Workspace.GenerationOptions {
     private enum CodingKeys: String, CodingKey {
-        case automaticSchemeGeneration
+        case automaticXcodeSchemes
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
-        if container.allKeys.contains(.automaticSchemeGeneration) {
+        if container.allKeys.contains(.automaticXcodeSchemes) {
             self = .automaticXcodeSchemes(
                 try container.decode(
                     Workspace.GenerationOptions.AutomaticSchemeMode.self,
-                    forKey: .automaticSchemeGeneration
+                    forKey: .automaticXcodeSchemes
                 )
             )
         } else {
@@ -177,7 +177,7 @@ extension Workspace.GenerationOptions {
 
         switch self {
         case let .automaticXcodeSchemes(value):
-            try container.encode(value, forKey: .automaticSchemeGeneration)
+            try container.encode(value, forKey: .automaticXcodeSchemes)
         }
     }
 }
