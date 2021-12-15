@@ -31,6 +31,7 @@ final class SchemeTests: XCTestCase {
             ),
             runAction: RunAction(
                 configuration: .debug,
+                attachDebugger: true,
                 preActions: mockExecutionAction("run_action"),
                 postActions: mockExecutionAction("run_action"),
                 executable: .init(projectPath: nil, target: "executable"),
@@ -72,6 +73,7 @@ final class SchemeTests: XCTestCase {
             ),
             runAction: RunAction(
                 configuration: .release,
+                attachDebugger: true,
                 preActions: mockExecutionAction("run_action"),
                 postActions: mockExecutionAction("run_action"),
                 executable: .init(projectPath: nil, target: "executable"),

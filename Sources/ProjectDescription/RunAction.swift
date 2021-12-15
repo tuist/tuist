@@ -5,6 +5,9 @@ public struct RunAction: Equatable, Codable {
     /// Name of the configuration that should be used for building the runnable targets.
     public let configuration: ConfigurationName
 
+    /// Enable this to attach a debugger to the process running the app.
+    public let attachDebugger: Bool
+
     /// List of actions to be executed before running.
     public let preActions: [ExecutionAction]
 
@@ -24,6 +27,7 @@ public struct RunAction: Equatable, Codable {
     public let diagnosticsOptions: [SchemeDiagnosticsOption]
 
     init(configuration: ConfigurationName,
+         attachDebugger: Bool = true,
          preActions: [ExecutionAction] = [],
          postActions: [ExecutionAction] = [],
          executable: TargetReference? = nil,
@@ -32,6 +36,7 @@ public struct RunAction: Equatable, Codable {
          diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker])
     {
         self.configuration = configuration
+        self.attachDebugger = attachDebugger
         self.preActions = preActions
         self.postActions = postActions
         self.executable = executable
@@ -43,6 +48,7 @@ public struct RunAction: Equatable, Codable {
     /// Initializes a new instance of a run action.
     /// - Parameters:
     ///   - configuration: Name of the configuration that should be used for building the runnable targets.
+    ///   - attachDebugger: A boolean controlling whether a debugger is attached to the process running the app.
     ///   - preActions: Actions to execute before running.
     ///   - postActions: Actions to execute after running.
     ///   - executable: Executable that will be run.
@@ -51,6 +57,7 @@ public struct RunAction: Equatable, Codable {
     ///   - diagnosticsOptions: Diagnostics options.
     /// - Returns: Run action.
     public static func runAction(configuration: ConfigurationName = .debug,
+                                 attachDebugger: Bool = true,
                                  preActions: [ExecutionAction] = [],
                                  postActions: [ExecutionAction] = [],
                                  executable: TargetReference? = nil,
@@ -60,6 +67,7 @@ public struct RunAction: Equatable, Codable {
     {
         return RunAction(
             configuration: configuration,
+            attachDebugger: attachDebugger,
             preActions: preActions,
             postActions: postActions,
             executable: executable,

@@ -24,7 +24,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  RUBY_VERSION: '3.0.2'
+  RUBY_VERSION: '3.0.3'
   TUIST_STATS_OPT_OUT: true
 
 jobs:

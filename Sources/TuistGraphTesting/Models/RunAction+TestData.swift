@@ -4,6 +4,7 @@ import TSCBasic
 
 extension RunAction {
     public static func test(configurationName: String = BuildConfiguration.debug.name,
+                            attachDebugger: Bool = true,
                             preActions: [ExecutionAction] = [],
                             postActions: [ExecutionAction] = [],
                             executable: TargetReference? = TargetReference(projectPath: "/Project", name: "App"),
@@ -14,6 +15,7 @@ extension RunAction {
     {
         RunAction(
             configurationName: configurationName,
+            attachDebugger: attachDebugger,
             preActions: preActions,
             postActions: postActions,
             executable: executable,

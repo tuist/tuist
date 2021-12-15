@@ -317,6 +317,7 @@ final class TestModelGenerator {
                     targets: targets.map { TestableTarget(target: $0) },
                     arguments: createArguments(),
                     configurationName: "Debug",
+                    attachDebugger: true,
                     coverage: boolStub,
                     codeCoverageTargets: targets,
                     expandVariableFromTarget: nil,
@@ -326,6 +327,7 @@ final class TestModelGenerator {
                 ),
                 runAction: RunAction(
                     configurationName: "Debug",
+                    attachDebugger: true,
                     executable: nil,
                     filePath: nil,
                     arguments: createArguments(),

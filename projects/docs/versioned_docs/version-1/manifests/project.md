@@ -818,7 +818,7 @@ File header template can be initialized with a plain string, it is equivalent to
 
 ### FileCodeGen
 
-The `FileCodeGen` enum represents the possible source file attributes for soruce code generation
+The `FileCodeGen` enum represents the possible source file attributes for source code generation
 `NOTE`: This is only applicable to a subset of file tyes (e.g. intent definitions and ML models)
 
 | Case      | Description                           |

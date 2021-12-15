@@ -5,6 +5,7 @@ public struct RunAction: Equatable, Codable {
     // MARK: - Attributes
 
     public let configurationName: String
+    public let attachDebugger: Bool
     public let preActions: [ExecutionAction]
     public let postActions: [ExecutionAction]
     public let executable: TargetReference?
@@ -16,6 +17,7 @@ public struct RunAction: Equatable, Codable {
     // MARK: - Init
 
     public init(configurationName: String,
+                attachDebugger: Bool,
                 preActions: [ExecutionAction] = [],
                 postActions: [ExecutionAction] = [],
                 executable: TargetReference?,
@@ -25,6 +27,7 @@ public struct RunAction: Equatable, Codable {
                 diagnosticsOptions: Set<SchemeDiagnosticsOption>)
     {
         self.configurationName = configurationName
+        self.attachDebugger = attachDebugger
         self.preActions = preActions
         self.postActions = postActions
         self.executable = executable
