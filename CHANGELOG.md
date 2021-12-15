@@ -4,6 +4,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Changed
+
+- Update SwiftUI template [#3840](https://github.com/tuist/tuist/pull/3840) by [@ezraberch](https://github.com/ezraberch)
+
 ## 2.4.0 - Lune
 
 ### Added
