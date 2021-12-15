@@ -134,7 +134,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
             .appending(RelativePath("xcshareddata"))
             .appending(RelativePath("WorkspaceSettings.xcsettings"))
 
-        try WorkspaceSettings(autoCreateSchemes: workspaceSettingsDescriptor.automaticSchemaGeneration)
+        try WorkspaceSettings(autoCreateSchemes: workspaceSettingsDescriptor.automaticSchemeGeneration)
             .write(path: settingsPath.path, override: true)
     }
 

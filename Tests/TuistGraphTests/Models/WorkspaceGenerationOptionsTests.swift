@@ -7,7 +7,7 @@ import XCTest
 final class WorkspaceGenerationOptionsTests: TuistUnitTestCase {
     func test_codable_whenDefault() {
         // Given
-        let subject = Workspace.GenerationOptions.automaticSchemaGeneration(.default)
+        let subject = Workspace.GenerationOptions.automaticSchemeGeneration(.default)
 
         // Then
         XCTAssertCodable(subject)
@@ -15,7 +15,7 @@ final class WorkspaceGenerationOptionsTests: TuistUnitTestCase {
 
     func test_codable_whenDisabled() {
         // Given
-        let subject = Workspace.GenerationOptions.automaticSchemaGeneration(.disabled)
+        let subject = Workspace.GenerationOptions.automaticSchemeGeneration(.disabled)
 
         // Then
         XCTAssertCodable(subject)
@@ -23,7 +23,7 @@ final class WorkspaceGenerationOptionsTests: TuistUnitTestCase {
 
     func test_codable_whenEnabled() {
         // Given
-        let subject = Workspace.GenerationOptions.automaticSchemaGeneration(.enabled)
+        let subject = Workspace.GenerationOptions.automaticSchemeGeneration(.enabled)
 
         // Then
         XCTAssertCodable(subject)

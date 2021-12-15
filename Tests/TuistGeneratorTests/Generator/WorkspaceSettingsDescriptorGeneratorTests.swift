@@ -37,12 +37,12 @@ final class WorkspaceSettingsDescriptorGeneratorTests: TuistUnitTestCase {
 
     func test_generate_withGenerationOptions() {
         // Given
-        let workspace = Workspace.test(generationOptions: [.automaticSchemaGeneration(.disabled)])
+        let workspace = Workspace.test(generationOptions: [.automaticSchemeGeneration(.disabled)])
 
         // When
         let result = subject.generateWorkspaceSettings(workspace: workspace)
 
         // Then
-        XCTAssertEqual(result, WorkspaceSettingsDescriptor(automaticSchemaGeneration: false))
+        XCTAssertEqual(result, WorkspaceSettingsDescriptor(automaticSchemeGeneration: false))
     }
 }

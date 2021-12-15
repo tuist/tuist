@@ -10,9 +10,9 @@ import XcodeProj
 ///
 /// - seealso: `WorkspaceDescriptor`
 public struct WorkspaceSettingsDescriptor: Equatable {
-    public var automaticSchemaGeneration: Bool?
+    public var automaticSchemeGeneration: Bool?
 
-    public init(automaticSchemaGeneration: Bool?) {
-        self.automaticSchemaGeneration = automaticSchemaGeneration
+    public init(automaticSchemeGeneration: Bool?) {
+        self.automaticSchemeGeneration = automaticSchemeGeneration
     }
 }

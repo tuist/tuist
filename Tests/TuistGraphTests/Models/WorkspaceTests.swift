@@ -21,7 +21,7 @@ final class WorkspaceTests: TuistUnitTestCase {
         let subject = Workspace.test(
             path: "/path/to/workspace",
             name: "name",
-            generationOptions: [.automaticSchemaGeneration(.disabled)]
+            generationOptions: [.automaticSchemeGeneration(.disabled)]
         )
 
         // Then

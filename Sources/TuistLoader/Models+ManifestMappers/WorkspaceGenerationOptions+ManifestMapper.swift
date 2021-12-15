@@ -8,17 +8,17 @@ extension TuistGraph.Workspace.GenerationOptions {
     ///   - manifest: Manifest representation of a generation option.
     static func from(manifest: ProjectDescription.Workspace.GenerationOptions) -> Self {
         switch manifest {
-        case let .automaticSchemaGeneration(behavior):
-            return .automaticSchemaGeneration(.from(manifest: behavior))
+        case let .automaticSchemeGeneration(behavior):
+            return .automaticSchemeGeneration(.from(manifest: behavior))
         }
     }
 }
 
-extension TuistGraph.Workspace.GenerationOptions.AutomaticSchemaGeneration {
-    /// Maps ProjectDescription.Workspace.AutomaticSchemaGeneration instance into a TuistGraph.Workspace.AutomaticSchemaGeneration model.
+extension TuistGraph.Workspace.GenerationOptions.AutomaticSchemeGeneration {
+    /// Maps ProjectDescription.Workspace.AutomaticSchemeGeneration instance into a TuistGraph.Workspace.AutomaticSchemeGeneration model.
     /// - Parameters:
     ///   - manifest: Manifest representation of a schema generation option.
-    static func from(manifest: ProjectDescription.Workspace.GenerationOptions.AutomaticSchemaGeneration) -> Self {
+    static func from(manifest: ProjectDescription.Workspace.GenerationOptions.AutomaticSchemeGeneration) -> Self {
         switch manifest {
         case .default: return .default
         case .disabled: return .disabled
