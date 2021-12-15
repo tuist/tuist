@@ -20,9 +20,9 @@ final class WorkspaceSettingsDescriptorGenerator: WorkspaceSettingsDescriptorGen
         }
 
         let generationBehavior = workspace.generationOptions
-            .map { option -> Workspace.GenerationOptions.AutomaticSchemeGeneration? in
+            .map { option -> Workspace.GenerationOptions.AutomaticSchemeMode? in
                 switch option {
-                case let .automaticSchemeGeneration(behavior):
+                case let .automaticXcodeSchemes(behavior):
                     return behavior
                 }
             }

@@ -8,7 +8,7 @@ public struct Workspace: Equatable, Codable {
         /// Represents the behavior Xcode will apply to the workspace regarding
         /// schema generation using the `IDEWorkspaceSharedSettings_AutocreateContextsIfNeeded` key.
         /// - seealso: `WorkspaceSettingsDescriptor`
-        public enum AutomaticSchemeGeneration: String, Codable, Equatable {
+        public enum AutomaticSchemeMode: String, Codable, Equatable {
             /// Will not add the key to the settings file.
             case `default`
 
@@ -28,7 +28,7 @@ public struct Workspace: Equatable, Codable {
         }
 
         /// Tuist generates a WorkspaceSettings.xcsettings file, setting the related key to the associated value.
-        case automaticSchemeGeneration(AutomaticSchemeGeneration)
+        case automaticXcodeSchemes(AutomaticSchemeMode)
     }
 
     // MARK: - Attributes
@@ -161,9 +161,9 @@ extension Workspace.GenerationOptions {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         if container.allKeys.contains(.automaticSchemeGeneration) {
-            self = .automaticSchemeGeneration(
+            self = .automaticXcodeSchemes(
                 try container.decode(
-                    Workspace.GenerationOptions.AutomaticSchemeGeneration.self,
+                    Workspace.GenerationOptions.AutomaticSchemeMode.self,
                     forKey: .automaticSchemeGeneration
                 )
             )
@@ -176,7 +176,7 @@ extension Workspace.GenerationOptions {
         var container = encoder.container(keyedBy: CodingKeys.self)
 
         switch self {
-        case let .automaticSchemeGeneration(value):
+        case let .automaticXcodeSchemes(value):
             try container.encode(value, forKey: .automaticSchemeGeneration)
         }
     }

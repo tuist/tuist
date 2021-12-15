@@ -16,7 +16,7 @@ final class WorkspaceGenerationOptionsManifestMapperTests: XCTestCase {
         let actual = TuistGraph.Workspace.GenerationOptions.from(manifest: manifest)
 
         // Then
-        XCTAssertEqual(actual, .automaticSchemeGeneration(.default))
+        XCTAssertEqual(actual, .automaticXcodeSchemes(.default))
     }
 
     func test_from_whenAutomaticSchemeGenerationIsDisabled() {
@@ -27,7 +27,7 @@ final class WorkspaceGenerationOptionsManifestMapperTests: XCTestCase {
         let actual = TuistGraph.Workspace.GenerationOptions.from(manifest: manifest)
 
         // Then
-        XCTAssertEqual(actual, .automaticSchemeGeneration(.disabled))
+        XCTAssertEqual(actual, .automaticXcodeSchemes(.disabled))
     }
 
     func test_from_whenAutomaticSchemeGenerationIsEnabled() {
@@ -38,6 +38,6 @@ final class WorkspaceGenerationOptionsManifestMapperTests: XCTestCase {
         let actual = TuistGraph.Workspace.GenerationOptions.from(manifest: manifest)
 
         // Then
-        XCTAssertEqual(actual, .automaticSchemeGeneration(.enabled))
+        XCTAssertEqual(actual, .automaticXcodeSchemes(.enabled))
     }
 }

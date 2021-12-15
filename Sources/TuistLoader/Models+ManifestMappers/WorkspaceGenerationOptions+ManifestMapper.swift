@@ -9,12 +9,12 @@ extension TuistGraph.Workspace.GenerationOptions {
     static func from(manifest: ProjectDescription.Workspace.GenerationOptions) -> Self {
         switch manifest {
         case let .automaticSchemeGeneration(behavior):
-            return .automaticSchemeGeneration(.from(manifest: behavior))
+            return .automaticXcodeSchemes(.from(manifest: behavior))
         }
     }
 }
 
-extension TuistGraph.Workspace.GenerationOptions.AutomaticSchemeGeneration {
+extension TuistGraph.Workspace.GenerationOptions.AutomaticSchemeMode {
     /// Maps ProjectDescription.Workspace.AutomaticSchemeGeneration instance into a TuistGraph.Workspace.AutomaticSchemeGeneration model.
     /// - Parameters:
     ///   - manifest: Manifest representation of a schema generation option.
