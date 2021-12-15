@@ -11,34 +11,65 @@ import {
   Button,
 } from '@shopify/polaris';
 import { useParams } from 'react-router';
-import { useOrganizationQuery } from '@/graphql/types';
-
-enum Role {
-  admin = 'Admin',
-  user = 'User',
-}
+import {
+  Role,
+  Organization as _,
+  useChangeUserRoleMutation,
+  useOrganizationQuery,
+  useMeQuery,
+} from '@/graphql/types';
 
 interface User {
+  id: string;
   email: string;
   name: string;
   avatarUrl: string | undefined;
   role: Role;
 }
 
-const UserRolePopover = ({ user }: { user: User }) => {
+const UserRolePopover = ({
+  user,
+  organizationId,
+}: {
+  user: User;
+  organizationId: string;
+}) => {
   // TODO: Enable actually changing the role
   const [isRolePopoverActive, setRolePopoverActive] = useState(false);
   const toggleRolePopoverActive = useCallback(
     () => setRolePopoverActive((active) => !active),
     [],
   );
+
+  const [newRole, setNewRole] = useState(user.role);
+  const [currentRole, setCurrentRole] = useState(user.role);
+  const [changeUserRoleMutation] = useChangeUserRoleMutation({
+    onCompleted: () => {
+      setCurrentRole(newRole);
+    },
+  });
+  const changeRole = useCallback(({ newRole }: { newRole: Role }) => {
+    changeUserRoleMutation({
+      variables: {
+        input: {
+          userId: user.id,
+          organizationId: organizationId,
+          role: newRole,
+        },
+      },
+    });
+    toggleRolePopoverActive();
+    setNewRole(newRole);
+  }, []);
+
   return (
     <div style={{ width: 100 }}>
       <Popover
         active={isRolePopoverActive}
         activator={
           <Button disclosure onClick={toggleRolePopoverActive}>
-            {user.role}
+            {currentRole.charAt(0).toUpperCase() +
+              currentRole.slice(1)}
           </Button>
         }
         onClose={toggleRolePopoverActive}
@@ -47,9 +78,15 @@ const UserRolePopover = ({ user }: { user: User }) => {
           items={[
             {
               content: 'Admin',
+              onAction: () => {
+                changeRole({ newRole: Role.Admin });
+              },
             },
             {
               content: 'User',
+              onAction: () => {
+                changeRole({ newRole: Role.User });
+              },
             },
           ]}
         />
@@ -58,7 +95,15 @@ const UserRolePopover = ({ user }: { user: User }) => {
   );
 };
 
-const UserItem = ({ user }: { user: User }) => {
+const UserItem = ({
+  user,
+  organizationId,
+  isAdmin,
+}: {
+  user: User;
+  organizationId: string;
+  isAdmin: boolean;
+}) => {
   return (
     <div style={{ padding: '10px 100px 10px 20px' }}>
       <Stack alignment={'center'}>
@@ -69,7 +114,16 @@ const UserItem = ({ user }: { user: User }) => {
             <TextStyle variation="subdued">{user.email}</TextStyle>
           </Stack>
         </Stack.Item>
-        <UserRolePopover user={user} />
+        {isAdmin ? (
+          <UserRolePopover
+            user={user}
+            organizationId={organizationId}
+          />
+        ) : (
+          <TextStyle>
+            {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
+          </TextStyle>
+        )}
       </Stack>
     </div>
   );
@@ -85,27 +139,33 @@ const Organization = () => {
   const users =
     organization?.users.map((user) => {
       return {
+        id: user.id,
         email: user.email,
         name: user.account.name,
         avatarUrl: user.avatarUrl ?? undefined,
-        role: Role.user,
+        role: Role.User,
       };
     }) ?? [];
 
   const admins =
     organization?.admins.map((user) => {
       return {
+        id: user.id,
         email: user.email,
         name: user.account.name,
         avatarUrl: user.avatarUrl ?? undefined,
-        role: Role.admin,
+        role: Role.Admin,
       };
     }) ?? [];
+  const user = useMeQuery().data?.me;
+  const isAdmin =
+    (user && admins.map((admin) => admin.id).includes(user.id)) ??
+    false;
   return (
     <Page title={organizationName}>
       <Card title="Users">
         <ResourceList
-          resourceName={{ singular: 'customer', plural: 'customers' }}
+          resourceName={{ singular: 'user', plural: 'users' }}
           items={users
             .concat(admins)
             .sort(
@@ -113,7 +173,13 @@ const Organization = () => {
                 0 - (first.name > second.name ? -1 : 1),
             )}
           renderItem={(item) => {
-            return <UserItem user={item} />;
+            return (
+              <UserItem
+                user={item}
+                isAdmin={isAdmin}
+                organizationId={organization?.id ?? ''}
+              />
+            );
           }}
         />
       </Card>

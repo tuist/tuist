@@ -6,7 +6,7 @@ class ProjectCreateServiceTest < ActiveSupport::TestCase
   test "creates a project with a given account_id" do
     # Given
     user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
-    account = Account.create!(owner: user, name: "test")
+    account = user.account
     project_name = "tuist"
 
     # When
@@ -20,7 +20,6 @@ class ProjectCreateServiceTest < ActiveSupport::TestCase
   test "creates a project and a new organization" do
     # Given
     user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
-    account = Account.create!(owner: user, name: "test")
     project_name = "tuist"
     organization_name = "tuist-org"
     organization = Organization.create!
