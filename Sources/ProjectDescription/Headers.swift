@@ -61,17 +61,19 @@ public struct Headers: Codable, Equatable {
     /// - deprecated: use `headers(public:private:project:exclusionRile:)` to create Headers instance.
     @available(
         *,
-         deprecated,
-         message: "Use `headers(public:private:project:exclusionRile:)` to create Headers instance."
+        deprecated,
+        message: "Use `headers(public:private:project:exclusionRile:)` to create Headers instance."
     )
     public init(public: FileList? = nil,
                 private: FileList? = nil,
                 project: FileList? = nil)
     {
-        self = .init(public: `public`,
-                     private: `private`,
-                     project: project,
-                     exclusionRule: .none)
+        self = .init(
+            public: `public`,
+            private: `private`,
+            project: project,
+            exclusionRule: .none
+        )
     }
 
     public static func headers(public: FileList? = nil,
@@ -79,9 +81,11 @@ public struct Headers: Codable, Equatable {
                                project: FileList? = nil,
                                exclusionRule: AutomaticExclusionRule = .none) -> Headers
     {
-        return .init(public: `public`,
-                     private: `private`,
-                     project: project,
-                     exclusionRule: exclusionRule)
+        return .init(
+            public: `public`,
+            private: `private`,
+            project: project,
+            exclusionRule: exclusionRule
+        )
     }
 }
