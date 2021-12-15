@@ -31,7 +31,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             "Sources/project/C2.m",
         ])
 
-        let manifest = ProjectDescription.Headers(
+        let manifest: ProjectDescription.Headers = .headers(
             public: "Sources/public/**",
             private: "Sources/private/**",
             project: "Sources/project/**"
@@ -78,7 +78,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             "Sources/project/F/F1.m",
         ])
 
-        let manifest = ProjectDescription.Headers(
+        let manifest: ProjectDescription.Headers = .headers(
             public: ["Sources/public/A/*.h", "Sources/public/B/*.h"],
             private: ["Sources/private/C/*.h", "Sources/private/D/*.h"],
             project: ["Sources/project/E/*.h", "Sources/project/F/*.h"]
@@ -118,7 +118,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             "Sources/project/D/D1.m",
         ])
 
-        let manifest = ProjectDescription.Headers(
+        let manifest: ProjectDescription.Headers = .headers(
             public: "Sources/public/A/*.h",
             project: ["Sources/project/C/*.h", "Sources/project/D/*.h"]
         )
@@ -158,7 +158,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             "Sources/project/C2.m",
         ])
 
-        let manifest = ProjectDescription.Headers(
+        let manifest: ProjectDescription.Headers = .headers(
             public: .list([.glob("Sources/public/**", excluding: "Sources/public/A2.h")]),
             private: .list([.glob("Sources/private/**", excluding: "Sources/private/B1.h")]),
             project: "Sources/project/**"
@@ -198,7 +198,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             "Sources/A2+Protected.m",
         ])
 
-        let manifest = ProjectDescription.Headers(
+        let manifest: ProjectDescription.Headers = .headers(
             public: .list([.glob("Sources/**", excluding: ["Sources/*+Protected.h", "Sources/*+Project.h"])]),
             private: nil,
             project: ["Sources/*+Protected.h", "Sources/*+Project.h"]
@@ -238,7 +238,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             "Sources/group/A2+Protected.m",
         ])
 
-        let manifest = ProjectDescription.Headers(
+        let manifest: ProjectDescription.Headers = .headers(
             public: .list([.glob("Sources/**", excluding: ["Sources/**/*+Protected.h", "Sources/**/*+Project.h"])]),
             private: nil,
             project: ["Sources/**/*+Protected.h", "Sources/**/*+Project.h"]
@@ -281,7 +281,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             "Sources/group/A4+Private.m",
         ])
 
-        let manifest = ProjectDescription.Headers(
+        let manifest: ProjectDescription.Headers = .headers(
             public: .list(
                 [.glob(
                     "Sources/**",
@@ -341,7 +341,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             "Sources/group/A4+Private.m",
         ])
 
-        let manifest = ProjectDescription.Headers(
+        let manifest: ProjectDescription.Headers = .headers(
             public: .list([
                 .glob(
                     "Sources/**",
@@ -396,7 +396,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             "Sources/group/A4+Private.m",
         ])
 
-        let manifest = ProjectDescription.Headers(
+        let manifest: ProjectDescription.Headers = .headers(
             public: ["Sources/**"],
             private: ["Sources/**/*+Private.h"],
             project: [

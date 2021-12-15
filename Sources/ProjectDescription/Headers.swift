@@ -47,14 +47,41 @@ public struct Headers: Codable, Equatable {
     /// when the same files found in different header scopes
     public let exclusionRule: AutomaticExclusionRule
 
-    public init(public: FileList? = nil,
-                private: FileList? = nil,
-                project: FileList? = nil,
-                exclusionRule: AutomaticExclusionRule = .none)
+    private init(public: FileList? = nil,
+                 private: FileList? = nil,
+                 project: FileList? = nil,
+                 exclusionRule: AutomaticExclusionRule)
     {
         self.public = `public`
         self.private = `private`
         self.project = project
         self.exclusionRule = exclusionRule
+    }
+
+    /// - deprecated: use `headers(public:private:project:exclusionRile:)` to create Headers instance.
+    @available(
+        *,
+         deprecated,
+         message: "Use `headers(public:private:project:exclusionRile:)` to create Headers instance."
+    )
+    public init(public: FileList? = nil,
+                private: FileList? = nil,
+                project: FileList? = nil)
+    {
+        self = .init(public: `public`,
+                     private: `private`,
+                     project: project,
+                     exclusionRule: .none)
+    }
+
+    public static func headers(public: FileList? = nil,
+                               private: FileList? = nil,
+                               project: FileList? = nil,
+                               exclusionRule: AutomaticExclusionRule = .none) -> Headers
+    {
+        return .init(public: `public`,
+                     private: `private`,
+                     project: project,
+                     exclusionRule: exclusionRule)
     }
 }
