@@ -140,7 +140,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         let result = try subject.generate(graphTraverser: graphTraverser)
 
         // Then
-        XCTAssertEqual(result.workspaceSettingsDescriptor, WorkspaceSettingsDescriptor(automaticSchemeGeneration: false))
+        XCTAssertEqual(result.workspaceSettingsDescriptor, WorkspaceSettingsDescriptor(automaticXcodeSchemes: false))
     }
 
     func test_generateWorkspaceStructure_withSettingsDescriptorEnablingSchemaGeneration() throws {
@@ -160,7 +160,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         let result = try subject.generate(graphTraverser: graphTraverser)
 
         // Then
-        XCTAssertEqual(result.workspaceSettingsDescriptor, WorkspaceSettingsDescriptor(automaticSchemeGeneration: true))
+        XCTAssertEqual(result.workspaceSettingsDescriptor, WorkspaceSettingsDescriptor(automaticXcodeSchemes: true))
     }
 
     func test_generateWorkspaceStructure_withSettingsDescriptorDefaultSchemaGeneration() throws {
@@ -180,7 +180,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         let result = try subject.generate(graphTraverser: graphTraverser)
 
         // Then
-        XCTAssertEqual(result.workspaceSettingsDescriptor, WorkspaceSettingsDescriptor(automaticSchemeGeneration: nil))
+        XCTAssertEqual(result.workspaceSettingsDescriptor, WorkspaceSettingsDescriptor(automaticXcodeSchemes: nil))
     }
 
     // MARK: - Helpers

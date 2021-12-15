@@ -43,6 +43,6 @@ final class WorkspaceSettingsDescriptorGeneratorTests: TuistUnitTestCase {
         let result = subject.generateWorkspaceSettings(workspace: workspace)
 
         // Then
-        XCTAssertEqual(result, WorkspaceSettingsDescriptor(automaticSchemeGeneration: false))
+        XCTAssertEqual(result, WorkspaceSettingsDescriptor(automaticXcodeSchemes: false))
     }
 }

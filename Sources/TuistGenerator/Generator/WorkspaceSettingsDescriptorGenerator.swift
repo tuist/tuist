@@ -30,7 +30,7 @@ final class WorkspaceSettingsDescriptorGenerator: WorkspaceSettingsDescriptorGen
             .map(\.?.value)
 
         if let generationBehavior = generationBehavior {
-            return WorkspaceSettingsDescriptor(automaticSchemeGeneration: generationBehavior)
+            return WorkspaceSettingsDescriptor(automaticXcodeSchemes: generationBehavior)
         } else {
             return nil
         }

@@ -10,9 +10,13 @@ import XcodeProj
 ///
 /// - seealso: `WorkspaceDescriptor`
 public struct WorkspaceSettingsDescriptor: Equatable {
-    public var automaticSchemeGeneration: Bool?
+    private let automaticXcodeSchemes: Bool?
 
-    public init(automaticSchemeGeneration: Bool?) {
-        self.automaticSchemeGeneration = automaticSchemeGeneration
+    var settings: WorkspaceSettings {
+        WorkspaceSettings(autoCreateSchemes: automaticXcodeSchemes)
+    }
+
+    public init(automaticXcodeSchemes: Bool?) {
+        self.automaticXcodeSchemes = automaticXcodeSchemes
     }
 }
