@@ -64,6 +64,15 @@ public final class TemplateGenerator: TemplateGenerating {
                         )
                     )
                 }
+                if case let Template.Contents.directory(path) = contents {
+                    contents = .directory(
+                        AbsolutePath(
+                            path.pathString.replacingOccurrences(
+                                of: "{{ \(attribute.key) }}", with: attribute.value
+                            )
+                        )
+                    )
+                }
 
                 return Template.Item(path: path, contents: contents)
             }
@@ -111,7 +120,9 @@ public final class TemplateGenerator: TemplateGenerating {
                     renderedContents = fileContents
                 }
             case let .directory(path):
-                let destinationDirectoryPath = destinationPath.appending(components: $0.path.pathString, path.basename)
+                let destinationDirectoryPath = destinationPath
+                    .appending(RelativePath($0.path.pathString))
+                    .appending(component: path.basename)
                 // workaround for creating folder tree of destinationDirectoryPath
                 if !FileHandler.shared.exists(destinationDirectoryPath.parentDirectory) {
                     try FileHandler.shared.createFolder(destinationDirectoryPath.parentDirectory)
