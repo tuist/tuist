@@ -19,6 +19,7 @@ module.exports = {
         'guides/shell-autocompletion',
         'guides/stats',
         'guides/third-party-dependencies',
+        'guides/continuous-integration',
       ],
     },
     {
@@ -76,11 +77,7 @@ module.exports = {
     {
       type: 'category',
       label: 'Cloud',
-      items: [
-        'cloud/get-started',
-        'cloud/specification',
-        'cloud/self-hosting',
-      ],
+      items: ['cloud/get-started', 'cloud/specification', 'cloud/self-hosting'],
     },
     {
       type: 'category',
