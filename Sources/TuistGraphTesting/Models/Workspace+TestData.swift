@@ -13,7 +13,7 @@ extension Workspace {
         ideTemplateMacros: IDETemplateMacros? = nil,
         additionalFiles: [FileElement] = [],
         lastUpgradeCheck: Version? = nil,
-        generationOptions: [GenerationOptions] = []
+        generationOptions: GenerationOptions? = nil
     ) -> Workspace {
         Workspace(
             path: path,

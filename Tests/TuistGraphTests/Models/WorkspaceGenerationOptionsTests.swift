@@ -7,25 +7,33 @@ import XCTest
 final class WorkspaceGenerationOptionsTests: TuistUnitTestCase {
     func test_codable_whenDefault() {
         // Given
-        let subject = Workspace.GenerationOptions.automaticXcodeSchemes(.default)
+        let subject = Workspace.GenerationOptions.options(automaticXcodeSchemes: .default)
 
         // Then
         XCTAssertCodable(subject)
     }
 
-    func test_codable_whenDisabled() {
+    func test_value_whenDefault() {
         // Given
-        let subject = Workspace.GenerationOptions.automaticXcodeSchemes(.disabled)
+        let subject = Workspace.GenerationOptions.AutomaticSchemeMode.default
 
         // Then
-        XCTAssertCodable(subject)
+        XCTAssertNil(subject.value)
     }
 
-    func test_codable_whenEnabled() {
+    func test_value_whenDisabled() {
         // Given
-        let subject = Workspace.GenerationOptions.automaticXcodeSchemes(.enabled)
+        let subject = Workspace.GenerationOptions.AutomaticSchemeMode.disabled
 
         // Then
-        XCTAssertCodable(subject)
+        XCTAssertEqual(subject.value, false)
+    }
+
+    func test_value_whenEnabled() {
+        // Given
+        let subject = Workspace.GenerationOptions.AutomaticSchemeMode.enabled
+
+        // Then
+        XCTAssertEqual(subject.value, true)
     }
 }

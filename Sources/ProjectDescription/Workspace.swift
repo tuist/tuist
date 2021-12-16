@@ -4,7 +4,7 @@ import Foundation
 
 public struct Workspace: Codable, Equatable {
     /// Contains options related to the workspace generation.
-    public enum GenerationOptions: Codable, Equatable {
+    public struct GenerationOptions: Codable, Equatable {
         /// Represents the behavior Xcode will apply to the workspace regarding
         /// schema generation using the `IDEWorkspaceSharedSettings_AutocreateContextsIfNeeded` key.
         /// - seealso: `WorkspaceSettingsDescriptor`
@@ -20,7 +20,11 @@ public struct Workspace: Codable, Equatable {
         }
 
         /// Tuist generates a WorkspaceSettings.xcsettings file, setting the related key to the associated value.
-        case automaticXcodeSchemes(AutomaticSchemeMode)
+        public let automaticXcodeSchemes: AutomaticSchemeMode
+
+        public static func options(automaticXcodeSchemes: AutomaticSchemeMode) -> Self {
+            GenerationOptions(automaticXcodeSchemes: automaticXcodeSchemes)
+        }
     }
 
     /// Name of the workspace
@@ -39,7 +43,7 @@ public struct Workspace: Codable, Equatable {
     public let additionalFiles: [FileElement]
 
     /// Generation options.
-    public let generationOptions: [GenerationOptions]
+    public let generationOptions: GenerationOptions?
 
     /// Workspace
     ///
@@ -55,7 +59,7 @@ public struct Workspace: Codable, Equatable {
         schemes: [Scheme] = [],
         fileHeaderTemplate: FileHeaderTemplate? = nil,
         additionalFiles: [FileElement] = [],
-        generationOptions: [GenerationOptions] = []
+        generationOptions: GenerationOptions? = nil
     ) {
         self.name = name
         self.projects = projects
@@ -64,34 +68,5 @@ public struct Workspace: Codable, Equatable {
         self.additionalFiles = additionalFiles
         self.generationOptions = generationOptions
         dumpIfNeeded(self)
-    }
-}
-
-extension Workspace.GenerationOptions {
-    private enum CodingKeys: String, CodingKey {
-        case automaticXcodeSchemes
-    }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-
-        if container.allKeys.contains(.automaticXcodeSchemes) {
-            let mode = try container.decode(
-                Workspace.GenerationOptions.AutomaticSchemeMode.self,
-                forKey: .automaticXcodeSchemes
-            )
-            self = .automaticXcodeSchemes(mode)
-        } else {
-            throw DecodingError.dataCorrupted(.init(codingPath: decoder.codingPath, debugDescription: "Unknown enum case"))
-        }
-    }
-
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-
-        switch self {
-        case let .automaticXcodeSchemes(value):
-            try container.encode(value, forKey: .automaticXcodeSchemes)
-        }
     }
 }

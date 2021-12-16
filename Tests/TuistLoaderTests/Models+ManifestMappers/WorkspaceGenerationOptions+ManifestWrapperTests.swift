@@ -10,34 +10,34 @@ import XCTest
 final class WorkspaceGenerationOptionsManifestMapperTests: XCTestCase {
     func test_from_whenAutomaticXcodeSchemeIsDefault() {
         // Given
-        let manifest = ProjectDescription.Workspace.GenerationOptions.automaticXcodeSchemes(.default)
+        let manifest = ProjectDescription.Workspace.GenerationOptions.options(automaticXcodeSchemes: .default)
 
         // When
         let actual = TuistGraph.Workspace.GenerationOptions.from(manifest: manifest)
 
         // Then
-        XCTAssertEqual(actual, .automaticXcodeSchemes(.default))
+        XCTAssertEqual(actual, .options(automaticXcodeSchemes: .default))
     }
 
     func test_from_whenAutomaticXcodeSchemeIsDisabled() {
         // Given
-        let manifest = ProjectDescription.Workspace.GenerationOptions.automaticXcodeSchemes(.disabled)
+        let manifest = ProjectDescription.Workspace.GenerationOptions.options(automaticXcodeSchemes: .disabled)
 
         // When
         let actual = TuistGraph.Workspace.GenerationOptions.from(manifest: manifest)
 
         // Then
-        XCTAssertEqual(actual, .automaticXcodeSchemes(.disabled))
+        XCTAssertEqual(actual, .options(automaticXcodeSchemes: .disabled))
     }
 
     func test_from_whenAutomaticXcodeSchemeIsEnabled() {
         // Given
-        let manifest = ProjectDescription.Workspace.GenerationOptions.automaticXcodeSchemes(.enabled)
+        let manifest = ProjectDescription.Workspace.GenerationOptions.options(automaticXcodeSchemes: .enabled)
 
         // When
         let actual = TuistGraph.Workspace.GenerationOptions.from(manifest: manifest)
 
         // Then
-        XCTAssertEqual(actual, .automaticXcodeSchemes(.enabled))
+        XCTAssertEqual(actual, .options(automaticXcodeSchemes: .enabled))
     }
 }

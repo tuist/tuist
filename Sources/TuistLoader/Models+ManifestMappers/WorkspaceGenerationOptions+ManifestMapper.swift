@@ -7,10 +7,7 @@ extension TuistGraph.Workspace.GenerationOptions {
     /// - Parameters:
     ///   - manifest: Manifest representation of a generation option.
     static func from(manifest: ProjectDescription.Workspace.GenerationOptions) -> Self {
-        switch manifest {
-        case let .automaticXcodeSchemes(behavior):
-            return .automaticXcodeSchemes(.from(manifest: behavior))
-        }
+        TuistGraph.Workspace.GenerationOptions.options(automaticXcodeSchemes: .from(manifest: manifest.automaticXcodeSchemes))
     }
 }
 
