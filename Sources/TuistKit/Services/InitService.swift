@@ -12,12 +12,11 @@ enum InitServiceError: FatalError, Equatable {
     case templateNotProvided
     case attributeNotProvided(String)
     case invalidValue(argument: String, error: String)
-    case invalidRemoteTemplate(url: String)
 
     var type: ErrorType {
         switch self {
         case .ungettableProjectName, .nonEmptyDirectory, .templateNotFound, .templateNotProvided, .attributeNotProvided,
-             .invalidValue, .invalidRemoteTemplate:
+             .invalidValue:
             return .abort
         }
     }
@@ -36,8 +35,6 @@ enum InitServiceError: FatalError, Equatable {
             return "You must provide \(name) option. Add --\(name) desired_value to your command."
         case let .invalidValue(argument: argument, error: error):
             return "\(error) for argument \(argument); use --help to print usage"
-        case let .invalidRemoteTemplate(url):
-            return "Error creating project from remote template. Template URL: \(url)"
         }
     }
 }
@@ -77,14 +74,15 @@ class InitService {
 
         let template = try templateLoader.loadTemplate(at: templateDirectory)
 
-        return template.attributes.reduce(into: (required: [], optional: [])) { currentValue, attribute in
-            switch attribute {
-            case let .optional(name, default: _):
-                currentValue.optional.append(name)
-            case let .required(name):
-                currentValue.required.append(name)
+        return template.attributes
+            .reduce(into: (required: [], optional: [])) { currentValue, attribute in
+                switch attribute {
+                case let .optional(name, default: _):
+                    currentValue.optional.append(name)
+                case let .required(name):
+                    currentValue.required.append(name)
+                }
             }
-        }
     }
 
     func run(name: String?,
@@ -102,18 +100,12 @@ class InitService {
         let directories = try templatesDirectoryLocator.templateDirectories(at: path)
         if let templateName = templateName {
             var template: Template?
-            if templateName.isURL {
-                do {
-                    let temporaryDirectory = try fileHandler.temporaryDirectory()
-                        .appending(component: "Template")
-                    try fileHandler.createFolder(temporaryDirectory)
-                    try gitHandler.clone(url: templateName, to: temporaryDirectory)
-                    template = try templateLoader.loadTemplate(at: temporaryDirectory)
-
-                } catch {
-                    throw InitServiceError.invalidRemoteTemplate(url: templateName)
-                }
-
+            if templateName.isGitURL {
+                let temporaryDirectory = try fileHandler.temporaryDirectory()
+                    .appending(component: "Template")
+                try fileHandler.createFolder(temporaryDirectory)
+                try gitHandler.clone(url: templateName, to: temporaryDirectory)
+                template = try templateLoader.loadTemplate(at: temporaryDirectory)
             } else {
                 guard
                     let templateDirectory = directories.first(where: { $0.basename == templateName })

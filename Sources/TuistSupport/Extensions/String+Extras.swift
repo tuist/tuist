@@ -104,11 +104,10 @@ extension String {
         prefix(1).lowercased() + dropFirst()
     }
 
-    public var isURL: Bool {
-        let patternOne = "(\\w+://)(.+@)*([\\w\\d\\.]+)(:[\\d]+){0,1}/*(.*)"
-        let patternTwo = "file://(.*)"
-        let patternThree = "(.+@)*([\\w\\d\\.]+):(.*)"
-        return self.matches(pattern: patternOne) || self.matches(pattern: patternTwo) || self.matches(pattern: patternThree)
+    public var isGitURL: Bool {
+        let httpPattern = "(\\w+://)(.+@)*([\\w\\d\\.]+)(:[\\d]+){0,1}/*(.*)"
+        let sshPattern = "(.+@)*([\\w\\d\\.]+):(.*)"
+        return self.matches(pattern: httpPattern) || self.matches(pattern: sshPattern)
     }
 
     /// A collection of all the words in the string by separating out any punctuation and spaces.

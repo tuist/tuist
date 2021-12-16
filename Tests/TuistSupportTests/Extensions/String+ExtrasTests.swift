@@ -23,7 +23,7 @@ final class StringExtrasTests: TuistUnitTestCase {
         let stringToEvaluate = "not a url string"
 
         // When
-        let result = stringToEvaluate.isURL
+        let result = stringToEvaluate.isGitURL
 
         // Then
         XCTAssertFalse(result)
@@ -34,7 +34,7 @@ final class StringExtrasTests: TuistUnitTestCase {
         let stringToEvaluate = "https://itsaurl.url"
 
         // When
-        let result = stringToEvaluate.isURL
+        let result = stringToEvaluate.isGitURL
 
         // Then
         XCTAssertTrue(result)
@@ -45,7 +45,7 @@ final class StringExtrasTests: TuistUnitTestCase {
         let stringToEvaluate = "git@github.com:user/repo.git"
 
         // When
-        let result = stringToEvaluate.isURL
+        let result = stringToEvaluate.isGitURL
 
         // Then
         XCTAssertTrue(result)
