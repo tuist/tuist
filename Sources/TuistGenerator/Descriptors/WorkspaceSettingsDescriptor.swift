@@ -1,4 +1,5 @@
 import Foundation
+import TSCBasic
 import XcodeProj
 
 /// Workspace Settings Descriptor
@@ -18,5 +19,13 @@ public struct WorkspaceSettingsDescriptor: Equatable {
 
     public init(automaticXcodeSchemes: Bool?) {
         self.automaticXcodeSchemes = automaticXcodeSchemes
+    }
+}
+
+public extension WorkspaceSettingsDescriptor {
+    static func xcsettingsFilePath(relativeToWorkspace workspacePath: AbsolutePath) -> AbsolutePath {
+        workspacePath
+            .appending(RelativePath("xcshareddata"))
+            .appending(RelativePath("WorkspaceSettings.xcsettings"))
     }
 }
