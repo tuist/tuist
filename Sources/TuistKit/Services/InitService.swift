@@ -89,6 +89,7 @@ class InitService {
              platform: String?,
              path: String?,
              templateName: String?,
+             branch: String?,
              requiredTemplateOptions: [String: String],
              optionalTemplateOptions: [String: String?]) throws
     {
@@ -99,12 +100,15 @@ class InitService {
 
         let directories = try templatesDirectoryLocator.templateDirectories(at: path)
         if let templateName = templateName {
-            var template: Template?
+            var template: Template
             if templateName.isGitURL {
                 let temporaryDirectory = try fileHandler.temporaryDirectory()
                     .appending(component: "Template")
                 try fileHandler.createFolder(temporaryDirectory)
                 try gitHandler.clone(url: templateName, to: temporaryDirectory)
+                if let branch = branch {
+                    try gitHandler.checkout(id: branch, in: temporaryDirectory)
+                }
                 template = try templateLoader.loadTemplate(at: temporaryDirectory)
             } else {
                 guard
@@ -113,8 +117,6 @@ class InitService {
 
                 template = try templateLoader.loadTemplate(at: templateDirectory)
             }
-            guard
-                let template = template else { return }
 
             let parsedAttributes = try parseAttributes(
                 name: name,
