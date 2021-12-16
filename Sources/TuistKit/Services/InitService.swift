@@ -100,38 +100,48 @@ class InitService {
 
         let directories = try templatesDirectoryLocator.templateDirectories(at: path)
         if let templateName = templateName {
-            var template: Template
+            var template: Template?
+            var parsedAttributes: [String: String]
             if templateName.isGitURL {
-                let temporaryDirectory = try fileHandler.temporaryDirectory()
-                    .appending(component: "Template")
-                try fileHandler.createFolder(temporaryDirectory)
-                try gitHandler.clone(url: templateName, to: temporaryDirectory)
-                if let branch = branch {
-                    try gitHandler.checkout(id: branch, in: temporaryDirectory)
+                parsedAttributes = ["name": name, "platform": platform.caseValue]
+                try fileHandler.inTemporaryDirectory { temporaryPath in
+                    let templatePath = temporaryPath
+                        .appending(component: "Template")
+                    try fileHandler.createFolder(templatePath)
+                    try gitHandler.clone(url: templateName, to: templatePath)
+                    if let branch = branch {
+                        try gitHandler.checkout(id: branch, in: templatePath)
+                    }
+                    try templateGenerator.generate(
+                        template: try templateLoader.loadTemplate(at: templatePath),
+                        to: path,
+                        attributes: parsedAttributes
+                    )
                 }
-                template = try templateLoader.loadTemplate(at: temporaryDirectory)
+
             } else {
                 guard
                     let templateDirectory = directories.first(where: { $0.basename == templateName })
                 else { throw InitServiceError.templateNotFound(templateName) }
 
                 template = try templateLoader.loadTemplate(at: templateDirectory)
+                guard
+                    let template = template else { return }
+
+                parsedAttributes = try parseAttributes(
+                    name: name,
+                    platform: platform,
+                    requiredTemplateOptions: requiredTemplateOptions,
+                    optionalTemplateOptions: optionalTemplateOptions,
+                    template: template
+                )
+
+                try templateGenerator.generate(
+                    template: template,
+                    to: path,
+                    attributes: parsedAttributes
+                )
             }
-
-            let parsedAttributes = try parseAttributes(
-                name: name,
-                platform: platform,
-                requiredTemplateOptions: requiredTemplateOptions,
-                optionalTemplateOptions: optionalTemplateOptions,
-                template: template
-            )
-
-            try templateGenerator.generate(
-                template: template,
-                to: path,
-                attributes: parsedAttributes
-            )
-
         } else {
             guard
                 let templateDirectory = directories.first(where: { $0.basename == "default" })
