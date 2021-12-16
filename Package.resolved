@@ -219,11 +219,11 @@
       },
       {
         "package": "XcodeProj",
-        "repositoryURL": "https://github.com/jakeatoms/XcodeProj.git",
+        "repositoryURL": "https://github.com/tuist/XcodeProj.git",
         "state": {
           "branch": null,
-          "revision": "0165e6986c3d82c58cdbaa28146ce4766882d9d6",
-          "version": "8.6.5"
+          "revision": "c75c3acc25460195cfd203a04dde165395bf00e0",
+          "version": "8.7.1"
         }
       },
       {
