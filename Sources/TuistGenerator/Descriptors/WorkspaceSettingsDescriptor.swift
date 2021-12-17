@@ -22,8 +22,8 @@ public struct WorkspaceSettingsDescriptor: Equatable {
     }
 }
 
-public extension WorkspaceSettingsDescriptor {
-    static func xcsettingsFilePath(relativeToWorkspace workspacePath: AbsolutePath) -> AbsolutePath {
+extension WorkspaceSettingsDescriptor {
+     public static func xcsettingsFilePath(relativeToWorkspace workspacePath: AbsolutePath) -> AbsolutePath {
         workspacePath
             .appending(RelativePath("xcshareddata"))
             .appending(RelativePath("WorkspaceSettings.xcsettings"))
