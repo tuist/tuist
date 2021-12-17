@@ -68,14 +68,16 @@ Generation options allow customizing the generation of the Xcode workspace.
 
 | Property                | Description                                                                                                       | Type                                                            | Required | Default |
 | ----------------------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | -------- | ------- |
-| `automaticXcodeSchemes` | Enable or disable automatic generation of schemes _by Xcode_.                                                     | [`AutomaticSchemeMode`](/#automaticschememode)                  | Yes      |         |
+| `automaticXcodeSchemes` | Enable or disable automatic generation of schemes _by Xcode_.                                                     | [`AutomaticSchemeMode`](#automaticschememode)                   | Yes      |         |
 
 ## AutomaticSchemeMode
 
-Options for setting the value of `IDEWorkspaceSharedSettings_AutocreateContextsIfNeeded` in the `WorkspaceSettings.xcsettings` file.
+Options for controlling the automatic schemes created by Xcode.
 
-| Case        | Description                                                  |
-| ----------- | ------------------------------------------------------------ |
-| `.default`  | Will not write the key to the file.                          |
-| `.disabled` | Will write the key to the file, setting the value to `false` |
-| `.enabled`  | Will write the key to the file, setting the value to `true`  |
+| Case        | Description                                                      |
+| ----------- | ---------------------------------------------------------------- |
+| `.default`  | Will respect Xcode defaults for this setting (typically enabled) |
+| `.disabled` | Will explicitly disable the automatic Xcode schemes              |
+| `.enabled`  | Will explicitly enable the automatic Xcode schemes               |
+
+_Tuist maps those values to the corresponding `IDEWorkspaceSharedSettings_AutocreateContextsIfNeeded` values within the `WorkspaceSettings.xcsettings` file._
