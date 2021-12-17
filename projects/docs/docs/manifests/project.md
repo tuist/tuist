@@ -219,11 +219,12 @@ The following example shows the definition of a copy files action that copy font
 
 It represents the target headers:
 
-| Property  | Description                                               | Type                     | Required | Default |
-| --------- | --------------------------------------------------------- | ------------------------ | -------- | ------- |
-| `public`  | Relative glob pattern that points to the public headers.  | [`FileList`](#file-list) | No       |         |
-| `private` | Relative glob pattern that points to the private headers. | [`FileList`](#file-list) | No       |         |
-| `project` | Relative glob pattern that points to the project headers. | [`FileList`](#file-list) | No       |         |
+| Property           | Description                                                                           | Type                                                     | Required | Default |
+| ------------------ | ---------------------------------------------------------------------------------------- | ----------------------------------------------------- | -------- | ------- |
+| `public`           | Relative glob pattern that points to the public headers.                                 | [`FileList`](#file-list)                              | No       |         |
+| `private`          | Relative glob pattern that points to the private headers.                                | [`FileList`](#file-list)                              | No       |         |
+| `project`          | Relative glob pattern that points to the project headers.                                | [`FileList`](#file-list)                              | No       |         |
+| `exclusionRule`    | Rule, which determines how to resolve found duplicates in public/private/project scopes  | [`AutomaticExclusionRule`](#automatic-exclusion-rule) | No       | `.none` |
 
 ### File List
 
@@ -245,6 +246,16 @@ It represents a glob pattern that refers to files:
 | --------------- | ---------------------------------------------------------------------------- | ----------------- | -------- | ------- |
 | `glob`          | Glob pattern to the files.                                                   | [`Path`](#path)   | Yes      |         |
 | `excluding`     | Glob patterns for source files that will be excluded.                        | [`[Path]`](#path) | No       | `[]`    |
+
+### Automatic Exclusion Rule
+
+Determine how to resolve cases, when the same files found in different header scopes
+
+| Case                              | Description                                                                                                                             |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `none`                            | Nothing to do, should be resolved manually                                                                                              |
+| `projectExcludesPrivateAndPublic` | All found `public` headers will be exluded from `private` scope, then `public` and `private` will be excluded from `project`            |
+| `publicExcludesPrivateAndProject` | Reversed. All found `project` headers will be exluded from `private` scope, then `project` and `private` will be excluded from `public` |
 
 ### Core Data Model
 
