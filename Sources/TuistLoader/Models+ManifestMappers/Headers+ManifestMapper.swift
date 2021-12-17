@@ -34,9 +34,9 @@ extension TuistGraph.Headers {
         }
 
         var autoExlcudedPaths = Set<AbsolutePath>()
-        let `public`: [AbsolutePath]
-        let `private`: [AbsolutePath]
-        let project: [AbsolutePath]
+        let publicHeaders: [AbsolutePath]
+        let privateHeaders: [AbsolutePath]
+        let projectHeaders: [AbsolutePath]
 
         func resolveHeaders(_ list: FileList?) throws -> [AbsolutePath] {
             guard let list = list else { return [] }
@@ -49,26 +49,21 @@ extension TuistGraph.Headers {
         }
 
         switch manifest.exclusionRule {
-        case .none:
-            `public` = try resolveHeaders(manifest.public)
-            `private` = try resolveHeaders(manifest.private)
-            project = try resolveHeaders(manifest.project)
-
         case .projectExcludesPrivateAndPublic:
-            `public` = try resolveHeaders(manifest.public)
-            autoExlcudedPaths.formUnion(`public`)
-            `private` = try resolveHeaders(manifest.private)
-            autoExlcudedPaths.formUnion(`private`)
-            project = try resolveHeaders(manifest.project)
+            publicHeaders = try resolveHeaders(manifest.public)
+            autoExlcudedPaths.formUnion(publicHeaders)
+            privateHeaders = try resolveHeaders(manifest.private)
+            autoExlcudedPaths.formUnion(privateHeaders)
+            projectHeaders = try resolveHeaders(manifest.project)
 
         case .publicExcludesPrivateAndProject:
-            project = try resolveHeaders(manifest.project)
-            autoExlcudedPaths.formUnion(project)
-            `private` = try resolveHeaders(manifest.private)
-            autoExlcudedPaths.formUnion(`private`)
-            `public` = try resolveHeaders(manifest.public)
+            projectHeaders = try resolveHeaders(manifest.project)
+            autoExlcudedPaths.formUnion(projectHeaders)
+            privateHeaders = try resolveHeaders(manifest.private)
+            autoExlcudedPaths.formUnion(privateHeaders)
+            publicHeaders = try resolveHeaders(manifest.public)
         }
 
-        return Headers(public: `public`, private: `private`, project: project)
+        return Headers(public: publicHeaders, private: privateHeaders, project: projectHeaders)
     }
 }
