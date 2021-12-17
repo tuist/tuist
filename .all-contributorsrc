@@ -632,6 +632,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "jakeatoms",
+      "name": "Jake Adams",
+      "avatar_url": "https://avatars.githubusercontent.com/u/3605966?v=4",
+      "profile": "http://www.jakeadams.co",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
