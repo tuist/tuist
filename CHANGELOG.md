@@ -5,7 +5,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ## Next
 
 ### Changed
-- Suppressed swift warnings in SPM packages added via Dependencies.swift [#3852](https://github.com/tuist/tuist/pull/3852) by [@wattson12](https://github.com/wattson12)
+- Add `SWIFT_SUPPRESS_WARNINGS` setting to SwiftPackageManager generated project to suppress warnings from dependencies defined in Dependencies.swift [#3852](https://github.com/tuist/tuist/pull/3852) by [@wattson12](https://github.com/wattson12)
 
 ## 2.4.0 - Lune
 
