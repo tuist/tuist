@@ -68,7 +68,7 @@ You can run Tuist from Xcode like you'd do from your terminal.
 
 With the project opened in Xcode:
 
-- Build the `ProjectDescription` and `ProjectAutomtation` schemes first
+- Build the `ProjectDescription` and `ProjectAutomation` schemes first
 - Edit the `tuist` scheme
 
 In the **Arguments** tab inside the **Run** section specify the arguments that you'd like to pass to Tuist as shown in the screenshot below:
