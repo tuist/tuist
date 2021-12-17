@@ -46,12 +46,6 @@ struct InitCommand: ParsableCommand, HasTrackableParameters {
     )
     var template: String?
 
-    @Option(
-        name: .shortAndLong,
-        help: "The name of the specific branch you want to checkout"
-    )
-    var branch: String?
-
     var requiredTemplateOptions: [String: String] = [:]
     var optionalTemplateOptions: [String: String?] = [:]
 
@@ -64,7 +58,6 @@ struct InitCommand: ParsableCommand, HasTrackableParameters {
         name = try container.decodeIfPresent(Option<String>.self, forKey: .name)?.wrappedValue
         template = try container.decodeIfPresent(Option<String>.self, forKey: .template)?.wrappedValue
         path = try container.decodeIfPresent(Option<String>.self, forKey: .path)?.wrappedValue
-        branch = try container.decodeIfPresent(Option<String>.self, forKey: .branch)?.wrappedValue
         try InitCommand.requiredTemplateOptions.forEach { option in
             requiredTemplateOptions[option.name] = try container.decode(
                 Option<String>.self,
@@ -86,7 +79,6 @@ struct InitCommand: ParsableCommand, HasTrackableParameters {
             platform: platform,
             path: path,
             templateName: template,
-            branch: branch,
             requiredTemplateOptions: requiredTemplateOptions,
             optionalTemplateOptions: optionalTemplateOptions
         )
@@ -146,7 +138,6 @@ extension InitCommand {
         case name
         case template
         case path
-        case branch
         case required(String)
         case optional(String)
 
@@ -160,8 +151,6 @@ extension InitCommand {
                 return "template"
             case .path:
                 return "path"
-            case .branch:
-                return "branch"
             case let .required(required):
                 return required
             case let .optional(optional):
@@ -179,8 +168,6 @@ extension InitCommand {
                 self = .template
             case "path":
                 self = .path
-            case "branch":
-                self = .branch
             default:
                 if InitCommand.requiredTemplateOptions.map(\.name).contains(stringValue) {
                     self = .required(stringValue)
@@ -212,7 +199,6 @@ extension InitCommand: CustomReflectable {
             Mirror.Child(label: "name", value: _name),
             Mirror.Child(label: "template", value: _template),
             Mirror.Child(label: "path", value: _path),
-            Mirror.Child(label: "branch", value: _branch),
         ].filter {
             // Prefer attributes defined in a template if it clashes with predefined ones
             $0.label.map { label in

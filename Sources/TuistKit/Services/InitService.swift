@@ -89,7 +89,6 @@ class InitService {
              platform: String?,
              path: String?,
              templateName: String?,
-             branch: String?,
              requiredTemplateOptions: [String: String],
              optionalTemplateOptions: [String: String?]) throws
     {
@@ -104,13 +103,15 @@ class InitService {
             var parsedAttributes: [String: String]
             if templateName.isGitURL {
                 parsedAttributes = ["name": name, "platform": platform.caseValue]
+                let repoURL = parseRepoURL(from: templateName)
+                let repoBranch = parseRepoBranch(from: templateName)
                 try fileHandler.inTemporaryDirectory { temporaryPath in
                     let templatePath = temporaryPath
                         .appending(component: "Template")
                     try fileHandler.createFolder(templatePath)
-                    try gitHandler.clone(url: templateName, to: templatePath)
-                    if let branch = branch {
-                        try gitHandler.checkout(id: branch, in: templatePath)
+                    try gitHandler.clone(url: repoURL, to: templatePath)
+                    if let repoBranch = repoBranch {
+                        try gitHandler.checkout(id: repoBranch, in: templatePath)
                     }
                     try templateGenerator.generate(
                         template: try templateLoader.loadTemplate(at: templatePath),
@@ -166,6 +167,36 @@ class InitService {
     private func verifyDirectoryIsEmpty(path: AbsolutePath) throws {
         if !path.glob("*").isEmpty {
             throw InitServiceError.nonEmptyDirectory(path)
+        }
+    }
+
+    /// Extract branch's name if it exist from given template URL. If not return nil
+    ///
+    ///  - Parameter templateURL: given template URL
+    private func parseRepoBranch(from templateURL: String) -> String? {
+        let splittedURL = templateURL
+            .split(separator: "@")
+        guard
+            let branch = splittedURL.last,
+            splittedURL.count >= 2 else { return nil }
+        return String(branch)
+    }
+
+    /// Extract repo URL from given template URL.
+    ///
+    ///  - Parameter templateURL: given template URL
+    private func parseRepoURL(from templateURL: String) -> String {
+        let splittedURL = templateURL
+            .split(separator: "@")
+        if splittedURL.count < 2, !splittedURL.isEmpty {
+            return templateURL
+        } else {
+            return String(
+                splittedURL
+                    .dropLast()
+                    .reduce("") { $0 + "@" + $1 }
+                    .dropFirst()
+            )
         }
     }
 

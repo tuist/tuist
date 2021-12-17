@@ -31,7 +31,7 @@ final class StringExtrasTests: TuistUnitTestCase {
 
     func test_string_does_match_http_URL_regex() {
         // Given
-        let stringToEvaluate = "https://itsaurl.url"
+        let stringToEvaluate = "https://github.com/tuist/ExampleTuistTemplate.git@develop"
 
         // When
         let result = stringToEvaluate.isGitURL
@@ -42,7 +42,7 @@ final class StringExtrasTests: TuistUnitTestCase {
 
     func test_string_does_match_ssh_URL_regex() {
         // Given
-        let stringToEvaluate = "git@github.com:user/repo.git"
+        let stringToEvaluate = "git@github.com:user/repo.git@develop"
 
         // When
         let result = stringToEvaluate.isGitURL
