@@ -140,9 +140,9 @@ public final class XcodeProjWriter: XcodeProjWriting {
 
     private func deleteWorkspaceSettingsIfNeeded(xccontainerPath: AbsolutePath) throws {
         let settingsPath = WorkspaceSettingsDescriptor.xcsettingsFilePath(relativeToWorkspace: xccontainerPath)
-        guard settingsPath.path.exists else { return }
+        guard FileHandler.shared.exists(settingsPath) else { return }
 
-        try settingsPath.path.delete()
+        try FileHandler.shared.delete(settingsPath)
     }
 
     private func writeXCSchemeManagement(
