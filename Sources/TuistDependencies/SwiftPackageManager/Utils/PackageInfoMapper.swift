@@ -606,7 +606,8 @@ extension ProjectDescription.Headers {
         case .header, .nestedHeader:
             let publicHeaders = FileHandler.shared.filesAndDirectoriesContained(in: publicHeadersPath)!
                 .filter { $0.extension == "h" }
-            return Headers(public: ProjectDescription.FileList(globs: publicHeaders.map { Path($0.pathString) }))
+            let list: [FileListGlob] = publicHeaders.map { .glob(Path($0.pathString)) }
+            return .headers(public: .list(list))
         case .none, .custom, .directory:
             return nil
         }
