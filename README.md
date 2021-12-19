@@ -233,6 +233,9 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="https://alexsilva.dev/"><img src="https://avatars.githubusercontent.com/u/633535?v=4" width="100px;" alt=""/><br /><sub><b>Alejandro Silva Fernández</b></sub></a></td>
     <td align="center"><a href="http://www.jakeadams.co"><img src="https://avatars.githubusercontent.com/u/3605966?v=4" width="100px;" alt=""/><br /><sub><b>Jake Adams</b></sub></a></td>
   </tr>
+  <tr>
+    <td align="center"><a href="https://github.com/wattson12"><img src="https://avatars.githubusercontent.com/u/1217873?v=4" width="100px;" alt=""/><br /><sub><b>Sam Watts</b></sub></a></td>
+  </tr>
 </table>
 
 <!-- markdownlint-restore -->
