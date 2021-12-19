@@ -708,6 +708,7 @@ extension ProjectDescription.Settings {
             "USE_HEADERMAP": "NO",
             // Disable warnings in generated projects
             "GCC_WARN_INHIBIT_ALL_WARNINGS": "YES",
+            "SWIFT_SUPPRESS_WARNINGS": "YES",
         ]
 
         if let moduleMapPath = moduleMap.path {
