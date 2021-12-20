@@ -32,18 +32,38 @@ extension TuistGraph.Headers {
                 return TuistGraph.Headers.extensions.contains(".\(fileExtension)") && !excluding.contains($0)
             }
         }
-        let `public`: [AbsolutePath] = try manifest.public?.globs.flatMap {
-            unfoldGlob(try generatorPaths.resolve(path: $0.glob), excluding: try resolveExcluding($0.excluding))
-        } ?? []
 
-        let `private`: [AbsolutePath] = try manifest.private?.globs.flatMap {
-            unfoldGlob(try generatorPaths.resolve(path: $0.glob), excluding: try resolveExcluding($0.excluding))
-        } ?? []
+        var autoExlcudedPaths = Set<AbsolutePath>()
+        let publicHeaders: [AbsolutePath]
+        let privateHeaders: [AbsolutePath]
+        let projectHeaders: [AbsolutePath]
 
-        let project: [AbsolutePath] = try manifest.project?.globs.flatMap {
-            unfoldGlob(try generatorPaths.resolve(path: $0.glob), excluding: try resolveExcluding($0.excluding))
-        } ?? []
+        func resolveHeaders(_ list: FileList?) throws -> [AbsolutePath] {
+            guard let list = list else { return [] }
+            return try list.globs.flatMap {
+                unfoldGlob(
+                    try generatorPaths.resolve(path: $0.glob),
+                    excluding: (try resolveExcluding($0.excluding)).union(autoExlcudedPaths)
+                )
+            }
+        }
 
-        return Headers(public: `public`, private: `private`, project: project)
+        switch manifest.exclusionRule {
+        case .projectExcludesPrivateAndPublic:
+            publicHeaders = try resolveHeaders(manifest.public)
+            autoExlcudedPaths.formUnion(publicHeaders)
+            privateHeaders = try resolveHeaders(manifest.private)
+            autoExlcudedPaths.formUnion(privateHeaders)
+            projectHeaders = try resolveHeaders(manifest.project)
+
+        case .publicExcludesPrivateAndProject:
+            projectHeaders = try resolveHeaders(manifest.project)
+            autoExlcudedPaths.formUnion(projectHeaders)
+            privateHeaders = try resolveHeaders(manifest.private)
+            autoExlcudedPaths.formUnion(privateHeaders)
+            publicHeaders = try resolveHeaders(manifest.public)
+        }
+
+        return Headers(public: publicHeaders, private: privateHeaders, project: projectHeaders)
     }
 }
