@@ -40,6 +40,9 @@ let workspace = Workspace(
     additionalFiles: [
         "Documentation/**",
         .folderReference(path: "Website")
+    ],
+    generationOptions: [
+        .automaticSchemaGeneration(.disabled)
     ]
 )
 ```
@@ -57,3 +60,24 @@ A `Workspace.swift` should initialize a variable of type `Workspace`. It can tak
 | `schemes`            | List of custom schemes to include in the workspace                                                                | [`[Scheme]`](/manifests/project#scheme)                         | No       |         |
 | `fileHeaderTemplate` | Lets you define custom file header template macro for built-in Xcode file templates.                              | [`FileHeaderTemplate`](/manifests/project#file-header-template) | No       |         |
 | `additionalFiles`    | List of files to include in the workspace - these won't be included in any of the projects or their build phases. | [`[FileElement]`](/manifests/project#fileelement)               | No       | `[]`    |
+| `generationOptions`  | Options to configure the generation of the Xcode workspace.                                                       | [`Workspace.GenerationOptions`](#generationoptions)             | No       | `nil`   |
+
+## GenerationOptions
+
+Generation options allow customizing the generation of the Xcode workspace.
+
+| Property                | Description                                                                                                       | Type                                                            | Required | Default |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | -------- | ------- |
+| `automaticXcodeSchemes` | Enable or disable automatic generation of schemes _by Xcode_.                                                     | [`AutomaticSchemeMode`](#automaticschememode)                   | Yes      |         |
+
+## AutomaticSchemeMode
+
+Options for controlling the automatic schemes created by Xcode.
+
+| Case        | Description                                                      |
+| ----------- | ---------------------------------------------------------------- |
+| `.default`  | Will respect Xcode defaults for this setting (typically enabled) |
+| `.disabled` | Will explicitly disable the automatic Xcode schemes              |
+| `.enabled`  | Will explicitly enable the automatic Xcode schemes               |
+
+_Tuist maps those values to the corresponding `IDEWorkspaceSharedSettings_AutocreateContextsIfNeeded` values within the `WorkspaceSettings.xcsettings` file._
