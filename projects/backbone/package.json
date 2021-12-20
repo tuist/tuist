@@ -2,7 +2,7 @@
   "name": "backbone",
   "private": true,
   "dependencies": {
-    "@babel/preset-react": "^7.16.0",
+    "@babel/preset-react": "^7.16.5",
     "@fortawesome/fontawesome-svg-core": "^1.2.36",
     "@fortawesome/free-solid-svg-icons": "^5.15.4",
     "@fullhuman/postcss-purgecss": "^2.3.0",
@@ -26,7 +26,7 @@
   },
   "version": "0.1.0",
   "devDependencies": {
-    "vite": "^2.7.1",
-    "vite-plugin-ruby": "^3.0.3"
+    "vite": "^2.7.3",
+    "vite-plugin-ruby": "^3.0.4"
   }
 }

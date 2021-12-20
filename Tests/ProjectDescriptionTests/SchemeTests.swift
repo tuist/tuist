@@ -10,23 +10,13 @@ final class SchemeTests: XCTestCase {
 
     func test_codable() throws {
         // Given
-        let buildAction = [ExecutionAction(
-            title: "Run Script",
-            scriptText: "echo build_action",
-            target: TargetReference(projectPath: nil, target: "target")
-        )]
-        let testAction = [ExecutionAction(
-            title: "Run Script",
-            scriptText: "echo test_action",
-            target: TargetReference(projectPath: nil, target: "target")
-        )]
         let subject = Scheme(
             name: "scheme",
             shared: true,
             buildAction: BuildAction(
                 targets: [.init(projectPath: nil, target: "target")],
-                preActions: buildAction,
-                postActions: buildAction
+                preActions: mockExecutionAction("build_action"),
+                postActions: mockExecutionAction("build_action")
             ),
             testAction: TestAction.targets(
                 [TestableTarget(target: .init(projectPath: nil, target: "target"))],
@@ -35,12 +25,15 @@ final class SchemeTests: XCTestCase {
                     launchArguments: [LaunchArgument(name: "test", isEnabled: true)]
                 ),
                 configuration: .debug,
-                preActions: testAction,
-                postActions: testAction,
+                preActions: mockExecutionAction("test_action"),
+                postActions: mockExecutionAction("test_action"),
                 options: .options(coverage: true)
             ),
             runAction: RunAction(
                 configuration: .debug,
+                attachDebugger: true,
+                preActions: mockExecutionAction("run_action"),
+                postActions: mockExecutionAction("run_action"),
                 executable: .init(projectPath: nil, target: "executable"),
                 arguments: Arguments(
                     environment: ["run": "b"],
@@ -59,25 +52,13 @@ final class SchemeTests: XCTestCase {
 
     func test_defaultConfigurationNames() throws {
         // Given / When
-        let buildAction =
-            [ExecutionAction(
-                title: "Run Script",
-                scriptText: "echo build_action",
-                target: .init(projectPath: nil, target: "target")
-            )]
-        let testAction =
-            [ExecutionAction(
-                title: "Run Script",
-                scriptText: "echo test_action",
-                target: .init(projectPath: nil, target: "target")
-            )]
         let subject = Scheme(
             name: "scheme",
             shared: true,
             buildAction: BuildAction(
                 targets: [.init(projectPath: nil, target: "target")],
-                preActions: buildAction,
-                postActions: buildAction
+                preActions: mockExecutionAction("build_action"),
+                postActions: mockExecutionAction("build_action")
             ),
             testAction: TestAction.targets(
                 [.init(target: .init(projectPath: nil, target: "target"))],
@@ -86,12 +67,15 @@ final class SchemeTests: XCTestCase {
                     launchArguments: [LaunchArgument(name: "test", isEnabled: true)]
                 ),
                 configuration: .debug,
-                preActions: testAction,
-                postActions: testAction,
+                preActions: mockExecutionAction("test_action"),
+                postActions: mockExecutionAction("test_action"),
                 options: .options(coverage: true)
             ),
             runAction: RunAction(
                 configuration: .release,
+                attachDebugger: true,
+                preActions: mockExecutionAction("run_action"),
+                postActions: mockExecutionAction("run_action"),
                 executable: .init(projectPath: nil, target: "executable"),
                 arguments: Arguments(
                     environment: ["run": "b"],
@@ -103,5 +87,20 @@ final class SchemeTests: XCTestCase {
         // Then
         XCTAssertEqual(subject.runAction?.configuration.rawValue, "Release")
         XCTAssertEqual(subject.testAction?.configuration.rawValue, "Debug")
+    }
+
+    // MARK: - Helpers
+
+    private func mockExecutionAction(_ actionName: String) -> [ExecutionAction] {
+        [
+            ExecutionAction(
+                title: "Run Script",
+                scriptText: "echo \(actionName)",
+                target: TargetReference(
+                    projectPath: nil,
+                    target: "target"
+                )
+            ),
+        ]
     }
 }

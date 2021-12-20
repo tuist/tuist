@@ -219,11 +219,12 @@ The following example shows the definition of a copy files action that copy font
 
 It represents the target headers:
 
-| Property  | Description                                               | Type                     | Required | Default |
-| --------- | --------------------------------------------------------- | ------------------------ | -------- | ------- |
-| `public`  | Relative glob pattern that points to the public headers.  | [`FileList`](#file-list) | No       |         |
-| `private` | Relative glob pattern that points to the private headers. | [`FileList`](#file-list) | No       |         |
-| `project` | Relative glob pattern that points to the project headers. | [`FileList`](#file-list) | No       |         |
+| Property           | Description                                                                           | Type                                                     | Required | Default |
+| ------------------ | ---------------------------------------------------------------------------------------- | ----------------------------------------------------- | -------- | ------- |
+| `public`           | Relative glob pattern that points to the public headers.                                 | [`FileList`](#file-list)                              | No       |         |
+| `private`          | Relative glob pattern that points to the private headers.                                | [`FileList`](#file-list)                              | No       |         |
+| `project`          | Relative glob pattern that points to the project headers.                                | [`FileList`](#file-list)                              | No       |         |
+| `exclusionRule`    | Rule, which determines how to resolve found duplicates in public/private/project scopes  | [`AutomaticExclusionRule`](#automatic-exclusion-rule) | No       | `.none` |
 
 ### File List
 
@@ -245,6 +246,16 @@ It represents a glob pattern that refers to files:
 | --------------- | ---------------------------------------------------------------------------- | ----------------- | -------- | ------- |
 | `glob`          | Glob pattern to the files.                                                   | [`Path`](#path)   | Yes      |         |
 | `excluding`     | Glob patterns for source files that will be excluded.                        | [`[Path]`](#path) | No       | `[]`    |
+
+### Automatic Exclusion Rule
+
+Determine how to resolve cases, when the same files found in different header scopes
+
+| Case                              | Description                                                                                                                             |
+| --------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `none`                            | Nothing to do, should be resolved manually                                                                                              |
+| `projectExcludesPrivateAndPublic` | All found `public` headers will be exluded from `private` scope, then `public` and `private` will be excluded from `project`            |
+| `publicExcludesPrivateAndProject` | Reversed. All found `project` headers will be exluded from `private` scope, then `project` and `private` will be excluded from `public` |
 
 ### Core Data Model
 
@@ -391,8 +402,7 @@ A `Scheme` defines a collection of targets to `Build, Run, Test, Profile, Analyz
 | `archiveAction` | Action that runs the project archive.                                                                                            | [`ArchiveAction`](#archive-action) | No       |         |
 | `profileAction` | Action that profiles the project.                                                                                                | [`ProfileAction`](#profile-action) | No       |         |
 | `analyzeAction` | Action that analyze the project.                                                                                                 | [`AnalyzeAction`](#analyze-action) | No       |         |
-| `hidden` | When `true` the scheme doesn't show up in the dropdown scheme's list.                                                             | `Boolean`| No       |       `false`  |
-
+| `hidden`        | When `true` the scheme doesn't show up in the dropdown scheme's list.                                                            | `Boolean`                          | No       | `false` |
 
 :::note Auto-generation of schemes
 Tuist will auto-generate a scheme for each target by default in addition to any defined schemes. This however can be disabled if needed via the [Configuration generationOptions](/manifests/config#generationoption).
@@ -425,13 +435,16 @@ It represents the scheme action that builds targets. It's initialized with the `
 
 It represents the scheme action that runs the built products on the supported platforms. It's initialized with the `.runAction` static method and the following attributes can be passed:
 
-| Property             | Description                                                        | Type                                                      | Required | Default                |
-| -------------------- | ------------------------------------------------------------------ | --------------------------------------------------------- | -------- | ---------------------- |
-| `configuration`             | Indicates the build configuration the product should run with.     | [`ConfigurationName`](#configuration-name) | No       | `.debug`               |
-| `executable`         | The name of the executable or target to run.                       | [`TargetReference`](#target-reference)                    | No       |                        |
-| `arguments`          | Command line arguments passed on launch and environment variables. | [`Arguments`](#arguments)                                 | No       |                        |
-| `options`            | List of options to set to the action.                              | [`RunActionOptions`](#run-action-options)                 | No       | `.options()`           |
-| `diagnosticsOptions` | List of diagnostics options to set to the action.                  | [`[SchemeDiagnosticsOption]`](#scheme-diagnostics-option) | No       | `[.mainThreadChecker]` |
+| Property             | Description                                                          | Type                                                      | Required | Default                |
+| -------------------- | -------------------------------------------------------------------- | --------------------------------------------------------- | -------- | ---------------------- |
+| `configuration`      | Indicates the build configuration the product should run with.       | [`ConfigurationName`](#configuration-name)                | No       | `.debug`               |
+| `attachDebugger`     | Whether a debugger should be attached to the run process or not.     | `Bool`                                                    | No       | `true`                 |
+| `preActions`         | A list of actions that are executed before starting the run process. | [`[ExecutionAction]`](#execution-action)                  | Yes      | `[]`                   |
+| `postActions`        | A list of actions that are executed after the run process.           | [`[ExecutionAction]`](#execution-action)                  | Yes      | `[]`                   |
+| `executable`         | The name of the executable or target to run.                         | [`TargetReference`](#target-reference)                    | No       |                        |
+| `arguments`          | Command line arguments passed on launch and environment variables.   | [`Arguments`](#arguments)                                 | No       |                        |
+| `options`            | List of options to set to the action.                                | [`RunActionOptions`](#run-action-options)                 | No       | `.options()`           |
+| `diagnosticsOptions` | List of diagnostics options to set to the action.                    | [`[SchemeDiagnosticsOption]`](#scheme-diagnostics-option) | No       | `[.mainThreadChecker]` |
 
 #### Test Action
 
@@ -444,17 +457,18 @@ When initializing it with a **set of targets**, the attributes you can pass to t
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | -------- | ---------------------- |
 | `targets`                  | A list of testable targets, that are targets which are defined in the project with testable information.               | [`[TestableTarget]`](#testable-target)                    | Yes      | `[]`                   |
 | `arguments`                | Command line arguments passed on launch and environment variables.                                                     | [`Arguments`](#arguments)                                 | No       |                        |
-| `configuration`       | Build configuration to run the test with.                                                                              | [`ConfigurationName`](#configuration-name) | No       | `.debug`               |
+| `configuration`            | Build configuration to run the test with.                                                                              | [`ConfigurationName`](#configuration-name)                | No       | `.debug`               |
+| `attachDebugger`           | Whether a debugger should be attached to the test process or not.                                                      | `Bool`                                                    | No       | `true`                 |
 | `expandVariableFromTarget` | A target that will be used to expand the variables defined inside Environment Variables definition (e.g. $SOURCE_ROOT) | [`TargetReference`](#target-reference)                    | No       |                        |
 | `preActions`               | A list of actions that are executed before starting the tests-run process.                                             | [`[ExecutionAction]`](#execution-action)                  | No       | `[]`                   |
 | `postActions`              | A list of actions that are executed after the tests-run process.                                                       | [`[ExecutionAction]`](#execution-action)                  | No       | `[]`                   |
-| `options` | List of options to set to the action. | [`TestActionOptions`](#test-action-options) | No | `.options()` |
+| `options`                  | List of options to set to the action.                                                                                  | [`TestActionOptions`](#test-action-options)               | No       | `.options()`           |
 | `diagnosticsOptions`       | List of diagnostics options to set to the action.                                                                      | [`[SchemeDiagnosticsOption]`](#scheme-diagnostics-option) | Yes      | `[.mainThreadChecker]` |
 
 When initializing it with a **test plans**, the attributes you can pass to those methods are documented below:
 
-| Property                   | Description                                                                                                            | Type                                                      | Required | Default                |
-| -------------------------- | ---------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- | -------- | ---------------------- |
+| Property  | Description                      | Type              | Required | Default |
+| --------- | -------------------------------- | ----------------- | -------- | ------- |
 | `default` | Path to a xctestplan file.       | [`Path`](#path)   | No       |         |
 | `other`   | Paths to other xctestplan files. | [`[Path]`](#path) | No       | `[]`    |
 
@@ -466,13 +480,12 @@ By default the Test & Profile actions will inherit the Run action's Launch & Env
 
 The type `TestActionOptions` represents a set of options to set to configure a test action. The `.options()` static method returns the default options:
 
-| Property                    | Description                                                                                                                          | Type                                       | Required | Default |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------ | -------- | ------- |
-| `region`                   | Region used to run the tests.                                                                                          | `String`                                                  | No       |                        |
-| `language`                 | Language used to run the tests.                                                                                        | [`SchemeLanguage`](#scheme-language)                      | No       |                        |
-| `coverage`                 | Whether the scheme should or not gather the test coverage data.                                                        | `Bool`                                                    | No       | `false`                |
-| `codeCoverageTargets`      | A list of targets you want to gather the test coverage data for them, which are defined in the project.                | [`[TargetReference]`](#target-reference)                  | No       | `[]`                   |
-
+| Property              | Description                                                                                             | Type                                     | Required | Default |
+| ----------------------| ------------------------------------------------------------------------------------------------------- | -----------------------------------------| -------- | ------- |
+| `region`              | Region used to run the tests.                                                                           | `String`                                 | No       |         |
+| `language`            | Language used to run the tests.                                                                         | [`SchemeLanguage`](#scheme-language)     | No       |         |
+| `coverage`            | Whether the scheme should or not gather the test coverage data.                                         | `Bool`                                   | No       | `false` |
+| `codeCoverageTargets` | A list of targets you want to gather the test coverage data for them, which are defined in the project. | [`[TargetReference]`](#target-reference) | No       | `[]`    |
 
 #### Execution Action
 
@@ -486,7 +499,7 @@ Scheme run scripts can be defined with the following attributes:
 
 #### Testable Target
 
-Testable target descibe target and tests information.
+Testable target describe target and tests information.
 
 | Property                  | Description                           | Type                                   | Required | Default |
 | ------------------------- | ------------------------------------- | -------------------------------------- | -------- | ------- |
@@ -562,7 +575,6 @@ Diagnostics options represent the configurable diagnostics-related settings in t
 
 It represents the scheme action to archive targets' products. It's initialized with the `.archiveAction` static method and the following attributes can be passed:
 
-
 | Property                   | Description                                                              | Type                                     | Required | Default |
 | -------------------------- | ------------------------------------------------------------------------ | ---------------------------------------- | -------- | ------- |
 | `configurationName`        | Indicates the build configuration to run the archive with.               | `String`                                 | Yes      |         |
@@ -571,27 +583,33 @@ It represents the scheme action to archive targets' products. It's initialized w
 | `preActions`               | A list of actions that are executed before starting the archive process. | [`[ExecutionAction]`](#execution-action) | No       | `[]`    |
 | `postActions`              | A list of actions that are executed after the archive process.           | [`[ExecutionAction]`](#execution-action) | No       | `[]`    |
 
-#### Profile action
+#### Profile Action
 
 It represents the scheme action that profiles the built products on the supported platforms. It's initialized with the `.profileAction` static method and the following attributes can be passed:
 
-| Property     | Description                                                            | Type                                                      | Required | Default    |
-| ------------ | ---------------------------------------------------------------------- | --------------------------------------------------------- | -------- | ---------- |
-| `configuration`     | Indicates the build configuration the product should be profiled with. | [`ConfigurationName`](#configuration-name) | No       | `.release` |
-| `executable` | The name of the executable or target to profile.                       | [`TargetReference`](#target-reference)                    | No       |            |
-| `arguments`  | Command line arguments passed on launch and environment variables.     | [`Arguments`](#arguments)                                 | No       |            |
+| Property        | Description                                                              | Type                                       | Required | Default    |
+| --------------- | ------------------------------------------------------------------------ | ------------------------------------------ | -------- | ---------- |
+| `configuration` | Indicates the build configuration the product should be profiled with.   | [`ConfigurationName`](#configuration-name) | No       | `.release` |
+| `preActions`    | A list of actions that are executed before starting the profile process. | [`[ExecutionAction]`](#execution-action)   | Yes      | `[]`       |
+| `postActions`   | A list of actions that are executed after the profile process.           | [`[ExecutionAction]`](#execution-action)   | Yes      | `[]`       |
+| `executable`    | The name of the executable or target to profile.                         | [`TargetReference`](#target-reference)     | No       |            |
+| `arguments`     | Command line arguments passed on launch and environment variables.       | [`Arguments`](#arguments)                  | No       |            |
 
 :::note Launch Arguments & Environment
 By default the Test & Profile actions will inherit the Run action's Launch & Environment when not explicitly specified.
 :::
 
-#### Analyze action
+#### Analyze Action
 
 It represents the scheme action that analyzes the built products. It's initialized with the `.analyzeAction` static method and the following attributes can be passed:
 
-| Property | Description                                                            | Type                                                      | Required | Default  |
-| -------- | ---------------------------------------------------------------------- | --------------------------------------------------------- | -------- | -------- |
+| Property        | Description                                                            | Type                                       | Required | Default  |
+| --------------- | ---------------------------------------------------------------------- | ------------------------------------------ | -------- | -------- |
 | `configuration` | Indicates the build configuration the product should be analyzed with. | [`ConfigurationName`](#configuration-name) | No       | `.debug` |
+
+:::note Analyze Action Pre and Post Actions
+Xcode does not support adding pre-actions or post-actions to Analyze actions. Analysis happens during building, so use the pre-actions and post-actions of the Build action instead.
+:::
 
 ### Settings
 
@@ -820,7 +838,7 @@ File header template can be initialized with a plain string, it is equivalent to
 
 ### FileCodeGen
 
-The `FileCodeGen` enum represents the possible source file attributes for soruce code generation
+The `FileCodeGen` enum represents the possible source file attributes for source code generation
 `NOTE`: This is only applicable to a subset of file tyes (e.g. intent definitions and ML models)
 
 | Case      | Description                           |

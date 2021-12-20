@@ -698,7 +698,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                     .test(
                         "Target1",
                         basePath: basePath,
-                        headers: .init(public: [nestedHeaderPath.pathString, topHeaderPath.pathString]),
+                        headers: .headers(public: [nestedHeaderPath.pathString, topHeaderPath.pathString]),
                         customSettings: [
                             "HEADER_SEARCH_PATHS": ["$(SRCROOT)/Sources/Target1/include"],
                         ]

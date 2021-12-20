@@ -11,7 +11,7 @@ on:
 env:
   RAILS_ENV: test
   RAILS_MASTER_KEY: ${{ secrets.BACKBONE_RAILS_MASTER_KEY }}
-  RUBY_VERSION: 3.0.2
+  RUBY_VERSION: 3.0.3
   NODE_VERSION: 16.13.0
 
 concurrency:

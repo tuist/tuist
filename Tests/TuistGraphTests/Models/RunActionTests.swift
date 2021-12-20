@@ -9,6 +9,7 @@ final class RunActionTests: TuistUnitTestCase {
         // Given
         let subject = RunAction(
             configurationName: "name",
+            attachDebugger: true,
             executable: .init(
                 projectPath: "/path/to/project",
                 name: "name"

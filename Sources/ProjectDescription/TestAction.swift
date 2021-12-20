@@ -14,6 +14,9 @@ public struct TestAction: Equatable, Codable {
     /// Name of the configuration that should be used for building the test targets.
     public let configuration: ConfigurationName
 
+    /// Enable this to attach a debugger to the process running the tests.
+    public let attachDebugger: Bool
+
     /// Set the target that will expand the variables for
     public let expandVariableFromTarget: TargetReference?
 
@@ -33,6 +36,7 @@ public struct TestAction: Equatable, Codable {
                  targets: [TestableTarget],
                  arguments: Arguments?,
                  configuration: ConfigurationName,
+                 attachDebugger: Bool,
                  expandVariableFromTarget: TargetReference?,
                  preActions: [ExecutionAction],
                  postActions: [ExecutionAction],
@@ -43,6 +47,7 @@ public struct TestAction: Equatable, Codable {
         self.targets = targets
         self.arguments = arguments
         self.configuration = configuration
+        self.attachDebugger = attachDebugger
         self.preActions = preActions
         self.postActions = postActions
         self.expandVariableFromTarget = expandVariableFromTarget
@@ -55,6 +60,7 @@ public struct TestAction: Equatable, Codable {
     ///   - targets: List of targets to be tested.
     ///   - arguments: Arguments passed when running the tests.
     ///   - configuration: Configuration to be used.
+    ///   - attachDebugger: A boolean controlling whether a debugger is attached to the process running the tests.
     ///   - expandVariableFromTarget: A target that will be used to expand the variables defined inside Environment Variables definition
     ///   - preActions: Actions to execute before running the tests.
     ///   - postActions: Actions to execute after running the tests.
@@ -64,6 +70,7 @@ public struct TestAction: Equatable, Codable {
     public static func targets(_ targets: [TestableTarget],
                                arguments: Arguments? = nil,
                                configuration: ConfigurationName = .debug,
+                               attachDebugger: Bool = true,
                                expandVariableFromTarget: TargetReference? = nil,
                                preActions: [ExecutionAction] = [],
                                postActions: [ExecutionAction] = [],
@@ -75,6 +82,7 @@ public struct TestAction: Equatable, Codable {
             targets: targets,
             arguments: arguments,
             configuration: configuration,
+            attachDebugger: attachDebugger,
             expandVariableFromTarget: expandVariableFromTarget,
             preActions: preActions,
             postActions: postActions,
@@ -100,6 +108,7 @@ public struct TestAction: Equatable, Codable {
             targets: [],
             arguments: nil,
             configuration: configuration,
+            attachDebugger: true,
             expandVariableFromTarget: nil,
             preActions: preActions,
             postActions: postActions,

@@ -103,6 +103,7 @@ class SchemeLinterTests: TuistTestCase {
                         targets: [.init(target: .init(projectPath: AbsolutePath("/Project/../Framework"), name: "Framework"))],
                         arguments: nil,
                         configurationName: "Beta",
+                        attachDebugger: true,
                         coverage: false,
                         codeCoverageTargets: [],
                         expandVariableFromTarget: nil,

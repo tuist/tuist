@@ -5,6 +5,9 @@ public struct RunAction: Equatable, Codable {
     // MARK: - Attributes
 
     public let configurationName: String
+    public let attachDebugger: Bool
+    public let preActions: [ExecutionAction]
+    public let postActions: [ExecutionAction]
     public let executable: TargetReference?
     public let filePath: AbsolutePath?
     public let arguments: Arguments?
@@ -14,6 +17,9 @@ public struct RunAction: Equatable, Codable {
     // MARK: - Init
 
     public init(configurationName: String,
+                attachDebugger: Bool,
+                preActions: [ExecutionAction] = [],
+                postActions: [ExecutionAction] = [],
                 executable: TargetReference?,
                 filePath: AbsolutePath?,
                 arguments: Arguments?,
@@ -21,6 +27,9 @@ public struct RunAction: Equatable, Codable {
                 diagnosticsOptions: Set<SchemeDiagnosticsOption>)
     {
         self.configurationName = configurationName
+        self.attachDebugger = attachDebugger
+        self.preActions = preActions
+        self.postActions = postActions
         self.executable = executable
         self.filePath = filePath
         self.arguments = arguments
