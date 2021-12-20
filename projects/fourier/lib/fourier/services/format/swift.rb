@@ -12,7 +12,7 @@ module Fourier
 
         def call
           Dir.chdir(Constants::ROOT_DIRECTORY) do
-            arguments = [vendor_path("swiftformat/swiftformat"), ".", "--swiftversion", "5.5.1"]
+            arguments = [vendor_path("swiftformat/swiftformat"), "."]
             unless fix
               arguments << "--lint"
             end
