@@ -5,6 +5,6 @@ public class LibraryAClass {
     public init() {}
 
     public func loadText() -> String {
-        return text
+        text
     }
 }

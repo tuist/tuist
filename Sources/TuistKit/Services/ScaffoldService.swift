@@ -64,7 +64,7 @@ final class ScaffoldService {
         let path = self.path(path)
         let plugins = try loadPlugins(at: path)
         let templateDirectories = try locateTemplateDirectories(at: path, plugins: plugins)
-        let templateDirectory = try self.templateDirectory(
+        let templateDirectory = try templateDirectory(
             templateDirectories: templateDirectories,
             template: templateName
         )
@@ -91,7 +91,7 @@ final class ScaffoldService {
         let plugins = try loadPlugins(at: path)
         let templateDirectories = try locateTemplateDirectories(at: path, plugins: plugins)
 
-        let templateDirectory = try self.templateDirectory(
+        let templateDirectory = try templateDirectory(
             templateDirectories: templateDirectories,
             template: templateName
         )

@@ -17,7 +17,7 @@ final class CopyFilesManifestMapperTests: TuistUnitTestCase {
             "Fonts/font3.ttf",
         ]
 
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         try createFiles(files)
 
@@ -50,7 +50,7 @@ final class CopyFilesManifestMapperTests: TuistUnitTestCase {
             "SharedSupport/tuist.rtfd",
         ]
 
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         try createFiles(files)
 

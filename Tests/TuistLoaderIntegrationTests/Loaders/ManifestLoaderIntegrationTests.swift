@@ -21,7 +21,7 @@ final class ManifestLoaderTests: TuistTestCase {
 
     func test_loadConfig() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let content = """
         import ProjectDescription
         let config = Config(generationOptions: [])
@@ -40,7 +40,7 @@ final class ManifestLoaderTests: TuistTestCase {
 
     func test_loadPlugin() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let content = """
         import ProjectDescription
         let plugin = Plugin(name: "TestPlugin")
@@ -55,7 +55,7 @@ final class ManifestLoaderTests: TuistTestCase {
 
     func test_loadProject() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let content = """
         import ProjectDescription
         let project = Project(name: "tuist")
@@ -77,7 +77,7 @@ final class ManifestLoaderTests: TuistTestCase {
 
     func test_loadWorkspace() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let content = """
         import ProjectDescription
         let workspace = Workspace(name: "tuist", projects: [])
@@ -99,7 +99,7 @@ final class ManifestLoaderTests: TuistTestCase {
 
     func test_loadTemplate() throws {
         // Given
-        let temporaryPath = try self.temporaryPath().appending(component: "folder")
+        let temporaryPath = try temporaryPath().appending(component: "folder")
         try fileHandler.createFolder(temporaryPath)
         let content = """
         import ProjectDescription
@@ -126,7 +126,7 @@ final class ManifestLoaderTests: TuistTestCase {
 
     func test_load_invalidFormat() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let content = """
         import ABC
         let project
@@ -146,7 +146,7 @@ final class ManifestLoaderTests: TuistTestCase {
     }
 
     func test_load_missingManifest() throws {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         XCTAssertThrowsError(
             try subject.loadProject(at: temporaryPath)
         ) { error in
@@ -157,7 +157,7 @@ final class ManifestLoaderTests: TuistTestCase {
     func test_manifestsAt() throws {
         // Given
         let fileHandler = FileHandler()
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         try fileHandler.touch(temporaryPath.appending(component: "Project.swift"))
         try fileHandler.touch(temporaryPath.appending(component: "Workspace.swift"))
         try fileHandler.touch(temporaryPath.appending(component: "Config.swift"))

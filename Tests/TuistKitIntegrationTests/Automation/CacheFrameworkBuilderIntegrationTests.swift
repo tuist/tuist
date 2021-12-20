@@ -28,7 +28,7 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
 
     func test_build_ios() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let frameworksPath = try temporaryFixture("Frameworks")
         let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
         let scheme = Scheme.test(name: "iOS")
@@ -54,7 +54,7 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
 
     func test_build_macos() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let frameworksPath = try temporaryFixture("Frameworks")
         let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
         let scheme = Scheme.test(name: "macOS")
@@ -80,7 +80,7 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
 
     func test_build_tvOS() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let frameworksPath = try temporaryFixture("Frameworks")
         let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
         let scheme = Scheme.test(name: "tvOS")
@@ -106,7 +106,7 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
 
     func test_build_watchOS() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let frameworksPath = try temporaryFixture("Frameworks")
         let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
         let scheme = Scheme.test(name: "watchOS")

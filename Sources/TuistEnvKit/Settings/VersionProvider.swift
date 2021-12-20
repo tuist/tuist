@@ -47,7 +47,7 @@ class VersionProvider: VersionProviding {
     }
 
     func versions() -> AnyPublisher<[Version], Error> {
-        return requestDispatcher.dispatch(resource: changelogResource())
+        requestDispatcher.dispatch(resource: changelogResource())
             .flatMapLatest { content, _ -> AnyPublisher<[Version], Error> in
                 do {
                     let versions = try self.parseVersionsFromChangelog(content)
@@ -60,14 +60,14 @@ class VersionProvider: VersionProviding {
     }
 
     func latestVersion() -> AnyPublisher<Version, Error> {
-        return versions().map { versions -> Version in
+        versions().map { versions -> Version in
             versions.sorted().last!
         }
         .eraseToAnyPublisher()
     }
 
     func changelogResource() -> HTTPResource<String, Error> {
-        return resource(path: "/CHANGELOG.md")
+        resource(path: "/CHANGELOG.md")
     }
 
     // MARK: - Fileprivate
@@ -88,7 +88,7 @@ class VersionProvider: VersionProviding {
     }
 
     fileprivate func resource(path: String) -> HTTPResource<String, Error> {
-        return HTTPResource {
+        HTTPResource {
             var request = URLRequest(url: self.rawFileURL(path: path))
             request.httpMethod = "GET"
             return request
@@ -108,6 +108,6 @@ class VersionProvider: VersionProviding {
     }
 
     fileprivate func rawFileURL(path: String) -> Foundation.URL {
-        return URL(string: "https://raw.githubusercontent.com/tuist/tuist/main\(path)")!
+        URL(string: "https://raw.githubusercontent.com/tuist/tuist/main\(path)")!
     }
 }

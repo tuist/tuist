@@ -62,14 +62,14 @@ public final class DependenciesGraphController: DependenciesGraphControlling {
             throw DependenciesGraphControllerError.failedToEncodeDependenciesGraph
         }
 
-        let graphPath = self.graphPath(at: path)
+        let graphPath = graphPath(at: path)
 
         try FileHandler.shared.touch(graphPath)
         try FileHandler.shared.write(encodedGraphContent, path: graphPath, atomically: true)
     }
 
     public func load(at path: AbsolutePath) throws -> TuistGraph.DependenciesGraph {
-        let graphPath = self.graphPath(at: path)
+        let graphPath = graphPath(at: path)
         guard FileHandler.shared.exists(graphPath) else {
             return .none
         }
@@ -87,7 +87,7 @@ public final class DependenciesGraphController: DependenciesGraphControlling {
     }
 
     public func clean(at path: AbsolutePath) throws {
-        let graphPath = self.graphPath(at: path)
+        let graphPath = graphPath(at: path)
 
         try FileHandler.shared.delete(graphPath)
     }

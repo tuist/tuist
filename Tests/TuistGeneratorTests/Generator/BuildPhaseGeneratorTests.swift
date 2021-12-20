@@ -522,7 +522,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
     func test_generateResourcesBuildPhase_whenNormalResource() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let path = AbsolutePath("/image.png")
         let target = Target.test(resources: [.file(path: path)])
         let fileElements = ProjectFileElements()
@@ -556,7 +556,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
 
     func test_generateResourcesBuildPhase_whenContainsResourcesTags() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let resources: [ResourceFileElement] = [
             .file(path: "/file.type", tags: ["fileTag"]),
             .folderReference(path: "/folder", tags: ["folderTag"]),

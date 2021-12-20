@@ -40,7 +40,7 @@ final class GenerateCacheableSchemesWorkspaceMapper: WorkspaceMapping {
             .filter { $0.1.product == .bundle }
 
         let binariesTargets = projectsWithTargets
-            .filter { $0.1.product.isFramework }
+            .filter(\.1.product.isFramework)
 
         let bundleTargetReferences = bundleTargets
             .map { TargetReference(projectPath: $0.0.path, name: $0.1.name) }

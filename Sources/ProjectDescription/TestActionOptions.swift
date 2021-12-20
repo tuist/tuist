@@ -37,7 +37,7 @@ public struct TestActionOptions: Equatable, Codable {
                                coverage: Bool = false,
                                codeCoverageTargets: [TargetReference] = []) -> TestActionOptions
     {
-        return TestActionOptions(
+        TestActionOptions(
             language: language,
             region: region,
             coverage: coverage,

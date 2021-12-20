@@ -5,7 +5,7 @@ extension Project {
         name: String,
         dependencies: [TargetDependency]
     ) -> Project {
-        return Project(
+        Project(
             name: name,
             organizationName: "tuist.io",
             settings: Settings.default,
@@ -32,7 +32,7 @@ extension Project {
         name: String,
         dependencies: [TargetDependency]
     ) -> Project {
-        return Project(
+        Project(
             name: name,
             organizationName: "tuist.io",
             settings: Settings.default,
@@ -78,7 +78,7 @@ extension Target {
     public static func test(
         name: String
     ) -> Target {
-        return Target(
+        Target(
             name: "\(name)Tests",
             platform: .iOS,
             product: .unitTests,
@@ -92,7 +92,7 @@ extension Target {
 
 extension DeploymentTarget {
     static var deploymentTarget: DeploymentTarget {
-        return .iOS(
+        .iOS(
             targetVersion: "11.0",
             devices: [.iphone]
         )

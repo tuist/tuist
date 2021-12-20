@@ -440,7 +440,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 
         let launchActionConstants: Constants.LaunchAction
         let debuggerIdentifier: String
-        let isSchemeForAppExtension = self.isSchemeForAppExtension(scheme: scheme, graphTraverser: graphTraverser)
+        let isSchemeForAppExtension = isSchemeForAppExtension(scheme: scheme, graphTraverser: graphTraverser)
         if isSchemeForAppExtension == true {
             launchActionConstants = .extension
             debuggerIdentifier = ""

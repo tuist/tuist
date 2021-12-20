@@ -12,7 +12,7 @@ import XCTest
 final class DependenciesManifestMapperTests: TuistUnitTestCase {
     func test_from() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let localPackagePath = temporaryPath.appending(component: "LocalPackage")
 
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)

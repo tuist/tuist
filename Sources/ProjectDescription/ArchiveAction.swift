@@ -28,7 +28,7 @@ public struct ArchiveAction: Equatable, Codable {
         preActions: [ExecutionAction] = [],
         postActions: [ExecutionAction] = []
     ) -> ArchiveAction {
-        return ArchiveAction(
+        ArchiveAction(
             configuration: configuration,
             revealArchiveInOrganizer: revealArchiveInOrganizer,
             customArchiveName: customArchiveName,

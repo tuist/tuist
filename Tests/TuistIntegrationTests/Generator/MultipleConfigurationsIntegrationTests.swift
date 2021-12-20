@@ -350,7 +350,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
 
     @discardableResult
     private func createFile(path relativePath: String, content: String) throws -> AbsolutePath {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let absolutePath = temporaryPath.appending(RelativePath(relativePath))
         try FileHandler.shared.touch(absolutePath)
         try content.data(using: .utf8)!.write(to: URL(fileURLWithPath: absolutePath.pathString))
@@ -358,7 +358,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     }
 
     private func createModels(projectSettings: Settings, targetSettings: Settings?) throws -> WorkspaceWithProjects {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let appTarget = try createAppTarget(settings: targetSettings)
         let project = createProject(
             path: try pathTo("App"),
@@ -432,12 +432,12 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     }
 
     private func pathTo(_ relativePath: String) throws -> AbsolutePath {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         return temporaryPath.appending(RelativePath(relativePath))
     }
 
     private func extractWorkspaceSettings(configuration: String) throws -> ExtractedBuildSettings {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         return try extractBuildSettings(path: .workspace(
             path: temporaryPath.appending(component: "Workspace.xcworkspace").pathString,
             scheme: "AppTarget",
@@ -446,7 +446,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
     }
 
     private func loadXcodeProj(_ relativePath: String) throws -> XcodeProj {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let appProjectPath = temporaryPath.appending(RelativePath(relativePath))
         return try XcodeProj(pathString: appProjectPath.pathString)
     }

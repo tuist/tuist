@@ -28,7 +28,7 @@ public final class CodeLinter: CodeLinting {
 
     public func lint(sources: [AbsolutePath], path: AbsolutePath, strict: Bool) throws {
         let swiftLintPath = try binaryLocator.swiftLintPath()
-        let swiftLintConfigPath = self.swiftLintConfigPath(path: path)
+        let swiftLintConfigPath = swiftLintConfigPath(path: path)
         let swiftLintArguments = buildSwiftLintArguments(
             swiftLintPath: swiftLintPath,
             sources: sources,

@@ -35,7 +35,7 @@ final class FileHandlerTests: TuistUnitTestCase {
 
     func test_replace() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let tempFile = temporaryPath.appending(component: "Temporary")
         let destFile = temporaryPath.appending(component: "Destination")
         try "content".write(to: tempFile.asURL, atomically: true, encoding: .utf8)

@@ -15,6 +15,6 @@ public struct DeploymentDevice: OptionSet, Codable, Hashable {
 
     // All deployment devices.
     public static var all: DeploymentDevice {
-        return [.iphone, .ipad, .mac]
+        [.iphone, .ipad, .mac]
     }
 }

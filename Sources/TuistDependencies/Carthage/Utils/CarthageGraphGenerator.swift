@@ -24,7 +24,7 @@ public final class CarthageGraphGenerator: CarthageGraphGenerating {
         let products = try versionFilePaths
             .map { try FileHandler.shared.readFile($0) }
             .map { try jsonDecoder.decode(CarthageVersionFile.self, from: $0) }
-            .flatMap { $0.allProducts }
+            .flatMap(\.allProducts)
 
         let externalDependencies: [String: [TargetDependency]] = Dictionary(grouping: products, by: \.name)
             .compactMapValues { products in

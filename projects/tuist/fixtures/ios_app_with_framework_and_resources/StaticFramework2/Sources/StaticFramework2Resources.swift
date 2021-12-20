@@ -6,7 +6,7 @@ public class StaticFramework2Resources {
     public init() {}
 
     public func loadImage() -> UIImage? {
-        return UIImage(
+        UIImage(
             named: "StaticFramework2Resources-tuist",
             in: .staticFramework2,
             compatibleWith: nil

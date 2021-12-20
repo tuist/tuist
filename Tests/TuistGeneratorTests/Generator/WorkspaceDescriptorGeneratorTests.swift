@@ -28,7 +28,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
 
     func test_generate_workspaceStructure() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         try createFiles([
             "README.md",
             "Documentation/README.md",
@@ -69,7 +69,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
     func test_generate_workspaceStructure_noWorkspaceData() throws {
         // Given
         let name = "test"
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         try FileHandler.shared.createFolder(temporaryPath.appending(component: "\(name).xcworkspace"))
         let workspace = Workspace.test(name: name)
         let graph = Graph.test(
@@ -86,7 +86,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
 
     func test_generate_workspaceStructureWithProjects() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let target = anyTarget()
         let project = Project.test(
             path: temporaryPath,

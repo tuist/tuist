@@ -266,7 +266,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
 extension Sequence where Element == Target {
     /// Filters and returns only the targets that are test bundles.
     var testBundles: [Target] {
-        filter { $0.product.testsBundle }
+        filter(\.product.testsBundle)
     }
 
     /// Filters and returns only the targets that are apps and app clips.

@@ -32,7 +32,7 @@ final class InstallerTests: TuistUnitTestCase {
 
     func test_install_when_bundled_release() throws {
         let version = "3.2.1"
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
         let downloadURL = URL(string: "https://github.com/tuist/tuist/releases/download/3.2.1/tuist.zip")!
@@ -72,7 +72,7 @@ final class InstallerTests: TuistUnitTestCase {
     }
 
     func test_install_when_bundled_release_and_download_fails() throws {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let version = "3.2.1"
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
@@ -98,7 +98,7 @@ final class InstallerTests: TuistUnitTestCase {
     }
 
     func test_install_when_bundled_release_when_unzip_fails() throws {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let version = "3.2.1"
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)

@@ -12,7 +12,7 @@ import XCTest
 final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
     func test_from() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         try FileHandler.shared.touch(temporaryPath.appending(component: "model.xcdatamodeld"))
         let manifest = ProjectDescription.CoreDataModel(
@@ -29,7 +29,7 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
 
     func test_from_getsCurrentVersionFrom_file_xccurrentversion() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
 
         try FileManager.default.createDirectory(
@@ -56,7 +56,7 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
 
     func test_from_getsCurrentVersionFrom_file_xccurrentversion_butCannotFindVersion() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
 
         try FileManager.default.createDirectory(
@@ -79,7 +79,7 @@ final class CoreDataModelManifestMapperTests: TuistUnitTestCase {
 
     func test_from_getsCurrentVersionFrom_file_xccurrentversion_butFileDoesNotExist() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
 
         // When

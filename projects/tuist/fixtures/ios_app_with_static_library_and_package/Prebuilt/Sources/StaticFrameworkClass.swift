@@ -5,10 +5,10 @@ public class StaticFrameworkClass {
     public init() {}
 
     public func hello() -> String {
-        return "StaticFrameworkClass.hello()"
+        "StaticFrameworkClass.hello()"
     }
 
     public func packageCode() -> String {
-        return LibraryAClass().text
+        LibraryAClass().text
     }
 }

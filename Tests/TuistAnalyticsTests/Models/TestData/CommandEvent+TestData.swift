@@ -13,7 +13,7 @@ extension CommandEvent {
         macOSVersion: String = "10.15",
         machineHardwareName: String = "arm64"
     ) -> CommandEvent {
-        return CommandEvent(
+        CommandEvent(
             name: name,
             subcommand: subcommand,
             params: params,

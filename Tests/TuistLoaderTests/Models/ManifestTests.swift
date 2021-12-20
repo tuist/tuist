@@ -6,7 +6,7 @@ import XCTest
 
 final class ManifestTests: TuistUnitTestCase {
     func test_fileName() throws {
-        let temporaryPath = try self.temporaryPath().appending(component: "folder")
+        let temporaryPath = try temporaryPath().appending(component: "folder")
 
         XCTAssertEqual(Manifest.project.fileName(temporaryPath), "Project.swift")
         XCTAssertEqual(Manifest.workspace.fileName(temporaryPath), "Workspace.swift")

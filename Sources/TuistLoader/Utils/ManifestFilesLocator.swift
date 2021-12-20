@@ -80,7 +80,7 @@ public final class ManifestFilesLocator: ManifestFilesLocating {
     }
 
     private func match(_ path: AbsolutePath, pattern: String) -> Bool {
-        return fnmatch(pattern, path.pathString, 0) != FNM_NOMATCH
+        fnmatch(pattern, path.pathString, 0) != FNM_NOMATCH
     }
 
     var cacheTuistManifestsFilePaths = [AbsolutePath: Set<AbsolutePath>]()

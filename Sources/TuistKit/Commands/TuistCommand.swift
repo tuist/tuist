@@ -56,7 +56,7 @@ public struct TuistCommand: ParsableCommand {
             }
             command = try parseAsRoot(processedArguments)
         } catch {
-            let exitCode = self.exitCode(for: error).rawValue
+            let exitCode = exitCode(for: error).rawValue
             if exitCode == 0 {
                 logger.info("\(fullMessage(for: error))")
             } else {

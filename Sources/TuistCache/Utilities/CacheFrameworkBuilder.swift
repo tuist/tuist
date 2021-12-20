@@ -89,7 +89,7 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
                                version: Version?,
                                deviceName: String?) throws -> [XcodeBuildArgument]
     {
-        return try destination(platform: platform, version: version, deviceName: deviceName)
+        try destination(platform: platform, version: version, deviceName: deviceName)
             .map { (destination: String) -> [XcodeBuildArgument] in
                 [
                     .sdk(platform == .macOS ? platform.xcodeDeviceSDK : platform.xcodeSimulatorSDK!),

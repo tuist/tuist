@@ -12,7 +12,7 @@ import XCTest
 final class SettingsManifestMapperTests: TuistUnitTestCase {
     func test_from() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         let debug: ProjectDescription.Configuration = .debug(
             name: .debug,

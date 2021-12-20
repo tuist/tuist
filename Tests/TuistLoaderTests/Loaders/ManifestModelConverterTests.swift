@@ -36,7 +36,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
 
     func test_loadProject() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let manifest = ProjectManifest.test(name: "SomeProject")
         let manifestLoader = makeManifestLoader(with: [
             temporaryPath: manifest,
@@ -52,7 +52,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
 
     func test_loadProject_withTargets() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         let targetA = TargetManifest.test(name: "A", sources: [], resources: [])
         let targetB = TargetManifest.test(name: "B", sources: [], resources: [])
@@ -89,7 +89,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
 
     func test_loadProject_withAdditionalFiles() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let files = try createFiles([
             "Documentation/README.md",
             "Documentation/guide.md",
@@ -114,7 +114,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
 
     func test_loadProject_withFolderReferences() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let files = try createFolders([
             "Stubs",
         ])
@@ -138,7 +138,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
 
     func test_loadProject_withCustomOrganizationName() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let manifest = ProjectManifest.test(
             name: "SomeProject",
             organizationName: "SomeOrganization",
@@ -160,7 +160,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
 
     func test_loadWorkspace() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let manifest = WorkspaceManifest.test(name: "SomeWorkspace")
         let manifestLoader = makeManifestLoader(with: [
             temporaryPath: manifest,
@@ -177,7 +177,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
 
     func test_loadWorkspace_withProjects() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let projects = try createFolders([
             "A",
             "B",
@@ -200,7 +200,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
     }
 
     func test_loadWorkspace_withAdditionalFiles() throws {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let files = try createFiles([
             "Documentation/README.md",
             "Documentation/setup/README.md",
@@ -231,7 +231,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
     }
 
     func test_loadWorkspace_withFolderReferences() throws {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         try createFiles([
             "Documentation/README.md",
             "Documentation/setup/README.md",
@@ -260,7 +260,7 @@ class ManifestModelConverterTests: TuistUnitTestCase {
 
     func test_loadWorkspace_withInvalidProjectsPaths() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let manifest = WorkspaceManifest.test(name: "SomeWorkspace", projects: ["A", "B"])
         let manifestLoader = makeManifestLoader(with: [
             temporaryPath: manifest,

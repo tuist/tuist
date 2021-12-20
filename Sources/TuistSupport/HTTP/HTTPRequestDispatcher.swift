@@ -108,7 +108,7 @@ public final class HTTPRequestDispatcher: HTTPRequestDispatching {
     public func dispatch<T, E>(resource: HTTPResource<T, E>) -> AnyPublisher<(object: T, response: HTTPURLResponse), Error>
         where E: Error
     {
-        return AnyPublisher.create { subscriber in
+        AnyPublisher.create { subscriber in
             let disposable = self.dispatch(resource: resource)
                 .subscribe(onSuccess: { value in
                     subscriber.send(value)

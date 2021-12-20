@@ -3,8 +3,8 @@ import TuistSupport
 
 extension HTTPResource {
     public static func void() -> HTTPResource<Void, E> {
-        return HTTPResource<Void, E> {
-            return URLRequest(url: URL(string: "https://test.tuist.io")!)
+        HTTPResource<Void, E> {
+            URLRequest(url: URL(string: "https://test.tuist.io")!)
         } parse: { _, _ in
             ()
         } parseError: { _, _ in
@@ -13,8 +13,8 @@ extension HTTPResource {
     }
 
     public static func noop() -> HTTPResource<Void, Error> {
-        return HTTPResource<Void, Error> {
-            return URLRequest(url: URL(string: "https://test.tuist.io")!)
+        HTTPResource<Void, Error> {
+            URLRequest(url: URL(string: "https://test.tuist.io")!)
         } parse: { _, _ in
             ()
         } parseError: { _, _ in

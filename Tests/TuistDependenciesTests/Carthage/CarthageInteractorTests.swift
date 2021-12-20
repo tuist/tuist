@@ -312,7 +312,7 @@ final class CarthageInteractorTests: TuistUnitTestCase {
 // MARK: - Helpers
 
 extension CarthageInteractorTests {
-    fileprivate func simulateCarthageOutput(at path: AbsolutePath) throws {
+    private func simulateCarthageOutput(at path: AbsolutePath) throws {
         try [
             "Cartfile.resolved",
             "Carthage/Cartfile",

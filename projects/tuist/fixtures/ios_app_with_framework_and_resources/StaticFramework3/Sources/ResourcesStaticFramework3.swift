@@ -6,7 +6,7 @@ public class ResourcesStaticFramework3 {
     public init() {}
 
     public func loadImage() -> UIImage? {
-        return UIImage(
+        UIImage(
             named: "StaticFramework3Resources-tuist",
             in: .module,
             compatibleWith: nil
