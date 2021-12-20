@@ -1,5 +1,9 @@
-import React, { useState, useCallback } from 'react';
-import { useMeQuery, useProjectQuery } from '@/graphql/types';
+import React, { useState, useCallback, useEffect } from 'react';
+import {
+  useMeQuery,
+  useOrganizationQuery,
+  useProjectQuery,
+} from '@/graphql/types';
 import {
   useParams,
   useNavigate,
@@ -35,8 +39,12 @@ import {
   PackageMajor,
   PlusMinor,
 } from '@shopify/polaris-icons';
+import { HomeStore, HomeStoreContext } from '@/stores/HomeStore';
+import { observer } from 'mobx-react-lite';
+import { runInAction } from 'mobx';
+import { useApolloClient } from '@apollo/client';
 
-const Home = () => {
+const Home = observer(() => {
   const { projectName, accountName } = useParams();
   const navigate = useNavigate();
   const [toastActive, setToastActive] = useState(false);
@@ -270,20 +278,34 @@ const Home = () => {
     </Modal>
   );
 
+  const { accountName: organizationName } = useParams();
+
+  const client = useApolloClient();
+  const [homeStore] = useState(new HomeStore(client));
+
+  useEffect(() => {
+    if (!organizationName) {
+      return;
+    }
+    homeStore.load(organizationName);
+  }, [organizationName]);
+
   return (
-    <Frame
-      topBar={topBarMarkup}
-      navigation={navigationMarkup}
-      showMobileNavigation={mobileNavigationActive}
-      onNavigationDismiss={toggleMobileNavigationActive}
-    >
-      {contextualSaveBarMarkup}
-      {loadingMarkup}
-      {pageMarkup}
-      {toastMarkup}
-      {modalMarkup}
-    </Frame>
+    <HomeStoreContext.Provider value={homeStore}>
+      <Frame
+        topBar={topBarMarkup}
+        navigation={navigationMarkup}
+        showMobileNavigation={mobileNavigationActive}
+        onNavigationDismiss={toggleMobileNavigationActive}
+      >
+        {contextualSaveBarMarkup}
+        {loadingMarkup}
+        {pageMarkup}
+        {toastMarkup}
+        {modalMarkup}
+      </Frame>
+    </HomeStoreContext.Provider>
   );
-};
+});
 
 export default Home;
