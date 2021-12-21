@@ -12,18 +12,21 @@ import TuistSupport
 
 final class FocusService {
     private let opener: Opening
+    private let clock: Clock
     private let generatorFactory: GeneratorFactorying
     private let configLoader: ConfigLoading
     private let manifestLoader: ManifestLoading
     private let pluginService: PluginServicing
 
     init(
+        clock: Clock = WallClock(),
         configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
         manifestLoader: ManifestLoading = ManifestLoader(),
         opener: Opening = Opener(),
         generatorFactory: GeneratorFactorying = GeneratorFactory(),
         pluginService: PluginServicing = PluginService()
     ) {
+        self.clock = clock
         self.configLoader = configLoader
         self.manifestLoader = manifestLoader
         self.opener = opener
@@ -32,6 +35,7 @@ final class FocusService {
     }
 
     func run(path: String?, sources: Set<String>, noOpen: Bool, xcframeworks: Bool, profile: String?, ignoreCache: Bool) throws {
+        let timer = clock.startTimer()
         let path = self.path(path)
         let config = try configLoader.loadConfig(path: path)
         let cacheProfile = try CacheProfileResolver().resolveCacheProfile(named: profile, from: config)
@@ -46,6 +50,10 @@ final class FocusService {
         if !noOpen {
             try opener.open(path: workspacePath)
         }
+        let time = String(format: "%.3f", timer.stop())
+
+        logger.notice("Project generated.", metadata: .success)
+        logger.notice("Total time taken: \(time)s")
     }
 
     // MARK: - Helpers
