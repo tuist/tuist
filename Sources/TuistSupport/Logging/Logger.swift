@@ -52,7 +52,7 @@ public enum LogOutput {
     static var environment = ProcessInfo.processInfo.environment
 
     public static func bootstrap(config: LoggingConfig = .default) {
-        let handler: VariableLevelLogHandler.Type
+        let handler: ConfigurableLevelLogHandler.Type
 
         switch config.loggerType {
         case .osLog:
@@ -74,15 +74,15 @@ public enum LogOutput {
     }
 }
 
-// A `VariableLevelLogHandler` allows for a LogHandler to be initialised with the
+// A `ConfigurableLevelLogHandler` allows for a LogHandler to be initialised with the
 // `debug` or `error` logLevel.
-protocol VariableLevelLogHandler: LogHandler {
+protocol ConfigurableLevelLogHandler: LogHandler {
     static func verbose(label: String) -> LogHandler
     static func silent(label: String) -> LogHandler
     init(label: String)
 }
 
-extension DetailedLogHandler: VariableLevelLogHandler {
+extension DetailedLogHandler: ConfigurableLevelLogHandler {
     public static func verbose(label: String) -> LogHandler {
         DetailedLogHandler(label: label, logLevel: .debug)
     }
@@ -92,7 +92,7 @@ extension DetailedLogHandler: VariableLevelLogHandler {
     }
 }
 
-extension StandardLogHandler: VariableLevelLogHandler {
+extension StandardLogHandler: ConfigurableLevelLogHandler {
     public static func verbose(label: String) -> LogHandler {
         StandardLogHandler(label: label, logLevel: .debug)
     }
@@ -102,7 +102,7 @@ extension StandardLogHandler: VariableLevelLogHandler {
     }
 }
 
-extension OSLogHandler: VariableLevelLogHandler {
+extension OSLogHandler: ConfigurableLevelLogHandler {
     public static func verbose(label: String) -> LogHandler {
         OSLogHandler(label: label, logLevel: .debug)
     }
