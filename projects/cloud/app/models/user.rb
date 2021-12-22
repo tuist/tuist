@@ -11,16 +11,12 @@ class User < ApplicationRecord
     omniauth_providers: [:github, :gitlab]
 
   # Associations
-  has_one :account, as: :owner, inverse_of: :owner, dependent: :destroy
+  has_one :account, as: :owner, inverse_of: :owner, dependent: :destroy, required: true
   belongs_to :last_visited_project, class_name: "Project", optional: true
 
   def avatar_url
     hash = Digest::MD5.hexdigest(email.downcase)
     "https://www.gravatar.com/avatar/#{hash}"
-  end
-
-  def projects
-    UserProjectsFetchService.call(user: self)
   end
 
   def accounts
