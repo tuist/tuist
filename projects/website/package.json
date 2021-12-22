@@ -27,7 +27,6 @@
     "focus-visible": "^5.2.0",
     "gatsby": "^2.32.13",
     "gatsby-image": "^3.11.0",
-    "gatsby-plugin-favicon": "^3.1.6",
     "gatsby-plugin-feed": "^2.13.1",
     "gatsby-plugin-manifest": "^3.14.0",
     "gatsby-plugin-mdx": "^2.14.0",
