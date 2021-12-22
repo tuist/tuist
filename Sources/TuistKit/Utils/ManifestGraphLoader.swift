@@ -94,6 +94,7 @@ final class ManifestGraphLoader: ManifestGraphLoading {
             externalDependencies: dependenciesGraph.externalDependencies
         ) +
             dependenciesGraph.externalProjects.values
+        try GraphLoaderLinter().lintProject(at: path, projects: models)
         return try graphLoader.loadProject(at: path, projects: models)
     }
 
@@ -108,6 +109,7 @@ final class ManifestGraphLoader: ManifestGraphLoading {
             externalDependencies: dependenciesGraph.externalDependencies
         ) +
             dependenciesGraph.externalProjects.values
+        try GraphLoaderLinter().lintWorkspace(workspace: workspace, projects: models)
         return try graphLoader.loadWorkspace(workspace: workspace, projects: models)
     }
 

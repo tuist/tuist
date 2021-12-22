@@ -264,6 +264,9 @@ class Generator: Generating {
         )
         let models = (workspace: workspace, projects: projects)
 
+        // Check circular dependencies
+        try GraphLoaderLinter().lintProject(at: path, projects: projects)
+
         // Apply any registered model mappers
         let (updatedModels, modelMapperSideEffects) = try workspaceMapper.map(
             workspace: .init(workspace: models.workspace, projects: models.projects)
@@ -320,6 +323,9 @@ class Generator: Generating {
             ) +
                 dependenciesGraph.externalProjects.values
         )
+
+        // Check circular dependencies
+        try GraphLoaderLinter().lintWorkspace(workspace: models.workspace, projects: models.projects)
 
         // Apply model mappers
         let (updatedModels, modelMapperSideEffects) = try workspaceMapper.map(
