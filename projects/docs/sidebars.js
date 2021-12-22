@@ -39,6 +39,7 @@ module.exports = {
         'commands/migration',
         'commands/clean',
         'commands/dependencies',
+        'commands/plugin',
       ],
     },
     {
