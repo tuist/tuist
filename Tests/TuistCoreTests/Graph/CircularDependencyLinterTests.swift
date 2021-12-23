@@ -8,7 +8,7 @@ import XCTest
 @testable import TuistCoreTesting
 @testable import TuistSupportTesting
 
-final class GraphLoaderLinterTests: TuistUnitTestCase {
+final class CircularDependencyLinterTests: TuistUnitTestCase {
     // MARK: - Dependency Cycle
 
     func test_loadProject_localDependencyCycle() throws {
@@ -17,7 +17,7 @@ final class GraphLoaderLinterTests: TuistUnitTestCase {
         let targetB = Target.test(name: "B", dependencies: [.target(name: "C")])
         let targetC = Target.test(name: "C", dependencies: [.target(name: "A")])
         let project = Project.test(path: "/A", name: "A", targets: [targetA, targetB, targetC])
-        let subject = GraphLoaderLinter()
+        let subject = CircularDependencyLinter()
 
         // When / Then
         XCTAssertThrowsSpecific(
@@ -43,7 +43,7 @@ final class GraphLoaderLinterTests: TuistUnitTestCase {
         let projectA = Project.test(path: "/A", name: "A", targets: [targetA])
         let projectB = Project.test(path: "/B", name: "B", targets: [targetB])
         let projectC = Project.test(path: "/C", name: "C", targets: [targetC])
-        let subject = GraphLoaderLinter()
+        let subject = CircularDependencyLinter()
 
         // When / Then
         XCTAssertThrowsSpecific(
@@ -72,7 +72,7 @@ final class GraphLoaderLinterTests: TuistUnitTestCase {
         let projectB = Project.test(path: "/B", name: "B", targets: [targetB])
         let projectC = Project.test(path: "/C", name: "C", targets: [targetC])
         let workspace = Workspace.test(path: "/", name: "Workspace", projects: ["/A", "/B", "/C"])
-        let subject = GraphLoaderLinter()
+        let subject = CircularDependencyLinter()
 
         // When / Then
         XCTAssertThrowsSpecific(
@@ -102,7 +102,7 @@ final class GraphLoaderLinterTests: TuistUnitTestCase {
         let projectA = Project.test(path: "/A", name: "A", targets: [targetA1, targetA2])
         let projectB = Project.test(path: "/B", name: "B", targets: [targetB1, targetB2])
         let projectC = Project.test(path: "/C", name: "C", targets: [targetC])
-        let subject = GraphLoaderLinter()
+        let subject = CircularDependencyLinter()
 
         // When / Then
         XCTAssertNoThrow(
@@ -128,7 +128,7 @@ final class GraphLoaderLinterTests: TuistUnitTestCase {
         let projectB = Project.test(path: "/B", name: "B", targets: [targetB1, targetB2])
         let projectC = Project.test(path: "/C", name: "C", targets: [targetC])
         let workspace = Workspace.test(path: "/", name: "Workspace", projects: ["/A", "/B", "/C"])
-        let subject = GraphLoaderLinter()
+        let subject = CircularDependencyLinter()
 
         // When / Then
         XCTAssertNoThrow(
@@ -155,7 +155,7 @@ final class GraphLoaderLinterTests: TuistUnitTestCase {
         let projectB = Project.test(path: "/B", name: "B", targets: [targetB1, targetB2])
         let projectC = Project.test(path: "/C", name: "C", targets: [targetC1, targetC2])
         let workspace = Workspace.test(path: "/", name: "Workspace", projects: ["/A", "/B", "/C"])
-        let subject = GraphLoaderLinter()
+        let subject = CircularDependencyLinter()
 
         // When / Then
         XCTAssertThrowsError(

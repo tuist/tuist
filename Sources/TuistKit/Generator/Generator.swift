@@ -25,7 +25,7 @@ class Generator: Generating {
     private let converter: ManifestModelConverting
     private let manifestLinter: ManifestLinting = ManifestLinter()
     private let graphLinter: GraphLinting = GraphLinter()
-    private let graphLoaderLinting: GraphLoaderLinting = GraphLoaderLinter()
+    private let graphLoaderLinter: CircularDependencyLinting = CircularDependencyLinter()
     private let environmentLinter: EnvironmentLinting = EnvironmentLinter()
     private let generator: DescriptorGenerating = DescriptorGenerator()
     private let writer: XcodeProjWriting = XcodeProjWriter()
@@ -127,7 +127,7 @@ class Generator: Generating {
             dependenciesGraph.externalProjects.values
 
         // Check circular dependencies
-        try graphLoaderLinting.lintProject(at: path, projects: models)
+        try graphLoaderLinter.lintProject(at: path, projects: models)
 
         // Apply any registered model mappers
         let updatedModels = try models.map(projectMapper.map)
@@ -269,7 +269,7 @@ class Generator: Generating {
         let models = (workspace: workspace, projects: projects)
 
         // Check circular dependencies
-        try graphLoaderLinting.lintProject(at: path, projects: projects)
+        try graphLoaderLinter.lintProject(at: path, projects: projects)
 
         // Apply any registered model mappers
         let (updatedModels, modelMapperSideEffects) = try workspaceMapper.map(
@@ -329,7 +329,7 @@ class Generator: Generating {
         )
 
         // Check circular dependencies
-        try graphLoaderLinting.lintWorkspace(workspace: models.workspace, projects: models.projects)
+        try graphLoaderLinter.lintWorkspace(workspace: models.workspace, projects: models.projects)
 
         // Apply model mappers
         let (updatedModels, modelMapperSideEffects) = try workspaceMapper.map(

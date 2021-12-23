@@ -2,16 +2,16 @@ import Foundation
 import TSCBasic
 import TuistGraph
 
-// MARK: - GraphLoaderLinting
+// MARK: - CircularDependencyLinting
 
-public protocol GraphLoaderLinting {
+public protocol CircularDependencyLinting {
     func lintWorkspace(workspace: Workspace, projects: [Project]) throws
     func lintProject(at path: AbsolutePath, projects: [Project]) throws
 }
 
-// MARK: - GraphLoaderLinter
+// MARK: - CircularDependencyLinter
 
-public class GraphLoaderLinter: GraphLoaderLinting {
+public class CircularDependencyLinter: CircularDependencyLinting {
     public init() {}
 
     public func lintWorkspace(workspace: Workspace, projects: [Project]) throws {

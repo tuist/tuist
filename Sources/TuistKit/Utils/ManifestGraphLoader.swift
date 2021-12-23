@@ -30,7 +30,7 @@ final class ManifestGraphLoader: ManifestGraphLoading {
     private let graphLoader: GraphLoading
     private let pluginsService: PluginServicing
     private let dependenciesGraphController: DependenciesGraphControlling
-    private let graphLoaderLinting: GraphLoaderLinting
+    private let graphLoaderLinter: CircularDependencyLinting
 
     convenience init(manifestLoader: ManifestLoading) {
         self.init(
@@ -43,7 +43,7 @@ final class ManifestGraphLoader: ManifestGraphLoading {
             graphLoader: GraphLoader(),
             pluginsService: PluginService(manifestLoader: manifestLoader),
             dependenciesGraphController: DependenciesGraphController(),
-            graphLoaderLinting: GraphLoaderLinter()
+            graphLoaderLinter: CircularDependencyLinter()
         )
     }
 
@@ -55,7 +55,7 @@ final class ManifestGraphLoader: ManifestGraphLoading {
         graphLoader: GraphLoading,
         pluginsService: PluginServicing,
         dependenciesGraphController: DependenciesGraphControlling,
-        graphLoaderLinting: GraphLoaderLinting
+        graphLoaderLinter: CircularDependencyLinting
     ) {
         self.configLoader = configLoader
         self.manifestLoader = manifestLoader
@@ -64,7 +64,7 @@ final class ManifestGraphLoader: ManifestGraphLoading {
         self.graphLoader = graphLoader
         self.pluginsService = pluginsService
         self.dependenciesGraphController = dependenciesGraphController
-        self.graphLoaderLinting = graphLoaderLinting
+        self.graphLoaderLinter = graphLoaderLinter
     }
 
     func loadGraph(at path: AbsolutePath) throws -> Graph {
@@ -98,7 +98,7 @@ final class ManifestGraphLoader: ManifestGraphLoading {
             externalDependencies: dependenciesGraph.externalDependencies
         ) +
             dependenciesGraph.externalProjects.values
-        try graphLoaderLinting.lintProject(at: path, projects: models)
+        try graphLoaderLinter.lintProject(at: path, projects: models)
         return try graphLoader.loadProject(at: path, projects: models)
     }
 
@@ -113,7 +113,7 @@ final class ManifestGraphLoader: ManifestGraphLoading {
             externalDependencies: dependenciesGraph.externalDependencies
         ) +
             dependenciesGraph.externalProjects.values
-        try graphLoaderLinting.lintWorkspace(workspace: workspace, projects: models)
+        try graphLoaderLinter.lintWorkspace(workspace: workspace, projects: models)
         return try graphLoader.loadWorkspace(workspace: workspace, projects: models)
     }
 
