@@ -11,6 +11,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Add support for `exclusionRule` parameter to `Headers` [#3793](https://github.com/tuist/tuist/pull/3793) by [@pavel-trafimuk](https://github.com/pavel-trafimuk)
 
+### Fixed
+
+- Fix shell completion script generated in directory containing `.tuist_version` file [#3804](https://github.com/tuist/tuist/pull/3804) by [@mikchmie](https://github.com/mikchmie)
+
 ## 2.4.0 - Lune
 
 ### Added
