@@ -264,7 +264,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
 
     func test_exclusionRule_projectExcludesPrivateAndPublic() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         try createFiles([
             "Sources/group/A1.h",
@@ -319,7 +319,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
 
     func test_exclusionRule_publicExcludesPrivateAndProject() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         try createFiles([
             "Sources/group/A1.h",

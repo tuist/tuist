@@ -125,7 +125,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
 
     func test_generateWorkspaceStructure_withSettingsDescriptorDisablingSchemaGeneration() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
 
         let workspace = Workspace.test(
             xcWorkspacePath: temporaryPath.appending(component: "Test.xcworkspace"),
@@ -145,7 +145,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
 
     func test_generateWorkspaceStructure_withSettingsDescriptorEnablingSchemaGeneration() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
 
         let workspace = Workspace.test(
             xcWorkspacePath: temporaryPath.appending(component: "Test.xcworkspace"),
@@ -165,7 +165,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
 
     func test_generateWorkspaceStructure_withSettingsDescriptorDefaultSchemaGeneration() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
 
         let workspace = Workspace.test(
             xcWorkspacePath: temporaryPath.appending(component: "Test.xcworkspace"),
