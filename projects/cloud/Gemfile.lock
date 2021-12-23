@@ -167,9 +167,9 @@ GEM
       railties
       sprockets-rails
     graphql (1.13.2)
-    graphql-schema_comparator (1.0.1)
+    graphql-schema_comparator (1.1.0)
       bundler (>= 1.14)
-      graphql (~> 1.10)
+      graphql (>= 1.10, < 3.0)
       thor (>= 0.19, < 2.0)
     hashie (5.0.0)
     httpclient (2.8.3)
