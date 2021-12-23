@@ -45,7 +45,7 @@ class UserCreateServiceTest < ActiveSupport::TestCase
     end
 
     # Then
-    assert_raises(UserCreateService::Error::CantObtainAccountName) do
+    assert_raises(User::Error::CantObtainAccountName) do
       UserCreateService.call(email: "test@tuist.io")
     end
   end
