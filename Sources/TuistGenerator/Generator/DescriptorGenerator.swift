@@ -44,6 +44,7 @@ public final class DescriptorGenerator: DescriptorGenerating {
         let targetGenerator = TargetGenerator(configGenerator: configGenerator)
         let schemeDescriptorsGenerator = SchemeDescriptorsGenerator()
         let workspaceStructureGenerator = WorkspaceStructureGenerator()
+        let workspaceSettingsGenerator = WorkspaceSettingsDescriptorGenerator()
         let projectDescriptorGenerator = ProjectDescriptorGenerator(
             targetGenerator: targetGenerator,
             configGenerator: configGenerator,
@@ -52,7 +53,8 @@ public final class DescriptorGenerator: DescriptorGenerating {
         let workspaceDescriptorGenerator = WorkspaceDescriptorGenerator(
             projectDescriptorGenerator: projectDescriptorGenerator,
             workspaceStructureGenerator: workspaceStructureGenerator,
-            schemeDescriptorsGenerator: schemeDescriptorsGenerator
+            schemeDescriptorsGenerator: schemeDescriptorsGenerator,
+            workspaceSettingsGenerator: workspaceSettingsGenerator
         )
         self.init(
             workspaceDescriptorGenerator: workspaceDescriptorGenerator,

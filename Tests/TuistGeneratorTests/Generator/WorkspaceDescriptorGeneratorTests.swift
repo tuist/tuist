@@ -123,6 +123,66 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         ])
     }
 
+    func test_generateWorkspaceStructure_withSettingsDescriptorDisablingSchemaGeneration() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+
+        let workspace = Workspace.test(
+            xcWorkspacePath: temporaryPath.appending(component: "Test.xcworkspace"),
+            projects: [],
+            generationOptions: .options(automaticXcodeSchemes: .disabled)
+        )
+
+        let graph = Graph.test(workspace: workspace)
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = try subject.generate(graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertEqual(result.workspaceSettingsDescriptor, WorkspaceSettingsDescriptor(automaticXcodeSchemes: false))
+    }
+
+    func test_generateWorkspaceStructure_withSettingsDescriptorEnablingSchemaGeneration() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+
+        let workspace = Workspace.test(
+            xcWorkspacePath: temporaryPath.appending(component: "Test.xcworkspace"),
+            projects: [],
+            generationOptions: .options(automaticXcodeSchemes: .enabled)
+        )
+
+        let graph = Graph.test(workspace: workspace)
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = try subject.generate(graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertEqual(result.workspaceSettingsDescriptor, WorkspaceSettingsDescriptor(automaticXcodeSchemes: true))
+    }
+
+    func test_generateWorkspaceStructure_withSettingsDescriptorDefaultSchemaGeneration() throws {
+        // Given
+        let temporaryPath = try self.temporaryPath()
+
+        let workspace = Workspace.test(
+            xcWorkspacePath: temporaryPath.appending(component: "Test.xcworkspace"),
+            projects: [],
+            generationOptions: .options(automaticXcodeSchemes: .default)
+        )
+
+        let graph = Graph.test(workspace: workspace)
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let result = try subject.generate(graphTraverser: graphTraverser)
+
+        // Then
+        XCTAssertEqual(result.workspaceSettingsDescriptor, WorkspaceSettingsDescriptor(automaticXcodeSchemes: nil))
+    }
+
     // MARK: - Helpers
 
     func anyTarget(dependencies: [TargetDependency] = []) -> Target {

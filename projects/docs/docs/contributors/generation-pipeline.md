@@ -14,7 +14,7 @@ The aim is to keep each of those steps simple while still allowing more complex 
   - The types are declared in the `ProjectDescription` target
   - Those types can't depend on any other targets/modules as the `ProjectDescription` target is shipped as a standalone dynamic library with each Tuist release
 - **Model**: Those are the internal model types used to represent various entities of the Tuist Graph and supporting types.
-  - The types are declared in the `TuistCore` target
+  - The types are declared in the `TuistGraph` target
   - Many types are similar to the ones defined in the `ProjectDescription` target
     - Model types however contain more information than their `ProjectDescription` counterpart (e.g. expanded paths)
     - Model types are often optimized for simpler internal usage
@@ -46,7 +46,7 @@ The pipeline consists of the following stages & steps that are performed sequent
   - Additionally if `ProjectDescriptionHelpers` are used, those are also compiled and cached
 - **Lint Manifests**: Manifests undergo a series of checks that may produce warnings or fail the generation process
   - The lint checks can be found in `ManifestLinter`
-- **Convert Manifests to Models**: Manifests (`ProjectDescription` types) are converted to Models (`TuistCore` types) using `ManifestModelConverting` _(implemented by `GeneratorModelLoader`)_
+- **Convert Manifests to Models**: Manifests (`ProjectDescription` types) are converted to Models (`TuistGraph` types) using `ManifestModelConverter`
   - This is where the manifest glob patterns (e.g. `Sources/**`) are evaluated and expanded to explicit absolute paths
   - Manifests are converted concurrently
 

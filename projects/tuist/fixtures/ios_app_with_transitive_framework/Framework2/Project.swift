@@ -12,7 +12,8 @@ let project = Project(
             infoPlist: "Config/Framework2-Info.plist",
             sources: "Sources/**",
             dependencies: [
-            ]
+            ],
+            settings: .settings(base: ["BUILD_LIBRARY_FOR_DISTRIBUTION": "YES"])
         ),
         Target(
             name: "Framework2-macOS",
@@ -23,7 +24,8 @@ let project = Project(
             infoPlist: "Config/Framework2-Info.plist",
             sources: "Sources/**",
             dependencies: [
-            ]
+            ],
+            settings: .settings(base: ["BUILD_LIBRARY_FOR_DISTRIBUTION": "YES"])
         ),
     ]
 )

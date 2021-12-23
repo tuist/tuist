@@ -13,7 +13,8 @@ let project = Project(
             dependencies: [
                 /* Target dependencies can be defined here */
                 /* .framework(path: "framework") */
-            ]
+            ],
+            settings: .settings(base: ["BUILD_LIBRARY_FOR_DISTRIBUTION": "YES"])
         ),
         Target(
             name: "CTests",
