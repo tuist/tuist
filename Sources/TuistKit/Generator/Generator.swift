@@ -125,7 +125,7 @@ class Generator: Generating {
             externalDependencies: dependenciesGraph.externalDependencies
         ) +
             dependenciesGraph.externalProjects.values
-        
+
         // Check circular dependencies
         try graphLoaderLinting.lintProject(at: path, projects: models)
 

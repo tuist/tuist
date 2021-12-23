@@ -71,7 +71,7 @@ class ManifestLinterTests: XCTestCase {
             severity: .warning
         )))
     }
-    
+
     func test_lint_project_duplicateTargetNames() throws {
         // Given
         let targetA = Target.test(name: "A")

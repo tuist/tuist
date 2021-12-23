@@ -38,14 +38,15 @@ public class ManifestLinter: ManifestLinting {
 
         return issues
     }
-    
+
     private func lintDuplicates(project: ProjectDescription.Project) -> [LintingIssue] {
         let targetsNames = project.targets.map(\.name)
-        
+
         return targetsNames.spm_findDuplicates().map {
             LintingIssue(
                 reason: "The target '\($0)' is declared multiple times within '\(project.name)' project.",
-                severity: .error) 
+                severity: .error
+            )
         }
     }
 
