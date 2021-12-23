@@ -46,6 +46,7 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
     private let projectDescriptorGenerator: ProjectDescriptorGenerating
     private let workspaceStructureGenerator: WorkspaceStructureGenerating
     private let schemeDescriptorsGenerator: SchemeDescriptorsGenerating
+    private let workspaceSettingsGenerator: WorkspaceSettingsDescriptorGenerating
     private let config: Config
 
     // MARK: - Init
@@ -63,6 +64,7 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
             projectDescriptorGenerator: projectDescriptorGenerator,
             workspaceStructureGenerator: WorkspaceStructureGenerator(),
             schemeDescriptorsGenerator: SchemeDescriptorsGenerator(),
+            workspaceSettingsGenerator: WorkspaceSettingsDescriptorGenerator(),
             config: config
         )
     }
@@ -70,11 +72,13 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
     init(projectDescriptorGenerator: ProjectDescriptorGenerating,
          workspaceStructureGenerator: WorkspaceStructureGenerating,
          schemeDescriptorsGenerator: SchemeDescriptorsGenerating,
+         workspaceSettingsGenerator: WorkspaceSettingsDescriptorGenerating,
          config: Config = .default)
     {
         self.projectDescriptorGenerator = projectDescriptorGenerator
         self.workspaceStructureGenerator = workspaceStructureGenerator
         self.schemeDescriptorsGenerator = schemeDescriptorsGenerator
+        self.workspaceSettingsGenerator = workspaceSettingsGenerator
         self.config = config
     }
 
@@ -139,7 +143,8 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
             xcworkspace: xcWorkspace,
             projectDescriptors: projects,
             schemeDescriptors: schemes,
-            sideEffectDescriptors: []
+            sideEffectDescriptors: [],
+            workspaceSettingsDescriptor: workspaceSettingsGenerator.generateWorkspaceSettings(workspace: graphTraverser.workspace)
         )
     }
 

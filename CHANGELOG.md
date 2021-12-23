@@ -4,11 +4,25 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Changed
+- Add `SWIFT_SUPPRESS_WARNINGS` setting to SwiftPackageManager generated project to suppress warnings from dependencies defined in Dependencies.swift [#3852](https://github.com/tuist/tuist/pull/3852) by [@wattson12](https://github.com/wattson12)
+
+### Added
+
+- Add support for `exclusionRule` parameter to `Headers` [#3793](https://github.com/tuist/tuist/pull/3793) by [@pavel-trafimuk](https://github.com/pavel-trafimuk)
+
+### Fixed
+
+- Fix shell completion script generated in directory containing `.tuist_version` file [#3804](https://github.com/tuist/tuist/pull/3804) by [@mikchmie](https://github.com/mikchmie)
+
+## 2.4.0 - Lune
+
 ### Added
 
 - Add support for `excluding` parameter to `FileList` [#3773](https://github.com/tuist/tuist/pull/3773) by [@pavel-trafimuk](https://github.com/pavel-trafimuk)
 - Add ability to define `preActions` and `postActions` for `RunAction` and `ProfileAction` [#3787](https://github.com/tuist/tuist/pull/3787) by [@hisaac](https://github.com/hisaac)
 - Add ability to control whether a debugger is attached to an app or test process by setting `attachDebugger` on `RunAction` or `TestAction`, respectively [#3813])https://github.com/tuist/tuist/pull/3813) by [@svenmuennich](https://github.com/svenmuennich/)
+- Add support for generating the `WorkspaceSettings.xcsettings` file and explicitly disabling or enabling automatic schema generation. [#3832](https://github.com/tuist/tuist/pull/3832) by [@jakeatoms](https://github.com/jakeatoms)
 
 ### Fixed
 
@@ -19,6 +33,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Fixed
 
+- Fixed persisting generated `Package.swift` and `Cartfile` [#3729](https://github.com/tuist/tuist/pull/3729) by [@thedavidharris](https://github.com/thedavidharris)
 - Improve error message in case `ModuleMapMapper` fails to retrieve a dependency [#3733](https://github.com/tuist/tuist/pull/3733) by [@danyf90](https://github.com/danyf90)
 - Fix resolution of external dependencies with products including binary targets [#3737](https://github.com/tuist/tuist/pull/3737) by [@danyf90](https://github.com/danyf90)
 

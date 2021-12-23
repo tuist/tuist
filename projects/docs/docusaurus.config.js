@@ -17,7 +17,7 @@ module.exports = {
   },
   themeConfig: {
     prism: {
-      additionalLanguages: ['swift', 'ruby'],
+      additionalLanguages: ['yaml', 'swift', 'ruby'],
       theme: require('prism-react-renderer/themes/dracula'),
     },
     algolia: {
@@ -34,8 +34,8 @@ module.exports = {
       },
       items: [
         {
-          type: "docsVersionDropdown",
-          position: 'right'
+          type: 'docsVersionDropdown',
+          position: 'right',
         },
         {
           href: 'https://github.com/tuist/tuist',
@@ -65,8 +65,7 @@ module.exports = {
             },
             {
               label: 'Slack',
-              href:
-                'https://join.slack.com/t/tuistapp/shared_invite/zt-g38gajhj-D6LLakrPnVCy4sLm24KxaQ',
+              href: 'https://join.slack.com/t/tuistapp/shared_invite/zt-g38gajhj-D6LLakrPnVCy4sLm24KxaQ',
             },
             {
               label: 'Twitter',
@@ -97,15 +96,15 @@ module.exports = {
           sidebarPath: require.resolve('./sidebars.js'),
           editUrl: 'https://github.com/tuist/tuist/blob/main/projects/docs/',
           remarkPlugins: [remarkEmoji, remarkExternalLinks],
-          lastVersion: "current",
+          lastVersion: 'current',
           versions: {
             current: {
-              label: "2.x"
+              label: '2.x',
             },
-            "1": {
-              label: "1.x"
-            }
-          }
+            1: {
+              label: '1.x',
+            },
+          },
         },
         theme: {
           customCss: require.resolve('./src/css/custom.css'),

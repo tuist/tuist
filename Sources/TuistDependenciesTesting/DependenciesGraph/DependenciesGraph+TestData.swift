@@ -456,6 +456,7 @@ extension DependenciesGraph {
         let defaultSpmSettings: SettingsDictionary = [
             "ALWAYS_SEARCH_USER_PATHS": "YES",
             "GCC_WARN_INHIBIT_ALL_WARNINGS": "YES",
+            "SWIFT_SUPPRESS_WARNINGS": "YES",
             "CLANG_ENABLE_OBJC_WEAK": "NO",
             "CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER": "NO",
             "ENABLE_STRICT_OBJC_MSGSEND": "NO",

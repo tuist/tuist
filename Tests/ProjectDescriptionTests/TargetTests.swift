@@ -16,7 +16,7 @@ final class TargetTests: XCTestCase {
             infoPlist: "info.plist",
             sources: "sources/*",
             resources: "resources/*",
-            headers: Headers(
+            headers: .headers(
                 public: "public/*",
                 private: "private/*",
                 project: "project/*"
@@ -62,7 +62,7 @@ final class TargetTests: XCTestCase {
                 .glob(pattern: "file.type", tags: ["tag"]),
                 .folderReference(path: "resource/", tags: ["tag"]),
             ],
-            headers: Headers(
+            headers: .headers(
                 public: ["public/*"],
                 private: ["private/*"],
                 project: ["project/*"]

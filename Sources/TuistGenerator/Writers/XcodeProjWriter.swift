@@ -58,6 +58,15 @@ public final class XcodeProjWriter: XcodeProjWriting {
             xccontainerPath: workspace.xcworkspacePath,
             schemesOrderHint: schemesOrderHint
         )
+
+        if let workspaceSettingsDescriptor = workspace.workspaceSettingsDescriptor {
+            try writeWorkspaceSettings(
+                workspaceSettingsDescriptor: workspaceSettingsDescriptor,
+                xccontainerPath: workspace.xcworkspacePath
+            )
+        } else {
+            try deleteWorkspaceSettingsIfNeeded(xccontainerPath: workspace.xcworkspacePath)
+        }
         try sideEffectDescriptorExecutor.execute(sideEffects: workspace.sideEffectDescriptors)
     }
 
@@ -117,6 +126,23 @@ public final class XcodeProjWriter: XcodeProjWriting {
             schemeDescriptors: descriptor.schemeDescriptors,
             sideEffectDescriptors: descriptor.sideEffectDescriptors
         )
+    }
+
+    private func writeWorkspaceSettings(
+        workspaceSettingsDescriptor: WorkspaceSettingsDescriptor,
+        xccontainerPath: AbsolutePath
+    ) throws {
+        let settingsPath = WorkspaceSettingsDescriptor.xcsettingsFilePath(relativeToWorkspace: xccontainerPath)
+
+        try workspaceSettingsDescriptor.settings
+            .write(path: settingsPath.path, override: true)
+    }
+
+    private func deleteWorkspaceSettingsIfNeeded(xccontainerPath: AbsolutePath) throws {
+        let settingsPath = WorkspaceSettingsDescriptor.xcsettingsFilePath(relativeToWorkspace: xccontainerPath)
+        guard FileHandler.shared.exists(settingsPath) else { return }
+
+        try FileHandler.shared.delete(settingsPath)
     }
 
     private func writeXCSchemeManagement(
