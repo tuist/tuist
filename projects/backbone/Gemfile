@@ -5,22 +5,23 @@ git_source(:github) { |repo| "https://github.com/#{repo}.git" }
 
 ruby "3.0.3"
 
-gem "rails", "~> 6.0.3", ">= 6.0.3.4"
+gem "rails", "~> 7.0"
 gem "pg", ">= 0.18", "< 2.0"
 gem "puma", "~> 5.0"
 gem "sass-rails", ">= 6"
-gem "turbolinks", "~> 5"
+gem "turbo-rails"
+gem "stimulus-rails"
 gem "jbuilder", "~> 2.7"
 gem "bootsnap", ">= 1.4.2", require: false
 gem "tzinfo-data", platforms: [:mingw, :mswin, :x64_mingw, :jruby]
 gem "google-cloud-bigquery", "~> 1.24"
 gem "chartkick", "~> 3.4"
 gem "groupdate", "~> 5.2"
-gem "vite_rails", "~> 3.0"
 gem "slack-ruby-client", "~> 0.17.0"
 gem "sidekiq-scheduler", "~> 3.1"
 gem "slack-ruby-block-kit", "~> 0.17.0"
 gem "bugsnag", "~> 6.24"
+gem "importmap-rails"
 
 group :development, :test do
   gem "byebug", platforms: [:mri, :mingw, :x64_mingw]
