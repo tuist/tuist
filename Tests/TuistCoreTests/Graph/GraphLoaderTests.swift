@@ -656,7 +656,7 @@ final class GraphLoaderTests: TuistUnitTestCase {
 }
 
 extension GraphLoadingError {
-    fileprivate var isCycleError: Bool {
+    private var isCycleError: Bool {
         switch self {
         case .circularDependency:
             return true
