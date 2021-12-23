@@ -10,7 +10,8 @@ let project = Project(
             bundleId: "io.tuist.PrebuiltStaticFramework",
             infoPlist: "Config/Info.plist",
             sources: "Sources/**",
-            dependencies: []
+            dependencies: [],
+            settings: .settings(base: ["BUILD_LIBRARY_FOR_DISTRIBUTION": "YES"])
         ),
     ]
 )
