@@ -448,7 +448,7 @@ DEPENDENCIES
   spring
   stripe-rails (~> 2.3)
   tzinfo-data
-  vite_rails (~> 3.0)
+  vite_rails (~> 3.0.3)
   web-console (>= 4.1.0)
   webdrivers
 

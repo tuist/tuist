@@ -14,6 +14,10 @@ module TuistCloud
     config.load_defaults(7.0)
     config.defaults = config_for(:defaults)
 
+    # Autoloading
+    config.autoload_once_paths << "#{root}/app/lib/defaults"
+    config.autoload_once_paths << "#{root}/app/lib/secrets"
+
     # URLs
     Rails.application.routes.default_url_options[:host] = config.defaults[:urls][:app]
     config.action_controller.default_url_options = { host: config.defaults[:urls][:app] }
