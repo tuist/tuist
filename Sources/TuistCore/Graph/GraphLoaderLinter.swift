@@ -11,7 +11,7 @@ public protocol GraphLoaderLinting {
 
 // MARK: - GraphLoaderLinter
 
-public class GraphLoaderLinter {
+public class GraphLoaderLinter: GraphLoaderLinting {
     public init() {}
 
     public func lintWorkspace(workspace: Workspace, projects: [Project]) throws {
