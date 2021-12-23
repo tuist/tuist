@@ -8,7 +8,6 @@ enum GraphLoadingError: FatalError, Equatable {
     case missingProject(AbsolutePath)
     case manifestNotFound(AbsolutePath)
     case circularDependency([GraphCircularDetectorNode])
-    case targetDuplicated([String])
     case unexpected(String)
 
     static func == (lhs: GraphLoadingError, rhs: GraphLoadingError) -> Bool {
@@ -25,8 +24,6 @@ enum GraphLoadingError: FatalError, Equatable {
             return lhsMessage == rhsMessage
         case let (.circularDependency(lhsNodes), .circularDependency(rhsNodes)):
             return Set(lhsNodes) == Set(rhsNodes)
-        case let (.targetDuplicated(lhsTargets), .targetDuplicated(rhsTargets)):
-            return Set(lhsTargets) == Set(rhsTargets)
         default:
             return false
         }
@@ -51,8 +48,6 @@ enum GraphLoadingError: FatalError, Equatable {
         case let .circularDependency(nodes):
             let nodeDescriptions = nodes.map { "\($0.path):\($0.name)" }
             return "Found circular dependency between targets: \(nodeDescriptions.joined(separator: " -> "))"
-        case let .targetDuplicated(targets):
-            return "Found duplicated targets: \(targets.joined(separator: ", "))"
         }
     }
 }

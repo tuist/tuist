@@ -42,7 +42,7 @@ public final class GraphLoader: GraphLoading {
     // MARK: - GraphLoading
 
     public func loadWorkspace(workspace: Workspace, projects: [Project]) throws -> Graph {
-        let cache = try Cache(projects: projects)
+        let cache = Cache(projects: projects)
 
         try workspace.projects.forEach {
             try loadProject(
@@ -65,7 +65,7 @@ public final class GraphLoader: GraphLoading {
     }
 
     public func loadProject(at path: AbsolutePath, projects: [Project]) throws -> (Project, Graph) {
-        let cache = try Cache(projects: projects)
+        let cache = Cache(projects: projects)
         guard let rootProject = cache.allProjects[path] else {
             throw GraphLoadingError.missingProject(path)
         }
@@ -297,17 +297,10 @@ public final class GraphLoader: GraphLoading {
         var xcframeworks: [AbsolutePath: GraphDependency] = [:]
         var packages: [AbsolutePath: [String: Package]] = [:]
 
-        init(projects: [Project]) throws {
+        init(projects: [Project]) {
             let allProjects = Dictionary(uniqueKeysWithValues: projects.map { ($0.path, $0) })
-            let allTargets = try allProjects.mapValues { project -> [String: Target] in
-                let projectTargetsKeysWithValues = project.targets.map { ($0.name, $0) }
-                let duplicates = projectTargetsKeysWithValues
-                    .map { $0.0 }
-                    .spm_findDuplicates()
-                guard duplicates.isEmpty else {
-                    throw GraphLoadingError.targetDuplicated(duplicates)
-                }
-                return Dictionary(uniqueKeysWithValues: projectTargetsKeysWithValues)
+            let allTargets = allProjects.mapValues {
+                Dictionary(uniqueKeysWithValues: $0.targets.map { ($0.name, $0) })
             }
             self.allProjects = allProjects
             self.allTargets = allTargets

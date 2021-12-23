@@ -16,7 +16,7 @@ public class GraphLoaderLinter {
 
     public func lintWorkspace(workspace: Workspace, projects: [Project]) throws {
         let cycleDetector = GraphCircularDetector()
-        let cache = try GraphLoader.Cache(projects: projects)
+        let cache = GraphLoader.Cache(projects: projects)
         try workspace.projects.forEach {
             try lintProject(
                 path: $0,
@@ -27,7 +27,7 @@ public class GraphLoaderLinter {
     }
 
     public func lintProject(at path: AbsolutePath, projects: [Project]) throws {
-        let cache = try GraphLoader.Cache(projects: projects)
+        let cache = GraphLoader.Cache(projects: projects)
         let cycleDetector = GraphCircularDetector()
         try lintProject(path: path, cache: cache, cycleDetector: cycleDetector)
     }

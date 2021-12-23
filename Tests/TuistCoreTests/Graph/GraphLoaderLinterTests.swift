@@ -174,28 +174,6 @@ final class GraphLoaderLinterTests: TuistUnitTestCase {
             XCTAssertTrue(graphError?.isCycleError == true)
         }
     }
-
-    // MARK: - Duplicated Targets
-
-    func test_loadProject_duplicatedTargets() throws {
-        // Given
-        let targetA = Target.test(name: "A", dependencies: [.target(name: "B")])
-        let targetADuplicated = Target.test(name: "A", dependencies: [.target(name: "C")])
-        let targetC = Target.test(name: "C", dependencies: [.target(name: "B")])
-        let project = Project.test(path: "/A", name: "A", targets: [targetA, targetADuplicated, targetC])
-        let subject = GraphLoaderLinter()
-
-        // When / Then
-        XCTAssertThrowsSpecific(
-            try subject.lintProject(
-                at: "/A",
-                projects: [
-                    project,
-                ]
-            ),
-            GraphLoadingError.targetDuplicated(["A", "A"])
-        )
-    }
 }
 
 extension GraphLoadingError {
