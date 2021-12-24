@@ -1,0 +1,5 @@
+<h1><%= @user.name %> has invited you to join <%= @organization.name %> Tuist Cloud</h1>
+
+<p>
+  <%= link_to 'Accept the invitation', "/invitations/#{@token}" %>
+</p>

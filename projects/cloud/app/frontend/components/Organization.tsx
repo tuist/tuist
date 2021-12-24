@@ -9,11 +9,14 @@ import {
   ActionList,
   Popover,
   Button,
+  FormLayout,
+  TextField,
 } from '@shopify/polaris';
 import { useParams } from 'react-router';
 import { Role, Organization as _ } from '@/graphql/types';
 import { observer } from 'mobx-react-lite';
 import { HomeStoreContext } from '@/stores/HomeStore';
+import OrganizationViewStore from '@/stores/OrganizationViewStore';
 
 interface User {
   id: string;
@@ -103,7 +106,7 @@ const UserItem = ({
               organizationStore.removeMember(user.id);
             }}
           >
-            Remove user
+            Remove member
           </Button>
         )}
       </Stack>
@@ -121,11 +124,55 @@ const Organization = observer(() => {
         .map((admin) => admin.id)
         .includes(userStore.me.id)) ??
     false;
+  const [organizationViewStore] = useState(
+    () => new OrganizationViewStore(),
+  );
   return (
-    <Page title={organizationName}>
-      <Card title="Users">
+    <Page
+      primaryAction={
+        <Popover
+          active={organizationViewStore.isInvitePopoverActive}
+          activator={
+            <Button
+              primary
+              onClick={() => {
+                organizationViewStore.inviteMemberButtonClicked();
+              }}
+            >
+              Invite member
+            </Button>
+          }
+          onClose={() => {
+            organizationViewStore.invitePopoverClosed();
+          }}
+          sectioned
+        >
+          <FormLayout>
+            <TextField
+              label="Invitee email"
+              value={organizationViewStore.inviteeEmail}
+              onChange={(newValue) => {
+                organizationViewStore.inviteeEmail = newValue;
+              }}
+            ></TextField>
+            <Button
+              primary
+              onClick={() => {
+                organizationStore.inviteMember(
+                  organizationViewStore.inviteeEmail,
+                );
+              }}
+            >
+              Invite member
+            </Button>
+          </FormLayout>
+        </Popover>
+      }
+      title={organizationName}
+    >
+      <Card title="Members">
         <ResourceList
-          resourceName={{ singular: 'user', plural: 'users' }}
+          resourceName={{ singular: 'member', plural: 'members' }}
           items={organizationStore.members}
           renderItem={(item) => {
             return <UserItem user={item} isAdmin={isAdmin} />;

@@ -6,6 +6,7 @@ import {
   OrganizationDocument,
   Role,
   RemoveUserDocument,
+  InviteUserDocument,
 } from '../graphql/types';
 
 class OrganizationStore {
@@ -131,6 +132,21 @@ class OrganizationStore {
     });
     runInAction(() => {
       this.organization = data.organization;
+    });
+  }
+
+  async inviteMember(memberEmail: string) {
+    if (!this.organization) {
+      return;
+    }
+    await this.client.mutate({
+      mutation: InviteUserDocument,
+      variables: {
+        input: {
+          invitee: memberEmail,
+          organizationId: this.organization.id,
+        },
+      },
     });
   }
 }

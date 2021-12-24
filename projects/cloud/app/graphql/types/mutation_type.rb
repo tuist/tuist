@@ -17,5 +17,10 @@ module Types
       null: false,
       description: "Remove user from a given organization",
       mutation: Mutations::RemoveUser
+    field :invite_user,
+      InvitationType,
+      null: false,
+      description: "Invite a user to a given organization",
+      mutation: Mutations::InviteUser
   end
 end

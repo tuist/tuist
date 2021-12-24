@@ -1,0 +1,13 @@
+mutation InviteUser($input: InviteUserInput!) {
+  inviteUser(input: $input) {
+    invitee
+    inviter {
+      ...UserBasicInfo
+    }
+    organization {
+      account {
+        name
+      }
+    }
+  }
+}
