@@ -243,6 +243,10 @@ An iOS app whose Config file requires an Xcode version that is not available in 
 
 An iOS app with a target that has pre and post actions.
 
+## ios_app_with_build_variables
+
+An iOS app with a Xcode build variables defined in pre action.
+
 ## ios_app_with_remote_swift_package
 
 An iOS application with remote Swift package
