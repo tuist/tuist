@@ -6,7 +6,7 @@ module Fourier
       class Web < Base
         def call
           Dir.chdir(Constants::WEBSITE_DIRECTORY) do
-            Utilities::System.system("yarn", "build")
+            Utilities::System.system("npm", "run", "build")
           end
         end
       end

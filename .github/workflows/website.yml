@@ -57,3 +57,8 @@ jobs:
         run: CXXFLAGS="--std=c++14" npm install --legacy-peer-deps
       - name: Build
         run: ./fourier build web
+      - name: Upload package-lock.json
+        uses: actions/upload-artifact@v2
+        with:
+          name: package-lock.json
+          path: 'projects/website/package-lock.json'
