@@ -27,7 +27,7 @@ final class TemplateLoaderTests: TuistUnitTestCase {
 
     func test_loadTemplate_when_not_found() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         manifestLoader.loadTemplateStub = { path in
             throw ManifestLoaderError.manifestNotFound(path)
         }
@@ -41,7 +41,7 @@ final class TemplateLoaderTests: TuistUnitTestCase {
 
     func test_loadTemplate_files() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         manifestLoader.loadTemplateStub = { _ in
             ProjectDescription.Template(
                 description: "desc",

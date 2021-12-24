@@ -12,7 +12,7 @@ import XCTest
 final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
     func test_from_outputs_a_warning_when_the_paths_point_to_directories() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         try createFiles([
             "Documentation/README.md",
@@ -38,7 +38,7 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
 
     func test_from_outputs_a_warning_when_the_folder_reference_is_invalid() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         try createFiles([
             "README.md",
@@ -56,7 +56,7 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
 
     func test_resourceFileElement_warning_withMissingFolderReference() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         let manifest = ProjectDescription.ResourceFileElement.folderReference(path: "Documentation")
 
@@ -70,7 +70,7 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
 
     func test_throws_when_the_glob_is_invalid() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         let manifest = ProjectDescription.ResourceFileElement.glob(pattern: "invalid/path/**/*")
         let invalidGlob = InvalidGlob(
@@ -88,7 +88,7 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
 
     func test_excluding() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         let resourcesFolder = temporaryPath.appending(component: "Resources")
         let includedResource = resourcesFolder.appending(component: "included.xib")
@@ -109,7 +109,7 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
 
     func test_excluding_folder() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         let resourcesFolder = temporaryPath.appending(component: "Resources")
         let excludedResourcesFolder = resourcesFolder.appending(component: "Excluded")
@@ -131,7 +131,7 @@ final class ResourceFileElementManifestMapperTests: TuistUnitTestCase {
 
     func test_excluding_glob() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         let resourcesFolder = temporaryPath.appending(component: "Resources")
         let excludedResourcesFolder = resourcesFolder.appending(component: "Excluded")

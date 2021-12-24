@@ -43,7 +43,7 @@ final class CacheWarmService {
 
     // MARK: - Fileprivate
 
-    fileprivate func path(_ path: String?) -> AbsolutePath {
+    private func path(_ path: String?) -> AbsolutePath {
         if let path = path {
             return AbsolutePath(path, relativeTo: currentPath)
         } else {
@@ -51,11 +51,11 @@ final class CacheWarmService {
         }
     }
 
-    fileprivate var currentPath: AbsolutePath {
+    private var currentPath: AbsolutePath {
         FileHandler.shared.currentPath
     }
 
-    fileprivate func simulatorFrameworkCacheController(cache: CacheStoring, contentHasher: ContentHashing) -> CacheControlling {
+    private func simulatorFrameworkCacheController(cache: CacheStoring, contentHasher: ContentHashing) -> CacheControlling {
         let frameworkBuilder = CacheFrameworkBuilder(xcodeBuildController: XcodeBuildController())
         let bundleBuilder = CacheBundleBuilder(xcodeBuildController: XcodeBuildController())
         return CacheController(
@@ -66,7 +66,7 @@ final class CacheWarmService {
         )
     }
 
-    fileprivate func xcframeworkCacheController(cache: CacheStoring, contentHasher: ContentHashing) -> CacheControlling {
+    private func xcframeworkCacheController(cache: CacheStoring, contentHasher: ContentHashing) -> CacheControlling {
         let frameworkBuilder = CacheXCFrameworkBuilder(xcodeBuildController: XcodeBuildController())
         let bundleBuilder = CacheBundleBuilder(xcodeBuildController: XcodeBuildController())
         return CacheController(

@@ -205,11 +205,11 @@ extension TuistTestCase {
         XCTAssertEqual(rawArguments, rawManifest, file: file, line: line)
     }
 
-    fileprivate func optionalAssert<A, B>(_ optionalA: A?,
-                                          _ optionalB: B?,
-                                          file: StaticString = #file,
-                                          line: UInt = #line,
-                                          compare: (A, B) throws -> Void) throws
+    private func optionalAssert<A, B>(_ optionalA: A?,
+                                      _ optionalB: B?,
+                                      file: StaticString = #file,
+                                      line: UInt = #line,
+                                      compare: (A, B) throws -> Void) throws
     {
         switch (optionalA, optionalB) {
         case let (a?, b?):

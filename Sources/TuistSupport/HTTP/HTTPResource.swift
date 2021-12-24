@@ -54,7 +54,7 @@ public struct HTTPResource<T, E: Error>: Equatable, Hashable, CustomStringConver
     // MARK: - CustomStringConvertible
 
     public var description: String {
-        let request = self.request()
+        let request = request()
 
         return "[\(request.httpMethod ?? "GET")] - \(request.url?.path ?? "")"
     }

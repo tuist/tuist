@@ -51,8 +51,8 @@ private enum SubjectAttribute: String {
 
 final class CertificateParser: CertificateParsing {
     func parse(publicKey: AbsolutePath, privateKey: AbsolutePath) throws -> Certificate {
-        let subject = try self.subject(at: publicKey)
-        let fingerprint = try self.fingerprint(at: publicKey)
+        let subject = try subject(at: publicKey)
+        let fingerprint = try fingerprint(at: publicKey)
         let isRevoked = subject.contains("REVOKED")
 
         let nameRegex = try NSRegularExpression(

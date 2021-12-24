@@ -14,7 +14,7 @@ import XCTest
 final class StableXcodeProjIntegrationTests: TuistTestCase {
     func testXcodeProjStructureDoesNotChangeAfterRegeneration() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         var capturedProjects = [[XcodeProj]]()
         var capturedWorkspaces = [XCWorkspace]()
         var capturedSharedSchemes = [[XCScheme]]()
@@ -70,7 +70,7 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
     // MARK: - Helpers
 
     private func findXcodeProjs(in workspace: XCWorkspace) throws -> [XcodeProj] {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let projectsPaths = workspace.projectPaths.map { temporaryPath.appending(RelativePath($0)) }
         let xcodeProjs = try projectsPaths.map { try XcodeProj(path: $0.path) }
         return xcodeProjs
@@ -85,7 +85,7 @@ final class StableXcodeProjIntegrationTests: TuistTestCase {
     }
 
     private func findSchemes(in workspace: XCWorkspace, relativePath: RelativePath) throws -> [XCScheme] {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let projectsPaths = workspace.projectPaths.map { temporaryPath.appending(RelativePath($0)) }
         let parentDir = projectsPaths.map { $0.appending(relativePath) }
         let schemes = try parentDir.map { FileHandler.shared.glob($0, glob: "**/*.xcscheme") }

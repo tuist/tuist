@@ -193,7 +193,7 @@ public class ManifestLoader: ManifestLoading {
         _ manifest: Manifest,
         at path: AbsolutePath
     ) throws -> T {
-        let manifestPath = try self.manifestPath(
+        let manifestPath = try manifestPath(
             manifest,
             at: path
         )
@@ -234,7 +234,7 @@ public class ManifestLoader: ManifestLoading {
 
         switch result {
         case let .completed(elements):
-            let output = elements.filter { $0.isStandardOutput }.map(\.value).reduce(into: Data()) { $0.append($1) }
+            let output = elements.filter(\.isStandardOutput).map(\.value).reduce(into: Data()) { $0.append($1) }
             guard let string = String(data: output, encoding: .utf8) else { return output }
 
             guard let startTokenRange = string.range(of: ManifestLoader.startManifestToken) else { return output }

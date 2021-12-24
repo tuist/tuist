@@ -83,7 +83,7 @@ class ProjectLinter: ProjectLinting {
             .filter { $0.value > 1 }
             .keys
         if !duplicatedOptions.isEmpty {
-            let optionsNames = duplicatedOptions.map { $0.name }
+            let optionsNames = duplicatedOptions.map(\.name)
 
             let issue = LintingIssue(
                 reason: "Options \"\(optionsNames.joined(separator: ", "))\" from project at \(project.path.pathString) have duplicates.",

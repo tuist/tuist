@@ -26,7 +26,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
 
     func test_generate_addsPackageDependencyManager() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let target = anyTarget(dependencies: [
             .package(product: "Example"),
         ])
@@ -58,7 +58,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
 
     func test_generate_usesSystemGitCredentials() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let config = Config(
             compatibleXcodeVersions: .all,
             cloud: nil,
@@ -109,7 +109,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
 
     func test_generate_linksRootPackageResolved_before_resolving() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let target = anyTarget(dependencies: [
             .package(product: "Example"),
         ])
@@ -159,7 +159,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
 
     func test_generate_doesNotAddPackageDependencyManager() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let target = anyTarget()
         let project = Project.test(
             path: temporaryPath,

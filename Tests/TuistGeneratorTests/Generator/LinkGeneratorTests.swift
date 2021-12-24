@@ -194,7 +194,7 @@ final class LinkGeneratorTests: XCTestCase {
     }
 
     func test_generateEmbedPhase_doesNot_includesSymbols_when_testTarget() throws {
-        try Product.allCases.filter { $0.testsBundle }.forEach { product in
+        try Product.allCases.filter(\.testsBundle).forEach { product in
             // Given
 
             var dependencies: Set<GraphDependencyReference> = []

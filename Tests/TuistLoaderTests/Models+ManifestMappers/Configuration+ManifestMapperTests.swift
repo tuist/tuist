@@ -12,7 +12,7 @@ import XCTest
 final class ConfigurationManifestMapperTests: TuistUnitTestCase {
     func test_from_returns_nil_when_manifest_is_nil() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
 
         // When
@@ -24,7 +24,7 @@ final class ConfigurationManifestMapperTests: TuistUnitTestCase {
 
     func test_from_returns_the_correct_value_when_manifest_is_not_nil() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let xcconfigPath = temporaryPath.appending(component: "Config.xcconfig")
         let settings: [String: ProjectDescription.SettingValue] = ["A": "B"]
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)

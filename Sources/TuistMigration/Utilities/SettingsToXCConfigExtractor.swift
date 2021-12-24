@@ -47,7 +47,7 @@ public class SettingsToXCConfigExtractor: SettingsToXCConfigExtracting {
         else { throw SettingsToXCConfigExtractorError.missingXcodeProj(xcodeprojPath) }
         let project = try XcodeProj(path: Path(xcodeprojPath.pathString))
         let pbxproj = project.pbxproj
-        let buildConfigurations = try self.buildConfigurations(pbxproj: pbxproj, targetName: targetName)
+        let buildConfigurations = try buildConfigurations(pbxproj: pbxproj, targetName: targetName)
 
         if buildConfigurations.isEmpty {
             logger.info("The list of configurations is empty. Exiting...")

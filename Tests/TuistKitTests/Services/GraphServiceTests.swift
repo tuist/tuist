@@ -38,7 +38,7 @@ final class GraphServiceTests: TuistUnitTestCase {
 
     func test_run_whenDot() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let graphPath = temporaryPath.appending(component: "graph.dot")
         let projectManifestPath = temporaryPath.appending(component: "Project.swift")
 
@@ -68,7 +68,7 @@ final class GraphServiceTests: TuistUnitTestCase {
 
     func test_run_whenJson() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let graphPath = temporaryPath.appending(component: "graph.json")
         let projectManifestPath = temporaryPath.appending(component: "Project.swift")
 

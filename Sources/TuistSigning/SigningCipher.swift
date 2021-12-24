@@ -68,11 +68,11 @@ public final class SigningCipher: SigningCiphering {
     }
 
     public func encryptSigning(at path: AbsolutePath, keepFiles: Bool) throws {
-        let masterKey = try self.masterKey(at: path)
+        let masterKey = try masterKey(at: path)
         let signingKeyFiles = try locateUnencryptedSigningFiles(at: path)
         guard !signingKeyFiles.isEmpty else { return }
 
-        let correctlyEncryptedSigningFiles = try self.correctlyEncryptedSigningFiles(at: path, masterKey: masterKey)
+        let correctlyEncryptedSigningFiles = try correctlyEncryptedSigningFiles(at: path, masterKey: masterKey)
 
         try locateEncryptedSigningFiles(at: path)
             .filter { !correctlyEncryptedSigningFiles.map(\.encrypted).contains($0) }
@@ -96,7 +96,7 @@ public final class SigningCipher: SigningCiphering {
     }
 
     public func decryptSigning(at path: AbsolutePath, keepFiles: Bool) throws {
-        let masterKey = try self.masterKey(at: path)
+        let masterKey = try masterKey(at: path)
         let signingKeyFiles = try locateEncryptedSigningFiles(at: path)
         guard !signingKeyFiles.isEmpty else { return }
         let decipheredKeys = try signingKeyFiles

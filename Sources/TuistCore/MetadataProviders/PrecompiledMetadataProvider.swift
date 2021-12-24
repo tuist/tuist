@@ -65,7 +65,7 @@ public protocol PrecompiledMetadataProviding {
 public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
     public func architectures(binaryPath: AbsolutePath) throws -> [BinaryArchitecture] {
         let metadata = try readMetadatas(binaryPath: binaryPath)
-        return metadata.map { $0.0 }
+        return metadata.map(\.0)
     }
 
     public func linking(binaryPath: AbsolutePath) throws -> BinaryLinking {
@@ -75,7 +75,7 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
 
     public func uuids(binaryPath: AbsolutePath) throws -> Set<UUID> {
         let metadata = try readMetadatas(binaryPath: binaryPath)
-        return Set(metadata.compactMap { $0.2 })
+        return Set(metadata.compactMap(\.2))
     }
 
     typealias Metadata = (BinaryArchitecture, BinaryLinking, UUID?)
@@ -249,7 +249,7 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
     }
 
     private func isMagic(_ magic: UInt32) -> Bool {
-        return [MH_MAGIC, MH_MAGIC_64, MH_CIGAM, MH_CIGAM_64, FAT_MAGIC, FAT_CIGAM].contains(magic)
+        [MH_MAGIC, MH_MAGIC_64, MH_CIGAM, MH_CIGAM_64, FAT_MAGIC, FAT_CIGAM].contains(magic)
     }
 
     private func is64(_ magic: UInt32) -> Bool {
@@ -257,11 +257,11 @@ public class PrecompiledMetadataProvider: PrecompiledMetadataProviding {
     }
 
     private func shouldSwap(_ magic: UInt32) -> Bool {
-        return [MH_CIGAM, MH_CIGAM_64, FAT_CIGAM].contains(magic)
+        [MH_CIGAM, MH_CIGAM_64, FAT_CIGAM].contains(magic)
     }
 
     private func isFat(_ magic: UInt32) -> Bool {
-        return [FAT_MAGIC, FAT_CIGAM].contains(magic)
+        [FAT_MAGIC, FAT_CIGAM].contains(magic)
     }
 }
 

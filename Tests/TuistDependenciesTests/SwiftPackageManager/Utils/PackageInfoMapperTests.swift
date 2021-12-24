@@ -2382,7 +2382,7 @@ extension PackageInfo.Target {
         publicHeadersPath: String? = nil,
         settings: [TargetBuildSettingDescription.Setting] = []
     ) -> Self {
-        return .init(
+        .init(
             name: name,
             path: path,
             url: url,
@@ -2404,7 +2404,7 @@ extension ProjectDescription.Project {
         settings: ProjectDescription.Settings? = nil,
         targets: [ProjectDescription.Target]
     ) -> Self {
-        return .init(
+        .init(
             name: name,
             settings: settings,
             targets: targets,
@@ -2428,7 +2428,7 @@ extension ProjectDescription.Target {
         customSettings: ProjectDescription.SettingsDictionary = [:],
         moduleMap: String? = nil
     ) -> Self {
-        return .init(
+        .init(
             name: name,
             platform: platform,
             product: .staticFramework,

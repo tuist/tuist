@@ -57,7 +57,7 @@ public class CachedManifestLoader: ManifestLoading {
     }
 
     public func loadConfig(at path: AbsolutePath) throws -> ProjectDescription.Config {
-        return try load(manifest: .config, at: path) {
+        try load(manifest: .config, at: path) {
             let projectDescriptionConfig = try manifestLoader.loadConfig(at: path)
             let config = try TuistGraph.Config.from(manifest: projectDescriptionConfig, at: path)
             cacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories(config: config).cacheDirectory(for: .manifests)
@@ -188,7 +188,7 @@ public class CachedManifestLoader: ManifestLoading {
     }
 
     private func calculatePluginsHash(for plugins: Plugins) throws -> String? {
-        return try plugins.projectDescriptionHelpers
+        try plugins.projectDescriptionHelpers
             .map { try projectDescriptionHelpersHasher.hash(helpersDirectory: $0.path) }
             .joined(separator: "-")
             .md5

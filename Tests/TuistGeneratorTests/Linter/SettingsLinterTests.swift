@@ -23,7 +23,7 @@ final class SettingsLinterTests: TuistUnitTestCase {
 
     func test_lint_project_when_config_files_are_missing() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let debugPath = temporaryPath.appending(component: "Debug.xcconfig")
         let releasePath = temporaryPath.appending(component: "Release.xcconfig")
         let settings = Settings(configurations: [
@@ -50,7 +50,7 @@ final class SettingsLinterTests: TuistUnitTestCase {
 
     func test_lint_target_when_config_files_are_missing() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let debugPath = temporaryPath.appending(component: "Debug.xcconfig")
         let releasePath = temporaryPath.appending(component: "Release.xcconfig")
         let settings = Settings(configurations: [

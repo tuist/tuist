@@ -12,7 +12,7 @@ import XCTest
 final class FileElementManifestMapperTests: TuistUnitTestCase {
     func test_from_outputs_a_warning_when_the_paths_point_to_directories() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         try createFiles([
             "Documentation/README.md",
@@ -38,7 +38,7 @@ final class FileElementManifestMapperTests: TuistUnitTestCase {
 
     func test_from_outputs_a_warning_when_the_folder_reference_is_invalid() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         try createFiles([
             "README.md",
@@ -56,7 +56,7 @@ final class FileElementManifestMapperTests: TuistUnitTestCase {
 
     func test_fileElement_warning_withMissingFolderReference() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         let manifest = ProjectDescription.FileElement.folderReference(path: "Documentation")
 
@@ -70,7 +70,7 @@ final class FileElementManifestMapperTests: TuistUnitTestCase {
 
     func test_throws_when_the_glob_is_invalid() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         let manifest = ProjectDescription.FileElement.glob(pattern: "invalid/path/**/*")
         let invalidGlob = InvalidGlob(

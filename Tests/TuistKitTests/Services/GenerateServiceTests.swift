@@ -77,7 +77,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
 
     func test_run_withRelativePathParameter() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         var generationPath: AbsolutePath?
         generator.generateStub = { path, _ in
             generationPath = path
@@ -108,7 +108,7 @@ final class GenerateServiceTests: TuistUnitTestCase {
 
     func test_run_withoutPathParameter() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         var generationPath: AbsolutePath?
         generator.generateStub = { path, _ in
             generationPath = path

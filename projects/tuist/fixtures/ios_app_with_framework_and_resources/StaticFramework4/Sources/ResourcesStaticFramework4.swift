@@ -6,7 +6,7 @@ public class ResourcesStaticFramework4 {
     public init() {}
 
     public func loadImage() -> UIImage? {
-        return UIImage(
+        UIImage(
             named: "StaticFramework4Resources-tuist",
             in: StaticFramework4Resources.bundle,
             compatibleWith: nil

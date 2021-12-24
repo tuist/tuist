@@ -108,7 +108,7 @@ public final class SynthesizedResourceInterfaceProjectMapper: ProjectMapping { /
             .appending(component: Constants.DerivedDirectory.name)
             .appending(component: Constants.DerivedDirectory.sources)
 
-        let paths = try self.paths(for: resourceSynthesizer, target: target, developmentRegion: project.developmentRegion)
+        let paths = try paths(for: resourceSynthesizer, target: target, developmentRegion: project.developmentRegion)
             .filter(isResourceEmpty)
 
         let templateName: String

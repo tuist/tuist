@@ -110,7 +110,7 @@ extension String {
         applyStyle(foreground.foregroundStyleCode()).applyStyle(background.backgroundStyleCode())
     }
 
-    fileprivate func applyStyle(_ codeStyle: TerminalStyleCode) -> String {
+    private func applyStyle(_ codeStyle: TerminalStyleCode) -> String {
         guard String.isColorizationEnabled else { return self }
         let str = replacingOccurrences(of: TerminalStyle.reset.open, with: TerminalStyle.reset.open + codeStyle.open)
 

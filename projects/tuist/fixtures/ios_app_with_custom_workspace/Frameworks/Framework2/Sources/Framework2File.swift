@@ -4,6 +4,6 @@ public class Framework2File {
     public init() {}
 
     public func hello() -> String {
-        return "Framework2File.hello()"
+        "Framework2File.hello()"
     }
 }

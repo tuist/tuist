@@ -11,18 +11,18 @@ public class Framework1File {
     public init() {}
 
     public func hello() -> String {
-        return "Framework1File.hello()"
+        "Framework1File.hello()"
     }
 
     public func helloFromFramework2() -> String {
-        return "Framework1File -> \(framework2File.hello())"
+        "Framework1File -> \(framework2File.hello())"
     }
 
     public func helloFromFramework3() -> String {
-        return "Framework1File -> \(framework3File.hello())"
+        "Framework1File -> \(framework3File.hello())"
     }
 
     public func helloFromFramework4() -> String {
-        return "Framework1File -> \(framework4File.hello())"
+        "Framework1File -> \(framework4File.hello())"
     }
 }

@@ -39,10 +39,10 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         // When
         let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
 
-        let pruningTargets = gotGraph.targets[path]?.values.filter { $0.prune } ?? []
+        let pruningTargets = gotGraph.targets[path]?.values.filter(\.prune) ?? []
         // Then
         XCTAssertEmpty(gotSideEffects)
-        XCTAssertEmpty(pruningTargets.map { $0.name })
+        XCTAssertEmpty(pruningTargets.map(\.name))
     }
 
     func test_map_when_included_targets_is_empty_all_targets_are_pruned() throws {
@@ -77,12 +77,12 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
 
         let expectingTargets = graph.targets[path]!.values
-        let pruningTargets = gotGraph.targets[path]?.values.filter { $0.prune } ?? []
+        let pruningTargets = gotGraph.targets[path]?.values.filter(\.prune) ?? []
         // Then
         XCTAssertEmpty(gotSideEffects)
         XCTAssertEqual(
-            pruningTargets.map { $0.name }.sorted(),
-            expectingTargets.map { $0.name }.sorted()
+            pruningTargets.map(\.name).sorted(),
+            expectingTargets.map(\.name).sorted()
         )
     }
 
@@ -118,12 +118,12 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
 
         let expectingTargets = [bTarget, cTarget]
-        let pruningTargets = gotGraph.targets[path]?.values.filter { $0.prune } ?? []
+        let pruningTargets = gotGraph.targets[path]?.values.filter(\.prune) ?? []
         // Then
         XCTAssertEmpty(gotSideEffects)
         XCTAssertEqual(
-            pruningTargets.map { $0.name }.sorted(),
-            expectingTargets.map { $0.name }.sorted()
+            pruningTargets.map(\.name).sorted(),
+            expectingTargets.map(\.name).sorted()
         )
     }
 
@@ -159,12 +159,12 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
 
         let expectingTargets = [cTarget]
-        let pruningTargets = gotGraph.targets[path]?.values.filter { $0.prune } ?? []
+        let pruningTargets = gotGraph.targets[path]?.values.filter(\.prune) ?? []
         // Then
         XCTAssertEmpty(gotSideEffects)
         XCTAssertEqual(
-            pruningTargets.map { $0.name }.sorted(),
-            expectingTargets.map { $0.name }.sorted()
+            pruningTargets.map(\.name).sorted(),
+            expectingTargets.map(\.name).sorted()
         )
     }
 
@@ -205,12 +205,12 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
 
         let expectingTargets = [bTarget, cTarget]
-        let pruningTargets = gotGraph.targets[path]?.values.filter { $0.prune } ?? []
+        let pruningTargets = gotGraph.targets[path]?.values.filter(\.prune) ?? []
         // Then
         XCTAssertEmpty(gotSideEffects)
         XCTAssertEqual(
-            pruningTargets.map { $0.name }.sorted(),
-            expectingTargets.map { $0.name }.sorted()
+            pruningTargets.map(\.name).sorted(),
+            expectingTargets.map(\.name).sorted()
         )
     }
 }

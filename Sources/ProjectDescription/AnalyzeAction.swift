@@ -11,6 +11,6 @@ public struct AnalyzeAction: Equatable, Codable {
     /// - Parameter configuration: Configuration used for analyzing.
     /// - Returns: Analyze action.
     public static func analyzeAction(configuration: ConfigurationName) -> AnalyzeAction {
-        return AnalyzeAction(configuration: configuration)
+        AnalyzeAction(configuration: configuration)
     }
 }

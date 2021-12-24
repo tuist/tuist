@@ -7,7 +7,7 @@ public class MockHTTPRequestDispatcher: HTTPRequestDispatching {
     public var requests: [URLRequest] = []
 
     public func dispatch<T, E>(resource: HTTPResource<T, E>) -> Single<(object: T, response: HTTPURLResponse)> where E: Error {
-        return Single.create { observer in
+        Single.create { observer in
             if T.self != Void.self {
                 fatalError(
                     """

@@ -59,11 +59,11 @@ public final class FrameworkMetadataProvider: PrecompiledMetadataProvider, Frame
         guard fileHandler.exists(path) else {
             throw FrameworkMetadataProviderError.frameworkNotFound(path)
         }
-        let binaryPath = self.binaryPath(frameworkPath: path)
-        let dsymPath = self.dsymPath(frameworkPath: path)
-        let bcsymbolmapPaths = try self.bcsymbolmapPaths(frameworkPath: path)
-        let linking = try self.linking(binaryPath: binaryPath)
-        let architectures = try self.architectures(binaryPath: binaryPath)
+        let binaryPath = binaryPath(frameworkPath: path)
+        let dsymPath = dsymPath(frameworkPath: path)
+        let bcsymbolmapPaths = try bcsymbolmapPaths(frameworkPath: path)
+        let linking = try linking(binaryPath: binaryPath)
+        let architectures = try architectures(binaryPath: binaryPath)
         let isCarthage = path.pathString.contains("Carthage/Build")
         return FrameworkMetadata(
             path: path,
@@ -83,8 +83,8 @@ public final class FrameworkMetadataProvider: PrecompiledMetadataProvider, Frame
     }
 
     public func bcsymbolmapPaths(frameworkPath: AbsolutePath) throws -> [AbsolutePath] {
-        let binaryPath = self.binaryPath(frameworkPath: frameworkPath)
-        let uuids = try self.uuids(binaryPath: binaryPath)
+        let binaryPath = binaryPath(frameworkPath: frameworkPath)
+        let uuids = try uuids(binaryPath: binaryPath)
         return uuids
             .map { frameworkPath.parentDirectory.appending(component: "\($0).bcsymbolmap") }
             .filter { FileHandler.shared.exists($0) }
@@ -92,7 +92,7 @@ public final class FrameworkMetadataProvider: PrecompiledMetadataProvider, Frame
     }
 
     public func product(frameworkPath: AbsolutePath) throws -> Product {
-        let binaryPath = self.binaryPath(frameworkPath: frameworkPath)
+        let binaryPath = binaryPath(frameworkPath: frameworkPath)
         switch try linking(binaryPath: binaryPath) {
         case .dynamic:
             return .framework

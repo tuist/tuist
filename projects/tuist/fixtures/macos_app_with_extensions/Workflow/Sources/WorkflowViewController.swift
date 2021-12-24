@@ -7,7 +7,7 @@ class WorkflowViewController: NSViewController {
     }
 
     override var nibName: NSNib.Name? {
-        return NSNib.Name("WorkflowViewController")
+        NSNib.Name("WorkflowViewController")
     }
 
     override func viewDidLoad() {

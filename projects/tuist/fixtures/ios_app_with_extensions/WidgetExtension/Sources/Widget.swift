@@ -7,7 +7,7 @@
         public typealias Entry = SimpleEntry
 
         func placeholder(in _: Context) -> SimpleEntry {
-            return SimpleEntry(date: Date())
+            SimpleEntry(date: Date())
         }
 
         func getSnapshot(in _: Context, completion _: @escaping (SimpleEntry) -> Void) {}

@@ -65,8 +65,8 @@ public final class LibraryMetadataProvider: PrecompiledMetadataProvider, Library
             }
         }
 
-        let architectures = try self.architectures(binaryPath: path)
-        let linking = try self.linking(binaryPath: path)
+        let architectures = try architectures(binaryPath: path)
+        let linking = try linking(binaryPath: path)
         return LibraryMetadata(
             path: path,
             publicHeaders: publicHeaders,

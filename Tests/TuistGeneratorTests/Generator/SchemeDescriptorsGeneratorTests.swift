@@ -289,7 +289,7 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
             )
         )
         let project = Project.test(schemes: [schemeA, schemeB])
-        let generatedProject = self.generatedProject(targets: project.targets)
+        let generatedProject = generatedProject(targets: project.targets)
         let graph = Graph.test(projects: [project.path: project])
         let graphTraverser = GraphTraverser(graph: graph)
 

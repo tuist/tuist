@@ -63,12 +63,12 @@ public final class XCFrameworkMetadataProvider: PrecompiledMetadataProvider, XCF
         guard fileHandler.exists(path) else {
             throw XCFrameworkMetadataProviderError.xcframeworkNotFound(path)
         }
-        let infoPlist = try self.infoPlist(xcframeworkPath: path)
+        let infoPlist = try infoPlist(xcframeworkPath: path)
         let primaryBinaryPath = try binaryPath(
             xcframeworkPath: path,
             libraries: infoPlist.libraries
         )
-        let linking = try self.linking(binaryPath: primaryBinaryPath)
+        let linking = try linking(binaryPath: primaryBinaryPath)
         return XCFrameworkMetadata(
             path: path,
             infoPlist: infoPlist,

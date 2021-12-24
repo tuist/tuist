@@ -12,7 +12,7 @@ public final class MockCacheDirectoriesProvider: CacheDirectoriesProviding {
     }
 
     public func cacheDirectory(for category: CacheCategory) -> AbsolutePath {
-        return cacheDirectory.appending(component: category.directoryName)
+        cacheDirectory.appending(component: category.directoryName)
     }
 
     public init() throws {

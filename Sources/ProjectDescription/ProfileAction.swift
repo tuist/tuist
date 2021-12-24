@@ -43,7 +43,7 @@ public struct ProfileAction: Equatable, Codable {
                                      executable: TargetReference? = nil,
                                      arguments: Arguments? = nil) -> ProfileAction
     {
-        return ProfileAction(
+        ProfileAction(
             configuration: configuration,
             preActions: preActions,
             postActions: postActions,
