@@ -27,10 +27,10 @@ public final class TargetScriptsContentHasher: TargetScriptsContentHashing {
         for script in targetScripts {
             var pathsToHash: [AbsolutePath] = []
             script.path.map { pathsToHash.append($0) }
-            pathsToHash.append(contentsOf: script.inputPaths)
-            pathsToHash.append(contentsOf: script.inputFileListPaths)
-            pathsToHash.append(contentsOf: script.outputPaths)
-            pathsToHash.append(contentsOf: script.outputFileListPaths)
+            pathsToHash.append(contentsOf: script.inputPaths.filter { !$0.pathString.contains("$") })
+            pathsToHash.append(contentsOf: script.inputFileListPaths.filter { !$0.pathString.contains("$") })
+            pathsToHash.append(contentsOf: script.outputPaths.filter { !$0.pathString.contains("$") })
+            pathsToHash.append(contentsOf: script.outputFileListPaths.filter { !$0.pathString.contains("$") })
             let fileHashes = try pathsToHash.map { try contentHasher.hash(path: $0) }
             stringsToHash.append(
                 contentsOf: fileHashes +
