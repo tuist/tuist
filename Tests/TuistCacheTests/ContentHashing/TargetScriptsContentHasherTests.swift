@@ -55,6 +55,38 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
 
     // MARK: - Tests
 
+    func test_hash_targetAction_withBuildVariables_callsMockHasherWithOnlyPathWithoutBuildVariable() throws {
+        // Given
+        let inputPaths1Hash = "inputPaths1-hash"
+        let inputFileListPaths1 = "inputFileListPaths1-hash"
+        let outputPaths1 = "outputPaths1-hash"
+        let outputFileListPaths1 = "outputFileListPaths1-hash"
+        mockContentHasher.stubHashForPath[AbsolutePath("/$(SRCROOT)/inputPaths1)")] = inputPaths1Hash
+        mockContentHasher.stubHashForPath[AbsolutePath("/$(SRCROOT)/inputFileListPaths1")] = inputFileListPaths1
+        mockContentHasher.stubHashForPath[AbsolutePath("/$(DERIVED_FILE_DIR)/outputPaths1")] = outputPaths1
+        mockContentHasher.stubHashForPath[AbsolutePath("/outputFileListPaths1")] = outputFileListPaths1
+        let targetScript = makeTargetScript(
+            inputPaths: [AbsolutePath("/$(SRCROOT)/inputPaths1)")],
+            inputFileListPaths: [AbsolutePath("/$(SRCROOT)/inputFileListPaths1")],
+            outputPaths: [AbsolutePath("/$(DERIVED_FILE_DIR)/outputPaths1")],
+            outputFileListPaths: [AbsolutePath("/outputFileListPaths1")]
+        )
+
+        // When
+        _ = try subject.hash(targetScripts: [targetScript])
+
+        // Then
+        let expected = [
+            outputFileListPaths1,
+            "1",
+            "tool1",
+            "pre",
+            "arg1",
+            "arg2",
+        ]
+        XCTAssertEqual(mockContentHasher.hashStringsSpy, expected)
+    }
+
     func test_hash_targetAction_callsMockHasherWithExpectedStrings() throws {
         // Given
         let inputPaths1Hash = "inputPaths1-hash"
