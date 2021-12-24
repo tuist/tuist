@@ -2,42 +2,57 @@ import React from 'react';
 import GraphqlProvider from '@/networking/GraphqlProvider';
 import ErrorBoundary from '@/components/boundaries/ErrorBoundary';
 import '@shopify/polaris/dist/styles.css';
-import { BrowserRouter, Switch, Route, useHistory, useLocation } from 'react-router-dom';
+import {
+  HashRouter,
+  Routes,
+  Route,
+  useLocation,
+  BrowserRouter,
+  Link as ReactRouterLink,
+  useNavigate,
+} from 'react-router-dom';
 import NoPageFound from './NoPageFound';
 import NewProject from './NewProject';
 import Dashboard from './Dashboard';
+import Home from './Home';
 import { useMeQuery } from '@/graphql/types';
+import RemoteCache from './RemoteCache';
+import Organization from './Organization';
 
 import { AppProvider } from '@shopify/polaris';
 
-const Routes = () => {
+const AppRoutes = () => {
   const location = useLocation();
-  const history = useHistory();
+  const navigate = useNavigate();
 
-  const {data, loading, error} = useMeQuery();
+  const { data, loading, error } = useMeQuery();
   if (loading) {
-    return <div>loading</div>
+    return <div>loading</div>;
   } else if (error) {
-    return <div>{JSON.stringify(error)}</div>
+    return <div>{JSON.stringify(error)}</div>;
   } else {
-    if (location.pathname == "/") {
-      const lastVisitedProject = data?.me.lastVisitedProject
-      const projects = data?.me.projects ?? []
-      const navigateToProjectPath = lastVisitedProject?.slug ?? projects[0]?.slug
+    if (location.pathname == '/') {
+      const lastVisitedProject = data?.me.lastVisitedProject;
+      const projects = data?.me.projects ?? [];
+      const navigateToProjectPath =
+        lastVisitedProject?.slug ?? projects[0]?.slug;
       if (navigateToProjectPath) {
-        history.push(`/${navigateToProjectPath}`);
+        navigate(`/${navigateToProjectPath}`);
       } else {
-        history.push("/new");
+        navigate('/new');
       }
     }
-    return <Switch>
-      <Route
-        path="/:accountName/:projectName"
-        component={Dashboard}
-      />
-      <Route path="/new" component={NewProject} />
-      <Route component={NoPageFound} />
-    </Switch>
+    return (
+      <Routes>
+        <Route path="/:accountName/:projectName" element={<Home />}>
+          <Route path="" element={<Dashboard />} />
+          <Route path="remote-cache" element={<RemoteCache />} />
+          <Route path="organization" element={<Organization />} />
+        </Route>
+        <Route path="/new" element={<NewProject />} />
+        <Route element={<NoPageFound />} />
+      </Routes>
+    );
   }
 };
 
@@ -88,14 +103,24 @@ const App = (): JSX.Element => {
                 },
               },
             }}
+            linkComponent={Link}
           >
             <BrowserRouter>
-              <Routes />
+              <AppRoutes />
             </BrowserRouter>
           </AppProvider>
         </div>
       </GraphqlProvider>
     </ErrorBoundary>
+  );
+};
+
+/// Inspired by: https://github.com/Shopify/polaris-react/issues/2575#issuecomment-574269370
+const Link = ({ url, children, className, ...rest }) => {
+  return (
+    <ReactRouterLink to={url} {...{ className }} {...rest}>
+      {children}
+    </ReactRouterLink>
   );
 };
 

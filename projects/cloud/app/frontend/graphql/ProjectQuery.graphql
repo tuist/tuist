@@ -1,0 +1,15 @@
+query Project($name: String!, $accountName: String!) {
+  project(name: $name, accountName: $accountName) {
+    account {
+      owner {
+        ... on Organization {
+          id
+        }
+
+        ... on User {
+          id
+        }
+      }
+    }
+  }
+}

@@ -4,5 +4,6 @@ module Types
   class AccountType < Types::BaseObject
     field :id, ID, null: false
     field :name, String, null: false
+    field :owner, OwnerType, null: false
   end
 end
