@@ -28,8 +28,13 @@ public final class TargetScriptsContentHasher: TargetScriptsContentHashing {
             var pathsToHash: [AbsolutePath] = []
             script.path.map { pathsToHash.append($0) }
             let scriptPaths = script.inputPaths + script.inputFileListPaths + script.outputPaths + script.outputFileListPaths
-            let scriptPathsWithoutVariables = scriptPaths.filter { !$0.pathString.contains("$") }
-            pathsToHash.append(contentsOf: scriptPathsWithoutVariables)
+            scriptPaths.forEach { path in
+                if path.pathString.contains("$") {
+                    stringsToHash.append(path.pathString)
+                } else {
+                    pathsToHash.append(path)
+                }
+            }
             let fileHashes = try pathsToHash.map { try contentHasher.hash(path: $0) }
             stringsToHash.append(
                 contentsOf: fileHashes +

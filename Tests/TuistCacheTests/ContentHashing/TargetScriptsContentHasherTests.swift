@@ -77,6 +77,9 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
 
         // Then
         let expected = [
+            "/$(SRCROOT)/inputPaths1)",
+            "/$(SRCROOT)/inputFileListPaths1",
+            "/$(DERIVED_FILE_DIR)/outputPaths1",
             outputFileListPaths1,
             "1",
             "tool1",
