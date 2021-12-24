@@ -18,7 +18,7 @@ module Types
     field :projects, [ProjectType], null: false,
       description: "Returns all available projects for the authenticated user"
     def projects
-      context[:current_user].projects
+      UserProjectsFetchService.call(user: context[:current_user])
     end
 
     field :organizations, [OrganizationType], null: false,
