@@ -183,7 +183,7 @@ extension PackageOutput {
 
 extension TargetOutput {
     fileprivate static func from(_ target: Target) -> TargetOutput {
-        return TargetOutput(name: target.name, product: target.product.rawValue)
+        TargetOutput(name: target.name, product: target.product.rawValue)
     }
 }
 

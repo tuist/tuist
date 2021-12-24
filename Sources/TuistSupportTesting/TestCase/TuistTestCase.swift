@@ -133,7 +133,7 @@ open class TuistTestCase: XCTestCase {
 
     @discardableResult
     public func createFiles(_ files: [String], content: String? = nil) throws -> [AbsolutePath] {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let fileHandler = FileHandler()
         let paths = files.map { temporaryPath.appending(RelativePath($0)) }
 
@@ -148,7 +148,7 @@ open class TuistTestCase: XCTestCase {
 
     @discardableResult
     public func createFolders(_ folders: [String]) throws -> [AbsolutePath] {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let fileHandler = FileHandler.shared
         let paths = folders.map { temporaryPath.appending(RelativePath($0)) }
         try paths.forEach {
@@ -218,12 +218,12 @@ open class TuistTestCase: XCTestCase {
     ) throws {
         let directoryContent = try fileHandler
             .contentsOfDirectory(directory)
-            .map { $0.pathString }
+            .map(\.pathString)
             .sorted()
 
         let expectedContent = expected
             .map { directory.appending(RelativePath($0)) }
-            .map { $0.pathString }
+            .map(\.pathString)
             .sorted()
 
         let message = """
@@ -241,7 +241,7 @@ open class TuistTestCase: XCTestCase {
 
     public func temporaryFixture(_ pathString: String) throws -> AbsolutePath {
         let path = RelativePath(pathString)
-        let fixturePath = self.fixturePath(path: path)
+        let fixturePath = fixturePath(path: path)
         let destinationPath = (try temporaryPath()).appending(component: path.basename)
         try FileHandler.shared.copy(from: fixturePath, to: destinationPath)
         return destinationPath

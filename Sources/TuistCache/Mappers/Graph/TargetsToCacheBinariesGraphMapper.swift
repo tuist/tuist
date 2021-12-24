@@ -145,7 +145,7 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
     }
 
     private func fetch(hashes: [GraphTarget: String]) -> Single<[GraphTarget: AbsolutePath]> {
-        return Single
+        Single
             .zip(
                 hashes.map(context: .concurrent) { target, hash in
                     self.cache.exists(name: target.target.name, hash: hash)

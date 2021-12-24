@@ -46,12 +46,12 @@ final class BundleServiceTests: TuistUnitTestCase {
     }
 
     func test_run_throws_when_there_is_no_xmp_version_in_the_directory() throws {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         XCTAssertThrowsSpecific(try subject.run(), BundleServiceError.missingVersionFile(temporaryPath))
     }
 
     func test_run_installs_the_app_if_it_doesnt_exist() throws {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let tuistVersionPath = temporaryPath.appending(component: Constants.versionFileName)
         try "3.2.1".write(to: tuistVersionPath.url, atomically: true, encoding: .utf8)
 
@@ -71,7 +71,7 @@ final class BundleServiceTests: TuistUnitTestCase {
     }
 
     func test_run_doesnt_install_the_app_if_it_already_exists() throws {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
 
         let tuistVersionPath = temporaryPath.appending(component: Constants.versionFileName)
         try "3.2.1".write(to: tuistVersionPath.url, atomically: true, encoding: .utf8)
@@ -84,7 +84,7 @@ final class BundleServiceTests: TuistUnitTestCase {
     }
 
     func test_run_doesnt_install_the_app_if_it_already_exists_with_whitespace_in_version_file() throws {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
 
         let tuistVersionPath = temporaryPath.appending(component: Constants.versionFileName)
         try "3.2.1\n\t".write(to: tuistVersionPath.url, atomically: true, encoding: .utf8)
@@ -97,7 +97,7 @@ final class BundleServiceTests: TuistUnitTestCase {
     }
 
     func test_run_prints_the_right_messages() throws {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let tuistVersionPath = temporaryPath.appending(component: Constants.versionFileName)
         let binPath = temporaryPath.appending(component: Constants.binFolderName)
 

@@ -27,7 +27,7 @@ final class WorkspaceGeneratorIntegrationTests: TuistTestCase {
 
     func test_generate_stressTest() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let projects: [AbsolutePath: Project] = (0 ..< 20).reduce(into: [:]) { acc, index in
             let path = temporaryPath.appending(component: "Project\(index)")
             acc[path] = Project.test(

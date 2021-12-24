@@ -15,7 +15,7 @@ public class StaticFrameworkResources {
     public init() {}
 
     public var tuist: UIImage? {
-        return UIImage(
+        UIImage(
             named: "tuist-bundle",
             in: bundle,
             compatibleWith: nil

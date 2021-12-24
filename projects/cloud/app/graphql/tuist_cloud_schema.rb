@@ -4,6 +4,10 @@ class TuistCloudSchema < GraphQL::Schema
   mutation(Types::MutationType)
   query(Types::QueryType)
 
+  rescue_from(CloudError) do |error, obj, args, ctx, field|
+    raise GraphQL::ExecutionError, error.message
+  end
+
   # Union and Interface Resolution
   def self.resolve_type(abstract_type, obj, ctx)
     # TODO: Implement this function

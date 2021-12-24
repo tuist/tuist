@@ -14,6 +14,6 @@ public final class MockGraphLoader: GraphLoading {
 
     public var loadWorkspaceStub: ((Workspace, [Project]) throws -> (Graph))?
     public func loadWorkspace(workspace: Workspace, projects: [Project]) throws -> Graph {
-        return try loadWorkspaceStub?(workspace, projects) ?? Graph.test()
+        try loadWorkspaceStub?(workspace, projects) ?? Graph.test()
     }
 }

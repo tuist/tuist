@@ -344,7 +344,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
 // MARK: - Helpers
 
 extension SwiftPackageManagerInteractorTests {
-    fileprivate func simulateSPMOutput(at path: AbsolutePath) throws {
+    private func simulateSPMOutput(at path: AbsolutePath) throws {
         try [
             "Package.swift",
             "Package.resolved",

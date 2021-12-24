@@ -24,14 +24,14 @@ extension DependenciesGraph {
         externalDependencies: [String: [TargetDependency]] = [:],
         externalProjects: [AbsolutePath: Project] = [:]
     ) -> Self {
-        return .init(externalDependencies: externalDependencies, externalProjects: externalProjects)
+        .init(externalDependencies: externalDependencies, externalProjects: externalProjects)
     }
 
     public static func testXCFramework(
         name: String = "Test",
         path: AbsolutePath = AbsolutePath.root.appending(RelativePath("Test.xcframework"))
     ) -> DependenciesGraph {
-        return .init(
+        .init(
             externalDependencies: [
                 name: [.xcframework(path: path)],
             ],
@@ -40,7 +40,7 @@ extension DependenciesGraph {
     }
 
     public static func test(packageFolder: AbsolutePath) -> Self {
-        return .init(
+        .init(
             externalDependencies: [
                 "Tuist": [.project(target: "Tuist", path: packageFolder)],
             ],
@@ -49,7 +49,7 @@ extension DependenciesGraph {
     }
 
     public static func aDependency(packageFolder: AbsolutePath) -> Self {
-        return .init(
+        .init(
             externalDependencies: [
                 "ALibrary": [.project(target: "ALibrary", path: packageFolder)],
             ],
@@ -58,7 +58,7 @@ extension DependenciesGraph {
     }
 
     public static func anotherDependency(packageFolder: AbsolutePath) -> Self {
-        return .init(
+        .init(
             externalDependencies: [
                 "AnotherLibrary": [.project(target: "AnotherLibrary", path: packageFolder)],
             ],
@@ -67,7 +67,7 @@ extension DependenciesGraph {
     }
 
     public static func alamofire(packageFolder: AbsolutePath) -> Self {
-        return .init(
+        .init(
             externalDependencies: [
                 "Alamofire": [.project(target: "Alamofire", path: packageFolder)],
             ],
@@ -76,7 +76,7 @@ extension DependenciesGraph {
     }
 
     public static func googleAppMeasurement(packageFolder: AbsolutePath) -> Self {
-        return .init(
+        .init(
             externalDependencies: [
                 "GoogleAppMeasurement": [.project(target: "GoogleAppMeasurementTarget", path: packageFolder)],
                 "GoogleAppMeasurementWithoutAdIdSupport": [.project(
@@ -89,7 +89,7 @@ extension DependenciesGraph {
     }
 
     public static func googleUtilities(packageFolder: AbsolutePath) -> Self {
-        return .init(
+        .init(
             externalDependencies: [
                 "GULAppDelegateSwizzler": [.project(target: "GULAppDelegateSwizzler", path: packageFolder)],
                 "GULMethodSwizzler": [.project(target: "GULMethodSwizzler", path: packageFolder)],
@@ -101,7 +101,7 @@ extension DependenciesGraph {
     }
 
     public static func nanopb(packageFolder: AbsolutePath) -> Self {
-        return .init(
+        .init(
             externalDependencies: [
                 "nanopb": [.project(target: "nanopb", path: packageFolder)],
             ],

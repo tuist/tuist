@@ -3,6 +3,13 @@ base_urls: &base_urls
 default: &default
   urls:
     <<: *base_urls
+  blocklisted_slug_keywords:
+    - new
+    - project
+    - projects
+    - settings
+    - organizations
+    - organization
 development: &development
   <<: *default
 production:

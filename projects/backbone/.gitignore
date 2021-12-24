@@ -37,9 +37,6 @@ yarn-debug.log*
 .DS_Store
 
 # Vite Ruby
-/public/vite
-/public/vite-dev
-/public/vite-test
 node_modules
 *.local
 .DS_Store

@@ -30,7 +30,7 @@ final class SigningCipherTests: TuistUnitTestCase {
 
     func test_fails_when_no_master_key() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         rootDirectoryLocator.locateStub = temporaryPath
         try FileHandler.shared.createFolder(temporaryPath.appending(component: Constants.tuistDirectoryName))
         let masterKeyPath = temporaryPath.appending(components: Constants.tuistDirectoryName, Constants.masterKey)
@@ -44,7 +44,7 @@ final class SigningCipherTests: TuistUnitTestCase {
 
     func test_encrypt_and_decrypt_signing() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         rootDirectoryLocator.locateStub = temporaryPath
         let signingDirectory = temporaryPath.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
         try FileHandler.shared.createFolder(signingDirectory)
@@ -103,7 +103,7 @@ final class SigningCipherTests: TuistUnitTestCase {
 
     func test_encrypt_signing() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         rootDirectoryLocator.locateStub = temporaryPath
         let signingDirectory = temporaryPath.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
         try FileHandler.shared.createFolder(signingDirectory)
@@ -144,7 +144,7 @@ final class SigningCipherTests: TuistUnitTestCase {
 
     func test_encrypt_deletes_unencrypted_files() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         rootDirectoryLocator.locateStub = temporaryPath
         let signingDirectory = temporaryPath.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
         try FileHandler.shared.createFolder(signingDirectory)
@@ -182,7 +182,7 @@ final class SigningCipherTests: TuistUnitTestCase {
 
     func test_encrypt_does_not_delete_unencrypted_files_when_keep_files_true() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         rootDirectoryLocator.locateStub = temporaryPath
         let signingDirectory = temporaryPath.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
         try FileHandler.shared.createFolder(signingDirectory)
@@ -220,7 +220,7 @@ final class SigningCipherTests: TuistUnitTestCase {
 
     func test_encrypted_file_stays_the_same_when_unecrypted_file_has_not_changed() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         rootDirectoryLocator.locateStub = temporaryPath
         let signingDirectory = temporaryPath.appending(components: Constants.tuistDirectoryName, Constants.signingDirectoryName)
         try FileHandler.shared.createFolder(signingDirectory)

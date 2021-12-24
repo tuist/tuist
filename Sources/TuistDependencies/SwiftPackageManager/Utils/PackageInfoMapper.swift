@@ -882,7 +882,7 @@ extension ProjectDescription.Product {
 
 extension ProjectDescription.SettingsDictionary {
     fileprivate static func from(settingsDictionary: TuistGraph.SettingsDictionary) -> Self {
-        return settingsDictionary.mapValues { value in
+        settingsDictionary.mapValues { value in
             switch value {
             case let .string(stringValue):
                 return ProjectDescription.SettingValue.string(stringValue)
@@ -899,7 +899,7 @@ extension ProjectDescription.Settings {
         adding: ProjectDescription.SettingsDictionary,
         packageFolder: AbsolutePath
     ) -> Self {
-        return .settings(
+        .settings(
             base: .from(settingsDictionary: settings.base).merging(adding, uniquingKeysWith: { $1 }),
             configurations: settings.configurations
                 .map { buildConfiguration, configuration in
@@ -959,7 +959,7 @@ extension ProjectDescription.DeploymentTarget {
 
 extension ProjectDescription.DeploymentDevice {
     fileprivate static func from(devices: TuistGraph.DeploymentDevice) -> Self {
-        return .init(rawValue: devices.rawValue)
+        .init(rawValue: devices.rawValue)
     }
 }
 
@@ -984,7 +984,7 @@ extension PackageInfo {
         return settingsDictionary.isEmpty ? nil : .settings(base: settingsDictionary)
     }
 
-    fileprivate func swiftVersion(for configuredSwiftVersion: TSCUtility.Version?) -> String? {
+    private func swiftVersion(for configuredSwiftVersion: TSCUtility.Version?) -> String? {
         /// Take the latest swift version compatible with the configured one
         let maxAllowedSwiftLanguageVersion = swiftLanguageVersions?
             .filter {
@@ -1035,7 +1035,7 @@ extension PackageInfoMapper {
             productToPackage _: [String: String],
             targetDependencyToFramework: [String: Path]
         ) throws -> [ResolvedDependency] {
-            return try dependencies.flatMap { dependency -> [Self] in
+            try dependencies.flatMap { dependency -> [Self] in
                 switch dependency {
                 case let .target(name, _):
                     return Self.fromTarget(name: name, targetDependencyToFramework: targetDependencyToFramework)

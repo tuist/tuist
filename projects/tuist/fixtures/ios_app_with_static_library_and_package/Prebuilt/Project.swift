@@ -15,7 +15,8 @@ let project = Project(
             sources: "Sources/**",
             dependencies: [
                 .package(product: "LibraryA"),
-            ]
+            ],
+            settings: .settings(base: ["BUILD_LIBRARY_FOR_DISTRIBUTION": "YES"])
         ),
     ]
 )

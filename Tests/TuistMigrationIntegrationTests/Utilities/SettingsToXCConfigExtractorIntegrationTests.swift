@@ -21,7 +21,7 @@ final class SettingsToXCConfigExtractorIntegrationTests: TuistTestCase {
 
     func test_extract_when_target() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let xcodeprojPath = fixturePath(path: RelativePath("Frameworks/Frameworks.xcodeproj"))
         let xcconfigPath = temporaryPath.appending(component: "iOS.xcconfig")
 
@@ -56,7 +56,7 @@ final class SettingsToXCConfigExtractorIntegrationTests: TuistTestCase {
 
     func test_extract_when_project() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let xcodeprojPath = fixturePath(path: RelativePath("Frameworks/Frameworks.xcodeproj"))
         let xcconfigPath = temporaryPath.appending(component: "Project.xcconfig")
 
@@ -138,7 +138,7 @@ final class SettingsToXCConfigExtractorIntegrationTests: TuistTestCase {
 
     func test_extract_when_target_is_not_found() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let xcodeprojPath = fixturePath(path: RelativePath("Frameworks/Frameworks.xcodeproj"))
         let xcconfigPath = temporaryPath.appending(component: "iOS.xcconfig")
 
@@ -152,7 +152,7 @@ final class SettingsToXCConfigExtractorIntegrationTests: TuistTestCase {
 
     func test_extract_when_project_is_not_found() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let xcodeprojPath = fixturePath(path: RelativePath("NonExistingProject.xcodeproj"))
         let xcconfigPath = temporaryPath.appending(component: "Project.xcconfig")
 

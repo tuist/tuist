@@ -90,7 +90,7 @@ final class TargetTests: TuistUnitTestCase {
 
     func test_sources() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         try createFiles([
             "sources/a.swift",
             "sources/b.h",
@@ -133,7 +133,7 @@ final class TargetTests: TuistUnitTestCase {
 
     func test_sources_excluding() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         try createFiles([
             "sources/a.swift",
             "sources/b.swift",
@@ -165,7 +165,7 @@ final class TargetTests: TuistUnitTestCase {
 
     func test_sources_excluding_multiple_paths() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         try createFiles([
             "sources/a.swift",
             "sources/b.swift",
@@ -207,7 +207,7 @@ final class TargetTests: TuistUnitTestCase {
 
     func test_sources_when_globs_are_invalid() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let invalidGlobs: [InvalidGlob] = [
             .init(
                 pattern: temporaryPath.appending(RelativePath("invalid/path/**")).pathString,
@@ -243,7 +243,7 @@ final class TargetTests: TuistUnitTestCase {
 
     func test_resources() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let folders = try createFolders([
             "resources/d.xcassets",
             "resources/d.scnassets",

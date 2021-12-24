@@ -91,7 +91,7 @@ public struct Configuration: Equatable, Codable {
     public static func debug(name: ConfigurationName, settings: SettingsDictionary = [:],
                              xcconfig: Path? = nil) -> Configuration
     {
-        return Configuration(
+        Configuration(
             name: name,
             variant: .debug,
             settings: settings,
@@ -109,7 +109,7 @@ public struct Configuration: Equatable, Codable {
     public static func release(name: ConfigurationName, settings: SettingsDictionary = [:],
                                xcconfig: Path? = nil) -> Configuration
     {
-        return Configuration(
+        Configuration(
             name: name,
             variant: .release,
             settings: settings,
@@ -222,7 +222,7 @@ public struct Settings: Equatable, Codable {
         release: SettingsDictionary = [:],
         defaultSettings: DefaultSettings = .recommended
     ) -> Settings {
-        return Settings(
+        Settings(
             base: base,
             configurations: [
                 .debug(name: .debug, settings: debug, xcconfig: nil),
@@ -250,7 +250,7 @@ public struct Settings: Equatable, Codable {
         configurations: [Configuration],
         defaultSettings: DefaultSettings = .recommended
     ) -> Settings {
-        return Settings(
+        Settings(
             base: base,
             configurations: configurations,
             defaultSettings: defaultSettings

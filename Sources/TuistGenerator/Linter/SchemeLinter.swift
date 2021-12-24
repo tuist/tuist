@@ -19,12 +19,12 @@ class SchemeLinter: SchemeLinting {
 }
 
 extension SchemeLinter {
-    fileprivate func lintReferencedBuildConfigurations(schemes: [Scheme], settings: Settings) -> [LintingIssue] {
+    private func lintReferencedBuildConfigurations(schemes: [Scheme], settings: Settings) -> [LintingIssue] {
         let buildConfigurations = Array(settings.configurations.keys)
         return schemes.flatMap { lintScheme(scheme: $0, buildConfigurations: buildConfigurations) }
     }
 
-    fileprivate func lintScheme(scheme: Scheme, buildConfigurations: [BuildConfiguration]) -> [LintingIssue] {
+    private func lintScheme(scheme: Scheme, buildConfigurations: [BuildConfiguration]) -> [LintingIssue] {
         var issues: [LintingIssue] = []
         let buildConfigurationNames = buildConfigurations.map(\.name)
 
@@ -74,13 +74,13 @@ extension SchemeLinter {
         return issues
     }
 
-    fileprivate func missingBuildConfigurationIssue(buildConfigurationName: String, actionDescription: String) -> LintingIssue {
+    private func missingBuildConfigurationIssue(buildConfigurationName: String, actionDescription: String) -> LintingIssue {
         let reason =
             "The build configuration '\(buildConfigurationName)' specified in \(actionDescription) isn't defined in the project."
         return LintingIssue(reason: reason, severity: .error)
     }
 
-    fileprivate func lintExpandVariableTarget(schemes: [Scheme], targets: [Target]) -> [LintingIssue] {
+    private func lintExpandVariableTarget(schemes: [Scheme], targets: [Target]) -> [LintingIssue] {
         let targetNames = targets.map(\.name)
         var issues: [LintingIssue] = []
 
@@ -96,7 +96,7 @@ extension SchemeLinter {
         return issues
     }
 
-    fileprivate func lintCodeCoverageTargets(schemes: [Scheme], targets: [Target]) -> [LintingIssue] {
+    private func lintCodeCoverageTargets(schemes: [Scheme], targets: [Target]) -> [LintingIssue] {
         let targetNames = targets.map(\.name)
         var issues: [LintingIssue] = []
 
@@ -111,23 +111,23 @@ extension SchemeLinter {
         return issues
     }
 
-    fileprivate func missingCodeCoverageTargetIssue(missingTargetName: String, schemaName: String) -> LintingIssue {
+    private func missingCodeCoverageTargetIssue(missingTargetName: String, schemaName: String) -> LintingIssue {
         let reason =
             "The target '\(missingTargetName)' specified in \(schemaName) code coverage targets list isn't defined in the project."
         return LintingIssue(reason: reason, severity: .error)
     }
 
-    fileprivate func missingExpandVariablesTargetIssue(missingTargetName: String, schemaName: String) -> LintingIssue {
+    private func missingExpandVariablesTargetIssue(missingTargetName: String, schemaName: String) -> LintingIssue {
         let reason =
             "The target '\(missingTargetName)' specified in \(schemaName) expandVariableFromTarget isn't defined in the project."
         return LintingIssue(reason: reason, severity: .error)
     }
 
-    fileprivate func projectSchemeCantReferenceRemoteTargets(schemes: [Scheme], project: Project) -> [LintingIssue] {
+    private func projectSchemeCantReferenceRemoteTargets(schemes: [Scheme], project: Project) -> [LintingIssue] {
         schemes.flatMap { projectSchemeCantReferenceRemoteTargets(scheme: $0, project: project) }
     }
 
-    fileprivate func projectSchemeCantReferenceRemoteTargets(scheme: Scheme, project: Project) -> [LintingIssue] {
+    private func projectSchemeCantReferenceRemoteTargets(scheme: Scheme, project: Project) -> [LintingIssue] {
         var issues: [LintingIssue] = []
 
         scheme.targetDependencies().forEach {

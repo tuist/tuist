@@ -1,5 +1,8 @@
 # frozen_string_literal: true
 
+require "defaults"
+require "secrets"
+
 # Assuming you have not yet modified this file, each configuration option below
 # is set to its default value. Note that some are commented out while others
 # are not: uncommented lines are intended to protect your configuration from
@@ -305,11 +308,12 @@ Devise.setup do |config|
 
   # ==> Configuration for :registerable
 
+  OmniAuth.config.full_host = Defaults.fetch(:urls, :app)
+
   # When set to false, does not sign a user in automatically after their password is
   # changed. Defaults to true, so a user is signed in automatically after changing a password.
   # config.sign_in_after_change_password = true
   # OmniAuth: GitHub
-  OmniAuth.config.full_host = Defaults.fetch(:urls, :app)
   config.omniauth(
     :github,
     Secrets.fetch(:devise, :omniauth, :github, :oauth_id),
@@ -317,7 +321,7 @@ Devise.setup do |config|
     scope: "read:user,user:email"
   )
 
-  # # OmniAuth: GitLab
+  # OmniAuth: GitLab
   config.omniauth(
     :gitlab,
     Secrets.fetch(:devise, :omniauth, :gitlab, :application_id),

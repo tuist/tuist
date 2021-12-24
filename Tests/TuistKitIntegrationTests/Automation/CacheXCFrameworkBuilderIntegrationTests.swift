@@ -28,7 +28,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
 
     func test_build_when_iOS_framework() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let frameworksPath = try temporaryFixture("Frameworks")
         let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
         let scheme = Scheme.test(name: "iOS")
@@ -46,7 +46,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         // Then
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").count, 1)
         let xcframeworkPath = try XCTUnwrap(FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").first)
-        let infoPlist = try self.infoPlist(xcframeworkPath: xcframeworkPath)
+        let infoPlist = try infoPlist(xcframeworkPath: xcframeworkPath)
         XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("arm64") }))
         XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("x86_64") }))
         XCTAssertTrue(infoPlist.availableLibraries.allSatisfy { $0.supportedPlatform == "ios" })
@@ -55,7 +55,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
 
     func test_build_when_macOS_framework() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let frameworksPath = try temporaryFixture("Frameworks")
         let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
         let scheme = Scheme.test(name: "macOS")
@@ -73,7 +73,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         // Then
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").count, 1)
         let xcframeworkPath = try XCTUnwrap(FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").first)
-        let infoPlist = try self.infoPlist(xcframeworkPath: xcframeworkPath)
+        let infoPlist = try infoPlist(xcframeworkPath: xcframeworkPath)
         XCTAssertNotNil(infoPlist.availableLibraries.first(where: { library in
             library.supportedArchitectures.contains("x86_64") || library.supportedArchitectures.contains("arm64")
         }))
@@ -83,7 +83,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
 
     func test_build_when_tvOS_framework() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let frameworksPath = try temporaryFixture("Frameworks")
         let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
         let scheme = Scheme.test(name: "tvOS")
@@ -101,7 +101,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         // Then
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").count, 1)
         let xcframeworkPath = try XCTUnwrap(FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").first)
-        let infoPlist = try self.infoPlist(xcframeworkPath: xcframeworkPath)
+        let infoPlist = try infoPlist(xcframeworkPath: xcframeworkPath)
         XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("x86_64") }))
         XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("arm64") }))
         XCTAssertTrue(infoPlist.availableLibraries.allSatisfy { $0.supportedPlatform == "tvos" })
@@ -110,7 +110,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
 
     func test_build_when_watchOS_framework() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let frameworksPath = try temporaryFixture("Frameworks")
         let projectPath = frameworksPath.appending(component: "Frameworks.xcodeproj")
         let scheme = Scheme.test(name: "watchOS")
@@ -128,7 +128,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         // Then
         XCTAssertEqual(FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").count, 1)
         let xcframeworkPath = try XCTUnwrap(FileHandler.shared.glob(temporaryPath, glob: "*.xcframework").first)
-        let infoPlist = try self.infoPlist(xcframeworkPath: xcframeworkPath)
+        let infoPlist = try infoPlist(xcframeworkPath: xcframeworkPath)
         XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("i386") }))
         XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("armv7k") }))
         XCTAssertNotNil(infoPlist.availableLibraries.first(where: { $0.supportedArchitectures.contains("arm64_32") }))

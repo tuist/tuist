@@ -61,7 +61,7 @@ class InitService {
         let path = self.path(path)
         let directories = try templatesDirectoryLocator.templateDirectories(at: path)
 
-        let templateDirectory = try self.templateDirectory(
+        let templateDirectory = try templateDirectory(
             templateDirectories: directories,
             template: templateName
         )

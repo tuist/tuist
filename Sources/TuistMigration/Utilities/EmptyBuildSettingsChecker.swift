@@ -54,7 +54,7 @@ public class EmptyBuildSettingsChecker: EmptyBuildSettingsChecking {
         else { throw EmptyBuildSettingsCheckerError.missingXcodeProj(xcodeprojPath) }
         let project = try XcodeProj(path: Path(xcodeprojPath.pathString))
         let pbxproj = project.pbxproj
-        let buildConfigurations = try self.buildConfigurations(pbxproj: pbxproj, targetName: targetName)
+        let buildConfigurations = try buildConfigurations(pbxproj: pbxproj, targetName: targetName)
         let nonEmptyBuildSettings = buildConfigurations.compactMap { config -> String? in
             if config.buildSettings.isEmpty { return nil }
             config.buildSettings.forEach { key, _ in

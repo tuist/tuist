@@ -5,6 +5,9 @@ import TuistLoader
 import TuistSupport
 
 if CommandLine.arguments.contains("--verbose") { try? ProcessEnv.setVar(Constants.EnvironmentVariables.verbose, value: "true") }
+if CommandLine.arguments.contains("--generate-completion-script") {
+    try? ProcessEnv.unsetVar(Constants.EnvironmentVariables.silent)
+}
 
 TuistSupport.LogOutput.bootstrap()
 

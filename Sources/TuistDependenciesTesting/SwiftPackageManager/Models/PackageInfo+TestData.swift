@@ -273,7 +273,7 @@ extension PackageInfo {
     }
 
     static var test: PackageInfo {
-        return .init(
+        .init(
             products: [
                 .init(name: "Tuist", type: .library(.static), targets: ["Tuist"]),
             ],
@@ -387,7 +387,7 @@ extension PackageInfo {
     }
 
     static var aDependency: PackageInfo {
-        return .init(
+        .init(
             products: [
                 .init(name: "ALibrary", type: .library(.automatic), targets: ["ALibrary", "ALibraryUtils"]),
             ],
@@ -429,7 +429,7 @@ extension PackageInfo {
     }
 
     static var anotherDependency: PackageInfo {
-        return .init(
+        .init(
             products: [
                 .init(name: "AnotherLibrary", type: .library(.automatic), targets: ["AnotherLibrary"]),
             ],
@@ -585,7 +585,7 @@ extension PackageInfo {
     }
 
     static var alamofire: PackageInfo {
-        return .init(
+        .init(
             products: [
                 .init(name: "Alamofire", type: .library(.automatic), targets: ["Alamofire"]),
             ],
@@ -933,7 +933,7 @@ extension PackageInfo {
     }
 
     static var googleAppMeasurement: PackageInfo {
-        return .init(
+        .init(
             products: [
                 .init(
                     name: "GoogleAppMeasurement",
@@ -1074,7 +1074,7 @@ extension PackageInfo {
     }
 
     static var googleUtilities: PackageInfo {
-        return .init(
+        .init(
             products: [
                 .init(name: "GULAppDelegateSwizzler", type: .library(.automatic), targets: ["GULAppDelegateSwizzler"]),
                 .init(name: "GULMethodSwizzler", type: .library(.automatic), targets: ["GULMethodSwizzler"]),
@@ -1145,7 +1145,7 @@ extension PackageInfo {
     }
 
     static var nanopb: PackageInfo {
-        return .init(
+        .init(
             products: [
                 .init(name: "nanopb", type: .library(.automatic), targets: ["nanopb"]),
             ],

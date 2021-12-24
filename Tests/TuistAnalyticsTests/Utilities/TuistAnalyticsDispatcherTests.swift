@@ -113,7 +113,7 @@ final class TuistAnalyticsDispatcherTests: TuistUnitTestCase {
     }
 
     static var commandEvent: CommandEvent {
-        return CommandEvent(
+        CommandEvent(
             name: "event",
             subcommand: nil,
             params: [:],

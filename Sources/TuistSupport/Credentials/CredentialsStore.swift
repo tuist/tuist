@@ -30,14 +30,14 @@ public final class CredentialsStore: CredentialsStoring {
     }
 
     public func read(serverURL: URL) throws -> Credentials? {
-        let keychain = self.keychain(serverURL: serverURL)
+        let keychain = keychain(serverURL: serverURL)
         guard let token = keychain.allKeys().first else { return nil }
         guard let account = try keychain.get(token) else { return nil }
         return Credentials(token: token, account: account)
     }
 
     public func delete(serverURL: URL) throws {
-        let keychain = self.keychain(serverURL: serverURL)
+        let keychain = keychain(serverURL: serverURL)
         try keychain.allKeys().forEach { account in
             try keychain.remove(account)
         }

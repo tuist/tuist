@@ -107,7 +107,7 @@ public final class DependenciesController: DependenciesControlling {
         dependencies: TuistGraph.Dependencies,
         swiftVersion: TSCUtility.Version?
     ) throws -> TuistCore.DependenciesGraph {
-        return try install(
+        try install(
             at: path,
             dependencies: dependencies,
             shouldUpdate: false,
@@ -120,7 +120,7 @@ public final class DependenciesController: DependenciesControlling {
         dependencies: TuistGraph.Dependencies,
         swiftVersion: TSCUtility.Version?
     ) throws -> TuistCore.DependenciesGraph {
-        return try install(
+        try install(
             at: path,
             dependencies: dependencies,
             shouldUpdate: true,

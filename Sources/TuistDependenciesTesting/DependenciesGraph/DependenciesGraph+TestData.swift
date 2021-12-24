@@ -26,14 +26,14 @@ extension TuistCore.DependenciesGraph {
         externalDependencies: [String: [TargetDependency]] = [:],
         externalProjects: [Path: Project] = [:]
     ) -> Self {
-        return .init(externalDependencies: externalDependencies, externalProjects: externalProjects)
+        .init(externalDependencies: externalDependencies, externalProjects: externalProjects)
     }
 
     public static func testXCFramework(
         name: String = "Test",
         path: Path = Path(AbsolutePath.root.appending(RelativePath("Test.xcframework")).pathString)
     ) -> Self {
-        return .init(
+        .init(
             externalDependencies: [
                 name: [.xcframework(path: path)],
             ],
@@ -43,7 +43,7 @@ extension TuistCore.DependenciesGraph {
 
     // swiftlint:disable:next function_body_length
     public static func test(spmFolder: Path, packageFolder: Path) -> Self {
-        return .init(
+        .init(
             externalDependencies: [
                 "Tuist": [.project(target: "Tuist", path: packageFolder)],
             ],
@@ -441,11 +441,11 @@ extension TuistCore.DependenciesGraph {
 
 extension DependenciesGraph {
     fileprivate static func artifactsFolder(spmFolder: Path, packageName: String) -> Path {
-        return Path("\(spmFolder.pathString)/artifacts/\(packageName)")
+        Path("\(spmFolder.pathString)/artifacts/\(packageName)")
     }
 
     fileprivate static func packageFolder(spmFolder: Path, packageName: String) -> Path {
-        return Path("\(spmFolder.pathString)/checkouts/\(packageName)")
+        Path("\(spmFolder.pathString)/checkouts/\(packageName)")
     }
 
     static func spmSettings(

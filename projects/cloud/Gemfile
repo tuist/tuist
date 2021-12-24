@@ -10,13 +10,13 @@ gem "bootsnap", ">= 1.4.4", require: false
 gem "jbuilder", "~> 2.7"
 gem "pg", "~> 1.1"
 gem "puma", "~> 5.0"
-gem "rails", "~> 6.1.4"
+gem "rails", "~> 7.0.0"
 gem "redis", "~> 4.0"
 gem "sass-rails", ">= 6"
 gem "sidekiq", "~> 6.2"
 gem "tzinfo-data", platforms: [:mingw, :mswin, :x64_mingw, :jruby]
 gem "bugsnag", "~> 6.21"
-gem "vite_rails", "~> 2.0"
+gem "vite_rails", "~> 3.0.3"
 gem "stripe-rails", "~> 2.3"
 gem "slack-ruby-client", "~> 0.17.0"
 gem "google-cloud-storage", "~> 1.34"
@@ -42,7 +42,7 @@ group :development, :test do
   gem "rubocop", "~> 1.18", require: false
   gem "rubocop-rails", "~> 2.11", require: false
   gem "rubocop-shopify", "~> 2.2", require: false
-  gem "bullet", "~> 6.1"
+  gem "bullet", "~> 7.0"
   gem "debug", "~> 1.3"
 end
 

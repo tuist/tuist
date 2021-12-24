@@ -31,14 +31,14 @@ final class OpenerTests: TuistUnitTestCase {
     }
 
     func test_open_when_path_doesnt_exist() throws {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let path = temporaryPath.appending(component: "tool")
 
         XCTAssertThrowsSpecific(try subject.open(path: path), OpeningError.notFound(path))
     }
 
     func test_open_when_wait_is_false() throws {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let path = temporaryPath.appending(component: "tool")
         try FileHandler.shared.touch(path)
         system.succeedCommand("/usr/bin/open", path.pathString)

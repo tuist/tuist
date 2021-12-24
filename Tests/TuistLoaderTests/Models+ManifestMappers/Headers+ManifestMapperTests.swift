@@ -12,7 +12,7 @@ import XCTest
 final class HeadersManifestMapperTests: TuistUnitTestCase {
     func test_from() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         try createFiles([
             "Sources/public/A1.h",
@@ -59,7 +59,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
 
     func test_from_when_array() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         try createFiles([
             "Sources/public/A/A1.h",
@@ -106,7 +106,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
 
     func test_from_when_array_and_string() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         try createFiles([
             "Sources/public/A/A1.h",
@@ -139,7 +139,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
 
     func test_from_and_excluding() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         try createFiles([
             "Sources/public/A1.h",
@@ -184,7 +184,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
 
     func test_from_and_excluding_same_folder() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         try createFiles([
             "Sources/A1.h",
@@ -224,7 +224,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
 
     func test_from_and_excluding_in_nested_folder() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         try createFiles([
             "Sources/group/A1.h",
@@ -264,7 +264,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
 
     func test_exclusionRule_projectExcludesPrivateAndPublic() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         try createFiles([
             "Sources/group/A1.h",
@@ -319,7 +319,7 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
 
     func test_exclusionRule_publicExcludesPrivateAndProject() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         try createFiles([
             "Sources/group/A1.h",

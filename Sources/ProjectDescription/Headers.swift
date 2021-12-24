@@ -75,7 +75,7 @@ public struct Headers: Codable, Equatable {
                                project: FileList? = nil,
                                exclusionRule: AutomaticExclusionRule = .projectExcludesPrivateAndPublic) -> Headers
     {
-        return .init(
+        .init(
             public: `public`,
             private: `private`,
             project: project,

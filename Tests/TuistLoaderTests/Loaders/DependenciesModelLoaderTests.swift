@@ -32,7 +32,7 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
 
     func test_loadDependencies() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let localSwiftPackagePath = temporaryPath.appending(component: "LocalPackage")
 
         manifestLoader.loadDependenciesStub = { _ in

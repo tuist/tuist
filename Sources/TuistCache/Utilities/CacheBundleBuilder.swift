@@ -69,7 +69,7 @@ public final class CacheBundleBuilder: CacheArtifactBuilding {
                                osVersion: Version?,
                                deviceName: String?) throws -> [XcodeBuildArgument]
     {
-        return try simulatorController.destination(
+        try simulatorController.destination(
             for: platform,
             version: osVersion,
             deviceName: deviceName

@@ -65,7 +65,7 @@ public struct RunAction: Equatable, Codable {
                                  options: RunActionOptions = .options(),
                                  diagnosticsOptions: [SchemeDiagnosticsOption] = [.mainThreadChecker]) -> RunAction
     {
-        return RunAction(
+        RunAction(
             configuration: configuration,
             attachDebugger: attachDebugger,
             preActions: preActions,

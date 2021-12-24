@@ -42,7 +42,7 @@ public final class TestsCacheGraphMapper: GraphMapping {
 
     public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
         let graphTraverser = GraphTraverser(graph: graph)
-        let hashableTargets = self.hashableTargets(graphTraverser: graphTraverser)
+        let hashableTargets = hashableTargets(graphTraverser: graphTraverser)
         let hashes = try graphContentHasher.contentHashes(for: graph, filter: hashableTargets.contains)
         let testsCacheDirectory = try cacheDirectoryProviderFactory.cacheDirectories(config: config).cacheDirectory(for: .tests)
         var visitedNodes: [GraphTarget: Bool] = [:]

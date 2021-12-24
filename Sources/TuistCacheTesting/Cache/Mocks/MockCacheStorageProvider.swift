@@ -9,6 +9,6 @@ public final class MockCacheStorageProvider: CacheStorageProviding {
     }
 
     public func storages() throws -> [CacheStoring] {
-        return storagesStub
+        storagesStub
     }
 }

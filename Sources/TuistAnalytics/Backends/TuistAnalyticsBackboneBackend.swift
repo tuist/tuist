@@ -12,7 +12,7 @@ class TuistAnalyticsBackboneBackend: TuistAnalyticsBackend {
     }
 
     func send(commandEvent: CommandEvent) throws -> Single<Void> {
-        return requestDispatcher
+        requestDispatcher
             .dispatch(resource: try resource(commandEvent))
             .flatMap { _, _ in .just(()) }
     }

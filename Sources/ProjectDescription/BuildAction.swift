@@ -29,7 +29,7 @@ public struct BuildAction: Equatable, Codable {
                                    postActions: [ExecutionAction] = [],
                                    runPostActionsOnFailure: Bool = false) -> BuildAction
     {
-        return BuildAction(
+        BuildAction(
             targets: targets,
             preActions: preActions,
             postActions: postActions,

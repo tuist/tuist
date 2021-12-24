@@ -140,7 +140,7 @@ final class TargetLinterTests: TuistUnitTestCase {
     }
 
     func test_lint_when_entitlements_not_missing() throws {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let path = temporaryPath.appending(component: "Info.plist")
         let target = Target.test(infoPlist: .file(path: path))
 
@@ -153,7 +153,7 @@ final class TargetLinterTests: TuistUnitTestCase {
     }
 
     func test_lint_when_infoplist_not_found() throws {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let path = temporaryPath.appending(component: "App.entitlements")
         let target = Target.test(entitlements: path)
 
@@ -166,7 +166,7 @@ final class TargetLinterTests: TuistUnitTestCase {
     }
 
     func test_lint_when_library_has_resources() throws {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let path = temporaryPath.appending(component: "Image.png")
         let element = ResourceFileElement.file(path: path)
 

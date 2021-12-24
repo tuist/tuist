@@ -32,7 +32,7 @@ final class XcodeTests: TuistUnitTestCase {
 
     func test_read() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let infoPlist = Xcode.InfoPlist(version: "3.2.1")
         let infoPlistData = try plistEncoder.encode(infoPlist)
         let contentsPath = temporaryPath.appending(component: "Contents")
@@ -50,7 +50,7 @@ final class XcodeTests: TuistUnitTestCase {
 
     func test_read_when_infoPlist_doesnt_exist() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let contentsPath = temporaryPath.appending(component: "Contents")
         let infoPlistPath = contentsPath.appending(component: "Info.plist")
 

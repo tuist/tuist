@@ -14,7 +14,7 @@ final class CodeCoverageManifestMapperTests: TuistUnitTestCase {
 
     func test_from_returnsTheCorrectValue_whenManifestIsAll() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         let manifest = Manifest.all
 
@@ -27,7 +27,7 @@ final class CodeCoverageManifestMapperTests: TuistUnitTestCase {
 
     func test_from_returnsTheCorrectValue_whenManifestIsRelevant() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         let manifest = Manifest.relevant
 
@@ -40,7 +40,7 @@ final class CodeCoverageManifestMapperTests: TuistUnitTestCase {
 
     func test_from_returnsTheCorrectValue_whenManifestIsTargets() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         let targetRef = ProjectDescription.TargetReference(projectPath: nil, target: "Target")
         let manifest = Manifest.targets([targetRef])

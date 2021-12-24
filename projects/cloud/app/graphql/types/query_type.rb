@@ -18,7 +18,7 @@ module Types
     field :projects, [ProjectType], null: false,
       description: "Returns all available projects for the authenticated user"
     def projects
-      context[:current_user].projects
+      UserProjectsFetchService.call(user: context[:current_user])
     end
 
     field :organizations, [OrganizationType], null: false,
@@ -31,6 +31,23 @@ module Types
       description: "Returns all tied accounts for the authenticated user"
     def accounts
       context[:current_user].accounts
+    end
+
+    field :project, ProjectType, null: true,
+      description: "Returns project for a given name and account name" do
+      argument :name, String, required: true
+      argument :account_name, String, required: true
+    end
+    def project(name:, account_name:)
+      ProjectFetchService.call(name: name, account_name: account_name, user: context[:current_user])
+    end
+
+    field :organization, OrganizationType, null: true,
+      description: "Returns organization for a given name" do
+      argument :name, String, required: true
+    end
+    def organization(name:)
+      OrganizationFetchService.call(name: name)
     end
   end
 end

@@ -12,7 +12,7 @@ import XCTest
 final class TargetScriptManifestMapperTests: TuistUnitTestCase {
     func test_from() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         let manifest = ProjectDescription.TargetScript.test(
             name: "MyScript",
@@ -31,7 +31,7 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
 
     func test_doesntGlob_whenVariable() throws {
         // Given
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
         let manifest = ProjectDescription.TargetScript.test(
             name: "MyScript",

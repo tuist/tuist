@@ -55,7 +55,7 @@ extension PBXFileElement {
         lhs.namePathSortString.localizedStandardCompare(rhs.namePathSortString) == .orderedAscending
     }
 
-    fileprivate var namePathSortString: String {
+    private var namePathSortString: String {
         "\(name ?? path ?? "")\t\(name ?? "")\t\(path ?? "")"
     }
 }

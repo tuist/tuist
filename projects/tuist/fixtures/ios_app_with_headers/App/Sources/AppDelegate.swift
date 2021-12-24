@@ -15,6 +15,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func hello() -> String {
-        return "AppDelegate.hello()"
+        "AppDelegate.hello()"
     }
 }

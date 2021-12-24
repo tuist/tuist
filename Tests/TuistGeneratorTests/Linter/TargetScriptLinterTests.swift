@@ -38,7 +38,7 @@ final class TargetScriptLinterTests: TuistUnitTestCase {
     }
 
     func test_lint_whenPathDoesntExist() throws {
-        let temporaryPath = try self.temporaryPath()
+        let temporaryPath = try temporaryPath()
         let action = TargetScript(
             name: "name",
             order: .pre,

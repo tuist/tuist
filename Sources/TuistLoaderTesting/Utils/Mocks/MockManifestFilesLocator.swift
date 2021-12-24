@@ -34,7 +34,7 @@ public final class MockManifestFilesLocator: ManifestFilesLocating {
         excluding: [String],
         onlyCurrentDirectory: Bool
     ) -> [ManifestFilesLocator.ProjectManifest] {
-        return locateProjectManifestsStub?(locatingPath, excluding, onlyCurrentDirectory) ?? [
+        locateProjectManifestsStub?(locatingPath, excluding, onlyCurrentDirectory) ?? [
             ManifestFilesLocator.ProjectManifest(
                 manifest: .project,
                 path: locatingPath.appending(component: "Project.swift")

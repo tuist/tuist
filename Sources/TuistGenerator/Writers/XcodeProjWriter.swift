@@ -40,7 +40,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
     }
 
     public func write(workspace: WorkspaceDescriptor) throws {
-        let allSchemes = workspace.schemeDescriptors + workspace.projectDescriptors.flatMap { $0.schemeDescriptors }
+        let allSchemes = workspace.schemeDescriptors + workspace.projectDescriptors.flatMap(\.schemeDescriptors)
         let schemesOrderHint = schemesOrderHint(schemes: allSchemes)
         try workspace.projectDescriptors.forEach(context: config.projectDescriptorWritingContext) { projectDescriptor in
             try self.write(project: projectDescriptor, schemesOrderHint: schemesOrderHint)
@@ -58,6 +58,15 @@ public final class XcodeProjWriter: XcodeProjWriting {
             xccontainerPath: workspace.xcworkspacePath,
             schemesOrderHint: schemesOrderHint
         )
+
+        if let workspaceSettingsDescriptor = workspace.workspaceSettingsDescriptor {
+            try writeWorkspaceSettings(
+                workspaceSettingsDescriptor: workspaceSettingsDescriptor,
+                xccontainerPath: workspace.xcworkspacePath
+            )
+        } else {
+            try deleteWorkspaceSettingsIfNeeded(xccontainerPath: workspace.xcworkspacePath)
+        }
         try sideEffectDescriptorExecutor.execute(sideEffects: workspace.sideEffectDescriptors)
     }
 
@@ -119,6 +128,23 @@ public final class XcodeProjWriter: XcodeProjWriting {
         )
     }
 
+    private func writeWorkspaceSettings(
+        workspaceSettingsDescriptor: WorkspaceSettingsDescriptor,
+        xccontainerPath: AbsolutePath
+    ) throws {
+        let settingsPath = WorkspaceSettingsDescriptor.xcsettingsFilePath(relativeToWorkspace: xccontainerPath)
+
+        try workspaceSettingsDescriptor.settings
+            .write(path: settingsPath.path, override: true)
+    }
+
+    private func deleteWorkspaceSettingsIfNeeded(xccontainerPath: AbsolutePath) throws {
+        let settingsPath = WorkspaceSettingsDescriptor.xcsettingsFilePath(relativeToWorkspace: xccontainerPath)
+        guard FileHandler.shared.exists(settingsPath) else { return }
+
+        try FileHandler.shared.delete(settingsPath)
+    }
+
     private func writeXCSchemeManagement(
         schemes: [SchemeDescriptor],
         xccontainerPath: AbsolutePath,
@@ -148,7 +174,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
         scheme: SchemeDescriptor,
         xccontainerPath: AbsolutePath
     ) throws {
-        let schemeDirectory = self.schemeDirectory(path: xccontainerPath, shared: scheme.shared)
+        let schemeDirectory = schemeDirectory(path: xccontainerPath, shared: scheme.shared)
         let schemePath = schemeDirectory.appending(component: "\(scheme.xcScheme.name).xcscheme")
         try FileHandler.shared.createFolder(schemeDirectory)
         try scheme.xcScheme.write(path: schemePath.path, override: true)
@@ -166,7 +192,7 @@ public final class XcodeProjWriter: XcodeProjWriting {
 
 extension ProjectDescriptor {
     fileprivate var sharedSchemeDescriptors: [SchemeDescriptor] {
-        schemeDescriptors.filter { $0.shared }
+        schemeDescriptors.filter(\.shared)
     }
 
     fileprivate var userSchemeDescriptors: [SchemeDescriptor] {
