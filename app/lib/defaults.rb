@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "environment"
+
 module Defaults
   Error = Class.new(StandardError)
   KeyNotFoundError = Class.new(Error)
