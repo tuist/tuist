@@ -1,0 +1,11 @@
+query Organization($name: String!) {
+  organization(name: $name) {
+    id
+    users {
+      ...UserBasicInfo
+    }
+    admins {
+      ...UserBasicInfo
+    }
+  }
+}

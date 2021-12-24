@@ -1,9 +1,6 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import {
-  Heading,
-  TextContainer,
   Card,
-  List,
   FormLayout,
   TextField,
   Layout,
@@ -20,46 +17,95 @@ import {
   useCreateProjectMutation,
   useMyAccountsQuery,
 } from '@/graphql/types';
-import { useHistory } from 'react-router';
+import { useNavigate } from 'react-router-dom';
 
 const NewProject = () => {
   const myAccounts = useMyAccountsQuery().data?.accounts ?? [];
-  const options: SelectOption[] = myAccounts.map((account) => {
-    return {
-      label: account.name,
-      value: account.id,
-    };
-  });
+  const options: SelectOption[] = myAccounts
+    .map((account) => {
+      return {
+        label: account.name,
+        value: account.id,
+      };
+    })
+    .concat([
+      {
+        label: 'Create new organization',
+        value: 'new',
+      },
+    ]);
 
   const [selectedProjectOwner, setSelectedProjectOwner] = useState<
     Account['id'] | undefined
   >(undefined);
 
+  const [isCreatingOrganization, setIsCreatingOrganization] =
+    useState(false);
+
   useEffect(() => {
     // Set default project owner as the first entry from the `myAccounts` array
-    if (selectedProjectOwner === undefined) {
+    if (
+      selectedProjectOwner === undefined &&
+      !isCreatingOrganization
+    ) {
       setSelectedProjectOwner(myAccounts[0]?.id);
     }
   }, [myAccounts]);
 
-  const handleSelectChange = useCallback(
-    (value) => setSelectedProjectOwner(value),
-    [],
-  );
+  const handleSelectChange = useCallback((value) => {
+    if (value === 'new') {
+      setIsCreatingOrganization(true);
+    } else {
+      setIsCreatingOrganization(false);
+    }
+    setSelectedProjectOwner(value);
+  }, []);
 
   const [projectName, setProjectName] = useState<Project['name']>('');
   const handleProjectNameChange = useCallback(
     (projectName) => setProjectName(projectName),
     [],
   );
-  const history = useHistory();
+
+  const [organizationName, setOrganizationName] =
+    useState<Account['name']>('');
+  const handleOrganizationNameChange = useCallback(
+    (organizationName) => setOrganizationName(organizationName),
+    [],
+  );
+
+  const navigate = useNavigate();
   const [createProject] = useCreateProjectMutation({
     onCompleted: ({ createProject }) => {
-      history.replace(
-        `${createProject.account.name}/${createProject.name}`,
-      );
+      navigate(`/${createProject.slug}`);
     },
   });
+
+  const isCreateProjectButtonDisabled =
+    projectName.length === 0 ||
+    selectedProjectOwner === undefined ||
+    (isCreatingOrganization && organizationName.length === 0);
+
+  const handleCreateProjectButtonTapped = useCallback(() => {
+    createProject({
+      variables: {
+        input: {
+          accountId: isCreatingOrganization
+            ? null
+            : selectedProjectOwner!,
+          name: projectName,
+          organizationName: isCreatingOrganization
+            ? organizationName
+            : null,
+        },
+      },
+    });
+  }, [
+    isCreatingOrganization,
+    selectedProjectOwner,
+    organizationName,
+    projectName,
+  ]);
 
   return (
     <Page title="New Project">
@@ -72,6 +118,14 @@ const NewProject = () => {
               onChange={handleSelectChange}
               value={selectedProjectOwner}
             />
+            {isCreatingOrganization && (
+              <TextField
+                type="text"
+                label="Organization name"
+                value={organizationName}
+                onChange={handleOrganizationNameChange}
+              />
+            )}
             {/* TODO: Only allow kebab-case names */}
             <TextField
               type="text"
@@ -82,27 +136,15 @@ const NewProject = () => {
             <Stack>
               <Button
                 primary
-                disabled={
-                  projectName.length === 0 ||
-                  selectedProjectOwner === undefined
-                }
-                onClick={() => {
-                  createProject({
-                    variables: {
-                      input: {
-                        accountId: selectedProjectOwner!,
-                        name: projectName,
-                      },
-                    },
-                  });
-                }}
+                disabled={isCreateProjectButtonDisabled}
+                onClick={handleCreateProjectButtonTapped}
               >
                 Create project
               </Button>
               <Button
                 destructive
                 onClick={() => {
-                  history.goBack();
+                  navigate(-1);
                 }}
               >
                 Cancel

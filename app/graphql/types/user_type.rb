@@ -8,5 +8,10 @@ module Types
     field :last_visited_project, ProjectType, null: true
     field :projects, [ProjectType], null: false
     field :organizations, [OrganizationType], null: false
+    field :account, AccountType, null: false
+
+    def projects
+      UserProjectsFetchService.call(user: object)
+    end
   end
 end
