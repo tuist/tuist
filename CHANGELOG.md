@@ -10,6 +10,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Add support for `exclusionRule` parameter to `Headers` [#3793](https://github.com/tuist/tuist/pull/3793) by [@pavel-trafimuk](https://github.com/pavel-trafimuk)
+- Add generation time for `tuist focus` command [#3872](https://github.com/tuist/tuist/pull/3872) by [@adellibovi](https://github.com/adellibovi)
 
 ## 2.4.0 - Lune
 

@@ -13,6 +13,7 @@ import TuistSupport
 final class FocusService {
     private let opener: Opening
     private let clock: Clock
+    private let timeTakenLoggerFormatter: TimeTakenLoggerFormatting
     private let generatorFactory: GeneratorFactorying
     private let configLoader: ConfigLoading
     private let manifestLoader: ManifestLoading
@@ -20,6 +21,7 @@ final class FocusService {
 
     init(
         clock: Clock = WallClock(),
+        timeTakenLoggerFormatter: TimeTakenLoggerFormatting = TimeTakenLoggerFormatter(),
         configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
         manifestLoader: ManifestLoading = ManifestLoader(),
         opener: Opening = Opener(),
@@ -27,6 +29,7 @@ final class FocusService {
         pluginService: PluginServicing = PluginService()
     ) {
         self.clock = clock
+        self.timeTakenLoggerFormatter = timeTakenLoggerFormatter
         self.configLoader = configLoader
         self.manifestLoader = manifestLoader
         self.opener = opener
@@ -50,10 +53,8 @@ final class FocusService {
         if !noOpen {
             try opener.open(path: workspacePath)
         }
-        let time = String(format: "%.3f", timer.stop())
-
         logger.notice("Project generated.", metadata: .success)
-        logger.notice("Total time taken: \(time)s")
+        logger.notice(timeTakenLoggerFormatter.timeTakenMessage(for: timer))
     }
 
     // MARK: - Helpers
