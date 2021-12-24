@@ -106,22 +106,7 @@ class InitService {
             var parsedAttributes: [String: String]
             if templateName.isGitURL {
                 parsedAttributes = ["name": name, "platform": platform.caseValue]
-                let repoURL = templateLocationParser.parseRepositoryURL(from: templateName)
-                let repoBranch = templateLocationParser.parseRepositoryBranch(from: templateName)
-                try fileHandler.inTemporaryDirectory { temporaryPath in
-                    let templatePath = temporaryPath
-                        .appending(component: "Template")
-                    try fileHandler.createFolder(templatePath)
-                    try gitHandler.clone(url: repoURL, to: templatePath)
-                    if let repoBranch = repoBranch {
-                        try gitHandler.checkout(id: repoBranch, in: templatePath)
-                    }
-                    try templateGenerator.generate(
-                        template: try templateLoader.loadTemplate(at: templatePath),
-                        to: path,
-                        attributes: parsedAttributes
-                    )
-                }
+                try generateTemplate(from: templateName, with: parsedAttributes, in: path)
 
             } else {
                 guard
@@ -170,6 +155,34 @@ class InitService {
     private func verifyDirectoryIsEmpty(path: AbsolutePath) throws {
         if !path.glob("*").isEmpty {
             throw InitServiceError.nonEmptyDirectory(path)
+        }
+    }
+
+    /// Generate a template from given Git repository
+    ///
+    /// - Parameter templateURL: Template Repository's URL
+    /// - Parameter parsedAttributes: Command Parsed Attributes
+    /// - Parameter path: Path wehre template will be created
+    private func generateTemplate(
+        from templateURL: String,
+        with parsedAttributes: [String: String],
+        in path: AbsolutePath
+    ) throws {
+        let repoURL = templateLocationParser.parseRepositoryURL(from: templateURL)
+        let repoBranch = templateLocationParser.parseRepositoryBranch(from: templateURL)
+        try fileHandler.inTemporaryDirectory { temporaryPath in
+            let templatePath = temporaryPath
+                .appending(component: "Template")
+            try fileHandler.createFolder(templatePath)
+            try gitHandler.clone(url: repoURL, to: templatePath)
+            if let repoBranch = repoBranch {
+                try gitHandler.checkout(id: repoBranch, in: templatePath)
+            }
+            try templateGenerator.generate(
+                template: try templateLoader.loadTemplate(at: templatePath),
+                to: path,
+                attributes: parsedAttributes
+            )
         }
     }
 
