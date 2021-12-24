@@ -45,18 +45,21 @@ class InitService {
     private let templateGenerator: TemplateGenerating
     private let fileHandler: FileHandling
     private let gitHandler: GitHandling
+    private let templateLocationParser: TemplateLocationParsing
 
     init(templateLoader: TemplateLoading = TemplateLoader(),
          templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
          templateGenerator: TemplateGenerating = TemplateGenerator(),
          fileHandler: FileHandling = FileHandler.shared,
-         gitHandler: GitHandling = GitHandler())
+         gitHandler: GitHandling = GitHandler(),
+         templateLocationParser: TemplateLocationParsing = TemplateLocationParser())
     {
         self.templateLoader = templateLoader
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.templateGenerator = templateGenerator
         self.fileHandler = fileHandler
         self.gitHandler = gitHandler
+        self.templateLocationParser = templateLocationParser
     }
 
     func loadTemplateOptions(templateName: String,
@@ -103,8 +106,8 @@ class InitService {
             var parsedAttributes: [String: String]
             if templateName.isGitURL {
                 parsedAttributes = ["name": name, "platform": platform.caseValue]
-                let repoURL = parseRepoURL(from: templateName)
-                let repoBranch = parseRepoBranch(from: templateName)
+                let repoURL = templateLocationParser.parseRepositoryURL(from: templateName)
+                let repoBranch = templateLocationParser.parseRepositoryBranch(from: templateName)
                 try fileHandler.inTemporaryDirectory { temporaryPath in
                     let templatePath = temporaryPath
                         .appending(component: "Template")
@@ -167,36 +170,6 @@ class InitService {
     private func verifyDirectoryIsEmpty(path: AbsolutePath) throws {
         if !path.glob("*").isEmpty {
             throw InitServiceError.nonEmptyDirectory(path)
-        }
-    }
-
-    /// Extract branch's name if it exist from given template URL. If not return nil
-    ///
-    ///  - Parameter templateURL: given template URL
-    private func parseRepoBranch(from templateURL: String) -> String? {
-        let splittedURL = templateURL
-            .split(separator: "@")
-        guard
-            let branch = splittedURL.last,
-            splittedURL.count >= 2 else { return nil }
-        return String(branch)
-    }
-
-    /// Extract repo URL from given template URL.
-    ///
-    ///  - Parameter templateURL: given template URL
-    private func parseRepoURL(from templateURL: String) -> String {
-        let splittedURL = templateURL
-            .split(separator: "@")
-        if splittedURL.count < 2, !splittedURL.isEmpty {
-            return templateURL
-        } else {
-            return String(
-                splittedURL
-                    .dropLast()
-                    .reduce("") { $0 + "@" + $1 }
-                    .dropFirst()
-            )
         }
     }
 
