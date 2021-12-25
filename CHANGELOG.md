@@ -15,7 +15,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Fixed
 
 - Fix shell completion script generated in directory containing `.tuist_version` file [#3804](https://github.com/tuist/tuist/pull/3804) by [@mikchmie](https://github.com/mikchmie)
-
+- `tuist cache print-hashes` not working with relative paths [#3892](https://github.com/tuist/tuist/pull/3892) by [@erkekin](https://github.com/erkekin)
+ 
 ## 2.4.0 - Lune
 
 ### Added
