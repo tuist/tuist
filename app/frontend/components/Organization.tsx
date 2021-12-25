@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useContext } from 'react';
 import {
   Page,
   Card,
@@ -11,13 +11,9 @@ import {
   Button,
 } from '@shopify/polaris';
 import { useParams } from 'react-router';
-import {
-  Role,
-  Organization as _,
-  useChangeUserRoleMutation,
-  useOrganizationQuery,
-  useMeQuery,
-} from '@/graphql/types';
+import { Role, Organization as _ } from '@/graphql/types';
+import { observer } from 'mobx-react-lite';
+import { HomeStoreContext } from '@/stores/HomeStore';
 
 interface User {
   id: string;
@@ -27,40 +23,21 @@ interface User {
   role: Role;
 }
 
-const UserRolePopover = ({
-  user,
-  organizationId,
-}: {
-  user: User;
-  organizationId: string;
-}) => {
-  // TODO: Enable actually changing the role
+const UserRolePopover = observer(({ user }: { user: User }) => {
+  const { organizationStore } = useContext(HomeStoreContext);
   const [isRolePopoverActive, setRolePopoverActive] = useState(false);
   const toggleRolePopoverActive = useCallback(
     () => setRolePopoverActive((active) => !active),
     [],
   );
 
-  const [newRole, setNewRole] = useState(user.role);
-  const [currentRole, setCurrentRole] = useState(user.role);
-  const [changeUserRoleMutation] = useChangeUserRoleMutation({
-    onCompleted: () => {
-      setCurrentRole(newRole);
+  const changeRole = useCallback(
+    async ({ newRole }: { newRole: Role }) => {
+      await organizationStore.changeUserRole(user.id, newRole);
+      toggleRolePopoverActive();
     },
-  });
-  const changeRole = useCallback(({ newRole }: { newRole: Role }) => {
-    changeUserRoleMutation({
-      variables: {
-        input: {
-          userId: user.id,
-          organizationId: organizationId,
-          role: newRole,
-        },
-      },
-    });
-    toggleRolePopoverActive();
-    setNewRole(newRole);
-  }, []);
+    [],
+  );
 
   return (
     <div style={{ width: 100 }}>
@@ -68,8 +45,7 @@ const UserRolePopover = ({
         active={isRolePopoverActive}
         activator={
           <Button disclosure onClick={toggleRolePopoverActive}>
-            {currentRole.charAt(0).toUpperCase() +
-              currentRole.slice(1)}
+            {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
           </Button>
         }
         onClose={toggleRolePopoverActive}
@@ -93,15 +69,13 @@ const UserRolePopover = ({
       </Popover>
     </div>
   );
-};
+});
 
 const UserItem = ({
   user,
-  organizationId,
   isAdmin,
 }: {
   user: User;
-  organizationId: string;
   isAdmin: boolean;
 }) => {
   return (
@@ -115,10 +89,7 @@ const UserItem = ({
           </Stack>
         </Stack.Item>
         {isAdmin ? (
-          <UserRolePopover
-            user={user}
-            organizationId={organizationId}
-          />
+          <UserRolePopover user={user} />
         ) : (
           <TextStyle>
             {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
@@ -129,62 +100,29 @@ const UserItem = ({
   );
 };
 
-const Organization = () => {
+const Organization = observer(() => {
   const { accountName: organizationName } = useParams();
-
-  const organization = useOrganizationQuery({
-    variables: { name: organizationName ?? '' },
-  }).data?.organization;
-
-  const users =
-    organization?.users.map((user) => {
-      return {
-        id: user.id,
-        email: user.email,
-        name: user.account.name,
-        avatarUrl: user.avatarUrl ?? undefined,
-        role: Role.User,
-      };
-    }) ?? [];
-
-  const admins =
-    organization?.admins.map((user) => {
-      return {
-        id: user.id,
-        email: user.email,
-        name: user.account.name,
-        avatarUrl: user.avatarUrl ?? undefined,
-        role: Role.Admin,
-      };
-    }) ?? [];
-  const user = useMeQuery().data?.me;
+  const { organizationStore, userStore } =
+    useContext(HomeStoreContext);
   const isAdmin =
-    (user && admins.map((admin) => admin.id).includes(user.id)) ??
+    (userStore.me &&
+      organizationStore.admins
+        .map((admin) => admin.id)
+        .includes(userStore.me.id)) ??
     false;
   return (
     <Page title={organizationName}>
       <Card title="Users">
         <ResourceList
           resourceName={{ singular: 'user', plural: 'users' }}
-          items={users
-            .concat(admins)
-            .sort(
-              (first, second) =>
-                0 - (first.name > second.name ? -1 : 1),
-            )}
+          items={organizationStore.members}
           renderItem={(item) => {
-            return (
-              <UserItem
-                user={item}
-                isAdmin={isAdmin}
-                organizationId={organization?.id ?? ''}
-              />
-            );
+            return <UserItem user={item} isAdmin={isAdmin} />;
           }}
         />
       </Card>
     </Page>
   );
-};
+});
 
 export default Organization;
