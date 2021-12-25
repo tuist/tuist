@@ -16,12 +16,12 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
     var generatorFactory: MockGeneratorFactory!
     var cacheGraphContentHasher: MockCacheGraphContentHasher!
     var clock: Clock!
-    var path: AbsolutePath!
+    var path: String!
     var configLoader: MockConfigLoader!
 
     override func setUp() {
         super.setUp()
-        path = AbsolutePath("/Test")
+        path = "/Test"
         generatorFactory = MockGeneratorFactory()
         generator = MockGenerator()
         generatorFactory.stubbedDefaultResult = generator
@@ -51,6 +51,57 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
+    func test_run_withFullPath_loads_the_graph() throws {
+        // Given
+        subject = CachePrintHashesService(
+            generatorFactory: generatorFactory,
+            cacheGraphContentHasher: cacheGraphContentHasher,
+            clock: clock,
+            configLoader: configLoader
+        )
+        let fullPath = FileHandler.shared.currentPath.pathString + "/full/path"
+        // When
+        _ = try subject.run(path: fullPath, xcframeworks: false, profile: nil)
+
+        // Then
+        XCTAssertEqual(generator.invokedLoadParameterPath, AbsolutePath(fullPath))
+    }
+
+    func test_run_withoutPath_loads_the_graph() throws {
+        // Given
+        subject = CachePrintHashesService(
+            generatorFactory: generatorFactory,
+            cacheGraphContentHasher: cacheGraphContentHasher,
+            clock: clock,
+            configLoader: configLoader
+        )
+
+        // When
+        _ = try subject.run(path: nil, xcframeworks: false, profile: nil)
+
+        // Then
+        XCTAssertEqual(generator.invokedLoadParameterPath, FileHandler.shared.currentPath)
+    }
+
+    func test_run_withRelativePath__loads_the_graph() throws {
+        // Given
+        subject = CachePrintHashesService(
+            generatorFactory: generatorFactory,
+            cacheGraphContentHasher: cacheGraphContentHasher,
+            clock: clock,
+            configLoader: configLoader
+        )
+
+        // When
+        _ = try subject.run(path: "RelativePath", xcframeworks: false, profile: nil)
+
+        // Then
+        XCTAssertEqual(
+            generator.invokedLoadParameterPath,
+            AbsolutePath("RelativePath", relativeTo: FileHandler.shared.currentPath)
+        )
+    }
+
     func test_run_loads_the_graph() throws {
         // Given
         subject = CachePrintHashesService(
@@ -64,7 +115,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         _ = try subject.run(path: path, xcframeworks: false, profile: nil)
 
         // Then
-        XCTAssertEqual(generator.invokedLoadParameterPath, path)
+        XCTAssertEqual(generator.invokedLoadParameterPath, "/Test")
     }
 
     func test_run_content_hasher_gets_correct_graph() throws {
