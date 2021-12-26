@@ -13,7 +13,7 @@ module Fourier
         def call
           Dir.chdir(Constants::ROOT_DIRECTORY) do
             arguments = [vendor_path("swiftlint"), "--quiet"]
-            arguments << "autocorrect" if fix
+            arguments << "--fix" if fix
             Utilities::System.system(*arguments)
           end
         end
