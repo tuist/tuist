@@ -5,6 +5,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ## Next
 
 ### Changed
+
+- Update SwiftUI template [#3840](https://github.com/tuist/tuist/pull/3840) by [@ezraberch](https://github.com/ezraberch)
 - Add `SWIFT_SUPPRESS_WARNINGS` setting to SwiftPackageManager generated project to suppress warnings from dependencies defined in Dependencies.swift [#3852](https://github.com/tuist/tuist/pull/3852) by [@wattson12](https://github.com/wattson12)
 
 ### Added
