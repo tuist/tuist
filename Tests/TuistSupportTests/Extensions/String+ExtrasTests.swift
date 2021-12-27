@@ -17,6 +17,61 @@ final class StringExtrasTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got, "frameworkIOSResources")
     }
+
+    func test_string_doesnt_match_GitURL_regex() {
+        // Given
+        let stringToEvaluate = "not a url string"
+
+        // When
+        let result = stringToEvaluate.isGitURL
+
+        // Then
+        XCTAssertFalse(result)
+    }
+
+    func test_string_does_match_http_GitURL_with_branch_regex() {
+        // Given
+        let stringToEvaluate = "https://github.com/tuist/ExampleTuistTemplate.git@develop"
+
+        // When
+        let result = stringToEvaluate.isGitURL
+
+        // Then
+        XCTAssertTrue(result)
+    }
+
+    func test_string_does_match_http_GitURL_without_branch_regex() {
+        // Given
+        let stringToEvaluate = "https://github.com/tuist/ExampleTuistTemplate.git"
+
+        // When
+        let result = stringToEvaluate.isGitURL
+
+        // Then
+        XCTAssertTrue(result)
+    }
+
+    func test_string_does_match_ssh_GitURL_with_branch_regex() {
+        // Given
+        let stringToEvaluate = "git@github.com:user/repo.git@develop"
+
+        // When
+        let result = stringToEvaluate.isGitURL
+
+        // Then
+        XCTAssertTrue(result)
+    }
+
+    func test_string_does_match_ssh_GitURL_without_branch_regex() {
+        // Given
+        let stringToEvaluate = "git@github.com:user/repo.git"
+
+        // When
+        let result = stringToEvaluate.isGitURL
+
+        // Then
+        XCTAssertTrue(result)
+    }
 }
 
 final class StringsArrayTests: TuistUnitTestCase {

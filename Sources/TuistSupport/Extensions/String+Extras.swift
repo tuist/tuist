@@ -104,6 +104,12 @@ extension String {
         prefix(1).lowercased() + dropFirst()
     }
 
+    public var isGitURL: Bool {
+        let httpPattern = "(\\w+://)(.+@)*([\\w\\d\\.]+)(:[\\d]+){0,1}/*(.*)"
+        let sshPattern = "(.+@)*([\\w\\d\\.]+):(.*)"
+        return self.matches(pattern: httpPattern) || self.matches(pattern: sshPattern)
+    }
+
     /// A collection of all the words in the string by separating out any punctuation and spaces.
     public var words: [String] {
         components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }
