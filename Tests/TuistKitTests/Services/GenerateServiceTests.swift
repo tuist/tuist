@@ -1,8 +1,8 @@
 import Foundation
 import TSCBasic
 import TuistCore
+import TuistGraph
 import TuistLoader
-import TuistSupport
 import XcodeProj
 import XCTest
 @testable import TuistCoreTesting
@@ -10,157 +10,81 @@ import XCTest
 @testable import TuistLoaderTesting
 @testable import TuistSupportTesting
 
+private typealias GeneratorParameters = (
+    sources: Set<String>,
+    xcframeworks: Bool,
+    cacheProfile: TuistGraph.Cache.Profile,
+    ignoreCache: Bool
+)
+
 final class GenerateServiceTests: TuistUnitTestCase {
     var subject: GenerateService!
-    var generator: MockGenerator!
     var opener: MockOpener!
-    var clock: StubClock!
+    var generator: MockGenerator!
     var generatorFactory: MockGeneratorFactory!
+    var clock: StubClock!
 
     override func setUp() {
         super.setUp()
         opener = MockOpener()
-        generatorFactory = MockGeneratorFactory()
         generator = MockGenerator()
-        generatorFactory.stubbedDefaultResult = generator
+        generatorFactory = MockGeneratorFactory()
+        generatorFactory.stubbedFocusResult = generator
         clock = StubClock()
-        generator.generateStub = { _, _ in
-            AbsolutePath("/Test")
-        }
-
-        subject = GenerateService(
-            clock: clock,
-            opener: opener,
-            generatorFactory: generatorFactory
-        )
+        subject = GenerateService(clock: clock, opener: opener, generatorFactory: generatorFactory)
     }
 
     override func tearDown() {
-        generatorFactory = nil
-        generator = nil
-        clock = nil
-        subject = nil
         opener = nil
+        generator = nil
+        subject = nil
+        generatorFactory = nil
+        clock = nil
         super.tearDown()
     }
 
-    func test_run() throws {
-        // When
-        try subject.testRun()
+    func test_run_fatalErrors_when_theworkspaceGenerationFails() throws {
+        let error = NSError.test()
+        generator.generateStub = { _, _ in
+            throw error
+        }
 
-        // Then
-        XCTAssertEqual(opener.openCallCount, 0)
-        XCTAssertPrinterOutputContains("Project generated.")
+        XCTAssertThrowsError(
+            try subject
+                .run(path: nil, sources: ["Target"], noOpen: true, xcframeworks: false, profile: nil, ignoreCache: false)
+        ) {
+            XCTAssertEqual($0 as NSError?, error)
+        }
     }
 
-    func test_run_opens_the_project_when_open_is_true() throws {
-        // When
-        try subject.testRun(open: true)
+    func test_run() throws {
+        let workspacePath = AbsolutePath("/test.xcworkspace")
 
-        // Then
-        XCTAssertEqual(opener.openCallCount, 1)
+        generator.generateStub = { _, _ in
+            workspacePath
+        }
+
+        try subject.run(path: nil, sources: ["Target"], noOpen: false, xcframeworks: false, profile: nil, ignoreCache: false)
+
+        XCTAssertEqual(opener.openArgs.last?.0, workspacePath.pathString)
     }
 
     func test_run_timeIsPrinted() throws {
         // Given
+        let workspacePath = AbsolutePath("/test.xcworkspace")
+
+        generator.generateStub = { _, _ in
+            workspacePath
+        }
         clock.assertOnUnexpectedCalls = true
         clock.primedTimers = [
             0.234,
         ]
 
         // When
-        try subject.testRun()
+        try subject.run(path: nil, sources: ["Target"], noOpen: false, xcframeworks: false, profile: nil, ignoreCache: false)
 
         // Then
         XCTAssertPrinterOutputContains("Total time taken: 0.234s")
-    }
-
-    func test_run_withRelativePathParameter() throws {
-        // Given
-        let temporaryPath = try temporaryPath()
-        var generationPath: AbsolutePath?
-        generator.generateStub = { path, _ in
-            generationPath = path
-            return path.appending(component: "Project.xcworkpsace")
-        }
-
-        // When
-        try subject.testRun(path: "subpath")
-
-        // Then
-        XCTAssertEqual(generationPath, AbsolutePath("subpath", relativeTo: temporaryPath))
-    }
-
-    func test_run_withAbsoultePathParameter() throws {
-        // Given
-        var generationPath: AbsolutePath?
-        generator.generateStub = { path, _ in
-            generationPath = path
-            return path.appending(component: "Project.xcworkpsace")
-        }
-
-        // When
-        try subject.testRun(path: "/some/path")
-
-        // Then
-        XCTAssertEqual(generationPath, AbsolutePath("/some/path"))
-    }
-
-    func test_run_withoutPathParameter() throws {
-        // Given
-        let temporaryPath = try temporaryPath()
-        var generationPath: AbsolutePath?
-        generator.generateStub = { path, _ in
-            generationPath = path
-            return path.appending(component: "Project.xcworkpsace")
-        }
-
-        // When
-        try subject.testRun()
-
-        // Then
-        XCTAssertEqual(generationPath, temporaryPath)
-    }
-
-    func test_run_withProjectOnlyParameter() throws {
-        // Given
-        let projectOnlyValues = [true, false]
-
-        // When
-        try projectOnlyValues.forEach {
-            try subject.testRun(projectOnly: $0)
-        }
-
-        // Then
-        XCTAssertEqual(generator.generateCalls.map(\.projectOnly), [
-            true,
-            false,
-        ])
-    }
-
-    func test_run_fatalErrors_when_theworkspaceGenerationFails() throws {
-        // Given
-        let error = NSError.test()
-        generator.generateStub = { _, _ in
-            throw error
-        }
-
-        // When / Then
-        XCTAssertThrowsError(try subject.testRun()) {
-            XCTAssertEqual($0 as NSError, error)
-        }
-    }
-}
-
-extension GenerateService {
-    func testRun(path: String? = nil,
-                 projectOnly: Bool = false,
-                 open: Bool = false) throws
-    {
-        try run(
-            path: path,
-            projectOnly: projectOnly,
-            open: open
-        )
     }
 }
