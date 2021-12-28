@@ -27,7 +27,11 @@ public final class TemplateLocationParser: TemplateLocationParsing {
         guard
             let branch = splittedURL.last,
             splittedURL.count >= 2 else { return nil }
-        return String(branch)
+        if splittedURL.count == 2, !templateURL.contains("http") {
+            return nil
+        } else {
+            return String(branch)
+        }
     }
 
     public func parseRepositoryURL(from templateURL: String) -> String {
@@ -36,12 +40,18 @@ public final class TemplateLocationParser: TemplateLocationParsing {
         if splittedURL.count < 2, !splittedURL.isEmpty {
             return templateURL
         } else {
-            return String(
-                splittedURL
-                    .dropLast()
-                    .reduce("") { $0 + "@" + $1 }
-                    .dropFirst()
-            )
+            return splittedURL.count > 2 ?
+                String(
+                    splittedURL
+                        .dropLast()
+                        .reduce("") { $0 + "@" + $1 }
+                        .dropFirst()
+                )
+                : String(
+                    splittedURL
+                        .reduce("") { $0 + "@" + $1 }
+                        .dropFirst()
+                )
         }
     }
 }
