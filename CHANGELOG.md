@@ -4,6 +4,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+## 2.5.0 - Gestalt
+
 ### Changed
 
 - Update SwiftUI template [#3840](https://github.com/tuist/tuist/pull/3840) by [@ezraberch](https://github.com/ezraberch)
