@@ -19,8 +19,8 @@ protocol ProjectEditorMapping: AnyObject {
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
         tasks: [AbsolutePath],
-        projectDescriptionPath: AbsolutePath,
-        projectAutomationPath: AbsolutePath
+        projectDescriptionSearchPath: AbsolutePath,
+        projectAutomationSearchPath: AbsolutePath
     ) throws -> Graph
 }
 
@@ -40,14 +40,14 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
         tasks: [AbsolutePath],
-        projectDescriptionPath: AbsolutePath,
-        projectAutomationPath: AbsolutePath
+        projectDescriptionSearchPath: AbsolutePath,
+        projectAutomationSearchPath: AbsolutePath
     ) throws -> Graph {
         let swiftVersion = try System.shared.swiftVersion()
 
         let pluginsProject = mapPluginsProject(
             pluginManifests: editablePluginManifests,
-            projectDescriptionPath: projectDescriptionPath,
+            projectDescriptionPath: projectDescriptionSearchPath,
             swiftVersion: swiftVersion,
             sourceRootPath: sourceRootPath,
             destinationDirectory: destinationDirectory,
@@ -56,8 +56,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
 
         let manifestsProject = mapManifestsProject(
             projectManifests: projectManifests,
-            projectDescriptionPath: projectDescriptionPath,
-            projectAutomationPath: projectAutomationPath,
+            projectDescriptionPath: projectDescriptionSearchPath,
+            projectAutomationPath: projectAutomationSearchPath,
             swiftVersion: swiftVersion,
             sourceRootPath: sourceRootPath,
             destinationDirectory: destinationDirectory,
@@ -144,18 +144,33 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         let projectPath = sourceRootPath.appending(component: projectName)
         let manifestsFilesGroup = ProjectGroup.group(name: projectName)
         let baseTargetSettings = Settings(
-            base: targetBaseSettings(for: [projectDescriptionPath], swiftVersion: swiftVersion),
+            base: targetBaseSettings(
+                projectFrameworkPath: projectDescriptionPath,
+                pluginHelperLibraryPaths: [],
+                swiftVersion: swiftVersion
+            ),
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         )
 
         let helpersTarget: Target? = {
             guard !helpers.isEmpty else { return nil }
+            let editablePluginTargets = editablePluginTargets.map { TargetDependency.target(name: $0) }
+            let helpersTargetSettings = Settings(
+                base: targetBaseSettings(
+                    projectFrameworkPath: projectDescriptionPath,
+                    pluginHelperLibraryPaths: pluginProjectDescriptionHelpersModule.map(\.path),
+                    swiftVersion: swiftVersion
+                ),
+                configurations: Settings.default.configurations,
+                defaultSettings: .recommended
+            )
             return editorHelperTarget(
                 name: Constants.helpersDirectoryName,
                 filesGroup: manifestsFilesGroup,
-                targetSettings: baseTargetSettings,
-                sourcePaths: helpers
+                targetSettings: helpersTargetSettings,
+                sourcePaths: helpers,
+                dependencies: editablePluginTargets
             )
         }()
 
@@ -174,7 +189,11 @@ final class ProjectEditorMapper: ProjectEditorMapping {
                 name: taskPath.basenameWithoutExt,
                 filesGroup: manifestsFilesGroup,
                 targetSettings: Settings(
-                    base: targetBaseSettings(for: [projectAutomationPath], swiftVersion: swiftVersion),
+                    base: targetBaseSettings(
+                        projectFrameworkPath: projectAutomationPath,
+                        pluginHelperLibraryPaths: [],
+                        swiftVersion: swiftVersion
+                    ),
                     configurations: Settings.default.configurations,
                     defaultSettings: .recommended
                 ),
@@ -204,7 +223,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
 
         let manifestTargetSettings = Settings(
             base: targetBaseSettings(
-                for: [projectDescriptionPath] + pluginProjectDescriptionHelpersModule.map(\.path),
+                projectFrameworkPath: projectDescriptionPath,
+                pluginHelperLibraryPaths: pluginProjectDescriptionHelpersModule.map(\.path),
                 swiftVersion: swiftVersion
             ),
             configurations: Settings.default.configurations,
@@ -212,16 +232,14 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         )
 
         let manifestsTargets = namedManifests(projectManifests).map { name, projectManifestSourcePath -> Target in
-            let helperDependencies = helpersTarget.map { [TargetDependency.target(name: $0.name)] } ?? []
-            let editablePluginTargets = editablePluginTargets.map { TargetDependency.target(name: $0) }
-            let dependencies = helperDependencies + editablePluginTargets
-
+            let helperTargetDependencies = helpersTarget.map { [TargetDependency.target(name: $0.name)] } ?? []
+            let editablePluginTargetDependencies = editablePluginTargets.map { TargetDependency.target(name: $0) }
             return editorHelperTarget(
                 name: name,
                 filesGroup: manifestsFilesGroup,
                 targetSettings: manifestTargetSettings,
                 sourcePaths: [projectManifestSourcePath],
-                dependencies: dependencies
+                dependencies: helperTargetDependencies + editablePluginTargetDependencies
             )
         }
 
@@ -248,7 +266,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         let scheme = Scheme(name: projectName, shared: true, buildAction: buildAction, runAction: runAction)
         let projectSettings = Settings(
             base: [
-                "ONLY_ACTIVE_ARCH": "NO",
+                "ONLY_ACTIVE_ARCH": "YES",
                 "EXCLUDED_ARCHS": .string(excludedArchs()),
             ],
             configurations: Settings.default.configurations,
@@ -290,7 +308,11 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         let projectPath = sourceRootPath.appending(component: projectName)
         let pluginsFilesGroup = ProjectGroup.group(name: projectName)
         let targetSettings = Settings(
-            base: targetBaseSettings(for: [projectDescriptionPath], swiftVersion: swiftVersion),
+            base: targetBaseSettings(
+                projectFrameworkPath: projectDescriptionPath,
+                pluginHelperLibraryPaths: [],
+                swiftVersion: swiftVersion
+            ),
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         )
@@ -330,7 +352,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
 
         let projectSettings = Settings(
             base: [
-                "ONLY_ACTIVE_ARCH": "NO",
+                "ONLY_ACTIVE_ARCH": "YES",
                 "EXCLUDED_ARCHS": .string(excludedArchs()),
             ],
             configurations: Settings.default.configurations,
@@ -421,18 +443,22 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         )
     }
 
-    private func targetBaseSettings(for includes: [AbsolutePath], swiftVersion: String) -> SettingsDictionary {
-        let includePaths = includes
-            .flatMap { path in
-                // In development, the .swiftmodule is generated in a directory up from the directory of the framework.
-                // /path/to/derived/tuist-xyz/
-                //    PackageFrameworks/
-                //      ProjectDescription.framework
-                //    ProjectDescription.swiftmodule
-                // Because of that we need to expose the parent directory too in SWIFT_INCLUDE_PATHS
-                [path.parentDirectory.pathString, path.parentDirectory.parentDirectory.pathString]
-            }
-            .map { "\"\($0)\"" }
+    /// Returns a ``SettingsDictionary`` which includes the base settings for a target.
+    /// Base settings include things such as: the search paths for the given `includes` and the Swift version.
+    private func targetBaseSettings(
+        projectFrameworkPath: AbsolutePath,
+        pluginHelperLibraryPaths: [AbsolutePath],
+        swiftVersion: String
+    ) -> SettingsDictionary {
+        // In development, the .swiftmodule is generated in a directory up from the directory of the framework.
+        // /path/to/derived/tuist-xyz/
+        //    PackageFrameworks/
+        //      ProjectDescription.framework
+        //    ProjectDescription.swiftmodule
+        // Because of that we need to expose the parent directory too in SWIFT_INCLUDE_PATHS
+        let projectFrameworkSearchPaths = [projectFrameworkPath, projectFrameworkPath.parentDirectory]
+        let pluginHelperSearchPaths = pluginHelperLibraryPaths.map(\.parentDirectory)
+        let includePaths = (projectFrameworkSearchPaths + pluginHelperSearchPaths).map { "\"\($0)\"" }
         return [
             "FRAMEWORK_SEARCH_PATHS": .array(includePaths),
             "LIBRARY_SEARCH_PATHS": .array(includePaths),
