@@ -26,9 +26,8 @@ public struct TuistCommand: ParsableCommand {
 
         // Help env
         if processedArguments.dropFirst().first == "--help-env" {
-            let error = UnhandledError(error: CleanExit.helpRequest(self))
-            errorHandler.fatal(error: error)
-            _exit(exitCode(for: error).rawValue)
+            let error = CleanExit.helpRequest(self)
+            exit(withError: error)
         }
 
         // Parse the command
