@@ -37,9 +37,6 @@ module Fourier
     desc "lint", "Lint the project's code"
     subcommand "lint", Commands::Lint
 
-    desc "format", "Format the project's code"
-    subcommand "format", Commands::Format
-
     desc "update", "Update project's components"
     subcommand "update", Commands::Update
 
