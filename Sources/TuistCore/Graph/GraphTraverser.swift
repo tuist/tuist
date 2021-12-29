@@ -141,7 +141,6 @@ public class GraphTraverser: GraphTraversing {
         return Set(bundles.compactMap(dependencyReference))
     }
 
-
     public func target(from dependency: GraphDependency) -> GraphTarget? {
         guard case let GraphDependency.target(name, path) = dependency else {
             return nil
