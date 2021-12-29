@@ -1,10 +1,8 @@
 ---
-title: Run tasks
+title: tuist exec
 slug: '/commands/task'
 description: 'Learn how to to automate arbitrary tasks with tuist Swift.'
 ---
-
-### Context
 
 When we write apps, it is often necessary to write some supporting code for e.g. releasing, downloading localizations, etc.
 These are often written in Shell or Ruby which only a handful of developers on your team might be familiar with.

@@ -1,10 +1,8 @@
 ---
-title: Build schemes
+title: tuist build
 slug: '/commands/build'
 description: 'Learn how to build your Tuist projects by simply using the build command that is optimized for minimal configuration.'
 ---
-
-### Context
 
 Traditionally,
 teams have resorted to scripts and programmable DSLs to define a command line interface to interact with their projects.

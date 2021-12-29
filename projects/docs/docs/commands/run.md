@@ -1,10 +1,8 @@
 ---
-title: Run schemes
+title: tuist run
 slug: '/commands/run'
 description: "Learn how to use Tuist's run command to run schemes."
 ---
-
-### Context
 
 Depending on the project you're working on and the kind of build products you're working with, you may want to run them. However, running build products will differ depending on the type of product being built. For example, in a command line application you may just want to run the executable and provide it arguments, but for an iOS application you probably want to install and run the app on a simulator. To manage all these different use cases, you can leverage the power of `tuist run <scheme>`. 
 

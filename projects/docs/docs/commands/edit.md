@@ -1,10 +1,8 @@
 ---
-title: Edit your projects
+title: tuist edit
 slug: '/commands/edit'
 description: 'Learn how to edit your manifest files using Xcode and get documentation, syntax highliting and auto-completion, and validation by Xcode.'
 ---
-
-### Context
 
 One of the advantages of defining your projects in [Swift](https://swift.org/) is that we can leverage Xcode and the Swift compiler to safely edit the projects with syntax auto-completion and documentation.
 Tuist provides a command, `tuist edit`, which generates and opens a temporary Xcode project that includes all the manifest files in the current directory, and the files the manifests depend on _(e.g. [project description helpers](/guides/helpers/))_.
