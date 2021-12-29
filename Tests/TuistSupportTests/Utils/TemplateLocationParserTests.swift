@@ -71,7 +71,7 @@ final class TemplateLocationParserTests: TuistUnitTestCase {
         let repositoryURL = subject.parseRepositoryURL(from: urlTemplate)
 
         // Then
-        XCTAssertEqual("https://github.com/tuist/ExampleTuistTemplate@develop", repositoryURL)
+        XCTAssertEqual("https://github.com/tuist/ExampleTuistTemplate", repositoryURL)
     }
 
     func test_parse_template_url_when_template_ssh_url_has_branch_name_on_it() {
