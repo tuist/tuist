@@ -98,5 +98,3 @@ node_modules
 
 Tuist/Dependencies/SwiftPackageManager
 Tuist/Dependencies/graph.json
-
-.vscode
