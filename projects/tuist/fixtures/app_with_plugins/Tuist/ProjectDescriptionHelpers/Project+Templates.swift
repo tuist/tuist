@@ -3,6 +3,7 @@ import ProjectDescription
 extension Project {
     /// Helper function to create the Project for this ExampleApp
     public static func app(name: String, platform: Platform, additionalTargets _: [String]) -> Project {
+        let test = LocalHelper(name: "test")
         let mainTarget = Target(
             name: name,
             platform: platform,

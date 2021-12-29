@@ -504,5 +504,6 @@ let project = Project(
             .release(name: "Release", settings: releaseSettings(), xcconfig: nil),
         ]
     ),
-    targets: targets()
+    targets: targets(),
+    additionalFiles: ["CHANGELOG.md"]
 )
