@@ -18,17 +18,12 @@ public final class FocusTargetsGraphMappers: GraphMapping {
         let filteredTargets: Set<GraphTarget>
         if let includedTargets = includedTargets {
             let userSpecifiedSourceTargets = graphTraverser.allTargets().filter { includedTargets.contains($0.target.name) }
-            let userSpecifiedSourceTestTargets = userSpecifiedSourceTargets.flatMap {
-                graphTraverser.testTargetsDependingOn(path: $0.path, name: $0.target.name)
-            }
             filteredTargets = Set(try topologicalSort(
-                Array(userSpecifiedSourceTargets + userSpecifiedSourceTestTargets),
-                successors: {
-                    Array(graphTraverser.directTargetDependencies(path: $0.path, name: $0.target.name))
-                }
+                Array(userSpecifiedSourceTargets),
+                successors: { Array(graphTraverser.directTargetDependencies(path: $0.path, name: $0.target.name)) }
             ))
         } else {
-            filteredTargets = Set(graphTraverser.allTargets())
+            filteredTargets = graphTraverser.allTargets()
         }
 
         graphTraverser.allTargets().forEach { graphTarget in
