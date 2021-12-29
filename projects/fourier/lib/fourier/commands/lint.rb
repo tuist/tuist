@@ -7,6 +7,7 @@ module Fourier
       option :fix, desc: "When passed, it fixes the issues", type: :boolean, default: false
       def tuist
         Services::Lint::Tuist.call(fix: options[:fix])
+        Services::Format::Swift.call(fix: options[:fix])
       end
 
       desc "tuistbench", "Lint the Swift code of the tuistbench project"
