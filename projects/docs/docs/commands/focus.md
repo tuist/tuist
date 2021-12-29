@@ -1,10 +1,8 @@
 ---
-title: Focus on targets
+title: tuist focus
 slug: '/commands/focus'
 description: 'Learn how to generate projects with the focus on specific targets removing the unnecessary targets and schemes, and replacing direct and transitive dependencies with pre-compiled targets from the cache.'
 ---
-
-### Context
 
 In large Xcode projects that contain many targets and schemes, Xcode can be slow indexing the project.
 Moreover, the build system, which needs to resolve implicit dependencies, might take longer to do so because there are more Xcode objects to analyze.

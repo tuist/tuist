@@ -1,10 +1,8 @@
 ---
-title: Generate project graph
+title: tuist graph
 slug: '/commands/graph'
 description: "Learn how to use the graph command to get a visual representation of your project's dependency graph"
 ---
-
-### Graph
 
 When projects grow, it becomes hard to visualize the dependencies between all the targets that are part of the project.
 Fortunately, Tuist provides a command, `tuist graph`, that loads your project dependencies graph and exports it. As the
