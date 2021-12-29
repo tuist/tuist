@@ -21,6 +21,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Fix shell completion script generated in directory containing `.tuist_version` file [#3804](https://github.com/tuist/tuist/pull/3804) by [@mikchmie](https://github.com/mikchmie)
 - `tuist cache print-hashes` not working with relative paths [#3892](https://github.com/tuist/tuist/pull/3892) by [@erkekin](https://github.com/erkekin)
 - Fix argument parsing errors handling in `tuistenv` [#3905](https://github.com/tuist/tuist/pull/3905) by [@pepicrft](https://github.com/pepicrft).
+- Fix crash when running `tuist build` with `TUIST_CONFIG_VERBOSE=1` [#3752](https://github.com/tuist/tuist/pull/3752) by [@fortmarek](https://github.com/fortmarek)
 
 ## 2.4.0 - Lune
 
@@ -33,7 +34,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Fixed
 
-- Fix crash when running `tuist build` with `TUIST_CONFIG_VERBOSE=1` [#3752](https://github.com/tuist/tuist/pull/3752) by [@fortmarek](https://github.com/fortmarek)
 - Fix default template to work with `tvos` platform [#3759](https://github.com/tuist/tuist/pull/3759) by [@ezraberch](https://github.com/ezraberch)
 - Fix curl in the installer script so that it fails if unable to download the Tuist release assets. [#3803](https://github.com/tuist/tuist/pull/3803) by [@luispadron](https://github.com/luispadron)
 
