@@ -11,15 +11,15 @@ module.exports = {
       collapsed: false,
       items: [
         'guides/adopting-tuist',
-        'guides/dependencies',
         'guides/helpers',
         'guides/resources',
+        'guides/dependencies',
+        'guides/third-party-dependencies',
         'guides/environment',
         'guides/version-management',
         'guides/shell-autocompletion',
-        'guides/stats',
-        'guides/third-party-dependencies',
         'guides/continuous-integration',
+        'guides/stats',
       ],
     },
     {
