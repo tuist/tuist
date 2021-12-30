@@ -8,6 +8,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Add logging when helpers modules are being built [#3913](https://github.com/tuist/tuist/pull/3913) by [@luispadron](https://github.com/luispadron)
 - Fix `tuist edit` compilation when building local helper modules that include remote plugins [#3918](https://github.com/tuist/tuist/pull/3918) by [@luispadron](https://github.com/luispadron)
+- Document how to use the [Bitrise step](https://github.com/tuist/bitrise-step-tuist) [#3921](https://github.com/tuist/tuist/pull/3921) by [@pepicrft](https://github.com/pepicrft)
 
 ### Fixed
 
@@ -24,7 +25,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Add support for `exclusionRule` parameter to `Headers` [#3793](https://github.com/tuist/tuist/pull/3793) by [@pavel-trafimuk](https://github.com/pavel-trafimuk)
 - Add generation time for `tuist focus` command [#3872](https://github.com/tuist/tuist/pull/3872) by [@adellibovi](https://github.com/adellibovi)
-
 ### Fixed
 
 - Fix shell completion script generated in directory containing `.tuist_version` file [#3804](https://github.com/tuist/tuist/pull/3804) by [@mikchmie](https://github.com/mikchmie)
