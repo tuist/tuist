@@ -46,7 +46,6 @@ workflows:
     steps:
       - git::https://github.com/tuist/bitrise-step-tuist.git:
           title: Build project
-          run_if: true
           inputs:
             - command: build
 ```
