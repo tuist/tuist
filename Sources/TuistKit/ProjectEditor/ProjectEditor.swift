@@ -119,6 +119,7 @@ final class ProjectEditor: ProjectEditing {
         ] + tuistIgnoreEntries
 
         let projectDescriptionPath = try resourceLocator.projectDescription()
+        let projectAutomationPath = try resourceLocator.projectAutomation()
         let projectManifests = manifestFilesLocator.locateProjectManifests(
             at: editingPath,
             excluding: pathsToExclude,
@@ -176,8 +177,8 @@ final class ProjectEditor: ProjectEditing {
             helpers: helpers,
             templates: templates,
             tasks: tasks,
-            projectDescriptionPath: projectDescriptionPath,
-            projectAutomationPath: try resourceLocator.projectAutomation()
+            projectDescriptionSearchPath: projectDescriptionPath.parentDirectory,
+            projectAutomationSearchPath: projectAutomationPath.parentDirectory
         )
 
         let graphTraverser = GraphTraverser(graph: graph)

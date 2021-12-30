@@ -25,31 +25,6 @@ env:
   RUBY_VERSION: '3.0.3'
 
 jobs:
-  format:
-    name: Format code with Xcode ${{ matrix.xcode }}
-    runs-on: macOS-11
-    strategy:
-      matrix:
-        xcode: ['13.2']
-    steps:
-      - uses: actions/checkout@v1
-      - name: Select Xcode ${{ matrix.xcode }}
-        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
-      - uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: ${{ env.RUBY_VERSION }}
-      - uses: actions/cache@v2
-        with:
-          path: vendor/bundle
-          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('**/Gemfile.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
-      - name: Bundle install
-        run: |
-          bundle config path vendor/bundle
-          bundle install --jobs 4 --retry 3
-      - name: Run swiftformat
-        run: ./fourier format swift
   lint_lockfiles:
     name: Lint lockfiles
     runs-on: macOS-11
