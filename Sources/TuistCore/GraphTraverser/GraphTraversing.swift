@@ -85,12 +85,6 @@ public protocol GraphTraversing {
     ///   - name: Name of the target.
     func resourceBundleDependencies(path: AbsolutePath, name: String) -> Set<GraphDependencyReference>
 
-    /// Returns the list of test targets that depend on the one with the given name at the given path.
-    /// - Parameters:
-    ///   - path: Path to the directory that contains the project definition.
-    ///   - name: Name of the target whose dependant test targets will be returned.
-    func testTargetsDependingOn(path: AbsolutePath, name: String) -> Set<GraphTarget>
-
     /// Returns all non-transitive target static dependencies for the given target.
     /// - Parameters:
     ///   - path: Path to the directory where the project that defines the target is located.

@@ -35,6 +35,9 @@ public protocol Environmenting: AnyObject {
 
     /// Returns true unless the user specifically opted out from stats
     var isStatsEnabled: Bool { get }
+
+    /// Sets up the local environment.
+    func bootstrap() throws
 }
 
 /// Local environment controller.
@@ -60,7 +63,7 @@ public class Environment: Environmenting {
         )
     }
 
-    /// Default environment constroller constructor.
+    /// Default environment constructor.
     ///
     /// - Parameters:
     ///   - directory: Directory where the Tuist environment files will be stored.
@@ -68,17 +71,15 @@ public class Environment: Environmenting {
     init(directory: AbsolutePath, fileHandler: FileHandling) {
         self.directory = directory
         self.fileHandler = fileHandler
-        setup()
     }
 
     // MARK: - EnvironmentControlling
 
     /// Sets up the local environment.
-    private func setup() {
-        [directory, versionsDirectory].forEach {
+    public func bootstrap() throws {
+        try [directory, versionsDirectory].forEach {
             if !fileHandler.exists($0) {
-                // swiftlint:disable:next force_try
-                try! fileHandler.createFolder($0)
+                try fileHandler.createFolder($0)
             }
         }
     }

@@ -40,8 +40,8 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
         tasks: [AbsolutePath],
-        projectDescriptionPath: AbsolutePath,
-        projectAutomationPath: AbsolutePath
+        projectDescriptionSearchPath: AbsolutePath,
+        projectAutomationSearchPath: AbsolutePath
     ) throws -> Graph {
         mapArgs.append((
             name: name,
@@ -56,8 +56,8 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
             helpers: helpers,
             templates: templates,
             tasks: tasks,
-            projectDescriptionPath: projectDescriptionPath,
-            projectAutomationPath: projectAutomationPath
+            projectDescriptionPath: projectDescriptionSearchPath,
+            projectAutomationPath: projectAutomationSearchPath
         ))
 
         if let mapStub = mapStub { return mapStub }

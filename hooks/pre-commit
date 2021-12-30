@@ -2,4 +2,3 @@
 
 ./fourier lint swift
 ./fourier lint ruby
-./fourier format swift
