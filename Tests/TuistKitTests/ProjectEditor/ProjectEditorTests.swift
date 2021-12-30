@@ -149,8 +149,8 @@ final class ProjectEditorTests: TuistUnitTestCase {
         XCTAssertEqual(mapArgs?.tuistPath, tuistPath)
         XCTAssertEqual(mapArgs?.helpers, helpers)
         XCTAssertEqual(mapArgs?.sourceRootPath, directory)
-        XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath)
-        XCTAssertEqual(mapArgs?.projectAutomationPath, projectAutomationPath)
+        XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath.parentDirectory)
+        XCTAssertEqual(mapArgs?.projectAutomationPath, projectAutomationPath.parentDirectory)
         XCTAssertEqual(mapArgs?.configPath, configPath)
         XCTAssertEqual(mapArgs?.dependenciesPath, dependenciesPath)
         XCTAssertEqual(mapArgs?.tasks, locateTasksPaths)
@@ -208,7 +208,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let mapArgs = projectEditorMapper.mapArgs.first
         XCTAssertEqual(mapArgs?.tuistPath, tuistPath)
         XCTAssertEqual(mapArgs?.sourceRootPath, directory)
-        XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath)
+        XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath.parentDirectory)
         XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.path), [pluginManifest].map(\.parentDirectory))
         XCTAssertEqual(mapArgs?.pluginProjectDescriptionHelpersModule, [])
     }
@@ -243,7 +243,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let mapArgs = projectEditorMapper.mapArgs.first
         XCTAssertEqual(mapArgs?.tuistPath, tuistPath)
         XCTAssertEqual(mapArgs?.sourceRootPath, directory)
-        XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath)
+        XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath.parentDirectory)
         XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.path).sorted(), pluginManifests.map(\.parentDirectory))
         XCTAssertEqual(mapArgs?.pluginProjectDescriptionHelpersModule, [])
     }
@@ -293,7 +293,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let mapArgs = projectEditorMapper.mapArgs.first
         XCTAssertEqual(mapArgs?.tuistPath, tuistPath)
         XCTAssertEqual(mapArgs?.sourceRootPath, directory)
-        XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath)
+        XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath.parentDirectory)
         XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.name), ["LocalPlugin"])
         XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.path), [pluginManifestPath].map(\.parentDirectory))
         XCTAssertEqual(mapArgs?.pluginProjectDescriptionHelpersModule, [])
@@ -341,7 +341,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let mapArgs = projectEditorMapper.mapArgs.first
         XCTAssertEqual(mapArgs?.tuistPath, tuistPath)
         XCTAssertEqual(mapArgs?.sourceRootPath, editingPath)
-        XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath)
+        XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath.parentDirectory)
         XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.name), ["LocalPlugin"])
         XCTAssertEqual(mapArgs?.editablePluginManifests.map(\.path), [pluginManifestPath].map(\.parentDirectory))
         XCTAssertEqual(mapArgs?.pluginProjectDescriptionHelpersModule, [])
@@ -387,7 +387,7 @@ final class ProjectEditorTests: TuistUnitTestCase {
         let mapArgs = projectEditorMapper.mapArgs.first
         XCTAssertEqual(mapArgs?.tuistPath, tuistPath)
         XCTAssertEqual(mapArgs?.sourceRootPath, directory)
-        XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath)
+        XCTAssertEqual(mapArgs?.projectDescriptionPath, projectDescriptionPath.parentDirectory)
         XCTAssertEmpty(try XCTUnwrap(mapArgs?.editablePluginManifests))
         XCTAssertEqual(
             mapArgs?.pluginProjectDescriptionHelpersModule,
