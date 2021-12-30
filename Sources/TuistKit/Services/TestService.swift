@@ -222,7 +222,7 @@ final class TestService {
                 project: buildableTarget.project,
                 target: buildableTarget.target,
                 configuration: configuration,
-                skipSigning: true
+                skipSigning: false
             )
         )
         .printFormattedOutput()
