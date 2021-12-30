@@ -4,8 +4,14 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Added
+
+- Add logging when helpers modules are being built [#3913](https://github.com/tuist/tuist/pull/3913) by [@luispadron](https://github.com/luispadron)
+- Fix `tuist edit` compilation when building local helper modules that include remote plugins [#3918](https://github.com/tuist/tuist/pull/3918) by [@luispadron](https://github.com/luispadron)
+
 ### Fixed
 
+- Avoid building dependent test target when not needed during `tuist cache warm` [#3917](https://github.com/tuist/tuist/pull/3917) by [@danyf90](https://github.com/danyf90)
 - Fix unit test failures when test host requires codesigning [#3924](https://github.com/tuist/tuist/pull/3924) by [@hisaac](https://github.com/hisaac)
 
 ## 2.5.0 - Gestalt
