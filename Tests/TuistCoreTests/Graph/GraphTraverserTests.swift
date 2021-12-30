@@ -149,44 +149,6 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertEqual(got.map(\.target), [app, framework])
     }
 
-    func test_testTargetsDependingOn() {
-        // Given
-        let path = AbsolutePath.root
-        let project = Project.test(path: path)
-        let framework = Target.test(name: "Framework", product: .framework)
-        let dependantFramework = Target.test(name: "DependantFramework", product: .framework)
-        let unitTests = Target.test(name: "UnitTests", product: .unitTests)
-        let uiTests = Target.test(name: "UITests", product: .uiTests)
-        let targets: [AbsolutePath: [String: Target]] = [
-            path: [
-                framework.name: framework,
-                dependantFramework.name: dependantFramework,
-                unitTests.name: unitTests,
-                uiTests.name: uiTests,
-            ],
-        ]
-        let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: unitTests.name, path: path): Set([.target(name: framework.name, path: path)]),
-            .target(name: uiTests.name, path: path): Set([.target(name: framework.name, path: path)]),
-            .target(name: dependantFramework.name, path: path): Set([.target(name: framework.name, path: path)]),
-        ]
-
-        // Given: Value Graph
-        let graph = Graph.test(
-            path: path,
-            projects: [path: project],
-            targets: targets,
-            dependencies: dependencies
-        )
-        let subject = GraphTraverser(graph: graph)
-
-        // When
-        let got = subject.testTargetsDependingOn(path: path, name: framework.name).sorted()
-
-        // Then
-        XCTAssertEqual(got.map(\.target), [uiTests, unitTests])
-    }
-
     func test_directStaticDependencies() {
         // Given
         let path = AbsolutePath.root

@@ -141,19 +141,6 @@ public class GraphTraverser: GraphTraversing {
         return Set(bundles.compactMap(dependencyReference))
     }
 
-    public func testTargetsDependingOn(path: AbsolutePath, name: String) -> Set<GraphTarget> {
-        guard let project = graph.projects[path] else { return Set() }
-
-        return Set(
-            graph.targets[path]?.values
-                .filter(\.product.testsBundle)
-                .filter {
-                    graph.dependencies[.target(name: $0.name, path: path)]?.contains(.target(name: name, path: path)) == true
-                }
-                .map { GraphTarget(path: path, target: $0, project: project) } ?? []
-        )
-    }
-
     public func target(from dependency: GraphDependency) -> GraphTarget? {
         guard case let GraphDependency.target(name, path) = dependency else {
             return nil

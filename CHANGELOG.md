@@ -8,6 +8,15 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Remove duplicate bundle identifier lint warning [#3914](https://github.com/tuist/tuist/pull/3914) by [@danyf90](https://github.com/danyf90)
 
+### Added
+
+- Add logging when helpers modules are being built [#3913](https://github.com/tuist/tuist/pull/3913) by [@luispadron](https://github.com/luispadron)
+- Fix `tuist edit` compilation when building local helper modules that include remote plugins [#3918](https://github.com/tuist/tuist/pull/3918) by [@luispadron](https://github.com/luispadron)
+
+### Fixed
+
+- Avoid building dependent test target when not needed during `tuist cache warm` [#3917](https://github.com/tuist/tuist/pull/3917) by [@danyf90](https://github.com/danyf90)
+
 ## 2.5.0 - Gestalt
 
 ### Changed
@@ -24,7 +33,9 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Fix shell completion script generated in directory containing `.tuist_version` file [#3804](https://github.com/tuist/tuist/pull/3804) by [@mikchmie](https://github.com/mikchmie)
 - `tuist cache print-hashes` not working with relative paths [#3892](https://github.com/tuist/tuist/pull/3892) by [@erkekin](https://github.com/erkekin)
- 
+- Fix argument parsing errors handling in `tuistenv` [#3905](https://github.com/tuist/tuist/pull/3905) by [@pepicrft](https://github.com/pepicrft).
+- Fix crash when running `tuist build` with `TUIST_CONFIG_VERBOSE=1` [#3752](https://github.com/tuist/tuist/pull/3752) by [@fortmarek](https://github.com/fortmarek)
+
 ## 2.4.0 - Lune
 
 ### Added

@@ -14,7 +14,7 @@ module Fourier
           File.join(Fourier::Constants::VENDOR_DIRECTORY, "swiftlint", "swiftlint"),
         ]
         if fix
-          arguments << "autocorrect" if fix
+          arguments << "--fix" if fix
         else
           arguments << "lint"
         end

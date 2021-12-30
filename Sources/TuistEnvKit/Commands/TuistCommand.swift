@@ -22,17 +22,38 @@ public struct TuistCommand: ParsableCommand {
 
     public static func main(_: [String]? = nil) -> Never {
         let errorHandler = ErrorHandler()
+        let processedArguments = processArguments()
+
+        // Help env
+        if processedArguments.dropFirst().first == "--help-env" {
+            let error = CleanExit.helpRequest(self)
+            exit(withError: error)
+        }
+
+        // Parse the command
+        var command: ParsableCommand?
         do {
-            let processedArguments = processArguments()
-            if processedArguments.dropFirst().first == "--help-env" {
-                throw CleanExit.helpRequest(self)
-            } else if let parsedArguments = try parse() {
-                var command = try parseAsRoot(parsedArguments)
+            if let parsedArguments = try parse() {
+                command = try parseAsRoot(parsedArguments)
+            }
+        } catch {
+            let exitCode = exitCode(for: error).rawValue
+            if exitCode == 0 {
+                logger.info("\(fullMessage(for: error))")
+            } else {
+                logger.error("\(fullMessage(for: error))")
+            }
+            _exit(exitCode)
+        }
+
+        // Run the command
+        do {
+            if var command = command {
                 try command.run()
             } else {
                 try CommandRunner().run()
             }
-            exit()
+            _exit(0)
         } catch let error as FatalError {
             errorHandler.fatal(error: error)
             _exit(exitCode(for: error).rawValue)
