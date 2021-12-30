@@ -20,4 +20,22 @@ final class CompatibleXcodeVersionsTests: XCTestCase {
         // Then
         XCTAssertCodable(subject)
     }
+
+    func test_codable_when_exact() {
+        // Given
+        let subject = CompatibleXcodeVersions.exact("13.2.1")
+
+        // Then
+        XCTAssertCodable(subject)
+    }
+
+    func test_codable_when_upToNext() {
+        // Given
+        let subject = CompatibleXcodeVersions.upToNextMajor("13.2")
+        let subject2 = CompatibleXcodeVersions.upToNextMinor("13.2")
+
+        // Then
+        XCTAssertCodable(subject)
+        XCTAssertCodable(subject2)
+    }
 }
