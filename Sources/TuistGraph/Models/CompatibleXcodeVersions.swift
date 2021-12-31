@@ -26,19 +26,19 @@ public enum CompatibleXcodeVersions: Equatable, Hashable, ExpressibleByArrayLite
         case let .exact(version):
             return version == xCodeVersion
         case let .upToNextMajor(version):
-            return version == xCodeVersion || (version.major == xCodeVersion.major && xCodeVersion > version)
+            return xCodeVersion == version || (xCodeVersion.major == version.major  && xCodeVersion >= version)
         case let .upToNextMinor(version):
             return version == xCodeVersion ||
                 (version.major == xCodeVersion.major && version.minor == xCodeVersion.minor && xCodeVersion > version)
         case let .list(versions):
-            return versions.map { $0.isCompatible(versionString: versionString) }.contains(true)
+            return versions.contains { $0.isCompatible(versionString: versionString) }
         }
     }
 
     // MARK: - ExpressibleByStringInterpolation
 
     public init(stringLiteral value: String) {
-        self = .exact("\(value)")
+        self = .exact(Version(stringLiteral: value))
     }
 
     // MARK: - ExpressibleByArrayLiteral

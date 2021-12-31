@@ -17,11 +17,11 @@ public enum CompatibleXcodeVersions: ExpressibleByArrayLiteral, ExpressibleByStr
     // MARK: - ExpressibleByArrayLiteral
 
     public init(arrayLiteral elements: [CompatibleXcodeVersions]) {
-        self = .list(elements.map { $0 })
+        self = .list(elements)
     }
 
     public init(arrayLiteral elements: CompatibleXcodeVersions...) {
-        self = .list(elements.map { $0 })
+        self = .list(elements)
     }
 
     enum CodingKeys: String, CodingKey {
@@ -32,7 +32,7 @@ public enum CompatibleXcodeVersions: ExpressibleByArrayLiteral, ExpressibleByStr
     // MARK: - ExpressibleByStringInterpolation
 
     public init(stringLiteral value: String) {
-        self = .exact("\(value)")
+        self = .exact(Version(stringLiteral: value))
     }
 
     // MARK: - Codable
