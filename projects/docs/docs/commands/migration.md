@@ -1,5 +1,5 @@
 ---
-title: Migrate Xcode projects
+title: tuist migration
 slug: '/commands/migration'
 description: 'Learn how to use the migration commands to smooth the adoption of Tuist from your projects.'
 ---

@@ -1,10 +1,8 @@
 ---
-title: Test schemes
+title: tuist test
 slug: '/commands/test'
 description: 'Learn how to test your Tuist projects by simply using the test command that is optimized for minimal configuration.'
 ---
-
-### Context
 
 Whenever you don't want to run tests from Xcode, for whatever reason, you have to resort to `xcodebuild`.
 While being a fine piece of software, it's really hard to get all its arguments **just right**
