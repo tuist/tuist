@@ -8,10 +8,13 @@ public enum CompatibleXcodeVersions: Equatable, Hashable, ExpressibleByArrayLite
     /// The project supports all Xcode versions.
     case all
 
+    /// The project supports only a specific Xcode version.
     case exact(Version)
 
+    /// The project supports all Xcode versions from the specified version up to but not including the next major version.
     case upToNextMajor(Version)
 
+    /// The project supports all Xcode versions from the specified version up to but not including the next minor version.
     case upToNextMinor(Version)
 
     /// List of versions that are supported by the project.
@@ -26,7 +29,7 @@ public enum CompatibleXcodeVersions: Equatable, Hashable, ExpressibleByArrayLite
         case let .exact(version):
             return version == xCodeVersion
         case let .upToNextMajor(version):
-            return xCodeVersion == version || (xCodeVersion.major == version.major  && xCodeVersion >= version)
+            return xCodeVersion == version || (xCodeVersion.major == version.major && xCodeVersion >= version)
         case let .upToNextMinor(version):
             return version == xCodeVersion ||
                 (version.major == xCodeVersion.major && version.minor == xCodeVersion.minor && xCodeVersion > version)
@@ -43,12 +46,12 @@ public enum CompatibleXcodeVersions: Equatable, Hashable, ExpressibleByArrayLite
 
     // MARK: - ExpressibleByArrayLiteral
 
-    public init(arrayLiteral elements: [String]) {
-        self = .list(elements.map { "\($0)" })
+    public init(arrayLiteral elements: [CompatibleXcodeVersions]) {
+        self = .list(elements)
     }
 
-    public init(arrayLiteral elements: String...) {
-        self = .list(elements.map { "\($0)" })
+    public init(arrayLiteral elements: CompatibleXcodeVersions...) {
+        self = .list(elements)
     }
 
     // MARK: - CustomStringConvertible
