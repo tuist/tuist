@@ -2,6 +2,15 @@
 
 Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
+## NextMajor
+
+- **Breaking** remove `focus` command and merge its functionality inside `generate`. [#3912](https://github.com/tuist/tuist/pull/3912) by [@danyf90](https://github.com/danyf90):
+  - **Motivation:**: The command were sharing a lot of responsibilities, and having a single one provides a cleaner CLI.
+  - **Migration:** Instead of using focus, just use `generate` passing the targets to it. If you want to avoid using caching, you can pass `--no-cache` to `tuist generate`.
+- **Breaking** `tuist generate` automatically opens the generated project. [#3912](https://github.com/tuist/tuist/pull/3912) by [@danyf90](https://github.com/danyf90):
+  - **Motivation:**: Most of the times you want to open the project after generating it.
+  - **Migration:** If you need to generate the project without openeing it, just pass `--no-open` to `tuist generate`.
+
 ## Next
 
 ### Changed
