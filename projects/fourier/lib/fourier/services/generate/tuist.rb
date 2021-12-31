@@ -7,7 +7,7 @@ module Fourier
         attr_reader :open
         attr_reader :targets
 
-        def initialize(open: false, targets: "")
+        def initialize(open: false, targets: [])
           @open = open
           @targets = targets
         end
@@ -16,13 +16,11 @@ module Fourier
           dependencies = ["dependencies", "fetch"]
           Utilities::System.tuist(*dependencies)
 
-          cache_warm = ["cache", "warm", "--dependencies-only"]
-          cache_warm << targets
+          cache_warm = ["cache", "warm", "--dependencies-only"] + targets
           Utilities::System.tuist(*cache_warm)
 
-          generate = ["generate"]
+          generate = ["generate"] + targets
           generate << "--open" if open
-          generate << targets
           Utilities::System.tuist(*generate)
         end
       end
