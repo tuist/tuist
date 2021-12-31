@@ -11,8 +11,15 @@ module Fourier
         type: :boolean,
         aliases: :o
       )
+      option(
+        :targets,
+        desc: "The list of targets to focus",
+        default: false,
+        type: :string,
+        aliases: :t
+      )
       def tuist
-        Services::Generate::Tuist.call(open: options[:open])
+        Services::Generate::Tuist.call(open: options[:open], targets: [:targets])
       end
     end
   end
