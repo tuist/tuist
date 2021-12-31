@@ -22,7 +22,7 @@ struct GenerateCommand: ParsableCommand, HasTrackableParameters {
     @Argument(help: """
     A list of targets in which you'd like to focus. \
     Those and their dependant targets will be generated as sources. \
-    If no target is specified, the project defined targets will be focused.
+    If no target is specified, all the project (excluding the external ones) targets will be focused.
     """)
     var sources: [String] = []
 
