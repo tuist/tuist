@@ -30,7 +30,6 @@ module.exports = {
         'commands/clean',
         'commands/dependencies',
         'commands/edit',
-        'commands/focus',
         'commands/graph',
         'commands/generate',
         'commands/linting',
