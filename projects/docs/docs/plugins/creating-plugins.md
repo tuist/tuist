@@ -55,7 +55,26 @@ In order for Tuist to locate the templates for a plugin, they must be placed in 
 
 ### Tasks
 
-<!-- TODO: Write documentation for tasks -->
+Tasks represent arbitrary tasks which can be run via tuist. For more context, continue [here](/commands/task) where you will also find documentation for the `ProjectAutomation` framework.
+
+To create a task plugin, start by adding a `Package.swift` and adding your CLI executable with `tuist` prefix, such as:
+```swift
+let package = Package(
+    name: "MyPlugin",
+    products: [
+        .executable(name: "tuist-my-cli", targets: ["tuist-my-cli"]),
+    ],
+    targets: [
+        .target(
+            name: "tuist-my-cli",
+        ),
+    ]
+)
+```
+
+For easier development and help with publishing your plugin, use `tuist plugin` - you can read more about it [here](/commands/plugin.md).
+
+To publish a plugin with tasks, you will need to run `tuist plugin archive` and then create a Github release with the created `.zip` as an artifact.
 
 ## ResourceSynthesizers
 

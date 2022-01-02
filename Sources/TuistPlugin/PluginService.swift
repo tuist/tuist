@@ -115,7 +115,7 @@ public final class PluginService: PluginServicing {
     }
 
     public func remotePluginPaths(using config: Config) throws -> [RemotePluginPaths] {
-        return try config.plugins.compactMap { pluginLocation in
+        try config.plugins.compactMap { pluginLocation in
             switch pluginLocation {
             case .local:
                 return nil
@@ -159,7 +159,7 @@ public final class PluginService: PluginServicing {
             }
         let localPluginManifests = try localPluginPaths.map(manifestLoader.loadPlugin)
 
-        let remotePluginPaths = try self.remotePluginPaths(using: config)
+        let remotePluginPaths = try remotePluginPaths(using: config)
         let remotePluginRepositoryPaths = remotePluginPaths.map(\.repositoryPath)
         let remotePluginManifests = try remotePluginRepositoryPaths
             .map(manifestLoader.loadPlugin)
@@ -201,7 +201,7 @@ public final class PluginService: PluginServicing {
         gitReference: PluginLocation.GitReference,
         config: Config
     ) throws {
-        let pluginCacheDirectory = try self.pluginCacheDirectory(
+        let pluginCacheDirectory = try pluginCacheDirectory(
             url: url,
             gitId: gitReference.raw,
             config: config

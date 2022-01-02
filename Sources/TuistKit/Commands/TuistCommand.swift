@@ -46,6 +46,7 @@ public struct TuistCommand: ParsableCommand {
         do {
             let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
             let isTuistCommand = Self.configuration.subcommands
+                // swiftformat:disable:next preferKeyPath
                 .map { $0._commandName }
                 .contains(processedArguments.first ?? "")
             if isTuistCommand {

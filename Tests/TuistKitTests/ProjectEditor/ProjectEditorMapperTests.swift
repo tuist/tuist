@@ -34,7 +34,6 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let helperPaths = [sourceRootPath].map { $0.appending(component: "Project+Template.swift") }
         let templates = [sourceRootPath].map { $0.appending(component: "template") }
         let projectDescriptionPath = sourceRootPath.appending(component: "ProjectDescription.framework")
-        let projectAutomationPath = sourceRootPath.appending(component: "ProjectAutomation.framework")
         let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
         let projectName = "Manifests"
         let projectsGroup = ProjectGroup.group(name: projectName)
@@ -274,7 +273,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             pluginProjectDescriptionHelpersModule: [],
             helpers: helperPaths,
             templates: templates,
-            projectDescriptionPath: projectDescriptionPath
+            projectDescriptionSearchPath: projectDescriptionPath
         )
 
         let project = try XCTUnwrap(graph.projects.values.first)
@@ -462,7 +461,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             pluginProjectDescriptionHelpersModule: [],
             helpers: helperPaths,
             templates: templates,
-            projectDescriptionSearchPath: projectDescriptionPath,
+            projectDescriptionSearchPath: projectDescriptionPath
         )
 
         let project = try XCTUnwrap(graph.projects.values.first)

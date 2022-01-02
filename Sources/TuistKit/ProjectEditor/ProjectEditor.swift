@@ -115,7 +115,6 @@ final class ProjectEditor: ProjectEditing {
         ] + tuistIgnoreEntries
 
         let projectDescriptionPath = try resourceLocator.projectDescription()
-        let projectAutomationPath = try resourceLocator.projectAutomation()
         let projectManifests = manifestFilesLocator.locateProjectManifests(
             at: editingPath,
             excluding: pathsToExclude,
