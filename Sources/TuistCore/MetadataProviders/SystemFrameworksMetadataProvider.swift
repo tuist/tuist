@@ -7,21 +7,18 @@ import TuistSupport
 
 public enum SystemFrameworkMetadataProviderError: FatalError, Equatable {
     case unsupportedSDK(name: String)
-    case unsupportedSDKForPlatform(name: String, platform: Platform)
 
     public var description: String {
         switch self {
         case let .unsupportedSDK(sdk):
             let supportedTypes = SDKType.supportedTypesDescription
             return "The SDK type of \(sdk) is not currently supported - only \(supportedTypes) are supported."
-        case let .unsupportedSDKForPlatform(name: sdk, platform: platform):
-            return "The SDK \(sdk) is not currently supported on \(platform)."
         }
     }
 
     public var type: ErrorType {
         switch self {
-        case .unsupportedSDK, .unsupportedSDKForPlatform:
+        case .unsupportedSDK:
             return .abort
         }
     }
@@ -65,9 +62,7 @@ public final class SystemFrameworkMetadataProvider: SystemFrameworkMetadataProvi
     private func sdkPath(name: String, platform: Platform, type: SDKType, source: SDKSource) throws -> AbsolutePath {
         switch source {
         case .developer:
-            guard let xcodeDeveloperSdkRootPath = platform.xcodeDeveloperSdkRootPath else {
-                throw SystemFrameworkMetadataProviderError.unsupportedSDKForPlatform(name: name, platform: platform)
-            }
+            let xcodeDeveloperSdkRootPath = platform.xcodeDeveloperSdkRootPath
             let sdkRootPath = AbsolutePath("/\(xcodeDeveloperSdkRootPath)")
             return sdkRootPath
                 .appending(RelativePath("Frameworks"))

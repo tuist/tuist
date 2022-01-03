@@ -108,7 +108,7 @@ extension Platform {
         }
     }
 
-    public var xcodeDeveloperSdkRootPath: String? {
+    public var xcodeDeveloperSdkRootPath: String {
         switch self {
         case .iOS:
             return "Platforms/iPhoneOS.platform/Developer/Library"
@@ -116,7 +116,8 @@ extension Platform {
             return "Platforms/MacOSX.platform/Developer/Library"
         case .tvOS:
             return "Platforms/AppleTVOS.platform/Developer/Library"
-        default: return nil
+        case .watchOS:
+            return "Platforms/WatchOS.platform/Developer/Library"
         }
     }
 

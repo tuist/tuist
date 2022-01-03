@@ -527,6 +527,12 @@ public class GraphLinter: GraphLinting {
             LintableTarget(platform: .watchOS, product: .staticFramework),
             LintableTarget(platform: .watchOS, product: .bundle),
         ],
+        LintableTarget(platform: .watchOS, product: .unitTests): [
+            LintableTarget(platform: .watchOS, product: .staticLibrary),
+            LintableTarget(platform: .watchOS, product: .framework),
+            LintableTarget(platform: .watchOS, product: .staticFramework),
+            LintableTarget(platform: .watchOS, product: .watch2Extension),
+        ],
         //        LintableTarget(platform: .watchOS, product: .watchExtension): [
 //            LintableTarget(platform: .watchOS, product: .staticLibrary),
 //            LintableTarget(platform: .watchOS, product: .dynamicLibrary),
