@@ -19,16 +19,6 @@ public struct FileList: Codable, Equatable {
     private init(_ globs: [FileListGlob]) {
         self.globs = globs
     }
-
-    /// - deprecated: use `list(_ globs: [FileListGlob])` to create FileList instance.
-    @available(
-        *,
-        deprecated,
-        message: "Use `list(_ globs: [FileListGlob])`. Interface was changed to use new globs type"
-    )
-    public init(globs: [Path]) {
-        self.init(globs.map { .glob($0) })
-    }
 }
 
 extension FileList: ExpressibleByStringInterpolation {
