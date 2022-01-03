@@ -29,7 +29,7 @@ A dependency can be any of the following types.
 ### Target dependencies
 
 ```swift
-.target("App")
+.target(name: "App")
 ```
 
 It defines a dependency with another target in the same project. For instance, a tests target depends on the target that is being tested.
