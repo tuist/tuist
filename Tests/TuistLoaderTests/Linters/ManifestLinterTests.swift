@@ -71,4 +71,21 @@ class ManifestLinterTests: XCTestCase {
             severity: .warning
         )))
     }
+
+    func test_lint_project_duplicateTargetNames() throws {
+        // Given
+        let targetA = Target.test(name: "A")
+        let targetADuplicated = Target.test(name: "A")
+        let targetB = Target.test(name: "B")
+        let project = Project.test(targets: [targetA, targetADuplicated, targetB])
+
+        // When
+        let results = subject.lint(project: project)
+
+        // Then
+        XCTAssertTrue(results.contains(LintingIssue(
+            reason: "The target 'A' is declared multiple times within 'Project' project.",
+            severity: .error
+        )))
+    }
 }

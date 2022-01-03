@@ -43,13 +43,11 @@ public final class GraphLoader: GraphLoading {
 
     public func loadWorkspace(workspace: Workspace, projects: [Project]) throws -> Graph {
         let cache = Cache(projects: projects)
-        let cycleDetector = GraphCircularDetector()
 
         try workspace.projects.forEach {
             try loadProject(
                 path: $0,
-                cache: cache,
-                cycleDetector: cycleDetector
+                cache: cache
             )
         }
 
@@ -71,8 +69,7 @@ public final class GraphLoader: GraphLoading {
         guard let rootProject = cache.allProjects[path] else {
             throw GraphLoadingError.missingProject(path)
         }
-        let cycleDetector = GraphCircularDetector()
-        try loadProject(path: path, cache: cache, cycleDetector: cycleDetector)
+        try loadProject(path: path, cache: cache)
 
         let workspace = Workspace(
             path: path,
@@ -96,8 +93,7 @@ public final class GraphLoader: GraphLoading {
 
     private func loadProject(
         path: AbsolutePath,
-        cache: Cache,
-        cycleDetector: GraphCircularDetector
+        cache: Cache
     ) throws {
         guard !cache.projectLoaded(path: path) else {
             return
@@ -111,8 +107,7 @@ public final class GraphLoader: GraphLoading {
             try loadTarget(
                 path: path,
                 name: $0.name,
-                cache: cache,
-                cycleDetector: cycleDetector
+                cache: cache
             )
         }
     }
@@ -120,8 +115,7 @@ public final class GraphLoader: GraphLoading {
     private func loadTarget(
         path: AbsolutePath,
         name: String,
-        cache: Cache,
-        cycleDetector: GraphCircularDetector
+        cache: Cache
     ) throws {
         guard !cache.targetLoaded(path: path, name: name) else {
             return
@@ -139,15 +133,11 @@ public final class GraphLoader: GraphLoading {
         let dependencies = try target.dependencies.map {
             try loadDependency(
                 path: path,
-                fromTarget: target.name,
                 fromPlatform: target.platform,
                 dependency: $0,
-                cache: cache,
-                cycleDetector: cycleDetector
+                cache: cache
             )
         }
-
-        try cycleDetector.complete()
 
         if !dependencies.isEmpty {
             cache.dependencies[.target(name: name, path: path)] = Set(dependencies)
@@ -156,37 +146,27 @@ public final class GraphLoader: GraphLoading {
 
     private func loadDependency(
         path: AbsolutePath,
-        fromTarget: String,
         fromPlatform: Platform,
         dependency: TargetDependency,
-        cache: Cache,
-        cycleDetector: GraphCircularDetector
+        cache: Cache
     ) throws -> GraphDependency {
         switch dependency {
         case let .target(toTarget):
             // A target within the same project.
-            let circularFrom = GraphCircularDetectorNode(path: path, name: fromTarget)
-            let circularTo = GraphCircularDetectorNode(path: path, name: toTarget)
-            cycleDetector.start(from: circularFrom, to: circularTo)
             try loadTarget(
                 path: path,
                 name: toTarget,
-                cache: cache,
-                cycleDetector: cycleDetector
+                cache: cache
             )
             return .target(name: toTarget, path: path)
 
         case let .project(toTarget, projectPath):
             // A target from another project
-            let circularFrom = GraphCircularDetectorNode(path: path, name: fromTarget)
-            let circularTo = GraphCircularDetectorNode(path: projectPath, name: toTarget)
-            cycleDetector.start(from: circularFrom, to: circularTo)
-            try loadProject(path: projectPath, cache: cache, cycleDetector: cycleDetector)
+            try loadProject(path: projectPath, cache: cache)
             try loadTarget(
                 path: projectPath,
                 name: toTarget,
-                cache: cache,
-                cycleDetector: cycleDetector
+                cache: cache
             )
             return .target(name: toTarget, path: projectPath)
 
@@ -305,7 +285,7 @@ public final class GraphLoader: GraphLoading {
         )
     }
 
-    private final class Cache {
+    final class Cache {
         let allProjects: [AbsolutePath: Project]
         let allTargets: [AbsolutePath: [String: Target]]
 
