@@ -11,11 +11,9 @@ let project = Project(
             bundleId: "io.tuist.Framework2",
             infoPlist: "Config/Framework2-Info.plist",
             sources: "Sources/**",
-            headers: Headers(
+            headers: .headers(
                 public: "Sources/Public/**",
-
                 private: "Sources/Private/**",
-
                 project: "Sources/Project/**"
             ),
             dependencies: [
@@ -30,7 +28,7 @@ let project = Project(
             bundleId: "io.tuist.Framework2",
             infoPlist: "Config/Framework2-Info.plist",
             sources: "Sources/**",
-            headers: Headers(
+            headers: .headers(
                 public: "Sources/Public/**",
                 private: "Sources/Private/**",
                 project: "Sources/Project/**"
