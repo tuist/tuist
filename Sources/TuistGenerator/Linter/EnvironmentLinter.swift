@@ -45,7 +45,7 @@ public class EnvironmentLinter: EnvironmentLinting {
         if !config.compatibleXcodeVersions.isCompatible(versionString: version) {
             let versions = config.compatibleXcodeVersions
             let message =
-                "The project, which only supports the versions of Xcode \(versions), is not compatible with your selected version of Xcode, \(version)"
+                "The selected Xcode version is \(version), which is not compatible with this project's Xcode version requirement of \(versions)."
             return [LintingIssue(reason: message, severity: .error)]
         } else {
             return []

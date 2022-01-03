@@ -29,10 +29,9 @@ public enum CompatibleXcodeVersions: Equatable, Hashable, ExpressibleByArrayLite
         case let .exact(version):
             return version == xCodeVersion
         case let .upToNextMajor(version):
-            return xCodeVersion == version || (xCodeVersion.major == version.major && xCodeVersion >= version)
+            return xCodeVersion.major == version.major && xCodeVersion >= version
         case let .upToNextMinor(version):
-            return version == xCodeVersion ||
-                (version.major == xCodeVersion.major && version.minor == xCodeVersion.minor && xCodeVersion > version)
+            return version.major == xCodeVersion.major && version.minor == xCodeVersion.minor && xCodeVersion >= version
         case let .list(versions):
             return versions.contains { $0.isCompatible(versionString: versionString) }
         }
@@ -63,11 +62,11 @@ public enum CompatibleXcodeVersions: Equatable, Hashable, ExpressibleByArrayLite
         case let .exact(version):
             return "\(version)"
         case let .upToNextMajor(version):
-            return ".upToNextMajor(\(version))"
+            return "\(version)..<\(version.major + 1).0.0"
         case let .upToNextMinor(version):
-            return ".upToNextMinor(\(version))"
+            return "\(version)..<\(version.major).\(version.minor + 1).0"
         case let .list(versions):
-            return "\(versions.map(\.description).joined(separator: ", "))"
+            return "\(versions.map(\.description).joined(separator: " or "))"
         }
     }
 }
