@@ -25,7 +25,7 @@ Moreover, the build system, which needs to resolve implicit dependencies, might 
 This is **not ideal for developers' productivity** and for that reason Tuist allows users to focus on a specific target or set of targets.
 
 ```bash
-tuist generateMyApp
+tuist generate MyApp
 ```
 
 The command generates and opens an Xcode workspace where the targets and schemes that are not directly related to `MyApp` are removed.
