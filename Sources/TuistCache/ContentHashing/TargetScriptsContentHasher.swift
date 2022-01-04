@@ -31,6 +31,10 @@ public final class TargetScriptsContentHasher: TargetScriptsContentHashing {
             scriptPaths.forEach { path in
                 if path.pathString.contains("$") {
                     stringsToHash.append(path.pathString)
+                    logger
+                        .notice(
+                            "The path of the file \'\(path.url.lastPathComponent)\' is hashed, not the content. Because it has a build variable."
+                        )
                 } else {
                     pathsToHash.append(path)
                 }
