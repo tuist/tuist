@@ -1,14 +1,10 @@
 ---
-title: Manage external dependencies
+title: tuist dependencies
 slug: '/commands/dependencies'
 description: "Learn how to use Tuist's dependencies commands to manage external dependencies."
 ---
 
-### Context
-
-External dependencies are represented by another graph. Dependency managers like [CocoaPods](https://cocoapods.org) integrate it when running `pod install` leveraging Xcode workspaces, and Swift Package Manager does it at build time leveraging Xcode's closed build system. Both approaches might lead to integration issues that can cause compilation issues down the road. We are aware that's not a great developer experience and thus we take a different approach to managing external dependencies that allows leverating Tuist features such as linting and caching. The idea is simple, developers define their Carthage and Package dependencies in a `Dependencies.swift` file. They are fetched by running `tuist dependencies fetch` and integrated into the generated Xcode project at generation time. Because we merge your project and the external dependencies' graph into a single graph, we validate and fail early if the resulting graph is invalid.
-
-Check out [this page](/guides/third-party-dependencies/) for the API reference of `Dependencies.swift`.
+Tuist provides a first-class support for integrating external dependencies into your projects. External dependencies [are declared](/guides/third-party-dependencies/) in a `Tuist/Dependencies.swift` file, and through the commands described in this page you can **fetch, update, and clean** dependencies in your project's directory. Tuist integrates them automatically when generating the Xcode projects.
 
 ### Commands
 

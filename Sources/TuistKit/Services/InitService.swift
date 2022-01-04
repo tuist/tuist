@@ -43,14 +43,23 @@ class InitService {
     private let templateLoader: TemplateLoading
     private let templatesDirectoryLocator: TemplatesDirectoryLocating
     private let templateGenerator: TemplateGenerating
+    private let fileHandler: FileHandling
+    private let gitHandler: GitHandling
+    private let templateLocationParser: TemplateLocationParsing
 
     init(templateLoader: TemplateLoading = TemplateLoader(),
          templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
-         templateGenerator: TemplateGenerating = TemplateGenerator())
+         templateGenerator: TemplateGenerating = TemplateGenerator(),
+         fileHandler: FileHandling = FileHandler.shared,
+         gitHandler: GitHandling = GitHandler(),
+         templateLocationParser: TemplateLocationParsing = TemplateLocationParser())
     {
         self.templateLoader = templateLoader
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.templateGenerator = templateGenerator
+        self.fileHandler = fileHandler
+        self.gitHandler = gitHandler
+        self.templateLocationParser = templateLocationParser
     }
 
     func loadTemplateOptions(templateName: String,
@@ -68,14 +77,15 @@ class InitService {
 
         let template = try templateLoader.loadTemplate(at: templateDirectory)
 
-        return template.attributes.reduce(into: (required: [], optional: [])) { currentValue, attribute in
-            switch attribute {
-            case let .optional(name, default: _):
-                currentValue.optional.append(name)
-            case let .required(name):
-                currentValue.required.append(name)
+        return template.attributes
+            .reduce(into: (required: [], optional: [])) { currentValue, attribute in
+                switch attribute {
+                case let .optional(name, default: _):
+                    currentValue.optional.append(name)
+                case let .required(name):
+                    currentValue.required.append(name)
+                }
             }
-        }
     }
 
     func run(name: String?,
@@ -92,23 +102,35 @@ class InitService {
 
         let directories = try templatesDirectoryLocator.templateDirectories(at: path)
         if let templateName = templateName {
-            guard
-                let templateDirectory = directories.first(where: { $0.basename == templateName })
-            else { throw InitServiceError.templateNotFound(templateName) }
-            let template = try templateLoader.loadTemplate(at: templateDirectory)
-            let parsedAttributes = try parseAttributes(
-                name: name,
-                platform: platform,
-                requiredTemplateOptions: requiredTemplateOptions,
-                optionalTemplateOptions: optionalTemplateOptions,
-                template: template
-            )
+            var template: Template?
+            var parsedAttributes: [String: String]
+            if templateName.isGitURL {
+                parsedAttributes = ["name": name, "platform": platform.caseValue]
+                try generateTemplate(from: templateName, with: parsedAttributes, in: path)
 
-            try templateGenerator.generate(
-                template: template,
-                to: path,
-                attributes: parsedAttributes
-            )
+            } else {
+                guard
+                    let templateDirectory = directories.first(where: { $0.basename == templateName })
+                else { throw InitServiceError.templateNotFound(templateName) }
+
+                template = try templateLoader.loadTemplate(at: templateDirectory)
+                guard
+                    let template = template else { return }
+
+                parsedAttributes = try parseAttributes(
+                    name: name,
+                    platform: platform,
+                    requiredTemplateOptions: requiredTemplateOptions,
+                    optionalTemplateOptions: optionalTemplateOptions,
+                    template: template
+                )
+
+                try templateGenerator.generate(
+                    template: template,
+                    to: path,
+                    attributes: parsedAttributes
+                )
+            }
         } else {
             guard
                 let templateDirectory = directories.first(where: { $0.basename == "default" })
@@ -133,6 +155,34 @@ class InitService {
     private func verifyDirectoryIsEmpty(path: AbsolutePath) throws {
         if !path.glob("*").isEmpty {
             throw InitServiceError.nonEmptyDirectory(path)
+        }
+    }
+
+    /// Generate a template from given Git repository
+    ///
+    /// - Parameter templateURL: Template Repository's URL
+    /// - Parameter parsedAttributes: Command Parsed Attributes
+    /// - Parameter path: Path wehre template will be created
+    private func generateTemplate(
+        from templateURL: String,
+        with parsedAttributes: [String: String],
+        in path: AbsolutePath
+    ) throws {
+        let repoURL = templateLocationParser.parseRepositoryURL(from: templateURL)
+        let repoBranch = templateLocationParser.parseRepositoryBranch(from: templateURL)
+        try fileHandler.inTemporaryDirectory { temporaryPath in
+            let templatePath = temporaryPath
+                .appending(component: "Template")
+            try fileHandler.createFolder(templatePath)
+            try gitHandler.clone(url: repoURL, to: templatePath)
+            if let repoBranch = repoBranch {
+                try gitHandler.checkout(id: repoBranch, in: templatePath)
+            }
+            try templateGenerator.generate(
+                template: try templateLoader.loadTemplate(at: templatePath),
+                to: path,
+                attributes: parsedAttributes
+            )
         }
     }
 

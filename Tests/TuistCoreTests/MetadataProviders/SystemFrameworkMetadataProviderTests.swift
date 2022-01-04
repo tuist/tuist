@@ -60,19 +60,6 @@ final class SystemFrameworkMetadataProviderTests: XCTestCase {
         )
     }
 
-    func test_loadMetadata_developerSource_unsupportedPlatform() throws {
-        // Given
-        let sdkName = "XCTest.framework"
-        let source = SDKSource.developer
-        let platform = Platform.watchOS // watchOS doesn't support XCTest
-
-        // When / Then
-        XCTAssertThrowsSpecific(
-            try subject.loadMetadata(sdkName: sdkName, status: .required, platform: platform, source: source),
-            SystemFrameworkMetadataProviderError.unsupportedSDKForPlatform(name: "XCTest.framework", platform: .watchOS)
-        )
-    }
-
     func test_loadMetadata_developerSource_supportedPlatform() throws {
         // Given
         let sdkName = "XCTest.framework"

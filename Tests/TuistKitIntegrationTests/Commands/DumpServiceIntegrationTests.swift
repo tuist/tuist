@@ -130,7 +130,7 @@ final class DumpServiceTests: TuistTestCase {
         let expected = """
         {
           "compatibleXcodeVersions": {
-            "type": "all"
+            "kind": "all"
           },
           "generationOptions": [
 

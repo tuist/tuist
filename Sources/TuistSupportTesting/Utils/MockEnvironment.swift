@@ -45,4 +45,6 @@ public class MockEnvironment: Environmenting {
     func path(version: String) -> AbsolutePath {
         versionsDirectory.appending(component: version)
     }
+
+    public func bootstrap() throws {}
 }

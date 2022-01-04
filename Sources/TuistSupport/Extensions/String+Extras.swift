@@ -4,6 +4,8 @@ import struct TSCUtility.Version
 extension String {
     // swiftlint:disable:next force_try
     private static let whitespaceRegularExpression = try! NSRegularExpression(pattern: "\\s")
+    static let httpRegularExpression = "(\\w+://)(.+@)*([\\w\\d\\.]+)(:[\\d]+){0,1}/*(.*)"
+    static let sshRegularExpression = "(.+@)*([\\w\\d\\.]+):(.*)"
 
     public var escapingWhitespaces: String {
         String.whitespaceRegularExpression.stringByReplacingMatches(
@@ -102,6 +104,10 @@ extension String {
 
     public var lowercasingFirst: String {
         prefix(1).lowercased() + dropFirst()
+    }
+
+    public var isGitURL: Bool {
+        self.matches(pattern: String.httpRegularExpression) || self.matches(pattern: String.sshRegularExpression)
     }
 
     /// A collection of all the words in the string by separating out any punctuation and spaces.

@@ -14,8 +14,14 @@ extension TuistGraph.CompatibleXcodeVersions {
         switch manifest {
         case .all:
             return .all
+        case let .exact(version):
+            return .exact(version)
+        case let .upToNextMajor(version):
+            return .upToNextMajor(version)
+        case let .upToNextMinor(version):
+            return .upToNextMinor(version)
         case let .list(versions):
-            return .list(versions)
+            return .list(versions.map { from(manifest: $0) })
         }
     }
 }

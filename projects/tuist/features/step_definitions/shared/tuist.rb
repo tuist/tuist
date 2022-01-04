@@ -6,7 +6,7 @@ Given(/tuist is available/) do
   # On CI we expect tuist to be built already by the previous job `release_build`, so we skip `swift build`
 
   if ENV["CI"].nil?
-    ["tuist", "ProjectDescription", "ProjectAutomation"].each do |product|
+    ["tuist", "ProjectDescription", "ProjectAutomation", "tuistenv"].each do |product|
       system(
         "swift",
         "build",
@@ -124,7 +124,9 @@ Then(/tuist sets up the project/) do
 end
 
 Then(/tuist generate yields error "(.+)"/) do |error|
-  expected_msg = error.gsub("${ARG_PATH}", @dir)
+  xcode_version, _, _ = Open3.capture3("xcodebuild -version | sed -n \"s/Xcode //p\"")
+  versioned_msg = error.gsub("${XCODE_VERSION}", xcode_version.chomp())
+  expected_msg = versioned_msg.gsub("${ARG_PATH}", @dir)
   _, stderr, status = Open3.capture3(@tuist, "generate", "--path", @dir)
   actual_msg = stderr.strip
 

@@ -54,6 +54,12 @@ jobs:
           bundle install --jobs 4 --retry 3
       - name: Install NPM dependencies
         working-directory: projects/website
-        run: CXXFLAGS="--std=c++14" npm install
+        run: CXXFLAGS="--std=c++14" npm install --legacy-peer-deps
       - name: Build
         run: ./fourier build web
+      # Uncomment to have CI upload the lockfile
+      # - name: Upload package-lock.json
+      #   uses: actions/upload-artifact@v2
+      #   with:
+      #     name: package-lock.json
+      #     path: 'projects/website/package-lock.json'

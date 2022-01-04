@@ -33,9 +33,21 @@ public class ManifestLinter: ManifestLinting {
             issues.append(contentsOf: lint(settings: settings, declarationLocation: project.name))
         }
 
+        issues.append(contentsOf: lintDuplicates(project: project))
         issues.append(contentsOf: project.targets.flatMap(lint))
 
         return issues
+    }
+
+    private func lintDuplicates(project: ProjectDescription.Project) -> [LintingIssue] {
+        let targetsNames = project.targets.map(\.name)
+
+        return targetsNames.spm_findDuplicates().map {
+            LintingIssue(
+                reason: "The target '\($0)' is declared multiple times within '\(project.name)' project.",
+                severity: .error
+            )
+        }
     }
 
     private func lint(target: ProjectDescription.Target) -> [LintingIssue] {

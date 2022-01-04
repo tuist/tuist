@@ -1,10 +1,8 @@
 ---
-title: Lint code and project
+title: tuist lint
 slug: '/commands/linting'
 description: 'Learn how to use the lint command to validate your projects and catch errors before building them with Xcode and enforce Swift style and conventions using SwiftLint.'
 ---
-
-### Project linting
 
 One of the benefits of making the definition of projects explicit,
 is that we can run checks on them and uncover configuration issues that otherwise would be bubbled up by the build system later on.

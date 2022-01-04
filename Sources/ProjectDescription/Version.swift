@@ -105,11 +105,11 @@ extension Version {
             .split(separator: ".", maxSplits: 2, omittingEmptySubsequences: false)
             .map(String.init).compactMap { Int($0) }.filter { $0 >= 0 }
 
-        guard requiredComponents.count == 3 else { return nil }
+        guard !requiredComponents.isEmpty else { return nil }
 
         major = requiredComponents[0]
-        minor = requiredComponents[1]
-        patch = requiredComponents[2]
+        minor = requiredComponents.count >= 2 ? requiredComponents[1] : 0
+        patch = requiredComponents.count >= 3 ? requiredComponents[2] : 0
 
         func identifiers(start: String.Index?, end: String.Index) -> [String] {
             guard let start = start else { return [] }

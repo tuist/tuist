@@ -1,10 +1,8 @@
 ---
-title: Sign your apps
+title: tuist signing
 slug: '/commands/signing'
 description: 'Tuist offers a deterministic, pain-free solution to signing. Read on if you would like to learn more about how it works and how you can set it up.'
 ---
-
-### Context
 
 Signing is one of the most complicated things that developers have to deal with
 when working with Xcode. While Xcode does offer an option of automatic signing,

@@ -650,6 +650,33 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "erkekin",
+      "name": "Erk Ekin",
+      "avatar_url": "https://avatars.githubusercontent.com/u/701481?v=4",
+      "profile": "http://erkekin.com",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "morozkin",
+      "name": "Denis Morozov",
+      "avatar_url": "https://avatars.githubusercontent.com/u/16591888?v=4",
+      "profile": "https://github.com/morozkin",
+      "contributions": [
+        "doc"
+      ]
+    },
+    {
+      "login": "orbitekk",
+      "name": "orbitekk",
+      "avatar_url": "https://avatars.githubusercontent.com/u/4222449?v=4",
+      "profile": "https://github.com/orbitekk",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,

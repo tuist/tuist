@@ -22,6 +22,7 @@ final class FocusServiceTests: TuistUnitTestCase {
     var opener: MockOpener!
     var generator: MockGenerator!
     var generatorFactory: MockGeneratorFactory!
+    var clock: StubClock!
 
     override func setUp() {
         super.setUp()
@@ -29,7 +30,8 @@ final class FocusServiceTests: TuistUnitTestCase {
         generator = MockGenerator()
         generatorFactory = MockGeneratorFactory()
         generatorFactory.stubbedFocusResult = generator
-        subject = FocusService(opener: opener, generatorFactory: generatorFactory)
+        clock = StubClock()
+        subject = FocusService(clock: clock, opener: opener, generatorFactory: generatorFactory)
     }
 
     override func tearDown() {
@@ -37,6 +39,7 @@ final class FocusServiceTests: TuistUnitTestCase {
         generator = nil
         subject = nil
         generatorFactory = nil
+        clock = nil
         super.tearDown()
     }
 
@@ -64,5 +67,24 @@ final class FocusServiceTests: TuistUnitTestCase {
         try subject.run(path: nil, sources: ["Target"], noOpen: false, xcframeworks: false, profile: nil, ignoreCache: false)
 
         XCTAssertEqual(opener.openArgs.last?.0, workspacePath.pathString)
+    }
+
+    func test_run_timeIsPrinted() throws {
+        // Given
+        let workspacePath = AbsolutePath("/test.xcworkspace")
+
+        generator.generateStub = { _, _ in
+            workspacePath
+        }
+        clock.assertOnUnexpectedCalls = true
+        clock.primedTimers = [
+            0.234,
+        ]
+
+        // When
+        try subject.run(path: nil, sources: ["Target"], noOpen: false, xcframeworks: false, profile: nil, ignoreCache: false)
+
+        // Then
+        XCTAssertPrinterOutputContains("Total time taken: 0.234s")
     }
 }

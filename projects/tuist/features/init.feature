@@ -41,3 +41,10 @@ Feature: Initialize a new project using Tuist
     When I initialize a tvos application named TvApp with swiftui template
     Then tuist generates the project
     Then I should be able to build for tvOS the scheme TvApp
+
+  Scenario: The project is a CLI project initialized from a template in a different repository
+    Given that tuist is available
+    And I have a working directory
+    When I initialize a project from the template https://github.com/tuist/ExampleTuistTemplate.git
+    Then tuist builds the project
+    # Then I should be able to build for tvOS the scheme TvApp

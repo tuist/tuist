@@ -95,7 +95,8 @@ extension InitCommand {
     static func preprocess(_ arguments: [String]? = nil) throws {
         guard
             let arguments = arguments,
-            arguments.contains("--template")
+            arguments.contains("--template"),
+            arguments.contains("-t")
         else { return }
 
         // We want to parse only the name of template, not its arguments which will be dynamically added

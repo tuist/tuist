@@ -17,7 +17,7 @@ struct CachePrintHashesCommand: ParsableCommand {
 
     func run() throws {
         try CachePrintHashesService().run(
-            path: options.path.map { AbsolutePath($0) } ?? FileHandler.shared.currentPath,
+            path: options.path,
             xcframeworks: options.xcframeworks,
             profile: options.profile
         )

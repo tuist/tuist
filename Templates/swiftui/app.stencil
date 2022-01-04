@@ -1,0 +1,11 @@
+import SwiftUI
+import {{ name }}UI
+
+@main
+struct {{ name }}App: App {
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+        }
+    }
+}

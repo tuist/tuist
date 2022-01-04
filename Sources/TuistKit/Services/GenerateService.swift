@@ -10,17 +10,20 @@ final class GenerateService {
 
     private let opener: Opening
     private let clock: Clock
+    private let timeTakenLoggerFormatter: TimeTakenLoggerFormatting
     private let generatorFactory: GeneratorFactorying
     private let configLoader: ConfigLoading
 
     // MARK: - Init
 
     init(clock: Clock = WallClock(),
+         timeTakenLoggerFormatter: TimeTakenLoggerFormatting = TimeTakenLoggerFormatter(),
          opener: Opening = Opener(),
          generatorFactory: GeneratorFactorying = GeneratorFactory(),
          configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()))
     {
         self.clock = clock
+        self.timeTakenLoggerFormatter = timeTakenLoggerFormatter
         self.opener = opener
         self.generatorFactory = generatorFactory
         self.configLoader = configLoader
@@ -40,10 +43,8 @@ final class GenerateService {
             try opener.open(path: generatedProjectPath, wait: false)
         }
 
-        let time = String(format: "%.3f", timer.stop())
-
         logger.notice("Project generated.", metadata: .success)
-        logger.notice("Total time taken: \(time)s")
+        logger.notice(timeTakenLoggerFormatter.timeTakenMessage(for: timer))
     }
 
     // MARK: - Helpers

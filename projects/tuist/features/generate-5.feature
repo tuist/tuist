@@ -22,3 +22,9 @@ Scenario: The project contains a project with a large manifest (ios_app_large)
     And I have a working directory
     Then I copy the fixture ios_app_large into the working directory
     Then tuist generates the project
+
+Scenario: The project contains an circular dependency (ios_workspace_with_dependency_cycle)
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture ios_workspace_with_dependency_cycle into the working directory
+    Then tuist generate yields error "Found circular dependency between targets"

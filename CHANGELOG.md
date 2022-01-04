@@ -5,15 +5,40 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ## Next
 
 ### Changed
+
+- Remove duplicate bundle identifier lint warning [#3914](https://github.com/tuist/tuist/pull/3914) by [@danyf90](https://github.com/danyf90)
+
+### Added
+
+- Add logging when helpers modules are being built [#3913](https://github.com/tuist/tuist/pull/3913) by [@luispadron](https://github.com/luispadron)
+- Fix `tuist edit` compilation when building local helper modules that include remote plugins [#3918](https://github.com/tuist/tuist/pull/3918) by [@luispadron](https://github.com/luispadron)
+- Document how to use the [Bitrise step](https://github.com/tuist/bitrise-step-tuist) [#3921](https://github.com/tuist/tuist/pull/3921) by [@pepicrft](https://github.com/pepicrft)
+- Add `.exact`, `.upToNextMajor`, and `.upToNextMinor` options to CompatibleXcodeVersions [#3929](https://github.com/tuist/tuist/pull/3929) by [@ezraberch](https://github.com/ezraberch)
+
+### Fixed
+
+- Avoid building dependent test target when not needed during `tuist cache warm` [#3917](https://github.com/tuist/tuist/pull/3917) by [@danyf90](https://github.com/danyf90)
+- Fix unit test failures when test host requires codesigning [#3924](https://github.com/tuist/tuist/pull/3924) by [@hisaac](https://github.com/hisaac)
+- Fix circular dependency lint [#3876](https://github.com/tuist/tuist/pull/3876) by [@adellibovi](https://github.com/adellibovi)
+- Fix Xcode developer SDK root path for watchOS platform [#3876](https://github.com/tuist/tuist/pull/3932) by [@orbitekk](https://github.com/orbitekk)
+
+## 2.5.0 - Gestalt
+
+### Changed
+
+- Update SwiftUI template [#3840](https://github.com/tuist/tuist/pull/3840) by [@ezraberch](https://github.com/ezraberch)
 - Add `SWIFT_SUPPRESS_WARNINGS` setting to SwiftPackageManager generated project to suppress warnings from dependencies defined in Dependencies.swift [#3852](https://github.com/tuist/tuist/pull/3852) by [@wattson12](https://github.com/wattson12)
 
 ### Added
 
 - Add support for `exclusionRule` parameter to `Headers` [#3793](https://github.com/tuist/tuist/pull/3793) by [@pavel-trafimuk](https://github.com/pavel-trafimuk)
-
+- Add generation time for `tuist focus` command [#3872](https://github.com/tuist/tuist/pull/3872) by [@adellibovi](https://github.com/adellibovi)
 ### Fixed
 
 - Fix shell completion script generated in directory containing `.tuist_version` file [#3804](https://github.com/tuist/tuist/pull/3804) by [@mikchmie](https://github.com/mikchmie)
+- `tuist cache print-hashes` not working with relative paths [#3892](https://github.com/tuist/tuist/pull/3892) by [@erkekin](https://github.com/erkekin)
+- Fix argument parsing errors handling in `tuistenv` [#3905](https://github.com/tuist/tuist/pull/3905) by [@pepicrft](https://github.com/pepicrft).
+- Fix crash when running `tuist build` with `TUIST_CONFIG_VERBOSE=1` [#3752](https://github.com/tuist/tuist/pull/3752) by [@fortmarek](https://github.com/fortmarek)
 
 ## 2.4.0 - Lune
 

@@ -1,10 +1,8 @@
 ---
-title: Generate projects
+title: tuist generate
 slug: '/commands/generate'
 description: "Learn how to use one of Tuist's core features, the generation of projects."
 ---
-
-### Context
 
 Project generation is one of Tuist's core features.
 It loads your project's dependency graph by reading the manifest files _(e.g. Project.swift, Workspace.swift)_, and translates it into
