@@ -11,10 +11,6 @@ let project = Project(
             infoPlist: "Info.plist",
             sources: ["Sources/**"],
             scripts: [
-                // Note there are acceptance tests verifying the first `pre` and last `post` action
-                // additions not part of the acceptance test should be added in-between
-
-                // first pre-action
                 .pre(
                     tool: "/bin/echo",
                     arguments: ["\"tuist\""],
