@@ -48,10 +48,13 @@ final class CompatibleXcodeVersionsTests: XCTestCase {
         let subject = CompatibleXcodeVersions.upToNextMajor("13.2")
 
         // Then
+        XCTAssertFalse(subject.isCompatible(versionString: "12.3.0"))
+        XCTAssertFalse(subject.isCompatible(versionString: "13.0.0"))
         XCTAssertTrue(subject.isCompatible(versionString: "13.2"))
         XCTAssertTrue(subject.isCompatible(versionString: "13.2.0"))
         XCTAssertTrue(subject.isCompatible(versionString: "13.2.2"))
         XCTAssertTrue(subject.isCompatible(versionString: "13.3.0"))
+        XCTAssertFalse(subject.isCompatible(versionString: "14.0.0"))
         XCTAssertFalse(subject.isCompatible(versionString: "14.2.0"))
     }
 
@@ -60,6 +63,8 @@ final class CompatibleXcodeVersionsTests: XCTestCase {
         let subject = CompatibleXcodeVersions.upToNextMinor("13.2")
 
         // Then
+        XCTAssertFalse(subject.isCompatible(versionString: "12.2.0"))
+        XCTAssertFalse(subject.isCompatible(versionString: "13.0.0"))
         XCTAssertTrue(subject.isCompatible(versionString: "13.2"))
         XCTAssertTrue(subject.isCompatible(versionString: "13.2.0"))
         XCTAssertTrue(subject.isCompatible(versionString: "13.2.2"))
