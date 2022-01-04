@@ -19,7 +19,7 @@ jobs:
     runs-on: macOS-11
     strategy:
       matrix:
-        xcode: ['13.2']
+        xcode: ['12.5.1']
     steps:
     - uses: actions/checkout@v2
     - name: Select Xcode
