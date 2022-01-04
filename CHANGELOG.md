@@ -2,6 +2,11 @@
 
 Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
+## NextMajor
+
+- **Breaking** remove deprecated initializers for `FileLists`, `Headers`, and `HTTPURLResponse` [#3936](https://github.com/tuist/tuist/pull/3936) by [@danyf90](https://github.com/danyf90)
+  - **Migration:** Use non deprecated initializers
+
 ## Next
 
 ### Changed
