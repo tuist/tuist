@@ -17,6 +17,10 @@ module Fourier
 
       def self.build_fat_release_library(path:, product:, output_directory:, swift_build_directory:)
         Dir.chdir(path) do
+          # Libraries needs to be build with a different Xcode version, defined in .xcode-version-libraries
+          Utilities::System.system(
+            "sudo xcode-select -switch /Applications/Xcode_$(<.xcode-version-libraries).app"
+          )
           Utilities::System.system(
             "xcodebuild",
             "-scheme", product,
@@ -26,6 +30,10 @@ module Fourier
             "ARCHS=arm64 x86_64",
             "BUILD_DIR=#{swift_build_directory}",
             "clean", "build"
+          )
+          # Restore the Xcode version to the default one
+          Utilities::System.system(
+            "sudo xcode-select -switch /Applications/Xcode_$(<.xcode-version).app"
           )
           FileUtils.cp_r(
             File.join(swift_build_directory, "Release/PackageFrameworks/#{product}.framework"),
