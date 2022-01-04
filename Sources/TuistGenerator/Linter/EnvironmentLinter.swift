@@ -36,20 +36,16 @@ public class EnvironmentLinter: EnvironmentLinting {
     /// - Returns: An array with a linting issue if the selected version is not compatible.
     /// - Throws: An error if there's an error obtaining the selected Xcode version.
     func lintXcodeVersion(config: Config) throws -> [LintingIssue] {
-        guard case let CompatibleXcodeVersions.list(compatibleVersions) = config.compatibleXcodeVersions else {
-            return []
-        }
-
         guard let xcode = try XcodeController.shared.selected() else {
             return []
         }
 
         let version = xcode.infoPlist.version
 
-        if !compatibleVersions.contains(version) {
-            let versions = compatibleVersions.joined(separator: ", ")
+        if !config.compatibleXcodeVersions.isCompatible(versionString: version) {
+            let versions = config.compatibleXcodeVersions
             let message =
-                "The project, which only supports the versions of Xcode \(versions), is not compatible with your selected version of Xcode, \(version)"
+                "The selected Xcode version is \(version), which is not compatible with this project's Xcode version requirement of \(versions)."
             return [LintingIssue(reason: message, severity: .error)]
         } else {
             return []

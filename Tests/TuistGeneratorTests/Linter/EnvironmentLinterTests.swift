@@ -26,18 +26,49 @@ final class EnvironmentLinterTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_lintXcodeVersion_returnsALintingIssue_when_theVersionsOfXcodeAreIncompatible() throws {
+    func test_lintXcodeVersion_doesntReturnIssues_theVersionsOfXcodeAreCompatible() throws {
         // Given
-        let config = Config.test(compatibleXcodeVersions: .list(["3.2.1"]))
+        let configs = [
+            Config.test(compatibleXcodeVersions: "4.3.2"),
+            Config.test(compatibleXcodeVersions: .exact("4.3.2")),
+            Config.test(compatibleXcodeVersions: .upToNextMajor("4.0")),
+            Config.test(compatibleXcodeVersions: .upToNextMinor("4.3")),
+            Config.test(compatibleXcodeVersions: ["1.0", "4.3.2"]),
+        ]
+
         xcodeController.selectedStub = .success(Xcode.test(infoPlist: .test(version: "4.3.2")))
 
         // When
-        let got = try subject.lintXcodeVersion(config: config)
+        let got = try configs.flatMap { try subject.lintXcodeVersion(config: $0) }
 
         // Then
-        let expectedMessage =
-            "The project, which only supports the versions of Xcode 3.2.1, is not compatible with your selected version of Xcode, 4.3.2"
-        XCTAssertTrue(got.contains(LintingIssue(reason: expectedMessage, severity: .error)))
+        XCTEmpty(got)
+    }
+
+    func test_lintXcodeVersion_returnsALintingIssue_when_theVersionsOfXcodeAreIncompatible() throws {
+        // Given
+        let configs = [
+            Config.test(compatibleXcodeVersions: "4.3.1"),
+            Config.test(compatibleXcodeVersions: .exact("4.3.1")),
+            Config.test(compatibleXcodeVersions: .upToNextMajor("3.0")),
+            Config.test(compatibleXcodeVersions: .upToNextMajor("5.0")),
+            Config.test(compatibleXcodeVersions: .upToNextMinor("4.2.0")),
+            Config.test(compatibleXcodeVersions: .upToNextMinor("4.3.3")),
+            Config.test(compatibleXcodeVersions: ["4.3", "4.3.3"]),
+            Config.test(compatibleXcodeVersions: .list(["3.2.1"])),
+        ]
+
+        xcodeController.selectedStub = .success(Xcode.test(infoPlist: .test(version: "4.3.2")))
+
+        for config in configs {
+            // When
+            let got = try subject.lintXcodeVersion(config: config)
+
+            // Then
+            let expectedMessage =
+                "The selected Xcode version is 4.3.2, which is not compatible with this project's Xcode version requirement of \(config.compatibleXcodeVersions)."
+            XCTAssertTrue(got.contains(LintingIssue(reason: expectedMessage, severity: .error)))
+        }
     }
 
     func test_lintXcodeVersion_doesntReturnIssues_whenAllVersionsAreSupported() throws {

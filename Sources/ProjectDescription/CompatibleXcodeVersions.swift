@@ -5,58 +5,31 @@ public enum CompatibleXcodeVersions: ExpressibleByArrayLiteral, ExpressibleByStr
     /// The project supports all Xcode versions.
     case all
 
+    /// The project supports only a specific Xcode version.
+    case exact(Version)
+
+    /// The project supports all Xcode versions from the specified version up to but not including the next major version.
+    case upToNextMajor(Version)
+
+    /// The project supports all Xcode versions from the specified version up to but not including the next minor version.
+    case upToNextMinor(Version)
+
     /// List of versions that are supported by the project.
-    case list([String])
+    case list([CompatibleXcodeVersions])
 
     // MARK: - ExpressibleByArrayLiteral
 
-    public init(arrayLiteral elements: [String]) {
+    public init(arrayLiteral elements: [CompatibleXcodeVersions]) {
         self = .list(elements)
     }
 
-    public init(arrayLiteral elements: String...) {
+    public init(arrayLiteral elements: CompatibleXcodeVersions...) {
         self = .list(elements)
-    }
-
-    enum CodignKeys: String, CodingKey {
-        case type
-        case value
     }
 
     // MARK: - ExpressibleByStringInterpolation
 
     public init(stringLiteral value: String) {
-        self = .list([value])
-    }
-
-    // MARK: - Codable
-
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodignKeys.self)
-        switch self {
-        case .all:
-            try container.encode("all", forKey: .type)
-        case let .list(versions):
-            try container.encode("list", forKey: .type)
-            try container.encode(versions, forKey: .value)
-        }
-    }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodignKeys.self)
-        let type = try container.decode(String.self, forKey: .type)
-
-        switch type {
-        case "all":
-            self = .all
-        case "list":
-            self = .list(try container.decode([String].self, forKey: .value))
-        default:
-            throw DecodingError.dataCorruptedError(
-                forKey: CodignKeys.type,
-                in: container,
-                debugDescription: "Invalid type \(type)"
-            )
-        }
+        self = .exact(Version(stringLiteral: value))
     }
 }
