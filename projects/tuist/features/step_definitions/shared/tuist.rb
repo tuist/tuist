@@ -6,7 +6,7 @@ Given(/tuist is available/) do
   # On CI we expect tuist to be built already by the previous job `release_build`, so we skip `swift build`
 
   if ENV["CI"].nil?
-    ["tuist", "ProjectDescription", "ProjectAutomation", "tuistenv"].each do |product|
+    ["tuist", "ProjectDescription", "tuistenv"].each do |product|
       system(
         "swift",
         "build",
@@ -113,8 +113,8 @@ end
 
 Then(/tuist edits the project/) do
   system(@tuist, "edit", "--path", @dir, "--permanent")
-  @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
-  @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
+  @workspace_path = Dir.glob(File.join(@dir, "Manifests.xcworkspace")).first
+  @xcodeproj_path = Dir.glob(File.join(@dir, "Manifests.xcodeproj")).first
 end
 
 Then(/tuist sets up the project/) do

@@ -68,6 +68,10 @@ func targets() -> [Target] {
                     .external(name: "SwiftToolsSupport-auto"),
                     .external(name: "XcodeProj"),
                     .external(name: "Zip"),
+                    .target(name: "ProjectDescription"),
+                ],
+                testingDependencies: [
+                    .target(name: "TuistGraph"),
                 ]
             ),
             Target.module(
@@ -92,7 +96,6 @@ func targets() -> [Target] {
                     .target(name: "TuistAnalytics"),
                     .target(name: "TuistPlugin"),
                     .target(name: "TuistGraph"),
-                    .target(name: "TuistTasks"),
                 ],
                 testDependencies: [
                     .target(name: "TuistAutomation"),
@@ -114,7 +117,6 @@ func targets() -> [Target] {
                     .target(name: "TuistGraphTesting"),
                     .target(name: "TuistPlugin"),
                     .target(name: "TuistPluginTesting"),
-                    .target(name: "TuistTasksTesting"),
                 ],
                 integrationTestsDependencies: [
                     .target(name: "TuistCoreTesting"),
@@ -216,22 +218,6 @@ func targets() -> [Target] {
                 ],
                 testingDependencies: [
                     .target(name: "TuistCore"),
-                    .target(name: "TuistGraphTesting"),
-                ]
-            ),
-            Target.module(
-                name: "TuistTasks",
-                hasTests: false,
-                hasIntegrationTests: true,
-                dependencies: [
-                    .target(name: "TuistCore"),
-                    .target(name: "TuistSupport"),
-                ],
-                testingDependencies: [
-                    .target(name: "TuistGraphTesting"),
-                ],
-                integrationTestsDependencies: [
-                    .target(name: "TuistSupportTesting"),
                     .target(name: "TuistGraphTesting"),
                 ]
             ),
@@ -368,7 +354,10 @@ func targets() -> [Target] {
             Target.module(
                 name: "ProjectAutomation",
                 hasTests: false,
-                hasTesting: false
+                hasTesting: false,
+                dependencies: [
+                    .external(name: "SwiftToolsSupport-auto"),
+                ]
             ),
             Target.module(
                 name: "TuistSigning",

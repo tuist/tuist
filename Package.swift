@@ -27,7 +27,6 @@ let package = Package(
         ),
         .library(
             name: "ProjectAutomation",
-            type: .dynamic,
             targets: ["ProjectAutomation"]
         ),
         .library(
@@ -137,7 +136,6 @@ let package = Package(
                 "TuistAnalytics",
                 "TuistPlugin",
                 "TuistGraph",
-                "TuistTasks",
             ]
         ),
         .testTarget(
@@ -164,7 +162,6 @@ let package = Package(
                 "TuistGraphTesting",
                 "TuistPlugin",
                 "TuistPluginTesting",
-                "TuistTasksTesting",
             ]
         ),
         .testTarget(
@@ -225,7 +222,9 @@ let package = Package(
         ),
         .target(
             name: "ProjectAutomation",
-            dependencies: []
+            dependencies: [
+                swiftToolsSupportDependency,
+            ]
         ),
         .target(
             name: "TuistSupport",
@@ -240,12 +239,14 @@ let package = Package(
                 signalsDependency,
                 "Zip",
                 "Checksum",
+                "ProjectDescription",
             ]
         ),
         .target(
             name: "TuistSupportTesting",
             dependencies: [
                 "TuistSupport",
+                "TuistGraph",
                 swiftToolsSupportDependency,
             ]
         ),
@@ -383,29 +384,6 @@ let package = Package(
                 "TuistSupportTesting",
                 rxBlockingDependency,
                 "TuistCoreTesting",
-                "TuistGraphTesting",
-            ]
-        ),
-        .target(
-            name: "TuistTasks",
-            dependencies: [
-                swiftToolsSupportDependency,
-                "TuistCore",
-                "TuistSupport",
-            ]
-        ),
-        .target(
-            name: "TuistTasksTesting",
-            dependencies: [
-                "TuistTasks",
-                "TuistGraphTesting",
-            ]
-        ),
-        .testTarget(
-            name: "TuistTasksIntegrationTests",
-            dependencies: [
-                "TuistTasks",
-                "TuistSupportTesting",
                 "TuistGraphTesting",
             ]
         ),

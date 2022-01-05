@@ -176,6 +176,13 @@ public protocol Systeming {
     /// - Returns: The output of running 'which' with the given tool name.
     /// - Throws: An error if which exits unsuccessfully.
     func which(_ name: String) throws -> String
+
+    /// Changes permissions for a given file at `path`
+    /// - Parameters:
+    ///     - mode: Defines user file mode.
+    ///     - path: Path of file for which the permissions should be changed.
+    ///     - options: Options for changing permissions.
+    func chmod(_ mode: FileMode, path: AbsolutePath, options: Set<FileMode.Option>) throws
 }
 
 extension ProcessResult {
@@ -687,9 +694,26 @@ public final class System: Systeming {
 
         return (stdOut, stdErr)
     }
+
+    public func chmod(
+        _ mode: FileMode,
+        path: AbsolutePath,
+        options: Set<FileMode.Option>
+    ) throws {
+        try localFileSystem.chmod(mode, path: path, options: options)
+    }
 }
 
 extension Systeming {
+    public func commandExists(_ name: String) -> Bool {
+        do {
+            _ = try which(name)
+            return true
+        } catch {
+            return false
+        }
+    }
+
     public func publisher(_ arguments: [String], pipedToArguments: [String]) -> AnyPublisher<SystemEvent<Data>, Error> {
         AnyPublisher.create { subscriber -> Cancellable in
             let disposable = self.observable(arguments, pipedToArguments: pipedToArguments).subscribe { event in

@@ -11,6 +11,7 @@ Feature: Edit an existing project using Tuist
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture plugin into the working directory
+    Then tuist does fetch
     Then tuist edits the project
     Then I should be able to build for macOS the scheme Plugins
 
@@ -18,6 +19,7 @@ Feature: Edit an existing project using Tuist
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture app_with_plugins into the working directory
+    Then tuist does fetch
     Then tuist edits the project
     Then I should be able to build for macOS the scheme Manifests
     Then I should be able to build for macOS the scheme Plugins

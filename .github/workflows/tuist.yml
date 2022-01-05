@@ -84,8 +84,6 @@ jobs:
         run: swift build -c release --product tuistenv
       - name: Build ProjectDescription for release
         run: swift build -c release --product ProjectDescription
-      - name: Build ProjectAutomation for release
-        run: swift build -c release --product ProjectAutomation
 
   acceptance_tests:
     name: ${{ matrix.feature }} acceptance tests with Xcode ${{ matrix.xcode }}
@@ -120,12 +118,15 @@ jobs:
             'scaffold',
             'tasks',
             'test',
+            'plugin',
           ]
     env:
       TUIST_CONFIG_GITHUB_API_TOKEN: ${{ secrets.GH_TOKEN }}
     needs: release_build
     steps:
       - uses: actions/checkout@v1
+        with:
+          submodules: recursive
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
       - uses: actions/cache@v2
