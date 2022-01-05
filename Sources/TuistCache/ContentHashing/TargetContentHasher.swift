@@ -5,8 +5,10 @@ import TuistGraph
 import TuistSupport
 
 public protocol TargetContentHashing {
-    func contentHash(for target: GraphTarget, hashedTargets: inout [GraphHashedTarget: String]) throws -> String
     func contentHash(for target: GraphTarget, hashedTargets: inout [GraphHashedTarget: String],
+                     hashedPaths: inout [AbsolutePath: String]) throws -> String
+    func contentHash(for target: GraphTarget, hashedTargets: inout [GraphHashedTarget: String],
+                     hashedPaths: inout [AbsolutePath: String],
                      additionalStrings: [String]) throws -> String
 }
 
@@ -71,13 +73,18 @@ public final class TargetContentHasher: TargetContentHashing {
 
     // MARK: - TargetContentHashing
 
-    public func contentHash(for target: GraphTarget, hashedTargets: inout [GraphHashedTarget: String]) throws -> String {
-        try contentHash(for: target, hashedTargets: &hashedTargets, additionalStrings: [])
+    public func contentHash(
+        for target: GraphTarget,
+        hashedTargets: inout [GraphHashedTarget: String],
+        hashedPaths: inout [AbsolutePath: String]
+    ) throws -> String {
+        try contentHash(for: target, hashedTargets: &hashedTargets, hashedPaths: &hashedPaths, additionalStrings: [])
     }
 
     public func contentHash(
         for graphTarget: GraphTarget,
         hashedTargets: inout [GraphHashedTarget: String],
+        hashedPaths: inout [AbsolutePath: String],
         additionalStrings: [String]
     ) throws -> String {
         let sourcesHash = try sourceFilesContentHasher.hash(sources: graphTarget.target.sources)
@@ -85,7 +92,11 @@ public final class TargetContentHasher: TargetContentHashing {
         let copyFilesHash = try copyFilesContentHasher.hash(copyFiles: graphTarget.target.copyFiles)
         let coreDataModelHash = try coreDataModelsContentHasher.hash(coreDataModels: graphTarget.target.coreDataModels)
         let targetScriptsHash = try targetScriptsContentHasher.hash(targetScripts: graphTarget.target.scripts)
-        let dependenciesHash = try dependenciesContentHasher.hash(graphTarget: graphTarget, hashedTargets: &hashedTargets)
+        let dependenciesHash = try dependenciesContentHasher.hash(
+            graphTarget: graphTarget,
+            hashedTargets: &hashedTargets,
+            hashedPaths: &hashedPaths
+        )
         let environmentHash = try contentHasher.hash(graphTarget.target.environment)
         var stringsToHash = [
             graphTarget.target.name,
