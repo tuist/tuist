@@ -33,7 +33,7 @@ What if **Tuist Cloud** is the solution?
 That's what we are aiming to achieve, 
 taking inspiration from tools like [Plausible](https://plausible.io/) and [Ghost](https://ghost.org/).
 
-The project is an [open-source](https://github.com/tuist/cloud) Rails app licensed under AGPL-3.0.
+The project is an [open-source](https://github.com/tuist/cloud) Rails app licensed under MIT.
 Teams can self-host it themselves.
 However, 
 we document the process to self-host the project and design it for easy hosting.
@@ -42,7 +42,3 @@ It provides benefits like support, monitoring, and continuous updates,
 and you support a project your project depends on.
 You can also take the adventurous path of building your backend.
 The [specification](/cloud/specification) documents the contract and designs it to be platform-agnostic.
-
-:::info APGPL-3.0
-Note that the AGPL-3.0 license under which Tuist Cloud is licensed allows you to host the code yourself, but modifications of the project need to be contributed upstream.
-:::
