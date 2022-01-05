@@ -5,7 +5,11 @@ import TuistGraph
 import TuistSupport
 
 public protocol DependenciesContentHashing {
-    func hash(graphTarget: GraphTarget, hashedTargets: inout [GraphHashedTarget: String], hashedPaths: inout [AbsolutePath : String]) throws -> String
+    func hash(
+        graphTarget: GraphTarget,
+        hashedTargets: inout [GraphHashedTarget: String],
+        hashedPaths: inout [AbsolutePath: String]
+    ) throws -> String
 }
 
 enum DependenciesContentHasherError: FatalError, Equatable {
@@ -51,7 +55,11 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
 
     // MARK: - DependenciesContentHashing
 
-    public func hash(graphTarget: GraphTarget, hashedTargets: inout [GraphHashedTarget: String], hashedPaths: inout [AbsolutePath : String]) throws -> String {
+    public func hash(
+        graphTarget: GraphTarget,
+        hashedTargets: inout [GraphHashedTarget: String],
+        hashedPaths: inout [AbsolutePath: String]
+    ) throws -> String {
         let hashes = try graphTarget.target.dependencies
             .map { try hash(graphTarget: graphTarget, dependency: $0, hashedTargets: &hashedTargets, hashedPaths: &hashedPaths) }
         return hashes.compactMap { $0 }.joined()

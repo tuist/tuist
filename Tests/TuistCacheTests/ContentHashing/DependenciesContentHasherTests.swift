@@ -63,7 +63,10 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
             dependencyProjectPath: graphTarget.path,
             dependencyTargetName: "foo"
         )
-        XCTAssertThrowsSpecific(try subject.hash(graphTarget: graphTarget, hashedTargets: &hashedTargets, hashedPaths: &hashedPaths), expectedError)
+        XCTAssertThrowsSpecific(
+            try subject.hash(graphTarget: graphTarget, hashedTargets: &hashedTargets, hashedPaths: &hashedPaths),
+            expectedError
+        )
     }
 
     func test_hash_whenDependencyIsProject_returnsTheRightHash() throws {
@@ -91,7 +94,10 @@ final class DependenciesContentHasherTests: TuistUnitTestCase {
             dependencyProjectPath: filePath1,
             dependencyTargetName: "foo"
         )
-        XCTAssertThrowsSpecific(try subject.hash(graphTarget: graphTarget, hashedTargets: &hashedTargets, hashedPaths: &hashedPaths), expectedError)
+        XCTAssertThrowsSpecific(
+            try subject.hash(graphTarget: graphTarget, hashedTargets: &hashedTargets, hashedPaths: &hashedPaths),
+            expectedError
+        )
     }
 
     func test_hash_whenDependencyIsFramework_callsContentHasherAsExpected() throws {

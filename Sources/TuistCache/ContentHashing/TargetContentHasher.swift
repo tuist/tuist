@@ -6,9 +6,9 @@ import TuistSupport
 
 public protocol TargetContentHashing {
     func contentHash(for target: GraphTarget, hashedTargets: inout [GraphHashedTarget: String],
-                     hashedPaths: inout [AbsolutePath : String]) throws -> String
+                     hashedPaths: inout [AbsolutePath: String]) throws -> String
     func contentHash(for target: GraphTarget, hashedTargets: inout [GraphHashedTarget: String],
-                     hashedPaths: inout [AbsolutePath : String],
+                     hashedPaths: inout [AbsolutePath: String],
                      additionalStrings: [String]) throws -> String
 }
 
@@ -73,7 +73,11 @@ public final class TargetContentHasher: TargetContentHashing {
 
     // MARK: - TargetContentHashing
 
-    public func contentHash(for target: GraphTarget, hashedTargets: inout [GraphHashedTarget: String], hashedPaths: inout [AbsolutePath : String]) throws -> String {
+    public func contentHash(
+        for target: GraphTarget,
+        hashedTargets: inout [GraphHashedTarget: String],
+        hashedPaths: inout [AbsolutePath: String]
+    ) throws -> String {
         try contentHash(for: target, hashedTargets: &hashedTargets, hashedPaths: &hashedPaths, additionalStrings: [])
     }
 
@@ -91,7 +95,8 @@ public final class TargetContentHasher: TargetContentHashing {
         let dependenciesHash = try dependenciesContentHasher.hash(
             graphTarget: graphTarget,
             hashedTargets: &hashedTargets,
-            hashedPaths: &hashedPaths)
+            hashedPaths: &hashedPaths
+        )
         let environmentHash = try contentHasher.hash(graphTarget.target.environment)
         var stringsToHash = [
             graphTarget.target.name,
