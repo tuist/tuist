@@ -27,10 +27,18 @@ public final class TargetScriptsContentHasher: TargetScriptsContentHashing {
         for script in targetScripts {
             var pathsToHash: [AbsolutePath] = []
             script.path.map { pathsToHash.append($0) }
-            pathsToHash.append(contentsOf: script.inputPaths)
-            pathsToHash.append(contentsOf: script.inputFileListPaths)
-            pathsToHash.append(contentsOf: script.outputPaths)
-            pathsToHash.append(contentsOf: script.outputFileListPaths)
+            let scriptPaths = script.inputPaths + script.inputFileListPaths + script.outputPaths + script.outputFileListPaths
+            scriptPaths.forEach { path in
+                if path.pathString.contains("$") {
+                    stringsToHash.append(path.pathString)
+                    logger
+                        .notice(
+                            "The path of the file \'\(path.url.lastPathComponent)\' is hashed, not the content. Because it has a build variable."
+                        )
+                } else {
+                    pathsToHash.append(path)
+                }
+            }
             let fileHashes = try pathsToHash.map { try contentHasher.hash(path: $0) }
             stringsToHash.append(
                 contentsOf: fileHashes +
