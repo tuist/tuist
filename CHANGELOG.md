@@ -6,6 +6,14 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Changed
 
+### Added
+
+### Fixed
+
+## 2.6.0 - Havana
+
+### Changed
+
 - Remove duplicate bundle identifier lint warning [#3914](https://github.com/tuist/tuist/pull/3914) by [@danyf90](https://github.com/danyf90)
 - Upadate version requirement for `swift-argument-parser` package from `.upToNextMajor(from: "0.4.3")` to `.upToNextMajor(from: "1.0.0")` [#3949](https://github.com/tuist/tuist/pull/3949) by [@laxmorek](https://github.com/laxmorek) 
 
