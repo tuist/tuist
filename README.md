@@ -238,6 +238,7 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="http://erkekin.com"><img src="https://avatars.githubusercontent.com/u/701481?v=4" width="100px;" alt=""/><br /><sub><b>Erk Ekin</b></sub></a></td>
     <td align="center"><a href="https://github.com/morozkin"><img src="https://avatars.githubusercontent.com/u/16591888?v=4" width="100px;" alt=""/><br /><sub><b>Denis Morozov</b></sub></a></td>
     <td align="center"><a href="https://github.com/orbitekk"><img src="https://avatars.githubusercontent.com/u/4222449?v=4" width="100px;" alt=""/><br /><sub><b>orbitekk</b></sub></a></td>
+    <td align="center"><a href="https://blog.naver.com/wogus3602"><img src="https://avatars.githubusercontent.com/u/46857148?v=4" width="100px;" alt=""/><br /><sub><b>Park Jae Hyun</b></sub></a></td>
   </tr>
 </table>
 
