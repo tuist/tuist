@@ -164,15 +164,16 @@ final class TestService {
                     resultBundlePath: resultBundlePath
                 )
             }
-
-            if !FileHandler.shared.exists(
-                cacheDirectoriesProvider.cacheDirectory(for: .tests)
-            ) {
-                try FileHandler.shared.createFolder(cacheDirectoriesProvider.cacheDirectory(for: .tests))
-            }
         }
 
         // Saving hashes from `testsCacheTemporaryDirectory` to `testsCacheDirectory` after all the tests have run successfully
+
+        if !FileHandler.shared.exists(
+            cacheDirectoriesProvider.cacheDirectory(for: .tests)
+        ) {
+            try FileHandler.shared.createFolder(cacheDirectoriesProvider.cacheDirectory(for: .tests))
+        }
+
         try FileHandler.shared
             .contentsOfDirectory(testsCacheTemporaryDirectory.path)
             .forEach { hashPath in
