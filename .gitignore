@@ -98,3 +98,6 @@ node_modules
 
 Tuist/Dependencies/SwiftPackageManager
 Tuist/Dependencies/graph.json
+
+# VSCode Settings
+.vscode/launch.json
