@@ -6,6 +6,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - **Breaking** remove deprecated initializers for `FileLists`, `Headers`, and `HTTPURLResponse` [#3936](https://github.com/tuist/tuist/pull/3936) by [@danyf90](https://github.com/danyf90)
   - **Migration:** Use non deprecated initializers
+- **Breaking** Tuist plugins 2.0 [#3492](https://github.com/tuist/tuist/pull/3492) by [@fortmarek](https://github.com/fortmarek)
 
 ## Next
 
@@ -336,7 +337,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
-- **Breaking** Tuist plugins 2.0
 - Add support for `SourceFilesList.codeGen` property. [#3448](https://github.com/tuist/tuist/pull/3448) by [@pavm035](https://github.com/pavm035)
 - Add more helpful output when `./fourier swift format` command fails. [#3451](https://github.com/tuist/tuist/pull/3451) by [@hisaac](https://github.com/hisaac)
 
