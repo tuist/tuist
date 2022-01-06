@@ -22,6 +22,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Fix unit test failures when test host requires codesigning [#3924](https://github.com/tuist/tuist/pull/3924) by [@hisaac](https://github.com/hisaac)
 - Fix circular dependency lint [#3876](https://github.com/tuist/tuist/pull/3876) by [@adellibovi](https://github.com/adellibovi)
 - Fix Xcode developer SDK root path for watchOS platform [#3876](https://github.com/tuist/tuist/pull/3932) by [@orbitekk](https://github.com/orbitekk)
+- Fix issue where test results were not being cached if a scheme was specified in the `tuist test` command [#3952](https://github.com/tuist/tuist/pull/3952) by [@hisaac](https://github.com/hisaac)
 
 ## 2.5.0 - Gestalt
 
