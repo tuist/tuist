@@ -7,18 +7,18 @@ let customAppScheme = Scheme(
         targets: [
             .project(path: "App", target: "App"),
             .project(path: "Frameworks/Framework1", target: "Framework1"),
-        ], 
+        ],
         preActions: [
             ExecutionAction(
-                scriptText: "echo pre-action", 
+                scriptText: "echo pre-action",
                 target: .project(path: "App", target: "App")
-            )
+            ),
         ],
         postActions: [
             ExecutionAction(
-                scriptText: "echo post-action", 
+                scriptText: "echo post-action",
                 target: .project(path: "Frameworks/Framework1", target: "Framework1")
-            )
+            ),
         ]
     ),
     testAction: TestAction.targets([
