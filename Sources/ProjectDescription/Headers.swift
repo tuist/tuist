@@ -52,11 +52,11 @@ public struct Headers: Codable, Equatable {
         self.exclusionRule = exclusionRule
     }
 
-    /// - deprecated: use `headers(public:private:project:exclusionRile:)` to create Headers instance.
+    /// - deprecated: use `headers(public:private:project:exclusionRule:)` to create Headers instance.
     @available(
         *,
         deprecated,
-        message: "Use `headers(public:private:project:exclusionRile:)` to create Headers instance."
+        message: "Use `headers(public:private:project:exclusionRule:)` to create Headers instance."
     )
     public init(public: FileList? = nil,
                 private: FileList? = nil,
