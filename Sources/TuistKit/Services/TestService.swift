@@ -170,19 +170,19 @@ final class TestService {
             ) {
                 try FileHandler.shared.createFolder(cacheDirectoriesProvider.cacheDirectory(for: .tests))
             }
-
-            // Saving hashes from `testsCacheTemporaryDirectory` to `testsCacheDirectory` after all the tests have run successfully
-            try FileHandler.shared
-                .contentsOfDirectory(testsCacheTemporaryDirectory.path)
-                .forEach { hashPath in
-                    let destination = cacheDirectoriesProvider.cacheDirectory(for: .tests).appending(component: hashPath.basename)
-                    guard !FileHandler.shared.exists(destination) else { return }
-                    try FileHandler.shared.move(
-                        from: hashPath,
-                        to: destination
-                    )
-                }
         }
+
+        // Saving hashes from `testsCacheTemporaryDirectory` to `testsCacheDirectory` after all the tests have run successfully
+        try FileHandler.shared
+            .contentsOfDirectory(testsCacheTemporaryDirectory.path)
+            .forEach { hashPath in
+                let destination = cacheDirectoriesProvider.cacheDirectory(for: .tests).appending(component: hashPath.basename)
+                guard !FileHandler.shared.exists(destination) else { return }
+                try FileHandler.shared.move(
+                    from: hashPath,
+                    to: destination
+                )
+            }
 
         logger.log(level: .notice, "The project tests ran successfully", metadata: .success)
     }
