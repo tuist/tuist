@@ -15,12 +15,21 @@ module Fourier
         )
       end
 
-      def self.build_fat_release_library(path:, product:, output_directory:, swift_build_directory:)
+      def self.build_fat_release_library(
+        path:,
+        product:,
+        output_directory:,
+        swift_build_directory:,
+        use_default_xcode:
+      )
         Dir.chdir(path) do
-          # Libraries needs to be build with a different Xcode version, defined in .xcode-version-libraries
-          Utilities::System.system(
-            "sudo xcode-select -switch /Applications/Xcode_$(<.xcode-version-libraries).app"
-          )
+          if use_default_xcode == false
+            # Libraries needs to be build with a different Xcode version, defined in .xcode-version-libraries
+            Utilities::System.system(
+              "sudo xcode-select -switch /Applications/Xcode_$(<.xcode-version-libraries).app"
+            )
+          end
+
           Utilities::System.system(
             "xcodebuild",
             "-scheme", product,
@@ -31,10 +40,14 @@ module Fourier
             "BUILD_DIR=#{swift_build_directory}",
             "clean", "build"
           )
-          # Restore the Xcode version to the default one
-          Utilities::System.system(
-            "sudo xcode-select -switch /Applications/Xcode_$(<.xcode-version).app"
-          )
+
+          if use_default_xcode == false
+            # Restore the Xcode version to the default one
+            Utilities::System.system(
+              "sudo xcode-select -switch /Applications/Xcode_$(<.xcode-version).app"
+            )
+          end
+
           FileUtils.cp_r(
             File.join(swift_build_directory, "Release/PackageFrameworks/#{product}.framework"),
             File.join(output_directory, "#{product}.framework")
@@ -57,6 +70,7 @@ module Fourier
         binary_name:,
         output_directory:,
         swift_build_directory:,
+        use_default_xcode:,
         additional_options: []
       )
         command = [
