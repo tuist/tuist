@@ -14,20 +14,37 @@ module Fourier
         aliases: :p,
       )
       option(
-        :use_default_xcode,
-        default: false,
-        desc: "Whether or not to use the default Xcode version on the build device",
-        type: :boolean,
-        required: false,
-        aliases: :d,
+        :xcode_version,
+        desc: %(
+          The version of Xcode to use to build tuist.
+          Can be either a version number (e.g. `--xcode_version="13.2.1"`)
+          or a file path pointing to the Xcode app bundle to use. (e.g. `--xcode_version="/path/to/Xcode.app"`)
+          Defaults to the currently selected Xcode on the system.
+        ),
+        type: :string,
+        required: false
+      )
+      option(
+        :xcode_version_libraries,
+        desc: %(
+          The version of Xcode to use to build tuist's library dependencies.
+          Can be either a version number (e.g. `--xcode_version="13.2.1"`)
+          or a file path pointing to the Xcode app bundle to use. (e.g. `--xcode_version="/path/to/Xcode.app"`)
+          Defaults to the currently selected Xcode on the system.
+        ),
+        type: :string,
+        required: false
       )
       def tuist
         output_directory = options[:output]
         output_directory ||= File.expand_path("build", Constants::ROOT_DIRECTORY)
-        use_default_xcode = options[:use_default_xcode] || false
+        xcode_version = options[:xcode_version]
+        xcode_version_libraries = options[:xcode_version_libraries]
+
         Services::Bundle::Tuist.call(
           output_directory: output_directory,
-          use_default_xcode: use_default_xcode
+          xcode_version: xcode_version,
+          xcode_version_libraries: xcode_version_libraries
         )
       end
 
@@ -39,10 +56,39 @@ module Fourier
         required: false,
         aliases: :p,
       )
+      option(
+        :xcode_version,
+        desc: %(
+          The version of Xcode to use to build tuistenv.
+          Can be either a version number (e.g. `--xcode_version="13.2.1"`)
+          or a file path pointing to the Xcode app bundle to use. (e.g. `--xcode_version="/path/to/Xcode.app"`)
+          Defaults to the currently selected Xcode on the system.
+        ),
+        type: :string,
+        required: false
+      )
+      option(
+        :xcode_version_libraries,
+        desc: %(
+          The version of Xcode to use to build tuistenv's library dependencies.
+          Can be either a version number (e.g. `--xcode_version="13.2.1"`)
+          or a file path pointing to the Xcode app bundle to use. (e.g. `--xcode_version="/path/to/Xcode.app"`)
+          Defaults to the currently selected Xcode on the system.
+        ),
+        type: :string,
+        required: false
+      )
       def tuistenv
         output_directory = options[:output]
         output_directory ||= File.expand_path("build", Constants::ROOT_DIRECTORY)
-        Services::Bundle::Tuistenv.call(output_directory: output_directory)
+        xcode_version = options[:xcode_version]
+        xcode_version_libraries = options[:xcode_version_libraries]
+
+        Services::Bundle::Tuistenv.call(
+          output_directory: output_directory,
+          xcode_version: xcode_version,
+          xcode_version_libraries: xcode_version_libraries
+        )
       end
 
       desc "all", "Bundle tuistenv and tuist"
@@ -61,27 +107,54 @@ module Fourier
         aliases: :b,
       )
       option(
-        :use_default_xcode,
-        desc: "Whether or not to use the default Xcode version on the build device (For building the `tuist` binary only. Building `tuistenv` always uses the default Xcode version.",
-        type: :boolean,
-        required: false,
-        aliases: :d,
+        :xcode_version,
+        desc: %(
+          The version of Xcode to use to build tuist and tuistenv.
+          Can be either a version number (e.g. `--xcode_version="13.2.1"`)
+          or a file path pointing to the Xcode app bundle to use. (e.g. `--xcode_version="/path/to/Xcode.app"`)
+          Defaults to the currently selected Xcode on the system.
+        ),
+        type: :string,
+        required: false
+      )
+      option(
+        :xcode_version_libraries,
+        desc: %(
+          The version of Xcode to use to build tuist and tuistenv's library dependencies.
+          Can be either a version number (e.g. `--xcode_version="13.2.1"`)
+          or a file path pointing to the Xcode app bundle to use. (e.g. `--xcode_version="/path/to/Xcode.app"`)
+          Defaults to the currently selected Xcode on the system.
+        ),
+        type: :string,
+        required: false
       )
       def all
         output_directory = options[:output]
         output_directory ||= File.expand_path("build", Constants::ROOT_DIRECTORY)
-        use_default_xcode = options[:use_default_xcode] || false
+        xcode_version = options[:xcode_version]
+        xcode_version_libraries = options[:xcode_version_libraries]
 
-        bundle_all(output_directory: output_directory, use_default_xcode: use_default_xcode)
+        bundle_all(
+          output_directory: output_directory,
+          xcode_version: xcode_version,
+          xcode_version_libraries: xcode_version_libraries
+        )
       end
       no_commands {
-        def bundle_all(output_directory:, use_default_xcode:)
+        def bundle_all(
+          output_directory:,
+          xcode_version:,
+          xcode_version_libraries:
+        )
           Services::Bundle::Tuist.call(
             output_directory: output_directory,
-            use_default_xcode: use_default_xcode
+            xcode_version: xcode_version,
+            xcode_version_libraries: xcode_version_libraries
           )
           Services::Bundle::Tuistenv.call(
-            output_directory: output_directory
+            output_directory: output_directory,
+            xcode_version: xcode_version,
+            xcode_version_libraries: xcode_version_libraries
           )
         end
       }

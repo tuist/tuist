@@ -9,10 +9,19 @@ module Fourier
       class Tuistenv < Base
         attr_reader :output_directory
         attr_reader :build_directory
+        attr_reader :xcode_version
+        attr_reader :xcode_version_libraries
 
-        def initialize(output_directory:, build_directory: nil)
+        def initialize(
+          output_directory:,
+          build_directory: nil,
+          xcode_version: nil,
+          xcode_version_libraries: nil
+        )
           @output_directory = output_directory
           @build_directory = build_directory
+          @xcode_version = xcode_version
+          xcode_version_libraries = xcode_version_libraries
         end
 
         def call
@@ -27,7 +36,9 @@ module Fourier
               Utilities::Output.section("Building Tuistenv...")
               build_tuistenv(
                 output_directory: build_directory,
-                swift_build_directory: swift_build_directory
+                swift_build_directory: swift_build_directory,
+                xcode_version: xcode_version,
+                xcode_version_libraries: xcode_version_libraries
               )
 
               Dir.chdir(build_directory) do
@@ -45,13 +56,20 @@ module Fourier
         end
 
         private
-          def build_tuistenv(output_directory:, swift_build_directory:)
+          def build_tuistenv(
+            output_directory:,
+            swift_build_directory:,
+            xcode_version:,
+            xcode_version_libraries:
+          )
             Utilities::SwiftPackageManager.build_fat_release_binary(
               path: Constants::ROOT_DIRECTORY,
               product: "tuistenv",
               binary_name: "tuistenv",
               output_directory: output_directory,
-              swift_build_directory: swift_build_directory
+              swift_build_directory: swift_build_directory,
+              xcode_version: xcode_version,
+              xcode_version_libraries: xcode_version_libraries
             )
           end
       end

@@ -7,11 +7,18 @@ module Fourier
   module Services
     module Bundle
       class Tuist < Base
-        attr_reader :output_directory, :use_default_xcode
+        attr_reader :output_directory
+        attr_reader :xcode_version
+        attr_reader :xcode_version_libraries
 
-        def initialize(output_directory:, use_default_xcode:)
+        def initialize(
+          output_directory:,
+          xcode_version: nil,
+          xcode_version_libraries: nil
+        )
           @output_directory = output_directory
-          @use_default_xcode = use_default_xcode
+          @xcode_version = xcode_version
+          xcode_version_libraries = xcode_version_libraries
         end
 
         def call
@@ -27,20 +34,23 @@ module Fourier
                 name: "ProjectDescription",
                 output_directory: build_directory,
                 swift_build_directory: swift_build_directory,
-                use_default_xcode: use_default_xcode
+                xcode_version: xcode_version,
+                xcode_version_libraries: xcode_version_libraries
               )
               build_project_library(
                 name: "ProjectAutomation",
                 output_directory: build_directory,
                 swift_build_directory: swift_build_directory,
-                use_default_xcode: use_default_xcode
+                xcode_version: xcode_version,
+                xcode_version_libraries: xcode_version_libraries
               )
 
               Utilities::Output.section("Building Tuist...")
               build_tuist(
                 output_directory: build_directory,
                 swift_build_directory: swift_build_directory,
-                use_default_xcode: use_default_xcode
+                xcode_version: xcode_version,
+                xcode_version_libraries: xcode_version_libraries
               )
 
               FileUtils.cp_r(
@@ -79,25 +89,38 @@ module Fourier
         end
 
         private
-          def build_tuist(output_directory:, swift_build_directory:, use_default_xcode:)
+          def build_tuist(
+            output_directory:,
+            swift_build_directory:,
+            xcode_version:,
+            xcode_version_libraries:
+          )
             Utilities::SwiftPackageManager.build_fat_release_binary(
               path: Constants::ROOT_DIRECTORY,
               product: "tuist",
               binary_name: "tuist",
               output_directory: output_directory,
               swift_build_directory: swift_build_directory,
-              use_default_xcode: use_default_xcode
+              xcode_version: xcode_version,
+              xcode_version_libraries: xcode_version_libraries
             )
           end
 
-          def build_project_library(name:, output_directory:, swift_build_directory:, use_default_xcode:)
+          def build_project_library(
+            name:,
+            output_directory:,
+            swift_build_directory:,
+            xcode_version:,
+            xcode_version_libraries:
+          )
             Utilities::Output.section("Building #{name}...")
             Utilities::SwiftPackageManager.build_fat_release_library(
               path: Constants::ROOT_DIRECTORY,
               product: name,
               output_directory: output_directory,
               swift_build_directory: swift_build_directory,
-              use_default_xcode: use_default_xcode
+              xcode_version: xcode_version,
+              xcode_version_libraries: xcode_version_libraries
             )
           end
       end
