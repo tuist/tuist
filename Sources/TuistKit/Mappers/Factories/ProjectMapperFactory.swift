@@ -60,13 +60,11 @@ final class ProjectMapperFactory: ProjectMapperFactorying {
         mappers.append(DeleteDerivedDirectoryProjectMapper())
 
         // Namespace generator
-        if !config.generationOptions.contains(.disableSynthesizedResourceAccessors) {
-            mappers.append(
-                SynthesizedResourceInterfaceProjectMapper(
-                    contentHasher: contentHasher
-                )
+        mappers.append(
+            SynthesizedResourceInterfaceProjectMapper(
+                contentHasher: contentHasher
             )
-        }
+        )
 
         // Logfile noise suppression
         if config.generationOptions.contains(.disableShowEnvironmentVarsInScriptPhases) {

@@ -11,7 +11,6 @@ public struct Config: Equatable, Hashable {
         case organizationName(String)
         case developmentRegion(String)
         case autogenerationOptions(AutogenerationOptions)
-        case disableSynthesizedResourceAccessors
         case disableShowEnvironmentVarsInScriptPhases
         case enableCodeCoverage(CodeCoverageMode)
         case templateMacros(IDETemplateMacros)

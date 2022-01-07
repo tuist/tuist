@@ -7,6 +7,9 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - **Breaking** remove deprecated initializers for `FileLists`, `Headers`, and `HTTPURLResponse` [#3936](https://github.com/tuist/tuist/pull/3936) by [@danyf90](https://github.com/danyf90)
   - **Migration:** Use non deprecated initializers
 - **Breaking** Tuist plugins 2.0 [#3492](https://github.com/tuist/tuist/pull/3492) by [@fortmarek](https://github.com/fortmarek)
+- **Breaking** move `disableSynthesizedResourceAccessors` from `Config.swift` to `Project.ProjectOption` [#3963](https://github.com/tuist/tuist/pull/3963) by [@danyf90](https://github.com/danyf90).
+  - **Motivation:** being able to define the option at the project level
+  - **Migration:** move the `disableSynthesizedResourceAccessors` from `Config.swift` to `Project.ProjectOption`
 
 ## Next
 

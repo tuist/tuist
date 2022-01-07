@@ -16,6 +16,8 @@ extension TuistGraph.ProjectOption {
                     wrapsLines: wrapsLines
                 )
             )
+        case .disableSynthesizedResourceAccessors:
+            return .disableSynthesizedResourceAccessors
         }
     }
 }

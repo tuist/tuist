@@ -15,6 +15,9 @@ public enum ProjectOption: Codable, Equatable {
         tabWidth: UInt? = nil,
         wrapsLines: Bool? = nil
     )
+
+    /// Disable the synthesized resource accessors generation
+    case disableSynthesizedResourceAccessors
 }
 
 // MARK: - Options + Codable
@@ -22,6 +25,7 @@ public enum ProjectOption: Codable, Equatable {
 extension ProjectOption {
     private enum OptionsCodingKeys: String, CodingKey {
         case textSettings
+        case disableSynthesizedResourceAccessors
     }
 
     private enum TextSettingsKeys: String, CodingKey {
@@ -34,7 +38,9 @@ extension ProjectOption {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: OptionsCodingKeys.self)
 
-        if container.allKeys.contains(.textSettings), try container.decodeNil(forKey: .textSettings) == false {
+        if container.allKeys.contains(.disableSynthesizedResourceAccessors) {
+            self = .disableSynthesizedResourceAccessors
+        } else if container.allKeys.contains(.textSettings), try container.decodeNil(forKey: .textSettings) == false {
             let textSettingsContainer = try container.nestedContainer(
                 keyedBy: TextSettingsKeys.self,
                 forKey: .textSettings
@@ -61,6 +67,8 @@ extension ProjectOption {
             try associatedValues.encodeIfPresent(indentWidth, forKey: .indentWidth)
             try associatedValues.encodeIfPresent(tabWidth, forKey: .tabWidth)
             try associatedValues.encodeIfPresent(wrapsLines, forKey: .wrapsLines)
+        case .disableSynthesizedResourceAccessors:
+            try container.encode(true, forKey: .disableSynthesizedResourceAccessors)
         }
     }
 }

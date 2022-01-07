@@ -36,20 +36,6 @@ final class ProjectMapperFactoryTests: TuistUnitTestCase {
         XCTAssertContainsElementOfType(got, SynthesizedResourceInterfaceProjectMapper.self)
     }
 
-    func test_default_when_synthesizing_of_resource_interfaces_is_enabled() {
-        // Given
-        let config = Config.test(generationOptions: [
-            .disableSynthesizedResourceAccessors,
-        ])
-
-        // When
-        let got = subject.default(config: config)
-
-        // Then
-
-        XCTAssertDoesntContainElementOfType(got, SynthesizedResourceInterfaceProjectMapper.self)
-    }
-
     func test_default_when_showing_env_variables_in_scripts_is_disabled() {
         // Given
         let config = Config.test(generationOptions: [
