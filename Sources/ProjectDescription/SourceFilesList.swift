@@ -27,10 +27,10 @@ public struct SourceFileGlob: Codable, Equatable {
         compilerFlags: String? = nil,
         codeGen: FileCodeGen? = nil
     ) -> Self {
-        return .init(glob: glob, excluding: excluding, compilerFlags: compilerFlags, codeGen: codeGen)
+        .init(glob: glob, excluding: excluding, compilerFlags: compilerFlags, codeGen: codeGen)
     }
 
-    public static func glob (
+    public static func glob(
         _ glob: Path,
         excluding: Path?,
         compilerFlags: String? = nil,

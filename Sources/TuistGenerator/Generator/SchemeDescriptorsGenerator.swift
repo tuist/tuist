@@ -524,11 +524,12 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
     ///   - rootPath: Root path to either project or workspace.
     ///   - generatedProjects: Project paths mapped to generated projects.
     /// - Returns: Scheme profile action.
-    func schemeProfileAction(scheme: Scheme,
-                             graphTraverser: GraphTraversing,
-                             rootPath: AbsolutePath,
-                             generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.ProfileAction?
-    {
+    func schemeProfileAction( // swiftlint:disable:this function_body_length
+        scheme: Scheme,
+        graphTraverser: GraphTraversing,
+        rootPath: AbsolutePath,
+        generatedProjects: [AbsolutePath: GeneratedProject]
+    ) throws -> XCScheme.ProfileAction? {
         guard var target = defaultTargetReference(scheme: scheme) else { return nil }
         var commandlineArguments: XCScheme.CommandLineArguments?
         var environments: [XCScheme.EnvironmentVariable]?
