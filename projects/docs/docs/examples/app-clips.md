@@ -34,7 +34,7 @@ let project = Project(
             sources: ["AppClip/Sources/**",],
             entitlements: "AppClip/Entitlements/AppClip.entitlements",
             dependencies: [
-                .sdk(name: "AppClip.framework", status: .required),
+                .sdk(name: "AppClip", type: .framework, status: .required),
             ]
         ),
     ]
