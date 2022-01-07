@@ -40,7 +40,7 @@ class TokenAuthenticatableTest < ActiveSupport::TestCase
     assert subject.token
   end
 
-  test "encoded_authentication_token returns the encoded token value" do
+  test "encoded_token returns the encoded token value" do
     # Given
     subject = AuthenticatableTestModel.new(name: "name")
 
@@ -48,6 +48,6 @@ class TokenAuthenticatableTest < ActiveSupport::TestCase
     subject.save
 
     # Then
-    assert subject.encoded_authentication_token
+    assert subject.encoded_token
   end
 end
