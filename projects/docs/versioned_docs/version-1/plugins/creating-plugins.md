@@ -41,7 +41,7 @@ import MyPlugin
 
 ### Templates
 
-Template plugins can be used to share & reuse custom templates. Tuist will collect all templates from defined plugins and allow them to be used with commands like [`tuist scaffold`](/commands/scaffold/).
+Template plugins can be used to share & reuse custom templates. Tuist will collect all templates from defined plugins and allow them to be used with commands like [`tuist scaffold`](commands/scaffold.md).
 
 In order for Tuist to locate the templates for a plugin, they must be placed in the same directory as the `Plugin.swift` manifest and in a directory named `Templates`.
 
@@ -57,7 +57,7 @@ In order for Tuist to locate the templates for a plugin, they must be placed in 
 
 Tasks serve as automation files written in Swift that can be easily edited in Xcode. Similarly to templates, Tuist finds all tasks defined in `Tasks`.
 For example, if you wanted to create a plugin task for releasing apps, you can create a file called `ReleaseApp.swift` in the `Tasks` directory of your plugin.
-To read more about how you can define tasks themselves, head over to the [Tasks documentation](/commands/task).
+To read more about how you can define tasks themselves, head over to the [Tasks documentation](commands/task.md).
 
 ```
 .
@@ -71,7 +71,7 @@ To read more about how you can define tasks themselves, head over to the [Tasks 
 
 ## ResourceSynthesizers
 
-ResourceSynthesizer plugins are for sharing & reusing templates for [synthesizing resources](/guides/resources/). If you want to use one of the predefined resource synthesizers, the template must also adhere to a specific naming.
+ResourceSynthesizer plugins are for sharing & reusing templates for [synthesizing resources](guides/resources.md). If you want to use one of the predefined resource synthesizers, the template must also adhere to a specific naming.
 
 For example if you initialize `ResourceSynthesizer` with `.strings(plugin: "MyPlugin")` then the template must be called `Strings.stencil`.
 
@@ -167,7 +167,7 @@ Notice how you label extensions, methods, classes and structs as `public` if you
 
 #### Use the plugin
 
-We can follow the [using plugins](/plugins/using-plugins/) to learn more about how to use plugins. For this exmaple we may want to include the plugin and use it like so:
+We can follow the [using plugins](plugins/using-plugins.md) to learn more about how to use plugins. For this exmaple we may want to include the plugin and use it like so:
 
 ```swift
 // Project.swift

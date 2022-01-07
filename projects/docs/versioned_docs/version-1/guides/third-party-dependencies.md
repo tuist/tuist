@@ -24,7 +24,7 @@ Learn how to define the contract between the dependency managers (Cocoapods, Car
 ### Step 1: "Dependencies.swift"
 
 1. Create `Dependencies.swift` in your project in `Tuist/` directory.
-2. You can read more about `Dependencies.swift` [here](/manifests/dependencies/).
+2. You can read more about `Dependencies.swift` [here](manifests/dependencies.md).
 3. Run `tuist edit` to start editing your manifest files.
 4. Add `import ProjectDescription` on the top of file.
 5. Define your dependencies.
@@ -59,7 +59,7 @@ let dependencies = Dependencies(
 ### Step 2: "tuist dependencies" commands
 
 1. Pull dependencies using `tuist dependencies fetch` command.
-2. You can read more about commands [here](/commands/dependencies/).
+2. You can read more about commands [here](commands/dependencies.md).
 3. Tuist will save dependencies in the `Tuist/Dependencies` directory.
 
 The folder structure below shows how Tuist organizes dependencies:
