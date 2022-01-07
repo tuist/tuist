@@ -34,7 +34,7 @@ extension Array where Element == ProjectOption {
     }
 
     public var disableSynthesizedResourceAccessors: Bool {
-        return self.contains(.disableSynthesizedResourceAccessors)
+        contains(.disableSynthesizedResourceAccessors)
     }
 }
 
