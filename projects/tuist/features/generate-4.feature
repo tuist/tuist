@@ -4,7 +4,7 @@ Scenario: The project is an iOS application with an incompatible Xcode version (
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture ios_app_with_incompatible_xcode into the working directory
-    Then tuist generate yields error "The project, which only supports the versions of Xcode 3.2.1, is not compatible with your selected version of Xcode"
+    Then tuist generate yields error "The selected Xcode version is ${XCODE_VERSION}, which is not compatible with this project's Xcode version requirement of 3.2.1."
 
 Scenario: The project is an iOS application with target actions
     Given that tuist is available
@@ -16,6 +16,16 @@ Scenario: The project is an iOS application with target actions
     Then in project AppWithSpace the target AppWithSpace should have the build phase Run script in the first position
     Then I should be able to build for iOS the scheme App
     Then I should be able to build for iOS the scheme AppWithSpace
+
+Scenario: The project is an iOS application with target actions with build variable
+    Given that tuist is available
+    And I have a working directory
+    Then I copy the fixture ios_app_with_build_variables into the working directory
+    Then tuist generates the project
+    Then in project App the target App should have the build phase Tuist in the first position
+    Then in the build phase the field for output paths should have a path with $(DEVELOPER_FILE_DIR)/output.txt
+    Then I should be able to warm the cache and get no errors
+    Then I should be able to build for iOS the scheme App
 
 Scenario: The project is an iOS application with remote Swift package (ios_app_with_remote_swift_package)
     Given that tuist is available

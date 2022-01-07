@@ -668,6 +668,24 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "orbitekk",
+      "name": "orbitekk",
+      "avatar_url": "https://avatars.githubusercontent.com/u/4222449?v=4",
+      "profile": "https://github.com/orbitekk",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "wogus3602",
+      "name": "Park Jae Hyun",
+      "avatar_url": "https://avatars.githubusercontent.com/u/46857148?v=4",
+      "profile": "https://blog.naver.com/wogus3602",
+      "contributions": [
+        "doc"
+      ]
     }
   ],
   "contributorsPerLine": 7,

@@ -6,7 +6,6 @@ import TuistGraph
 import TuistLoader
 import TuistScaffold
 import TuistSupport
-import TuistTasks
 
 enum ProjectEditorError: FatalError, Equatable {
     /// This error is thrown when we try to edit in a project in a directory that has no editable files.
@@ -63,7 +62,6 @@ final class ProjectEditor: ProjectEditing {
 
     private let cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring
     private let projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring
-    private let tasksLocator: TasksLocating
 
     /// Xcode Project writer
     private let writer: XcodeProjWriting
@@ -78,8 +76,7 @@ final class ProjectEditor: ProjectEditing {
         templatesDirectoryLocator: TemplatesDirectoryLocating = TemplatesDirectoryLocator(),
         cacheDirectoryProviderFactory: CacheDirectoriesProviderFactoring = CacheDirectoriesProviderFactory(),
         projectDescriptionHelpersBuilderFactory: ProjectDescriptionHelpersBuilderFactoring =
-            ProjectDescriptionHelpersBuilderFactory(),
-        tasksLocator: TasksLocating = TasksLocator()
+            ProjectDescriptionHelpersBuilderFactory()
     ) {
         self.generator = generator
         self.projectEditorMapper = projectEditorMapper
@@ -90,7 +87,6 @@ final class ProjectEditor: ProjectEditing {
         self.templatesDirectoryLocator = templatesDirectoryLocator
         self.cacheDirectoryProviderFactory = cacheDirectoryProviderFactory
         self.projectDescriptionHelpersBuilderFactory = projectDescriptionHelpersBuilderFactory
-        self.tasksLocator = tasksLocator
     }
 
     // swiftlint:disable:next function_body_length
@@ -119,7 +115,6 @@ final class ProjectEditor: ProjectEditing {
         ] + tuistIgnoreEntries
 
         let projectDescriptionPath = try resourceLocator.projectDescription()
-        let projectAutomationPath = try resourceLocator.projectAutomation()
         let projectManifests = manifestFilesLocator.locateProjectManifests(
             at: editingPath,
             excluding: pathsToExclude,
@@ -139,8 +134,6 @@ final class ProjectEditor: ProjectEditing {
         let templates = templatesDirectoryLocator.locateUserTemplates(at: editingPath).map {
             FileHandler.shared.glob($0, glob: "**/*.swift") + FileHandler.shared.glob($0, glob: "**/*.stencil")
         } ?? []
-
-        let tasks = try tasksLocator.locateTasks(at: editingPath)
 
         let editablePluginManifests = locateEditablePluginManifests(
             at: editingPath,
@@ -176,9 +169,7 @@ final class ProjectEditor: ProjectEditing {
             pluginProjectDescriptionHelpersModule: builtPluginHelperModules,
             helpers: helpers,
             templates: templates,
-            tasks: tasks,
-            projectDescriptionSearchPath: projectDescriptionPath.parentDirectory,
-            projectAutomationSearchPath: projectAutomationPath.parentDirectory
+            projectDescriptionSearchPath: projectDescriptionPath.parentDirectory
         )
 
         let graphTraverser = GraphTraverser(graph: graph)

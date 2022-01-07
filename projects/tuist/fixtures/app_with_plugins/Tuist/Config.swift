@@ -3,7 +3,8 @@ import ProjectDescription
 let config = Config(
     plugins: [
         .local(path: .relativeToManifest("../../LocalPlugin")),
-        .git(url: "https://github.com/tuist/ExampleTuistPlugin.git", tag: "6fa42ca"),
+        // TODO: Change back to tuist organization
+        .git(url: "https://github.com/fortmarek/ExampleTuistPlugin", tag: "0.4.0"),
     ],
     generationOptions: []
 )

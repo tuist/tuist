@@ -1,4 +1,3 @@
 #!/bin/bash
 
-./fourier lint swift
-./fourier lint ruby
+./fourier lint all

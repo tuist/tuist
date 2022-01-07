@@ -10,24 +10,39 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - **Breaking** `tuist generate` automatically opens the generated project. [#3912](https://github.com/tuist/tuist/pull/3912) by [@danyf90](https://github.com/danyf90):
   - **Motivation:**: Most of the times you want to open the project after generating it.
   - **Migration:** If you need to generate the project without openeing it, just pass `--no-open` to `tuist generate`.
+- **Breaking** remove deprecated initializers for `FileLists`, `Headers`, and `HTTPURLResponse` [#3936](https://github.com/tuist/tuist/pull/3936) by [@danyf90](https://github.com/danyf90)
+  - **Migration:** Use non deprecated initializers
+- **Breaking** Tuist plugins 2.0 [#3492](https://github.com/tuist/tuist/pull/3492) by [@fortmarek](https://github.com/fortmarek)
 
 ## Next
 
 ### Changed
 
+### Added
+
+### Fixed
+
+## 2.6.0 - Havana
+
+### Changed
+
 - Remove duplicate bundle identifier lint warning [#3914](https://github.com/tuist/tuist/pull/3914) by [@danyf90](https://github.com/danyf90)
+- Update version requirement for `swift-argument-parser` package from `.upToNextMajor(from: "0.4.3")` to `.upToNextMajor(from: "1.0.0")` [#3949](https://github.com/tuist/tuist/pull/3949) by [@laxmorek](https://github.com/laxmorek) 
 
 ### Added
 
 - Add logging when helpers modules are being built [#3913](https://github.com/tuist/tuist/pull/3913) by [@luispadron](https://github.com/luispadron)
-- Fix `tuist edit` compilation when building local helper modules that include remote plugins [#3918](https://github.com/tuist/tuist/pull/3918) by [@luispadron](https://github.com/luispadron)
 - Document how to use the [Bitrise step](https://github.com/tuist/bitrise-step-tuist) [#3921](https://github.com/tuist/tuist/pull/3921) by [@pepicrft](https://github.com/pepicrft)
+- Add `.exact`, `.upToNextMajor`, and `.upToNextMinor` options to CompatibleXcodeVersions [#3929](https://github.com/tuist/tuist/pull/3929) by [@ezraberch](https://github.com/ezraberch)
 
 ### Fixed
 
+- Improve `tuist focus` execution time by avoiding redundant hashing for target dependencies [#3947](https://github.com/tuist/tuist/pull/3947) by [@adellibovi](https://github.com/adellibovi)
 - Avoid building dependent test target when not needed during `tuist cache warm` [#3917](https://github.com/tuist/tuist/pull/3917) by [@danyf90](https://github.com/danyf90)
 - Fix unit test failures when test host requires codesigning [#3924](https://github.com/tuist/tuist/pull/3924) by [@hisaac](https://github.com/hisaac)
 - Fix circular dependency lint [#3876](https://github.com/tuist/tuist/pull/3876) by [@adellibovi](https://github.com/adellibovi)
+- Fix Xcode developer SDK root path for watchOS platform [#3876](https://github.com/tuist/tuist/pull/3932) by [@orbitekk](https://github.com/orbitekk)
+- Fix `tuist edit` compilation when building local helper modules that include remote plugins [#3918](https://github.com/tuist/tuist/pull/3918) by [@luispadron](https://github.com/luispadron)
 
 ## 2.5.0 - Gestalt
 

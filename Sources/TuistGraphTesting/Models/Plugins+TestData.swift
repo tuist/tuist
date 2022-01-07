@@ -6,14 +6,12 @@ extension Plugins {
     public static func test(
         projectDescriptionHelpers: [ProjectDescriptionHelpersPlugin] = [],
         templatePaths: [AbsolutePath] = [],
-        resourceSynthesizers: [PluginResourceSynthesizer] = [],
-        tasks: [PluginTasks] = []
+        resourceSynthesizers: [PluginResourceSynthesizer] = []
     ) -> Plugins {
         Plugins(
             projectDescriptionHelpers: projectDescriptionHelpers,
             templatePaths: templatePaths,
-            resourceSynthesizers: resourceSynthesizers,
-            tasks: tasks
+            resourceSynthesizers: resourceSynthesizers
         )
     }
 }

@@ -186,7 +186,7 @@ GEM
       racc (~> 1.4)
     os (1.1.4)
     parallel (1.21.0)
-    parser (3.0.3.2)
+    parser (3.1.0.0)
       ast (~> 2.4.1)
     pg (1.2.3)
     public_suffix (4.0.6)
@@ -245,7 +245,7 @@ GEM
       rubocop-ast (>= 0.6.0)
       ruby-progressbar (~> 1.7)
       unicode-display_width (>= 1.4.0, < 2.0)
-    rubocop-ast (1.15.0)
+    rubocop-ast (1.15.1)
       parser (>= 3.0.1.1)
     rubocop-minitest (0.16.0)
       rubocop (>= 0.90, < 2.0)
@@ -348,7 +348,7 @@ GEM
     websocket-extensions (0.1.5)
     xpath (3.2.0)
       nokogiri (~> 1.8)
-    zeitwerk (2.5.1)
+    zeitwerk (2.5.3)
 
 PLATFORMS
   ruby
