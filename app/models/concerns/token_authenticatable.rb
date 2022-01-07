@@ -15,7 +15,7 @@ module TokenAuthenticatable
     end
   end
 
-  def encoded_authentication_token
+  def encoded_token
     return if self.class.token_property.nil?
     APITokenStrategy::Token.new(
       self.class.name,
