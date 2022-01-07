@@ -191,8 +191,8 @@ extension TuistGraph.Target {
             let globPath = try generatorPaths.resolve(path: glob.glob).pathString
             let excluding: [String] = try glob.excluding.compactMap { try generatorPaths.resolve(path: $0).pathString }
             let mappedCodeGen = glob.codeGen.map(TuistGraph.FileCodeGen.from)
-            return TuistGraph.SourceFileGlob(
-                glob: globPath,
+            return TuistGraph.SourceFileGlob.glob(
+                globPath,
                 excluding: excluding,
                 compilerFlags: glob.compilerFlags,
                 codeGen: mappedCodeGen
