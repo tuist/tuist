@@ -3,10 +3,10 @@
 module Fourier
   module Services
     class Focus < Base
-      attr_reader :target
+      attr_reader :targets
 
-      def initialize(target:)
-        @target = target
+      def initialize(targets:)
+        @targets = targets
       end
 
       def call
@@ -16,8 +16,7 @@ module Fourier
         cache_warm = ["cache", "warm", "--dependencies-only"]
         Utilities::System.tuist(*cache_warm)
 
-        focus = ["focus"]
-        focus << "#{target}" if target != nil
+        focus = ["focus"] + targets
         Utilities::System.tuist(*focus)
       end
     end

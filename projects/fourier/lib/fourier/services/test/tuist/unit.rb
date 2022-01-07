@@ -8,7 +8,6 @@ module Fourier
           def call
             fetch = ["fetch"]
             Utilities::System.tuist(*fetch)
-
             Utilities::System.tuist("test")
             Dir.chdir(Constants::TUIST_DIRECTORY) do
               Utilities::System.system("swift", "test")

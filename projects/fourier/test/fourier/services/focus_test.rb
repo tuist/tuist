@@ -13,13 +13,13 @@ module Fourier
         Utilities::System
           .expects(:tuist)
           .with("fetch")
-        target = "TuistSupport"
+        targets = ["TuistSupport", "TuistSupportTests"]
         Utilities::System
           .expects(:tuist)
-          .with("focus", target)
+          .with("focus", *targets)
 
         # Then
-        Services::Focus.call(target: target)
+        Services::Focus.call(targets: targets)
       end
     end
   end

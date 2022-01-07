@@ -8,7 +8,6 @@ module Fourier
           def call
             fetch = ["fetch"]
             Utilities::System.tuist(*fetch)
-
             Utilities::System.tuist("build", "--generate")
           end
         end

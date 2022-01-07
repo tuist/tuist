@@ -50,12 +50,16 @@ It allows configuring Tuist and share the configuration across several projects.
 
 This object represents the versions of Xcode the project is compatible with. If a developer tries to generate a project and its selected Xcode version is not compatible with the project, Tuist will yield an error:
 
-| Case              | Description                                              |
-| ----------------- | -------------------------------------------------------- |
-| `.all`            | The project is compatible with any version of Xcode.     |
-| `.list([String])` | The project is compatible with a list of Xcode versions. |
+| Case                               | Description                                                                                                                    |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `.all`                             | The project is compatible with any version of Xcode.                                                                           |
+| `.exact(Version)`                  | The project is compatible with a specific version of Xcode.                                                                    |
+| `.upToNextMajor(Version)`          | The project is compatible with any version of Xcode from the specified version up to but not including the next major version. |
+| `.upToNextMinor(Version)`          | The project is compatible with any version of Xcode from the specified version up to but not including the next minor version. |
+| `.list([CompatibleXcodeVersions])` | The project is compatible with a list of Xcode versions.                                                                       |
 
 :::note ExpressibleByArrayLiteral and ExpressibleByStringLiteral
+Note that 'Version' can also be initialized with a string that represents the supported Xcode version.
 Note that 'CompatibleXcodeVersions' can also be initialized with a string or array of strings that represent the supported Xcode versions.
 :::
 

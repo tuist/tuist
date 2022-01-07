@@ -29,15 +29,12 @@ env:
 
 jobs:
   unit_tests:
-    name: Unit tests with Xcode ${{ matrix.xcode }}
+    name: Unit tests with Xcode
     runs-on: macOS-11
-    strategy:
-      matrix:
-        xcode: ['13.2']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache@v2
         name: 'Cache SPM dependencies'
         with:
@@ -62,15 +59,12 @@ jobs:
         run: |
           ./fourier test tuist unit
   release_build:
-    name: Release build with Xcode ${{ matrix.xcode }}
+    name: Release build with Xcode
     runs-on: macOS-11
-    strategy:
-      matrix:
-        xcode: ['13.2']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache@v2
         with:
           path: .build
@@ -86,11 +80,10 @@ jobs:
         run: swift build -c release --product ProjectDescription
 
   acceptance_tests:
-    name: ${{ matrix.feature }} acceptance tests with Xcode ${{ matrix.xcode }}
+    name: ${{ matrix.feature }} acceptance tests with Xcode
     runs-on: macOS-11
     strategy:
       matrix:
-        xcode: ['13.2']
         feature:
           [
             'build',
@@ -128,7 +121,7 @@ jobs:
         with:
           submodules: recursive
       - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache@v2
         name: 'Cache SPM dependencies'
         with:
@@ -156,13 +149,10 @@ jobs:
   lint:
     name: Lint
     runs-on: macOS-11
-    strategy:
-      matrix:
-        xcode: ['13.2']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ env.RUBY_VERSION }}
@@ -184,13 +174,10 @@ jobs:
   lint-lockfiles:
     name: Lint lockfiles
     runs-on: macOS-11
-    strategy:
-      matrix:
-        xcode: ['13.2']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ env.RUBY_VERSION }}

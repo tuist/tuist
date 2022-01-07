@@ -5,7 +5,11 @@ import TuistGraph
 import TuistSupport
 
 public protocol DependenciesContentHashing {
-    func hash(graphTarget: GraphTarget, hashedTargets: inout [GraphHashedTarget: String]) throws -> String
+    func hash(
+        graphTarget: GraphTarget,
+        hashedTargets: inout [GraphHashedTarget: String],
+        hashedPaths: inout [AbsolutePath: String]
+    ) throws -> String
 }
 
 enum DependenciesContentHasherError: FatalError, Equatable {
@@ -51,16 +55,21 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
 
     // MARK: - DependenciesContentHashing
 
-    public func hash(graphTarget: GraphTarget, hashedTargets: inout [GraphHashedTarget: String]) throws -> String {
+    public func hash(
+        graphTarget: GraphTarget,
+        hashedTargets: inout [GraphHashedTarget: String],
+        hashedPaths: inout [AbsolutePath: String]
+    ) throws -> String {
         let hashes = try graphTarget.target.dependencies
-            .map { try hash(graphTarget: graphTarget, dependency: $0, hashedTargets: &hashedTargets) }
+            .map { try hash(graphTarget: graphTarget, dependency: $0, hashedTargets: &hashedTargets, hashedPaths: &hashedPaths) }
         return hashes.compactMap { $0 }.joined()
     }
 
     // MARK: - Private
 
     private func hash(graphTarget: GraphTarget, dependency: TargetDependency,
-                      hashedTargets: inout [GraphHashedTarget: String]) throws -> String
+                      hashedTargets: inout [GraphHashedTarget: String],
+                      hashedPaths: inout [AbsolutePath: String]) throws -> String
     {
         switch dependency {
         case let .target(targetName):
@@ -83,12 +92,10 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
                 )
             }
             return dependencyHash
-        case let .framework(path):
-            return try contentHasher.hash(path: path)
-        case let .xcframework(path):
-            return try contentHasher.hash(path: path)
+        case let .framework(path), let .xcframework(path):
+            return try cachedHash(path: path, hashedPaths: &hashedPaths)
         case let .library(path, publicHeaders, swiftModuleMap):
-            let libraryHash = try contentHasher.hash(path: path)
+            let libraryHash = try cachedHash(path: path, hashedPaths: &hashedPaths)
             let publicHeadersHash = try contentHasher.hash(path: publicHeaders)
             if let swiftModuleMap = swiftModuleMap {
                 let swiftModuleHash = try contentHasher.hash(path: swiftModuleMap)
@@ -102,6 +109,16 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
             return try contentHasher.hash("sdk-\(name)-\(status)")
         case .xctest:
             return try contentHasher.hash("xctest")
+        }
+    }
+
+    private func cachedHash(path: AbsolutePath, hashedPaths: inout [AbsolutePath: String]) throws -> String {
+        if let pathHash = hashedPaths[path] {
+            return pathHash
+        } else {
+            let pathHash = try contentHasher.hash(path: path)
+            hashedPaths[path] = pathHash
+            return pathHash
         }
     }
 }
