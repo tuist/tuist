@@ -7,6 +7,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - **Breaking** remove deprecated initializers for `FileLists`, `Headers`, and `HTTPURLResponse` [#3936](https://github.com/tuist/tuist/pull/3936) by [@danyf90](https://github.com/danyf90)
   - **Migration:** Use non deprecated initializers
 - **Breaking** Tuist plugins 2.0 [#3492](https://github.com/tuist/tuist/pull/3492) by [@fortmarek](https://github.com/fortmarek)
+- **Breaking** add `type` parameter to `TargetDependency.sdk` [#3961](https://github.com/tuist/tuist/pull/3961) by [@danyf90](https://github.com/danyf90)
+  - **Migration:** Add the `type` parameter where defining `sdk` target dependencies and remove both the extension and the `lib` prefix from the name
 
 ## Next
 

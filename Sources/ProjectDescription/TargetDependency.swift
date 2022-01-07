@@ -11,6 +11,15 @@ public enum SDKStatus: String {
     case optional
 }
 
+/// Dependency type used by `.sdk` target dependencies
+public enum SDKType: String, Codable {
+    /// Library SDK dependency
+    case library
+
+    /// Framework SDK dependency
+    case framework
+}
+
 /// Defines the target dependencies supported by Tuist
 public enum TargetDependency: Codable, Equatable {
     /// Dependency on another target within the same project
@@ -50,10 +59,11 @@ public enum TargetDependency: Codable, Equatable {
     /// Dependency on system library or framework
     ///
     /// - Parameters:
-    ///   - name: Name of the system library or framework (including extension)
-    ///            e.g. `ARKit.framework`, `libc++.tbd`
+    ///   - name: Name of the system library or framework (not including extension)
+    ///            e.g. `ARKit`, `c++`
+    ///   - type: The dependency type
     ///   - status: The dependency status (optional dependencies are weakly linked)
-    case sdk(name: String, status: SDKStatus)
+    case sdk(name: String, type: SDKType, status: SDKStatus)
 
     /// Dependency on a xcframework
     ///
@@ -74,8 +84,8 @@ public enum TargetDependency: Codable, Equatable {
     ///            e.g. `ARKit.framework`, `libc++.tbd`
     ///
     /// Note: Defaults to using a `required` dependency status
-    public static func sdk(name: String) -> TargetDependency {
-        .sdk(name: name, status: .required)
+    public static func sdk(name: String, type: SDKType) -> TargetDependency {
+        .sdk(name: name, type: type, status: .required)
     }
 
     public var typeName: String {
@@ -125,6 +135,7 @@ extension TargetDependency {
         case swiftModuleMap = "swift_module_map"
         case status
         case package
+        case sdkType = "sdk_type"
     }
 
     public init(from decoder: Decoder) throws {
@@ -161,6 +172,7 @@ extension TargetDependency {
         case "sdk":
             self = .sdk(
                 name: try container.decode(String.self, forKey: .name),
+                type: try container.decode(SDKType.self, forKey: .sdkType),
                 status: try container.decode(SDKStatus.self, forKey: .status)
             )
 
@@ -194,8 +206,9 @@ extension TargetDependency {
             try container.encodeIfPresent(swiftModuleMap, forKey: .swiftModuleMap)
         case let .package(packageType):
             try container.encode(packageType, forKey: .package)
-        case let .sdk(name, status):
+        case let .sdk(name, type, status):
             try container.encode(name, forKey: .name)
+            try container.encode(type, forKey: .sdkType)
             try container.encode(status, forKey: .status)
         case let .xcframework(path):
             try container.encode(path, forKey: .path)
