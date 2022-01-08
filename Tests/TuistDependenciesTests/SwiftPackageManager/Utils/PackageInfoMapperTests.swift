@@ -553,7 +553,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         "Target1",
                         basePath: basePath,
                         customSources: .init(globs: [
-                            .init(
+                            .glob(
                                 Path(basePath.appending(RelativePath("Package/Path/Sources/Target1/**")).pathString),
                                 excluding: [
                                     Path(
