@@ -13,9 +13,9 @@ public struct Project: Codable, Equatable {
     /// Project Swift packages
     public let packages: [Package]
     /// Project targets
-    public let targets: [Target]
+    public var targets: [Target]
     /// Project schemes
-    public let schemes: [Scheme]
+    public var schemes: [Scheme]
     /// Project settings
     public let settings: Settings?
     /// Customizable file header template for Xcode built-in file templates

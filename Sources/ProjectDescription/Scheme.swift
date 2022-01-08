@@ -6,8 +6,8 @@ public struct Scheme: Equatable, Codable {
     public let name: String
     public let shared: Bool
     public let hidden: Bool
-    public let buildAction: BuildAction?
-    public let testAction: TestAction?
+    public var buildAction: BuildAction?
+    public var testAction: TestAction?
     public let runAction: RunAction?
     public let archiveAction: ArchiveAction?
     public let profileAction: ProfileAction?
