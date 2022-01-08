@@ -101,9 +101,9 @@ extension Target {
 
         let allTargets = targets + testTargets
         let scheme = Scheme(
-          name: name,
-          buildAction: .buildAction(targets: allTargets.map { .init(stringLiteral: $0.name) }),
-          testAction: .targets(testTargets.map { .init(stringLiteral: $0.name) })
+            name: name,
+            buildAction: .buildAction(targets: allTargets.map { .init(stringLiteral: $0.name) }),
+            testAction: .targets(testTargets.map { .init(stringLiteral: $0.name) })
         )
 
         return (targets: allTargets, scheme: scheme)
