@@ -48,10 +48,10 @@ extension TuistGraph.TargetDependency {
             ]
         case let .package(product):
             return [.package(product: product)]
-        case let .sdk(name, status):
+        case let .sdk(name, type, status):
             return [
                 .sdk(
-                    name: name,
+                    name: "\(type.filePrefix)\(name).\(type.fileExtension)",
                     status: .from(manifest: status)
                 ),
             ]
@@ -64,6 +64,28 @@ extension TuistGraph.TargetDependency {
                 throw TargetDependencyMapperError.invalidExternalDependency(name: name)
             }
             return dependencies
+        }
+    }
+}
+
+extension ProjectDescription.SDKType {
+    /// The prefix associated to the type
+    fileprivate var filePrefix: String {
+        switch self {
+        case .library:
+            return "lib"
+        case .framework:
+            return ""
+        }
+    }
+
+    /// The extension associated to the type
+    fileprivate var fileExtension: String {
+        switch self {
+        case .library:
+            return "tbd"
+        case .framework:
+            return "framework"
         }
     }
 }
