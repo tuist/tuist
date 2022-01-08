@@ -1742,7 +1742,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", basePath: basePath, dependencies: [.sdk(name: "Framework", type: .framework, status: .required)]),
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        dependencies: [.sdk(name: "Framework", type: .framework, status: .required)]
+                    ),
                 ]
             )
         )
@@ -1781,7 +1785,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", basePath: basePath, dependencies: [.sdk(name: "Library", type: .library, status: .required)]),
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        dependencies: [.sdk(name: "Library", type: .library, status: .required)]
+                    ),
                 ]
             )
         )
