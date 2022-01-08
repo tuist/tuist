@@ -586,9 +586,9 @@ extension ProjectDescription.TargetDependency {
 
             switch (setting.tool, setting.name) {
             case (.linker, .linkedFramework):
-                return .sdk(name: "\(setting.value[0]).framework", status: .required)
+                return .sdk(name: setting.value[0], type: .framework, status: .required)
             case (.linker, .linkedLibrary):
-                return .sdk(name: "lib\(setting.value[0]).tbd", status: .required)
+                return .sdk(name: setting.value[0], type: .library, status: .required)
             case (.c, _), (.cxx, _), (.swift, _), (.linker, .headerSearchPath), (.linker, .define), (.linker, .unsafeFlags):
                 return nil
             }

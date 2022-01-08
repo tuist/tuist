@@ -11,10 +11,10 @@ let project = Project(
             infoPlist: "Support/App-Info.plist",
             sources: "App/**",
             dependencies: [
-                .sdk(name: "CloudKit.framework", status: .required),
-                .sdk(name: "ARKit.framework", status: .required),
-                .sdk(name: "StoreKit.framework", status: .optional),
-                .sdk(name: "MobileCoreServices.framework", status: .required),
+                .sdk(name: "CloudKit", type: .framework, status: .required),
+                .sdk(name: "ARKit", type: .framework, status: .required),
+                .sdk(name: "StoreKit", type: .framework, status: .optional),
+                .sdk(name: "MobileCoreServices", type: .framework, status: .required),
                 .project(target: "StaticFramework", path: "Modules/StaticFramework"),
             ]
         ),
@@ -49,8 +49,8 @@ let project = Project(
             infoPlist: "Support/Framework-Info.plist",
             sources: "Framework/**",
             dependencies: [
-                .sdk(name: "CloudKit.framework", status: .optional),
-                .sdk(name: "libsqlite3.tbd"),
+                .sdk(name: "CloudKit", type: .framework, status: .optional),
+                .sdk(name: "sqlite3", type: .library),
             ]
         ),
         Target(
@@ -61,8 +61,8 @@ let project = Project(
             infoPlist: "Support/Framework-Info.plist",
             sources: "Framework/**",
             dependencies: [
-                .sdk(name: "CloudKit.framework", status: .optional),
-                .sdk(name: "libsqlite3.tbd"),
+                .sdk(name: "CloudKit", type: .framework, status: .optional),
+                .sdk(name: "sqlite3", type: .library),
                 .xctest,
             ],
             settings: .settings(base: ["ENABLE_BITCODE": "NO"])
