@@ -11,7 +11,7 @@ let project = Project(
             infoPlist: .default,
             sources: "App/**",
             dependencies: [
-                .sdk(name: "libc++.tbd", status: .required),
+                .sdk(name: "c++", type: .library, status: .required),
                 .external(name: "Adjust"),
                 .external(name: "Alamofire"),
                 .external(name: "Charts"),

@@ -30,9 +30,9 @@ final class TargetDependencyTests: XCTestCase {
     func test_sdk_codable() throws {
         // Given
         let sdks: [TargetDependency] = [
-            .sdk(name: "A.framework"),
-            .sdk(name: "B.framework", status: .required),
-            .sdk(name: "c.framework", status: .optional),
+            .sdk(name: "A", type: .framework),
+            .sdk(name: "B", type: .framework, status: .required),
+            .sdk(name: "c", type: .framework, status: .optional),
         ]
 
         // When

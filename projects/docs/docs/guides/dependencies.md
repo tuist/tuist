@@ -69,15 +69,15 @@ It defines a dependency with a pre-compiled library. It allows specifying the pa
 ### System libraries and frameworks dependencies
 
 ```swift
-.sdk(name: "StoreKit.framework", status: .required)
+.sdk(name: "StoreKit", type: .framework, status: .required)
 ```
 
 ```swift
-.sdk(name: "ARKit.framework", status: .optional)
+.sdk(name: "ARKit", type: .framework, status: .optional)
 ```
 
 ```swift
-.sdk(name: "libc++.tbd")
+.sdk(name: "c++", type: .library)
 ```
 
 It defines a dependency on a system library (`.tbd`) or framework (`.framework`) and optionally if it is `required` or `optional` (i.e. gets weakly linked).
