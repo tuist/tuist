@@ -74,9 +74,7 @@ final class ProjectMapperFactory: ProjectMapperFactorying {
         }
 
         // Support for resources in libraries
-        if !config.generationOptions.contains(.disableBundleAccessors) {
-            mappers.append(ResourcesProjectMapper())
-        }
+        mappers.append(ResourcesProjectMapper())
 
         // Auto-generation of schemes
         // This mapper should follow the ResourcesProjectMapper in order to create schemes for bundles and cache them.

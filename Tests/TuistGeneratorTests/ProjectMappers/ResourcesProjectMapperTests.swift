@@ -70,6 +70,20 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(resourcesTarget.resources, resources)
     }
 
+    func testMap_whenDisableBundleAccessorsIsTrue_doesNotGenerateAccessors() throws {
+        // Given
+        let resources: [ResourceFileElement] = [.file(path: "/image.png")]
+        let target = Target.test(product: .staticLibrary, resources: resources)
+        project = Project.test(options: [.disableBundleAccessors], targets: [target])
+
+        // Got
+        let (gotProject, gotSideEffects) = try subject.map(project: project)
+
+        // Then: Side effects
+        XCTAssertEqual(project, gotProject)
+        XCTAssertEqual(gotSideEffects, [])
+    }
+
     func test_map_when_a_target_that_has_core_data_models_and_doesnt_supports_them() throws {
         // Given
 

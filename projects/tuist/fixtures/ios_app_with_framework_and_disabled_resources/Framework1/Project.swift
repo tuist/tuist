@@ -11,6 +11,7 @@ let resources: [ResourceFileElement] = [
 let project = Project(
     name: "Framework1",
     options: [
+        .disableBundleAccessors,
         .disableSynthesizedResourceAccessors,
     ],
     targets: [

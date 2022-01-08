@@ -3,6 +3,7 @@ import ProjectDescription
 let project = Project(
     name: "MainApp",
     options: [
+        .disableBundleAccessors,
         .disableSynthesizedResourceAccessors,
     ],
     targets: [

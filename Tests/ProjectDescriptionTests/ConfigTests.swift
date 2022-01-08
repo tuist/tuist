@@ -14,7 +14,6 @@ final class ConfigTests: XCTestCase {
                 .disableShowEnvironmentVarsInScriptPhases,
                 .enableCodeCoverage(.all),
                 .disablePackageVersionLocking,
-                .disableBundleAccessors,
                 .lastXcodeUpgradeCheck(.init(12, 5, 1)),
             ]
         )
@@ -73,7 +72,6 @@ final class ConfigTests: XCTestCase {
                 .disableShowEnvironmentVarsInScriptPhases,
                 .enableCodeCoverage(.all),
                 .disablePackageVersionLocking,
-                .disableBundleAccessors,
                 .lastXcodeUpgradeCheck(.init(12, 5, 1)),
             ]
         )
