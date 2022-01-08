@@ -2,6 +2,9 @@ import ProjectDescription
 
 let project = Project(
     name: "MainApp",
+    options: [
+        .disableSynthesizedResourceAccessors,
+    ],
     targets: [
         Target(
             name: "App",

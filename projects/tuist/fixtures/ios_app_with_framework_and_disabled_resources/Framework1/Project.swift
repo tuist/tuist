@@ -10,6 +10,9 @@ let resources: [ResourceFileElement] = [
 
 let project = Project(
     name: "Framework1",
+    options: [
+        .disableSynthesizedResourceAccessors,
+    ],
     targets: [
         Target(
             name: "Framework1",
