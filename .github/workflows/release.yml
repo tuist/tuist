@@ -49,9 +49,8 @@ jobs:
         files: build/*
         name: ${{ github.event.inputs.version }} - ${{ github.event.inputs.title }}
         tag_name: ${{ github.event.inputs.version }}
-    - name: Commit CHANGELOG and Constants update
-      uses: stefanzweifel/git-auto-commit-action@v4
+    - name: Create pull-request for release changes
+      uses: peter-evans/create-pull-request@v3
       with:
-        commit_message: "[CI] Update CHANGELOG and version for release ${{ github.event.inputs.version }}"
-        branch: main
-        file_pattern: CHANGELOG.md Sources/TuistSupport/Constants.swift
+        commit-message: "[Release] Tuist ${{ github.event.inputs.version }} - ${{ github.event.inputs.title }}"
+        base: main
