@@ -44,8 +44,12 @@ module Fourier
           }
           desired_xcode_path = desired_xcode&.dig("spdevtools_path")
 
-          desired_xcode_path ||
-            Output.error(message: "The requested Xcode version '#{version}' is not available")
+          if desired_xcode_path.nil?
+            Output.error("The requested Xcode version '#{version}' is not available")
+            exit(1)
+          else
+            desired_xcode_path
+          end
         end
       end
     end
