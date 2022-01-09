@@ -20,9 +20,9 @@ struct GenerateCommand: ParsableCommand, HasTrackableParameters {
     var path: String?
 
     @Argument(help: """
-    A list of targets in which you'd like to focus. \
-    Those and their dependant targets will be generated as sources. \
-    If no target is specified, all the project (excluding the external ones) targets will be focused.
+    A list of targets to focus on. \
+    Other targets will be linked as binaries if possible. \
+    If no target is specified, all the project targets will be generated (except external ones, such as Swift packages).
     """)
     var sources: [String] = []
 

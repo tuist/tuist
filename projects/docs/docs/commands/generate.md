@@ -21,15 +21,15 @@ tuist generate
 Moreover, if external dependencies exist in the [cache](/building-at-scale/caching/), Tuist replaces them with their pre-compiled version.
 
 In large Xcode projects that contain many targets and schemes, Xcode can be slow indexing the project.
-Moreover, the build system, which needs to resolve implicit dependencies, might take longer to do so because there are more Xcode objects to analyze.
+The build system, which needs to resolve implicit dependencies, might take longer to do so because there are more Xcode objects to analyze.
 This is **not ideal for developers' productivity** and for that reason Tuist allows users to focus on a specific target or set of targets.
 
 ```bash
 tuist generate MyApp
 ```
 
-The command generates and opens an Xcode workspace where the targets and schemes that are not directly related to `MyApp` are removed.
-Moreover, if the direct and transitive dependencies exist in the [cache](/building-at-scale/caching/), Tuist replaces them with their pre-compiled version.
+The command generates and opens an Xcode workspace where the targets and schemes not directly related to `MyApp` are removed.
+If the direct and transitive dependencies exist in the [cache](/building-at-scale/caching/), Tuist replaces them with their pre-compiled version.
 Thanks to that developers can safely clean their Xcode environment because they'll only be building the target they are focusing on.
 
 ### Arguments
