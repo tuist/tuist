@@ -16,7 +16,7 @@ module Fourier
           output_directory:,
           build_directory: nil,
           xcode_path:,
-          xcode_path_libraries:
+          xcode_path_libraries: nil
         )
           @output_directory = output_directory
           @build_directory = build_directory

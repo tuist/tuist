@@ -14,7 +14,7 @@ module Fourier
         def initialize(
           output_directory:,
           xcode_path:,
-          xcode_path_libraries:
+          xcode_path_libraries: nil
         )
           @output_directory = output_directory
           @xcode_path = xcode_path

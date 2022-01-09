@@ -24,7 +24,7 @@ module Fourier
         xcode_path_libraries:
       )
         Dir.chdir(path) do
-          if xcode_path_libraries != Utilities::Xcode.current_xcode_version
+          if xcode_path_libraries && xcode_path_libraries != Utilities::Xcode.current_xcode_version
             puts "Switching to #{xcode_path_libraries}"
             Utilities::Xcode.switch_xcode_version(xcode_path_libraries)
           end
