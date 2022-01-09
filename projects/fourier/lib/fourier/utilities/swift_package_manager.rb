@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require "fileutils"
-require "json"
 
 module Fourier
   module Utilities
@@ -21,16 +20,13 @@ module Fourier
         product:,
         output_directory:,
         swift_build_directory:,
-        xcode_version:,
-        xcode_version_libraries:
+        xcode_path:,
+        xcode_path_libraries:
       )
-        xcode_path = path_to_xcode(xcode_version)
-        xcode_path_frameworks = path_to_xcode(xcode_version_libraries || xcode_version)
-
         Dir.chdir(path) do
-          if xcode_path_frameworks != path_to_xcode
-            puts "Switching to #{xcode_path_frameworks}"
-            Utilities::System.system("sudo xcode-select -switch #{xcode_path_frameworks}")
+          if xcode_path_libraries != Utilities::Xcode.current_xcode_version
+            puts "Switching to #{xcode_path_libraries}"
+            Utilities::Xcode.switch_xcode_version(xcode_path_libraries)
           end
 
           Utilities::System.system(
@@ -44,9 +40,9 @@ module Fourier
             "clean", "build"
           )
 
-          if xcode_path != path_to_xcode
+          if xcode_path != Utilities::Xcode.current_xcode_version
             puts "Switching back to #{xcode_path}"
-            Utilities::System.system("sudo xcode-select -switch #{xcode_path}")
+            Utilities::Xcode.switch_xcode_version(xcode_path)
           end
 
           FileUtils.cp_r(
@@ -71,14 +67,13 @@ module Fourier
         binary_name:,
         output_directory:,
         swift_build_directory:,
-        xcode_version:,
-        xcode_version_libraries:,
+        xcode_path:,
+        xcode_path_libraries:,
         additional_options: []
       )
-        xcode_path = path_to_xcode(xcode_version)
-        if xcode_path != path_to_xcode
+        if xcode_path != Utilities::Xcode.current_xcode_version
           puts "Switching to #{xcode_path}"
-          Utilities::System.system("sudo xcode-select -switch #{xcode_path}")
+          Utilities::Xcode.switch_xcode_version(xcode_path)
         end
 
         command = [
@@ -105,34 +100,6 @@ module Fourier
           File.join(swift_build_directory, "#{X86_64_TARGET}/release/#{binary_name}")
         )
       end
-
-      private
-        def self.path_to_xcode(version = nil)
-          # If no Xcode version is provided, return the path to the currently selected version.
-          version ||= %x{ xcode-select -p }.split(/(?<=app)/).first
-
-          if !(version =~ /.app/).nil?
-            # If the version contains ".app", we can safely assume it's a path
-            # to an Xcode app bundle, so we return it.
-            version
-          else
-            # If the version string provided does not contain ".app", it's most likely
-            # a version number. We then find the path to the app bundle by parsing the
-            # output of the the `system_profiler` binary.
-            xcode_infos_json = %x{ system_profiler -json SPDeveloperToolsDataType }
-            xcode_infos_hash = JSON.parse(xcode_infos_json)
-            xcode_infos = xcode_infos_hash&.dig("SPDeveloperToolsDataType")
-
-            desired_xcode = xcode_infos.find { |info|
-              xcode_version = info&.dig("spdevtools_version").split(" (").first
-              xcode_version == version
-            }
-            desired_xcode_path = desired_xcode&.dig("spdevtools_path")
-
-            desired_xcode_path ||
-              Output.error(message: "The requested Xcode version '#{version}' is not available")
-          end
-        end
     end
   end
 end

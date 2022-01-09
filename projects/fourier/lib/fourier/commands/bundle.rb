@@ -38,13 +38,13 @@ module Fourier
       def tuist
         output_directory = options[:output]
         output_directory ||= File.expand_path("build", Constants::ROOT_DIRECTORY)
-        xcode_version = options[:xcode_version]
-        xcode_version_libraries = options[:xcode_version_libraries]
+        xcode_path = Utilities::Xcode.path_to_xcode(options[:xcode_version])
+        xcode_path_libraries = Utilities::Xcode.path_to_xcode(options[:xcode_version_libraries])
 
         Services::Bundle::Tuist.call(
           output_directory: output_directory,
-          xcode_version: xcode_version,
-          xcode_version_libraries: xcode_version_libraries
+          xcode_path: xcode_path,
+          xcode_path_libraries: xcode_path_libraries
         )
       end
 
@@ -81,13 +81,13 @@ module Fourier
       def tuistenv
         output_directory = options[:output]
         output_directory ||= File.expand_path("build", Constants::ROOT_DIRECTORY)
-        xcode_version = options[:xcode_version]
-        xcode_version_libraries = options[:xcode_version_libraries]
+        xcode_path = Utilities::Xcode.path_to_xcode(options[:xcode_version])
+        xcode_path_libraries = Utilities::Xcode.path_to_xcode(options[:xcode_version_libraries])
 
         Services::Bundle::Tuistenv.call(
           output_directory: output_directory,
-          xcode_version: xcode_version,
-          xcode_version_libraries: xcode_version_libraries
+          xcode_path: xcode_path,
+          xcode_path_libraries: xcode_path_libraries
         )
       end
 
@@ -131,30 +131,31 @@ module Fourier
       def all
         output_directory = options[:output]
         output_directory ||= File.expand_path("build", Constants::ROOT_DIRECTORY)
-        xcode_version = options[:xcode_version]
-        xcode_version_libraries = options[:xcode_version_libraries]
+        xcode_path = Utilities::Xcode.path_to_xcode(options[:xcode_version])
+        xcode_path_libraries = Utilities::Xcode.path_to_xcode(options[:xcode_version_libraries])
 
         bundle_all(
           output_directory: output_directory,
-          xcode_version: xcode_version,
-          xcode_version_libraries: xcode_version_libraries
+          xcode_path: xcode_path,
+          xcode_path_libraries: xcode_path_libraries
         )
       end
+
       no_commands {
         def bundle_all(
           output_directory:,
-          xcode_version:,
-          xcode_version_libraries:
+          xcode_path:,
+          xcode_path_libraries:
         )
           Services::Bundle::Tuist.call(
             output_directory: output_directory,
-            xcode_version: xcode_version,
-            xcode_version_libraries: xcode_version_libraries
+            xcode_path: xcode_path,
+            xcode_path_libraries: xcode_path_libraries
           )
           Services::Bundle::Tuistenv.call(
             output_directory: output_directory,
-            xcode_version: xcode_version,
-            xcode_version_libraries: xcode_version_libraries
+            xcode_path: xcode_path,
+            xcode_path_libraries: xcode_path_libraries
           )
         end
       }

@@ -9,19 +9,19 @@ module Fourier
       class Tuistenv < Base
         attr_reader :output_directory
         attr_reader :build_directory
-        attr_reader :xcode_version
-        attr_reader :xcode_version_libraries
+        attr_reader :xcode_path
+        attr_reader :xcode_path_libraries
 
         def initialize(
           output_directory:,
           build_directory: nil,
-          xcode_version: nil,
-          xcode_version_libraries: nil
+          xcode_path:,
+          xcode_path_libraries:
         )
           @output_directory = output_directory
           @build_directory = build_directory
-          @xcode_version = xcode_version
-          xcode_version_libraries = xcode_version_libraries
+          @xcode_path = xcode_path
+          @xcode_path_libraries = xcode_path_libraries
         end
 
         def call
@@ -37,8 +37,8 @@ module Fourier
               build_tuistenv(
                 output_directory: build_directory,
                 swift_build_directory: swift_build_directory,
-                xcode_version: xcode_version,
-                xcode_version_libraries: xcode_version_libraries
+                xcode_path: xcode_path,
+                xcode_path_libraries: xcode_path_libraries
               )
 
               Dir.chdir(build_directory) do
@@ -59,8 +59,8 @@ module Fourier
           def build_tuistenv(
             output_directory:,
             swift_build_directory:,
-            xcode_version:,
-            xcode_version_libraries:
+            xcode_path:,
+            xcode_path_libraries:
           )
             Utilities::SwiftPackageManager.build_fat_release_binary(
               path: Constants::ROOT_DIRECTORY,
@@ -68,8 +68,8 @@ module Fourier
               binary_name: "tuistenv",
               output_directory: output_directory,
               swift_build_directory: swift_build_directory,
-              xcode_version: xcode_version,
-              xcode_version_libraries: xcode_version_libraries
+              xcode_path: xcode_path,
+              xcode_path_libraries: xcode_path_libraries
             )
           end
       end
