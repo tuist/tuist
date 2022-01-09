@@ -13,6 +13,16 @@ module Fourier
         Utilities::System.system("sudo xcode-select -switch #{xcode_path}")
       end
 
+      def self.xcode_paths_for_versions(
+        xcode_version = nil,
+        xcode_version_libraries = nil
+      )
+        {
+          "xcode_path" => path_to_xcode(xcode_version) || current_xcode_version,
+          "xcode_path_libraries" => path_to_xcode(xcode_version_libraries),
+        }
+      end
+
       def self.path_to_xcode(version)
         if version.nil?
           nil

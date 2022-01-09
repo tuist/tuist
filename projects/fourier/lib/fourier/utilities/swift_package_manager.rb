@@ -20,10 +20,12 @@ module Fourier
         product:,
         output_directory:,
         swift_build_directory:,
-        xcode_path:,
-        xcode_path_libraries:
+        xcode_paths:
       )
         Dir.chdir(path) do
+          xcode_path = xcode_paths["xcode_path"]
+          xcode_path_libraries = xcode_paths["xcode_paths_libraries"]
+
           if xcode_path_libraries && xcode_path_libraries != Utilities::Xcode.current_xcode_version
             puts "Switching to #{xcode_path_libraries}"
             Utilities::Xcode.switch_xcode_version(xcode_path_libraries)
@@ -40,7 +42,7 @@ module Fourier
             "clean", "build"
           )
 
-          if xcode_path != Utilities::Xcode.current_xcode_version
+          if xcode_path && xcode_path != Utilities::Xcode.current_xcode_version
             puts "Switching back to #{xcode_path}"
             Utilities::Xcode.switch_xcode_version(xcode_path)
           end
@@ -67,11 +69,11 @@ module Fourier
         binary_name:,
         output_directory:,
         swift_build_directory:,
-        xcode_path:,
-        xcode_path_libraries:,
+        xcode_paths:,
         additional_options: []
       )
-        if xcode_path != Utilities::Xcode.current_xcode_version
+        xcode_path = xcode_paths["xcode_path"]
+        if xcode_path && xcode_path != Utilities::Xcode.current_xcode_version
           puts "Switching to #{xcode_path}"
           Utilities::Xcode.switch_xcode_version(xcode_path)
         end

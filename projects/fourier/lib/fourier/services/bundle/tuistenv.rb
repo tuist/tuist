@@ -9,19 +9,16 @@ module Fourier
       class Tuistenv < Base
         attr_reader :output_directory
         attr_reader :build_directory
-        attr_reader :xcode_path
-        attr_reader :xcode_path_libraries
+        attr_reader :xcode_paths
 
         def initialize(
           output_directory:,
           build_directory: nil,
-          xcode_path:,
-          xcode_path_libraries: nil
+          xcode_paths:
         )
           @output_directory = output_directory
           @build_directory = build_directory
-          @xcode_path = xcode_path
-          @xcode_path_libraries = xcode_path_libraries
+          @xcode_paths = xcode_paths
         end
 
         def call
@@ -37,8 +34,7 @@ module Fourier
               build_tuistenv(
                 output_directory: build_directory,
                 swift_build_directory: swift_build_directory,
-                xcode_path: xcode_path,
-                xcode_path_libraries: xcode_path_libraries
+                xcode_paths: xcode_paths
               )
 
               Dir.chdir(build_directory) do
@@ -59,8 +55,7 @@ module Fourier
           def build_tuistenv(
             output_directory:,
             swift_build_directory:,
-            xcode_path:,
-            xcode_path_libraries:
+            xcode_paths:
           )
             Utilities::SwiftPackageManager.build_fat_release_binary(
               path: Constants::ROOT_DIRECTORY,
@@ -68,8 +63,7 @@ module Fourier
               binary_name: "tuistenv",
               output_directory: output_directory,
               swift_build_directory: swift_build_directory,
-              xcode_path: xcode_path,
-              xcode_path_libraries: xcode_path_libraries
+              xcode_paths: xcode_paths
             )
           end
       end
