@@ -38,7 +38,9 @@ module Fourier
       def tuist
         output_directory = options[:output]
         output_directory ||= File.expand_path("build", Constants::ROOT_DIRECTORY)
+
         xcode_path = Utilities::Xcode.path_to_xcode(options[:xcode_version])
+        xcode_path ||= Utilities::Xcode.current_xcode_version
         xcode_path_libraries = Utilities::Xcode.path_to_xcode(options[:xcode_version_libraries])
 
         Services::Bundle::Tuist.call(
@@ -81,7 +83,9 @@ module Fourier
       def tuistenv
         output_directory = options[:output]
         output_directory ||= File.expand_path("build", Constants::ROOT_DIRECTORY)
+
         xcode_path = Utilities::Xcode.path_to_xcode(options[:xcode_version])
+        xcode_path ||= Utilities::Xcode.current_xcode_version
         xcode_path_libraries = Utilities::Xcode.path_to_xcode(options[:xcode_version_libraries])
 
         Services::Bundle::Tuistenv.call(
@@ -131,7 +135,9 @@ module Fourier
       def all
         output_directory = options[:output]
         output_directory ||= File.expand_path("build", Constants::ROOT_DIRECTORY)
+
         xcode_path = Utilities::Xcode.path_to_xcode(options[:xcode_version])
+        xcode_path ||= Utilities::Xcode.current_xcode_version
         xcode_path_libraries = Utilities::Xcode.path_to_xcode(options[:xcode_version_libraries])
 
         bundle_all(
