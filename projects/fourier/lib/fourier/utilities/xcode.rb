@@ -40,7 +40,7 @@ module Fourier
 
           desired_xcode = xcode_infos.find { |info|
             xcode_version = info&.dig("spdevtools_version").split(" (").first
-            xcode_version == version
+            SemVer.new(xcode_version) == SemVer.new(version)
           }
           desired_xcode_path = desired_xcode&.dig("spdevtools_path")
 
@@ -50,6 +50,25 @@ module Fourier
           else
             desired_xcode_path
           end
+        end
+      end
+
+      class SemVer
+        attr_accessor :major
+        attr_accessor :minor
+        attr_accessor :patch
+
+        def initialize(version)
+          sem_version = version.strip.split(".")
+          @major = sem_version[0]
+          @minor = sem_version[1] || 0
+          @patch = sem_version[2] || 0
+        end
+
+        def ==(other)
+          self.major == other.major &&
+            self.minor == other.minor &&
+            self.patch == other.patch
         end
       end
     end
