@@ -39,7 +39,7 @@ jobs:
         name: 'Cache SPM dependencies'
         with:
           path: .build
-          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('**/Package.resolved') }}
+          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}
           restore-keys: |
             ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-
       - uses: ruby/setup-ruby@v1
@@ -66,11 +66,12 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache@v2
+        name: 'Cache Tuist Build'
         with:
           path: .build
-          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('**/Package.resolved') }}-git-${{ github.sha }}
+          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('**/Package.resolved') }}
+            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}
             ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm
       - name: Build Tuist for release
         run: swift build -c release --product tuist
@@ -122,12 +123,12 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache@v2
-        name: 'Cache SPM dependencies'
+        name: 'Cache Tuist Build'
         with:
           path: .build
-          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('**/Package.resolved') }}-git-${{ github.sha }}
+          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('**/Package.resolved') }}
+            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}
             ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm
       - uses: ruby/setup-ruby@v1
         with:
