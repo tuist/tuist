@@ -361,7 +361,7 @@ class ProjectFileElements {
                 toGroup: toGroup,
                 pbxproj: pbxproj
             )
-        } else if !(isXcassets(path: absolutePath) || isScnassets(path: absolutePath) || isLeaf) {
+        } else if !(isFolderTypeFileSource(path: absolutePath) || isLeaf) {
             return addGroupElement(
                 from: from,
                 folderAbsolutePath: absolutePath,
@@ -596,9 +596,17 @@ class ProjectFileElements {
     func isVersionGroup(path: AbsolutePath) -> Bool {
         path.extension == "xcdatamodeld"
     }
+    
+    func isFolderTypeFileSource(path: AbsolutePath) -> Bool {
+        isXcassets(path: path) || isDocC(path: path) || isScnassets(path: path)
+    }
 
     func isXcassets(path: AbsolutePath) -> Bool {
         path.extension == "xcassets"
+    }
+    
+    func isDocC(path: AbsolutePath) -> Bool {
+        path.extension == "docc"
     }
 
     func isScnassets(path: AbsolutePath) -> Bool {
