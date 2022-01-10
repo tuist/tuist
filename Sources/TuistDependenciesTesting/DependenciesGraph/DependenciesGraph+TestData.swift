@@ -62,7 +62,7 @@ extension TuistCore.DependenciesGraph {
                             deploymentTarget: .iOS(targetVersion: "13.0", devices: [.iphone, .ipad]),
                             infoPlist: .default,
                             sources: [
-                                .init(
+                                .glob(
                                     "\(packageFolder.pathString)/customPath/customSources/**",
                                     excluding: "\(packageFolder.pathString)/customPath/excluded/sources/**"
                                 ),
@@ -226,7 +226,7 @@ extension TuistCore.DependenciesGraph {
                                 "\(packageFolder.pathString)/Source/**",
                             ],
                             dependencies: [
-                                .sdk(name: "CFNetwork.framework", status: .required),
+                                .sdk(name: "CFNetwork", type: .framework, status: .required),
                             ],
                             settings: Self.spmSettings()
                         ),
@@ -288,10 +288,10 @@ extension TuistCore.DependenciesGraph {
                                     path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
                                 ),
                                 .project(target: "nanopb", path: Self.packageFolder(spmFolder: spmFolder, packageName: "nanopb")),
-                                .sdk(name: "libsqlite3.tbd", status: .required),
-                                .sdk(name: "libc++.tbd", status: .required),
-                                .sdk(name: "libz.tbd", status: .required),
-                                .sdk(name: "StoreKit.framework", status: .required),
+                                .sdk(name: "sqlite3", type: .library, status: .required),
+                                .sdk(name: "c++", type: .library, status: .required),
+                                .sdk(name: "z", type: .library, status: .required),
+                                .sdk(name: "StoreKit", type: .framework, status: .required),
                             ],
                             settings: Self.spmSettings()
                         ),
@@ -326,10 +326,10 @@ extension TuistCore.DependenciesGraph {
                                     path: Self.packageFolder(spmFolder: spmFolder, packageName: "GoogleUtilities")
                                 ),
                                 .project(target: "nanopb", path: Self.packageFolder(spmFolder: spmFolder, packageName: "nanopb")),
-                                .sdk(name: "libsqlite3.tbd", status: .required),
-                                .sdk(name: "libc++.tbd", status: .required),
-                                .sdk(name: "libz.tbd", status: .required),
-                                .sdk(name: "StoreKit.framework", status: .required),
+                                .sdk(name: "sqlite3", type: .library, status: .required),
+                                .sdk(name: "c++", type: .library, status: .required),
+                                .sdk(name: "z", type: .library, status: .required),
+                                .sdk(name: "StoreKit", type: .framework, status: .required),
                             ],
                             settings: Self.spmSettings()
                         ),

@@ -51,7 +51,7 @@ extension Target {
         testDependencies: [TargetDependency] = [],
         testingDependencies: [TargetDependency] = [],
         integrationTestsDependencies: [TargetDependency] = []
-    ) -> [Target] {
+    ) -> (targets: [Target], scheme: Scheme) {
         var targets: [Target] = [
             .target(
                 name: name,
@@ -59,8 +59,9 @@ extension Target {
                 dependencies: dependencies
             ),
         ]
+        var testTargets: [Target] = []
         if hasTests {
-            targets.append(
+            testTargets.append(
                 .target(
                     name: "\(name)Tests",
                     product: .unitTests,
@@ -79,14 +80,14 @@ extension Target {
                     product: product,
                     dependencies: testingDependencies + [
                         .target(name: name),
-                        .sdk(name: "XCTest.framework", status: .optional),
+                        .sdk(name: "XCTest", type: .framework, status: .optional),
                     ]
                 )
             )
         }
 
         if hasIntegrationTests {
-            targets.append(
+            testTargets.append(
                 .target(
                     name: "\(name)IntegrationTests",
                     product: .unitTests,
@@ -98,6 +99,13 @@ extension Target {
             )
         }
 
-        return targets
+        let allTargets = targets + testTargets
+        let scheme = Scheme(
+            name: name,
+            buildAction: .buildAction(targets: allTargets.map { .init(stringLiteral: $0.name) }),
+            testAction: .targets(testTargets.map { .init(stringLiteral: $0.name) })
+        )
+
+        return (targets: allTargets, scheme: scheme)
     }
 }

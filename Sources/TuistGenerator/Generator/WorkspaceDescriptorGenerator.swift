@@ -84,6 +84,7 @@ final class WorkspaceDescriptorGenerator: WorkspaceDescriptorGenerating {
 
     // MARK: - WorkspaceGenerating
 
+    // swiftlint:disable:next function_body_length
     func generate(graphTraverser: GraphTraversing) throws -> WorkspaceDescriptor {
         let workspaceName = "\(graphTraverser.name).xcworkspace"
 

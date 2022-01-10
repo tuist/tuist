@@ -78,9 +78,11 @@ A `Project.swift` should initialize a variable of type `Project`. It can take an
 ### Project Options
 List of additional options:
 
-| Case       | Description                                                   |
-| ---------- | ------------------------------------------------------------- |
-| `.textSettings(usesTabs: Bool?, indentWidth: UInt?, tabWidth: UInt?, wrapsLines: Bool?)`| [Text settings](#text-settings) to override user ones for current project. |
+| Case                                                                                     | Description                                                                |
+| ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `.disableSynthesizedResourceAccessors)`                                                  | To disable synthesized resource accessors.                                 |
+| `.disableBundleAccessors`                                                                | To disables generating Bundle accessors.                                   |
+| `.textSettings(usesTabs: Bool?, indentWidth: UInt?, tabWidth: UInt?, wrapsLines: Bool?)` | [Text settings](#text-settings) to override user ones for current project. |
 
 #### Text Settings
 Text settings to override user ones. Would use Xcode defined settings if pass `nil`.

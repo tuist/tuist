@@ -13,6 +13,13 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - **Breaking** remove deprecated initializers for `FileLists`, `Headers`, and `HTTPURLResponse` [#3936](https://github.com/tuist/tuist/pull/3936) by [@danyf90](https://github.com/danyf90)
   - **Migration:** Use non deprecated initializers
 - **Breaking** Tuist plugins 2.0 [#3492](https://github.com/tuist/tuist/pull/3492) by [@fortmarek](https://github.com/fortmarek)
+- **Breaking** add `type` parameter to `TargetDependency.sdk` [#3961](https://github.com/tuist/tuist/pull/3961) by [@danyf90](https://github.com/danyf90)
+  - **Migration:** Add the `type` parameter where defining `sdk` target dependencies and remove both the extension and the `lib` prefix from the name
+- **Breaking** move `disableBundleAccessors` and `disableSynthesizedResourceAccessors` from `Config.swift` to `Project.ProjectOption` [#3963](https://github.com/tuist/tuist/pull/3963) by [@danyf90](https://github.com/danyf90).
+  - **Motivation:** being able to define the option at the project level
+  - **Migration:** move the `disableBundleAccessors` and `disableSynthesizedResourceAccessors` from `Config.swift` to `Project.ProjectOption`
+- **Breaking** replace `SourceFileGlob` initializer with static `.glob` method [#3960](https://github.com/tuist/tuist/pull/3960) by [@danyf90](https://github.com/danyf90)
+  - **Migration:** Use the `.glob` method instead of the initializer
 
 ## Next
 
@@ -21,6 +28,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 ### Fixed
+
+- Fix issue where test results were not being cached if a scheme was specified in the `tuist test` command [#3952](https://github.com/tuist/tuist/pull/3952) by [@hisaac](https://github.com/hisaac)
 
 ## 2.6.0 - Havana
 

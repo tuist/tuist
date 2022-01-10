@@ -2,6 +2,12 @@ import Foundation
 
 /// Additional options related to the `Project`
 public enum ProjectOption: Codable, Equatable {
+    /// Disables generating Bundle accessors.
+    case disableBundleAccessors
+
+    /// Disable the synthesized resource accessors generation
+    case disableSynthesizedResourceAccessors
+
     /// Text settings to override user ones for current project
     ///
     /// - Parameters:
@@ -21,6 +27,8 @@ public enum ProjectOption: Codable, Equatable {
 
 extension ProjectOption {
     private enum OptionsCodingKeys: String, CodingKey {
+        case disableBundleAccessors
+        case disableSynthesizedResourceAccessors
         case textSettings
     }
 
@@ -34,7 +42,11 @@ extension ProjectOption {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: OptionsCodingKeys.self)
 
-        if container.allKeys.contains(.textSettings), try container.decodeNil(forKey: .textSettings) == false {
+        if container.allKeys.contains(.disableBundleAccessors) {
+            self = .disableBundleAccessors
+        } else if container.allKeys.contains(.disableSynthesizedResourceAccessors) {
+            self = .disableSynthesizedResourceAccessors
+        } else if container.allKeys.contains(.textSettings), try container.decodeNil(forKey: .textSettings) == false {
             let textSettingsContainer = try container.nestedContainer(
                 keyedBy: TextSettingsKeys.self,
                 forKey: .textSettings
@@ -55,6 +67,10 @@ extension ProjectOption {
         var container = encoder.container(keyedBy: OptionsCodingKeys.self)
 
         switch self {
+        case .disableBundleAccessors:
+            try container.encode(true, forKey: .disableBundleAccessors)
+        case .disableSynthesizedResourceAccessors:
+            try container.encode(true, forKey: .disableSynthesizedResourceAccessors)
         case let .textSettings(usesTabs, indentWidth, tabWidth, wrapsLines):
             var associatedValues = container.nestedContainer(keyedBy: TextSettingsKeys.self, forKey: .textSettings)
             try associatedValues.encodeIfPresent(usesTabs, forKey: .usesTabs)

@@ -1036,7 +1036,7 @@ const Sponsor = () => {
               We are honored to have the following organizations supporting the long-term financial sustainability of the project.
             </p>
             <div className="mt-8">
-              <a target="_blank" href="https://getstream.io/chat/sdk/ios/?utm_source=github&utm_medium=github_repo_content_ad&utm_content=Developer&utm_campaign=Github_Nov2021_iOSChatSDK">
+              <a target="_blank" href="https://getstream.io/chat/sdk/ios/?utm_source=Github&utm_medium=Github_Repo_Content_Ad&utm_content=Developer&utm_campaign=Github_Jan2022_SwiftSDK&utm_term=tuist">
                 <img className="w-28" src={stream}/>
               </a>
             </div>

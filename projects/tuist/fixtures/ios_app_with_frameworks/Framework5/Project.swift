@@ -11,7 +11,7 @@ let project = Project(
             infoPlist: "Config/Framework5-Info.plist",
             sources: "Sources/**",
             dependencies: [
-                .sdk(name: "ARKit.framework"),
+                .sdk(name: "ARKit", type: .framework),
             ]
         ),
     ]

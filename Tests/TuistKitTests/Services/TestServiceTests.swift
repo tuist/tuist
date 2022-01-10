@@ -187,6 +187,50 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
+    func test_run_tests_individual_scheme() throws {
+        // Given
+        buildGraphInspector.testableSchemesStub = { _ in
+            [
+                Scheme.test(name: "TestScheme"),
+            ]
+        }
+        buildGraphInspector.projectSchemesStub = { _ in
+            [
+                Scheme.test(name: "ProjectSchemeOne"),
+                Scheme.test(name: "ProjectSchemeTwo"),
+            ]
+        }
+        generator.generateWithGraphStub = { path, _ in
+            (path, Graph.test())
+        }
+        var testedSchemes: [String] = []
+        xcodebuildController.testStub = { _, scheme, _, _, _, _, _ in
+            testedSchemes.append(scheme)
+            return .just(.standardOutput(.init(raw: "success")))
+        }
+        try fileHandler.touch(
+            testsCacheTemporaryDirectory.path.appending(component: "A")
+        )
+        try fileHandler.touch(
+            testsCacheTemporaryDirectory.path.appending(component: "B")
+        )
+
+        // When
+        try subject.testRun(
+            schemeName: "ProjectSchemeOne",
+            path: try temporaryPath()
+        )
+
+        // Then
+        XCTAssertEqual(testedSchemes, ["ProjectSchemeOne"])
+        XCTAssertTrue(
+            fileHandler.exists(cacheDirectoriesProvider.cacheDirectory(for: .tests).appending(component: "A"))
+        )
+        XCTAssertTrue(
+            fileHandler.exists(cacheDirectoriesProvider.cacheDirectory(for: .tests).appending(component: "B"))
+        )
+    }
+
     func test_run_tests_all_project_schemes_when_fails() throws {
         // Given
         buildGraphInspector.projectSchemesStub = { _ in

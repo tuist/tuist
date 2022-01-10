@@ -7,6 +7,10 @@ extension TuistGraph.ProjectOption {
     ///   - manifest: Manifest representation of project options.
     static func from(manifest: ProjectDescription.ProjectOption) -> TuistGraph.ProjectOption {
         switch manifest {
+        case .disableBundleAccessors:
+            return .disableBundleAccessors
+        case .disableSynthesizedResourceAccessors:
+            return .disableSynthesizedResourceAccessors
         case let .textSettings(usesTabs, indentWidth, tabWidth, wrapsLines):
             return .textSettings(
                 .init(

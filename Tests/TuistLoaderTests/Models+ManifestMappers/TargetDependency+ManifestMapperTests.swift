@@ -110,4 +110,48 @@ final class DependencyManifestMapperTests: TuistUnitTestCase {
         XCTAssertEqual(target, "Target")
         XCTAssertEqual(path, "/Project")
     }
+
+    func test_from_when_sdkLibrary() throws {
+        // Given
+        let dependency = ProjectDescription.TargetDependency.sdk(name: "c++", type: .library, status: .required)
+        let generatorPaths = GeneratorPaths(manifestDirectory: AbsolutePath("/"))
+
+        // When
+        let got = try TuistGraph.TargetDependency.from(
+            manifest: dependency,
+            generatorPaths: generatorPaths,
+            externalDependencies: [:]
+        )
+
+        // Then
+        XCTAssertEqual(got.count, 1)
+        guard case let .sdk(name, status) = got[0] else {
+            XCTFail("Dependency should be sdk")
+            return
+        }
+        XCTAssertEqual(name, "libc++.tbd")
+        XCTAssertEqual(status, .required)
+    }
+
+    func test_from_when_sdkFramework() throws {
+        // Given
+        let dependency = ProjectDescription.TargetDependency.sdk(name: "ARKit", type: .framework, status: .required)
+        let generatorPaths = GeneratorPaths(manifestDirectory: AbsolutePath("/"))
+
+        // When
+        let got = try TuistGraph.TargetDependency.from(
+            manifest: dependency,
+            generatorPaths: generatorPaths,
+            externalDependencies: [:]
+        )
+
+        // Then
+        XCTAssertEqual(got.count, 1)
+        guard case let .sdk(name, status) = got[0] else {
+            XCTFail("Dependency should be sdk")
+            return
+        }
+        XCTAssertEqual(name, "ARKit.framework")
+        XCTAssertEqual(status, .required)
+    }
 }
