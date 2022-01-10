@@ -38,16 +38,16 @@ class OrganizationInviteService < ApplicationService
     end
     raise Error::Unauthorized unless OrganizationPolicy.new(inviter, organization).update?
     token = Devise.friendly_token.first(16)
-    InvitationMailer.new(
-      inviter: inviter,
-      invitee: invitee,
-      organization: organization,
-      token: token
-    ).invitation_mail.deliver_later
-    inviter.invitations.create(
+    invitation = inviter.invitations.create!(
       invitee: invitee,
       organization_id: organization.id,
       token: token
     )
+    InvitationMailer
+      .invitation_mail(
+        invitation: invitation
+      )
+      .deliver_now
+    invitation
   end
 end

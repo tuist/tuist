@@ -84,4 +84,14 @@ Rails.application.configure do
   # Action Mailer
   config.action_mailer.raise_delivery_errors = false
   config.action_mailer.perform_caching = false
+
+  config.action_mailer.delivery_method = :smtp
+  config.action_mailer.smtp_settings = {
+    authentication: :plain,
+    address: "smtp.mailgun.org",
+    port: 587,
+    domain: "sandboxa6b1aaa687d04cb4a6c382574ab26a34.mailgun.org",
+    user_name: "postmaster@sandboxa6b1aaa687d04cb4a6c382574ab26a34.mailgun.org",
+    password: Rails.application.credentials.mailgun[:password],
+  }
 end
