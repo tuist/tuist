@@ -22,17 +22,11 @@ module Fourier
         swift_build_directory:,
         xcode_paths:
       )
+        ENV["DEVELOPER_DIR"] = xcode_paths.libraries
+
         Dir.chdir(path) do
-          xcode_path = xcode_paths["xcode_path"]
-          xcode_path_libraries = xcode_paths["xcode_paths_libraries"]
-
-          if xcode_path_libraries && xcode_path_libraries != Utilities::Xcode.current_xcode_version
-            puts "Switching to #{xcode_path_libraries}"
-            Utilities::Xcode.switch_xcode_version(xcode_path_libraries)
-          end
-
           Utilities::System.system(
-            "xcodebuild",
+            "xcrun", "xcodebuild",
             "-scheme", product,
             "-configuration", "Release",
             "-destination", "platform=macosx",
@@ -41,11 +35,6 @@ module Fourier
             "BUILD_DIR=#{swift_build_directory}",
             "clean", "build"
           )
-
-          if xcode_path && xcode_path != Utilities::Xcode.current_xcode_version
-            puts "Switching back to #{xcode_path}"
-            Utilities::Xcode.switch_xcode_version(xcode_path)
-          end
 
           FileUtils.cp_r(
             File.join(swift_build_directory, "Release/PackageFrameworks/#{product}.framework"),
@@ -72,11 +61,7 @@ module Fourier
         xcode_paths:,
         additional_options: []
       )
-        xcode_path = xcode_paths["xcode_path"]
-        if xcode_path && xcode_path != Utilities::Xcode.current_xcode_version
-          puts "Switching to #{xcode_path}"
-          Utilities::Xcode.switch_xcode_version(xcode_path)
-        end
+        ENV["DEVELOPER_DIR"] = xcode_paths.default
 
         command = [
           "swift", "build",

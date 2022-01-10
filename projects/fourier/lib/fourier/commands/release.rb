@@ -11,9 +11,9 @@ module Fourier
       )
         output_directory ||= File.expand_path("build", Constants::ROOT_DIRECTORY)
 
-        xcode_paths = Utilities::Xcode.xcode_paths_for_versions(
-          xcode_version: xcode_version,
-          xcode_version_libraries: xcode_version_libraries
+        xcode_paths = Utilities::Xcode::Paths.new(
+          default: xcode_version,
+          libraries: xcode_version_libraries
         )
 
         Services::Bundle::Tuist.call(
