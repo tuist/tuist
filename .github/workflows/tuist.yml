@@ -63,8 +63,6 @@ jobs:
     runs-on: macOS-11
     steps:
       - uses: actions/checkout@v1
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache@v2
         name: 'Cache Tuist Build'
         with:
@@ -73,10 +71,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}
             ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm
+      - name: Select Xcode for Tuist and Tuistenv
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - name: Build Tuist for release
         run: swift build -c release --product tuist
       - name: Build Tuistenv for release
         run: swift build -c release --product tuistenv
+      - name: Select Xcode for Tuist libraries
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version-libraries).app
       - name: Build ProjectDescription for release
         run: swift build -c release --product ProjectDescription
       - name: Build ProjectAutomation for release
