@@ -2,6 +2,10 @@ import ProjectDescription
 
 let project = Project(
     name: "StaticFramework",
+    options: [
+        .disableBundleAccessors,
+        .disableSynthesizedResourceAccessors,
+    ],
     targets: [
         Target(
             name: "StaticFramework",

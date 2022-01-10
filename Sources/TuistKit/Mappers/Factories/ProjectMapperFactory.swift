@@ -60,13 +60,11 @@ final class ProjectMapperFactory: ProjectMapperFactorying {
         mappers.append(DeleteDerivedDirectoryProjectMapper())
 
         // Namespace generator
-        if !config.generationOptions.contains(.disableSynthesizedResourceAccessors) {
-            mappers.append(
-                SynthesizedResourceInterfaceProjectMapper(
-                    contentHasher: contentHasher
-                )
+        mappers.append(
+            SynthesizedResourceInterfaceProjectMapper(
+                contentHasher: contentHasher
             )
-        }
+        )
 
         // Logfile noise suppression
         if config.generationOptions.contains(.disableShowEnvironmentVarsInScriptPhases) {
@@ -76,9 +74,7 @@ final class ProjectMapperFactory: ProjectMapperFactorying {
         }
 
         // Support for resources in libraries
-        if !config.generationOptions.contains(.disableBundleAccessors) {
-            mappers.append(ResourcesProjectMapper())
-        }
+        mappers.append(ResourcesProjectMapper())
 
         // Auto-generation of schemes
         // This mapper should follow the ResourcesProjectMapper in order to create schemes for bundles and cache them.
