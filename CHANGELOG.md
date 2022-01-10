@@ -7,7 +7,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Changed
 
 ### Added
-- Add support for `.docc` file types [TBD](https://github.com/tuist/tuist/pull/TBD) by [@Jake Prickett](https://github.com/Jake-Prickett)
+- Add support for `.docc` file types [#3982](https://github.com/tuist/tuist/pull/3982) by [@Jake Prickett](https://github.com/Jake-Prickett)
 
 ### Fixed
 
