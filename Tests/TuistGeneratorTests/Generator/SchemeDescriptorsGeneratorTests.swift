@@ -309,6 +309,59 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         ])
     }
 
+    func test_buildAction_workspaceScheme_executionActionTargetContainerPath() throws {
+        // Given
+        let workspacePath = AbsolutePath("/workspace")
+        let projectPath = workspacePath.appending(components: ["Projects", "Project"])
+        let xcodeProjPath = projectPath.appending(component: "Project.xcodeproj")
+        let target = Target.test(name: "App", product: .app)
+
+        let preAction = ExecutionAction(
+            title: "Pre Action",
+            scriptText: "echo Pre Actions",
+            target: TargetReference(projectPath: projectPath, name: "App")
+        )
+        let buildAction = BuildAction.test(
+            targets: [TargetReference(projectPath: projectPath, name: "App")],
+            preActions: [preAction],
+            postActions: []
+        )
+
+        let scheme = Scheme.test(name: "App", shared: true, buildAction: buildAction)
+        let project = Project.test(
+            path: projectPath,
+            xcodeProjPath: xcodeProjPath,
+            targets: [target]
+        )
+        let graph = Graph.test(
+            projects: [project.path: project],
+            targets: [
+                project.path: [
+                    target.name: target,
+                ],
+            ]
+        )
+        let graphTraverser = GraphTraverser(graph: graph)
+
+        // When
+        let got = try subject.schemeBuildAction(
+            scheme: scheme,
+            graphTraverser: graphTraverser,
+            rootPath: workspacePath,
+            generatedProjects: createGeneratedProjects(projects: [project])
+        )
+
+        // Then
+        // Pre Action
+
+        let preBuildableReference = try XCTUnwrap(got?.preActions.first?.environmentBuildable)
+
+        XCTAssertEqual(preBuildableReference.referencedContainer, "container:Projects/Project/Project.xcodeproj")
+        XCTAssertEqual(preBuildableReference.buildableName, "App.app")
+        XCTAssertEqual(preBuildableReference.blueprintName, "App")
+        XCTAssertEqual(preBuildableReference.buildableIdentifier, "primary")
+    }
+
     // MARK: - Test Action Tests
 
     func test_schemeTestAction_when_testsTarget() throws {
@@ -693,7 +746,11 @@ final class SchemeDescriptorsGeneratorTests: XCTestCase {
         )
 
         let scheme = Scheme.test(name: "AppTests", shared: true, testAction: testAction)
-        let project = Project.test(path: projectPath, targets: [testTarget])
+        let project = Project.test(
+            path: projectPath,
+            xcodeProjPath: projectPath.appending(components: "Project.xcodeproj"),
+            targets: [testTarget]
+        )
 
         let generatedProjects = createGeneratedProjects(projects: [project])
         let graph = Graph.test(
