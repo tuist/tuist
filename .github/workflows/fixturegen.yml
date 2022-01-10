@@ -22,15 +22,12 @@ env:
 
 jobs:
   test:
-    name: Test the fixture generator with Xcode ${{ matrix.xcode }}
+    name: Test the fixture generator with Xcode
     runs-on: macOS-11
-    strategy:
-      matrix:
-        xcode: ['13.2']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ env.RUBY_VERSION }}
@@ -51,13 +48,10 @@ jobs:
   lint:
     name: Lint
     runs-on: macOS-11
-    strategy:
-      matrix:
-        xcode: ['13.2']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ env.RUBY_VERSION }}

@@ -29,15 +29,12 @@ env:
 
 jobs:
   build:
-    name: Build with Xcode ${{ matrix.xcode }}
+    name: Build with Xcode
     runs-on: macOS-11
-    strategy:
-      matrix:
-        xcode: ['13.2']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ env.RUBY_VERSION }}
@@ -55,15 +52,12 @@ jobs:
         run: |
           ./fourier build tuist all
   generate:
-    name: Generate with Xcode ${{ matrix.xcode }}
+    name: Generate with Xcode
     runs-on: macOS-11
-    strategy:
-      matrix:
-        xcode: ['13.2']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ env.RUBY_VERSION }}
@@ -81,15 +75,12 @@ jobs:
         run: |
           ./fourier focus
   test:
-    name: Test with Xcode ${{ matrix.xcode }}
+    name: Test with Xcode
     runs-on: macOS-11
-    strategy:
-      matrix:
-        xcode: ['13.2']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ env.RUBY_VERSION }}
@@ -110,13 +101,10 @@ jobs:
   lint-lockfiles:
     name: Lint lockfiles
     runs-on: macOS-11
-    strategy:
-      matrix:
-        xcode: ['13.2']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ env.RUBY_VERSION }}
