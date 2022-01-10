@@ -62,7 +62,7 @@ extension TuistCore.DependenciesGraph {
                             deploymentTarget: .iOS(targetVersion: "13.0", devices: [.iphone, .ipad]),
                             infoPlist: .default,
                             sources: [
-                                .init(
+                                .glob(
                                     "\(packageFolder.pathString)/customPath/customSources/**",
                                     excluding: "\(packageFolder.pathString)/customPath/excluded/sources/**"
                                 ),

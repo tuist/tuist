@@ -525,7 +525,7 @@ extension SourceFilesList {
         guard !sourcesPaths.isEmpty else { return nil }
         return .init(
             globs: sourcesPaths.map { absolutePath -> ProjectDescription.SourceFileGlob in
-                .init(
+                .glob(
                     Path(absolutePath.pathString),
                     excluding: excluding.map {
                         let excludePath = path.appending(RelativePath($0))

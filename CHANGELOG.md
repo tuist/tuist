@@ -12,6 +12,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - **Breaking** move `disableBundleAccessors` and `disableSynthesizedResourceAccessors` from `Config.swift` to `Project.ProjectOption` [#3963](https://github.com/tuist/tuist/pull/3963) by [@danyf90](https://github.com/danyf90).
   - **Motivation:** being able to define the option at the project level
   - **Migration:** move the `disableBundleAccessors` and `disableSynthesizedResourceAccessors` from `Config.swift` to `Project.ProjectOption`
+- **Breaking** replace `SourceFileGlob` initializer with static `.glob` method [#3960](https://github.com/tuist/tuist/pull/3960) by [@danyf90](https://github.com/danyf90)
+  - **Migration:** Use the `.glob` method instead of the initializer
 
 ## Next
 
@@ -20,6 +22,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 ### Fixed
+
+- Fix issue where test results were not being cached if a scheme was specified in the `tuist test` command [#3952](https://github.com/tuist/tuist/pull/3952) by [@hisaac](https://github.com/hisaac)
 
 ## 2.6.0 - Havana
 

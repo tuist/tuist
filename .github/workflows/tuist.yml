@@ -36,19 +36,20 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache@v2
-        name: 'Cache SPM dependencies'
+        name: 'Cache Tuist .build folder'
         with:
           path: .build
-          key: ${{ runner.os }}-${{ matrix.xcode }}-spm-${{ hashFiles('**/Package.resolved') }}
+          key: ${{ runner.os }}-${{ matrix.xcode }}-spm-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.xcode }}-spm-
+            ${{ runner.os }}-${{ matrix.xcode }}-spm-${{ hashFiles('Package.resolved') }}
+            ${{ runner.os }}-${{ matrix.xcode }}-spm
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ env.RUBY_VERSION }}
       - uses: actions/cache@v2
         with:
           path: vendor/bundle
-          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('Gemfile.lock projects/*/Gemfile.lock') }}
           restore-keys: |
             ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
       - name: Bundle install
@@ -66,11 +67,12 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache@v2
+        name: 'Cache Tuist .build folder'
         with:
           path: .build
-          key: ${{ runner.os }}-${{ matrix.xcode }}-spm-${{ hashFiles('**/Package.resolved') }}-git-${{ github.sha }}
+          key: ${{ runner.os }}-${{ matrix.xcode }}-spm-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.xcode }}-spm-${{ hashFiles('**/Package.resolved') }}
+            ${{ runner.os }}-${{ matrix.xcode }}-spm-${{ hashFiles('Package.resolved') }}
             ${{ runner.os }}-${{ matrix.xcode }}-spm
       - name: Build Tuist for release
         run: swift build -c release --product tuist
@@ -123,12 +125,12 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache@v2
-        name: 'Cache SPM dependencies'
+        name: 'Cache Tuist .build folder'
         with:
           path: .build
-          key: ${{ runner.os }}-${{ matrix.xcode }}-spm-${{ hashFiles('**/Package.resolved') }}-git-${{ github.sha }}
+          key: ${{ runner.os }}-${{ matrix.xcode }}-spm-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.xcode }}-spm-${{ hashFiles('**/Package.resolved') }}
+            ${{ runner.os }}-${{ matrix.xcode }}-spm-${{ hashFiles('Package.resolved') }}
             ${{ runner.os }}-${{ matrix.xcode }}-spm
       - uses: ruby/setup-ruby@v1
         with:
