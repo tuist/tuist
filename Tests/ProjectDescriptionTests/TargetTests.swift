@@ -52,10 +52,10 @@ final class TargetTests: XCTestCase {
             infoPlist: "info.plist",
             sources: SourceFilesList(globs: [
                 "sources/*",
-                SourceFileGlob("Intents/Public.intentdefinition", codeGen: .public),
-                SourceFileGlob("Intents/Private.intentdefinition", codeGen: .private),
-                SourceFileGlob("Intents/Project.intentdefinition", codeGen: .project),
-                SourceFileGlob("Intents/Disabled.intentdefinition", codeGen: .disabled),
+                .glob("Intents/Public.intentdefinition", codeGen: .public),
+                .glob("Intents/Private.intentdefinition", codeGen: .private),
+                .glob("Intents/Project.intentdefinition", codeGen: .project),
+                .glob("Intents/Disabled.intentdefinition", codeGen: .disabled),
             ]),
             resources: [
                 "resources/*",
