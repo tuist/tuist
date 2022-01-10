@@ -11,4 +11,6 @@ This document describes the process of releasing new versions of Tuist.
 3. Select `Run workflow`
 4. Input the version from #1 into the action prompt and provide a title
 5. Run the workflow
-6. Wait for the workflow to run and succeed and verify with `tuist update`
+6. Wait for release workflow to finish
+7. Merge the PR created by the workflow
+8. Once merged verify with `tuist update`
