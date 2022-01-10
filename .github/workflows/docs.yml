@@ -45,7 +45,7 @@ jobs:
       - uses: actions/cache@v2
         with:
           path: vendor/bundle
-          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('Gemfile.lock') }}
           restore-keys: |
             ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
       - name: Install Bundler dependencies

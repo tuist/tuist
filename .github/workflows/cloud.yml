@@ -47,7 +47,7 @@ jobs:
       - uses: actions/cache@v2
         with:
           path: vendor/bundle
-          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('project/cloud/Gemfile.lock') }}
           restore-keys: |
             ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
       - name: Install dependencies
@@ -71,20 +71,17 @@ jobs:
   lint:
     name: Lint
     runs-on: macOS-11
-    strategy:
-      matrix:
-        xcode: ['13.2']
     steps:
       - uses: actions/checkout@v1
       - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_${{ matrix.xcode }}.app
+        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ env.RUBY_VERSION }}
       - uses: actions/cache@v2
         with:
           path: vendor/bundle
-          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}${{ hashFiles('**/Gemfile.lock') }}
+          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}${{ hashFiles('project/cloud/Gemfile.lock') }}
           restore-keys: |
             ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
       - name: Bundle install
@@ -107,7 +104,7 @@ jobs:
       - uses: actions/cache@v2
         with:
           path: vendor/bundle
-          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('project/cloud/Gemfile.lock') }}
           restore-keys: |
             ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
       - uses: actions/setup-node@v2
@@ -148,7 +145,7 @@ jobs:
       - uses: actions/cache@v2
         with:
           path: vendor/bundle
-          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('project/cloud/Gemfile.lock') }}
           restore-keys: |
             ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
       - uses: actions/setup-node@v2
@@ -186,7 +183,7 @@ jobs:
       - uses: actions/cache@v2
         with:
           path: vendor/bundle
-          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('project/cloud/Gemfile.lock') }}
           restore-keys: |
             ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
       - uses: actions/setup-node@v2
@@ -224,7 +221,7 @@ jobs:
       - uses: actions/cache@v2
         with:
           path: vendor/bundle
-          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('project/cloud/Gemfile.lock') }}
           restore-keys: |
             ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
       - uses: actions/setup-node@v2
@@ -262,7 +259,7 @@ jobs:
       - uses: actions/cache@v2
         with:
           path: vendor/bundle
-          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('project/cloud/Gemfile.lock') }}
           restore-keys: |
             ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
       - uses: actions/setup-node@v2

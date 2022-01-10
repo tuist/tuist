@@ -19,15 +19,13 @@ jobs:
     runs-on: macOS-11
     steps:
     - uses: actions/checkout@v2
-    - name: Select Xcode
-      run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
     - uses: ruby/setup-ruby@v1
       with:
         ruby-version: ${{ env.RUBY_VERSION }}
     - uses: actions/cache@v2
       with:
         path: vendor/bundle
-        key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('**/Gemfile.lock') }}
+        key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('Gemfile.lock') }}
         restore-keys: |
           ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
     - name: Bundle install
@@ -41,7 +39,7 @@ jobs:
         sed -i '' -e "s/version = \".*\"/version = \"${{ github.event.inputs.version }}\"/g" Sources/TuistSupport/Constants.swift
         sed -i '' -e "s/## Next/## ${{ github.event.inputs.version }} - ${{ github.event.inputs.title }}\"/g" CHANGELOG.md
     - name: Fourier releae
-      run: ./fourier release tuist ${{ github.event.inputs.version }}
+      run: ./fourier release tuist ${{ github.event.inputs.version }} $(cat .xcode-version) $(cat .xcode-version-libraries)
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
       with:
