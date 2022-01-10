@@ -25,8 +25,6 @@ jobs:
     runs-on: macOS-11
     steps:
       - uses: actions/checkout@v1
-      - name: Select Xcode
-        run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ env.RUBY_VERSION }}
@@ -42,4 +40,4 @@ jobs:
           bundle install --jobs 4 --retry 3
       - name: Build
         run: |
-          ./fourier bundle all
+          ./fourier bundle all --xcode_version=$(cat .xcode-version) --xcode_version_libraries=$(cat .xcode-version-libraries)
