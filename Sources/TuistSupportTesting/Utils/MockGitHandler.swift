@@ -21,7 +21,7 @@ public final class MockGitHandler: GitHandling {
     }
 
     public var lsremoteStub: String?
-    public func lsremote(url _: String) throws -> String {
+    public func lsRemote(url _: String) throws -> String {
         lsremoteStub ?? ""
     }
 }

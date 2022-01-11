@@ -41,7 +41,7 @@ class VersionProvider: VersionProviding {
 
     func versions() -> AnyPublisher<[Version], Error> {
         do {
-            let content = try gitHandler.lsremote(url: Constants.gitRepositoryURL)
+            let content = try gitHandler.lsRemote(url: Constants.gitRepositoryURL)
             let versions = try parseVersionsFromGit(content)
             return AnyPublisher(value: versions)
         } catch {

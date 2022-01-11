@@ -38,7 +38,7 @@ public protocol GitHandling {
     ///
     /// - Parameters:
     ///   - url: The `url` to the git repository to clone.
-    func lsremote(url: String) throws -> String
+    func lsRemote(url: String) throws -> String
 }
 
 /// An implementation of `GitHandling`.
@@ -73,7 +73,7 @@ public final class GitHandler: GitHandling {
         }
     }
 
-    public func lsremote(url: String) throws -> String {
+    public func lsRemote(url: String) throws -> String {
         try capture(command: "git", "ls-remote", "-t", "--sort=v:refname", url)
     }
 
