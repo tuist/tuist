@@ -3,8 +3,7 @@ import ProjectDescription
 import TuistGraph
 
 extension AutogenerationOptions {
-    static func from(manifest: ProjectDescription.Config.GenerationOptions
-        .AutogenerationOptions) throws -> AutogenerationOptions
+    static func from(manifest: ProjectDescription.Config.GenerationOptions.AutogenerationOptions) throws -> AutogenerationOptions
     {
         switch manifest {
         case .disabled:
@@ -18,17 +17,19 @@ extension AutogenerationOptions {
 extension AutogenerationOptions.TestingOptions {
     static func from(
         manifest: ProjectDescription.Config.GenerationOptions.AutogenerationOptions.TestingOptions
-    ) throws -> AutogenerationOptions.TestingOptions {
-        var options: AutogenerationOptions.TestingOptions = []
+    ) throws -> Self {
+        return .init(
+            parallelizable: manifest.parallelizable,
+            randomExecutionOrdering: manifest.randomExecutionOrdering,
+            targetGroupSuffixes: .from(manifest: manifest.targetGroupSuffixes)
+        )
+    }
+}
 
-        if manifest.contains(.parallelizable) {
-            options.insert(.parallelizable)
-        }
-
-        if manifest.contains(.randomExecutionOrdering) {
-            options.insert(.randomExecutionOrdering)
-        }
-
-        return options
+extension AutogenerationOptions.TestingOptions.TargetGroupSuffixes {
+    static func from(
+        manifest: ProjectDescription.Config.GenerationOptions.AutogenerationOptions.TestingOptions.TargetGroupSuffixes
+    ) -> Self {
+        return .init(build: manifest.build, test: manifest.test, run: manifest.run)
     }
 }

@@ -70,21 +70,20 @@ public struct Config: Equatable, Hashable {
     }
 
     public var autogenerationTestingOptions: AutogenerationOptions.TestingOptions? {
-        let autogenerationOptions = generationOptions.compactMap { option -> AutogenerationOptions? in
+        guard let autogenerationOptions = generationOptions.compactMap { option -> AutogenerationOptions? in
             switch option {
             case let .autogenerationOptions(options): return options
             default: return nil
             }
-        }.first
+        }.first else {
+            return .enabled(.default)
+        }
 
         switch autogenerationOptions {
         case let .enabled(options):
             return options
         case .disabled:
             return nil
-        case nil:
-            // no value provided is equivalent to .enabled([])
-            return []
         }
     }
 
