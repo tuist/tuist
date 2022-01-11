@@ -13,8 +13,36 @@ func releaseSettings() -> SettingsDictionary {
     baseSettings
 }
 
-func modulesTargetsAndSchemes() -> [(targets: [Target], scheme: Scheme)] {
+func targets() -> [Target] {
     [
+        Target.target(
+            name: "tuistenv",
+            product: .commandLineTool,
+            dependencies: [
+                .target(name: "TuistEnvKit"),
+            ]
+        ),
+        Target.target(
+            name: "tuist",
+            product: .commandLineTool,
+            dependencies: [
+                .target(name: "TuistKit"),
+                .target(name: "ProjectDescription"),
+                .target(name: "ProjectAutomation"),
+            ]
+        ),
+        Target.target(
+            name: "TuistIntegrationTests",
+            product: .unitTests,
+            dependencies: [
+                .target(name: "TuistGenerator"),
+                .target(name: "TuistSupportTesting"),
+                .target(name: "TuistSupport"),
+                .target(name: "TuistCoreTesting"),
+                .target(name: "TuistGraphTesting"),
+                .target(name: "TuistLoaderTesting"),
+            ]
+        ),
         Target.module(
             name: "TuistSupport",
             hasIntegrationTests: true,
@@ -451,40 +479,7 @@ func modulesTargetsAndSchemes() -> [(targets: [Target], scheme: Scheme)] {
     ]
 }
 
-func otherTargets() -> [Target] {
-    [
-        Target.target(
-            name: "tuistenv",
-            product: .commandLineTool,
-            dependencies: [
-                .target(name: "TuistEnvKit"),
-            ]
-        ),
-        Target.target(
-            name: "tuist",
-            product: .commandLineTool,
-            dependencies: [
-                .target(name: "TuistKit"),
-                .target(name: "ProjectDescription"),
-                .target(name: "ProjectAutomation"),
-            ]
-        ),
-        Target.target(
-            name: "TuistIntegrationTests",
-            product: .unitTests,
-            dependencies: [
-                .target(name: "TuistGenerator"),
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistSupport"),
-                .target(name: "TuistCoreTesting"),
-                .target(name: "TuistGraphTesting"),
-                .target(name: "TuistLoaderTesting"),
-            ]
-        ),
-    ]
-}
-
-let modules = modulesTargetsAndSchemes()
+let targets = targets()
 
 let project = Project(
     name: "Tuist",
@@ -497,7 +492,6 @@ let project = Project(
             .release(name: "Release", settings: releaseSettings(), xcconfig: nil),
         ]
     ),
-    targets: otherTargets() + modules.map(\.targets).flatMap { $0 },
-    schemes: modules.map(\.scheme),
+    targets: targets(),
     additionalFiles: ["CHANGELOG.md"]
 )

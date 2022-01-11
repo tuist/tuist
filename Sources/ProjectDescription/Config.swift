@@ -108,7 +108,7 @@ public struct Config: Codable, Equatable {
         cache: Cache? = nil,
         swiftVersion: Version? = nil,
         plugins: [PluginLocation] = [],
-        generationOptions: [GenerationOptions]
+        generationOptions: [GenerationOptions] = []
     ) {
         self.compatibleXcodeVersions = compatibleXcodeVersions
         self.plugins = plugins
