@@ -596,7 +596,7 @@ class ProjectFileElements {
     func isVersionGroup(path: AbsolutePath) -> Bool {
         path.extension == "xcdatamodeld"
     }
-    
+
     func isFolderTypeFileSource(path: AbsolutePath) -> Bool {
         isXcassets(path: path) || isDocC(path: path) || isScnassets(path: path)
     }
@@ -604,7 +604,7 @@ class ProjectFileElements {
     func isXcassets(path: AbsolutePath) -> Bool {
         path.extension == "xcassets"
     }
-    
+
     func isDocC(path: AbsolutePath) -> Bool {
         path.extension == "docc"
     }

@@ -5,7 +5,7 @@ public struct Target: Equatable, Hashable, Comparable, Codable {
     // MARK: - Static
 
     public static let validSourceExtensions: [String] = [
-        "m", "swift", "mm", "cpp", "cc", "c", "d", "s", "intentdefinition", "xcmappingmodel", "metal", "mlmodel", "docc"
+        "m", "swift", "mm", "cpp", "cc", "c", "d", "s", "intentdefinition", "xcmappingmodel", "metal", "mlmodel", "docc",
     ]
     public static let validFolderExtensions: [String] = [
         "framework", "bundle", "app", "xcassets", "appiconset", "scnassets",

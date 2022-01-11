@@ -181,7 +181,7 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
             "myfolder/resources/assets.xcassets",
         ])
     }
-    
+
     func test_addElement_docc() throws {
         // Given
         let element = GroupFileElement(
