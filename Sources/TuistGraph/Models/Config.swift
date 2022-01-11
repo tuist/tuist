@@ -76,7 +76,7 @@ public struct Config: Equatable, Hashable {
             default: return nil
             }
         }.first else {
-            return .enabled(.default)
+            return .default
         }
 
         switch autogenerationOptions {

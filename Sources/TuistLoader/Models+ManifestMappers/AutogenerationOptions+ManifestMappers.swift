@@ -21,7 +21,7 @@ extension AutogenerationOptions.TestingOptions {
         return .init(
             parallelizable: manifest.parallelizable,
             randomExecutionOrdering: manifest.randomExecutionOrdering,
-            targetGroupSuffixes: .from(manifest: manifest.targetGroupSuffixes)
+            targetGroupSuffixes: .from(manifest: manifest.customTargetGroupSuffixes)
         )
     }
 }

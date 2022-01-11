@@ -49,7 +49,7 @@ public struct Config: Codable, Equatable {
                 public init(
                     parallelizable: Bool = false,
                     randomExecutionOrdering: Bool = false,
-                    targetGroupSuffixes: TargetGroupSuffixes = .init(
+                    customTargetGroupSuffixes: TargetGroupSuffixes = .init(
                         build: ["Implementation", "Interface", "Mocks", "Testing"],
                         test: ["Tests", "UITests"],
                         run: ["App", "Demo"]
@@ -57,7 +57,7 @@ public struct Config: Codable, Equatable {
                 ) {
                     self.parallelizable = parallelizable
                     self.randomExecutionOrdering = randomExecutionOrdering
-                    self.targetGroupSuffixes = targetGroupSuffixes
+                    self.customTargetGroupSuffixes = customTargetGroupSuffixes
                 }
             }
 
