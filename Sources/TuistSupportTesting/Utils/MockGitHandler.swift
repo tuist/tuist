@@ -19,4 +19,9 @@ public final class MockGitHandler: GitHandling {
     public func checkout(id: String, in path: AbsolutePath?) throws {
         checkoutStub?(id, path)
     }
+
+    public var lsremoteStub: String?
+    public func lsremote(url _: String, tagsOnly _: Bool = false, sort _: String = "") throws -> String {
+        lsremoteStub ?? ""
+    }
 }

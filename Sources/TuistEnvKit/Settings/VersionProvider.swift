@@ -16,98 +16,63 @@ protocol VersionProviding {
 }
 
 enum VersionProviderError: FatalError {
-    case dataDecodingError(url: Foundation.URL)
-    case responseError(url: Foundation.URL, content: String, statusCode: Int)
+    case noVersionsError
 
     var description: String {
         switch self {
-        case let .dataDecodingError(url):
-            return "Error decoding the response from \(url.absoluteString) as an utf8 string."
-        case let .responseError(url, content, statusCode):
-            return """
-            The request to \(url.absoluteString) return an unsuccessful response with status code \(statusCode) and error body:
-            \(content)
-            """
+        case .noVersionsError:
+            return "Error fetching versions from GitHub."
         }
     }
 
     var type: ErrorType {
         switch self {
-        case .dataDecodingError: return .bug
-        case .responseError: return .bug
+        case .noVersionsError: return .bug
         }
     }
 }
 
 class VersionProvider: VersionProviding {
-    let requestDispatcher: HTTPRequestDispatching
+    let gitHandler: GitHandling
 
-    init(requestDispatcher: HTTPRequestDispatching = HTTPRequestDispatcher()) {
-        self.requestDispatcher = requestDispatcher
+    init(gitHandler: GitHandling = GitHandler()) {
+        self.gitHandler = gitHandler
     }
 
     func versions() -> AnyPublisher<[Version], Error> {
-        requestDispatcher.dispatch(resource: changelogResource())
-            .flatMapLatest { content, _ -> AnyPublisher<[Version], Error> in
-                do {
-                    let versions = try self.parseVersionsFromChangelog(content)
-                    return AnyPublisher(value: versions)
-                } catch {
-                    return AnyPublisher(error: error)
-                }
-            }
-            .eraseToAnyPublisher()
+        do {
+            let content = try gitHandler.lsremote(url: Constants.gitRepositoryURL, tagsOnly: true, sort: "v:refname")
+            let versions = try parseVersionsFromGit(content)
+            return AnyPublisher(value: versions)
+        } catch {
+            return AnyPublisher(error: error)
+        }
     }
 
     func latestVersion() -> AnyPublisher<Version, Error> {
-        versions().map { versions -> Version in
-            versions.sorted().last!
+        versions().tryMap { versions -> Version in
+            guard let version = versions.last else {
+                throw VersionProviderError.noVersionsError
+            }
+            return version
         }
         .eraseToAnyPublisher()
     }
 
-    func changelogResource() -> HTTPResource<String, Error> {
-        resource(path: "/CHANGELOG.md")
-    }
-
     // MARK: - Fileprivate
 
-    fileprivate func parseVersionsFromChangelog(_ changelog: String) throws -> [Version] {
-        let regex = try NSRegularExpression(pattern: "##\\s+([0-9]+.[0-9]+.[0-9]+)", options: [])
+    fileprivate func parseVersionsFromGit(_ gitOutput: String) throws -> [Version] {
+        let regex = try NSRegularExpression(pattern: ##"tags/([0-9]+.[0-9]+.[0-9]+)"##, options: [])
         let changelogRange = NSRange(
-            changelog.startIndex ..< changelog.endIndex,
-            in: changelog
+            gitOutput.startIndex ..< gitOutput.endIndex,
+            in: gitOutput
         )
-        let matches = regex.matches(in: changelog, options: [], range: changelogRange)
+        let matches = regex.matches(in: gitOutput, options: [], range: changelogRange)
 
         let versions = matches.map { result -> Version in
             let matchRange = result.range(at: 1)
-            return Version(stringLiteral: String(changelog[Range(matchRange, in: changelog)!]))
+            return Version(stringLiteral: String(gitOutput[Range(matchRange, in: gitOutput)!]))
         }
         return versions
-    }
-
-    fileprivate func resource(path: String) -> HTTPResource<String, Error> {
-        HTTPResource {
-            var request = URLRequest(url: self.rawFileURL(path: path))
-            request.httpMethod = "GET"
-            return request
-        } parse: { data, response in
-            guard let content = String(data: data, encoding: .utf8) else {
-                throw VersionProviderError.dataDecodingError(url: response.url!)
-            }
-            return content
-        } parseError: { errorData, response in
-            let content = String(data: errorData, encoding: .utf8) ?? ""
-            return VersionProviderError.responseError(
-                url: response.url!,
-                content: content,
-                statusCode: response.statusCode
-            )
-        }
-    }
-
-    fileprivate func rawFileURL(path: String) -> Foundation.URL {
-        URL(string: "https://raw.githubusercontent.com/tuist/tuist/main\(path)")!
     }
 }

@@ -29,6 +29,14 @@ public protocol GitHandling {
     ///   - id: An identifier for the `git checkout` command.
     ///   - path: The path to the git repository (location with `.git` directory) in which to perform the checkout.
     func checkout(id: String, in path: AbsolutePath?) throws
+
+    /// Return the references of the repository at the given `url`.
+    ///
+    /// - Parameters:
+    ///   - url: The `url` to the git repository to clone.
+    ///   - tagsOnly: If `true`, send the `-t` flag to fetch only tags
+    ///   - sort: If specified, send the `--sort` flag with the specified argument
+    func lsremote(url: String, tagsOnly: Bool, sort: String) throws -> String
 }
 
 /// An implementation of `GitHandling`.
@@ -63,11 +71,23 @@ public final class GitHandler: GitHandling {
         }
     }
 
+    public func lsremote(url: String, tagsOnly: Bool = false, sort: String = "") throws -> String {
+        try capture(command: "git", "ls-remote", tagsOnly ? "-t" : "", !sort.isEmpty ? "--sort=\(sort)" : "", url)
+    }
+
     private func run(command: String...) throws {
         if Environment.shared.isVerbose {
             try system.runAndPrint(command, verbose: true, environment: System.shared.env)
         } else {
             try system.run(command)
+        }
+    }
+
+    private func capture(command: String...) throws -> String {
+        if Environment.shared.isVerbose {
+            return try system.capture(command, verbose: true, environment: System.shared.env)
+        } else {
+            return try system.capture(command)
         }
     }
 }
