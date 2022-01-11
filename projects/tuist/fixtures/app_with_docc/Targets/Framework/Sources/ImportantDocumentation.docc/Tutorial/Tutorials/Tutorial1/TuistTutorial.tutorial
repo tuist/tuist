@@ -1,0 +1,19 @@
+@Tutorial(time: 5) {
+    @Intro(title: "Tuist") {
+        Tuist
+    }
+    
+    @Section(title: "Tuist") {
+        @ContentAndMedia {
+            Walkthrough Test
+        }
+        
+        @Steps {
+            @Step {
+                Import ProjectDescriptionHelpers
+
+                @Code(name: "Code", file: Code.swift)
+            }
+        }
+    }
+}
