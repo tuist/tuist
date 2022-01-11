@@ -32,11 +32,13 @@ public protocol GitHandling {
 
     /// Return the references of the repository at the given `url`.
     ///
+    /// The following flags are used:
+    ///  - `-t`: Only return tags.
+    ///  - `--sort=v:refname`: Sort by refname, with latest version at the bottom.
+    ///
     /// - Parameters:
     ///   - url: The `url` to the git repository to clone.
-    ///   - tagsOnly: If `true`, send the `-t` flag to fetch only tags
-    ///   - sort: If specified, send the `--sort` flag with the specified argument
-    func lsremote(url: String, tagsOnly: Bool, sort: String) throws -> String
+    func lsremote(url: String) throws -> String
 }
 
 /// An implementation of `GitHandling`.
@@ -71,8 +73,8 @@ public final class GitHandler: GitHandling {
         }
     }
 
-    public func lsremote(url: String, tagsOnly: Bool = false, sort: String = "") throws -> String {
-        try capture(command: "git", "ls-remote", tagsOnly ? "-t" : "", !sort.isEmpty ? "--sort=\(sort)" : "", url)
+    public func lsremote(url: String) throws -> String {
+        try capture(command: "git", "ls-remote", "-t", "--sort=v:refname", url)
     }
 
     private func run(command: String...) throws {

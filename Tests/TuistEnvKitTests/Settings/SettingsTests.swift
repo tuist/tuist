@@ -49,7 +49,7 @@ final class SettingsTests: TuistUnitTestCase {
             _ = try subject.latestVersion().toBlocking().first
             XCTFail()
         } catch let error as VersionProviderError {
-            XCTAssertEqual(error.description, "Error fetching versions from GitHub.")
+            XCTAssertEqual(error.description, "Error fetching versions from git.")
         } catch {
             XCTFail()
         }
