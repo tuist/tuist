@@ -21,7 +21,7 @@ enum VersionProviderError: FatalError {
     var description: String {
         switch self {
         case .noVersionsError:
-            return "Error fetching versions from GitHub."
+            return "Error fetching versions from git."
         }
     }
 

@@ -21,7 +21,7 @@ final class SettingsTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_highest_remote_version() throws {
+    func test_latest_remote_version() throws {
         gitHandler.lsremoteStub = """
          4e4230bb95e1c57e82a1e5f9b4c79486fc2543fb    refs/tags/1.9.0
          5e17254d4a3c14454ecab6575b4a44d6685d3865    refs/tags/2.0.0
