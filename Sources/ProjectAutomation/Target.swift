@@ -7,7 +7,7 @@ public struct Target: Codable, Equatable {
 
     /// The product type the target produces.
     public let product: String
-    
+
     /// List of file paths that are the target's sources.
     public let sources: [String]
 
