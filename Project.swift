@@ -41,7 +41,7 @@ func modulesTargetsAndSchemes() -> [(targets: [Target], scheme: Scheme)] {
                 .target(name: "ProjectDescription"),
             ],
             testingDependencies: [
-              .target(name: "TuistGraph"),
+                .target(name: "TuistGraph"),
             ]
         ),
         Target.module(
