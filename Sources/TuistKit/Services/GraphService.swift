@@ -188,7 +188,11 @@ extension ProjectAutomation.Package {
 
 extension ProjectAutomation.Target {
     fileprivate static func from(_ target: TuistGraph.Target) -> ProjectAutomation.Target {
-        ProjectAutomation.Target(name: target.name, product: target.product.rawValue)
+        ProjectAutomation.Target(
+            name: target.name,
+            product: target.product.rawValue,
+            sources: target.sources.map(\.path.pathString)
+        )
     }
 }
 
