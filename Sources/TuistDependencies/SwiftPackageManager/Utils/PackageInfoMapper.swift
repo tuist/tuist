@@ -317,6 +317,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
         return ProjectDescription.Project(
             name: name,
+            options: [.automaticSchemesGrouping(.singleScheme)],
             settings: packageInfo.projectSettings(swiftToolsVersion: swiftToolsVersion),
             targets: targets,
             resourceSynthesizers: []
