@@ -1,0 +1,34 @@
+# frozen_string_literal: true
+
+require "test_helper"
+
+class InvitationAcceptServiceTest < ActiveSupport::TestCase
+  test "user accepts an invitation" do
+    # Given
+    user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
+    inviter = User.create!(email: "test1@cloud.tuist.io", password: Devise.friendly_token.first(16))
+    token = Devise.friendly_token.first(8)
+    organization = Organization.create!
+    inviter.invitations.create!(invitee: user.email, token: token, organization: organization)
+
+    # When
+    InvitationAcceptService.call(token: token, user: user)
+
+    # Then
+    assert user.has_role?(:user, organization)
+  end
+
+  test "fails with not authorized error when invitation email and user email mismatch" do
+    # Given
+    user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
+    inviter = User.create!(email: "test1@cloud.tuist.io", password: Devise.friendly_token.first(16))
+    token = Devise.friendly_token.first(8)
+    organization = Organization.create!
+    inviter.invitations.create!(invitee: "test2@cloud.tuist.io", token: token, organization: organization)
+
+    # When / Then
+    assert_raises(InvitationAcceptService::Error::Unauthorized) do
+      InvitationAcceptService.call(token: token, user: user)
+    end
+  end
+end

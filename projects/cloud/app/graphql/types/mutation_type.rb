@@ -22,5 +22,10 @@ module Types
       null: false,
       description: "Invite a user to a given organization",
       mutation: Mutations::InviteUser
+    field :accept_invitation,
+      UserType,
+      null: false,
+      description: "Accept invitation based on a token",
+      mutation: Mutations::AcceptInvitation
   end
 end

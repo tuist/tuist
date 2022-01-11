@@ -49,5 +49,13 @@ module Types
     def organization(name:)
       OrganizationFetchService.call(name: name)
     end
+
+    field :invitation, InvitationType, null: false,
+      description: "Returns invitation for a given token" do
+      argument :token, String, required: true
+    end
+    def invitation(token:)
+      InvitationFetchService.call(token: token)
+    end
   end
 end
