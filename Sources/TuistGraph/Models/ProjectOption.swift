@@ -2,6 +2,9 @@ import Foundation
 
 /// Additional options related to the `Project`
 public enum ProjectOption: Codable {
+    /// Defines how to group targets in automatically generated schemes
+    case automaticSchemesGrouping(AutomaticSchemesGrouping)
+
     /// Disables generating Bundle accessors.
     case disableBundleAccessors
 
@@ -14,6 +17,8 @@ public enum ProjectOption: Codable {
     /// Option name
     public var name: String {
         switch self {
+        case .automaticSchemesGrouping:
+            return "automaticSchemesGrouping"
         case .disableBundleAccessors:
             return "disableBundleAccessors"
         case .disableSynthesizedResourceAccessors:
@@ -27,6 +32,21 @@ public enum ProjectOption: Codable {
 // MARK: - Array + ProjectOption
 
 extension Array where Element == ProjectOption {
+    public var automaticSchemesGrouping: AutomaticSchemesGrouping {
+        compactMap {
+            switch $0 {
+            case let .automaticSchemesGrouping(grouping):
+                return grouping
+            case .disableBundleAccessors, .disableSynthesizedResourceAccessors, .textSettings:
+                return nil
+            }
+        }.first ?? .byName(
+            build: ["Implementation", "Interface", "Mocks", "Testing"],
+            test: ["Tests", "UITests"],
+            run: ["App", "Demo"]
+        )
+    }
+
     public var disableBundleAccessors: Bool {
         contains(.disableBundleAccessors)
     }
@@ -38,7 +58,7 @@ extension Array where Element == ProjectOption {
     public var textSettings: TextSettings? {
         compactMap {
             switch $0 {
-            case .disableBundleAccessors, .disableSynthesizedResourceAccessors:
+            case .automaticSchemesGrouping, .disableBundleAccessors, .disableSynthesizedResourceAccessors:
                 return nil
             case let .textSettings(textSettings):
                 return textSettings
@@ -56,11 +76,12 @@ extension ProjectOption: Hashable {
 
     public static func == (lhs: ProjectOption, rhs: ProjectOption) -> Bool {
         switch (lhs, rhs) {
-        case (.disableBundleAccessors, .disableBundleAccessors),
+        case (.automaticSchemesGrouping, .automaticSchemesGrouping),
+             (.disableBundleAccessors, .disableBundleAccessors),
              (.disableSynthesizedResourceAccessors, .disableSynthesizedResourceAccessors),
              (.textSettings, .textSettings):
             return true
-        case (.disableBundleAccessors, _), (.disableSynthesizedResourceAccessors, _), (.textSettings, _):
+        case (.automaticSchemesGrouping, _), (.disableBundleAccessors, _), (.disableSynthesizedResourceAccessors, _), (.textSettings, _):
             return false
         }
     }
@@ -70,6 +91,7 @@ extension ProjectOption: Hashable {
 
 extension ProjectOption {
     internal enum CodingKeys: String, CodingKey {
+        case automaticSchemesGrouping
         case disableBundleAccessors
         case disableSynthesizedResourceAccessors
         case textSettings
@@ -78,7 +100,11 @@ extension ProjectOption {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
-        if container.contains(.disableBundleAccessors) {
+        if container.allKeys.contains(.automaticSchemesGrouping), try container.decodeNil(forKey: .automaticSchemesGrouping) == false {
+            var associatedValues = try container.nestedUnkeyedContainer(forKey: .automaticSchemesGrouping)
+            let automaticSchemesGrouping = try associatedValues.decode(AutomaticSchemesGrouping.self)
+            self = .automaticSchemesGrouping(automaticSchemesGrouping)
+        } else if container.contains(.disableBundleAccessors) {
             self = .disableBundleAccessors
         } else if container.contains(.disableSynthesizedResourceAccessors) {
             self = .disableSynthesizedResourceAccessors
@@ -95,6 +121,9 @@ extension ProjectOption {
         var container = encoder.container(keyedBy: CodingKeys.self)
 
         switch self {
+        case let .automaticSchemesGrouping(grouping):
+            var associatedValues = container.nestedUnkeyedContainer(forKey: .automaticSchemesGrouping)
+            try associatedValues.encode(grouping)
         case .disableBundleAccessors:
             try container.encode(true, forKey: .disableBundleAccessors)
         case .disableSynthesizedResourceAccessors:
