@@ -5,8 +5,8 @@ module Fourier
     class Generate < Base
       desc "tuist", "Generate the XcodeProj for Tuist"
       option(
-        :open,
-        desc: "Whether the project should be opened in Xcode after generating it",
+        :no_open,
+        desc: "Whether the project should not be opened in Xcode after generating it",
         default: false,
         type: :boolean,
         aliases: :o
@@ -19,7 +19,7 @@ module Fourier
         aliases: :t
       )
       def tuist
-        Services::Generate::Tuist.call(open: options[:open], targets: options[:targets])
+        Services::Generate::Tuist.call(no_open: options[:no_open], targets: options[:targets])
       end
     end
   end
