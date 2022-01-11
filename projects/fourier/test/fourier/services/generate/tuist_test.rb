@@ -13,7 +13,7 @@ module Fourier
           Utilities::System.expects(:tuist).with("generate")
 
           # When/Then
-          Fourier::Services::Generate::Tuist.call(open: false, targets: ["Target1", "Target2"])
+          Fourier::Services::Generate::Tuist.call(no_open: false, targets: ["Target1", "Target2"])
         end
 
 
@@ -21,10 +21,10 @@ module Fourier
           # Given
           Utilities::System.expects(:tuist).with("fetch")
           Utilities::System.expects(:tuist).with("cache", "warm", "--dependencies-only", "Target1", "Target2")
-          Utilities::System.expects(:tuist).with("generate", "--open")
+          Utilities::System.expects(:tuist).with("generate", "--no-open")
 
           # When/Then
-          Fourier::Services::Generate::Tuist.call(open: true, targets: ["Target1", "Target2"])
+          Fourier::Services::Generate::Tuist.call(no_open: true, targets: ["Target1", "Target2"])
         end
       end
     end
