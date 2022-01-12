@@ -97,9 +97,7 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
             graphTraverser.allTargets().map(\.target.name)
         )
         let missingTargets = sources.subtracting(availableTargets)
-        guard
-            missingTargets.isEmpty
-        else {
+        guard missingTargets.isEmpty else {
             throw FocusTargetsGraphMapperError.missingTargets(
                 missingTargets: missingTargets.sorted(),
                 availableTargets: availableTargets.sorted()
