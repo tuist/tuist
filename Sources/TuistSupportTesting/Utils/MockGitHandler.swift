@@ -1,4 +1,5 @@
 import TSCBasic
+import TSCUtility
 import TuistSupport
 
 /// A mock implementation of `GitHandling`.
@@ -18,5 +19,10 @@ public final class MockGitHandler: GitHandling {
     public private(set) var checkoutStub: ((String, AbsolutePath?) -> Void)?
     public func checkout(id: String, in path: AbsolutePath?) throws {
         checkoutStub?(id, path)
+    }
+
+    public var remoteTaggedVersionsStub: [String]?
+    public func remoteTaggedVersions(url _: String) -> [Version] {
+        remoteTaggedVersionsStub?.compactMap { Version(string: $0) } ?? []
     }
 }
