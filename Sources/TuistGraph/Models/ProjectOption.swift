@@ -81,7 +81,8 @@ extension ProjectOption: Hashable {
              (.disableSynthesizedResourceAccessors, .disableSynthesizedResourceAccessors),
              (.textSettings, .textSettings):
             return true
-        case (.automaticSchemesGrouping, _), (.disableBundleAccessors, _), (.disableSynthesizedResourceAccessors, _), (.textSettings, _):
+        case (.automaticSchemesGrouping, _), (.disableBundleAccessors, _), (.disableSynthesizedResourceAccessors, _),
+             (.textSettings, _):
             return false
         }
     }
@@ -100,7 +101,9 @@ extension ProjectOption {
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
-        if container.allKeys.contains(.automaticSchemesGrouping), try container.decodeNil(forKey: .automaticSchemesGrouping) == false {
+        if container.allKeys.contains(.automaticSchemesGrouping),
+           try container.decodeNil(forKey: .automaticSchemesGrouping) == false
+        {
             var associatedValues = try container.nestedUnkeyedContainer(forKey: .automaticSchemesGrouping)
             let automaticSchemesGrouping = try associatedValues.decode(AutomaticSchemesGrouping.self)
             self = .automaticSchemesGrouping(automaticSchemesGrouping)
