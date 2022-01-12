@@ -6,30 +6,13 @@ import TSCUtility
 import TuistSupport
 
 protocol VersionProviding {
-    /// Returns the list of versions available on GitHub by parsing the CHANGELOG.md file
-    /// - Returns: A publisher to obtain the versions.
-    func versions() -> AnyPublisher<[Version], Error>
+    /// Returns the list of versions available on GitHub by parsing the release tags.
+    /// - Returns: An array of the versions.
+    func versions() throws -> [Version]
 
     /// Returns the latest available version
-    /// - Returns: A publisher to obtain the latest available version.
-    func latestVersion() -> AnyPublisher<Version, Error>
-}
-
-enum VersionProviderError: FatalError {
-    case noVersionsError
-
-    var description: String {
-        switch self {
-        case .noVersionsError:
-            return "Error fetching versions from git."
-        }
-    }
-
-    var type: ErrorType {
-        switch self {
-        case .noVersionsError: return .bug
-        }
-    }
+    /// - Returns: The latest available version, or `nil` if no versions were found.
+    func latestVersion() throws -> Version?
 }
 
 class VersionProvider: VersionProviding {
@@ -39,40 +22,11 @@ class VersionProvider: VersionProviding {
         self.gitHandler = gitHandler
     }
 
-    func versions() -> AnyPublisher<[Version], Error> {
-        do {
-            let content = try gitHandler.lsRemote(url: Constants.gitRepositoryURL)
-            let versions = try parseVersionsFromGit(content)
-            return AnyPublisher(value: versions)
-        } catch {
-            return AnyPublisher(error: error)
-        }
+    func versions() throws -> [Version] {
+        try gitHandler.remoteTaggedVersions(url: Constants.gitRepositoryURL)
     }
 
-    func latestVersion() -> AnyPublisher<Version, Error> {
-        versions().tryMap { versions -> Version in
-            guard let version = versions.last else {
-                throw VersionProviderError.noVersionsError
-            }
-            return version
-        }
-        .eraseToAnyPublisher()
-    }
-
-    // MARK: - Fileprivate
-
-    fileprivate func parseVersionsFromGit(_ gitOutput: String) throws -> [Version] {
-        let regex = try NSRegularExpression(pattern: ##"tags/([0-9]+.[0-9]+.[0-9]+)"##, options: [])
-        let changelogRange = NSRange(
-            gitOutput.startIndex ..< gitOutput.endIndex,
-            in: gitOutput
-        )
-        let matches = regex.matches(in: gitOutput, options: [], range: changelogRange)
-
-        let versions = matches.map { result -> Version in
-            let matchRange = result.range(at: 1)
-            return Version(stringLiteral: String(gitOutput[Range(matchRange, in: gitOutput)!]))
-        }
-        return versions
+    func latestVersion() throws -> Version? {
+        try versions().last
     }
 }
