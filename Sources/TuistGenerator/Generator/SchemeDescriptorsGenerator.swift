@@ -666,66 +666,35 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         )
     }
 
-    func schemeExecutionAction(action: ExecutionAction,
-                               graphTraverser: GraphTraversing,
-                               generatedProjects: [AbsolutePath: GeneratedProject],
-                               rootPath _: AbsolutePath) throws -> XCScheme.ExecutionAction
-    {
+    func schemeExecutionAction(
+        action: ExecutionAction,
+        graphTraverser: GraphTraversing,
+        generatedProjects: [AbsolutePath: GeneratedProject],
+        rootPath: AbsolutePath
+    ) throws -> XCScheme.ExecutionAction {
         guard
             let targetReference = action.target,
-            let graphTarget = graphTraverser.target(path: targetReference.projectPath, name: targetReference.name),
-            let generatedProject = generatedProjects[graphTarget.project.xcodeProjPath]
+            let graphTarget = graphTraverser.target(path: targetReference.projectPath, name: targetReference.name)
         else {
-            return schemeExecutionAction(action: action)
-        }
-        return schemeExecutionAction(
-            action: action,
-            target: graphTarget.target,
-            generatedProject: generatedProject
-        )
-    }
-
-    private func schemeExecutionAction(action: ExecutionAction) -> XCScheme.ExecutionAction {
-        XCScheme.ExecutionAction(
-            scriptText: action.scriptText,
-            title: action.title,
-            environmentBuildable: nil
-        )
-    }
-
-    /// Returns the scheme pre/post actions.
-    ///
-    /// - Parameters:
-    ///   - action: pre/post action manifest.
-    ///   - target: Project manifest.
-    ///   - generatedProject: Generated Xcode project.
-    /// - Returns: Scheme actions.
-    private func schemeExecutionAction(action: ExecutionAction,
-                                       target: Target,
-                                       generatedProject: GeneratedProject) -> XCScheme.ExecutionAction
-    {
-        /// Return Buildable Reference for Scheme Action
-        func schemeBuildableReference(target: Target, generatedProject: GeneratedProject) -> XCScheme.BuildableReference? {
-            guard let pbxTarget = generatedProject.targets[target.name] else { return nil }
-
-            return targetBuildableReference(
-                target: target,
-                pbxTarget: pbxTarget,
-                projectPath: generatedProject.name
+            return XCScheme.ExecutionAction(
+                scriptText: action.scriptText,
+                title: action.title,
+                environmentBuildable: nil
             )
         }
 
-        let schemeAction = XCScheme.ExecutionAction(
-            scriptText: action.scriptText,
-            title: action.title,
-            environmentBuildable: nil
+        let buildableReference = try createBuildableReference(
+            graphTarget: graphTarget,
+            graphTraverser: graphTraverser,
+            rootPath: rootPath,
+            generatedProjects: generatedProjects
         )
 
-        schemeAction.environmentBuildable = schemeBuildableReference(
-            target: target,
-            generatedProject: generatedProject
+        return XCScheme.ExecutionAction(
+            scriptText: action.scriptText,
+            title: action.title,
+            environmentBuildable: buildableReference
         )
-        return schemeAction
     }
 
     // MARK: - Helpers
