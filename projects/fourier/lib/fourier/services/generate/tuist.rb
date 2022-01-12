@@ -20,7 +20,7 @@ module Fourier
           Utilities::System.tuist(*cache_warm)
 
           generate = ["generate"] + targets
-          generate << "--no-open" if open
+          generate << "--no-open" if no_open
           Utilities::System.tuist(*generate)
         end
       end
