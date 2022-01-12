@@ -60,7 +60,7 @@ final class PlatformTests: XCTestCase {
             .iOS,
             .macOS,
             .tvOS,
-            .watchOS
+            .watchOS,
         ]
 
         // When
@@ -71,7 +71,7 @@ final class PlatformTests: XCTestCase {
             "Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk",
             "Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk",
             "Platforms/AppleTVOS.platform/Developer/SDKs/AppleTVOS.sdk",
-            "Platforms/WatchOS.platform/Developer/SDKs/WatchOS.sdk"
+            "Platforms/WatchOS.platform/Developer/SDKs/WatchOS.sdk",
         ])
     }
 }
