@@ -317,7 +317,6 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 return userDefined.merging(defaultDictionary, uniquingKeysWith: { userDefined, _ in userDefined })
             }
         )
-        print(targetSettings)
 
         let targets = try packageInfo.targets.compactMap { target -> ProjectDescription.Target? in
             guard let products = targetToProducts[target.name] else { return nil }
