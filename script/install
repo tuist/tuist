@@ -20,11 +20,8 @@ warn() {
   printf "${tty_red}Warning${tty_reset}: %s\n" "$(chomp "$1")"
 }
 
-# The line below extracts the version from the Constants.swift file by parsing the line:
-# public static let version = "1.48.1"
-# Note: We can't hit the API from this script because it has limits that might cause the installation to fail.
-LATEST_VERSION=$(curl --silent "https://raw.githubusercontent.com/tuist/tuist/main/Sources/TuistSupport/Constants.swift" | grep 'version =' | sed -E 's/.*"([^"]+)".*/\1/')
-
+# The line below extracts the version from the list of tags in the Tuist repository.
+LATEST_VERSION=$(git ls-remote -t --sort=v:refname https://github.com/tuist/tuist.git | sed -ne '$s/.*tags\/\(.*\)/\1/p')
 ohai "Downloading tuistenv..."
 [ -f /tmp/tuistenv.zip ] && rm /tmp/tuistenv.zip
 [ -f /tmp/tuistenv ] && rm /tmp/tuistenv

@@ -69,6 +69,7 @@ public final class MockSystem: Systeming {
         if stub.exitstatus != 0 {
             throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data())
         }
+        calls.append(arguments.joined(separator: " "))
         return stub.stdout ?? ""
     }
 
