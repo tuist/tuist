@@ -295,7 +295,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
         let productTypes = productTypes.merging(
             [
                 // Force dynamic frameworks
-                "RxSwift": .framework // https://github.com/ReactiveX/RxSwift
+                "RxSwift": .framework, // https://github.com/ReactiveX/RxSwift
             ],
             uniquingKeysWith: { userDefined, _ in userDefined }
         )
@@ -314,7 +314,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 }
             ),
             uniquingKeysWith: { userDefined, defaultDictionary in
-                return userDefined.merging(defaultDictionary, uniquingKeysWith: { userDefined, _ in userDefined })
+                userDefined.merging(defaultDictionary, uniquingKeysWith: { userDefined, _ in userDefined })
             }
         )
 
