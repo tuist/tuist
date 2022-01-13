@@ -5,7 +5,7 @@ module Mutations
     argument :token, String, required: true
 
     def resolve(attributes)
-      AcceptInvitationService.call(**attributes, user: context[:current_user])
+      InvitationAcceptService.call(**attributes, user: context[:current_user])
     end
   end
 end

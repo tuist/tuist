@@ -21,6 +21,6 @@ class InvitationAcceptService < ApplicationService
     invitation = InvitationFetchService.call(token: token)
     raise Error::Unauthorized.new unless invitation.invitee == user.email
     user.add_role(:user, invitation.organization)
-    user
+    invitation.organization.account.projects.first
   end
 end

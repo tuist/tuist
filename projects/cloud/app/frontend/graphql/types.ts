@@ -2,16 +2,10 @@ import { gql } from '@apollo/client';
 import * as Apollo from '@apollo/client';
 export type Maybe<T> = T | null;
 export type InputMaybe<T> = Maybe<T>;
-export type Exact<T extends { [key: string]: unknown }> = {
-  [K in keyof T]: T[K];
-};
-export type MakeOptional<T, K extends keyof T> = Omit<T, K> & {
-  [SubKey in K]?: Maybe<T[SubKey]>;
-};
-export type MakeMaybe<T, K extends keyof T> = Omit<T, K> & {
-  [SubKey in K]: Maybe<T[SubKey]>;
-};
-const defaultOptions = {};
+export type Exact<T extends { [key: string]: unknown }> = { [K in keyof T]: T[K] };
+export type MakeOptional<T, K extends keyof T> = Omit<T, K> & { [SubKey in K]?: Maybe<T[SubKey]> };
+export type MakeMaybe<T, K extends keyof T> = Omit<T, K> & { [SubKey in K]: Maybe<T[SubKey]> };
+const defaultOptions =  {}
 /** All built-in and custom scalars, mapped to their actual values */
 export type Scalars = {
   ID: string;
@@ -72,7 +66,7 @@ export type InviteUserInput = {
 export type Mutation = {
   __typename?: 'Mutation';
   /** Accept invitation based on a token */
-  acceptInvitation: User;
+  acceptInvitation: Project;
   /** Change role of a user for a given organization */
   changeUserRole: User;
   /** Creates a new project */
@@ -93,9 +87,16 @@ export type MutationChangeUserRoleArgs = {
   input: ChangeUserRoleInput;
 };
 
+
 export type MutationCreateProjectArgs = {
   input: CreateProjectInput;
 };
+
+
+export type MutationInviteUserArgs = {
+  input: InviteUserInput;
+};
+
 
 export type MutationRemoveUserArgs = {
   input: RemoveUserInput;
@@ -148,6 +149,7 @@ export type QueryOrganizationArgs = {
   name: Scalars['String'];
 };
 
+
 export type QueryProjectArgs = {
   accountName: Scalars['String'];
   name: Scalars['String'];
@@ -163,7 +165,7 @@ export type RemoveUserInput = {
 
 export enum Role {
   Admin = 'admin',
-  User = 'user',
+  User = 'user'
 }
 
 export type User = {
@@ -177,29 +179,24 @@ export type User = {
   projects: Array<Project>;
 };
 
+export type AcceptInvitationMutationVariables = Exact<{
+  input: AcceptInvitationInput;
+}>;
+
+
+export type AcceptInvitationMutation = { __typename?: 'Mutation', acceptInvitation: { __typename?: 'Project', slug: string } };
+
 export type ChangeUserRoleMutationVariables = Exact<{
   input: ChangeUserRoleInput;
 }>;
 
-export type ChangeUserRoleMutation = {
-  __typename?: 'Mutation';
-  changeUserRole: {
-    __typename?: 'User';
-    id: string;
-    email: string;
-    avatarUrl?: string | null | undefined;
-    account: { __typename?: 'Account'; name: string };
-  };
-};
+
+export type ChangeUserRoleMutation = { __typename?: 'Mutation', changeUserRole: { __typename?: 'User', id: string, email: string, avatarUrl?: string | null | undefined, account: { __typename?: 'Account', name: string } } };
 
 export type CreateProjectMutationVariables = Exact<{
   input: CreateProjectInput;
 }>;
 
-export type CreateProjectMutation = {
-  __typename?: 'Mutation';
-  createProject: { __typename?: 'Project'; slug: string };
-};
 
 export type CreateProjectMutation = { __typename?: 'Mutation', createProject: { __typename?: 'Project', slug: string } };
 
@@ -224,152 +221,89 @@ export type MeQuery = { __typename?: 'Query', me: { __typename?: 'User', id: str
 
 export type MyAccountsQueryVariables = Exact<{ [key: string]: never; }>;
 
-export type MeQuery = {
-  __typename?: 'Query';
-  me: {
-    __typename?: 'User';
-    id: string;
-    email: string;
-    avatarUrl?: string | null | undefined;
-    lastVisitedProject?:
-      | { __typename?: 'Project'; slug: string }
-      | null
-      | undefined;
-    projects: Array<{
-      __typename?: 'Project';
-      name: string;
-      slug: string;
-    }>;
-  };
-};
 
-export type MyAccountsQueryVariables = Exact<{
-  [key: string]: never;
-}>;
+export type MyAccountsQuery = { __typename?: 'Query', accounts: Array<{ __typename?: 'Account', id: string, name: string }> };
 
-export type MyAccountsQuery = {
-  __typename?: 'Query';
-  accounts: Array<{
-    __typename?: 'Account';
-    id: string;
-    name: string;
-  }>;
-};
+export type MyOrganizationsQueryVariables = Exact<{ [key: string]: never; }>;
 
-export type MyOrganizationsQueryVariables = Exact<{
-  [key: string]: never;
-}>;
 
-export type MyOrganizationsQuery = {
-  __typename?: 'Query';
-  organizations: Array<{
-    __typename?: 'Organization';
-    account: { __typename?: 'Account'; name: string };
-  }>;
-};
+export type MyOrganizationsQuery = { __typename?: 'Query', organizations: Array<{ __typename?: 'Organization', account: { __typename?: 'Account', name: string } }> };
 
 export type OrganizationQueryVariables = Exact<{
   name: Scalars['String'];
 }>;
 
-export type OrganizationQuery = {
-  __typename?: 'Query';
-  organization?:
-    | {
-        __typename?: 'Organization';
-        users: Array<{
-          __typename?: 'User';
-          email: string;
-          avatarUrl?: string | null | undefined;
-          account: { __typename?: 'Account'; name: string };
-        }>;
-        admins: Array<{
-          __typename?: 'User';
-          email: string;
-          avatarUrl?: string | null | undefined;
-          account: { __typename?: 'Account'; name: string };
-        }>;
-      }
-    | null
-    | undefined;
-};
 
-export type OrganizationQuery = {
-  __typename?: 'Query';
-  organization?:
-    | {
-        __typename?: 'Organization';
-        id: string;
-        users: Array<{
-          __typename?: 'User';
-          id: string;
-          email: string;
-          avatarUrl?: string | null | undefined;
-          account: { __typename?: 'Account'; name: string };
-        }>;
-        admins: Array<{
-          __typename?: 'User';
-          id: string;
-          email: string;
-          avatarUrl?: string | null | undefined;
-          account: { __typename?: 'Account'; name: string };
-        }>;
-      }
-    | null
-    | undefined;
-};
+export type OrganizationQuery = { __typename?: 'Query', organization?: { __typename?: 'Organization', id: string, users: Array<{ __typename?: 'User', id: string, email: string, avatarUrl?: string | null | undefined, account: { __typename?: 'Account', name: string } }>, admins: Array<{ __typename?: 'User', id: string, email: string, avatarUrl?: string | null | undefined, account: { __typename?: 'Account', name: string } }> } | null | undefined };
 
 export type ProjectQueryVariables = Exact<{
   name: Scalars['String'];
   accountName: Scalars['String'];
 }>;
 
-export type ProjectQuery = {
-  __typename?: 'Query';
-  project?:
-    | {
-        __typename?: 'Project';
-        account: {
-          __typename?: 'Account';
-          owner:
-            | { __typename?: 'Organization'; id: string }
-            | { __typename?: 'User'; id: string };
-        };
-      }
-    | null
-    | undefined;
-};
 
-export type UserBasicInfoFragment = {
-  __typename?: 'User';
-  id: string;
-  email: string;
-  avatarUrl?: string | null | undefined;
-  account: { __typename?: 'Account'; name: string };
-};
+export type ProjectQuery = { __typename?: 'Query', project?: { __typename?: 'Project', account: { __typename?: 'Account', owner: { __typename?: 'Organization', id: string } | { __typename?: 'User', id: string } } } | null | undefined };
+
+export type RemoveUserMutationVariables = Exact<{
+  input: RemoveUserInput;
+}>;
+
+
+export type RemoveUserMutation = { __typename?: 'Mutation', removeUser: { __typename?: 'User', id: string, email: string, avatarUrl?: string | null | undefined, account: { __typename?: 'Account', name: string } } };
+
+export type UserBasicInfoFragment = { __typename?: 'User', id: string, email: string, avatarUrl?: string | null | undefined, account: { __typename?: 'Account', name: string } };
 
 export const UserBasicInfoFragmentDoc = gql`
-  fragment UserBasicInfo on User {
-    id
-    email
-    avatarUrl
-    account {
-      name
-    }
+    fragment UserBasicInfo on User {
+  id
+  email
+  avatarUrl
+  account {
+    name
   }
-`;
+}
+    `;
+export const AcceptInvitationDocument = gql`
+    mutation AcceptInvitation($input: AcceptInvitationInput!) {
+  acceptInvitation(input: $input) {
+    slug
+  }
+}
+    `;
+export type AcceptInvitationMutationFn = Apollo.MutationFunction<AcceptInvitationMutation, AcceptInvitationMutationVariables>;
+
+/**
+ * __useAcceptInvitationMutation__
+ *
+ * To run a mutation, you first call `useAcceptInvitationMutation` within a React component and pass it any options that fit your needs.
+ * When your component renders, `useAcceptInvitationMutation` returns a tuple that includes:
+ * - A mutate function that you can call at any time to execute the mutation
+ * - An object with fields that represent the current status of the mutation's execution
+ *
+ * @param baseOptions options that will be passed into the mutation, supported options are listed on: https://www.apollographql.com/docs/react/api/react-hooks/#options-2;
+ *
+ * @example
+ * const [acceptInvitationMutation, { data, loading, error }] = useAcceptInvitationMutation({
+ *   variables: {
+ *      input: // value for 'input'
+ *   },
+ * });
+ */
+export function useAcceptInvitationMutation(baseOptions?: Apollo.MutationHookOptions<AcceptInvitationMutation, AcceptInvitationMutationVariables>) {
+        const options = {...defaultOptions, ...baseOptions}
+        return Apollo.useMutation<AcceptInvitationMutation, AcceptInvitationMutationVariables>(AcceptInvitationDocument, options);
+      }
+export type AcceptInvitationMutationHookResult = ReturnType<typeof useAcceptInvitationMutation>;
+export type AcceptInvitationMutationResult = Apollo.MutationResult<AcceptInvitationMutation>;
+export type AcceptInvitationMutationOptions = Apollo.BaseMutationOptions<AcceptInvitationMutation, AcceptInvitationMutationVariables>;
 export const ChangeUserRoleDocument = gql`
-  mutation ChangeUserRole($input: ChangeUserRoleInput!) {
-    changeUserRole(input: $input) {
-      ...UserBasicInfo
-    }
+    mutation ChangeUserRole($input: ChangeUserRoleInput!) {
+  changeUserRole(input: $input) {
+    ...UserBasicInfo
   }
-  ${UserBasicInfoFragmentDoc}
-`;
-export type ChangeUserRoleMutationFn = Apollo.MutationFunction<
-  ChangeUserRoleMutation,
-  ChangeUserRoleMutationVariables
->;
+}
+    ${UserBasicInfoFragmentDoc}`;
+export type ChangeUserRoleMutationFn = Apollo.MutationFunction<ChangeUserRoleMutation, ChangeUserRoleMutationVariables>;
 
 /**
  * __useChangeUserRoleMutation__
@@ -388,39 +322,21 @@ export type ChangeUserRoleMutationFn = Apollo.MutationFunction<
  *   },
  * });
  */
-export function useChangeUserRoleMutation(
-  baseOptions?: Apollo.MutationHookOptions<
-    ChangeUserRoleMutation,
-    ChangeUserRoleMutationVariables
-  >,
-) {
-  const options = { ...defaultOptions, ...baseOptions };
-  return Apollo.useMutation<
-    ChangeUserRoleMutation,
-    ChangeUserRoleMutationVariables
-  >(ChangeUserRoleDocument, options);
-}
-export type ChangeUserRoleMutationHookResult = ReturnType<
-  typeof useChangeUserRoleMutation
->;
-export type ChangeUserRoleMutationResult =
-  Apollo.MutationResult<ChangeUserRoleMutation>;
-export type ChangeUserRoleMutationOptions =
-  Apollo.BaseMutationOptions<
-    ChangeUserRoleMutation,
-    ChangeUserRoleMutationVariables
-  >;
+export function useChangeUserRoleMutation(baseOptions?: Apollo.MutationHookOptions<ChangeUserRoleMutation, ChangeUserRoleMutationVariables>) {
+        const options = {...defaultOptions, ...baseOptions}
+        return Apollo.useMutation<ChangeUserRoleMutation, ChangeUserRoleMutationVariables>(ChangeUserRoleDocument, options);
+      }
+export type ChangeUserRoleMutationHookResult = ReturnType<typeof useChangeUserRoleMutation>;
+export type ChangeUserRoleMutationResult = Apollo.MutationResult<ChangeUserRoleMutation>;
+export type ChangeUserRoleMutationOptions = Apollo.BaseMutationOptions<ChangeUserRoleMutation, ChangeUserRoleMutationVariables>;
 export const CreateProjectDocument = gql`
-  mutation CreateProject($input: CreateProjectInput!) {
-    createProject(input: $input) {
-      slug
-    }
+    mutation CreateProject($input: CreateProjectInput!) {
+  createProject(input: $input) {
+    slug
   }
-`;
-export type CreateProjectMutationFn = Apollo.MutationFunction<
-  CreateProjectMutation,
-  CreateProjectMutationVariables
->;
+}
+    `;
+export type CreateProjectMutationFn = Apollo.MutationFunction<CreateProjectMutation, CreateProjectMutationVariables>;
 
 /**
  * __useCreateProjectMutation__
@@ -439,35 +355,9 @@ export type CreateProjectMutationFn = Apollo.MutationFunction<
  *   },
  * });
  */
-export function useCreateProjectMutation(
-  baseOptions?: Apollo.MutationHookOptions<
-    CreateProjectMutation,
-    CreateProjectMutationVariables
-  >,
-) {
-  const options = { ...defaultOptions, ...baseOptions };
-  return Apollo.useMutation<
-    CreateProjectMutation,
-    CreateProjectMutationVariables
-  >(CreateProjectDocument, options);
-}
-export type CreateProjectMutationHookResult = ReturnType<
-  typeof useCreateProjectMutation
->;
-export type CreateProjectMutationResult =
-  Apollo.MutationResult<CreateProjectMutation>;
-export type CreateProjectMutationOptions = Apollo.BaseMutationOptions<
-  CreateProjectMutation,
-  CreateProjectMutationVariables
->;
-export const MeDocument = gql`
-  query Me {
-    me {
-      id
-      email
-      avatarUrl
-      lastVisitedProject {
-        slug
+export function useCreateProjectMutation(baseOptions?: Apollo.MutationHookOptions<CreateProjectMutation, CreateProjectMutationVariables>) {
+        const options = {...defaultOptions, ...baseOptions}
+        return Apollo.useMutation<CreateProjectMutation, CreateProjectMutationVariables>(CreateProjectDocument, options);
       }
 export type CreateProjectMutationHookResult = ReturnType<typeof useCreateProjectMutation>;
 export type CreateProjectMutationResult = Apollo.MutationResult<CreateProjectMutation>;
@@ -523,11 +413,53 @@ export const InviteUserDocument = gql`
     organization {
       account {
         name
-        slug
       }
     }
   }
-`;
+}
+    ${UserBasicInfoFragmentDoc}`;
+export type InviteUserMutationFn = Apollo.MutationFunction<InviteUserMutation, InviteUserMutationVariables>;
+
+/**
+ * __useInviteUserMutation__
+ *
+ * To run a mutation, you first call `useInviteUserMutation` within a React component and pass it any options that fit your needs.
+ * When your component renders, `useInviteUserMutation` returns a tuple that includes:
+ * - A mutate function that you can call at any time to execute the mutation
+ * - An object with fields that represent the current status of the mutation's execution
+ *
+ * @param baseOptions options that will be passed into the mutation, supported options are listed on: https://www.apollographql.com/docs/react/api/react-hooks/#options-2;
+ *
+ * @example
+ * const [inviteUserMutation, { data, loading, error }] = useInviteUserMutation({
+ *   variables: {
+ *      input: // value for 'input'
+ *   },
+ * });
+ */
+export function useInviteUserMutation(baseOptions?: Apollo.MutationHookOptions<InviteUserMutation, InviteUserMutationVariables>) {
+        const options = {...defaultOptions, ...baseOptions}
+        return Apollo.useMutation<InviteUserMutation, InviteUserMutationVariables>(InviteUserDocument, options);
+      }
+export type InviteUserMutationHookResult = ReturnType<typeof useInviteUserMutation>;
+export type InviteUserMutationResult = Apollo.MutationResult<InviteUserMutation>;
+export type InviteUserMutationOptions = Apollo.BaseMutationOptions<InviteUserMutation, InviteUserMutationVariables>;
+export const MeDocument = gql`
+    query Me {
+  me {
+    id
+    email
+    avatarUrl
+    lastVisitedProject {
+      slug
+    }
+    projects {
+      name
+      slug
+    }
+  }
+}
+    `;
 
 /**
  * __useMeQuery__
@@ -544,41 +476,25 @@ export const InviteUserDocument = gql`
  *   },
  * });
  */
-export function useMeQuery(
-  baseOptions?: Apollo.QueryHookOptions<MeQuery, MeQueryVariables>,
-) {
-  const options = { ...defaultOptions, ...baseOptions };
-  return Apollo.useQuery<MeQuery, MeQueryVariables>(
-    MeDocument,
-    options,
-  );
-}
-export function useMeLazyQuery(
-  baseOptions?: Apollo.LazyQueryHookOptions<
-    MeQuery,
-    MeQueryVariables
-  >,
-) {
-  const options = { ...defaultOptions, ...baseOptions };
-  return Apollo.useLazyQuery<MeQuery, MeQueryVariables>(
-    MeDocument,
-    options,
-  );
-}
+export function useMeQuery(baseOptions?: Apollo.QueryHookOptions<MeQuery, MeQueryVariables>) {
+        const options = {...defaultOptions, ...baseOptions}
+        return Apollo.useQuery<MeQuery, MeQueryVariables>(MeDocument, options);
+      }
+export function useMeLazyQuery(baseOptions?: Apollo.LazyQueryHookOptions<MeQuery, MeQueryVariables>) {
+          const options = {...defaultOptions, ...baseOptions}
+          return Apollo.useLazyQuery<MeQuery, MeQueryVariables>(MeDocument, options);
+        }
 export type MeQueryHookResult = ReturnType<typeof useMeQuery>;
 export type MeLazyQueryHookResult = ReturnType<typeof useMeLazyQuery>;
-export type MeQueryResult = Apollo.QueryResult<
-  MeQuery,
-  MeQueryVariables
->;
+export type MeQueryResult = Apollo.QueryResult<MeQuery, MeQueryVariables>;
 export const MyAccountsDocument = gql`
-  query MyAccounts {
-    accounts {
-      id
-      name
-    }
+    query MyAccounts {
+  accounts {
+    id
+    name
   }
-`;
+}
+    `;
 
 /**
  * __useMyAccountsQuery__
@@ -595,49 +511,26 @@ export const MyAccountsDocument = gql`
  *   },
  * });
  */
-export function useMyAccountsQuery(
-  baseOptions?: Apollo.QueryHookOptions<
-    MyAccountsQuery,
-    MyAccountsQueryVariables
-  >,
-) {
-  const options = { ...defaultOptions, ...baseOptions };
-  return Apollo.useQuery<MyAccountsQuery, MyAccountsQueryVariables>(
-    MyAccountsDocument,
-    options,
-  );
-}
-export function useMyAccountsLazyQuery(
-  baseOptions?: Apollo.LazyQueryHookOptions<
-    MyAccountsQuery,
-    MyAccountsQueryVariables
-  >,
-) {
-  const options = { ...defaultOptions, ...baseOptions };
-  return Apollo.useLazyQuery<
-    MyAccountsQuery,
-    MyAccountsQueryVariables
-  >(MyAccountsDocument, options);
-}
-export type MyAccountsQueryHookResult = ReturnType<
-  typeof useMyAccountsQuery
->;
-export type MyAccountsLazyQueryHookResult = ReturnType<
-  typeof useMyAccountsLazyQuery
->;
-export type MyAccountsQueryResult = Apollo.QueryResult<
-  MyAccountsQuery,
-  MyAccountsQueryVariables
->;
-export const MyOrganizationsDocument = gql`
-  query MyOrganizations {
-    organizations {
-      account {
-        name
+export function useMyAccountsQuery(baseOptions?: Apollo.QueryHookOptions<MyAccountsQuery, MyAccountsQueryVariables>) {
+        const options = {...defaultOptions, ...baseOptions}
+        return Apollo.useQuery<MyAccountsQuery, MyAccountsQueryVariables>(MyAccountsDocument, options);
       }
+export function useMyAccountsLazyQuery(baseOptions?: Apollo.LazyQueryHookOptions<MyAccountsQuery, MyAccountsQueryVariables>) {
+          const options = {...defaultOptions, ...baseOptions}
+          return Apollo.useLazyQuery<MyAccountsQuery, MyAccountsQueryVariables>(MyAccountsDocument, options);
+        }
+export type MyAccountsQueryHookResult = ReturnType<typeof useMyAccountsQuery>;
+export type MyAccountsLazyQueryHookResult = ReturnType<typeof useMyAccountsLazyQuery>;
+export type MyAccountsQueryResult = Apollo.QueryResult<MyAccountsQuery, MyAccountsQueryVariables>;
+export const MyOrganizationsDocument = gql`
+    query MyOrganizations {
+  organizations {
+    account {
+      name
     }
   }
-`;
+}
+    `;
 
 /**
  * __useMyOrganizationsQuery__
@@ -654,54 +547,30 @@ export const MyOrganizationsDocument = gql`
  *   },
  * });
  */
-export function useMyOrganizationsQuery(
-  baseOptions?: Apollo.QueryHookOptions<
-    MyOrganizationsQuery,
-    MyOrganizationsQueryVariables
-  >,
-) {
-  const options = { ...defaultOptions, ...baseOptions };
-  return Apollo.useQuery<
-    MyOrganizationsQuery,
-    MyOrganizationsQueryVariables
-  >(MyOrganizationsDocument, options);
-}
-export function useMyOrganizationsLazyQuery(
-  baseOptions?: Apollo.LazyQueryHookOptions<
-    MyOrganizationsQuery,
-    MyOrganizationsQueryVariables
-  >,
-) {
-  const options = { ...defaultOptions, ...baseOptions };
-  return Apollo.useLazyQuery<
-    MyOrganizationsQuery,
-    MyOrganizationsQueryVariables
-  >(MyOrganizationsDocument, options);
-}
-export type MyOrganizationsQueryHookResult = ReturnType<
-  typeof useMyOrganizationsQuery
->;
-export type MyOrganizationsLazyQueryHookResult = ReturnType<
-  typeof useMyOrganizationsLazyQuery
->;
-export type MyOrganizationsQueryResult = Apollo.QueryResult<
-  MyOrganizationsQuery,
-  MyOrganizationsQueryVariables
->;
+export function useMyOrganizationsQuery(baseOptions?: Apollo.QueryHookOptions<MyOrganizationsQuery, MyOrganizationsQueryVariables>) {
+        const options = {...defaultOptions, ...baseOptions}
+        return Apollo.useQuery<MyOrganizationsQuery, MyOrganizationsQueryVariables>(MyOrganizationsDocument, options);
+      }
+export function useMyOrganizationsLazyQuery(baseOptions?: Apollo.LazyQueryHookOptions<MyOrganizationsQuery, MyOrganizationsQueryVariables>) {
+          const options = {...defaultOptions, ...baseOptions}
+          return Apollo.useLazyQuery<MyOrganizationsQuery, MyOrganizationsQueryVariables>(MyOrganizationsDocument, options);
+        }
+export type MyOrganizationsQueryHookResult = ReturnType<typeof useMyOrganizationsQuery>;
+export type MyOrganizationsLazyQueryHookResult = ReturnType<typeof useMyOrganizationsLazyQuery>;
+export type MyOrganizationsQueryResult = Apollo.QueryResult<MyOrganizationsQuery, MyOrganizationsQueryVariables>;
 export const OrganizationDocument = gql`
-  query Organization($name: String!) {
-    organization(name: $name) {
-      id
-      users {
-        ...UserBasicInfo
-      }
-      admins {
-        ...UserBasicInfo
-      }
+    query Organization($name: String!) {
+  organization(name: $name) {
+    id
+    users {
+      ...UserBasicInfo
+    }
+    admins {
+      ...UserBasicInfo
     }
   }
-  ${UserBasicInfoFragmentDoc}
-`;
+}
+    ${UserBasicInfoFragmentDoc}`;
 
 /**
  * __useOrganizationQuery__
@@ -719,56 +588,33 @@ export const OrganizationDocument = gql`
  *   },
  * });
  */
-export function useOrganizationQuery(
-  baseOptions: Apollo.QueryHookOptions<
-    OrganizationQuery,
-    OrganizationQueryVariables
-  >,
-) {
-  const options = { ...defaultOptions, ...baseOptions };
-  return Apollo.useQuery<
-    OrganizationQuery,
-    OrganizationQueryVariables
-  >(OrganizationDocument, options);
-}
-export function useOrganizationLazyQuery(
-  baseOptions?: Apollo.LazyQueryHookOptions<
-    OrganizationQuery,
-    OrganizationQueryVariables
-  >,
-) {
-  const options = { ...defaultOptions, ...baseOptions };
-  return Apollo.useLazyQuery<
-    OrganizationQuery,
-    OrganizationQueryVariables
-  >(OrganizationDocument, options);
-}
-export type OrganizationQueryHookResult = ReturnType<
-  typeof useOrganizationQuery
->;
-export type OrganizationLazyQueryHookResult = ReturnType<
-  typeof useOrganizationLazyQuery
->;
-export type OrganizationQueryResult = Apollo.QueryResult<
-  OrganizationQuery,
-  OrganizationQueryVariables
->;
+export function useOrganizationQuery(baseOptions: Apollo.QueryHookOptions<OrganizationQuery, OrganizationQueryVariables>) {
+        const options = {...defaultOptions, ...baseOptions}
+        return Apollo.useQuery<OrganizationQuery, OrganizationQueryVariables>(OrganizationDocument, options);
+      }
+export function useOrganizationLazyQuery(baseOptions?: Apollo.LazyQueryHookOptions<OrganizationQuery, OrganizationQueryVariables>) {
+          const options = {...defaultOptions, ...baseOptions}
+          return Apollo.useLazyQuery<OrganizationQuery, OrganizationQueryVariables>(OrganizationDocument, options);
+        }
+export type OrganizationQueryHookResult = ReturnType<typeof useOrganizationQuery>;
+export type OrganizationLazyQueryHookResult = ReturnType<typeof useOrganizationLazyQuery>;
+export type OrganizationQueryResult = Apollo.QueryResult<OrganizationQuery, OrganizationQueryVariables>;
 export const ProjectDocument = gql`
-  query Project($name: String!, $accountName: String!) {
-    project(name: $name, accountName: $accountName) {
-      account {
-        owner {
-          ... on Organization {
-            id
-          }
-          ... on User {
-            id
-          }
+    query Project($name: String!, $accountName: String!) {
+  project(name: $name, accountName: $accountName) {
+    account {
+      owner {
+        ... on Organization {
+          id
+        }
+        ... on User {
+          id
         }
       }
     }
   }
-`;
+}
+    `;
 
 /**
  * __useProjectQuery__
@@ -787,37 +633,47 @@ export const ProjectDocument = gql`
  *   },
  * });
  */
-export function useProjectQuery(
-  baseOptions: Apollo.QueryHookOptions<
-    ProjectQuery,
-    ProjectQueryVariables
-  >,
-) {
-  const options = { ...defaultOptions, ...baseOptions };
-  return Apollo.useQuery<ProjectQuery, ProjectQueryVariables>(
-    ProjectDocument,
-    options,
-  );
+export function useProjectQuery(baseOptions: Apollo.QueryHookOptions<ProjectQuery, ProjectQueryVariables>) {
+        const options = {...defaultOptions, ...baseOptions}
+        return Apollo.useQuery<ProjectQuery, ProjectQueryVariables>(ProjectDocument, options);
+      }
+export function useProjectLazyQuery(baseOptions?: Apollo.LazyQueryHookOptions<ProjectQuery, ProjectQueryVariables>) {
+          const options = {...defaultOptions, ...baseOptions}
+          return Apollo.useLazyQuery<ProjectQuery, ProjectQueryVariables>(ProjectDocument, options);
+        }
+export type ProjectQueryHookResult = ReturnType<typeof useProjectQuery>;
+export type ProjectLazyQueryHookResult = ReturnType<typeof useProjectLazyQuery>;
+export type ProjectQueryResult = Apollo.QueryResult<ProjectQuery, ProjectQueryVariables>;
+export const RemoveUserDocument = gql`
+    mutation RemoveUser($input: RemoveUserInput!) {
+  removeUser(input: $input) {
+    ...UserBasicInfo
+  }
 }
-export function useProjectLazyQuery(
-  baseOptions?: Apollo.LazyQueryHookOptions<
-    ProjectQuery,
-    ProjectQueryVariables
-  >,
-) {
-  const options = { ...defaultOptions, ...baseOptions };
-  return Apollo.useLazyQuery<ProjectQuery, ProjectQueryVariables>(
-    ProjectDocument,
-    options,
-  );
-}
-export type ProjectQueryHookResult = ReturnType<
-  typeof useProjectQuery
->;
-export type ProjectLazyQueryHookResult = ReturnType<
-  typeof useProjectLazyQuery
->;
-export type ProjectQueryResult = Apollo.QueryResult<
-  ProjectQuery,
-  ProjectQueryVariables
->;
+    ${UserBasicInfoFragmentDoc}`;
+export type RemoveUserMutationFn = Apollo.MutationFunction<RemoveUserMutation, RemoveUserMutationVariables>;
+
+/**
+ * __useRemoveUserMutation__
+ *
+ * To run a mutation, you first call `useRemoveUserMutation` within a React component and pass it any options that fit your needs.
+ * When your component renders, `useRemoveUserMutation` returns a tuple that includes:
+ * - A mutate function that you can call at any time to execute the mutation
+ * - An object with fields that represent the current status of the mutation's execution
+ *
+ * @param baseOptions options that will be passed into the mutation, supported options are listed on: https://www.apollographql.com/docs/react/api/react-hooks/#options-2;
+ *
+ * @example
+ * const [removeUserMutation, { data, loading, error }] = useRemoveUserMutation({
+ *   variables: {
+ *      input: // value for 'input'
+ *   },
+ * });
+ */
+export function useRemoveUserMutation(baseOptions?: Apollo.MutationHookOptions<RemoveUserMutation, RemoveUserMutationVariables>) {
+        const options = {...defaultOptions, ...baseOptions}
+        return Apollo.useMutation<RemoveUserMutation, RemoveUserMutationVariables>(RemoveUserDocument, options);
+      }
+export type RemoveUserMutationHookResult = ReturnType<typeof useRemoveUserMutation>;
+export type RemoveUserMutationResult = Apollo.MutationResult<RemoveUserMutation>;
+export type RemoveUserMutationOptions = Apollo.BaseMutationOptions<RemoveUserMutation, RemoveUserMutationVariables>;

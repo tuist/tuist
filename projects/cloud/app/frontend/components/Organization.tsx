@@ -161,6 +161,7 @@ const Organization = observer(() => {
                 organizationStore.inviteMember(
                   organizationViewStore.inviteeEmail,
                 );
+                organizationViewStore.invitePopoverClosed();
               }}
             >
               Invite member

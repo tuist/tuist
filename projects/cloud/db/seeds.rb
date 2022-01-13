@@ -33,7 +33,7 @@ end
     owner: user
   )
   organization = Organization.find(Faker::Number.between(from: 1, to: 4))
-  user.add_role(:user, organization)
+  user.add_role(:admin, organization)
   puts "email: #{email}"
   puts "password: #{password}"
 end

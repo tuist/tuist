@@ -1,4 +1,7 @@
-import { InvitationDocument } from '@/graphql/types';
+import {
+  AcceptInvitationDocument,
+  InvitationDocument,
+} from '@/graphql/types';
 import { ApolloClient } from '@apollo/client';
 import { makeAutoObservable, runInAction } from 'mobx';
 
@@ -17,12 +20,18 @@ class AcceptInvitationViewStore {
       query: InvitationDocument,
       variables: { token },
     });
-    console.log(data);
     runInAction(() => {
       this.organizationName = data.invitation.organization.name;
       this.inviterEmail = data.invitation.inviter.account.name;
-      console.log(this.organizationName);
     });
+  }
+
+  async acceptInvitation(token: string): Promise<string> {
+    const { data } = await this.client.mutate({
+      mutation: AcceptInvitationDocument,
+      variables: { input: { token } },
+    });
+    return data.acceptInvitation.slug;
   }
 }
 

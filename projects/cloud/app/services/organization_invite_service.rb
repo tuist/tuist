@@ -45,7 +45,10 @@ class OrganizationInviteService < ApplicationService
     )
     InvitationMailer
       .invitation_mail(
-        invitation: invitation
+        inviter: inviter,
+        invitee: invitee,
+        organization: organization,
+        token: token
       )
       .deliver_now
     invitation

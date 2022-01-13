@@ -70,7 +70,7 @@ type Mutation {
     Parameters for AcceptInvitation
     """
     input: AcceptInvitationInput!
-  ): User!
+  ): Project!
 
   """
   Change role of a user for a given organization

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { CalloutCard } from '@shopify/polaris';
-import { useParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import AcceptInvitationViewStore from '@/stores/AcceptInvitationViewStore';
 import { useApolloClient } from '@apollo/client';
 import { observer } from 'mobx-react-lite';
@@ -12,9 +12,11 @@ const AcceptInvitationView = observer(() => {
     () => new AcceptInvitationViewStore(client),
   );
   useEffect(() => {
-    console.log('loading');
     acceptInvitationViewStore.load(token ?? '');
   }, [token]);
+
+  const navigate = useNavigate();
+
   return (
     <div
       style={{
@@ -28,6 +30,13 @@ const AcceptInvitationView = observer(() => {
         title={`${acceptInvitationViewStore.inviterEmail} has invited you to join the ${acceptInvitationViewStore.organizationName} organization.`}
         primaryAction={{
           content: 'Accept the invitation',
+          onAction: async () => {
+            const slug =
+              await acceptInvitationViewStore.acceptInvitation(
+                token ?? '',
+              );
+            navigate(`/${slug}`);
+          },
         }}
       >
         <p>
