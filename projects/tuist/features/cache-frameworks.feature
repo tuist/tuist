@@ -9,7 +9,7 @@ Feature: Focuses projects with pre-compiled cached xcframeworks
     Then MyApp links the framework MyAppKit from the cache
     Then MyApp links the framework MyAppUI from the cache
     Then I should be able to build for iOS the scheme MyApp
-    Then I should be able to test for iOS the scheme MyAppTests
+    Then I should be able to test for iOS the scheme MyApp
 
   Scenario: The project is an iOS application with a target dependency and transitive framework dependency (ios_app_with_transitive_project)
     Given that tuist is available
