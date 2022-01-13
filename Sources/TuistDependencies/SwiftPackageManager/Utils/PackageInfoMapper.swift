@@ -291,6 +291,34 @@ public final class PackageInfoMapper: PackageInfoMapping {
         packageToProject: [String: AbsolutePath],
         swiftToolsVersion: TSCUtility.Version?
     ) throws -> ProjectDescription.Project? {
+        // Hardcoded mapping for some well known libraries, until the logic can handle those properly
+        let productTypes = productTypes.merging(
+            [
+                // Force dynamic frameworks
+                "RxSwift": .framework // https://github.com/ReactiveX/RxSwift
+            ],
+            uniquingKeysWith: { userDefined, _ in userDefined }
+        )
+        let targetSettings = targetSettings.merging(
+            // Force enable testing search paths
+            Dictionary(
+                uniqueKeysWithValues: [
+                    "Nimble", // https://github.com/Quick/Nimble
+                    "Quick", // https://github.com/Quick/Quick
+                    "RxTest", // https://github.com/ReactiveX/RxSwift
+                    "RxTest-Dynamic", // https://github.com/ReactiveX/RxSwift
+                    "SnapshotTesting", // https://github.com/pointfreeco/swift-snapshot-testing
+                    "TempuraTesting", // https://github.com/BendingSpoons/tempura-swift
+                ].map {
+                    ($0, ["ENABLE_TESTING_SEARCH_PATHS": "YES"])
+                }
+            ),
+            uniquingKeysWith: { userDefined, defaultDictionary in
+                return userDefined.merging(defaultDictionary, uniquingKeysWith: { userDefined, _ in userDefined })
+            }
+        )
+        print(targetSettings)
+
         let targets = try packageInfo.targets.compactMap { target -> ProjectDescription.Target? in
             guard let products = targetToProducts[target.name] else { return nil }
             return try Target.from(
