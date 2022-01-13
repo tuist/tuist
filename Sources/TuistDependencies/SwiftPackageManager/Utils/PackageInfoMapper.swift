@@ -293,10 +293,15 @@ public final class PackageInfoMapper: PackageInfoMapping {
     ) throws -> ProjectDescription.Project? {
         // Hardcoded mapping for some well known libraries, until the logic can handle those properly
         let productTypes = productTypes.merging(
-            [
-                // Force dynamic frameworks
-                "RxSwift": .framework, // https://github.com/ReactiveX/RxSwift
-            ],
+            // Force dynamic frameworks
+            Dictionary(
+                uniqueKeysWithValues: [
+                    "Checksum", // https://github.com/rnine/Checksum
+                    "RxSwift", // https://github.com/ReactiveX/RxSwift
+                ].map {
+                    ($0, .framework)
+                }
+            ),
             uniquingKeysWith: { userDefined, _ in userDefined }
         )
         let targetSettings = targetSettings.merging(
@@ -309,6 +314,7 @@ public final class PackageInfoMapper: PackageInfoMapping {
                     "RxTest-Dynamic", // https://github.com/ReactiveX/RxSwift
                     "SnapshotTesting", // https://github.com/pointfreeco/swift-snapshot-testing
                     "TempuraTesting", // https://github.com/BendingSpoons/tempura-swift
+                    "TSCTestSupport", // https://github.com/apple/swift-tools-support-core
                 ].map {
                     ($0, ["ENABLE_TESTING_SEARCH_PATHS": "YES"])
                 }

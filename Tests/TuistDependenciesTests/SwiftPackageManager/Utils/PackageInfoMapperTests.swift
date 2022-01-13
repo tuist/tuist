@@ -2322,7 +2322,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
 
     func testMap_whenTargetsWithDefaultHardcodedMapping() throws {
         let basePath = try temporaryPath()
-        let testTargets = ["Nimble", "Quick", "RxTest", "RxTest-Dynamic", "SnapshotTesting", "TempuraTesting"]
+        let testTargets = ["Nimble", "Quick", "RxTest", "RxTest-Dynamic", "SnapshotTesting", "TempuraTesting", "TSCTestSupport"]
         let allTargets = ["RxSwift"] + testTargets
         try allTargets
             .map { basePath.appending(RelativePath("Package/Path/Sources/\($0)")) }
