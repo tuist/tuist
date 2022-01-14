@@ -11,6 +11,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Add ability to specify as a command line argument, the Xcode version to use when bundling/releasing tuist and its libraries [#3957](https://github.com/tuist/tuist/pull/3957) by [@hisaac](https://github.com/hisaac)
+- Add PLCrashReporter to fixture tests for iOS app with SPM dependencies [#4000](https://github.com/tuist/tuist/pull/3957) by [@ffittschen](https://github.com/ffittschen)
 
 ### Fixed
 
