@@ -110,7 +110,7 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
         case .iOS: mappedPlatform = .iOS
         case .watchOS: mappedPlatform = .watchOS
         case .tvOS: mappedPlatform = .tvOS
-        case .macOS: return .just("generic/platform=macOS")
+        case .macOS: return .just("platform=macOS,arch=x86_64")
         }
 
         return simulatorController.findAvailableDevice(
