@@ -13,10 +13,15 @@ let dependencies = Dependencies(
             .package(url: "https://github.com/Quick/Quick", .upToNextMajor(from: "4.0.0")),
             .package(url: "https://github.com/Quick/Nimble", .upToNextMajor(from: "9.0.0")),
             .package(url: "https://github.com/realm/realm-cocoa.git", .upToNextMajor(from: "10.7.2")),
+            .package(url: "https://github.com/microsoft/plcrashreporter.git", .upToNextMajor(from: "1.10.1")),
         ],
         targetSettings: [
             "Quick": ["ENABLE_TESTING_SEARCH_PATHS": "YES"],
             "Nimble": ["ENABLE_TESTING_SEARCH_PATHS": "YES"],
+            "CrashReporter": [
+                "ALWAYS_SEARCH_USER_PATHS": "NO",
+                "USE_HEADERMAP": "YES"
+            ],
         ]
     ),
     platforms: [.iOS]
