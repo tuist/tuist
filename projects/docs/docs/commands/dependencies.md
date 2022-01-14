@@ -4,7 +4,7 @@ slug: '/commands/dependencies'
 description: "Learn how to use Tuist's dependencies commands to manage external dependencies."
 ---
 
-Tuist provides a first-class support for integrating external dependencies into your projects. External dependencies [are declared](/guides/third-party-dependencies/) in a `Tuist/Dependencies.swift` file, and through the commands described in this page you can **fetch, update, and clean** dependencies in your project's directory. Tuist integrates them automatically when generating the Xcode projects.
+Tuist provides a first-class support for integrating external dependencies into your projects. External dependencies [are declared](guides/third-party-dependencies.md) in a `Tuist/Dependencies.swift` file, and through the commands described in this page you can **fetch, update, and clean** dependencies in your project's directory. Tuist integrates them automatically when generating the Xcode projects.
 
 ### Commands
 
