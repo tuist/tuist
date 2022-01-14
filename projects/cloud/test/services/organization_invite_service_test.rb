@@ -7,6 +7,7 @@ class OrganizationInviteServiceTest < ActiveSupport::TestCase
     # Given
     inviter = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
     organization = Organization.create!
+    Account.create!(owner: organization, name: "tuist")
     inviter.add_role(:admin, organization)
     invitee = "test1@cloud.tuist.io"
 
