@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TSCUtility
 
 public protocol GitHandling {
     /// Clones the given `url` **into** the given `path`.
@@ -29,6 +30,12 @@ public protocol GitHandling {
     ///   - id: An identifier for the `git checkout` command.
     ///   - path: The path to the git repository (location with `.git` directory) in which to perform the checkout.
     func checkout(id: String, in path: AbsolutePath?) throws
+
+    /// Return the tagged versions of the repository at the given `url`.
+    ///
+    /// - Parameters:
+    ///   - url: The `url` of the git repository.
+    func remoteTaggedVersions(url: String) throws -> [Version]
 }
 
 /// An implementation of `GitHandling`.
@@ -63,11 +70,42 @@ public final class GitHandler: GitHandling {
         }
     }
 
+    public func remoteTaggedVersions(url: String) throws -> [Version] {
+        try parseVersions(lsRemote(url: url))
+    }
+
     private func run(command: String...) throws {
         if Environment.shared.isVerbose {
             try system.runAndPrint(command, verbose: true, environment: System.shared.env)
         } else {
             try system.run(command)
         }
+    }
+
+    private func capture(command: String...) throws -> String {
+        if Environment.shared.isVerbose {
+            return try system.capture(command, verbose: true, environment: System.shared.env)
+        } else {
+            return try system.capture(command)
+        }
+    }
+
+    private func parseVersions(_ unparsed: String) throws -> [Version] {
+        let regex = try NSRegularExpression(pattern: ##"tags/([0-9]+.[0-9]+.[0-9]+)"##, options: [])
+        let changelogRange = NSRange(
+            unparsed.startIndex ..< unparsed.endIndex,
+            in: unparsed
+        )
+        let matches = regex.matches(in: unparsed, options: [], range: changelogRange)
+
+        let versions = matches.map { result -> Version in
+            let matchRange = result.range(at: 1)
+            return Version(stringLiteral: String(unparsed[Range(matchRange, in: unparsed)!]))
+        }
+        return versions
+    }
+
+    private func lsRemote(url: String) throws -> String {
+        try capture(command: "git", "ls-remote", "-t", "--sort=v:refname", url)
     }
 }

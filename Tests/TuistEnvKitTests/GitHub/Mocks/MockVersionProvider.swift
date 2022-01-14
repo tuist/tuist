@@ -10,21 +10,21 @@ import TuistSupportTesting
 final class MockVersionProvider: VersionProviding {
     var invokedVersions = false
     var invokedVersionsCount = 0
-    var stubbedVersionsResult: Result<[Version], Error>!
+    var stubbedVersionsResult: [Version]!
 
-    func versions() -> AnyPublisher<[Version], Error> {
+    func versions() -> [Version] {
         invokedVersions = true
         invokedVersionsCount += 1
-        return AnyPublisher(result: stubbedVersionsResult)
+        return stubbedVersionsResult
     }
 
     var invokedLatestVersion = false
     var invokedLatestVersionCount = 0
-    var stubbedLatestVersionResult: Result<Version, Error>!
+    var stubbedLatestVersionResult: Version?
 
-    func latestVersion() -> AnyPublisher<Version, Error> {
+    func latestVersion() -> Version? {
         invokedLatestVersion = true
         invokedLatestVersionCount += 1
-        return AnyPublisher(result: stubbedLatestVersionResult)
+        return stubbedLatestVersionResult
     }
 }

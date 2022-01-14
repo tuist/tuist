@@ -41,4 +41,4 @@ We **recommend** the usage of the Tuist-hosted solution.
 It provides benefits like support, monitoring, and continuous updates,
 and you support a project your project depends on.
 You can also take the adventurous path of building your backend.
-The [specification](/cloud/specification) documents the contract and designs it to be platform-agnostic.
+The [specification](cloud/specification.md) documents the contract and designs it to be platform-agnostic.
