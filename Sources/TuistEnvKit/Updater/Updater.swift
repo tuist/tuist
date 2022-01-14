@@ -34,7 +34,7 @@ final class Updater: Updating {
             logger.info("Updating tuistenv", metadata: .section)
             try? self.envUpdater.update()
         }
-        guard let highestRemoteVersion = try versionProvider.latestVersion().toBlocking().first else {
+        guard let highestRemoteVersion = try versionProvider.latestVersion() else {
             logger.warning("No remote versions found")
             return
         }

@@ -1,3 +1,4 @@
+import TSCUtility
 import XCTest
 
 @testable import TuistSupport
@@ -79,5 +80,33 @@ final class GitHandlerTests: TuistUnitTestCase {
             "checkout",
             id
         ))
+    }
+
+    func test_parsed_versions() throws {
+        let url = "https://some/url/to/repo.git"
+
+        let expectedCommand = [
+            "git",
+            "ls-remote",
+            "-t",
+            "--sort=v:refname",
+            url,
+        ]
+
+        let output = """
+            4e4230bb95e1c57e82a1e5f9b4c79486fc2543fb    refs/tags/1.9.0
+            There are no versions on this line.
+            d265964d42bb934783246c3158297592b4977c3c    refs/tags/1.52.0
+            5e17254d4a3c14454ecab6575b4a44d6685d3865    refs/tags/2.0.0
+        """
+
+        let expectedResult = [Version(1, 9, 0), Version(1, 52, 0), Version(2, 0, 0)]
+
+        system.stubs[expectedCommand.joined(separator: " ")] = (stderror: nil, stdout: output, exitstatus: 0)
+
+        let result = try subject.remoteTaggedVersions(url: url)
+
+        XCTAssertTrue(system.called(expectedCommand))
+        XCTAssertEqual(result, expectedResult)
     }
 }

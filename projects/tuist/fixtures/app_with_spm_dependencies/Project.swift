@@ -21,6 +21,7 @@ let project = Project(
                 .external(name: "FirebaseDatabase"),
                 .external(name: "FirebaseFirestore"),
                 .external(name: "GoogleSignIn"),
+                .external(name: "Realm"),
             ]
         ),
         Target(

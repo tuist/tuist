@@ -722,7 +722,7 @@ extension ProjectDescription.Settings {
         if !defines.isEmpty {
             let sortedDefines = defines.sorted { $0.key < $1.key }
             settingsDictionary["GCC_PREPROCESSOR_DEFINITIONS"] = .array(["$(inherited)"] + sortedDefines.map { key, value in
-                "\(key)=\(value)"
+                "\(key)=\(value.spm_shellEscaped())"
             })
         }
 

@@ -5,7 +5,7 @@ description: Learn how to use Tuist from your continuous integration pipelines.
 ---
 
 Tuist projects might need Tuist to be present in their continuous integration (CI) environments to generate, build, and test the projects.
-To do so, you can add a step to your CI pipeline that executes the [installation command](/tutorial/get-started#install).
+To do so, you can add a step to your CI pipeline that executes the [installation command](tutorial/get-started.md#install).
 However, we recommend using pipeline steps designed by us. It's more convenient, and you'll benefit from optimizations and integrations with the underlying CI provider that otherwise you'd have to build yourself.
 
 ### GitHub Actions

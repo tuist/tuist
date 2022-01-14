@@ -58,4 +58,4 @@ If `.string` and `.files` don't provide enough flexibility, you can leverage the
 
 You can also use `.directory` which gives the possibility to copy entire folders to a given path.
 
-Templates can import [project description helpers](/guides/helpers/). Just add `import ProjectDescriptionHelpers` at the top, and extract reusable logic into the helpers.
+Templates can import [project description helpers](guides/helpers.md). Just add `import ProjectDescriptionHelpers` at the top, and extract reusable logic into the helpers.
