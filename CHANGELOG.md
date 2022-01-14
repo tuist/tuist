@@ -14,6 +14,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
   - **Migration:** move the `disableBundleAccessors` and `disableSynthesizedResourceAccessors` from `Config.swift` to `Project.ProjectOption`
 - **Breaking** replace `SourceFileGlob` initializer with static `.glob` method [#3960](https://github.com/tuist/tuist/pull/3960) by [@danyf90](https://github.com/danyf90)
   - **Migration:** Use the `.glob` method instead of the initializer
+- **Breaking** remove the `tuist lint code` command [#4001](https://github.com/tuist/tuist/pull/4001) by [@laxmorek](https://github.com/laxmorek)
+  - **Migration:** Use [tuist-plugin-swiftlint](https://github.com/tuist/tuist-plugin-swiftlint) instead. Read more about plugins [here](https://docs.tuist.io/plugins/using-plugins).
+- **Breaking** remove the `tuist lint project` command [#4001](https://github.com/tuist/tuist/pull/4001) by [@laxmorek](https://github.com/laxmorek)
+  - **Motivation:** `tuist` manifests/graphs are linted during generation (the `tusit generate` command), no need to keep it separately.
 
 ## Next
 
