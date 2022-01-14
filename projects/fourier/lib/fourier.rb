@@ -46,9 +46,21 @@ module Fourier
     desc "encrypt", "Encrypt content in the repository"
     subcommand "encrypt", Commands::Encrypt
 
-    desc "focus TARGETS", "Generate Tuist's project focusing on the target TARGET"
-    def focus(*targets)
-      Services::Focus.call(targets: targets)
+    desc "focus TARGETS", "Generate Tuist's project focusing on the targets TARGETS"
+    option(
+      :source,
+      desc: "Builds Tuist from source and uses that to focus on the targets.",
+      type: :boolean,
+      default: false
+    )
+    option(
+      :targets,
+      desc: "The targets to focus on. (Default = all targets)",
+      type: :array,
+      default: []
+    )
+    def focus
+      Services::Focus.call(targets: options[:targets], source: options[:source])
     end
 
     desc "tuist", "Runs Tuist"

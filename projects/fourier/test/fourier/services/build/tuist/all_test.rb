@@ -11,13 +11,13 @@ module Fourier
             # Given
             Utilities::System
               .expects(:tuist)
-              .with("dependencies", "fetch")
+              .with("dependencies", "fetch", source: false)
             Utilities::System
               .expects(:tuist)
-              .with("build", "--generate")
+              .with("build", "--generate", source: false)
 
             # Then
-            Services::Build::Tuist::All.call
+            Services::Build::Tuist::All.call(source: false)
           end
         end
       end

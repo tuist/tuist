@@ -5,10 +5,16 @@ module Fourier
     module Test
       module Tuist
         class Unit < Base
+          attr_reader :source
+
+          def initialize(source: false)
+            @source = source
+          end
+
           def call
             dependencies = ["dependencies", "fetch"]
-            Utilities::System.tuist(*dependencies)
-            Utilities::System.tuist("test")
+            Utilities::System.tuist(*dependencies, source: @source)
+            Utilities::System.tuist("test", source: @source)
             Dir.chdir(Constants::TUIST_DIRECTORY) do
               Utilities::System.system("swift", "test")
             end

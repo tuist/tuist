@@ -10,10 +10,10 @@ module Fourier
           # Given
           Utilities::System
             .expects(:tuist)
-            .with("edit", "--only-current-directory")
+            .with("edit", "--only-current-directory", source: false)
 
           # Then
-          Services::Edit::Tuist.call
+          Services::Edit::Tuist.call(source: false)
         end
       end
     end

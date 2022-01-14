@@ -5,13 +5,25 @@ module Fourier
     class Test < Base
       class Tuist < Base
         desc "unit", "Run Tuist unit tests"
+        option(
+          :source,
+          desc: "Builds Tuist from source and uses that to run the Tuist project unit tests.",
+          type: :boolean,
+          required: false
+        )
         def unit
-          Services::Test::Tuist::Unit.call
+          Services::Test::Tuist::Unit.call(source: options[:source])
         end
 
         desc "support", "Run TuistSupport unit tests"
+        option(
+          :source,
+          desc: "Builds Tuist from source and uses that to run the TuistSupport unit tests.",
+          type: :boolean,
+          required: false
+        )
         def support
-          Services::Test::Tuist::Support.call
+          Services::Test::Tuist::Support.call(source: options[:source])
         end
 
         desc "acceptance FEATURE", "Runs the acceptance tests for a given feature."\

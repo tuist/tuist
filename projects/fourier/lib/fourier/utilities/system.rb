@@ -9,17 +9,17 @@ module Fourier
         Kernel.system(*args) || exit(1)
       end
 
-      def self.tuist(*args, **kwargs)
-        @tuist = "/usr/local/bin/tuist"
+      def self.tuist(*args, source: false)
+        tuist = "/usr/local/bin/tuist"
 
-        if kwargs[:from_source] || !File.exist?(@tuist)
+        if source || !File.exist?(tuist)
           Dir.chdir(Constants::TUIST_DIRECTORY) do
             self.system("swift", "build")
-            @tuist = ".build/debug/tuist"
+            tuist = ".build/debug/tuist"
           end
         end
 
-        self.system(@tuist, *args)
+        self.system(tuist, *args)
       end
 
       def self.fixturegen(*args)

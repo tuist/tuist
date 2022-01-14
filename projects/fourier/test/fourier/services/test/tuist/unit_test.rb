@@ -13,16 +13,16 @@ module Fourier
             # Given
             Utilities::System
               .expects(:tuist)
-              .with("dependencies", "fetch")
+              .with("dependencies", "fetch", source: false)
             Utilities::System
               .expects(:tuist)
-              .with("test")
+              .with("test", source: false)
             Utilities::System
               .expects(:system)
               .with("swift", "test")
 
             # When/Then
-            Unit.call
+            Unit.call(source: false)
           end
         end
       end

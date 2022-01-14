@@ -15,10 +15,41 @@ By implementing our CLI tool within the repository we can better ensure the inte
 Before running Fourier, make sure that you have the Ruby version specified in the `.ruby-version` file, and that you have fetched the [Bundler](https://bundler.io) dependencies specified in the `Gemfile` by running `bundle install`. Then, you can run the following command:
 
 ```bash
-./fourier --help
+./fourier
 ```
 
-It'll output the list of available commands that you can run.
+#### Fourier Commands
+
+Commands typically have subcommands to reduce the number of options for a command.
+
+```bash
+./fourier lint tuist
+./fourier lint all --fix
+```
+
+You can checkout the help text for any command (or subcommand) with `--help`.
+
+```bash
+./fourier lint --help
+Commands:
+  fourier lint all                   # Lint all the code in the repository
+  fourier lint backbone              # Lint the Ruby code of the Backbone project
+  fourier lint cloud                 # Lint the Ruby code of the Cloud project
+  fourier lint cocoapods-interactor  # Lint the Ruby code of the CocoaPods interactor project
+  fourier lint fixturegen            # Lint the Swift code of the fixturegen project
+  fourier lint fourier               # Lint the Ruby code of the fixturegen project
+  fourier lint help [COMMAND]        # Describe subcommands or one specific subcommand
+  fourier lint lockfiles             # Ensures SPM and Tuist's generated lockfiles are consistent
+  fourier lint tuist                 # Lint the Swift code of the Tuist CLI
+  fourier lint tuistbench            # Lint the Swift code of the tuistbench project
+```
+
+#### Source build tools
+
+When using some commands like `./fourier test tuist` we use `tuist` to generate the project and test it.
+By default, `fourier` will attempt to use the installed version of `tuist` on the host machine. If no such version exists, it will build the `tuist` binary from the sources of the checked out repository.
+
+You may also override this behavior if you explicitly want to build from source when using the build tools with `--source` on commands that support this option.
 
 ### Shadowenv
 

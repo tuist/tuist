@@ -11,8 +11,14 @@ module Fourier
         type: :boolean,
         aliases: :o
       )
+      option(
+        :source,
+        desc: "Builds Tuist from source to generate the project",
+        default: false,
+        type: :boolean
+      )
       def tuist
-        Services::Generate::Tuist.call(open: options[:open])
+        Services::Generate::Tuist.call(open: options[:open], source: options[:source])
       end
     end
   end

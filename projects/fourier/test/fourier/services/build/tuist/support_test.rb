@@ -11,10 +11,10 @@ module Fourier
             # Given
             Utilities::System
               .expects(:tuist)
-              .with("build", "TuistSupport")
+              .with("build", "TuistSupport", source: false)
 
             # Then
-            Services::Build::Tuist::Support.call
+            Services::Build::Tuist::Support.call(source: false)
           end
         end
       end

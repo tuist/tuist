@@ -8,20 +8,20 @@ module Fourier
       class TuistTest < TestCase
         def test_calls_tuist_with_the_right_arguments
           # Given
-          Utilities::System.expects(:tuist).with("dependencies", "fetch")
-          Utilities::System.expects(:tuist).with("generate")
+          Utilities::System.expects(:tuist).with("dependencies", "fetch", source: false)
+          Utilities::System.expects(:tuist).with("generate", source: false)
 
           # When/Then
-          Fourier::Services::Generate::Tuist.call(open: false)
+          Fourier::Services::Generate::Tuist.call(open: false, source: false)
         end
 
         def test_calls_tuist_with_the_right_arguments_when_open_is_true
           # Given
-          Utilities::System.expects(:tuist).with("dependencies", "fetch")
-          Utilities::System.expects(:tuist).with("generate", "--open")
+          Utilities::System.expects(:tuist).with("dependencies", "fetch", source: false)
+          Utilities::System.expects(:tuist).with("generate", "--open", source: false)
 
           # When/Then
-          Fourier::Services::Generate::Tuist.call(open: true)
+          Fourier::Services::Generate::Tuist.call(open: true, source: false)
         end
       end
     end

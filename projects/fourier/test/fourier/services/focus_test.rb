@@ -9,17 +9,17 @@ module Fourier
         # Given
         Utilities::System
           .expects(:tuist)
-          .with("cache", "warm", "--dependencies-only")
+          .with("cache", "warm", "--dependencies-only", source: false)
         Utilities::System
           .expects(:tuist)
-          .with("dependencies", "fetch")
+          .with("dependencies", "fetch", source: false)
         targets = ["TuistSupport", "TuistSupportTests"]
         Utilities::System
           .expects(:tuist)
-          .with("focus", *targets)
+          .with("focus", *targets, source: false)
 
         # Then
-        Services::Focus.call(targets: targets)
+        Services::Focus.call(targets: targets, source: false)
       end
     end
   end
