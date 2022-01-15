@@ -1,6 +1,6 @@
 import { makeAutoObservable } from 'mobx';
 
-class OrganizationViewStore {
+class OrganizationPageStore {
   inviteeEmail = '';
   isInvitePopoverActive = false;
 
@@ -17,4 +17,4 @@ class OrganizationViewStore {
   }
 }
 
-export default OrganizationViewStore;
+export default OrganizationPageStore;

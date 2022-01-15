@@ -16,7 +16,7 @@ import { useParams } from 'react-router';
 import { Role, Organization as _ } from '@/graphql/types';
 import { observer } from 'mobx-react-lite';
 import { HomeStoreContext } from '@/stores/HomeStore';
-import OrganizationViewStore from '@/stores/OrganizationViewStore';
+import OrganizationPageStore from './OrganizationPageStore';
 
 interface User {
   id: string;
@@ -114,7 +114,7 @@ const UserItem = ({
   );
 };
 
-const Organization = observer(() => {
+const OrganizationPage = observer(() => {
   const { accountName: organizationName } = useParams();
   const { organizationStore, userStore } =
     useContext(HomeStoreContext);
@@ -124,44 +124,44 @@ const Organization = observer(() => {
         .map((admin) => admin.id)
         .includes(userStore.me.id)) ??
     false;
-  const [organizationViewStore] = useState(
-    () => new OrganizationViewStore(),
+  const [organizationPageStore] = useState(
+    () => new OrganizationPageStore(),
   );
   return (
     <Page
       primaryAction={
         <Popover
-          active={organizationViewStore.isInvitePopoverActive}
+          active={organizationPageStore.isInvitePopoverActive}
           activator={
             <Button
               primary
               onClick={() => {
-                organizationViewStore.inviteMemberButtonClicked();
+                organizationPageStore.inviteMemberButtonClicked();
               }}
             >
               Invite member
             </Button>
           }
           onClose={() => {
-            organizationViewStore.invitePopoverClosed();
+            organizationPageStore.invitePopoverClosed();
           }}
           sectioned
         >
           <FormLayout>
             <TextField
               label="Invitee email"
-              value={organizationViewStore.inviteeEmail}
+              value={organizationPageStore.inviteeEmail}
               onChange={(newValue) => {
-                organizationViewStore.inviteeEmail = newValue;
+                organizationPageStore.inviteeEmail = newValue;
               }}
             ></TextField>
             <Button
               primary
               onClick={() => {
                 organizationStore.inviteMember(
-                  organizationViewStore.inviteeEmail,
+                  organizationPageStore.inviteeEmail,
                 );
-                organizationViewStore.invitePopoverClosed();
+                organizationPageStore.invitePopoverClosed();
               }}
             >
               Invite member
@@ -184,4 +184,4 @@ const Organization = observer(() => {
   );
 });
 
-export default Organization;
+export default OrganizationPage;
