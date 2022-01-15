@@ -20,7 +20,7 @@ import RemoteCache from './RemoteCache';
 import Organization from './Organization';
 
 import { AppProvider } from '@shopify/polaris';
-import AcceptInvitationView from './AcceptInvitationView';
+import AcceptInvitationPage from './pages/invitations/AcceptInvitationPage';
 
 const AppRoutes = () => {
   const location = useLocation();
@@ -47,7 +47,7 @@ const AppRoutes = () => {
       <Routes>
         <Route
           path="/invitations/:token"
-          element={<AcceptInvitationView />}
+          element={<AcceptInvitationPage />}
         />
         <Route path="/:accountName/:projectName" element={<Home />}>
           <Route path="" element={<Dashboard />} />

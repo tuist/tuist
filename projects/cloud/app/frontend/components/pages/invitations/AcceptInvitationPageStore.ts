@@ -5,7 +5,7 @@ import {
 import { ApolloClient } from '@apollo/client';
 import { makeAutoObservable, runInAction } from 'mobx';
 
-class AcceptInvitationViewStore {
+class AcceptInvitationPageStore {
   client: ApolloClient<object>;
   organizationName: string;
   inviterEmail: string;
@@ -35,4 +35,4 @@ class AcceptInvitationViewStore {
   }
 }
 
-export default AcceptInvitationViewStore;
+export default AcceptInvitationPageStore;

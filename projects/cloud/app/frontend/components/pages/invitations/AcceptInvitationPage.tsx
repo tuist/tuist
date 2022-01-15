@@ -1,18 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { CalloutCard } from '@shopify/polaris';
 import { useNavigate, useParams } from 'react-router-dom';
-import AcceptInvitationViewStore from '@/stores/AcceptInvitationViewStore';
+import AcceptInvitationPageStore from './AcceptInvitationPageStore';
 import { useApolloClient } from '@apollo/client';
 import { observer } from 'mobx-react-lite';
 
-const AcceptInvitationView = observer(() => {
+const AcceptInvitationPage = observer(() => {
   const { token } = useParams();
   const client = useApolloClient();
-  const [acceptInvitationViewStore] = useState(
-    () => new AcceptInvitationViewStore(client),
+  const [acceptInvitationPageStore] = useState(
+    () => new AcceptInvitationPageStore(client),
   );
   useEffect(() => {
-    acceptInvitationViewStore.load(token ?? '');
+    acceptInvitationPageStore.load(token ?? '');
   }, [token]);
 
   const navigate = useNavigate();
@@ -27,12 +27,12 @@ const AcceptInvitationView = observer(() => {
     >
       {/* @ts-ignore */}
       <CalloutCard
-        title={`${acceptInvitationViewStore.inviterEmail} has invited you to join the ${acceptInvitationViewStore.organizationName} organization.`}
+        title={`${acceptInvitationPageStore.inviterEmail} has invited you to join the ${acceptInvitationPageStore.organizationName} organization.`}
         primaryAction={{
           content: 'Accept the invitation',
           onAction: async () => {
             const slug =
-              await acceptInvitationViewStore.acceptInvitation(
+              await acceptInvitationPageStore.acceptInvitation(
                 token ?? '',
               );
             navigate(`/${slug}`);
@@ -48,4 +48,4 @@ const AcceptInvitationView = observer(() => {
   );
 });
 
-export default AcceptInvitationView;
+export default AcceptInvitationPage;
