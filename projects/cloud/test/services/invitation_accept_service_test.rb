@@ -13,10 +13,11 @@ class InvitationAcceptServiceTest < ActiveSupport::TestCase
     inviter.invitations.create!(invitee_email: user.email, token: token, organization: organization)
 
     # When
-    InvitationAcceptService.call(token: token, user: user)
+    got = InvitationAcceptService.call(token: token, user: user)
 
     # Then
     assert user.has_role?(:user, organization)
+    assert organization, got
   end
 
   test "fails with not authorized error when invitation email and user email mismatch" do

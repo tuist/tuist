@@ -23,7 +23,7 @@ module Types
       description: "Invite a user to a given organization",
       mutation: Mutations::InviteUser
     field :accept_invitation,
-      ProjectType,
+      OrganizationType,
       null: false,
       description: "Accept invitation based on a token",
       mutation: Mutations::AcceptInvitation

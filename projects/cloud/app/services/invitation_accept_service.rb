@@ -2,7 +2,11 @@
 
 class InvitationAcceptService < ApplicationService
   module Error
-    Unauthorized = CloudError.new("You are not allowed to accept this invitation.")
+    class Unauthorized < CloudError
+      def message
+        "You are not allowed to accept this invitation."
+      end
+    end
   end
 
   attr_reader :token, :user
@@ -17,6 +21,6 @@ class InvitationAcceptService < ApplicationService
     invitation = InvitationFetchService.call(token: token)
     raise Error::Unauthorized.new unless invitation.invitee_email == user.email
     user.add_role(:user, invitation.organization)
-    invitation.organization.account.projects.first
+    invitation.organization
   end
 end

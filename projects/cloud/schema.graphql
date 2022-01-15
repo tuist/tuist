@@ -13,6 +13,7 @@ type Account {
   id: ID!
   name: String!
   owner: Owner!
+  projects: [Project!]!
 }
 
 """
@@ -70,7 +71,7 @@ type Mutation {
     Parameters for AcceptInvitation
     """
     input: AcceptInvitationInput!
-  ): Project!
+  ): Organization!
 
   """
   Change role of a user for a given organization

@@ -31,7 +31,7 @@ class AcceptInvitationPageStore {
       mutation: AcceptInvitationDocument,
       variables: { input: { token } },
     });
-    return data.acceptInvitation.slug;
+    return data.acceptInvitation.account.projects[0]?.slug ?? '';
   }
 }
 
