@@ -32,8 +32,6 @@ public enum Constants {
     public static let cacheVersion = "1.0.0"
 
     public enum Vendor {
-        public static let swiftLint = "swiftlint"
-        public static let swiftDoc = "swift-doc"
         public static let xcbeautify = "xcbeautify"
     }
 
