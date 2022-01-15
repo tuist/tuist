@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 
 class OrganizationInviteService < ApplicationService
-  attr_reader :inviter, :invitee, :organization_id
+  attr_reader :inviter, :invitee_email, :organization_id
 
   module Error
     class Unauthorized < CloudError
@@ -23,10 +23,10 @@ class OrganizationInviteService < ApplicationService
     end
   end
 
-  def initialize(inviter:, invitee:, organization_id:)
+  def initialize(inviter:, invitee_email:, organization_id:)
     super()
     @inviter = inviter
-    @invitee = invitee
+    @invitee_email = invitee_email
     @organization_id = organization_id
   end
 
@@ -39,14 +39,14 @@ class OrganizationInviteService < ApplicationService
     raise Error::Unauthorized unless OrganizationPolicy.new(inviter, organization).update?
     token = Devise.friendly_token.first(16)
     invitation = inviter.invitations.create!(
-      invitee: invitee,
+      invitee_email: invitee_email,
       organization_id: organization.id,
       token: token
     )
     InvitationMailer
       .invitation_mail(
         inviter: inviter,
-        invitee: invitee,
+        invitee_email: invitee_email,
         organization: organization,
         token: token
       )

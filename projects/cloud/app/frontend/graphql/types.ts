@@ -49,7 +49,7 @@ export type CreateProjectInput = {
 
 export type Invitation = {
   __typename?: 'Invitation';
-  invitee: Scalars['ID'];
+  inviteeEmail: Scalars['ID'];
   inviter: User;
   organization: Organization;
   token: Scalars['String'];
@@ -59,7 +59,7 @@ export type Invitation = {
 export type InviteUserInput = {
   /** A unique identifier for the client performing the mutation. */
   clientMutationId?: InputMaybe<Scalars['String']>;
-  invitee: Scalars['String'];
+  inviteeEmail: Scalars['String'];
   organizationId: Scalars['String'];
 };
 
@@ -205,14 +205,14 @@ export type InvitationQueryVariables = Exact<{
 }>;
 
 
-export type InvitationQuery = { __typename?: 'Query', invitation: { __typename?: 'Invitation', invitee: string, organization: { __typename?: 'Organization', name: string }, inviter: { __typename?: 'User', id: string, email: string, avatarUrl?: string | null | undefined, account: { __typename?: 'Account', name: string } } } };
+export type InvitationQuery = { __typename?: 'Query', invitation: { __typename?: 'Invitation', inviteeEmail: string, organization: { __typename?: 'Organization', name: string }, inviter: { __typename?: 'User', id: string, email: string, avatarUrl?: string | null | undefined, account: { __typename?: 'Account', name: string } } } };
 
 export type InviteUserMutationVariables = Exact<{
   input: InviteUserInput;
 }>;
 
 
-export type InviteUserMutation = { __typename?: 'Mutation', inviteUser: { __typename?: 'Invitation', invitee: string, inviter: { __typename?: 'User', id: string, email: string, avatarUrl?: string | null | undefined, account: { __typename?: 'Account', name: string } }, organization: { __typename?: 'Organization', account: { __typename?: 'Account', name: string } } } };
+export type InviteUserMutation = { __typename?: 'Mutation', inviteUser: { __typename?: 'Invitation', inviteeEmail: string, inviter: { __typename?: 'User', id: string, email: string, avatarUrl?: string | null | undefined, account: { __typename?: 'Account', name: string } }, organization: { __typename?: 'Organization', account: { __typename?: 'Account', name: string } } } };
 
 export type MeQueryVariables = Exact<{ [key: string]: never; }>;
 
@@ -368,7 +368,7 @@ export const InvitationDocument = gql`
     organization {
       name
     }
-    invitee
+    inviteeEmail
     inviter {
       ...UserBasicInfo
     }
@@ -406,7 +406,7 @@ export type InvitationQueryResult = Apollo.QueryResult<InvitationQuery, Invitati
 export const InviteUserDocument = gql`
     mutation InviteUser($input: InviteUserInput!) {
   inviteUser(input: $input) {
-    invitee
+    inviteeEmail
     inviter {
       ...UserBasicInfo
     }

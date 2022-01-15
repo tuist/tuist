@@ -3,7 +3,7 @@ query Invitation($token: String!) {
     organization {
       name
     }
-    invitee
+    inviteeEmail
     inviter {
       ...UserBasicInfo
     }

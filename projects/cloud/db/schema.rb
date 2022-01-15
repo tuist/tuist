@@ -29,7 +29,7 @@ ActiveRecord::Schema.define(version: 2021_12_22_143721) do
   create_table "invitations", force: :cascade do |t|
     t.string "inviter_type", null: false
     t.bigint "inviter_id", null: false
-    t.string "invitee", null: false
+    t.string "invitee_email", null: false
     t.bigint "organization_id", null: false
     t.string "token", limit: 100, null: false
     t.datetime "created_at", precision: 6, null: false

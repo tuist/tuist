@@ -2,7 +2,7 @@
 
 module Types
   class InvitationType < Types::BaseObject
-    field :invitee, ID, null: false
+    field :invitee_email, ID, null: false
     field :inviter, UserType, null: false
     field :organization, OrganizationType, null: false
     field :token, String, null: false

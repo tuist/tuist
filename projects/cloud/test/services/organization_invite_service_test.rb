@@ -9,17 +9,17 @@ class OrganizationInviteServiceTest < ActiveSupport::TestCase
     organization = Organization.create!
     Account.create!(owner: organization, name: "tuist")
     inviter.add_role(:admin, organization)
-    invitee = "test1@cloud.tuist.io"
+    invitee_email = "test1@cloud.tuist.io"
 
     # When
     got = OrganizationInviteService.call(
       inviter: inviter,
-      invitee: invitee,
+      invitee_email: invitee_email,
       organization_id: organization.id
     )
     # Then
     assert_equal got.inviter, inviter
-    assert_equal got.invitee, invitee
+    assert_equal got.invitee_email, invitee_email
     assert_equal got.organization, organization
   end
 
@@ -33,7 +33,7 @@ class OrganizationInviteServiceTest < ActiveSupport::TestCase
     assert_raises(OrganizationInviteService::Error::Unauthorized) do
       OrganizationInviteService.call(
         inviter: inviter,
-        invitee: "test1@cloud.tuist.io",
+        invitee_email: "test1@cloud.tuist.io",
         organization_id: organization.id
       )
     end
@@ -47,7 +47,7 @@ class OrganizationInviteServiceTest < ActiveSupport::TestCase
     assert_raises(OrganizationInviteService::Error::OrganizationNotFound) do
       OrganizationInviteService.call(
         inviter: inviter,
-        invitee: "test1@cloud.tuist.io",
+        invitee_email: "test1@cloud.tuist.io",
         organization_id: "1"
       )
     end

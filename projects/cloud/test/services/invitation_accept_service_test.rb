@@ -10,7 +10,7 @@ class InvitationAcceptServiceTest < ActiveSupport::TestCase
     token = Devise.friendly_token.first(8)
     organization = Organization.create!
     Account.create!(owner: organization, name: "tuist")
-    inviter.invitations.create!(invitee: user.email, token: token, organization: organization)
+    inviter.invitations.create!(invitee_email: user.email, token: token, organization: organization)
 
     # When
     InvitationAcceptService.call(token: token, user: user)
@@ -25,7 +25,7 @@ class InvitationAcceptServiceTest < ActiveSupport::TestCase
     inviter = User.create!(email: "test1@cloud.tuist.io", password: Devise.friendly_token.first(16))
     token = Devise.friendly_token.first(8)
     organization = Organization.create!
-    inviter.invitations.create!(invitee: "test2@cloud.tuist.io", token: token, organization: organization)
+    inviter.invitations.create!(invitee_email: "test2@cloud.tuist.io", token: token, organization: organization)
 
     # When / Then
     assert_raises(InvitationAcceptService::Error::Unauthorized) do

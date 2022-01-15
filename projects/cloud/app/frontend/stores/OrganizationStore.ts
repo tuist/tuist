@@ -143,7 +143,7 @@ class OrganizationStore {
       mutation: InviteUserDocument,
       variables: {
         input: {
-          invitee: memberEmail,
+          inviteeEmail: memberEmail,
           organizationId: this.organization.id,
         },
       },

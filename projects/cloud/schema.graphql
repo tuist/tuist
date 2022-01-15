@@ -43,7 +43,7 @@ input CreateProjectInput {
 }
 
 type Invitation {
-  invitee: ID!
+  inviteeEmail: ID!
   inviter: User!
   organization: Organization!
   token: String!
@@ -57,7 +57,7 @@ input InviteUserInput {
   A unique identifier for the client performing the mutation.
   """
   clientMutationId: String
-  invitee: String!
+  inviteeEmail: String!
   organizationId: String!
 }
 

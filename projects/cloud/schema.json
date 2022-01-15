@@ -275,7 +275,7 @@
           "description": null,
           "fields": [
             {
-              "name": "invitee",
+              "name": "inviteeEmail",
               "description": null,
               "args": [
 
@@ -373,7 +373,7 @@
               "deprecationReason": null
             },
             {
-              "name": "invitee",
+              "name": "inviteeEmail",
               "description": null,
               "type": {
                 "kind": "NON_NULL",

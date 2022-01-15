@@ -2,7 +2,7 @@
 
 module Mutations
   class InviteUser < ::Mutations::BaseMutation
-    argument :invitee, String, required: true
+    argument :invitee_email, String, required: true
     argument :organization_id, String, required: true
 
     def resolve(attributes)
