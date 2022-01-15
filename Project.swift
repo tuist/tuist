@@ -80,7 +80,6 @@ func modulesTargetsAndSchemes() -> [(targets: [Target], scheme: Scheme)] {
                 .target(name: "TuistAutomationTesting"),
                 .target(name: "TuistSigningTesting"),
                 .target(name: "TuistDependenciesTesting"),
-                .target(name: "TuistLintingTesting"),
                 .target(name: "TuistMigrationTesting"),
                 .target(name: "TuistAsyncQueueTesting"),
                 .target(name: "TuistGraphTesting"),
