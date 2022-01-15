@@ -32,8 +32,16 @@ class TuistAnalyticsCloudBackend: TuistAnalyticsBackend {
         guard config.options.contains(.analytics) else { return .just(()) }
 
         let resource = try resourceFactory.create(commandEvent: commandEvent)
-        return client
-            .request(resource)
-            .flatMap { _, _ in .just(()) }
+        return AsyncThrowingStream<Void, Error> { continuation in
+            Task.detached {
+                do {
+                    _ = try await self.client.request(resource)
+                    continuation.yield(())
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+        }.asObservable().asSingle()
     }
 }

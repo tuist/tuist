@@ -358,6 +358,8 @@ final class WorkspaceStructureGeneratorTests: XCTestCase {
             try closure(currentPath)
         }
 
+        func inTemporaryDirectory(_: @escaping (AbsolutePath) async throws -> Void) async throws {}
+
         func glob(_: AbsolutePath, glob _: String) -> [AbsolutePath] {
             []
         }

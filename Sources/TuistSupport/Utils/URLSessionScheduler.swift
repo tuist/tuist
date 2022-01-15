@@ -71,12 +71,12 @@ public final class URLSessionScheduler: URLSessionScheduling {
                 let statusCode = (response as? HTTPURLResponse)?.statusCodeValue
 
                 if let error = error {
-                    subscriber(.error(error))
+                    subscriber(.failure(error))
                 } else if let statusCode = statusCode {
                     if !statusCode.isClientError, !statusCode.isServerError {
                         subscriber(.success(data ?? Data()))
                     } else {
-                        subscriber(.error(URLSessionSchedulerError.httpError(
+                        subscriber(.failure(URLSessionSchedulerError.httpError(
                             status: statusCode,
                             response: response!,
                             request: request

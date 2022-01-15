@@ -40,7 +40,7 @@ public struct TuistCommand: ParsableCommand {
     )
     var isTuistEnvHelp: Bool = false
 
-    public static func main(_ arguments: [String]? = nil) -> Never {
+    public static func main(_ arguments: [String]? = nil) async {
         let errorHandler = ErrorHandler()
         var command: ParsableCommand
         do {
@@ -65,7 +65,7 @@ public struct TuistCommand: ParsableCommand {
             _exit(exitCode)
         }
         do {
-            try execute(command)
+            try await execute(command)
             TuistProcess.shared.asyncExit()
         } catch let error as FatalError {
             errorHandler.fatal(error: error)
@@ -81,12 +81,19 @@ public struct TuistCommand: ParsableCommand {
         }
     }
 
-    private static func execute(_ command: ParsableCommand) throws {
+    private static func execute(_ command: ParsableCommand) async throws {
         var command = command
-        guard Environment.shared.isStatsEnabled else { try command.run(); return }
-        let trackableCommand = TrackableCommand(command: command)
-        let future = try trackableCommand.run()
-        TuistProcess.shared.add(futureTask: future)
+        if Environment.shared.isStatsEnabled {
+            let trackableCommand = TrackableCommand(command: command)
+            let future = try await trackableCommand.run()
+            TuistProcess.shared.add(futureTask: future)
+        } else {
+            if var asyncCommand = command as? AsyncParsableCommand {
+                try await asyncCommand.runAsync()
+            } else {
+                try command.run()
+            }
+        }
     }
 
     // MARK: - Helpers

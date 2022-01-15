@@ -75,7 +75,7 @@ public final class HTTPRequestDispatcher: HTTPRequestDispatching {
         Single.create { observer in
             let task = self.session.dataTask(with: resource.request(), completionHandler: { data, response, error in
                 if let error = error {
-                    observer(.error(HTTPRequestDispatcherError.urlSessionError(error)))
+                    observer(.failure(HTTPRequestDispatcherError.urlSessionError(error)))
                 } else if let data = data, let response = response as? HTTPURLResponse {
                     switch response.statusCode {
                     case 200 ..< 300:
@@ -83,18 +83,18 @@ public final class HTTPRequestDispatcher: HTTPRequestDispatching {
                             let object = try resource.parse(data, response)
                             observer(.success((object: object, response: response)))
                         } catch {
-                            observer(.error(HTTPRequestDispatcherError.parseError(error)))
+                            observer(.failure(HTTPRequestDispatcherError.parseError(error)))
                         }
                     default: // Error
                         do {
                             let error = try resource.parseError(data, response)
-                            observer(.error(HTTPRequestDispatcherError.serverSideError(error, response)))
+                            observer(.failure(HTTPRequestDispatcherError.serverSideError(error, response)))
                         } catch {
-                            observer(.error(HTTPRequestDispatcherError.parseError(error)))
+                            observer(.failure(HTTPRequestDispatcherError.parseError(error)))
                         }
                     }
                 } else {
-                    observer(.error(HTTPRequestDispatcherError.invalidResponse))
+                    observer(.failure(HTTPRequestDispatcherError.invalidResponse))
                 }
             })
             task.resume()
@@ -113,7 +113,7 @@ public final class HTTPRequestDispatcher: HTTPRequestDispatching {
                 .subscribe(onSuccess: { value in
                     subscriber.send(value)
                     subscriber.send(completion: .finished)
-                }, onError: { error in
+                }, onFailure: { error in
                     subscriber.send(completion: .failure(error))
                 })
             return AnyCancellable {

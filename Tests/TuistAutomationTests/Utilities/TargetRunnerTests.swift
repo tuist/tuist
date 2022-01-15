@@ -1,4 +1,3 @@
-import RxSwift
 import TSCBasic
 import struct TSCUtility.Version
 import TuistCore

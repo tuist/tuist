@@ -1,4 +1,4 @@
-// swift-tools-version:5.2.0
+// swift-tools-version:5.4.0
 
 import PackageDescription
 
@@ -53,7 +53,7 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/tuist/XcodeProj.git", .upToNextMajor(from: "8.7.1")),
         .package(name: "Signals", url: "https://github.com/tuist/BlueSignals.git", .upToNextMajor(from: "1.0.21")),
-        .package(url: "https://github.com/ReactiveX/RxSwift.git", .upToNextMajor(from: "5.1.1")),
+        .package(url: "https://github.com/ReactiveX/RxSwift.git", .upToNextMajor(from: "6.5.0")),
         .package(url: "https://github.com/rnine/Checksum.git", .upToNextMajor(from: "1.0.2")),
         .package(url: "https://github.com/apple/swift-log.git", .upToNextMajor(from: "1.4.2")),
         .package(url: "https://github.com/krzyzanowskim/CryptoSwift.git", .upToNextMajor(from: "1.4.1")),
@@ -181,7 +181,7 @@ let package = Package(
                 "TuistGraphTesting",
             ]
         ),
-        .target(
+        .executableTarget(
             name: "tuist",
             dependencies: [
                 "TuistKit",
@@ -206,7 +206,7 @@ let package = Package(
                 "TuistSupportTesting",
             ]
         ),
-        .target(
+        .executableTarget(
             name: "tuistenv",
             dependencies: [
                 "TuistEnvKit",

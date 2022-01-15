@@ -15,6 +15,25 @@ extension Array {
         }
     }
 
+    /// Async concurrent map
+    ///
+    /// - Parameters:
+    ///   - transform: The transformation closure to apply to the array
+    public func concurrentMap<B>(_ transform: @escaping (Element) async throws -> B) async rethrows -> [B] {
+        try await withThrowingTaskGroup(of: B.self) { group -> [B] in
+            for element in self {
+                group.addTask {
+                    try await transform(element)
+                }
+            }
+            var results = [B]()
+            for try await element in group {
+                results.append(element)
+            }
+            return results
+        }
+    }
+
     /// Compact map (with execution context)
     ///
     /// - Parameters:
@@ -27,6 +46,25 @@ extension Array {
         case .concurrent:
             return try concurrentCompactMap(transform)
         }
+    }
+
+    /// Async concurrent compact map
+    ///
+    /// - Parameters:
+    ///   - transform: The transformation closure to apply to the array
+    public func concurrentCompactMap<B>(_ transform: @escaping (Element) async throws -> B?) async rethrows -> [B] {
+        try await withThrowingTaskGroup(of: B?.self) { group -> [B?] in
+            for element in self {
+                group.addTask {
+                    try await transform(element)
+                }
+            }
+            var results = [B?]()
+            for try await element in group {
+                results.append(element)
+            }
+            return results
+        }.compactMap { $0 }
     }
 
     /// For Each (with execution context)

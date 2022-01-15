@@ -1,5 +1,4 @@
 import Foundation
-import RxSwift
 import TSCBasic
 import TuistCache
 import TuistCore
@@ -9,36 +8,27 @@ public final class MockCacheStorage: CacheStoring {
 
     public init() {}
 
-    public func exists(name: String, hash: String) -> Single<Bool> {
-        do {
-            if let existsStub = existsStub {
-                return Single.just(try existsStub(name, hash))
-            } else {
-                return Single.just(false)
-            }
-        } catch {
-            return Single.error(error)
+    public func exists(name: String, hash: String) async throws -> Bool {
+        if let existsStub = existsStub {
+            return try existsStub(name, hash)
+        } else {
+            return false
         }
     }
 
     var fetchStub: ((String, String) throws -> AbsolutePath)?
-    public func fetch(name: String, hash: String) -> Single<AbsolutePath> {
+    public func fetch(name: String, hash: String) async throws -> AbsolutePath {
         if let fetchStub = fetchStub {
-            do {
-                return Single.just(try fetchStub(name, hash))
-            } catch {
-                return Single.error(error)
-            }
+            return try fetchStub(name, hash)
         } else {
-            return Single.just(AbsolutePath.root)
+            return AbsolutePath.root
         }
     }
 
     var storeStub: ((String, String, [AbsolutePath]) -> Void)?
-    public func store(name: String, hash: String, paths: [AbsolutePath]) -> Completable {
+    public func store(name: String, hash: String, paths: [AbsolutePath]) async throws {
         if let storeStub = storeStub {
             storeStub(name, hash, paths)
         }
-        return Completable.empty()
     }
 }
