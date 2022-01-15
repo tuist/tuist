@@ -18,6 +18,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Fix issue where test results were not being cached if a scheme was specified in the `tuist test` command [#3952](https://github.com/tuist/tuist/pull/3952) by [@hisaac](https://github.com/hisaac)
 - Fix for target references within workspace scheme pre/post actions [#3954](https://github.com/tuist/tuist/pull/3954) by [@kwridan](https://github.com/kwridan)
 - Fix SPM mapping for `GCC_PREPROCESSOR_DEFINITIONS` definitions [#3995](https://github.com/tuist/tuist/pull/3995) by [@adellibovi](https://github.com/adellibovi)
+- Fix archiving iOS target for Mac Catalyst [#3990](https://github.com/tuist/tuist/pull/3990) by [@orbitekk](https://github.com/orbitekk)
 
 ## 2.6.0 - Havana
 

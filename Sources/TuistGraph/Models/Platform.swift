@@ -81,19 +81,6 @@ extension Platform {
         }
     }
 
-    public var xcodeSupportedPlatforms: String {
-        switch self {
-        case .tvOS:
-            return "appletvsimulator appletvos"
-        case .iOS:
-            return "iphonesimulator iphoneos"
-        case .macOS:
-            return "macosx"
-        case .watchOS:
-            return "watchsimulator watchos"
-        }
-    }
-
     /// The SDK Root Path within Xcode's developer directory
     public var xcodeSdkRootPath: String {
         switch self {

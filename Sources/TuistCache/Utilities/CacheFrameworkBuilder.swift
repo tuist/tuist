@@ -92,7 +92,6 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
         try destination(platform: platform, version: version, deviceName: deviceName)
             .map { (destination: String) -> [XcodeBuildArgument] in
                 [
-                    .sdk(platform == .macOS ? platform.xcodeDeviceSDK : platform.xcodeSimulatorSDK!),
                     .configuration(configuration),
                     .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"),
                     .xcarg("GCC_GENERATE_DEBUGGING_SYMBOLS", "YES"),
@@ -111,7 +110,7 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
         case .iOS: mappedPlatform = .iOS
         case .watchOS: mappedPlatform = .watchOS
         case .tvOS: mappedPlatform = .tvOS
-        case .macOS: return .just("platform=OS X,arch=x86_64")
+        case .macOS: return .just("platform=macOS,arch=x86_64")
         }
 
         return simulatorController.findAvailableDevice(
