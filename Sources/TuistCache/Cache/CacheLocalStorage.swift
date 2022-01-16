@@ -37,21 +37,21 @@ public final class CacheLocalStorage: CacheStoring {
 
     // MARK: - CacheStoring
 
-    public func exists(name _: String, hash: String) async throws -> Bool {
+    public func exists(name _: String, hash: String) throws -> Bool {
         let hashFolder = cacheDirectory.appending(component: hash)
         return lookupCompiledArtifact(directory: hashFolder) != nil
     }
 
-    public func fetch(name _: String, hash: String) async throws -> AbsolutePath {
+    public func fetch(name _: String, hash: String) throws -> AbsolutePath {
         let hashFolder = cacheDirectory.appending(component: hash)
         guard let path = lookupCompiledArtifact(directory: hashFolder) else {
             throw CacheLocalStorageError.compiledArtifactNotFound(hash: hash)
         }
-        
+
         return path
     }
 
-    public func store(name _: String, hash: String, paths: [AbsolutePath]) async throws {
+    public func store(name _: String, hash: String, paths: [AbsolutePath]) throws {
         if !FileHandler.shared.exists(cacheDirectory) {
             try FileHandler.shared.createFolder(cacheDirectory)
         }

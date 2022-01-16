@@ -9,16 +9,12 @@ public final class MockCacheStorage: CacheStoring {
     public init() {}
 
     public func exists(name: String, hash: String) async throws -> Bool {
-        return try existsStub?(name, hash) ?? false
+        try existsStub?(name, hash) ?? false
     }
 
     var fetchStub: ((String, String) throws -> AbsolutePath)?
     public func fetch(name: String, hash: String) async throws -> AbsolutePath {
-        if let fetchStub = fetchStub {
-            return try fetchStub(name, hash)
-        } else {
-            return AbsolutePath.root
-        }
+        try fetchStub?(name, hash) ?? .root
     }
 
     var storeStub: ((String, String, [AbsolutePath]) -> Void)?

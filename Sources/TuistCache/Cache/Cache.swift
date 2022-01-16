@@ -45,7 +45,7 @@ public final class Cache: CacheStoring {
     }
 
     public func store(name: String, hash: String, paths: [AbsolutePath]) async throws {
-        for storage in storages {
+        _ = try await storages.concurrentMap { storage in
             try await storage.store(name: name, hash: hash, paths: paths)
         }
     }
