@@ -44,11 +44,11 @@ public final class CacheLocalStorage: CacheStoring {
 
     public func fetch(name _: String, hash: String) async throws -> AbsolutePath {
         let hashFolder = cacheDirectory.appending(component: hash)
-        if let path = lookupCompiledArtifact(directory: hashFolder) {
-            return path
-        } else {
+        guard let path = lookupCompiledArtifact(directory: hashFolder) else {
             throw CacheLocalStorageError.compiledArtifactNotFound(hash: hash)
         }
+        
+        return path
     }
 
     public func store(name _: String, hash: String, paths: [AbsolutePath]) async throws {
