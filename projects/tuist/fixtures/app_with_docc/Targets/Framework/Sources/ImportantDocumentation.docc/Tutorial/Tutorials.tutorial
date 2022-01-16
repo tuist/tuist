@@ -1,9 +1,0 @@
-@Tutorials(name: "Tuist tutorial") {
-    @Intro(title: "Tuist Rocks") {
-        This is a sample tutorial for validating docc document archives
-    }
-    
-    @Chapter(name: "Tutorial1") {        
-        @TutorialReference(tutorial: "doc:TuistTutorial")
-    }
-}
