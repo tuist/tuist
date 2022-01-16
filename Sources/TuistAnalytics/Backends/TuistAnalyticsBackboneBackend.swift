@@ -1,5 +1,4 @@
 import Foundation
-import RxSwift
 import TuistAsyncQueue
 import TuistCore
 import TuistSupport
@@ -11,10 +10,8 @@ class TuistAnalyticsBackboneBackend: TuistAnalyticsBackend {
         self.requestDispatcher = requestDispatcher
     }
 
-    func send(commandEvent: CommandEvent) throws -> Single<Void> {
-        requestDispatcher
-            .dispatch(resource: try resource(commandEvent))
-            .flatMap { _, _ in .just(()) }
+    func send(commandEvent: CommandEvent) async throws {
+        _ = try await requestDispatcher.dispatch(resource: resource(commandEvent))
     }
 
     func resource(_ commandEvent: CommandEvent) throws -> HTTPResource<Void, CloudEmptyResponseError> {

@@ -1,4 +1,3 @@
-import RxBlocking
 import TuistCloud
 import TuistCore
 import TuistGraph
@@ -35,7 +34,7 @@ final class TuistAnalyticsCloudBackendTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_send_when_analytics_is_not_enabled() throws {
+    func test_send_when_analytics_is_not_enabled() async throws {
         // Given
         config = Cloud.test(options: [])
         subject = TuistAnalyticsCloudBackend(
@@ -46,13 +45,13 @@ final class TuistAnalyticsCloudBackendTests: TuistUnitTestCase {
         let event = CommandEvent.test()
 
         // When
-        try subject.send(commandEvent: event).toBlocking().last()
+        try await subject.send(commandEvent: event)
 
         // Then
         XCTAssertEqual(resourceFactory.invokedCreateCount, 0)
     }
 
-    func test_send_when_analytics_is_enabled() throws {
+    func test_send_when_analytics_is_enabled() async throws {
         // Given
         config = Cloud.test(options: [.analytics])
         subject = TuistAnalyticsCloudBackend(
@@ -67,7 +66,7 @@ final class TuistAnalyticsCloudBackendTests: TuistUnitTestCase {
         client.stubbedResponsePerURLRequest[resource.request()] = HTTPURLResponse.test()
 
         // When
-        try subject.send(commandEvent: event).toBlocking().last()
+        try await subject.send(commandEvent: event)
 
         // Then
         XCTAssertEqual(resourceFactory.invokedCreateCount, 1)
