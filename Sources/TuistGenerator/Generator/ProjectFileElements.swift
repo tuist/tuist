@@ -598,15 +598,20 @@ class ProjectFileElements {
     }
 
     func isFolderTypeFileSource(path: AbsolutePath) -> Bool {
-        isXcassets(path: path) || isDocC(path: path) || isScnassets(path: path)
+        isXcassets(path: path) || isDocCArchive(path: path) || isScnassets(path: path)
     }
 
     func isXcassets(path: AbsolutePath) -> Bool {
         path.extension == "xcassets"
     }
 
-    func isDocC(path: AbsolutePath) -> Bool {
+    func isDocCArchive(path: AbsolutePath) -> Bool {
         path.extension == "docc"
+    }
+
+    func isDocCTutorialFile(path: AbsolutePath) -> Bool {
+        // Skip the initial DocC source directory
+        !isDocCArchive(path: path) && path.pathString.contains(".docc")
     }
 
     func isScnassets(path: AbsolutePath) -> Bool {

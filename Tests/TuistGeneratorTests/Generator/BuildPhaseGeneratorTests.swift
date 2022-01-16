@@ -170,6 +170,42 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
         }
     }
 
+    func test_generateSourcesBuildPhase_withDocCArchive_ArticleAndTutorial() throws {
+        // Given
+        let target = PBXNativeTarget(name: "Test")
+        let pbxproj = PBXProj()
+        pbxproj.add(object: target)
+
+        let sources: [SourceFile] = [
+            SourceFile(path: "/path/sources/Foo.swift", compilerFlags: nil),
+            SourceFile(path: "/path/sources/Doc.docc", compilerFlags: nil),
+            SourceFile(path: "/path/sources/Doc.docc/Articles/Article.md", compilerFlags: nil),
+            SourceFile(path: "/path/sources/Doc.docc/Tutorials/Tutorials.md", compilerFlags: nil),
+            SourceFile(path: "/path/sources/Doc.docc/Tutorials/Step-1.swift", compilerFlags: nil),
+            SourceFile(path: "/path/sources/Doc.docc/Tutorials/Step-2.swift", compilerFlags: nil),
+        ]
+
+        let fileElements = createFileElements(for: sources.map(\.path))
+
+        // When
+        try subject.generateSourcesBuildPhase(
+            files: sources,
+            coreDataModels: [],
+            pbxTarget: target,
+            fileElements: fileElements,
+            pbxproj: pbxproj
+        )
+
+        // Then
+        let buildPhase = try target.sourcesBuildPhase()
+        let buildFiles = buildPhase?.files ?? []
+        let buildFilesNames = buildFiles.map {
+            $0.file?.name
+        }
+
+        XCTAssertEqual(buildFilesNames, ["Doc.docc", "Foo.swift"])
+    }
+
     func test_generateSourcesBuildPhase_whenLocalizedFile() throws {
         // Given
         let target = PBXNativeTarget(name: "Test")
