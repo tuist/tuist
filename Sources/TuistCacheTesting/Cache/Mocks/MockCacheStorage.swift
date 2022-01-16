@@ -9,11 +9,7 @@ public final class MockCacheStorage: CacheStoring {
     public init() {}
 
     public func exists(name: String, hash: String) async throws -> Bool {
-        if let existsStub = existsStub {
-            return try existsStub(name, hash)
-        } else {
-            return false
-        }
+        return try existsStub?(name, hash) ?? false
     }
 
     var fetchStub: ((String, String) throws -> AbsolutePath)?
