@@ -19,19 +19,17 @@ extension Array {
     ///
     /// - Parameters:
     ///   - transform: The transformation closure to apply to the array
-    public func concurrentMap<B>(_ transform: @escaping (Element) async throws -> B) async rethrows -> [B] {
-        try await withThrowingTaskGroup(of: B.self) { group -> [B] in
-            for element in self {
-                group.addTask {
-                    try await transform(element)
-                }
+    public func concurrentMap<B>(_ transform: @escaping (Element) async throws -> B) async throws -> [B] {
+        let tasks = map { element in
+            Task {
+                try await transform(element)
             }
-            var results = [B]()
-            for try await element in group {
-                results.append(element)
-            }
-            return results
         }
+        var values = [B]()
+        for element in tasks {
+            try await values.append(element.value)
+        }
+        return values
     }
 
     /// Compact map (with execution context)
@@ -52,19 +50,19 @@ extension Array {
     ///
     /// - Parameters:
     ///   - transform: The transformation closure to apply to the array
-    public func concurrentCompactMap<B>(_ transform: @escaping (Element) async throws -> B?) async rethrows -> [B] {
-        try await withThrowingTaskGroup(of: B?.self) { group -> [B?] in
-            for element in self {
-                group.addTask {
-                    try await transform(element)
-                }
+    public func concurrentCompactMap<B>(_ transform: @escaping (Element) async throws -> B?) async throws -> [B] {
+        let tasks = map { element in
+            Task {
+                try await transform(element)
             }
-            var results = [B?]()
-            for try await element in group {
-                results.append(element)
+        }
+        var values = [B]()
+        for element in tasks {
+            if let element = try await element.value {
+                values.append(element)
             }
-            return results
-        }.compactMap { $0 }
+        }
+        return values
     }
 
     /// For Each (with execution context)
