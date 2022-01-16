@@ -87,11 +87,11 @@ Rails.application.configure do
 
   config.action_mailer.delivery_method = :smtp
   config.action_mailer.smtp_settings = {
-    authentication: :plain,
-    address: "smtp.mailgun.org",
-    port: 587,
-    domain: "sandboxa6b1aaa687d04cb4a6c382574ab26a34.mailgun.org",
-    user_name: "postmaster@sandboxa6b1aaa687d04cb4a6c382574ab26a34.mailgun.org",
-    password: Rails.application.credentials.mailgun[:password],
+    authentication: Rails.application.config.defaults[:smpt_settings][:authentication],
+    address: Rails.application.config.defaults[:smpt_settings][:address],
+    port: Rails.application.config.defaults[:smpt_settings][:port],
+    domain: Rails.application.credentials.smpt_settings[:domain],
+    user_name: Rails.application.credentials.smpt_settings[:user_name],
+    password: Rails.application.credentials.smpt_settings[:password],
   }
 end
