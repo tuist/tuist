@@ -27,8 +27,6 @@ public final class MockCacheStorage: CacheStoring {
 
     var storeStub: ((String, String, [AbsolutePath]) -> Void)?
     public func store(name: String, hash: String, paths: [AbsolutePath]) async throws {
-        if let storeStub = storeStub {
-            storeStub(name, hash, paths)
-        }
+        storeStub?(name, hash, paths)
     }
 }
