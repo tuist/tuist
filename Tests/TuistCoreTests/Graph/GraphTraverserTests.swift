@@ -101,6 +101,38 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertTrue(got)
     }
 
+    func test_dependsOnXCTest_when_settings_enables_search_paths() {
+        // Given
+        let project = Project.test()
+        let frameworkTarget = GraphTarget.test(
+            path: project.path,
+            target: Target.test(
+                name: "Framework",
+                product: .framework,
+                settings: .test(base: [
+                    "ENABLE_TESTING_SEARCH_PATHS": "YES",
+                ])
+            )
+        )
+        let graph = Graph.test(
+            projects: [
+                project.path: project,
+            ],
+            targets: [
+                project.path: [
+                    frameworkTarget.target.name: frameworkTarget.target,
+                ],
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.dependsOnXCTest(path: project.path, name: "Framework")
+
+        // Then
+        XCTAssertTrue(got)
+    }
+
     func test_target() {
         // Given
         let path = AbsolutePath.root
