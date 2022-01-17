@@ -1,5 +1,4 @@
 import Foundation
-import RxSwift
 import TuistAsyncQueue
 import TuistCloud
 import TuistCore
@@ -28,20 +27,10 @@ class TuistAnalyticsCloudBackend: TuistAnalyticsBackend {
         self.client = client
     }
 
-    func send(commandEvent: CommandEvent) throws -> Single<Void> {
-        guard config.options.contains(.analytics) else { return .just(()) }
+    func send(commandEvent: CommandEvent) async throws {
+        guard config.options.contains(.analytics) else { return }
 
         let resource = try resourceFactory.create(commandEvent: commandEvent)
-        return AsyncThrowingStream<Void, Error> { continuation in
-            Task.detached {
-                do {
-                    _ = try await self.client.request(resource)
-                    continuation.yield(())
-                    continuation.finish()
-                } catch {
-                    continuation.finish(throwing: error)
-                }
-            }
-        }.asObservable().asSingle()
+        _ = try await client.request(resource)
     }
 }
