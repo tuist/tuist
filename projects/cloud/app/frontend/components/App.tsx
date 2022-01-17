@@ -17,9 +17,10 @@ import Dashboard from './Dashboard';
 import Home from './Home';
 import { useMeQuery } from '@/graphql/types';
 import RemoteCache from './RemoteCache';
-import Organization from './Organization';
+import OrganizationPage from './pages/organization/OrganizationPage';
 
 import { AppProvider } from '@shopify/polaris';
+import AcceptInvitationPage from './pages/invitations/AcceptInvitationPage';
 
 const AppRoutes = () => {
   const location = useLocation();
@@ -44,10 +45,14 @@ const AppRoutes = () => {
     }
     return (
       <Routes>
+        <Route
+          path="/invitations/:token"
+          element={<AcceptInvitationPage />}
+        />
         <Route path="/:accountName/:projectName" element={<Home />}>
           <Route path="" element={<Dashboard />} />
           <Route path="remote-cache" element={<RemoteCache />} />
-          <Route path="organization" element={<Organization />} />
+          <Route path="organization" element={<OrganizationPage />} />
         </Route>
         <Route path="/new" element={<NewProject />} />
         <Route element={<NoPageFound />} />

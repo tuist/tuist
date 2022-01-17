@@ -5,6 +5,8 @@ import {
   OrganizationQuery,
   OrganizationDocument,
   Role,
+  RemoveUserDocument,
+  InviteUserDocument,
 } from '../graphql/types';
 
 class OrganizationStore {
@@ -56,6 +58,32 @@ class OrganizationStore {
     });
   }
 
+  async removeMember(memberId: string) {
+    if (!this.organization) {
+      return;
+    }
+    await this.client.mutate({
+      mutation: RemoveUserDocument,
+      variables: {
+        input: {
+          organizationId: this.organization.id,
+          userId: memberId,
+        },
+      },
+    });
+    runInAction(() => {
+      if (!this.organization) {
+        return;
+      }
+      this.organization.users = this.organization.users.filter(
+        (user) => user.id !== memberId,
+      );
+      this.organization.admins = this.organization.admins.filter(
+        (user) => user.id !== memberId,
+      );
+    });
+  }
+
   async changeUserRole(memberId: string, newRole: Role) {
     if (!this.organization) {
       return;
@@ -104,6 +132,21 @@ class OrganizationStore {
     });
     runInAction(() => {
       this.organization = data.organization;
+    });
+  }
+
+  async inviteMember(memberEmail: string) {
+    if (!this.organization) {
+      return;
+    }
+    await this.client.mutate({
+      mutation: InviteUserDocument,
+      variables: {
+        input: {
+          inviteeEmail: memberEmail,
+          organizationId: this.organization.id,
+        },
+      },
     });
   }
 }
