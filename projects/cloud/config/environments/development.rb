@@ -84,4 +84,14 @@ Rails.application.configure do
   # Action Mailer
   config.action_mailer.raise_delivery_errors = false
   config.action_mailer.perform_caching = false
+
+  config.action_mailer.delivery_method = :smtp
+  config.action_mailer.smtp_settings = {
+    authentication: Rails.application.config.defaults[:smpt_settings][:authentication],
+    address: Rails.application.config.defaults[:smpt_settings][:address],
+    port: Rails.application.config.defaults[:smpt_settings][:port],
+    domain: Rails.application.credentials.smpt_settings[:domain],
+    user_name: Rails.application.credentials.smpt_settings[:user_name],
+    password: Rails.application.credentials.smpt_settings[:password],
+  }
 end

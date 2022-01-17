@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 2021_11_24_155026) do
+ActiveRecord::Schema.define(version: 2021_12_22_143721) do
 
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
@@ -24,6 +24,19 @@ ActiveRecord::Schema.define(version: 2021_11_24_155026) do
     t.index ["name"], name: "index_accounts_on_name", unique: true
     t.index ["owner_id", "owner_type"], name: "index_accounts_on_owner_id_and_owner_type", unique: true
     t.index ["owner_type", "owner_id"], name: "index_accounts_on_owner"
+  end
+
+  create_table "invitations", force: :cascade do |t|
+    t.string "inviter_type", null: false
+    t.bigint "inviter_id", null: false
+    t.string "invitee_email", null: false
+    t.bigint "organization_id", null: false
+    t.string "token", limit: 100, null: false
+    t.datetime "created_at", precision: 6, null: false
+    t.datetime "updated_at", precision: 6, null: false
+    t.index ["inviter_type", "inviter_id"], name: "index_invitations_on_inviter"
+    t.index ["organization_id"], name: "index_invitations_on_organization_id"
+    t.index ["token"], name: "index_invitations_on_token", unique: true
   end
 
   create_table "organizations", force: :cascade do |t|

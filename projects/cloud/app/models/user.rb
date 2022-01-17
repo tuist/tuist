@@ -22,6 +22,7 @@ class User < ApplicationRecord
 
   # Associations
   has_one :account, as: :owner, inverse_of: :owner, dependent: :destroy, required: true, autosave: true
+  has_many :invitations, as: :inviter, dependent: :destroy
   belongs_to :last_visited_project, class_name: "Project", optional: true
 
   def avatar_url
