@@ -228,8 +228,11 @@ public class ManifestLoader: ManifestLoading {
         do {
             let string = try System.shared.capture(arguments, verbose: false, environment: environment.manifestLoadingVariables)
 
-            guard let startTokenRange = string.range(of: ManifestLoader.startManifestToken) else { return string.data(using: .utf8)! }
-            guard let endTokenRange = string.range(of: ManifestLoader.endManifestToken) else { return string.data(using: .utf8)! }
+            guard let startTokenRange = string.range(of: ManifestLoader.startManifestToken),
+                  let endTokenRange = string.range(of: ManifestLoader.endManifestToken)
+            else {
+                return string.data(using: .utf8)!
+            }
 
             let preManifestLogs = String(string[string.startIndex ..< startTokenRange.lowerBound]).chomp()
             let postManifestLogs = String(string[endTokenRange.upperBound ..< string.endIndex]).chomp()
