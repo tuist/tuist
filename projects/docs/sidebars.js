@@ -32,7 +32,6 @@ module.exports = {
         'commands/edit',
         'commands/graph',
         'commands/generate',
-        'commands/linting',
         'commands/migration',
         'commands/plugin',
         'commands/scaffold',
