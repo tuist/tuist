@@ -6,5 +6,6 @@ module Types
     field :account, AccountType, null: false
     field :users, [UserType], null: false
     field :admins, [UserType], null: false
+    field :name, String, null: false
   end
 end

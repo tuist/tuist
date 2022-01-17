@@ -127,4 +127,37 @@ describe('OrganizationStore', () => {
       expectedUserThree,
     ]);
   });
+
+  it('removes a user from the organization', async () => {
+    // Given
+    const organization = {
+      __typename: 'Organization' as 'Organization' | undefined,
+      id: 'organization-id',
+      users: [userOne, userTwo],
+      admins: [admin],
+    };
+    const organizationStore = new OrganizationStore(client as any);
+    organizationStore.organization = organization;
+    const expectedUserOne = {
+      role: Role.User,
+      id: userOne.id,
+      email: userOne.email,
+      name: userOne.account.name,
+      avatarUrl: undefined,
+    };
+    const expectedAdmin = {
+      role: Role.Admin,
+      id: admin.id,
+      email: admin.email,
+      name: admin.account.name,
+      avatarUrl: undefined,
+    };
+
+    // When
+    await organizationStore.removeMember(userTwo.id);
+
+    // Then
+    expect(organizationStore.admins).toEqual([expectedAdmin]);
+    expect(organizationStore.users).toEqual([expectedUserOne]);
+  });
 });

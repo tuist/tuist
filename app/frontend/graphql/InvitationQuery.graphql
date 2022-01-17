@@ -1,0 +1,11 @@
+query Invitation($token: String!) {
+  invitation(token: $token) {
+    organization {
+      name
+    }
+    inviteeEmail
+    inviter {
+      ...UserBasicInfo
+    }
+  }
+}
