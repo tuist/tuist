@@ -2384,6 +2384,56 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             )
         )
     }
+
+    func testMap_whenTargetsWithDefaultHardcodedMapping() throws {
+        let basePath = try temporaryPath()
+        let testTargets = ["Nimble", "Quick", "RxTest", "RxTest-Dynamic", "SnapshotTesting", "TempuraTesting", "TSCTestSupport"]
+        let allTargets = ["RxSwift"] + testTargets
+        try allTargets
+            .map { basePath.appending(RelativePath("Package/Path/Sources/\($0)")) }
+            .forEach { try fileHandler.createFolder($0) }
+
+        let project = try subject.map(
+            package: "Package",
+            basePath: basePath,
+            packageInfos: [
+                "Package": .init(
+                    products: [
+                        .init(name: "Product1", type: .library(.automatic), targets: allTargets),
+                    ],
+                    targets: allTargets.map { .test(name: $0) },
+                    platforms: [],
+                    cLanguageStandard: nil,
+                    cxxLanguageStandard: nil,
+                    swiftLanguageVersions: nil
+                ),
+            ],
+            targetSettings: [
+                "Nimble": ["ENABLE_TESTING_SEARCH_PATHS": "NO", "ANOTHER_SETTING": "YES"],
+                "Quick": ["ANOTHER_SETTING": "YES"],
+            ]
+        )
+        XCTAssertEqual(
+            project,
+            .test(
+                name: "Package",
+                targets: [
+                    .test("RxSwift", basePath: basePath, product: .framework),
+                ] + testTargets.map {
+                    let customSettings: ProjectDescription.SettingsDictionary
+                    switch $0 {
+                    case "Nimble":
+                        customSettings = ["ENABLE_TESTING_SEARCH_PATHS": "NO", "ANOTHER_SETTING": "YES"]
+                    case "Quick":
+                        customSettings = ["ENABLE_TESTING_SEARCH_PATHS": "YES", "ANOTHER_SETTING": "YES"]
+                    default:
+                        customSettings = ["ENABLE_TESTING_SEARCH_PATHS": "YES"]
+                    }
+                    return .test($0, basePath: basePath, customSettings: customSettings)
+                }
+            )
+        )
+    }
 }
 
 extension PackageInfoMapping {
@@ -2483,6 +2533,7 @@ extension ProjectDescription.Target {
         _ name: String,
         basePath: AbsolutePath = "/",
         platform: ProjectDescription.Platform = .iOS,
+        product: ProjectDescription.Product = .staticFramework,
         customBundleID: String? = nil,
         deploymentTarget: ProjectDescription.DeploymentTarget = .iOS(targetVersion: "9.0", devices: [.iphone, .ipad]),
         customSources: SourceFilesList? = nil,
@@ -2496,7 +2547,7 @@ extension ProjectDescription.Target {
         .init(
             name: name,
             platform: platform,
-            product: .staticFramework,
+            product: product,
             bundleId: customBundleID ?? name,
             deploymentTarget: deploymentTarget,
             infoPlist: .default,

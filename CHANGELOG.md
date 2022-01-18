@@ -11,13 +11,14 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Added
 
 - Add ability to specify as a command line argument, the Xcode version to use when bundling/releasing tuist and its libraries [#3957](https://github.com/tuist/tuist/pull/3957) by [@hisaac](https://github.com/hisaac)
-- Add PLCrashReporter to fixture tests for iOS app with SPM dependencies [#4000](https://github.com/tuist/tuist/pull/3957) by [@ffittschen](https://github.com/ffittschen)
+- Add automatic mapping of product and settings for known SwiftPackageManager libraries [#3996](https://github.com/tuist/tuist/pull/3996) by [@danyf90](https://github.com/danyf90)
 
 ### Fixed
 
 - Fix issue where test results were not being cached if a scheme was specified in the `tuist test` command [#3952](https://github.com/tuist/tuist/pull/3952) by [@hisaac](https://github.com/hisaac)
 - Fix for target references within workspace scheme pre/post actions [#3954](https://github.com/tuist/tuist/pull/3954) by [@kwridan](https://github.com/kwridan)
 - Fix SPM mapping for `GCC_PREPROCESSOR_DEFINITIONS` definitions [#3995](https://github.com/tuist/tuist/pull/3995) by [@adellibovi](https://github.com/adellibovi)
+- Fix archiving iOS target for Mac Catalyst [#3990](https://github.com/tuist/tuist/pull/3990) by [@orbitekk](https://github.com/orbitekk)
 
 ## 2.6.0 - Havana
 

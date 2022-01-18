@@ -16,8 +16,6 @@ let dependencies = Dependencies(
             .package(url: "https://github.com/microsoft/plcrashreporter.git", .upToNextMajor(from: "1.10.1")),
         ],
         targetSettings: [
-            "Quick": ["ENABLE_TESTING_SEARCH_PATHS": "YES"],
-            "Nimble": ["ENABLE_TESTING_SEARCH_PATHS": "YES"],
             "CrashReporter": [
                 "ALWAYS_SEARCH_USER_PATHS": "NO",
                 "USE_HEADERMAP": "YES"

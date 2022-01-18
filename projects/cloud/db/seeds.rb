@@ -11,16 +11,19 @@
 #   Character.create(name: 'Luke', movie: movies.first)
 
 4.times do |index|
-  Faker::Config.random = Random.new(index)
   organization = Organization.create!
-  Account.create!(
+  account = Account.create!(
     name: Faker::Superhero.name,
     owner: organization
+  )
+  Project.create!(
+    name: Faker::Superhero.name.tr(" ", "-").underscore.dasherize,
+    token: Faker::Alphanumeric.alpha(number: 10),
+    account_id: account.id
   )
 end
 
 10.times do |index|
-  Faker::Config.random = Random.new(index)
   email = Faker::Internet.email
   password = Faker::Internet.password(min_length: 6, max_length: 8)
   user = User.create!(
@@ -28,21 +31,13 @@ end
     password: password,
     confirmed_at: Date.new
   )
-  Account.create!(
-    name: email.split(/@/, 2).first,
-    owner: user
-  )
-  organization = Organization.find(Faker::Number.between(from: 1, to: 4))
-  user.add_role(:user, organization)
-  puts "email: #{email}"
-  puts "password: #{password}"
-end
-
-14.times do |index|
-  Faker::Config.random = Random.new(index + 10)
   Project.create!(
     name: Faker::Superhero.name.tr(" ", "-").underscore.dasherize,
     token: Faker::Alphanumeric.alpha(number: 10),
-    account_id: index + 1
+    account_id: user.account.id
   )
+  organization = Organization.find(Faker::Number.between(from: 1, to: 4))
+  user.add_role(:admin, organization)
+  puts "email: #{email}"
+  puts "password: #{password}"
 end
