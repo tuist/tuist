@@ -26,7 +26,7 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
         super.tearDown()
     }
 
-    func test_build_ios() throws {
+    func test_build_ios() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let frameworksPath = try temporaryFixture("Frameworks")
@@ -34,7 +34,7 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
         let scheme = Scheme.test(name: "iOS")
 
         // When
-        try subject.build(
+        try await subject.build(
             scheme: scheme,
             projectTarget: XcodeBuildTarget(with: projectPath),
             configuration: "Debug",
@@ -52,7 +52,7 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
         XCTAssertEqual(try architectures(path: frameworkPath).count, 1)
     }
 
-    func test_build_macos() throws {
+    func test_build_macos() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let frameworksPath = try temporaryFixture("Frameworks")
@@ -60,7 +60,7 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
         let scheme = Scheme.test(name: "macOS")
 
         // When
-        try subject.build(
+        try await subject.build(
             scheme: scheme,
             projectTarget: XcodeBuildTarget(with: projectPath),
             configuration: "Debug",
@@ -78,7 +78,7 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
         XCTAssertEqual(try architectures(path: frameworkPath).count, 1)
     }
 
-    func test_build_tvOS() throws {
+    func test_build_tvOS() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let frameworksPath = try temporaryFixture("Frameworks")
@@ -86,7 +86,7 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
         let scheme = Scheme.test(name: "tvOS")
 
         // When
-        try subject.build(
+        try await subject.build(
             scheme: scheme,
             projectTarget: XcodeBuildTarget(with: projectPath),
             configuration: "Debug",
@@ -104,7 +104,7 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
         XCTAssertEqual(try architectures(path: frameworkPath).count, 1)
     }
 
-    func test_build_watchOS() throws {
+    func test_build_watchOS() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let frameworksPath = try temporaryFixture("Frameworks")
@@ -112,7 +112,7 @@ final class CacheFrameworkBuilderIntegrationTests: TuistTestCase {
         let scheme = Scheme.test(name: "watchOS")
 
         // When
-        try subject.build(
+        try await subject.build(
             scheme: scheme,
             projectTarget: XcodeBuildTarget(with: projectPath),
             configuration: "Debug",

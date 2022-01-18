@@ -22,7 +22,7 @@ public protocol CacheArtifactBuilding {
         osVersion: Version?,
         deviceName: String?,
         into outputDirectory: AbsolutePath
-    ) throws
+    ) async throws
 }
 
 extension CacheArtifactBuilding {

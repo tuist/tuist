@@ -54,7 +54,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_throwsError_when_buildProductNotFound() throws {
+    func test_throwsError_when_buildProductNotFound() async throws {
         // Given
         let target = GraphTarget.test()
         let path = try temporaryPath()
@@ -65,8 +65,8 @@ final class TargetRunnerTests: TuistUnitTestCase {
         fileHandler.stubExists = { _ in false }
 
         // When / Then
-        XCTAssertThrowsSpecific(
-            try subject.runTarget(
+        await XCTAssertThrowsSpecific(
+            try await subject.runTarget(
                 target,
                 workspacePath: workspacePath,
                 schemeName: "MyScheme",
@@ -80,7 +80,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
         )
     }
 
-    func test_usesDefaultConfiguration_when_noConfiguration() throws {
+    func test_usesDefaultConfiguration_when_noConfiguration() async throws {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
@@ -96,7 +96,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
         }
 
         // WHEN
-        try subject.runTarget(
+        try await subject.runTarget(
             .test(target: .test(platform: .macOS, product: .commandLineTool)),
             workspacePath: workspacePath,
             schemeName: "MyScheme",
@@ -107,10 +107,10 @@ final class TargetRunnerTests: TuistUnitTestCase {
             arguments: []
         )
 
-        waitForExpectations(timeout: 1.0)
+        await waitForExpectations(timeout: 1.0)
     }
 
-    func test_runsExecutable_when_platform_is_macOS_and_product_is_commandLineTool() throws {
+    func test_runsExecutable_when_platform_is_macOS_and_product_is_commandLineTool() async throws {
         // Given
         let workspacePath = try temporaryPath().appending(component: "App.xcworkspace")
         let target = Target.test(platform: .macOS, product: .commandLineTool)
@@ -124,9 +124,8 @@ final class TargetRunnerTests: TuistUnitTestCase {
         system.succeedCommand([executablePath.pathString] + arguments)
 
         // THEN
-        XCTAssertNoThrow(
-            // WHEN
-            try subject.runTarget(
+        do {
+            try await subject.runTarget(
                 graphTarget,
                 workspacePath: workspacePath,
                 schemeName: "MyScheme",
@@ -136,10 +135,12 @@ final class TargetRunnerTests: TuistUnitTestCase {
                 deviceName: nil,
                 arguments: arguments
             )
-        )
+        } catch {
+            XCTFail("Should not throw")
+        }
     }
 
-    func test_runsApp_when_platform_is_iOS_and_product_is_app() throws {
+    func test_runsApp_when_platform_is_iOS_and_product_is_app() async throws {
         // Given
         let workspacePath = try temporaryPath().appending(component: "App.xcworkspace")
         let target = Target.test(platform: .iOS, product: .app)
@@ -156,17 +157,17 @@ final class TargetRunnerTests: TuistUnitTestCase {
         xcodeProjectBuildDirectoryLocator.locateStub = { _, _, _ in outputPath }
         xcodeBuildController.showBuildSettingsStub = { _, _, _ in
             let settings = ["PRODUCT_BUNDLE_IDENTIFIER": bundleId]
-            return .just([
+            return [
                 graphTarget.target
                     .name: XcodeBuildSettings(settings, target: graphTarget.target.name, configuration: "Debug"),
-            ])
+            ]
         }
         simulatorController.findAvailableDeviceStub = { _platform, _version, _minVersion, _deviceName in
             XCTAssertEqual(_platform, .iOS)
             XCTAssertEqual(_version, version)
             XCTAssertEqual(_minVersion, minVersion)
             XCTAssertEqual(_deviceName, deviceName)
-            return .just(.test(device: .test(), runtime: .test()))
+            return .test(device: .test(), runtime: .test())
         }
         simulatorController.installAppStub = { _appPath, _ in
             XCTAssertEqual(_appPath, appPath)
@@ -177,9 +178,8 @@ final class TargetRunnerTests: TuistUnitTestCase {
         }
 
         // THEN
-        XCTAssertNoThrow(
-            // WHEN
-            try subject.runTarget(
+        do {
+            try await subject.runTarget(
                 graphTarget,
                 workspacePath: workspacePath,
                 schemeName: "MyScheme",
@@ -189,6 +189,8 @@ final class TargetRunnerTests: TuistUnitTestCase {
                 deviceName: deviceName,
                 arguments: arguments
             )
-        )
+        } catch {
+            XCTFail("Should not throw")
+        }
     }
 }

@@ -71,7 +71,7 @@ final class RunService {
         device: String?,
         version: String?,
         arguments: [String]
-    ) throws {
+    ) async throws {
         let runPath: AbsolutePath
         if let path = path {
             runPath = AbsolutePath(path, relativeTo: FileHandler.shared.currentPath)
@@ -140,7 +140,7 @@ final class RunService {
             return version
         } ?? nil
 
-        try targetRunner.runTarget(
+        try await targetRunner.runTarget(
             graphTarget,
             workspacePath: workspacePath,
             schemeName: scheme.name,

@@ -1,30 +1,10 @@
 import Foundation
-import RxBlocking
-import RxSwift
 import TSCBasic
 import struct TSCUtility.Version
 import TuistGraph
 import TuistSupport
 
 public protocol SimulatorControlling {
-    /// Returns the list of simulator devices that are available in the system.
-    func devices() -> Single<[SimulatorDevice]>
-
-    /// Returns the list of simulator runtimes that are available in the system.
-    func runtimes() -> Single<[SimulatorRuntime]>
-
-    /// - Parameters:
-    ///     - platform: Optionally filter by platform
-    ///     - deviceName: Optionally filter by device name
-    /// - Returns: the list of simulator devices and runtimes.
-    func devicesAndRuntimes() -> Single<[SimulatorDeviceAndRuntime]>
-
-    /// Find an available device for the given platform.
-    /// Available devices are sorted by their runtime version, meaning the ones with higher runtime
-    /// will be preferred over the ones with a lower runtime.
-    /// - Parameter platform: Platform.
-    func findAvailableDevice(platform: Platform) -> Single<SimulatorDeviceAndRuntime>
-
     /// Finds first available device defined by given parameters
     /// - Parameters:
     ///     - platform: Given platform
@@ -36,7 +16,7 @@ public protocol SimulatorControlling {
         version: Version?,
         minVersion: Version?,
         deviceName: String?
-    ) -> Single<SimulatorDeviceAndRuntime>
+    ) async throws -> SimulatorDeviceAndRuntime
 
     /// Installs an app on a given simulator.
     /// - Parameters:
@@ -60,7 +40,7 @@ public protocol SimulatorControlling {
         for targetPlatform: Platform,
         version: Version?,
         deviceName: String?
-    ) -> Single<String>
+    ) async throws -> String
 }
 
 public enum SimulatorControllerError: Equatable, FatalError {
@@ -94,72 +74,56 @@ public final class SimulatorController: SimulatorControlling {
 
     public init() {}
 
-    public func devices() -> Single<[SimulatorDevice]> {
-        System.shared.observable(["/usr/bin/xcrun", "simctl", "list", "devices", "--json"])
-            .mapToString()
-            .collectOutput()
-            .asSingle()
-            .flatMap { output in
-                do {
-                    let data = output.standardOutput.data(using: .utf8)!
-                    let json = try JSONSerialization.jsonObject(with: data, options: [])
-                    guard let dictionary = json as? [String: Any],
-                          let devicesJSON = dictionary["devices"] as? [String: [[String: Any]]]
-                    else {
-                        return .just([])
-                    }
+    /// Returns the list of simulator devices that are available in the system.
+    func devices() async throws -> [SimulatorDevice] {
+        let output = try await System.shared.runAndCollectOutput(["/usr/bin/xcrun", "simctl", "list", "devices", "--json"])
+        let data = output.standardOutput.data(using: .utf8)!
+        let json = try JSONSerialization.jsonObject(with: data, options: [])
+        guard let dictionary = json as? [String: Any],
+              let devicesJSON = dictionary["devices"] as? [String: [[String: Any]]]
+        else {
+            return []
+        }
 
-                    let devices = try devicesJSON.flatMap { runtimeIdentifier, devicesJSON -> [SimulatorDevice] in
-                        try devicesJSON.map { deviceJSON -> SimulatorDevice in
-                            var deviceJSON = deviceJSON
-                            deviceJSON["runtimeIdentifier"] = runtimeIdentifier
-                            let deviceJSONData = try JSONSerialization.data(withJSONObject: deviceJSON, options: [])
-                            return try self.jsonDecoder.decode(SimulatorDevice.self, from: deviceJSONData)
-                        }
-                    }
-
-                    return .just(devices)
-                } catch {
-                    return .error(error)
-                }
+        let devices = try devicesJSON.flatMap { runtimeIdentifier, devicesJSON -> [SimulatorDevice] in
+            try devicesJSON.map { deviceJSON -> SimulatorDevice in
+                var deviceJSON = deviceJSON
+                deviceJSON["runtimeIdentifier"] = runtimeIdentifier
+                let deviceJSONData = try JSONSerialization.data(withJSONObject: deviceJSON, options: [])
+                return try self.jsonDecoder.decode(SimulatorDevice.self, from: deviceJSONData)
             }
+        }
+        return devices
     }
 
-    public func runtimes() -> Single<[SimulatorRuntime]> {
-        System.shared.observable(["/usr/bin/xcrun", "simctl", "list", "runtimes", "--json"])
-            .mapToString()
-            .collectOutput()
-            .asSingle()
-            .flatMap { output in
-                do {
-                    let data = output.standardOutput.data(using: .utf8)!
-                    let json = try JSONSerialization.jsonObject(with: data, options: [])
-                    guard let dictionary = json as? [String: Any],
-                          let runtimesJSON = dictionary["runtimes"] as? [Any]
-                    else {
-                        return .just([])
-                    }
+    /// Returns the list of simulator runtimes that are available in the system.
+    func runtimes() async throws -> [SimulatorRuntime] {
+        let output = try await System.shared.runAndCollectOutput(["/usr/bin/xcrun", "simctl", "list", "runtimes", "--json"])
+        let data = output.standardOutput.data(using: .utf8)!
+        let json = try JSONSerialization.jsonObject(with: data, options: [])
+        guard let dictionary = json as? [String: Any],
+              let runtimesJSON = dictionary["runtimes"] as? [Any]
+        else {
+            return []
+        }
 
-                    let runtimesData = try JSONSerialization.data(withJSONObject: runtimesJSON, options: [])
-                    let runtimes = try self.jsonDecoder.decode([SimulatorRuntime].self, from: runtimesData)
-                    return .just(runtimes)
-                } catch {
-                    return .error(error)
-                }
-            }
+        let runtimesData = try JSONSerialization.data(withJSONObject: runtimesJSON, options: [])
+        let runtimes = try self.jsonDecoder.decode([SimulatorRuntime].self, from: runtimesData)
+        return runtimes
     }
 
-    public func devicesAndRuntimes() -> Single<[SimulatorDeviceAndRuntime]> {
-        runtimes()
-            .flatMap { runtimes -> Single<([SimulatorDevice], [SimulatorRuntime])> in
-                self.devices().map { ($0, runtimes) }
-            }
-            .map { input -> [SimulatorDeviceAndRuntime] in
-                input.0.compactMap { device -> SimulatorDeviceAndRuntime? in
-                    guard let runtime = input.1.first(where: { $0.identifier == device.runtimeIdentifier }) else { return nil }
-                    return SimulatorDeviceAndRuntime(device: device, runtime: runtime)
-                }
-            }
+    /// - Parameters:
+    ///     - platform: Optionally filter by platform
+    ///     - deviceName: Optionally filter by device name
+    /// - Returns: the list of simulator devices and runtimes.
+    func devicesAndRuntimes() async throws -> [SimulatorDeviceAndRuntime] {
+        async let runtimesTask = runtimes()
+        async let devicesTask = devices()
+        let (runtimes, devices) = try await (runtimesTask, devicesTask)
+        return devices.compactMap { device -> SimulatorDeviceAndRuntime? in
+            guard let runtime = runtimes.first(where: { $0.identifier == device.runtimeIdentifier }) else { return nil }
+            return SimulatorDeviceAndRuntime(device: device, runtime: runtime)
+        }
     }
 
     public func findAvailableDevice(
@@ -167,31 +131,28 @@ public final class SimulatorController: SimulatorControlling {
         version: Version?,
         minVersion: Version?,
         deviceName: String?
-    ) -> Single<SimulatorDeviceAndRuntime> {
-        devicesAndRuntimes()
-            .flatMap { devicesAndRuntimes in
-                let availableDevices = devicesAndRuntimes
-                    .sorted(by: { $0.runtime.version >= $1.runtime.version })
-                    .filter { simulatorDeviceAndRuntime in
-                        let nameComponents = simulatorDeviceAndRuntime.runtime.name.components(separatedBy: " ")
-                        guard nameComponents.first == platform.caseValue else { return false }
-                        let deviceVersion = nameComponents.last?.version()
-                        if let version = version {
-                            guard deviceVersion == version else { return false }
-                        } else if let minVersion = minVersion, let deviceVersion = deviceVersion {
-                            guard deviceVersion >= minVersion else { return false }
-                        }
-                        if let deviceName = deviceName {
-                            guard simulatorDeviceAndRuntime.device.name == deviceName else { return false }
-                        }
-                        return true
-                    }
-                guard
-                    let device = availableDevices.first(where: { !$0.device.isShutdown }) ?? availableDevices.first
-                else { return .error(SimulatorControllerError.deviceNotFound(platform, version, deviceName, devicesAndRuntimes)) }
-
-                return .just(device)
+    ) async throws -> SimulatorDeviceAndRuntime {
+        let devicesAndRuntimes = try await devicesAndRuntimes()
+        let availableDevices = devicesAndRuntimes
+            .sorted(by: { $0.runtime.version >= $1.runtime.version })
+            .filter { simulatorDeviceAndRuntime in
+                let nameComponents = simulatorDeviceAndRuntime.runtime.name.components(separatedBy: " ")
+                guard nameComponents.first == platform.caseValue else { return false }
+                let deviceVersion = nameComponents.last?.version()
+                if let version = version {
+                    guard deviceVersion == version else { return false }
+                } else if let minVersion = minVersion, let deviceVersion = deviceVersion {
+                    guard deviceVersion >= minVersion else { return false }
+                }
+                if let deviceName = deviceName {
+                    guard simulatorDeviceAndRuntime.device.name == deviceName else { return false }
+                }
+                return true
             }
+        guard
+            let device = availableDevices.first(where: { !$0.device.isShutdown }) ?? availableDevices.first
+        else { throw SimulatorControllerError.deviceNotFound(platform, version, deviceName, devicesAndRuntimes) }
+        return device
     }
 
     public func installApp(at path: AbsolutePath, device: SimulatorDevice) throws {
@@ -211,30 +172,22 @@ public final class SimulatorController: SimulatorControlling {
         for targetPlatform: Platform,
         version: Version?,
         deviceName: String?
-    ) -> Single<String> {
+    ) async throws -> String {
         var platform: Platform!
         switch targetPlatform {
         case .iOS: platform = .iOS
         case .watchOS: platform = .watchOS
         case .tvOS: platform = .tvOS
-        case .macOS: return .just("platform=OS X,arch=x86_64")
+        case .macOS: return "platform=OS X,arch=x86_64"
         }
 
-        return findAvailableDevice(
+        let deviceAndRuntime = try await findAvailableDevice(
             platform: platform,
             version: version,
             minVersion: nil,
             deviceName: deviceName
         )
-        .flatMap { deviceAndRuntime -> Single<String> in
-            .just("id=\(deviceAndRuntime.device.udid)")
-        }
-    }
-}
-
-extension SimulatorControlling {
-    public func findAvailableDevice(platform: Platform) -> Single<SimulatorDeviceAndRuntime> {
-        self.findAvailableDevice(platform: platform, version: nil, minVersion: nil, deviceName: nil)
+        return "id=\(deviceAndRuntime.device.udid)"
     }
 }
 

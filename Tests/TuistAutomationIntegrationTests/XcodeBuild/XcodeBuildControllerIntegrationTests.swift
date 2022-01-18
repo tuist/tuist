@@ -22,14 +22,12 @@ final class XcodeBuildControllerIntegrationTests: TuistTestCase {
         super.tearDown()
     }
 
-    func test_showBuildSettings() throws {
+    func test_showBuildSettings() async throws {
         // Given
         let target = XcodeBuildTarget.project(fixturePath(path: RelativePath("Frameworks/Frameworks.xcodeproj")))
 
         // When
-        let got = try subject.showBuildSettings(target, scheme: "iOS", configuration: "Debug")
-            .toBlocking()
-            .single()
+        let got = try await subject.showBuildSettings(target, scheme: "iOS", configuration: "Debug")
 
         // Then
         XCTAssertEqual(got.count, 1)
