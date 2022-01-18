@@ -1,6 +1,4 @@
 import Foundation
-import RxBlocking
-import RxSwift
 import TuistCore
 import TuistGraph
 import XCTest
@@ -31,8 +29,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             sources: [],
             cacheProfile: .test(),
             cacheOutputType: .framework,
-            cacheGraphMutator: cacheGraphMutator,
-            queue: DispatchQueue.main
+            cacheGraphMutator: cacheGraphMutator
         )
     }
 
@@ -54,8 +51,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             sources: ["B", "C", "D"],
             cacheProfile: .test(),
             cacheOutputType: .framework,
-            cacheGraphMutator: cacheGraphMutator,
-            queue: DispatchQueue.main
+            cacheGraphMutator: cacheGraphMutator
         )
         let projectPath = try temporaryPath()
         let graph = Graph.test(
@@ -251,8 +247,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             sources: [],
             cacheProfile: .test(),
             cacheOutputType: .xcframework,
-            cacheGraphMutator: cacheGraphMutator,
-            queue: DispatchQueue.main
+            cacheGraphMutator: cacheGraphMutator
         )
 
         let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)

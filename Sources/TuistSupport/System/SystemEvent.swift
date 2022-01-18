@@ -1,5 +1,4 @@
 import Foundation
-import RxSwift
 import TSCBasic
 
 /// It represents an event sent by a running process.

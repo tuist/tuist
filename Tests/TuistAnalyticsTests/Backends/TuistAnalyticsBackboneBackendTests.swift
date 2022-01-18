@@ -1,4 +1,3 @@
-import RxBlocking
 import TuistCloud
 import TuistCore
 import TuistGraph
@@ -36,11 +35,11 @@ final class TuistAnalyticsBackboneBackendTests: TuistUnitTestCase {
         XCTAssertHTTPResourceContainsHeader(got, header: "Content-Type", value: "application/json")
     }
 
-    func test_send() throws {
+    func test_send() async throws {
         // Given
         let commandEvent = CommandEvent.test()
 
         // When
-        try subject.send(commandEvent: commandEvent).toBlocking()
+        try await subject.send(commandEvent: commandEvent)
     }
 }
