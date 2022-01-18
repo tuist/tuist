@@ -460,6 +460,9 @@ public class GraphTraverser: GraphTraversing {
         if target.target.product.testsBundle {
             return true
         }
+        if target.target.settings?.base["ENABLE_TESTING_SEARCH_PATHS"] == "YES" {
+            return true
+        }
         guard let directDependencies = dependencies[.target(name: name, path: path)] else {
             return false
         }

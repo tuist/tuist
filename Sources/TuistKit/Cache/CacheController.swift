@@ -17,11 +17,13 @@ protocol CacheControlling {
     ///   - cacheProfile: The caching profile.
     ///   - includedTargets: If present, a list of the targets and their dependencies to cache.
     ///   - dependenciesOnly: If true, the targets passed in the `targets` parameter are not cached, but only their dependencies
-    func cache(config: Config,
-               path: AbsolutePath,
-               cacheProfile: TuistGraph.Cache.Profile,
-               includedTargets: Set<String>,
-               dependenciesOnly: Bool) async throws
+    func cache(
+        config: Config,
+        path: AbsolutePath,
+        cacheProfile: TuistGraph.Cache.Profile,
+        includedTargets: Set<String>,
+        dependenciesOnly: Bool
+    ) async throws
 }
 
 final class CacheController: CacheControlling {
