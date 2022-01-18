@@ -1,5 +1,4 @@
 import Foundation
-import RxBlocking
 import TSCBasic
 import TuistCore
 import TuistGenerator
@@ -56,7 +55,7 @@ final class LintCodeService {
         self.manifestGraphLoader = manifestGraphLoader
     }
 
-    func run(path: String?, targetName: String?, strict: Bool) throws {
+    func run(path: String?, targetName: String?, strict: Bool) async throws {
         // Determine destination path
         let path = self.path(path)
 
@@ -70,7 +69,7 @@ final class LintCodeService {
 
         // Lint code
         logger.notice("Running code linting")
-        try codeLinter.lint(sources: sources, path: path, strict: strict)
+        try await codeLinter.lint(sources: sources, path: path, strict: strict)
     }
 
     // MARK: - Destination path

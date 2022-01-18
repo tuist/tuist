@@ -24,7 +24,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_generate_addsPackageDependencyManager() throws {
+    func test_generate_addsPackageDependencyManager() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let target = anyTarget(dependencies: [
@@ -50,13 +50,13 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         try createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
 
         // When
-        try subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename)
+        try await subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename)
 
         // Then
         XCTAssertTrue(FileHandler.shared.exists(temporaryPath.appending(component: ".package.resolved")))
     }
 
-    func test_generate_usesSystemGitCredentials() throws {
+    func test_generate_usesSystemGitCredentials() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let config = Config(
@@ -101,13 +101,13 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         try createFiles(["\(workspacePath.basename)/xcshareddata/swiftpm/Package.resolved"])
 
         // When
-        try subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename, config: config)
+        try await subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename, config: config)
 
         // Then
         XCTAssertTrue(FileHandler.shared.exists(temporaryPath.appending(component: ".package.resolved")))
     }
 
-    func test_generate_linksRootPackageResolved_before_resolving() throws {
+    func test_generate_linksRootPackageResolved_before_resolving() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let target = anyTarget(dependencies: [
@@ -141,7 +141,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         system.succeedCommand(["xcodebuild", "-resolvePackageDependencies", "-workspace", workspacePath.pathString, "-list"])
 
         // When
-        try subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename)
+        try await subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename)
 
         // Then
         let workspacePackageResolvedPath = temporaryPath
@@ -157,7 +157,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         )
     }
 
-    func test_generate_doesNotAddPackageDependencyManager() throws {
+    func test_generate_doesNotAddPackageDependencyManager() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let target = anyTarget()
@@ -174,7 +174,7 @@ final class SwiftPackageManagerInteractorTests: TuistUnitTestCase {
         let workspacePath = temporaryPath.appending(component: workspace.name + ".xcworkspace")
 
         // When
-        try subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename)
+        try await subject.install(graphTraverser: graphTraverser, workspaceName: workspacePath.basename)
 
         // Then
         XCTAssertFalse(FileHandler.shared.exists(temporaryPath.appending(component: ".package.resolved")))

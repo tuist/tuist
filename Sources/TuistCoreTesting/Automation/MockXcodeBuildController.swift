@@ -1,29 +1,32 @@
 import Foundation
-import RxSwift
 import TSCBasic
 import TuistCore
 import TuistSupport
 @testable import TuistSupportTesting
 
 final class MockXcodeBuildController: XcodeBuildControlling {
-    var buildStub: ((XcodeBuildTarget, String, Bool, [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>>)?
+    var buildStub: ((XcodeBuildTarget, String, Bool, [XcodeBuildArgument]) -> [SystemEvent<XcodeBuildOutput>])?
     func build(_ target: XcodeBuildTarget,
                scheme: String,
                clean: Bool,
-               arguments: [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>>
+               arguments: [XcodeBuildArgument]) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
     {
         if let buildStub = buildStub {
-            return buildStub(target, scheme, clean, arguments)
+            return buildStub(target, scheme, clean, arguments).asAsyncThrowingStream()
         } else {
-            return Observable
-                .error(TestError("\(String(describing: MockXcodeBuildController.self)) received an unexpected call to build"))
+            return AsyncThrowingStream {
+                throw TestError(
+                    "\(String(describing: MockXcodeBuildController.self)) received an unexpected call to build"
+                )
+            }
         }
     }
 
     var testStub: (
         (XcodeBuildTarget, String, Bool, XcodeBuildDestination, AbsolutePath?, AbsolutePath?, [XcodeBuildArgument])
-            -> Observable<SystemEvent<XcodeBuildOutput>>
+            -> [SystemEvent<XcodeBuildOutput>]
     )?
+    var testErrorStub: Error?
     func test(
         _ target: XcodeBuildTarget,
         scheme: String,
@@ -32,44 +35,58 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         derivedDataPath: AbsolutePath?,
         resultBundlePath: AbsolutePath?,
         arguments: [XcodeBuildArgument]
-    ) -> Observable<SystemEvent<XcodeBuildOutput>> {
+    ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         if let testStub = testStub {
-            return testStub(target, scheme, clean, destination, derivedDataPath, resultBundlePath, arguments)
+            let results = testStub(target, scheme, clean, destination, derivedDataPath, resultBundlePath, arguments)
+            if let testErrorStub = testErrorStub {
+                return AsyncThrowingStream {
+                    throw testErrorStub
+                }
+            } else {
+                return results.asAsyncThrowingStream()
+            }
         } else {
-            return Observable
-                .error(TestError("\(String(describing: MockXcodeBuildController.self)) received an unexpected call to test"))
+            return AsyncThrowingStream {
+                throw TestError(
+                    "\(String(describing: MockXcodeBuildController.self)) received an unexpected call to test"
+                )
+            }
         }
     }
 
     var archiveStub: (
         (XcodeBuildTarget, String, Bool, AbsolutePath, [XcodeBuildArgument])
-            -> Observable<SystemEvent<XcodeBuildOutput>>
+            -> [SystemEvent<XcodeBuildOutput>]
     )?
     func archive(_ target: XcodeBuildTarget,
                  scheme: String,
                  clean: Bool,
                  archivePath: AbsolutePath,
-                 arguments: [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>>
+                 arguments: [XcodeBuildArgument]) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
     {
         if let archiveStub = archiveStub {
-            return archiveStub(target, scheme, clean, archivePath, arguments)
+            return archiveStub(target, scheme, clean, archivePath, arguments).asAsyncThrowingStream()
         } else {
-            return Observable
-                .error(TestError("\(String(describing: MockXcodeBuildController.self)) received an unexpected call to archive"))
+            return AsyncThrowingStream {
+                throw TestError(
+                    "\(String(describing: MockXcodeBuildController.self)) received an unexpected call to archive"
+                )
+            }
         }
     }
 
-    var createXCFrameworkStub: (([AbsolutePath], AbsolutePath) -> Observable<SystemEvent<XcodeBuildOutput>>)?
-    func createXCFramework(frameworks: [AbsolutePath], output: AbsolutePath) -> Observable<SystemEvent<XcodeBuildOutput>> {
+    var createXCFrameworkStub: (([AbsolutePath], AbsolutePath) -> [SystemEvent<XcodeBuildOutput>])?
+    func createXCFramework(frameworks: [AbsolutePath],
+                           output: AbsolutePath) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
+    {
         if let createXCFrameworkStub = createXCFrameworkStub {
-            return createXCFrameworkStub(frameworks, output)
+            return createXCFrameworkStub(frameworks, output).asAsyncThrowingStream()
         } else {
-            return Observable
-                .error(
-                    TestError(
-                        "\(String(describing: MockXcodeBuildController.self)) received an unexpected call to createXCFramework"
-                    )
+            return AsyncThrowingStream {
+                throw TestError(
+                    "\(String(describing: MockXcodeBuildController.self)) received an unexpected call to createXCFramework"
                 )
+            }
         }
     }
 
@@ -83,6 +100,15 @@ final class MockXcodeBuildController: XcodeBuildControlling {
             throw TestError(
                 "\(String(describing: MockXcodeBuildController.self)) received an unexpected call to showBuildSettings"
             )
+        }
+    }
+}
+
+extension Collection {
+    func asAsyncThrowingStream() -> AsyncThrowingStream<Element, Error> {
+        var iterator = makeIterator()
+        return AsyncThrowingStream {
+            return iterator.next()
         }
     }
 }

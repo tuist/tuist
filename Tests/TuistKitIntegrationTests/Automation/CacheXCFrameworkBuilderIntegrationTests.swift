@@ -26,7 +26,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         super.tearDown()
     }
 
-    func test_build_when_iOS_framework() throws {
+    func test_build_when_iOS_framework() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let frameworksPath = try temporaryFixture("Frameworks")
@@ -34,7 +34,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         let scheme = Scheme.test(name: "iOS")
 
         // When
-        try subject.build(
+        try await subject.build(
             scheme: scheme,
             projectTarget: XcodeBuildTarget(with: projectPath),
             configuration: "Debug",
@@ -53,7 +53,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         try FileHandler.shared.delete(xcframeworkPath)
     }
 
-    func test_build_when_macOS_framework() throws {
+    func test_build_when_macOS_framework() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let frameworksPath = try temporaryFixture("Frameworks")
@@ -61,7 +61,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         let scheme = Scheme.test(name: "macOS")
 
         // When
-        try subject.build(
+        try await subject.build(
             scheme: scheme,
             projectTarget: XcodeBuildTarget(with: projectPath),
             configuration: "Debug",
@@ -81,7 +81,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         try FileHandler.shared.delete(xcframeworkPath)
     }
 
-    func test_build_when_tvOS_framework() throws {
+    func test_build_when_tvOS_framework() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let frameworksPath = try temporaryFixture("Frameworks")
@@ -89,7 +89,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         let scheme = Scheme.test(name: "tvOS")
 
         // When
-        try subject.build(
+        try await subject.build(
             scheme: scheme,
             projectTarget: XcodeBuildTarget(with: projectPath),
             configuration: "Debug",
@@ -108,7 +108,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         try FileHandler.shared.delete(xcframeworkPath)
     }
 
-    func test_build_when_watchOS_framework() throws {
+    func test_build_when_watchOS_framework() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let frameworksPath = try temporaryFixture("Frameworks")
@@ -116,7 +116,7 @@ final class CacheXCFrameworkBuilderIntegrationTests: TuistTestCase {
         let scheme = Scheme.test(name: "watchOS")
 
         // When
-        try subject.build(
+        try await subject.build(
             scheme: scheme,
             projectTarget: XcodeBuildTarget(with: projectPath),
             configuration: "Debug",

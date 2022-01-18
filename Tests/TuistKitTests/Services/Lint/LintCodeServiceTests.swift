@@ -43,7 +43,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_run_throws_an_error_when_target_no_exist() throws {
+    func test_run_throws_an_error_when_target_no_exist() async throws {
         // Given
         let project = Project.test(path: basePath.appending(component: "test"))
         let target01 = Target.test(name: "Target1")
@@ -63,13 +63,13 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         manifestGraphLoader.stubLoadGraph = graph
 
         // When
-        XCTAssertThrowsSpecific(
-            try subject.run(path: project.path.pathString, targetName: fakeNoExistTargetName, strict: false),
+        await XCTAssertThrowsSpecific(
+            try await subject.run(path: project.path.pathString, targetName: fakeNoExistTargetName, strict: false),
             LintCodeServiceError.targetNotFound(fakeNoExistTargetName)
         )
     }
 
-    func test_run_throws_an_error_when_target_to_lint_has_no_sources() throws {
+    func test_run_throws_an_error_when_target_to_lint_has_no_sources() async throws {
         // Given
         let project = Project.test(path: basePath.appending(component: "test"))
         let target01 = Target.test(name: "Target1", sources: [])
@@ -88,23 +88,26 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         manifestGraphLoader.stubLoadGraph = graph
 
         // When
-        XCTAssertThrowsSpecific(
-            try subject.run(path: project.path.pathString, targetName: target01.name, strict: false),
+        await XCTAssertThrowsSpecific(
+            try await subject.run(path: project.path.pathString, targetName: target01.name, strict: false),
             LintCodeServiceError.lintableFilesForTargetNotFound(target01.name)
         )
     }
 
-    func test_run_throws_an_error_when_code_liner_throws_error() throws {
+    func test_run_throws_an_error_when_code_liner_throws_error() async throws {
         // Given
         let fakeError = TestError("codeLinterFailed")
         let project = Project.test(path: basePath.appending(component: "test"))
         codeLinter.stubbedLintError = fakeError
 
         // When
-        XCTAssertThrowsSpecific(try subject.run(path: project.path.pathString, targetName: nil, strict: false), fakeError)
+        await XCTAssertThrowsSpecific(
+            try await subject.run(path: project.path.pathString, targetName: nil, strict: false),
+            fakeError
+        )
     }
 
-    func test_run_lint_workspace() throws {
+    func test_run_lint_workspace() async throws {
         // Given
         let workspace = Workspace.test(path: basePath.appending(component: "test"))
         let project = Project.test(path: basePath.appending(component: "test"))
@@ -143,7 +146,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         manifestGraphLoader.stubLoadGraph = graph
 
         // When
-        try subject.run(path: workspace.path.pathString, targetName: nil, strict: false)
+        try await subject.run(path: workspace.path.pathString, targetName: nil, strict: false)
 
         // Then
         let invokedLintParameters = codeLinter.invokedLintParameters
@@ -169,7 +172,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         """)
     }
 
-    func test_run_lint_project() throws {
+    func test_run_lint_project() async throws {
         // Given
         let project = Project.test(path: basePath.appending(component: "test"))
         let target01 = Target.test(
@@ -206,7 +209,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         manifestGraphLoader.stubLoadGraph = graph
 
         // When
-        try subject.run(path: project.path.pathString, targetName: nil, strict: false)
+        try await subject.run(path: project.path.pathString, targetName: nil, strict: false)
 
         // Then
         let invokedLintParameters = codeLinter.invokedLintParameters
@@ -232,7 +235,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         """)
     }
 
-    func test_run_lint_project_strict() throws {
+    func test_run_lint_project_strict() async throws {
         // Given
         let project = Project.test(path: basePath.appending(component: "test"))
         let target01 = Target.test(
@@ -269,7 +272,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         manifestGraphLoader.stubLoadGraph = graph
 
         // When
-        try subject.run(path: project.path.pathString, targetName: nil, strict: true)
+        try await subject.run(path: project.path.pathString, targetName: nil, strict: true)
 
         // Then
         let invokedLintParameters = codeLinter.invokedLintParameters
@@ -295,7 +298,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         """)
     }
 
-    func test_run_lint_target() throws {
+    func test_run_lint_target() async throws {
         // Given
         let workspace = Workspace.test(path: basePath.appending(component: "test"))
         let project = Project.test(path: basePath.appending(component: "test"))
@@ -334,7 +337,7 @@ final class LintCodeServiceTests: TuistUnitTestCase {
         manifestGraphLoader.stubLoadGraph = graph
 
         // When
-        try subject.run(path: workspace.path.pathString, targetName: target01.name, strict: false)
+        try await subject.run(path: workspace.path.pathString, targetName: target01.name, strict: false)
 
         // Then
         let invokedLintParameters = codeLinter.invokedLintParameters

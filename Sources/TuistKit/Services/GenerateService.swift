@@ -31,14 +31,14 @@ final class GenerateService {
 
     func run(path: String?,
              projectOnly: Bool,
-             open: Bool) throws
+             open: Bool) async throws
     {
         let timer = clock.startTimer()
         let path = self.path(path)
         let config = try configLoader.loadConfig(path: path)
         let generator = generatorFactory.default(config: config)
 
-        let generatedProjectPath = try generator.generate(path: path, projectOnly: projectOnly)
+        let generatedProjectPath = try await generator.generate(path: path, projectOnly: projectOnly)
         if open {
             try opener.open(path: generatedProjectPath, wait: false)
         }

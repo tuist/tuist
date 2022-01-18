@@ -35,7 +35,7 @@ final class CodeLinterTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_lint_throws_an_error_when_binary_no_found() {
+    func test_lint_throws_an_error_when_binary_no_found() async throws {
         // Given
         let fakeError = TestError("binaryNotFound")
         let fakeSources = [
@@ -48,10 +48,10 @@ final class CodeLinterTests: TuistUnitTestCase {
         binaryLocator.stubbedSwiftLintPathError = fakeError
 
         // When
-        XCTAssertThrowsSpecific(try subject.lint(sources: fakeSources, path: fakePath, strict: false), fakeError)
+        await XCTAssertThrowsSpecific(try await subject.lint(sources: fakeSources, path: fakePath, strict: false), fakeError)
     }
 
-    func test_lint_no_configuration() throws {
+    func test_lint_no_configuration() async throws {
         // Given
         let fakeSources = [
             AbsolutePath("/xyz/abc"),
@@ -67,10 +67,10 @@ final class CodeLinterTests: TuistUnitTestCase {
         )
 
         // When
-        try subject.lint(sources: fakeSources, path: fakePath, strict: false)
+        try await subject.lint(sources: fakeSources, path: fakePath, strict: false)
     }
 
-    func test_lint_no_configuration_strict() throws {
+    func test_lint_no_configuration_strict() async throws {
         // Given
         let fakeSources = [
             AbsolutePath("/xyz/abc"),
@@ -87,10 +87,10 @@ final class CodeLinterTests: TuistUnitTestCase {
         )
 
         // When
-        try subject.lint(sources: fakeSources, path: fakePath, strict: true)
+        try await subject.lint(sources: fakeSources, path: fakePath, strict: true)
     }
 
-    func test_lint_with_configuration_yml() throws {
+    func test_lint_with_configuration_yml() async throws {
         // Given
         let fakeSources = [
             AbsolutePath("/xyz/abc"),
@@ -121,10 +121,10 @@ final class CodeLinterTests: TuistUnitTestCase {
         )
 
         // When
-        try subject.lint(sources: fakeSources, path: fakePath, strict: false)
+        try await subject.lint(sources: fakeSources, path: fakePath, strict: false)
     }
 
-    func test_lint_with_configuration_yaml() throws {
+    func test_lint_with_configuration_yaml() async throws {
         // Given
         let fakeSources = [
             AbsolutePath("/xyz/abc"),
@@ -148,6 +148,6 @@ final class CodeLinterTests: TuistUnitTestCase {
         )
 
         // When
-        try subject.lint(sources: fakeSources, path: fakePath, strict: false)
+        try await subject.lint(sources: fakeSources, path: fakePath, strict: false)
     }
 }

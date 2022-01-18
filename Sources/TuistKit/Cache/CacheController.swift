@@ -91,7 +91,7 @@ final class CacheController: CacheControlling {
             xcframeworks: xcframeworks,
             cacheProfile: cacheProfile
         )
-        let (_, graph) = try generator.generateWithGraph(path: path, projectOnly: false)
+        let (_, graph) = try await generator.generateWithGraph(path: path, projectOnly: false)
 
         // Lint
         cacheGraphLinter.lint(graph: graph)
@@ -117,7 +117,7 @@ final class CacheController: CacheControlling {
         logger.notice("Filtering cacheable targets")
 
         let targetsToBeCached = Set(hashesByTargetToBeCached.map(\.0.target.name))
-        let (projectPath, updatedGraph) = try generatorFactory
+        let (projectPath, updatedGraph) = try await generatorFactory
             .cache(
                 config: config,
                 includedTargets: targetsToBeCached,

@@ -26,7 +26,7 @@ final class AnyGraphMapperTests: TuistUnitTestCase {
 }
 
 final class SequentialGraphMapperTests: TuistUnitTestCase {
-    func test_map() throws {
+    func test_map() async throws {
         // Given
         let firstSideEffect = SideEffectDescriptor.file(.init(path: "/first"))
         let input = Graph.test(name: "0")
@@ -42,7 +42,7 @@ final class SequentialGraphMapperTests: TuistUnitTestCase {
         let subject = SequentialGraphMapper([first, second])
 
         // When
-        let (got, sideEffects) = try subject.map(graph: input)
+        let (got, sideEffects) = try await subject.map(graph: input)
 
         // Then
         XCTAssertEqual(got.name, "2")

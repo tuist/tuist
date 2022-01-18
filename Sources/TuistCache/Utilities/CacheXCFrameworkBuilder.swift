@@ -1,6 +1,4 @@
 import Foundation
-import RxBlocking
-import RxSwift
 import TSCBasic
 import struct TSCUtility.Version
 import TuistCore
@@ -33,17 +31,17 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
         osVersion _: Version?,
         deviceName _: String?,
         into outputDirectory: AbsolutePath
-    ) throws {
+    ) async throws {
         let platform = self.platform(scheme: scheme)
 
         // Create temporary directories
-        return try FileHandler.shared.inTemporaryDirectory { temporaryDirectory in
+        return try await FileHandler.shared.inTemporaryDirectory { temporaryDirectory in
 
             // Build for the simulator
             var simulatorArchivePath: AbsolutePath?
             if platform.hasSimulators {
                 simulatorArchivePath = temporaryDirectory.appending(component: "simulator.xcarchive")
-                try simulatorBuild(
+                try await self.simulatorBuild(
                     projectTarget: projectTarget,
                     scheme: scheme.name,
                     platform: platform,
@@ -54,7 +52,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
 
             // Build for the device - if required
             let deviceArchivePath = temporaryDirectory.appending(component: "device.xcarchive")
-            try deviceBuild(
+            try await self.deviceBuild(
                 projectTarget: projectTarget,
                 scheme: scheme.name,
                 platform: platform,
@@ -71,11 +69,11 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
             for productName in productNames {
                 var frameworkpaths = [AbsolutePath]()
                 if let simulatorArchivePath = simulatorArchivePath {
-                    frameworkpaths.append(frameworkPath(fromArchivePath: simulatorArchivePath, productName: productName))
+                    frameworkpaths.append(self.frameworkPath(fromArchivePath: simulatorArchivePath, productName: productName))
                 }
-                frameworkpaths.append(frameworkPath(fromArchivePath: deviceArchivePath, productName: productName))
+                frameworkpaths.append(self.frameworkPath(fromArchivePath: deviceArchivePath, productName: productName))
                 let xcframeworkPath = outputDirectory.appending(component: "\(productName).xcframework")
-                try buildXCFramework(frameworks: frameworkpaths, output: xcframeworkPath)
+                try await self.buildXCFramework(frameworks: frameworkpaths, output: xcframeworkPath)
 
                 try FileHandler.shared.move(
                     from: xcframeworkPath,
@@ -87,19 +85,17 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
 
     // MARK: - Fileprivate
 
-    fileprivate func buildXCFramework(frameworks: [AbsolutePath], output: AbsolutePath) throws {
-        _ = try xcodeBuildController.createXCFramework(frameworks: frameworks, output: output)
-            .toBlocking()
-            .last()
+    fileprivate func buildXCFramework(frameworks: [AbsolutePath], output: AbsolutePath) async throws {
+        try await xcodeBuildController.createXCFramework(frameworks: frameworks, output: output).printFormattedOutput()
     }
 
     fileprivate func deviceBuild(projectTarget: XcodeBuildTarget,
                                  scheme: String,
                                  platform: Platform,
                                  configuration: String,
-                                 archivePath: AbsolutePath) throws
+                                 archivePath: AbsolutePath) async throws
     {
-        _ = try xcodeBuildController.archive(
+        try await xcodeBuildController.archive(
             projectTarget,
             scheme: scheme,
             clean: false,
@@ -109,20 +105,16 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
                 .xcarg("SKIP_INSTALL", "NO"),
                 .configuration(configuration),
             ]
-        )
-        .printFormattedOutput()
-        .ignoreElements()
-        .toBlocking()
-        .last()
+        ).printFormattedOutput()
     }
 
     fileprivate func simulatorBuild(projectTarget: XcodeBuildTarget,
                                     scheme: String,
                                     platform: Platform,
                                     configuration: String,
-                                    archivePath: AbsolutePath) throws
+                                    archivePath: AbsolutePath) async throws
     {
-        _ = try xcodeBuildController.archive(
+        try await xcodeBuildController.archive(
             projectTarget,
             scheme: scheme,
             clean: false,
@@ -132,11 +124,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
                 .xcarg("SKIP_INSTALL", "NO"),
                 .configuration(configuration),
             ]
-        )
-        .printFormattedOutput()
-        .ignoreElements()
-        .toBlocking()
-        .last()
+        ).printFormattedOutput()
     }
 
     /// Returns the path to the framework inside the archive.

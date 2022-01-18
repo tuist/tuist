@@ -29,7 +29,7 @@ struct LintCodeCommand: ParsableCommand {
     )
     var strict: Bool = false
 
-    func run() throws {
-        try LintCodeService().run(path: path, targetName: target, strict: strict)
+    func runAsync() async throws {
+        try await LintCodeService().run(path: path, targetName: target, strict: strict)
     }
 }

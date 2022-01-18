@@ -1,6 +1,4 @@
 import Foundation
-import RxBlocking
-import RxSwift
 import TSCBasic
 import struct TSCUtility.Version
 import TuistCore
@@ -64,11 +62,12 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
             deviceName: deviceName
         )
 
-        try xcodebuild(
-            projectTarget: projectTarget,
+        try await xcodeBuildController.build(
+            projectTarget,
             scheme: scheme.name,
+            clean: false,
             arguments: arguments
-        )
+        ).printFormattedOutput()
 
         let buildDirectory = try xcodeProjectBuildDirectoryLocator.locate(
             platform: platform,
@@ -117,22 +116,6 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
         )
 
         return "id=\(availableDevices.device.udid)"
-    }
-
-    fileprivate func xcodebuild(projectTarget: XcodeBuildTarget,
-                                scheme: String,
-                                arguments: [XcodeBuildArgument]) throws
-    {
-        _ = try xcodeBuildController.build(
-            projectTarget,
-            scheme: scheme,
-            clean: false,
-            arguments: arguments
-        )
-        .printFormattedOutput()
-        .ignoreElements()
-        .toBlocking()
-        .last()
     }
 
     fileprivate func exportFrameworksAndDSYMs(from buildDirectory: AbsolutePath,

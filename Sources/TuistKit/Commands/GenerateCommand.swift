@@ -1,7 +1,7 @@
 import ArgumentParser
 import Foundation
 
-struct GenerateCommand: ParsableCommand, HasTrackableParameters {
+struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
     static var analyticsDelegate: TrackableParametersDelegate?
 
     static var configuration: CommandConfiguration {
@@ -31,9 +31,9 @@ struct GenerateCommand: ParsableCommand, HasTrackableParameters {
     )
     var open: Bool = false
 
-    func run() throws {
+    func runAsync() async throws {
         GenerateCommand.analyticsDelegate?.willRun(withParameters: ["project_only": String(projectOnly), "open": String(open)])
-        try GenerateService().run(
+        try await GenerateService().run(
             path: path,
             projectOnly: projectOnly,
             open: open

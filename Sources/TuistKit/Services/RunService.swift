@@ -84,9 +84,9 @@ final class RunService {
         let generator = generatorFactory.default(config: config)
         if try (generate || buildGraphInspector.workspacePath(directory: runPath) == nil) {
             logger.notice("Generating project for running", metadata: .section)
-            graph = try generator.generateWithGraph(path: runPath, projectOnly: false).1
+            graph = try await generator.generateWithGraph(path: runPath, projectOnly: false).1
         } else {
-            graph = try generator.load(path: runPath)
+            graph = try await generator.load(path: runPath)
         }
 
         guard let workspacePath = try buildGraphInspector.workspacePath(directory: runPath) else {
@@ -108,7 +108,7 @@ final class RunService {
 
         try targetRunner.assertCanRunTarget(graphTarget.target)
 
-        try targetBuilder.buildTarget(
+        try await targetBuilder.buildTarget(
             graphTarget,
             workspacePath: workspacePath,
             schemeName: scheme.name,

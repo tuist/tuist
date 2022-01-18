@@ -6,7 +6,7 @@ import TuistGraph
 public protocol GraphMapping {
     /// Given a value graph, it maps it into another value graph.
     /// - Parameter graph: Graph to be mapped.
-    func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor])
+    func map(graph: Graph) async throws -> (Graph, [SideEffectDescriptor])
 }
 
 /// A mapper that is initialized with a mapping function.
@@ -35,13 +35,14 @@ public final class SequentialGraphMapper: GraphMapping {
         self.mappers = mappers
     }
 
-    public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
-        try mappers.reduce((graph, [SideEffectDescriptor]())) { input, mapper in
-            let graph = input.0
-            var sideEffects = input.1
-            let (mappedGraph, newSideEffects) = try mapper.map(graph: graph)
+    public func map(graph: Graph) async throws -> (Graph, [SideEffectDescriptor]) {
+        var graph = graph
+        var sideEffects = [SideEffectDescriptor]()
+        for mapper in mappers {
+            let (mappedGraph, newSideEffects) = try await mapper.map(graph: graph)
             sideEffects.append(contentsOf: newSideEffects)
-            return (mappedGraph, sideEffects)
+            graph = mappedGraph
         }
+        return (graph, sideEffects)
     }
 }

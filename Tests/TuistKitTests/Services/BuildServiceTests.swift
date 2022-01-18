@@ -64,7 +64,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_run_when_the_project_should_be_generated() throws {
+    func test_run_when_the_project_should_be_generated() async throws {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
@@ -104,13 +104,13 @@ final class BuildServiceTests: TuistUnitTestCase {
         }
 
         // Then
-        try subject.testRun(
+        try await subject.testRun(
             schemeName: scheme.name,
             path: path
         )
     }
 
-    func test_run_when_the_project_is_already_generated() throws {
+    func test_run_when_the_project_is_already_generated() async throws {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
@@ -149,13 +149,13 @@ final class BuildServiceTests: TuistUnitTestCase {
         }
 
         // Then
-        try subject.testRun(
+        try await subject.testRun(
             schemeName: scheme.name,
             path: path
         )
     }
 
-    func test_run_only_cleans_the_first_time() throws {
+    func test_run_only_cleans_the_first_time() async throws {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
@@ -204,12 +204,12 @@ final class BuildServiceTests: TuistUnitTestCase {
         }
 
         // Then
-        try subject.testRun(
+        try await subject.testRun(
             path: path
         )
     }
 
-    func test_run_only_builds_the_given_scheme_when_passed() throws {
+    func test_run_only_builds_the_given_scheme_when_passed() async throws {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
@@ -254,13 +254,13 @@ final class BuildServiceTests: TuistUnitTestCase {
         }
 
         // Then
-        try subject.testRun(
+        try await subject.testRun(
             schemeName: "A",
             path: path
         )
     }
 
-    func test_run_lists_schemes() throws {
+    func test_run_lists_schemes() async throws {
         // Given
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
@@ -283,7 +283,7 @@ final class BuildServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.testRun(
+        try await subject.testRun(
             path: path
         )
 
@@ -302,8 +302,8 @@ extension BuildService {
         configuration: String? = nil,
         buildOutputPath: AbsolutePath? = nil,
         path: AbsolutePath
-    ) throws {
-        try run(
+    ) async throws {
+        try await run(
             schemeName: schemeName,
             generate: generate,
             clean: clean,
