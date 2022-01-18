@@ -16,13 +16,13 @@ let project = Project(
                 .external(name: "Alamofire"),
                 .external(name: "Charts"),
                 .external(name: "ComposableArchitecture"),
+                .external(name: "CrashReporter"),
                 .external(name: "FacebookCore"),
                 .external(name: "FirebaseAnalytics"),
                 .external(name: "FirebaseDatabase"),
                 .external(name: "FirebaseFirestore"),
                 .external(name: "GoogleSignIn"),
                 .external(name: "Realm"),
-                .external(name: "CrashReporter"),
             ]
         ),
         Target(
