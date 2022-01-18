@@ -73,19 +73,16 @@ final class MockXcodeBuildController: XcodeBuildControlling {
         }
     }
 
-    var showBuildSettingsStub: ((XcodeBuildTarget, String, String) -> Single<[String: XcodeBuildSettings]>)?
+    var showBuildSettingsStub: ((XcodeBuildTarget, String, String) -> [String: XcodeBuildSettings])?
     func showBuildSettings(_ target: XcodeBuildTarget, scheme: String,
-                           configuration: String) -> Single<[String: XcodeBuildSettings]>
+                           configuration: String) throws -> [String: XcodeBuildSettings]
     {
         if let showBuildSettingsStub = showBuildSettingsStub {
             return showBuildSettingsStub(target, scheme, configuration)
         } else {
-            return Single
-                .error(
-                    TestError(
-                        "\(String(describing: MockXcodeBuildController.self)) received an unexpected call to showBuildSettings"
-                    )
-                )
+            throw TestError(
+                "\(String(describing: MockXcodeBuildController.self)) received an unexpected call to showBuildSettings"
+            )
         }
     }
 }

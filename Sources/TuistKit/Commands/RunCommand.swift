@@ -3,7 +3,7 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
-struct RunCommand: ParsableCommand {
+struct RunCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "run",
@@ -57,8 +57,8 @@ struct RunCommand: ParsableCommand {
     )
     var arguments: [String] = []
 
-    func run() throws {
-        try RunService().run(
+    func runAsync() async throws {
+        try await RunService().run(
             path: path,
             schemeName: scheme,
             generate: generate,

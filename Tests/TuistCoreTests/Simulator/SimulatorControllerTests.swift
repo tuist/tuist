@@ -20,143 +20,141 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_devices_should_returnListOfDevicesFromJson() throws {
+    func test_devices_should_returnListOfDevicesFromJson() async throws {
         // Given
         let expectedDevice = createSystemStubs(devices: true, runtimes: false).device
 
         // When
-        let devices = try subject.devices().toBlocking(timeout: 1).single()
+        let devices = try await subject.devices()
 
         // Then
         XCTAssertEqual(devices, [expectedDevice])
     }
 
-    func test_runtimes_should_returnListOfRuntimesFromJson() throws {
+    func test_runtimes_should_returnListOfRuntimesFromJson() async throws {
         // Given
         let expectedRuntime = createSystemStubs(devices: false, runtimes: true).runtime
 
         // When
-        let runtimes = try subject.runtimes().toBlocking(timeout: 1).single()
+        let runtimes = try await subject.runtimes()
 
         // Then
         XCTAssertEqual(runtimes, [expectedRuntime])
     }
 
-    func test_devicesAndRuntimes_should_returnListOfSimulatorDeviceAndRuntimesFromJson() throws {
+    func test_devicesAndRuntimes_should_returnListOfSimulatorDeviceAndRuntimesFromJson() async throws {
         // Given
         let expectedDeviceAndRuntime = createSystemStubs(devices: true, runtimes: true)
 
         // When
-        let devicesAndRuntimes = try subject.devicesAndRuntimes().toBlocking(timeout: 1).single()
+        let devicesAndRuntimes = try await subject.devicesAndRuntimes()
 
         // Then
         XCTAssertEqual(devicesAndRuntimes, [expectedDeviceAndRuntime])
     }
 
-    func test_findAvailableDevice_should_throwErrorWhenNoDeviceForPlatform() throws {
+    func test_findAvailableDevice_should_throwErrorWhenNoDeviceForPlatform() async throws {
         // Given
         let expectedDeviceAndRuntime = createSystemStubs(devices: true, runtimes: true)
 
         // Then
-        XCTAssertThrowsSpecific(
+        await XCTAssertThrowsSpecific(
             // When
-            _ = try subject.findAvailableDevice(platform: .macOS, version: nil, minVersion: nil, deviceName: nil)
-                .toBlocking(timeout: 1).single(),
+            _ = try await subject.findAvailableDevice(platform: .macOS, version: nil, minVersion: nil, deviceName: nil),
             SimulatorControllerError.deviceNotFound(.macOS, nil, nil, [expectedDeviceAndRuntime])
         )
     }
 
-    func test_findAvailableDevice_should_throwErrorWhenNoDeviceForVersion() throws {
+    func test_findAvailableDevice_should_throwErrorWhenNoDeviceForVersion() async throws {
         // Given
         let expectedDeviceAndRuntime = createSystemStubs(devices: true, runtimes: true)
 
         // Then
-        XCTAssertThrowsSpecific(
+        await XCTAssertThrowsSpecific(
             // When
-            _ = try subject.findAvailableDevice(platform: .iOS, version: .init(15, 0, 0), minVersion: nil, deviceName: nil)
-                .toBlocking(timeout: 1).single(),
+            _ = try await subject.findAvailableDevice(platform: .iOS, version: .init(15, 0, 0), minVersion: nil, deviceName: nil),
             SimulatorControllerError.deviceNotFound(.iOS, .init(15, 0, 0), nil, [expectedDeviceAndRuntime])
         )
     }
 
-    func test_findAvailableDevice_should_throwErrorWhenNoDeviceWithinMinVersion() throws {
+    func test_findAvailableDevice_should_throwErrorWhenNoDeviceWithinMinVersion() async throws {
         // Given
         let expectedDeviceAndRuntime = createSystemStubs(devices: true, runtimes: true)
 
         // Then
-        XCTAssertThrowsSpecific(
+        await XCTAssertThrowsSpecific(
             // When
-            _ = try subject.findAvailableDevice(platform: .iOS, version: nil, minVersion: .init(15, 0, 0), deviceName: nil)
-                .toBlocking(timeout: 1).single(),
+            _ = try await subject.findAvailableDevice(platform: .iOS, version: nil, minVersion: .init(15, 0, 0), deviceName: nil),
             SimulatorControllerError.deviceNotFound(.iOS, nil, nil, [expectedDeviceAndRuntime])
         )
     }
 
-    func test_findAvailableDevice_should_throwErrorWhenNoDeviceWithDeviceName() throws {
+    func test_findAvailableDevice_should_throwErrorWhenNoDeviceWithDeviceName() async throws {
         // Given
         let expectedDeviceAndRuntime = createSystemStubs(devices: true, runtimes: true)
 
         // Then
-        XCTAssertThrowsSpecific(
+        await XCTAssertThrowsSpecific(
             // When
-            _ = try subject.findAvailableDevice(platform: .iOS, version: nil, minVersion: nil, deviceName: "iPad 100")
-                .toBlocking(timeout: 1).single(),
+            _ = try await subject.findAvailableDevice(platform: .iOS, version: nil, minVersion: nil, deviceName: "iPad 100"),
             SimulatorControllerError.deviceNotFound(.iOS, nil, "iPad 100", [expectedDeviceAndRuntime])
         )
     }
 
-    func test_findAvailableDevice_should_findDeviceWithDefaults() throws {
+    func test_findAvailableDevice_should_findDeviceWithDefaults() async throws {
         // Given
         let expectedDeviceAndRuntime = createSystemStubs(devices: true, runtimes: true)
 
         // When
-        let device = try subject.findAvailableDevice(platform: .iOS, version: nil, minVersion: nil, deviceName: nil)
-            .toBlocking(timeout: 1)
-            .single()
+        let device = try await subject.findAvailableDevice(platform: .iOS, version: nil, minVersion: nil, deviceName: nil)
 
         // Then
         XCTAssertEqual(device, expectedDeviceAndRuntime)
     }
 
-    func test_findAvailableDevice_should_findDeviceWithVersion() throws {
+    func test_findAvailableDevice_should_findDeviceWithVersion() async throws {
         // Given
         let expectedDeviceAndRuntime = createSystemStubs(devices: true, runtimes: true)
 
         // When
-        let device = try subject.findAvailableDevice(platform: .iOS, version: .init(14, 4, 0), minVersion: nil, deviceName: nil)
-            .toBlocking(timeout: 1)
-            .single()
+        let device = try await subject.findAvailableDevice(
+            platform: .iOS,
+            version: .init(14, 4, 0),
+            minVersion: nil,
+            deviceName: nil
+        )
 
         // Then
         XCTAssertEqual(device, expectedDeviceAndRuntime)
     }
 
-    func test_findAvailableDevice_should_findDeviceWithinMinVersion() throws {
+    func test_findAvailableDevice_should_findDeviceWithinMinVersion() async throws {
         // Given
         let expectedDeviceAndRuntime = createSystemStubs(devices: true, runtimes: true)
 
         // When
-        let device = try subject.findAvailableDevice(platform: .iOS, version: nil, minVersion: .init(14, 0, 0), deviceName: nil)
-            .toBlocking(timeout: 1)
-            .single()
+        let device = try await subject.findAvailableDevice(
+            platform: .iOS,
+            version: nil,
+            minVersion: .init(14, 0, 0),
+            deviceName: nil
+        )
 
         // Then
         XCTAssertEqual(device, expectedDeviceAndRuntime)
     }
 
-    func test_findAvailableDevice_should_findDeviceWithDeviceName() throws {
+    func test_findAvailableDevice_should_findDeviceWithDeviceName() async throws {
         // Given
         let expectedDeviceAndRuntime = createSystemStubs(devices: true, runtimes: true)
 
         // When
-        let device = try subject.findAvailableDevice(
+        let device = try await subject.findAvailableDevice(
             platform: .iOS,
             version: nil,
             minVersion: nil,
             deviceName: expectedDeviceAndRuntime.device.name
         )
-        .toBlocking(timeout: 1)
-        .single()
 
         // Then
         XCTAssertEqual(device, expectedDeviceAndRuntime)

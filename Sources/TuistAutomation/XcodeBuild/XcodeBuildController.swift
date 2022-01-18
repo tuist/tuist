@@ -147,7 +147,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         _ target: XcodeBuildTarget,
         scheme: String,
         configuration: String
-    ) -> Single<[String: XcodeBuildSettings]> {
+    ) async throws -> [String: XcodeBuildSettings] {
         var command = ["/usr/bin/xcrun", "xcodebuild", "archive", "-showBuildSettings", "-skipUnavailableActions"]
 
         // Configuration
@@ -159,7 +159,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         // Target
         command.append(contentsOf: target.xcodebuildArguments)
 
-        return System.shared.observable(command)
+        return try await System.shared.observable(command)
             .mapToString()
             .collectAndMergeOutput()
             // xcodebuild has a bug where xcodebuild -showBuildSettings
@@ -220,6 +220,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
                 return acc
             })
             .asSingle()
+            .value
     }
 
     fileprivate func run(command: [String], isVerbose: Bool) -> Observable<SystemEvent<XcodeBuildOutput>> {

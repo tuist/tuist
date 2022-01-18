@@ -1,12 +1,10 @@
 import Foundation
-import RxBlocking
-import RxSwift
 import TSCBasic
-import TuistCore
 import TuistSupport
 import XCTest
 
 @testable import TuistAutomation
+@testable import TuistCore
 @testable import TuistSupportTesting
 
 final class SimulatorControllerIntegrationTests: TuistTestCase {
@@ -22,53 +20,41 @@ final class SimulatorControllerIntegrationTests: TuistTestCase {
         super.tearDown()
     }
 
-    func test_devices() throws {
+    func test_devices() async throws {
         // Given
-        let got = try subject.devices().toBlocking().last()
+        let got = try await subject.devices()
 
         // Then
         let devices = try XCTUnwrap(got)
         XCTAssertNotEmpty(devices)
     }
 
-    func test_runtimes() throws {
+    func test_runtimes() async throws {
         // Given
-        let got = try subject.runtimes().toBlocking().last()
+        let got = try await subject.runtimes()
 
         // Then
         let runtimes = try XCTUnwrap(got)
         XCTAssertNotEmpty(runtimes)
     }
 
-    func test_devicesAndRuntimes() throws {
+    func test_devicesAndRuntimes() async throws {
         // Given
-        let got = try subject.devicesAndRuntimes().toBlocking().last()
+        let got = try await subject.devicesAndRuntimes()
 
         // Then
         let runtimes = try XCTUnwrap(got)
         XCTAssertNotEmpty(runtimes)
     }
 
-    func test_findAvailableDevice() throws {
+    func test_findAvailableDevice() async throws {
         // When
-        let got = try subject.findAvailableDevice(
+        let got = try await subject.findAvailableDevice(
             platform: .iOS,
             version: nil,
             minVersion: nil,
             deviceName: nil
         )
-        .toBlocking()
-        .single()
-
-        // Then
-        XCTAssertTrue(got.device.isAvailable)
-    }
-
-    func test_findAvailableDeviceForPlatform() throws {
-        // When
-        let got = try subject.findAvailableDevice(platform: .iOS)
-            .toBlocking()
-            .single()
 
         // Then
         XCTAssertTrue(got.device.isAvailable)

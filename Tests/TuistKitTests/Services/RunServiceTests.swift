@@ -71,7 +71,7 @@ final class RunServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_run_generates_when_generateIsTrue() throws {
+    func test_run_generates_when_generateIsTrue() async throws {
         // Given
         let expectation = self.expectation(description: "generates when required")
         generator.generateWithGraphStub = { _, _projectOnly in
@@ -83,11 +83,11 @@ final class RunServiceTests: TuistUnitTestCase {
         buildGraphInspector.runnableSchemesStub = { _ in [.test()] }
         buildGraphInspector.runnableTargetStub = { _, _ in .test() }
 
-        try subject.run(generate: true)
-        waitForExpectations(timeout: 1)
+        try await subject.run(generate: true)
+        await waitForExpectations(timeout: 1)
     }
 
-    func test_run_generates_when_workspaceNotFound() throws {
+    func test_run_generates_when_workspaceNotFound() async throws {
         // Given
         let workspacePath = try temporaryPath().appending(component: "App.xcworkspace")
         let expectation = self.expectation(description: "generates when required")
@@ -103,11 +103,11 @@ final class RunServiceTests: TuistUnitTestCase {
         buildGraphInspector.runnableTargetStub = { _, _ in .test() }
 
         // When
-        try subject.run()
-        waitForExpectations(timeout: 1)
+        try await subject.run()
+        await waitForExpectations(timeout: 1)
     }
 
-    func test_run_buildsTarget() throws {
+    func test_run_buildsTarget() async throws {
         // Given
         let workspacePath = try temporaryPath().appending(component: "App.xcworkspace")
         let expectation = self.expectation(description: "builds target")
@@ -129,15 +129,15 @@ final class RunServiceTests: TuistUnitTestCase {
         buildGraphInspector.runnableTargetStub = { _, _ in .test() }
 
         // When
-        try subject.run(
+        try await subject.run(
             schemeName: schemeName,
             clean: clean,
             configuration: configuration
         )
-        waitForExpectations(timeout: 1)
+        await waitForExpectations(timeout: 1)
     }
 
-    func test_run_runsTarget() throws {
+    func test_run_runsTarget() async throws {
         // Given
         let workspacePath = AbsolutePath("/path/to/project.xcworkspace")
         let expectation = self.expectation(description: "runs target")
@@ -166,17 +166,17 @@ final class RunServiceTests: TuistUnitTestCase {
         buildGraphInspector.runnableTargetStub = { _, _ in .test() }
 
         // When
-        try subject.run(
+        try await subject.run(
             schemeName: schemeName,
             configuration: configuration,
             device: deviceName,
             version: version?.description,
             arguments: arguments
         )
-        waitForExpectations(timeout: 1)
+        await waitForExpectations(timeout: 1)
     }
 
-    func test_run_throws_beforeBuilding_if_cantRunTarget() throws {
+    func test_run_throws_beforeBuilding_if_cantRunTarget() async throws {
         // Given
         let workspacePath = try temporaryPath().appending(component: "App.xcworkspace")
         let expectation = self.expectation(description: "does not run target builder")
@@ -189,12 +189,12 @@ final class RunServiceTests: TuistUnitTestCase {
         targetRunner.assertCanRunTargetStub = { _ in throw TestError() }
 
         // Then
-        XCTAssertThrowsSpecific(
+        await XCTAssertThrowsSpecific(
             // When
-            try subject.run(),
+            try await subject.run(),
             TestError()
         )
-        waitForExpectations(timeout: 1)
+        await waitForExpectations(timeout: 1)
     }
 }
 
@@ -207,8 +207,8 @@ extension RunService {
         device: String? = nil,
         version: String? = nil,
         arguments: [String] = []
-    ) throws {
-        try run(
+    ) async throws {
+        try await run(
             path: nil,
             schemeName: schemeName,
             generate: generate,

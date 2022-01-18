@@ -34,10 +34,10 @@ public final class CacheBundleBuilder: CacheArtifactBuilding {
         osVersion: Version?,
         deviceName: String?,
         into outputDirectory: AbsolutePath
-    ) throws {
+    ) async throws {
         let platform = self.platform(scheme: scheme)
 
-        let arguments = try self.arguments(
+        let arguments = try await self.arguments(
             platform: platform,
             configuration: configuration,
             osVersion: osVersion,
@@ -67,22 +67,19 @@ public final class CacheBundleBuilder: CacheArtifactBuilding {
     fileprivate func arguments(platform: Platform,
                                configuration: String,
                                osVersion: Version?,
-                               deviceName: String?) throws -> [XcodeBuildArgument]
+                               deviceName: String?) async throws -> [XcodeBuildArgument]
     {
-        try simulatorController.destination(
+        let destination = try await simulatorController.destination(
             for: platform,
             version: osVersion,
             deviceName: deviceName
         )
-        .map { (destination: String) -> [XcodeBuildArgument] in
-            [
-                .sdk(platform == .macOS ? platform.xcodeDeviceSDK : platform.xcodeSimulatorSDK!),
-                .configuration(configuration),
-                .destination(destination),
-            ]
-        }
-        .toBlocking()
-        .single()
+
+        return [
+            .sdk(platform == .macOS ? platform.xcodeDeviceSDK : platform.xcodeSimulatorSDK!),
+            .configuration(configuration),
+            .destination(destination),
+        ]
     }
 
     fileprivate func xcodebuild(projectTarget: XcodeBuildTarget,

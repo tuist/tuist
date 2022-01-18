@@ -153,7 +153,7 @@ final class CacheController: CacheControlling {
             for scheme in binariesSchemes {
                 let outputDirectory = outputDirectory.appending(component: scheme.name)
                 try FileHandler.shared.createFolder(outputDirectory)
-                try self.artifactBuilder.build(
+                try await self.artifactBuilder.build(
                     scheme: scheme,
                     projectTarget: XcodeBuildTarget(with: projectPath),
                     configuration: cacheProfile.configuration,
@@ -166,7 +166,7 @@ final class CacheController: CacheControlling {
             for scheme in bundlesSchemes {
                 let outputDirectory = outputDirectory.appending(component: scheme.name)
                 try FileHandler.shared.createFolder(outputDirectory)
-                try self.bundleArtifactBuilder.build(
+                try await self.bundleArtifactBuilder.build(
                     scheme: scheme,
                     projectTarget: XcodeBuildTarget(with: projectPath),
                     configuration: cacheProfile.configuration,
