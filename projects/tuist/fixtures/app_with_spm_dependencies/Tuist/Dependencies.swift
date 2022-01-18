@@ -18,7 +18,7 @@ let dependencies = Dependencies(
         targetSettings: [
             "CrashReporter": [
                 "ALWAYS_SEARCH_USER_PATHS": "NO",
-                "USE_HEADERMAP": "YES"
+                "USE_HEADERMAP": "YES",
             ],
         ]
     ),
