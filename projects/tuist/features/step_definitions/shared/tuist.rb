@@ -28,13 +28,13 @@ Given(/tuist is available/) do
 end
 
 Then(/^tuist generates the project$/) do
-  system(@tuist, "generate", "--path", @dir)
+  system(@tuist, "generate", "--no-cache", "--no-open", "--path", @dir)
   @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
   @xcodeproj_path = Dir.glob(File.join(@dir, "*.xcodeproj")).first
 end
 
 Then(/^tuist generates the project and outputs: (.+)$/) do |output|
-  out, err, status = Open3.capture3(@tuist, "generate", "--path", @dir)
+  out, err, status = Open3.capture3(@tuist, "generate", "--no-cache", "--no-open", "--path", @dir)
   assert(status.success?, err)
   assert out.include?(output), "The output from Tuist generate doesn't include: #{output}"
   @workspace_path = Dir.glob(File.join(@dir, "*.xcworkspace")).first
