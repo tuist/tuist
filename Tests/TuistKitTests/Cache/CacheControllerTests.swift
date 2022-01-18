@@ -67,7 +67,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_cache_builds_and_caches_the_frameworks() throws {
+    func test_cache_builds_and_caches_the_frameworks() async throws {
         // Given
         let path = try temporaryPath()
         let xcworkspacePath = path.appending(component: "Project.xcworkspace")
@@ -123,7 +123,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         artifactBuilder.stubbedCacheOutputType = .xcframework
 
         // When
-        try subject.cache(
+        try await subject.cache(
             config: .test(),
             path: path,
             cacheProfile: .test(configuration: "Debug"),
@@ -146,7 +146,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         XCTAssertEqual(artifactBuilder.invokedBuildSchemeProjectParameters?.scheme, scheme)
     }
 
-    func test_cache_when_cache_fails_throws() throws {
+    func test_cache_when_cache_fails_throws() async throws {
         // Given
         let path = try temporaryPath()
         let xcworkspacePath = path.appending(component: "Project.xcworkspace")
@@ -204,8 +204,8 @@ final class CacheControllerTests: TuistUnitTestCase {
         let remoteCacheError = TestError("remote cache error")
         cache.existsStub = { _, _ in throw remoteCacheError }
         // When / Then
-        XCTAssertThrowsSpecific(
-            try subject.cache(
+        await XCTAssertThrowsSpecific(
+            try await subject.cache(
                 config: .test(),
                 path: path,
                 cacheProfile: .test(configuration: "Debug"),
@@ -216,7 +216,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         )
     }
 
-    func test_cache_early_exit_if_nothing_to_cache() throws {
+    func test_cache_early_exit_if_nothing_to_cache() async throws {
         // Given
         let path = try temporaryPath()
         let xcworkspacePath = path.appending(component: "Project.xcworkspace")
@@ -275,7 +275,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         artifactBuilder.stubbedCacheOutputType = .xcframework
 
         // When
-        try subject.cache(
+        try await subject.cache(
             config: .test(),
             path: path,
             cacheProfile: .test(configuration: "Debug"),
@@ -288,7 +288,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         XCTAssertEqual(cacheGraphLinter.invokedLintCount, 1)
     }
 
-    func test_filtered_cache_builds_and_caches_the_frameworks() throws {
+    func test_filtered_cache_builds_and_caches_the_frameworks() async throws {
         // Given
         let path = try temporaryPath()
         let xcworkspacePath = path.appending(component: "Project.xcworkspace")
@@ -348,7 +348,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         artifactBuilder.stubbedCacheOutputType = .xcframework
 
         // When
-        try subject.cache(
+        try await subject.cache(
             config: .test(),
             path: path,
             cacheProfile: .test(configuration: "Debug"),
@@ -371,7 +371,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         XCTAssertEqual(artifactBuilder.invokedBuildSchemeProjectParameters?.scheme, scheme)
     }
 
-    func test_filtered_cache_builds_with_dependencies_only_and_caches_the_frameworks() throws {
+    func test_filtered_cache_builds_with_dependencies_only_and_caches_the_frameworks() async throws {
         // Given
         let project = Project.test()
         let aTarget = Target.test(name: "a")
@@ -409,7 +409,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         artifactBuilder.stubbedCacheOutputType = .xcframework
 
         // When
-        let results = try subject.makeHashesByTargetToBeCached(
+        let results = try await subject.makeHashesByTargetToBeCached(
             for: graph,
             cacheProfile: .test(),
             cacheOutputType: .framework,
@@ -424,7 +424,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         XCTAssertEqual(first.1, nodeWithHashes[cGraphTarget])
     }
 
-    func test_given_target_to_filter_is_not_cacheable_should_cache_its_depedendencies() throws {
+    func test_given_target_to_filter_is_not_cacheable_should_cache_its_depedendencies() async throws {
         // Given
         let project = Project.test()
         let aTarget = Target.test(name: "a")
@@ -452,7 +452,7 @@ final class CacheControllerTests: TuistUnitTestCase {
         }
 
         // When
-        let results = try subject.makeHashesByTargetToBeCached(
+        let results = try await subject.makeHashesByTargetToBeCached(
             for: graph,
             cacheProfile: .test(),
             cacheOutputType: .xcframework,

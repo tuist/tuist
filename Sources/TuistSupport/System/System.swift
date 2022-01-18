@@ -510,7 +510,7 @@ public final class System: Systeming {
                 }
             }
         }
-        .subscribeOn(ConcurrentDispatchQueueScheduler(queue: DispatchQueue.global()))
+        .subscribe(on: ConcurrentDispatchQueueScheduler(queue: DispatchQueue.global()))
     }
 
     public func observable(_ arguments: [String], pipedToArguments: [String]) -> Observable<SystemEvent<Data>> {
@@ -576,7 +576,7 @@ public final class System: Systeming {
                 }
             }
         }
-        .subscribeOn(ConcurrentDispatchQueueScheduler(queue: DispatchQueue.global()))
+        .subscribe(on: ConcurrentDispatchQueueScheduler(queue: DispatchQueue.global()))
     }
 
     /// Runs a command in the shell asynchronously.

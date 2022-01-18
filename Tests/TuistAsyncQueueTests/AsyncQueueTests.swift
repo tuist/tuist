@@ -1,6 +1,5 @@
 import Foundation
 import Queuer
-import RxBlocking
 import RxSwift
 import TuistCore
 import TuistSupport

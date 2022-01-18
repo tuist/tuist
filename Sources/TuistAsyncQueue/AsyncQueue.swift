@@ -119,10 +119,10 @@ public class AsyncQueue: AsyncQueuing {
     private func loadEvents() {
         persistor
             .readAll()
-            .subscribeOn(persistedEventsSchedulerType)
+            .subscribe(on: persistedEventsSchedulerType)
             .subscribe(onSuccess: { events in
                 events.forEach(self.dispatchPersisted)
-            }, onError: { error in
+            }, onFailure: { error in
                 logger.debug("Error loading persisted events: \(error)")
             })
             .disposed(by: disposeBag)

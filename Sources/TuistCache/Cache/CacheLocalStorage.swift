@@ -1,5 +1,4 @@
 import Foundation
-import RxSwift
 import TSCBasic
 import TuistCore
 import TuistSupport
@@ -38,49 +37,37 @@ public final class CacheLocalStorage: CacheStoring {
 
     // MARK: - CacheStoring
 
-    public func exists(name _: String, hash: String) -> Single<Bool> {
-        Single.create { completed -> Disposable in
-            completed(.success(self.lookupCompiledArtifact(directory: self.cacheDirectory.appending(component: hash)) != nil))
-            return Disposables.create()
-        }
+    public func exists(name _: String, hash: String) throws -> Bool {
+        let hashFolder = cacheDirectory.appending(component: hash)
+        return lookupCompiledArtifact(directory: hashFolder) != nil
     }
 
-    public func fetch(name _: String, hash: String) -> Single<AbsolutePath> {
-        Single.create { completed -> Disposable in
-            if let path = self.lookupCompiledArtifact(directory: self.cacheDirectory.appending(component: hash)) {
-                completed(.success(path))
-            } else {
-                completed(.error(CacheLocalStorageError.compiledArtifactNotFound(hash: hash)))
-            }
-            return Disposables.create()
+    public func fetch(name _: String, hash: String) throws -> AbsolutePath {
+        let hashFolder = cacheDirectory.appending(component: hash)
+        guard let path = lookupCompiledArtifact(directory: hashFolder) else {
+            throw CacheLocalStorageError.compiledArtifactNotFound(hash: hash)
         }
+
+        return path
     }
 
-    public func store(name _: String, hash: String, paths: [AbsolutePath]) -> Completable {
-        let copy = Completable.create { completed -> Disposable in
-            let hashFolder = self.cacheDirectory.appending(component: hash)
-
-            do {
-                if !FileHandler.shared.exists(hashFolder) {
-                    try FileHandler.shared.createFolder(hashFolder)
-                }
-                try paths.forEach { sourcePath in
-                    let destinationPath = hashFolder.appending(component: sourcePath.basename)
-                    if FileHandler.shared.exists(destinationPath) {
-                        try FileHandler.shared.delete(destinationPath)
-                    }
-
-                    try FileHandler.shared.copy(from: sourcePath, to: destinationPath)
-                }
-            } catch {
-                completed(.error(error))
-                return Disposables.create()
-            }
-            completed(.completed)
-            return Disposables.create()
+    public func store(name _: String, hash: String, paths: [AbsolutePath]) throws {
+        if !FileHandler.shared.exists(cacheDirectory) {
+            try FileHandler.shared.createFolder(cacheDirectory)
         }
 
-        return createCacheDirectory().concat(copy)
+        let hashFolder = cacheDirectory.appending(component: hash)
+
+        if !FileHandler.shared.exists(hashFolder) {
+            try FileHandler.shared.createFolder(hashFolder)
+        }
+        try paths.forEach { sourcePath in
+            let destinationPath = hashFolder.appending(component: sourcePath.basename)
+            if FileHandler.shared.exists(destinationPath) {
+                try FileHandler.shared.delete(destinationPath)
+            }
+            try FileHandler.shared.copy(from: sourcePath, to: destinationPath)
+        }
     }
 
     // MARK: - Fileprivate
@@ -91,20 +78,5 @@ public final class CacheLocalStorage: CacheStoring {
             if let filePath = FileHandler.shared.glob(directory, glob: "*.\(ext)").first { return filePath }
         }
         return nil
-    }
-
-    fileprivate func createCacheDirectory() -> Completable {
-        Completable.create { completed -> Disposable in
-            do {
-                if !FileHandler.shared.exists(self.cacheDirectory) {
-                    try FileHandler.shared.createFolder(self.cacheDirectory)
-                }
-            } catch {
-                completed(.error(error))
-                return Disposables.create()
-            }
-            completed(.completed)
-            return Disposables.create()
-        }
     }
 }

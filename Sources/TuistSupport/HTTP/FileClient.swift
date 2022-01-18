@@ -1,5 +1,4 @@
 import Foundation
-import RxSwift
 import TSCBasic
 
 enum FileClientError: LocalizedError, FatalError {
@@ -54,8 +53,8 @@ enum FileClientError: LocalizedError, FatalError {
 }
 
 public protocol FileClienting {
-    func upload(file: AbsolutePath, hash: String, to url: URL) -> Single<Bool>
-    func download(url: URL) -> Single<AbsolutePath>
+    func upload(file: AbsolutePath, hash: String, to url: URL) async throws -> Bool
+    func download(url: URL) async throws -> AbsolutePath
 }
 
 public class FileClient: FileClienting {
@@ -72,36 +71,47 @@ public class FileClient: FileClienting {
 
     // MARK: - Public
 
-    public func download(url: URL) -> Single<AbsolutePath> {
-        dispatchDownload(request: URLRequest(url: url)).map { AbsolutePath($0.path) }
+    public func download(url: URL) async throws -> AbsolutePath {
+        let request = URLRequest(url: url)
+        do {
+            let (url, response) = try await session.download(for: request)
+            guard let response = response as? HTTPURLResponse else {
+                throw FileClientError.invalidResponse(request, nil)
+            }
+            if successStatusCodeRange.contains(response.statusCode) {
+                return AbsolutePath(url.path)
+            } else {
+                throw FileClientError.invalidResponse(request, nil)
+            }
+        } catch {
+            if error is FileClientError {
+                throw error
+            } else {
+                throw FileClientError.urlSessionError(error, nil)
+            }
+        }
     }
 
-    public func upload(file: AbsolutePath, hash _: String, to url: URL) -> Single<Bool> {
-        Single<Bool>.create { observer -> Disposable in
-            do {
-                let fileSize = try FileHandler.shared.fileSize(path: file)
-                let fileData = try Data(contentsOf: file.url)
-
-                let request = self.uploadRequest(url: url, fileSize: fileSize, data: fileData)
-                let uploadTask = self.session.dataTask(with: request) { _, response, error in
-                    if let error = error {
-                        observer(.error(FileClientError.urlSessionError(error, file)))
-                    } else if let response = response as? HTTPURLResponse {
-                        if self.successStatusCodeRange.contains(response.statusCode) {
-                            observer(.success(true))
-                        } else {
-                            observer(.error(FileClientError.serverSideError(request, response, file)))
-                        }
-                    } else {
-                        observer(.error(FileClientError.invalidResponse(request, file)))
-                    }
-                }
-                uploadTask.resume()
-                return Disposables.create { uploadTask.cancel() }
-            } catch {
-                observer(.error(error))
+    public func upload(file: AbsolutePath, hash _: String, to url: URL) async throws -> Bool {
+        let fileSize = try FileHandler.shared.fileSize(path: file)
+        let fileData = try Data(contentsOf: file.url)
+        let request = uploadRequest(url: url, fileSize: fileSize, data: fileData)
+        do {
+            let (_, response) = try await session.data(for: request)
+            guard let response = response as? HTTPURLResponse else {
+                throw FileClientError.invalidResponse(request, file)
             }
-            return Disposables.create {}
+            if successStatusCodeRange.contains(response.statusCode) {
+                return true
+            } else {
+                throw FileClientError.serverSideError(request, response, file)
+            }
+        } catch {
+            if error is FileClientError {
+                throw error
+            } else {
+                throw FileClientError.urlSessionError(error, file)
+            }
         }
     }
 
@@ -116,30 +126,44 @@ public class FileClient: FileClienting {
         request.httpBody = data
         return request
     }
+}
 
-    private func dispatchDownload(request: URLRequest) -> Single<URL> {
-        Single.create { observer in
-            let task = self.session.downloadTask(with: request) { localURL, response, networkError in
-                if let networkError = networkError {
-                    observer(.error(FileClientError.urlSessionError(networkError, nil)))
-                } else if let response = response as? HTTPURLResponse {
-                    guard let localURL = localURL else {
-                        observer(.error(FileClientError.noLocalURL(request)))
-                        return
-                    }
-
-                    if self.successStatusCodeRange.contains(response.statusCode) {
-                        observer(.success(localURL))
-                    } else {
-                        observer(.error(FileClientError.invalidResponse(request, nil)))
-                    }
-                } else {
-                    observer(.error(FileClientError.invalidResponse(request, nil)))
+extension URLSession {
+    /// Convenience method to load data using an URLRequest, creates and resumes an URLSessionDataTask internally.
+    ///
+    /// - Parameter request: The URLRequest for which to load data.
+    /// - Returns: Data and response.
+    @available(macOS, deprecated: 12.0, message: "This extension is no longer necessary.")
+    public func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+        try await withCheckedThrowingContinuation { continuation in
+            let task = self.dataTask(with: request) { data, response, error in
+                guard let data = data, let response = response else {
+                    let error = error ?? URLError(.badServerResponse)
+                    return continuation.resume(throwing: error)
                 }
-            }
 
+                continuation.resume(returning: (data, response))
+            }
             task.resume()
-            return Disposables.create { task.cancel() }
+        }
+    }
+
+    /// Convenience method to download using an URLRequest, creates and resumes an URLSessionDownloadTask internally.
+    ///
+    /// - Parameter request: The URLRequest for which to download.
+    /// - Returns: Downloaded file URL and response. The file will not be removed automatically.
+    @available(macOS, deprecated: 12.0, message: "This extension is no longer necessary.")
+    public func download(for request: URLRequest, delegate _: URLSessionTaskDelegate? = nil) async throws -> (URL, URLResponse) {
+        try await withCheckedThrowingContinuation { continuation in
+            let task = self.downloadTask(with: request) { url, response, error in
+                guard let url = url, let response = response else {
+                    let error = error ?? URLError(.badServerResponse)
+                    return continuation.resume(throwing: error)
+                }
+
+                continuation.resume(returning: (url, response))
+            }
+            task.resume()
         }
     }
 }

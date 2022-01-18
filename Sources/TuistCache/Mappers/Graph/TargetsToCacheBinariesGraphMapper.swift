@@ -42,9 +42,6 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
     /// List of targets that will be generated as sources instead of pre-compiled targets from the cache.
     private let sources: Set<String>
 
-    /// Dispatch queue.
-    private let queue: DispatchQueue
-
     /// The type of artifact that the hasher is configured with.
     private let cacheOutputType: CacheOutputType
 
@@ -76,13 +73,11 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
          sources: Set<String>,
          cacheProfile: TuistGraph.Cache.Profile,
          cacheOutputType: CacheOutputType,
-         cacheGraphMutator: CacheGraphMutating = CacheGraphMutator(),
-         queue: DispatchQueue = TargetsToCacheBinariesGraphMapper.dispatchQueue())
+         cacheGraphMutator: CacheGraphMutating = CacheGraphMutator())
     {
         self.config = config
         self.cache = cache
         self.cacheGraphContentHasher = cacheGraphContentHasher
-        self.queue = queue
         self.cacheGraphMutator = cacheGraphMutator
         self.sources = sources
         self.cacheProfile = cacheProfile
@@ -105,61 +100,43 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
                 availableTargets: availableTargets.sorted()
             )
         }
-        let single = hashes(graph: graph).flatMap { self.map(graph: graph, hashes: $0, sources: self.sources) }
+        let single = AsyncThrowingStream<Graph, Error> { continuation in
+            Task.detached {
+                do {
+                    let hashes = try self.cacheGraphContentHasher.contentHashes(
+                        for: graph,
+                        cacheProfile: self.cacheProfile,
+                        cacheOutputType: self.cacheOutputType,
+                        excludedTargets: self.sources
+                    )
+                    let result = try self.cacheGraphMutator.map(
+                        graph: graph,
+                        precompiledArtifacts: await self.fetch(hashes: hashes),
+                        sources: self.sources
+                    )
+                    continuation.yield(result)
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+        }.asObservable().asSingle()
         return try (single.toBlocking().single(), [])
     }
 
     // MARK: - Helpers
 
-    private static func dispatchQueue() -> DispatchQueue {
-        let qos: DispatchQoS = .userInitiated
-        return DispatchQueue(label: "io.tuist.generator-cache-mapper.\(qos)", qos: qos, attributes: [], target: nil)
-    }
-
-    private func hashes(graph: Graph) -> Single<[GraphTarget: String]> {
-        Single.create { observer -> Disposable in
-            do {
-                let hashes = try self.cacheGraphContentHasher.contentHashes(
-                    for: graph,
-                    cacheProfile: self.cacheProfile,
-                    cacheOutputType: self.cacheOutputType,
-                    excludedTargets: self.sources
-                )
-                observer(.success(hashes))
-            } catch {
-                observer(.error(error))
+    private func fetch(hashes: [GraphTarget: String]) async throws -> [GraphTarget: AbsolutePath] {
+        try await hashes.concurrentMap { target, hash -> (GraphTarget, AbsolutePath?) in
+            if try await self.cache.exists(name: target.target.name, hash: hash) {
+                let path = try await self.cache.fetch(name: target.target.name, hash: hash)
+                return (target, path)
+            } else {
+                return (target, nil)
             }
-            return Disposables.create {}
+        }.reduce(into: [GraphTarget: AbsolutePath]()) { acc, next in
+            guard let path = next.1 else { return }
+            acc[next.0] = path
         }
-        .subscribeOn(ConcurrentDispatchQueueScheduler(queue: queue))
-    }
-
-    private func map(graph: Graph, hashes: [GraphTarget: String], sources: Set<String>) -> Single<Graph> {
-        fetch(hashes: hashes).map { xcframeworkPaths in
-            try self.cacheGraphMutator.map(
-                graph: graph,
-                precompiledArtifacts: xcframeworkPaths,
-                sources: sources
-            )
-        }
-    }
-
-    private func fetch(hashes: [GraphTarget: String]) -> Single<[GraphTarget: AbsolutePath]> {
-        Single
-            .zip(
-                hashes.map(context: .concurrent) { target, hash in
-                    self.cache.exists(name: target.target.name, hash: hash)
-                        .flatMap { exists -> Single<(target: GraphTarget, path: AbsolutePath?)> in
-                            guard exists else { return Single.just((target: target, path: nil)) }
-                            return self.cache.fetch(name: target.target.name, hash: hash).map { (target: target, path: $0) }
-                        }
-                }
-            )
-            .map { result in
-                result.reduce(into: [GraphTarget: AbsolutePath]()) { acc, next in
-                    guard let path = next.path else { return }
-                    acc[next.target] = path
-                }
-            }
     }
 }

@@ -34,14 +34,14 @@ final class TrackableCommandTests: TuistTestCase {
 
     // MARK: - Tests
 
-    func test_whenParamsHaveFlagTrue_dispatchesEventWithExpectedParameters() throws {
+    func test_whenParamsHaveFlagTrue_dispatchesEventWithExpectedParameters() async throws {
         // Given
         makeSubject(flag: true)
         let expectedParams = ["flag": "true"]
         var didPersisteEvent = false
 
         // When
-        let future = try subject.run()
+        let future = try await subject.run()
         _ = future.sink {
             didPersisteEvent = true
         }
@@ -54,13 +54,13 @@ final class TrackableCommandTests: TuistTestCase {
         XCTAssertTrue(didPersisteEvent)
     }
 
-    func test_whenParamsHaveFlagFalse_dispatchesEventWithExpectedParameters() throws {
+    func test_whenParamsHaveFlagFalse_dispatchesEventWithExpectedParameters() async throws {
         // Given
         makeSubject(flag: false)
         let expectedParams = ["flag": "false"]
         var didPersisteEvent = false
         // When
-        let future = try subject.run()
+        let future = try await subject.run()
         _ = future.sink {
             didPersisteEvent = true
         }

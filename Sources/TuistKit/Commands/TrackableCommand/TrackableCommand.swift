@@ -32,12 +32,16 @@ public class TrackableCommand: TrackableParametersDelegate {
         self.asyncQueue = asyncQueue
     }
 
-    func run() throws -> Future<Void, Never> {
+    func run() async throws -> Future<Void, Never> {
         let timer = clock.startTimer()
         if let command = command as? HasTrackableParameters {
             type(of: command).analyticsDelegate = self
         }
-        try command.run()
+        if var asyncCommand = command as? AsyncParsableCommand {
+            try await asyncCommand.runAsync()
+        } else {
+            try command.run()
+        }
         let durationInSeconds = timer.stop()
         let durationInMs = Int(durationInSeconds * 1000)
         let configuration = type(of: command).configuration

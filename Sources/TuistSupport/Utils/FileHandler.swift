@@ -53,6 +53,7 @@ public protocol FileHandling: AnyObject {
     /// Determine temporary directory either default for user or specified by ENV variable
     func determineTemporaryDirectory() throws -> AbsolutePath
     func temporaryDirectory() throws -> AbsolutePath
+    func inTemporaryDirectory(_ closure: @escaping (AbsolutePath) async throws -> Void) async throws
     func inTemporaryDirectory(_ closure: (AbsolutePath) throws -> Void) throws
     func inTemporaryDirectory(removeOnCompletion: Bool, _ closure: (AbsolutePath) throws -> Void) throws
     func inTemporaryDirectory<Result>(_ closure: (AbsolutePath) throws -> Result) throws -> Result
@@ -138,6 +139,18 @@ public class FileHandler: FileHandling {
 
     public func inTemporaryDirectory(_ closure: (AbsolutePath) throws -> Void) throws {
         try withTemporaryDirectory(removeTreeOnDeinit: true, closure)
+    }
+
+    public func inTemporaryDirectory(_ closure: @escaping (AbsolutePath) async throws -> Void) async throws {
+        try withTemporaryDirectory(removeTreeOnDeinit: true) { path in
+            let dispatchGroup = DispatchGroup()
+            dispatchGroup.enter()
+            Task.detached {
+                try await closure(path)
+                dispatchGroup.leave()
+            }
+            dispatchGroup.wait()
+        }
     }
 
     public func inTemporaryDirectory<Result>(removeOnCompletion: Bool,
