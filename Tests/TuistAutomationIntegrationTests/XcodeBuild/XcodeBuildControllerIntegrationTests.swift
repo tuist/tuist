@@ -1,5 +1,4 @@
 import Foundation
-import RxBlocking
 import RxSwift
 import TSCBasic
 import TuistCore

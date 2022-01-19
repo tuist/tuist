@@ -5,7 +5,6 @@ import PackageDescription
 let signalsDependency: Target.Dependency = .byName(name: "Signals")
 let rxSwiftDependency: Target.Dependency = .product(name: "RxSwift", package: "RxSwift")
 let rxBlockingDependency: Target.Dependency = .product(name: "RxBlocking", package: "RxSwift")
-let rxRelayDependency: Target.Dependency = .product(name: "RxRelay", package: "RxSwift")
 let rxTestDependency: Target.Dependency = .product(name: "RxTest", package: "RxSwift")
 let swiftToolsSupportDependency: Target.Dependency = .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core")
 let loggingDependency: Target.Dependency = .product(name: "Logging", package: "swift-log")
@@ -228,7 +227,6 @@ let package = Package(
                 combineExtDependency,
                 swiftToolsSupportDependency,
                 rxSwiftDependency,
-                rxRelayDependency,
                 loggingDependency,
                 "KeychainAccess",
                 swifterDependency,
