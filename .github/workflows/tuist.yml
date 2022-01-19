@@ -104,8 +104,6 @@ jobs:
             'generate-8',
             'graph',
             'init',
-            'lint-code',
-            'lint-project',
             'list-targets',
             'plugins',
             'precompiled',

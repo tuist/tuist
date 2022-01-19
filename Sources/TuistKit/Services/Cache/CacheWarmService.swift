@@ -80,11 +80,20 @@ final class CacheWarmService {
     private func projectTargets(at path: AbsolutePath, config: Config) throws -> Set<String> {
         let plugins = try pluginService.loadPlugins(using: config)
         try manifestLoader.register(plugins: plugins)
+        let manifests = manifestLoader.manifests(at: path)
+
         let projects: [AbsolutePath]
-        if let workspace = try? manifestLoader.loadWorkspace(at: path) {
-            projects = workspace.projects.map { AbsolutePath(path, .init($0.pathString)) }
-        } else {
+        if manifests.contains(.workspace) {
+            let workspace = try manifestLoader.loadWorkspace(at: path)
+            projects = workspace.projects.flatMap { project in
+                FileHandler.shared.glob(path, glob: project.pathString).filter {
+                    FileHandler.shared.isFolder($0) && manifestLoader.manifests(at: $0).contains(.project)
+                }
+            }
+        } else if manifests.contains(.project) {
             projects = [path]
+        } else {
+            throw ManifestLoaderError.manifestNotFound(path)
         }
 
         return try Set(projects.flatMap { try manifestLoader.loadProject(at: $0).targets.map(\.name) })

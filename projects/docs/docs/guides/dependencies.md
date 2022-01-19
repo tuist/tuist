@@ -115,4 +115,4 @@ It defines a dependency with a pre-compiled xcframework.
 
 It defines a dependency from an external dependency defined in the `Dependencies.swift` file.
 
-For more information, have a look at the [dedicated section](/guides/third-party-dependencies).
+For more information, have a look at the [dedicated section](guides/third-party-dependencies.md).

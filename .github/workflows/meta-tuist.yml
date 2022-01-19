@@ -73,7 +73,7 @@ jobs:
           bundle install --jobs 4 --retry 3
       - name: Build
         run: |
-          ./fourier focus
+          ./fourier generate
   test:
     name: Test with Xcode
     runs-on: macOS-11

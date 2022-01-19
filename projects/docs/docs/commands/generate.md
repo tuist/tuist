@@ -14,18 +14,30 @@ and Xcode projects and workspaces as a implementation detail to edit your projec
 
 To generate the project in the current directory, youn can simply run:
 
-```
+```bash
 tuist generate
 ```
 
-The command accepts the `--path` argument, which can be used to generate the project in a different directory.
+Moreover, if external dependencies exist in the [cache](/building-at-scale/caching/), Tuist replaces them with their pre-compiled version.
 
-There might be situations when you are only interested in generating the project in a given directory, and not the projects it depends on. For that, you can pass the argument `--project-only`.
+In large Xcode projects that contain many targets and schemes, Xcode can be slow indexing the project.
+The build system, which needs to resolve implicit dependencies, might take longer to do so because there are more Xcode objects to analyze.
+This is **not ideal for developers' productivity** and for that reason Tuist allows users to focus on a specific target or set of targets.
+
+```bash
+tuist generate MyApp
+```
+
+The command generates and opens an Xcode workspace where the targets and schemes not directly related to `MyApp` are removed.
+If the direct and transitive dependencies exist in the [cache](/building-at-scale/caching/), Tuist replaces them with their pre-compiled version.
+Thanks to that developers can safely clean their Xcode environment because they'll only be building the target they are focusing on.
 
 ### Arguments
 
-| Argument         | Short | Description                                                            | Default           | Required |
-| ---------------- | ----- | ---------------------------------------------------------------------- | ----------------- | -------- |
-| `--path`         | `-p`  | The path to the directory that contains the definition of the project. | Current directory | No       |
-| `--project-only` | `-P`  | Only generate the local project (without generating its dependencies). | False             | No       |
-| `--open`         | `-o`  | Open the project after generating it.                                  | False             | No       |
+| Argument          | Short | Description                                                                                                    | Default           | Required |
+| ----------------- | ----- | -------------------------------------------------------------------------------------------------------------- | ----------------- | -------- |
+| `--path`          | `-p`  | The path to the directory that contains the definition of the project.                                         | Current directory | No       |
+| `--no-open `      | `-n`  | Don't open the project after generating it.                                                                    | False             | No       |
+| `--xcframeworks ` | `-x`  | When passed it uses xcframeworks (simulator and device) from the cache instead of frameworks (only simulator). | False             | No       |
+| `--no-cache `     | `-x`  | Ignore cached targets, and use their sources instead.                                                          | False             | No       |
+| `--profile `      | `-P`  | The name of the cache profile.                                                                                 |                   | No       |

@@ -11,7 +11,7 @@ You may use plugins that exist at a path local to your machine or at a git sourc
 
 ### Adding plugins
 
-In order to tell Tuist you'd like to use plugins in your project, you can start by defining the plugins in the [`Config.swift`](/manifests/config/) manifest.
+In order to tell Tuist you'd like to use plugins in your project, you can start by defining the plugins in the [`Config.swift`](manifests/config.md) manifest.
 
 ```swift
 import ProjectDescription
@@ -25,11 +25,11 @@ let config = Config(
 )
 ```
 
-By defining plugins in the [`Config.swift`](/manifests/config/) manifest Tuist is able to collect, cache and use your plugins to add or extend functionality.
+By defining plugins in the [`Config.swift`](manifests/config.md) manifest Tuist is able to collect, cache and use your plugins to add or extend functionality.
 
 #### Local plugin
 
-Local plugins are stored relative to the machine generating the project. You can tell Tuist to find them at a given [`Path`](/manifests/project/).
+Local plugins are stored relative to the machine generating the project. You can tell Tuist to find them at a given [`Path`](manifests/project.md).
 
 ```swift
 PluginLocation.local(path: "/Plugins/MyPlugin")
@@ -58,14 +58,14 @@ You may also collect a plugin at a specific git sha:
 PluginLocation.git(url: "https://url/to/plugin.git", sha: "e34c5ba")
 ```
 
-The [`Plugin.swift`](/plugins/creating-plugins/) manifest in a git repository should be located at the root of the repository.
+The [`Plugin.swift`](plugins/creating-plugins.md) manifest in a git repository should be located at the root of the repository.
 
 ### Example
 
 Let's say we have a plugin called `MyTuistPlugin`. This plugin is designed to add functionality to `ProjectDescription`, in this example the plugin will add a new method to `Project` which allow us to define an application.
 This plugin is stored in git on some remote server, and we'd like to use version `1.0.0` of the plugin.
 
-We must first configure Tuist to use our plugin, we can do that by adding the plugin to the [`Config.swift`](/manifests/config/) manifest.
+We must first configure Tuist to use our plugin, we can do that by adding the plugin to the [`Config.swift`](manifests/config.md) manifest.
 
 ```swift
 import ProjectDescription
@@ -80,11 +80,11 @@ let config = Config(
 #### Tasks
 
 To use a task plugin, simply import the plugin in `Config.swift` and it will be automatically available by running `tuist exec my-plugin-task`.
-You can read more about tasks [here](/commands/task).
+You can read more about tasks [here](commands/task.md).
 
 #### Project description helpers
 
-You can import a project description helper plugin with the name defined in the [`Plugin.swift`](/plugins/creating-plugins/) manifest, which can then be used in a project manfiest:
+You can import a project description helper plugin with the name defined in the [`Plugin.swift`](plugins/creating-plugins.md) manifest, which can then be used in a project manfiest:
 
 ```swift
 import ProjectDescription

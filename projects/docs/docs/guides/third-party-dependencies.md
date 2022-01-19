@@ -36,7 +36,7 @@ One of the benefits of using Tuist's built-in support for declaring external dep
 
 ### Fetching dependencies
 
-After dependencies have been declared, you need to fetch them by running [`tuist dependencies fetch`](/commands/dependencies/#fetching). Tuist will use the dependency managers to pull the dependencies under the `Tuist/Dependencies` directory:
+After dependencies have been declared, you need to fetch them by running [`tuist dependencies fetch`](commands/dependencies.md#fetching). Tuist will use the dependency managers to pull the dependencies under the `Tuist/Dependencies` directory:
 
 ```bash
 Tuist
