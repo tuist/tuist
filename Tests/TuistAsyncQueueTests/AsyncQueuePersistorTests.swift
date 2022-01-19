@@ -1,5 +1,4 @@
 import Foundation
-import RxBlocking
 import RxSwift
 import TSCBasic
 import TuistCore
@@ -23,23 +22,23 @@ final class AsyncQueuePersistorTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_write() throws {
+    func test_write() async throws {
         // Given
         let event = AnyAsyncQueueEvent(dispatcherId: "dispatcher")
 
         // When
-        _ = try subject.write(event: event).toBlocking().last()
+        _ = try await subject.write(event: event).value
 
         // Then
-        let got = try subject.readAll().toBlocking().last()
-        let gotEvent = try XCTUnwrap(got?.first)
+        let got = try await subject.readAll().value
+        let gotEvent = try XCTUnwrap(got.first)
         XCTAssertEqual(gotEvent.dispatcherId, "dispatcher")
         XCTAssertEqual(gotEvent.id, event.id)
         let normalizedDate = Date(timeIntervalSince1970: Double(Int(Double(event.date.timeIntervalSince1970))))
         XCTAssertEqual(gotEvent.date, normalizedDate)
     }
 
-    func test_write_whenDirectoryDoesntExist_itCreatesDirectory() throws {
+    func test_write_whenDirectoryDoesntExist_itCreatesDirectory() async throws {
         let temporaryDirectory = try! temporaryPath()
         subject = AsyncQueuePersistor(directory: temporaryDirectory.appending(RelativePath("test/")))
 
@@ -47,29 +46,29 @@ final class AsyncQueuePersistorTests: TuistUnitTestCase {
         let event = AnyAsyncQueueEvent(dispatcherId: "dispatcher")
 
         // When
-        _ = try subject.write(event: event).toBlocking().last()
+        _ = try await subject.write(event: event).value
 
         // Then
-        let got = try subject.readAll().toBlocking().last()
-        let gotEvent = try XCTUnwrap(got?.first)
+        let got = try await subject.readAll().value
+        let gotEvent = try XCTUnwrap(got.first)
         XCTAssertEqual(gotEvent.dispatcherId, "dispatcher")
         XCTAssertEqual(gotEvent.id, event.id)
         let normalizedDate = Date(timeIntervalSince1970: Double(Int(Double(event.date.timeIntervalSince1970))))
         XCTAssertEqual(gotEvent.date, normalizedDate)
     }
 
-    func test_delete() throws {
+    func test_delete() async throws {
         // Given
         let event = AnyAsyncQueueEvent(dispatcherId: "dispatcher")
-        _ = try subject.write(event: event).toBlocking().last()
-        var persistedEvents = try subject.readAll().toBlocking().last()
-        XCTAssertEqual(persistedEvents?.count, 1)
+        _ = try await subject.write(event: event).value
+        var persistedEvents = try await subject.readAll().value
+        XCTAssertEqual(persistedEvents.count, 1)
 
         // When
-        _ = try subject.delete(event: event).toBlocking().last()
+        _ = try await subject.delete(event: event).value
 
         // Then
-        persistedEvents = try subject.readAll().toBlocking().last()
-        XCTAssertEqual(persistedEvents?.count, 0)
+        persistedEvents = try await subject.readAll().value
+        XCTAssertEqual(persistedEvents.count, 0)
     }
 }

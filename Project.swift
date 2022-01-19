@@ -28,8 +28,6 @@ func modulesTargetsAndSchemes() -> [(targets: [Target], scheme: Scheme)] {
                 .external(name: "Logging"),
                 .external(name: "PathKit"),
                 .external(name: "Queuer"),
-                .external(name: "RxBlocking"),
-                .external(name: "RxRelay"),
                 .external(name: "RxSwift"),
                 .external(name: "Signals"),
                 .external(name: "Stencil"),

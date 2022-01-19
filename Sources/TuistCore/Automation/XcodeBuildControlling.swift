@@ -18,7 +18,7 @@ public protocol XcodeBuildControlling {
     func build(_ target: XcodeBuildTarget,
                scheme: String,
                clean: Bool,
-               arguments: [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>>
+               arguments: [XcodeBuildArgument]) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
 
     /// Returns an observable to test the given project using xcodebuild.
     /// - Parameters:
@@ -36,7 +36,7 @@ public protocol XcodeBuildControlling {
         derivedDataPath: AbsolutePath?,
         resultBundlePath: AbsolutePath?,
         arguments: [XcodeBuildArgument]
-    ) -> Observable<SystemEvent<XcodeBuildOutput>>
+    ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
 
     /// Returns an observable that archives the given project using xcodebuild.
     /// - Parameters:
@@ -49,13 +49,14 @@ public protocol XcodeBuildControlling {
                  scheme: String,
                  clean: Bool,
                  archivePath: AbsolutePath,
-                 arguments: [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>>
+                 arguments: [XcodeBuildArgument]) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
 
     /// Creates an .xcframework combining the list of given frameworks.
     /// - Parameters:
     ///   - frameworks: Frameworks to be combined.
     ///   - output: Path to the output .xcframework.
-    func createXCFramework(frameworks: [AbsolutePath], output: AbsolutePath) -> Observable<SystemEvent<XcodeBuildOutput>>
+    func createXCFramework(frameworks: [AbsolutePath], output: AbsolutePath)
+        -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
 
     /// Gets the build settings of a scheme targets.
     /// - Parameters:

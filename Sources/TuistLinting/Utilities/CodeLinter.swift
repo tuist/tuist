@@ -1,5 +1,4 @@
 import Foundation
-import RxBlocking
 import TSCBasic
 import TuistCore
 import TuistSupport
@@ -10,7 +9,7 @@ public protocol CodeLinting {
     ///   - sources: Directory in which source code will be linted.
     ///   - path: Directory whose project will be linted.
     ///   - strict: Bool if warnings should error.
-    func lint(sources: [AbsolutePath], path: AbsolutePath, strict: Bool) throws
+    func lint(sources: [AbsolutePath], path: AbsolutePath, strict: Bool) async throws
 }
 
 public final class CodeLinter: CodeLinting {
@@ -26,7 +25,7 @@ public final class CodeLinter: CodeLinting {
 
     // MARK: - CodeLinting
 
-    public func lint(sources: [AbsolutePath], path: AbsolutePath, strict: Bool) throws {
+    public func lint(sources: [AbsolutePath], path: AbsolutePath, strict: Bool) async throws {
         let swiftLintPath = try binaryLocator.swiftLintPath()
         let swiftLintConfigPath = swiftLintConfigPath(path: path)
         let swiftLintArguments = buildSwiftLintArguments(
@@ -37,15 +36,19 @@ public final class CodeLinter: CodeLinting {
         )
         let environment = buildEnvironment(sources: sources)
 
-        _ = try System.shared.observable(
+        let events = System.shared.observable(
             swiftLintArguments,
             verbose: false,
             environment: environment
-        )
-        .mapToString()
-        .print()
-        .toBlocking()
-        .last()
+        ).mapToString().values
+        for try await event in events {
+            switch event {
+            case let .standardError(error):
+                logger.error("\(error)")
+            case let .standardOutput(output):
+                logger.info("\(output)")
+            }
+        }
     }
 
     // MARK: - Helpers

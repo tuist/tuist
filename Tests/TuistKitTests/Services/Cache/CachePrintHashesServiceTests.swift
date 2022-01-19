@@ -51,7 +51,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_run_withFullPath_loads_the_graph() throws {
+    func test_run_withFullPath_loads_the_graph() async throws {
         // Given
         subject = CachePrintHashesService(
             generatorFactory: generatorFactory,
@@ -61,13 +61,13 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         )
         let fullPath = FileHandler.shared.currentPath.pathString + "/full/path"
         // When
-        _ = try subject.run(path: fullPath, xcframeworks: false, profile: nil)
+        _ = try await subject.run(path: fullPath, xcframeworks: false, profile: nil)
 
         // Then
         XCTAssertEqual(generator.invokedLoadParameterPath, AbsolutePath(fullPath))
     }
 
-    func test_run_withoutPath_loads_the_graph() throws {
+    func test_run_withoutPath_loads_the_graph() async throws {
         // Given
         subject = CachePrintHashesService(
             generatorFactory: generatorFactory,
@@ -77,13 +77,13 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         )
 
         // When
-        _ = try subject.run(path: nil, xcframeworks: false, profile: nil)
+        _ = try await subject.run(path: nil, xcframeworks: false, profile: nil)
 
         // Then
         XCTAssertEqual(generator.invokedLoadParameterPath, FileHandler.shared.currentPath)
     }
 
-    func test_run_withRelativePath__loads_the_graph() throws {
+    func test_run_withRelativePath__loads_the_graph() async throws {
         // Given
         subject = CachePrintHashesService(
             generatorFactory: generatorFactory,
@@ -93,7 +93,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         )
 
         // When
-        _ = try subject.run(path: "RelativePath", xcframeworks: false, profile: nil)
+        _ = try await subject.run(path: "RelativePath", xcframeworks: false, profile: nil)
 
         // Then
         XCTAssertEqual(
@@ -102,7 +102,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_run_loads_the_graph() throws {
+    func test_run_loads_the_graph() async throws {
         // Given
         subject = CachePrintHashesService(
             generatorFactory: generatorFactory,
@@ -112,13 +112,13 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         )
 
         // When
-        _ = try subject.run(path: path, xcframeworks: false, profile: nil)
+        _ = try await subject.run(path: path, xcframeworks: false, profile: nil)
 
         // Then
         XCTAssertEqual(generator.invokedLoadParameterPath, "/Test")
     }
 
-    func test_run_content_hasher_gets_correct_graph() throws {
+    func test_run_content_hasher_gets_correct_graph() async throws {
         // Given
         subject = CachePrintHashesService(
             generatorFactory: generatorFactory,
@@ -136,13 +136,13 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         }
 
         // When
-        _ = try subject.run(path: path, xcframeworks: false, profile: nil)
+        _ = try await subject.run(path: path, xcframeworks: false, profile: nil)
 
         // Then
         XCTAssertEqual(invokedGraph, graph)
     }
 
-    func test_run_outputs_correct_hashes() throws {
+    func test_run_outputs_correct_hashes() async throws {
         // Given
         let target1 = GraphTarget.test(target: .test(name: "ShakiOne"))
         let target2 = GraphTarget.test(target: .test(name: "ShakiTwo"))
@@ -158,14 +158,14 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         )
 
         // When
-        _ = try subject.run(path: path, xcframeworks: false, profile: nil)
+        _ = try await subject.run(path: path, xcframeworks: false, profile: nil)
 
         // Then
         XCTAssertPrinterOutputContains("ShakiOne - hash1")
         XCTAssertPrinterOutputContains("ShakiTwo - hash2")
     }
 
-    func test_run_gives_correct_artifact_type_to_hasher() throws {
+    func test_run_gives_correct_artifact_type_to_hasher() async throws {
         // Given
         var xcframeworkOutputType: CacheOutputType?
         cacheGraphContentHasher.contentHashesStub = { _, _, cacheOutputType, _ in
@@ -174,7 +174,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         }
 
         // When
-        _ = try subject.run(path: path, xcframeworks: true, profile: nil)
+        _ = try await subject.run(path: path, xcframeworks: true, profile: nil)
 
         // Then
         XCTAssertEqual(xcframeworkOutputType, .xcframework)
@@ -187,13 +187,13 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         }
 
         // When
-        _ = try subject.run(path: path, xcframeworks: false, profile: nil)
+        _ = try await subject.run(path: path, xcframeworks: false, profile: nil)
 
         // Then
         XCTAssertEqual(frameworkOutputType, .framework)
     }
 
-    func test_run_gives_correct_cache_profile_type_to_hasher() throws {
+    func test_run_gives_correct_cache_profile_type_to_hasher() async throws {
         // Given
         let profile: Cache.Profile = .test(
             name: "Simulator",
@@ -212,7 +212,7 @@ final class CachePrintHashesServiceTests: TuistUnitTestCase {
         }
 
         // When
-        _ = try subject.run(path: path, xcframeworks: false, profile: "Simulator")
+        _ = try await subject.run(path: path, xcframeworks: false, profile: "Simulator")
 
         // Then
         XCTAssertEqual(invokedCacheProfile, profile)

@@ -1,5 +1,4 @@
 import ProjectDescription
-import RxBlocking
 import TSCBasic
 import TuistCore
 import TuistGraph

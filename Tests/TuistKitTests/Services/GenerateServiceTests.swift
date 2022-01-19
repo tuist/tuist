@@ -44,24 +44,24 @@ final class GenerateServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_run() throws {
+    func test_run() async throws {
         // When
-        try subject.testRun()
+        try await subject.testRun()
 
         // Then
         XCTAssertEqual(opener.openCallCount, 0)
         XCTAssertPrinterOutputContains("Project generated.")
     }
 
-    func test_run_opens_the_project_when_open_is_true() throws {
+    func test_run_opens_the_project_when_open_is_true() async throws {
         // When
-        try subject.testRun(open: true)
+        try await subject.testRun(open: true)
 
         // Then
         XCTAssertEqual(opener.openCallCount, 1)
     }
 
-    func test_run_timeIsPrinted() throws {
+    func test_run_timeIsPrinted() async throws {
         // Given
         clock.assertOnUnexpectedCalls = true
         clock.primedTimers = [
@@ -69,13 +69,13 @@ final class GenerateServiceTests: TuistUnitTestCase {
         ]
 
         // When
-        try subject.testRun()
+        try await subject.testRun()
 
         // Then
         XCTAssertPrinterOutputContains("Total time taken: 0.234s")
     }
 
-    func test_run_withRelativePathParameter() throws {
+    func test_run_withRelativePathParameter() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         var generationPath: AbsolutePath?
@@ -85,13 +85,13 @@ final class GenerateServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.testRun(path: "subpath")
+        try await subject.testRun(path: "subpath")
 
         // Then
         XCTAssertEqual(generationPath, AbsolutePath("subpath", relativeTo: temporaryPath))
     }
 
-    func test_run_withAbsoultePathParameter() throws {
+    func test_run_withAbsoultePathParameter() async throws {
         // Given
         var generationPath: AbsolutePath?
         generator.generateStub = { path, _ in
@@ -100,13 +100,13 @@ final class GenerateServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.testRun(path: "/some/path")
+        try await subject.testRun(path: "/some/path")
 
         // Then
         XCTAssertEqual(generationPath, AbsolutePath("/some/path"))
     }
 
-    func test_run_withoutPathParameter() throws {
+    func test_run_withoutPathParameter() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         var generationPath: AbsolutePath?
@@ -116,19 +116,19 @@ final class GenerateServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.testRun()
+        try await subject.testRun()
 
         // Then
         XCTAssertEqual(generationPath, temporaryPath)
     }
 
-    func test_run_withProjectOnlyParameter() throws {
+    func test_run_withProjectOnlyParameter() async throws {
         // Given
         let projectOnlyValues = [true, false]
 
         // When
-        try projectOnlyValues.forEach {
-            try subject.testRun(projectOnly: $0)
+        for isProjectOnly in projectOnlyValues {
+            try await subject.testRun(projectOnly: isProjectOnly)
         }
 
         // Then
@@ -138,16 +138,19 @@ final class GenerateServiceTests: TuistUnitTestCase {
         ])
     }
 
-    func test_run_fatalErrors_when_theworkspaceGenerationFails() throws {
+    func test_run_fatalErrors_when_theworkspaceGenerationFails() async throws {
         // Given
-        let error = NSError.test()
+        let expectedError = NSError.test()
         generator.generateStub = { _, _ in
-            throw error
+            throw expectedError
         }
 
         // When / Then
-        XCTAssertThrowsError(try subject.testRun()) {
-            XCTAssertEqual($0 as NSError, error)
+        do {
+            try await subject.testRun()
+            XCTFail("Should throw")
+        } catch {
+            XCTAssertEqual(error as NSError, expectedError)
         }
     }
 }
@@ -155,9 +158,9 @@ final class GenerateServiceTests: TuistUnitTestCase {
 extension GenerateService {
     func testRun(path: String? = nil,
                  projectOnly: Bool = false,
-                 open: Bool = false) throws
+                 open: Bool = false) async throws
     {
-        try run(
+        try await run(
             path: path,
             projectOnly: projectOnly,
             open: open

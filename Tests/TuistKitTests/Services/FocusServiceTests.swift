@@ -43,33 +43,41 @@ final class FocusServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_run_fatalErrors_when_theworkspaceGenerationFails() throws {
-        let error = NSError.test()
+    func test_run_fatalErrors_when_theworkspaceGenerationFails() async throws {
+        let expectedError = NSError.test()
         generator.generateStub = { _, _ in
-            throw error
+            throw expectedError
         }
 
-        XCTAssertThrowsError(
-            try subject
+        do {
+            try await subject
                 .run(path: nil, sources: ["Target"], noOpen: true, xcframeworks: false, profile: nil, ignoreCache: false)
-        ) {
-            XCTAssertEqual($0 as NSError?, error)
+            XCTFail("Should throw")
+        } catch {
+            XCTAssertEqual(error as NSError, expectedError)
         }
     }
 
-    func test_run() throws {
+    func test_run() async throws {
         let workspacePath = AbsolutePath("/test.xcworkspace")
 
         generator.generateStub = { _, _ in
             workspacePath
         }
 
-        try subject.run(path: nil, sources: ["Target"], noOpen: false, xcframeworks: false, profile: nil, ignoreCache: false)
+        try await subject.run(
+            path: nil,
+            sources: ["Target"],
+            noOpen: false,
+            xcframeworks: false,
+            profile: nil,
+            ignoreCache: false
+        )
 
         XCTAssertEqual(opener.openArgs.last?.0, workspacePath.pathString)
     }
 
-    func test_run_timeIsPrinted() throws {
+    func test_run_timeIsPrinted() async throws {
         // Given
         let workspacePath = AbsolutePath("/test.xcworkspace")
 
@@ -82,7 +90,14 @@ final class FocusServiceTests: TuistUnitTestCase {
         ]
 
         // When
-        try subject.run(path: nil, sources: ["Target"], noOpen: false, xcframeworks: false, profile: nil, ignoreCache: false)
+        try await subject.run(
+            path: nil,
+            sources: ["Target"],
+            noOpen: false,
+            xcframeworks: false,
+            profile: nil,
+            ignoreCache: false
+        )
 
         // Then
         XCTAssertPrinterOutputContains("Total time taken: 0.234s")

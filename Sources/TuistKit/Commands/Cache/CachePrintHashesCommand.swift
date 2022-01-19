@@ -3,7 +3,7 @@ import Foundation
 import TSCBasic
 import TuistSupport
 
-struct CachePrintHashesCommand: ParsableCommand {
+struct CachePrintHashesCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "print-hashes",
@@ -15,8 +15,8 @@ struct CachePrintHashesCommand: ParsableCommand {
     @OptionGroup()
     var options: CacheOptions
 
-    func run() throws {
-        try CachePrintHashesService().run(
+    func runAsync() async throws {
+        try await CachePrintHashesService().run(
             path: options.path,
             xcframeworks: options.xcframeworks,
             profile: options.profile

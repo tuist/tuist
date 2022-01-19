@@ -1,6 +1,4 @@
 import Foundation
-import RxBlocking
-import RxSwift
 import TSCBasic
 import struct TSCUtility.Version
 import TuistCore
@@ -35,20 +33,21 @@ public final class CacheBundleBuilder: CacheArtifactBuilding {
         deviceName: String?,
         into outputDirectory: AbsolutePath
     ) async throws {
-        let platform = self.platform(scheme: scheme)
+        let platform = platform(scheme: scheme)
 
-        let arguments = try await self.arguments(
+        let arguments = try await arguments(
             platform: platform,
             configuration: configuration,
             osVersion: osVersion,
             deviceName: deviceName
         )
 
-        try xcodebuild(
-            projectTarget: projectTarget,
+        try await xcodeBuildController.build(
+            projectTarget,
             scheme: scheme.name,
+            clean: false,
             arguments: arguments
-        )
+        ).printFormattedOutput()
 
         let buildDirectory = try xcodeProjectBuildDirectoryLocator.locate(
             platform: platform,
@@ -80,22 +79,6 @@ public final class CacheBundleBuilder: CacheArtifactBuilding {
             .configuration(configuration),
             .destination(destination),
         ]
-    }
-
-    fileprivate func xcodebuild(projectTarget: XcodeBuildTarget,
-                                scheme: String,
-                                arguments: [XcodeBuildArgument]) throws
-    {
-        _ = try xcodeBuildController.build(
-            projectTarget,
-            scheme: scheme,
-            clean: false,
-            arguments: arguments
-        )
-        .printFormattedOutput()
-        .ignoreElements()
-        .toBlocking()
-        .last()
     }
 
     fileprivate func exportBundles(from buildDirectory: AbsolutePath,

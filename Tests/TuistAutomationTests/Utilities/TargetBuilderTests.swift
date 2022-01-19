@@ -54,7 +54,7 @@ final class TargetBuilderTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_buildScheme_callsXcodeBuildControllerWithArguments() throws {
+    func test_buildScheme_callsXcodeBuildControllerWithArguments() async throws {
         // Given
         let scheme = Scheme.test(name: "A")
         let workspacePath = AbsolutePath("/path/to/project.xcworkspace")
@@ -74,11 +74,11 @@ final class TargetBuilderTests: TuistUnitTestCase {
             XCTAssertEqual(_scheme, scheme.name)
             XCTAssertEqual(_clean, clean)
             XCTAssertEqual(_buildArguments, buildArguments)
-            return Observable.just(.standardOutput(.init(raw: "success")))
+            return [.standardOutput(.init(raw: "success"))]
         }
 
         // When
-        try subject.buildTarget(
+        try await subject.buildTarget(
             .test(),
             workspacePath: workspacePath,
             schemeName: scheme.name,
@@ -88,7 +88,7 @@ final class TargetBuilderTests: TuistUnitTestCase {
         )
     }
 
-    func test_copiesBuildProducts_to_outputPath_defaultConfiguration() throws {
+    func test_copiesBuildProducts_to_outputPath_defaultConfiguration() async throws {
         // Given
         let path = try temporaryPath()
         let buildOutputPath = path.appending(component: ".build")
@@ -96,7 +96,7 @@ final class TargetBuilderTests: TuistUnitTestCase {
         let workspacePath = AbsolutePath("/path/to/project.xcworkspace")
 
         xcodeBuildController.buildStub = { _, _, _, _ in
-            Observable.just(.standardOutput(.init(raw: "success")))
+            [.standardOutput(.init(raw: "success"))]
         }
 
         let xcodeBuildPath = path.appending(components: "Xcode", "DerivedData", "MyProject-hash", "Debug")
@@ -107,7 +107,7 @@ final class TargetBuilderTests: TuistUnitTestCase {
         ])
 
         // When
-        try subject.buildTarget(
+        try await subject.buildTarget(
             .test(),
             workspacePath: workspacePath,
             schemeName: scheme.name,
@@ -131,7 +131,7 @@ final class TargetBuilderTests: TuistUnitTestCase {
         )
     }
 
-    func test_copiesBuildProducts_to_outputPath_customConfiguration() throws {
+    func test_copiesBuildProducts_to_outputPath_customConfiguration() async throws {
         // Given
         let path = try temporaryPath()
         let buildOutputPath = path.appending(component: ".build")
@@ -140,7 +140,7 @@ final class TargetBuilderTests: TuistUnitTestCase {
         let workspacePath = AbsolutePath("/path/to/project.xcworkspace")
 
         xcodeBuildController.buildStub = { _, _, _, _ in
-            Observable.just(.standardOutput(.init(raw: "success")))
+            [.standardOutput(.init(raw: "success"))]
         }
 
         let xcodeBuildPath = path.appending(components: "Xcode", "DerivedData", "MyProject-hash", configuration)
@@ -151,7 +151,7 @@ final class TargetBuilderTests: TuistUnitTestCase {
         ])
 
         // When
-        try subject.buildTarget(
+        try await subject.buildTarget(
             .test(),
             workspacePath: workspacePath,
             schemeName: scheme.name,

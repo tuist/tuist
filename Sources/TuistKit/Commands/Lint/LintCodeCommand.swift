@@ -3,7 +3,7 @@ import Foundation
 import TSCBasic
 
 /// A command to lint the Swift code using Swiftlint
-struct LintCodeCommand: ParsableCommand {
+struct LintCodeCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "code",
@@ -29,7 +29,7 @@ struct LintCodeCommand: ParsableCommand {
     )
     var strict: Bool = false
 
-    func run() throws {
-        try LintCodeService().run(path: path, targetName: target, strict: strict)
+    func runAsync() async throws {
+        try await LintCodeService().run(path: path, targetName: target, strict: strict)
     }
 }

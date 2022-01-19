@@ -12,12 +12,12 @@ import TuistSupport
 
 protocol Generating {
     @discardableResult
-    func load(path: AbsolutePath) throws -> Graph
-    func loadProject(path: AbsolutePath) throws
+    func load(path: AbsolutePath) async throws -> Graph
+    func loadProject(path: AbsolutePath) async throws
         -> (TuistGraph.Project, Graph, [SideEffectDescriptor]) // swiftlint:disable:this large_tuple
-    func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath
-    func generateWithGraph(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, Graph)
-    func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph)
+    func generate(path: AbsolutePath, projectOnly: Bool) async throws -> AbsolutePath
+    func generateWithGraph(path: AbsolutePath, projectOnly: Bool) async throws -> (AbsolutePath, Graph)
+    func generateProjectWorkspace(path: AbsolutePath) async throws -> (AbsolutePath, Graph)
 }
 
 class Generator: Generating {
@@ -67,39 +67,39 @@ class Generator: Generating {
         self.dependenciesGraphController = dependenciesGraphController
     }
 
-    func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath {
-        let (generatedPath, _) = try generateWithGraph(path: path, projectOnly: projectOnly)
+    func generate(path: AbsolutePath, projectOnly: Bool) async throws -> AbsolutePath {
+        let (generatedPath, _) = try await generateWithGraph(path: path, projectOnly: projectOnly)
         return generatedPath
     }
 
-    func generateWithGraph(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, Graph) {
+    func generateWithGraph(path: AbsolutePath, projectOnly: Bool) async throws -> (AbsolutePath, Graph) {
         let manifests = manifestLoader.manifests(at: path)
 
         if projectOnly {
-            return try generateProject(path: path)
+            return try await generateProject(path: path)
         } else if manifests.contains(.workspace) {
-            return try generateWorkspace(path: path)
+            return try await generateWorkspace(path: path)
         } else if manifests.contains(.project) {
-            return try generateProjectWorkspace(path: path)
+            return try await generateProjectWorkspace(path: path)
         } else {
             throw ManifestLoaderError.manifestNotFound(path)
         }
     }
 
-    func load(path: AbsolutePath) throws -> Graph {
+    func load(path: AbsolutePath) async throws -> Graph {
         let manifests = manifestLoader.manifests(at: path)
 
         if manifests.contains(.workspace) {
-            return try loadWorkspace(path: path).0
+            return try await loadWorkspace(path: path).0
         } else if manifests.contains(.project) {
-            return try loadProjectWorkspace(path: path).1
+            return try await loadProjectWorkspace(path: path).1
         } else {
             throw ManifestLoaderError.manifestNotFound(path)
         }
     }
 
     // swiftlint:disable:next large_tuple
-    func loadProject(path: AbsolutePath) throws -> (TuistGraph.Project, Graph, [SideEffectDescriptor]) {
+    func loadProject(path: AbsolutePath) async throws -> (TuistGraph.Project, Graph, [SideEffectDescriptor]) {
         // Load config
         let config = try configLoader.loadConfig(path: path)
 
@@ -142,14 +142,14 @@ class Generator: Generating {
         )
 
         // Apply graph mappers
-        let (updatedGraph, graphMapperSideEffects) = try graphMapper.map(graph: graph)
+        let (updatedGraph, graphMapperSideEffects) = try await graphMapper.map(graph: graph)
 
         return (project, updatedGraph, modelMapperSideEffects + graphMapperSideEffects)
     }
 
-    private func generateProject(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
+    private func generateProject(path: AbsolutePath) async throws -> (AbsolutePath, Graph) {
         // Load
-        let (project, graph, sideEffects) = try loadProject(path: path)
+        let (project, graph, sideEffects) = try await loadProject(path: path)
         let graphTraverser = GraphTraverser(graph: graph)
 
         // Lint
@@ -165,14 +165,14 @@ class Generator: Generating {
         try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
 
         // Post Generate Actions
-        try postGenerationActions(graphTraverser: graphTraverser, workspaceName: projectDescriptor.xcodeprojPath.basename)
+        try await postGenerationActions(graphTraverser: graphTraverser, workspaceName: projectDescriptor.xcodeprojPath.basename)
 
         return (projectDescriptor.xcodeprojPath, graph)
     }
 
-    private func generateWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
+    private func generateWorkspace(path: AbsolutePath) async throws -> (AbsolutePath, Graph) {
         // Load
-        let (graph, sideEffects) = try loadWorkspace(path: path)
+        let (graph, sideEffects) = try await loadWorkspace(path: path)
         let graphTraverser = GraphTraverser(graph: graph)
 
         // Lint
@@ -188,14 +188,17 @@ class Generator: Generating {
         try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
 
         // Post Generate Actions
-        try postGenerationActions(graphTraverser: graphTraverser, workspaceName: workspaceDescriptor.xcworkspacePath.basename)
+        try await postGenerationActions(
+            graphTraverser: graphTraverser,
+            workspaceName: workspaceDescriptor.xcworkspacePath.basename
+        )
 
         return (workspaceDescriptor.xcworkspacePath, graph)
     }
 
-    internal func generateProjectWorkspace(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
+    internal func generateProjectWorkspace(path: AbsolutePath) async throws -> (AbsolutePath, Graph) {
         // Load
-        let (_, graph, sideEffects) = try loadProjectWorkspace(path: path)
+        let (_, graph, sideEffects) = try await loadProjectWorkspace(path: path)
         let graphTraverser = GraphTraverser(graph: graph)
 
         // Lint
@@ -211,7 +214,10 @@ class Generator: Generating {
         try sideEffectDescriptorExecutor.execute(sideEffects: sideEffects)
 
         // Post Generate Actions
-        try postGenerationActions(graphTraverser: graphTraverser, workspaceName: workspaceDescriptor.xcworkspacePath.basename)
+        try await postGenerationActions(
+            graphTraverser: graphTraverser,
+            workspaceName: workspaceDescriptor.xcworkspacePath.basename
+        )
 
         return (workspaceDescriptor.xcworkspacePath, graph)
     }
@@ -224,15 +230,19 @@ class Generator: Generating {
         try graphLinter.lintCodeCoverageMode(config.codeCoverageMode, graphTraverser: graphTraverser).printAndThrowIfNeeded()
     }
 
-    private func postGenerationActions(graphTraverser: GraphTraversing, workspaceName: String) throws {
+    private func postGenerationActions(graphTraverser: GraphTraversing, workspaceName: String) async throws {
         let config = try configLoader.loadConfig(path: graphTraverser.path)
 
         try signingInteractor.install(graphTraverser: graphTraverser)
-        try swiftPackageManagerInteractor.install(graphTraverser: graphTraverser, workspaceName: workspaceName, config: config)
+        try await swiftPackageManagerInteractor.install(
+            graphTraverser: graphTraverser,
+            workspaceName: workspaceName,
+            config: config
+        )
     }
 
     // swiftlint:disable:next large_tuple
-    private func loadProjectWorkspace(path: AbsolutePath) throws -> (TuistGraph.Project, Graph, [SideEffectDescriptor]) {
+    private func loadProjectWorkspace(path: AbsolutePath) async throws -> (TuistGraph.Project, Graph, [SideEffectDescriptor]) {
         // Load config
         let config = try configLoader.loadConfig(path: path)
 
@@ -285,7 +295,7 @@ class Generator: Generating {
         graph.workspace = updatedModels.workspace
 
         // Apply graph mappers
-        var (updatedGraph, graphMapperSideEffects) = try graphMapper.map(graph: graph)
+        var (updatedGraph, graphMapperSideEffects) = try await graphMapper.map(graph: graph)
 
         var updatedWorkspace = updatedGraph.workspace
         updatedWorkspace = updatedWorkspace.merging(projects: updatedGraph.projects.map(\.key))
@@ -298,7 +308,7 @@ class Generator: Generating {
         )
     }
 
-    private func loadWorkspace(path: AbsolutePath) throws -> (Graph, [SideEffectDescriptor]) {
+    private func loadWorkspace(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor]) {
         // Load config
         let config = try configLoader.loadConfig(path: path)
 
@@ -344,7 +354,7 @@ class Generator: Generating {
         )
 
         // Apply graph mappers
-        let (mappedGraph, graphMapperSideEffects) = try graphMapper.map(graph: graph)
+        let (mappedGraph, graphMapperSideEffects) = try await graphMapper.map(graph: graph)
 
         return (mappedGraph, modelMapperSideEffects + graphMapperSideEffects)
     }

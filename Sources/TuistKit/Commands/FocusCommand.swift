@@ -8,7 +8,7 @@ import TuistLoader
 import TuistSupport
 
 /// The focus command generates the Xcode workspace and launches it on Xcode.
-struct FocusCommand: ParsableCommand, HasTrackableParameters {
+struct FocusCommand: AsyncParsableCommand, HasTrackableParameters {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "focus",
@@ -56,13 +56,13 @@ struct FocusCommand: ParsableCommand, HasTrackableParameters {
     )
     var ignoreCache: Bool = false
 
-    func run() throws {
+    func runAsync() async throws {
         FocusCommand.analyticsDelegate?.willRun(withParameters: [
             "xcframeworks": String(xcframeworks),
             "no-cache": String(ignoreCache),
             "n_targets": String(sources.count),
         ])
-        try FocusService().run(
+        try await FocusService().run(
             path: path,
             sources: Set(sources),
             noOpen: noOpen,

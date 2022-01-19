@@ -1,5 +1,4 @@
 import Foundation
-import RxBlocking
 import RxSwift
 import TSCBasic
 import TuistCore
@@ -86,7 +85,7 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
 
     // MARK: - GraphMapping
 
-    public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
+    public func map(graph: Graph) async throws -> (Graph, [SideEffectDescriptor]) {
         let graphTraverser = GraphTraverser(graph: graph)
         let availableTargets = Set(
             graphTraverser.allTargets().map(\.target.name)
@@ -100,28 +99,18 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
                 availableTargets: availableTargets.sorted()
             )
         }
-        let single = AsyncThrowingStream<Graph, Error> { continuation in
-            Task.detached {
-                do {
-                    let hashes = try self.cacheGraphContentHasher.contentHashes(
-                        for: graph,
-                        cacheProfile: self.cacheProfile,
-                        cacheOutputType: self.cacheOutputType,
-                        excludedTargets: self.sources
-                    )
-                    let result = try self.cacheGraphMutator.map(
-                        graph: graph,
-                        precompiledArtifacts: await self.fetch(hashes: hashes),
-                        sources: self.sources
-                    )
-                    continuation.yield(result)
-                    continuation.finish()
-                } catch {
-                    continuation.finish(throwing: error)
-                }
-            }
-        }.asObservable().asSingle()
-        return try (single.toBlocking().single(), [])
+        let hashes = try cacheGraphContentHasher.contentHashes(
+            for: graph,
+            cacheProfile: cacheProfile,
+            cacheOutputType: cacheOutputType,
+            excludedTargets: sources
+        )
+        let result = try cacheGraphMutator.map(
+            graph: graph,
+            precompiledArtifacts: await fetch(hashes: hashes),
+            sources: sources
+        )
+        return (result, [])
     }
 
     // MARK: - Helpers
