@@ -82,7 +82,11 @@ final class CacheWarmService {
         try manifestLoader.register(plugins: plugins)
         let projects: [AbsolutePath]
         if let workspace = try? manifestLoader.loadWorkspace(at: path) {
-            projects = workspace.projects.map { AbsolutePath(path, .init($0.pathString)) }
+            projects = workspace.projects.flatMap { project in
+                FileHandler.shared.glob(path, glob: project.pathString).filter {
+                    FileHandler.shared.isFolder($0) && manifestLoader.manifests(at: $0).contains(.project)
+                }
+            }
         } else {
             projects = [path]
         }
