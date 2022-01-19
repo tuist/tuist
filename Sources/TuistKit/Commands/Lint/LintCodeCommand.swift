@@ -3,7 +3,7 @@ import Foundation
 import TSCBasic
 
 /// A command to lint the Swift code using Swiftlint
-struct LintCodeCommand: ParsableCommand {
+struct LintCodeCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "code",
