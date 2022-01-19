@@ -9,13 +9,13 @@ There are certain scenarios where you might need to customize the projects at ge
 To facilitate that, Tuist allows passing configuration through environment variables that can be accessed from the manifest files. For example:
 
 ```bash
-TUIST_APP_NAME=MyApp tuist focus
+TUIST_APP_NAME=MyApp tuist generate
 ```
 
 If you want to pass multiple environment variables just separate them with a space. For example:
 
 ```bash
-TUIST_APP_NAME=MyApp TUIST_APP_LOCALE=pl tuist focus
+TUIST_APP_NAME=MyApp TUIST_APP_LOCALE=pl tuist generate
 ```
 
 Variables can be accessed using the `Environment` type. Any variables following the convention `TUIST_XXX` defined in the environment or passed to Tuist when running commands will be accessible using the `Environment` type.

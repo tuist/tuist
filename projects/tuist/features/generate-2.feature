@@ -9,7 +9,6 @@ Feature: Generate a new project using Tuist (suite 2)
     Then I should be able to test for iOS the scheme AppTests
     Then I should be able to build for macOS the scheme MacFramework
     Then I should be able to build for iOS the scheme StaticFramework
-    Then I should be able to test for iOS the scheme StaticFrameworkTests
     Then I should be able to build for tvOS the scheme TVFramework
 
   Scenario: The project is an iOS application that has resources (ios_app_with_framework_and_resources)

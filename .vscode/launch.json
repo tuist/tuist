@@ -1,0 +1,51 @@
+{
+  "configurations": [
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug tuist",
+      "program": "${workspaceFolder}/.build/debug/tuist",
+      "args": [],
+      "cwd": "${workspaceFolder:tuist}",
+      "preLaunchTask": "swift: Build Debug tuist"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Release tuist",
+      "program": "${workspaceFolder}/.build/release/tuist",
+      "args": [],
+      "cwd": "${workspaceFolder:tuist}",
+      "preLaunchTask": "swift: Build Release tuist"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Debug tuistenv",
+      "program": "${workspaceFolder}/.build/debug/tuistenv",
+      "args": [],
+      "cwd": "${workspaceFolder:tuist}",
+      "preLaunchTask": "swift: Build Debug tuistenv"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Release tuistenv",
+      "program": "${workspaceFolder}/.build/release/tuistenv",
+      "args": [],
+      "cwd": "${workspaceFolder:tuist}",
+      "preLaunchTask": "swift: Build Release tuistenv"
+    },
+    {
+      "type": "lldb",
+      "request": "launch",
+      "name": "Test tuist",
+      "program": "/Applications/Xcode.app/Contents/Developer/usr/bin/xctest",
+      "args": [
+        ".build/debug/tuistPackageTests.xctest"
+      ],
+      "cwd": "${workspaceFolder:tuist}",
+      "preLaunchTask": "swift: Build All"
+    }
+  ]
+}

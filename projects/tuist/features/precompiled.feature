@@ -8,9 +8,7 @@ Feature: A set of tests that run with pre-compiled binaries that are only compat
     Then I should be able to build for iOS the scheme App
     Then I should be able to test for iOS the scheme AppTests
     Then I should be able to build for iOS the scheme A
-    Then I should be able to test for iOS the scheme ATests
     Then I should be able to build for iOS the scheme B
-    Then I should be able to test for iOS the scheme BTests
     
   Scenario: The project is an iOS application with frameworks and tests (ios_app_with_static_libraries)
     Given that tuist is available
@@ -20,9 +18,7 @@ Feature: A set of tests that run with pre-compiled binaries that are only compat
     Then I should be able to build for iOS the scheme App
     Then I should be able to test for iOS the scheme AppTests
     Then I should be able to build for iOS the scheme A
-    Then I should be able to test for iOS the scheme ATests
     Then I should be able to build for iOS the scheme B
-    Then I should be able to test for iOS the scheme BTests
 
   Scenario: The project is an iOS application with a target dependency and transitive framework dependency (ios_app_with_transitive_framework)
     Given that tuist is available
