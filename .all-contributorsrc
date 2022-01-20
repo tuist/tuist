@@ -686,6 +686,15 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "regularberry",
+      "name": "Sean Berry",
+      "avatar_url": "https://avatars.githubusercontent.com/u/565192?v=4",
+      "profile": "https://github.com/regularberry",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
