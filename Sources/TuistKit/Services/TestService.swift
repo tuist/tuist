@@ -76,7 +76,9 @@ final class TestService {
         deviceName: String?,
         osVersion: String?,
         skipUITests: Bool,
-        resultBundlePath: AbsolutePath?
+        resultBundlePath: AbsolutePath?,
+        testIterations: Int? = nil,
+        retryTestsOnFailure: Bool
     ) async throws {
         // Load config
         let manifestLoaderFactory = ManifestLoaderFactory()
@@ -137,7 +139,9 @@ final class TestService {
                     configuration: configuration,
                     version: version,
                     deviceName: deviceName,
-                    resultBundlePath: resultBundlePath
+                    resultBundlePath: resultBundlePath,
+                    testIterations: testIterations,
+                    retryTestsOnFailure: retryTestsOnFailure
                 )
             }
         } else {
@@ -159,7 +163,9 @@ final class TestService {
                     configuration: configuration,
                     version: version,
                     deviceName: deviceName,
-                    resultBundlePath: resultBundlePath
+                    resultBundlePath: resultBundlePath,
+                    testIterations: testIterations,
+                    retryTestsOnFailure: retryTestsOnFailure
                 )
             }
         }
@@ -195,7 +201,9 @@ final class TestService {
         configuration: String?,
         version: Version?,
         deviceName: String?,
-        resultBundlePath: AbsolutePath?
+        resultBundlePath: AbsolutePath?,
+        testIterations: Int?,
+        retryTestsOnFailure: Bool
     ) async throws {
         logger.log(level: .notice, "Testing scheme \(scheme.name)", metadata: .section)
         guard let buildableTarget = buildGraphInspector.testableTarget(scheme: scheme, graphTraverser: graphTraverser) else {
@@ -209,6 +217,11 @@ final class TestService {
             version: version,
             deviceName: deviceName
         )
+        
+        let extraTestArguments: [XcodeBuildArgument] = [
+            retryTestsOnFailure ? .xcflag("-retry-tests-on-failure") : nil,
+            testIterations.flatMap { .xcarg("-test-iterations", "\($0)") },
+        ].compactMap { $0 }
 
         try await xcodebuildController.test(
             .workspace(graphTraverser.workspace.xcWorkspacePath),
@@ -222,7 +235,7 @@ final class TestService {
                 target: buildableTarget.target,
                 configuration: configuration,
                 skipSigning: false
-            )
+            ) + extraTestArguments
         )
         .printFormattedOutput()
     }

@@ -355,6 +355,171 @@ final class TestServiceTests: TuistUnitTestCase {
             expectedResourceBundlePath
         )
     }
+    
+    func test_run_passes_test_iterations_as_argument() async throws {
+        // Given
+        buildGraphInspector.testableSchemesStub = { _ in
+            [
+                Scheme.test(name: "TestScheme"),
+            ]
+        }
+        buildGraphInspector.projectSchemesStub = { _ in
+            [
+                Scheme.test(name: "ProjectSchemeOne"),
+            ]
+        }
+        generator.generateWithGraphStub = { path, _ in
+            (path, Graph.test())
+        }
+        
+        var passedArguments: [XcodeBuildArgument] = []
+        xcodebuildController.testStub = { _, _, _, _, _, _, arguments in
+            passedArguments = arguments
+            return [.standardOutput(.init(raw: "success"))]
+        }
+        
+        // When
+        try await subject.testRun(
+            schemeName: "ProjectSchemeOne",
+            path: try temporaryPath(),
+            testIterations: 3
+        )
+        
+        // Then
+        XCTAssertTrue(passedArguments.contains(XcodeBuildArgument.xcarg("-test-iterations", "3")))
+    }
+    
+    func test_run_does_not_pass_test_iterations_as_argument() async throws {
+        // Given
+        buildGraphInspector.testableSchemesStub = { _ in
+            [
+                Scheme.test(name: "TestScheme"),
+            ]
+        }
+        buildGraphInspector.projectSchemesStub = { _ in
+            [
+                Scheme.test(name: "ProjectSchemeOne"),
+            ]
+        }
+        generator.generateWithGraphStub = { path, _ in
+            (path, Graph.test())
+        }
+        
+        var passedArguments: [XcodeBuildArgument] = []
+        xcodebuildController.testStub = { _, _, _, _, _, _, arguments in
+            passedArguments = arguments
+            return [.standardOutput(.init(raw: "success"))]
+        }
+        
+        // When
+        try await subject.testRun(
+            schemeName: "ProjectSchemeOne",
+            path: try temporaryPath()
+        )
+        
+        // Then
+        XCTAssertTrue(!passedArguments.contains(XcodeBuildArgument.xcarg("-test-iterations", "3")))
+    }
+    
+    func test_run_does_pass_retry_on_failure_as_flag() async throws {
+        // Given
+        buildGraphInspector.testableSchemesStub = { _ in
+            [
+                Scheme.test(name: "TestScheme"),
+            ]
+        }
+        buildGraphInspector.projectSchemesStub = { _ in
+            [
+                Scheme.test(name: "ProjectSchemeOne"),
+            ]
+        }
+        generator.generateWithGraphStub = { path, _ in
+            (path, Graph.test())
+        }
+        
+        var passedArguments: [XcodeBuildArgument] = []
+        xcodebuildController.testStub = { _, _, _, _, _, _, arguments in
+            passedArguments = arguments
+            return [.standardOutput(.init(raw: "success"))]
+        }
+        
+        // When
+        try await subject.testRun(
+            schemeName: "ProjectSchemeOne",
+            path: try temporaryPath(),
+            retryTestsOnFailure: true
+        )
+        
+        // Then
+        XCTAssertTrue(passedArguments.contains(XcodeBuildArgument.xcflag("-retry-tests-on-failure")))
+    }
+    
+    func test_run_does_not_pass_retry_on_failure_as_flag() async throws {
+        // Given
+        buildGraphInspector.testableSchemesStub = { _ in
+            [
+                Scheme.test(name: "TestScheme"),
+            ]
+        }
+        buildGraphInspector.projectSchemesStub = { _ in
+            [
+                Scheme.test(name: "ProjectSchemeOne"),
+            ]
+        }
+        generator.generateWithGraphStub = { path, _ in
+            (path, Graph.test())
+        }
+        
+        var passedArguments: [XcodeBuildArgument] = []
+        xcodebuildController.testStub = { _, _, _, _, _, _, arguments in
+            passedArguments = arguments
+            return [.standardOutput(.init(raw: "success"))]
+        }
+        
+        // When
+        try await subject.testRun(
+            schemeName: "ProjectSchemeOne",
+            path: try temporaryPath()
+        )
+        
+        // Then
+        XCTAssertTrue(!passedArguments.contains(XcodeBuildArgument.xcflag("-retry-tests-on-failure")))
+    }
+    
+    func test_run_passes_both_retry_and_iterations_as_arguments() async throws {
+        // Given
+        buildGraphInspector.testableSchemesStub = { _ in
+            [
+                Scheme.test(name: "TestScheme"),
+            ]
+        }
+        buildGraphInspector.projectSchemesStub = { _ in
+            [
+                Scheme.test(name: "ProjectSchemeOne"),
+            ]
+        }
+        generator.generateWithGraphStub = { path, _ in
+            (path, Graph.test())
+        }
+        
+        var passedArguments: [XcodeBuildArgument] = []
+        xcodebuildController.testStub = { _, _, _, _, _, _, arguments in
+            passedArguments = arguments
+            return [.standardOutput(.init(raw: "success"))]
+        }
+        
+        // When
+        try await subject.testRun(
+            schemeName: "ProjectSchemeOne",
+            path: try temporaryPath(),
+            testIterations: 5,
+            retryTestsOnFailure: true
+        )
+        
+        // Then
+        XCTAssertTrue(passedArguments.contains(XcodeBuildArgument.xcflag("-retry-tests-on-failure")))
+        XCTAssertTrue(passedArguments.contains(XcodeBuildArgument.xcarg("-test-iterations", "5")))
+    }
 }
 
 // MARK: - Helpers
@@ -368,7 +533,9 @@ extension TestService {
         deviceName: String? = nil,
         osVersion: String? = nil,
         skipUiTests: Bool = false,
-        resultBundlePath: AbsolutePath? = nil
+        resultBundlePath: AbsolutePath? = nil,
+        testIterations: Int? = nil,
+        retryTestsOnFailure: Bool = false
     ) async throws {
         try await run(
             schemeName: schemeName,
@@ -378,7 +545,9 @@ extension TestService {
             deviceName: deviceName,
             osVersion: osVersion,
             skipUITests: skipUiTests,
-            resultBundlePath: resultBundlePath
+            resultBundlePath: resultBundlePath,
+            testIterations: testIterations,
+            retryTestsOnFailure: retryTestsOnFailure
         )
     }
 }
