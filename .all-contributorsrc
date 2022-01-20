@@ -686,6 +686,15 @@
       "contributions": [
         "doc"
       ]
+    },
+    {
+      "login": "hisaac",
+      "name": "Isaac Halvorson",
+      "avatar_url": "https://avatars.githubusercontent.com/u/923876?v=4",
+      "profile": "http://hisaac.net",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "contributorsPerLine": 7,
