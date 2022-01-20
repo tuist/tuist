@@ -15,11 +15,11 @@ public enum XcodeBuildArgument: Equatable, CustomStringConvertible {
     /// Specifies the directory where build products and other derived data will go.
     case derivedDataPath(AbsolutePath)
 
+    /// Specifies number of retry attempts on failure for testing
+    case retryCount(Int)
+
     /// To pass additional arguments
     case xcarg(String, String)
-    
-    /// To pass additional flags
-    case xcflag(String)
 
     /// It returns the bash arguments that represent this xcodebuild argument.
     public var arguments: [String] {
@@ -32,10 +32,10 @@ public enum XcodeBuildArgument: Equatable, CustomStringConvertible {
             return ["-destination", "\(destination)"]
         case let .derivedDataPath(path):
             return ["-derivedDataPath", path.pathString]
+        case let .retryCount(count):
+            return ["-retry-tests-on-failure", "-test-iterations", "\(count)"]
         case let .xcarg(key, value):
             return ["\(key)=\(value.spm_shellEscaped())"]
-        case let .xcflag(flag):
-            return [flag]
         }
     }
 
@@ -50,10 +50,10 @@ public enum XcodeBuildArgument: Equatable, CustomStringConvertible {
             return "Xcodebuild's destination argument: \(destination)"
         case let .derivedDataPath(path):
             return "Xcodebuild's derivedDataPath argument: \(path.pathString)"
+        case let .retryCount(count):
+            return "Xcodebuild's retry-tests-on-failure argument combined with test-iterations: \(count)"
         case let .xcarg(key, value):
             return "Xcodebuild's additional argument: \(key)=\(value)"
-        case let .xcflag(flag):
-            return "Xcodebuild's additional flag: \(flag)"
         }
     }
 }

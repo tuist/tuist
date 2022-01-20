@@ -61,14 +61,14 @@ final class XcodeBuildArgumentTests: TuistUnitTestCase {
         XCTAssertEqual(got, ["key=\'value with spaces\'"])
     }
     
-    func test_arguments_returns_the_right_value_when_xcflag() {
+    func test_arguments_returns_the_right_value_when_retry_count() {
         // Given
-        let subject = XcodeBuildArgument.xcflag("flag")
+        let subject = XcodeBuildArgument.retryCount(5)
 
         // When
         let got = subject.arguments
 
         // Then
-        XCTAssertEqual(got, ["flag"])
+        XCTAssertEqual(got, ["-retry-tests-until-failure", "-test-iterations", "5"])
     }
 }

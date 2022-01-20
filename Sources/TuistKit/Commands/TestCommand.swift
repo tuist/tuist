@@ -61,15 +61,9 @@ struct TestCommand: AsyncParsableCommand {
     
     @Option(
         name: .long,
-        help: "Tests will run <number> of times."
+        help: "Tests will run <number> of times until they succeed."
     )
-    var testIterations: Int?
-    
-    @Flag(
-        name: .long,
-        help: "Tests will retry on failure. May be used in conjunction with -test-iterations <number>, in which case <number> will be the maximum number of iterations. Otherwise, a maximum of 3 is assumed."
-    )
-    var retryTestsOnFailure: Bool = false
+    var retryCount: Int = 0
 
     func runAsync() async throws {
         let absolutePath: AbsolutePath
@@ -94,8 +88,7 @@ struct TestCommand: AsyncParsableCommand {
                     relativeTo: FileHandler.shared.currentPath
                 )
             },
-            testIterations: testIterations,
-            retryTestsOnFailure: retryTestsOnFailure
+            retryCount: retryCount
         )
     }
 }

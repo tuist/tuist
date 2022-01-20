@@ -77,8 +77,7 @@ final class TestService {
         osVersion: String?,
         skipUITests: Bool,
         resultBundlePath: AbsolutePath?,
-        testIterations: Int? = nil,
-        retryTestsOnFailure: Bool
+        retryCount: Int
     ) async throws {
         // Load config
         let manifestLoaderFactory = ManifestLoaderFactory()
@@ -140,8 +139,7 @@ final class TestService {
                     version: version,
                     deviceName: deviceName,
                     resultBundlePath: resultBundlePath,
-                    testIterations: testIterations,
-                    retryTestsOnFailure: retryTestsOnFailure
+                    retryCount: retryCount
                 )
             }
         } else {
@@ -164,8 +162,7 @@ final class TestService {
                     version: version,
                     deviceName: deviceName,
                     resultBundlePath: resultBundlePath,
-                    testIterations: testIterations,
-                    retryTestsOnFailure: retryTestsOnFailure
+                    retryCount: retryCount
                 )
             }
         }
@@ -202,8 +199,7 @@ final class TestService {
         version: Version?,
         deviceName: String?,
         resultBundlePath: AbsolutePath?,
-        testIterations: Int?,
-        retryTestsOnFailure: Bool
+        retryCount: Int
     ) async throws {
         logger.log(level: .notice, "Testing scheme \(scheme.name)", metadata: .section)
         guard let buildableTarget = buildGraphInspector.testableTarget(scheme: scheme, graphTraverser: graphTraverser) else {
@@ -218,10 +214,7 @@ final class TestService {
             deviceName: deviceName
         )
         
-        let extraTestArguments: [XcodeBuildArgument] = [
-            retryTestsOnFailure ? .xcflag("-retry-tests-on-failure") : nil,
-            testIterations.flatMap { .xcarg("-test-iterations", "\($0)") },
-        ].compactMap { $0 }
+        let extraTestArguments: [XcodeBuildArgument] = retryCount > 0 ? [.retryCount(retryCount)] : []
 
         try await xcodebuildController.test(
             .workspace(graphTraverser.workspace.xcWorkspacePath),
