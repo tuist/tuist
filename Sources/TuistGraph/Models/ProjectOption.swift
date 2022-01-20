@@ -40,7 +40,7 @@ extension Array where Element == ProjectOption {
             case .disableBundleAccessors, .disableSynthesizedResourceAccessors, .textSettings:
                 return nil
             }
-        }.first ?? .byName(
+        }.first ?? .byNameSuffix(
             build: ["Implementation", "Interface", "Mocks", "Testing"],
             test: ["Tests", "UITests"],
             run: ["App", "Demo"]

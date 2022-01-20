@@ -7,8 +7,8 @@ public enum ProjectOption: Codable, Equatable {
         /// Group all the targets of the project in a single scheme
         case singleScheme
 
-        /// Group the targets according to their names
-        case byName(build: Set<String>, test: Set<String>, run: Set<String>)
+        /// Group the targets according to their name suffixes
+        case byNameSuffix(build: Set<String>, test: Set<String>, run: Set<String>)
 
         /// Do not group targets, create a scheme for each target
         case notGrouped
