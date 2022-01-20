@@ -60,4 +60,15 @@ final class XcodeBuildArgumentTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got, ["key=\'value with spaces\'"])
     }
+    
+    func test_arguments_returns_the_right_value_when_xcflag() {
+        // Given
+        let subject = XcodeBuildArgument.xcflag("flag")
+
+        // When
+        let got = subject.arguments
+
+        // Then
+        XCTAssertEqual(got, ["flag"])
+    }
 }

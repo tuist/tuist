@@ -17,6 +17,9 @@ public enum XcodeBuildArgument: Equatable, CustomStringConvertible {
 
     /// To pass additional arguments
     case xcarg(String, String)
+    
+    /// To pass additional flags
+    case xcflag(String)
 
     /// It returns the bash arguments that represent this xcodebuild argument.
     public var arguments: [String] {
@@ -31,6 +34,8 @@ public enum XcodeBuildArgument: Equatable, CustomStringConvertible {
             return ["-derivedDataPath", path.pathString]
         case let .xcarg(key, value):
             return ["\(key)=\(value.spm_shellEscaped())"]
+        case let .xcflag(flag):
+            return [flag]
         }
     }
 
@@ -47,6 +52,8 @@ public enum XcodeBuildArgument: Equatable, CustomStringConvertible {
             return "Xcodebuild's derivedDataPath argument: \(path.pathString)"
         case let .xcarg(key, value):
             return "Xcodebuild's additional argument: \(key)=\(value)"
+        case let .xcflag(flag):
+            return "Xcodebuild's additional flag: \(flag)"
         }
     }
 }
