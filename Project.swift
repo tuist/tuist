@@ -36,6 +36,7 @@ func modulesTargetsAndSchemes() -> [(targets: [Target], scheme: Scheme)] {
                 .external(name: "SwiftToolsSupport-auto"),
                 .external(name: "XcodeProj"),
                 .external(name: "Zip"),
+                .external(name: "SwiftGenKit"),
             ]
         ),
         Target.module(

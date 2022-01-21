@@ -21,7 +21,7 @@ let project = Project(
             infoPlist: "Tests.plist",
             sources: "AppCore/Tests/**",
             dependencies: [
-                .auto
+                .auto,
             ]
         ),
         Target(
@@ -32,7 +32,7 @@ let project = Project(
             infoPlist: .file(path: .relativeToManifest("Info.plist")),
             sources: .paths([.relativeToManifest("App/Sources/**")]),
             dependencies: [
-                .auto
+                .auto,
             ],
             settings: .settings(base: [
                 "CODE_SIGN_IDENTITY": "",
@@ -47,7 +47,7 @@ let project = Project(
             infoPlist: "Tests.plist",
             sources: "App/Tests/**",
             dependencies: [
-                .auto
+                .auto,
             ],
             settings: .settings(base: [
                 "CODE_SIGN_IDENTITY": "",
@@ -76,7 +76,7 @@ let project = Project(
             infoPlist: "Tests.plist",
             sources: "MacFramework/Tests/**",
             dependencies: [
-                .auto
+                .auto,
             ],
             settings: .settings(base: [
                 "CODE_SIGN_IDENTITY": "",
@@ -91,7 +91,7 @@ let project = Project(
             infoPlist: "Tests.plist",
             sources: "App/UITests/**",
             dependencies: [
-                .auto
+                .auto,
             ]
         ),
         Target(
@@ -102,7 +102,7 @@ let project = Project(
             infoPlist: "Info.plist",
             sources: .paths([.relativeToManifest("App/Sources/**")]),
             dependencies: [
-                .auto
+                .auto,
             ],
             settings: .settings(base: [
                 "CODE_SIGN_IDENTITY": "",
@@ -117,7 +117,7 @@ let project = Project(
             infoPlist: "Tests.plist",
             sources: "App/UITests/**",
             dependencies: [
-                .auto
+                .auto,
             ]
         ),
     ]
