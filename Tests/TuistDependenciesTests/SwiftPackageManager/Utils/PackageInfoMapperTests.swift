@@ -2479,6 +2479,13 @@ extension ProjectDescription.Project {
     ) -> Self {
         .init(
             name: name,
+            options: [
+                .automaticSchemesOptions(.enabled(
+                    targetSchemesGrouping: .singleScheme,
+                    codeCoverageEnabled: false,
+                    testingOptions: []
+                )),
+            ],
             settings: settings,
             targets: targets,
             resourceSynthesizers: []

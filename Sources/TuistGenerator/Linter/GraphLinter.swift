@@ -49,8 +49,8 @@ public class GraphLinter: GraphLinting {
     }
 
     public func lintCodeCoverageMode(
-      _ mode: AutogenerationOptions.CodeCoverageMode,
-      graphTraverser: GraphTraversing
+        _ mode: AutogenerationOptions.CodeCoverageMode,
+        graphTraverser: GraphTraversing
     ) -> [LintingIssue] {
         switch mode {
         case .all, .disabled: return []

@@ -317,7 +317,12 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
         return ProjectDescription.Project(
             name: name,
-            options: [.automaticSchemesOptions(.disabled)],
+            options: [
+                // Use `.singleScheme` to reduce number of generated schemes
+                .automaticSchemesOptions(.enabled(
+                    targetSchemesGrouping: .singleScheme
+                )),
+            ],
             settings: packageInfo.projectSettings(swiftToolsVersion: swiftToolsVersion),
             targets: targets,
             resourceSynthesizers: []
