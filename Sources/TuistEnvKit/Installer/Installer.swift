@@ -90,11 +90,11 @@ final class Installer: Installing {
             logger.notice("Downloading version \(version)")
 
             let downloadPath = temporaryDirectory.appending(component: Constants.bundleName)
-            try System.shared.run("/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, bundleURL.absoluteString)
+            try System.shared.run(["/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, bundleURL.absoluteString])
 
             // Unzip
             logger.notice("Installing...")
-            try System.shared.run("/usr/bin/unzip", "-q", downloadPath.pathString, "-d", installationDirectory.pathString)
+            try System.shared.run(["/usr/bin/unzip", "-q", downloadPath.pathString, "-d", installationDirectory.pathString])
 
             logger.notice("Version \(version) installed")
         })

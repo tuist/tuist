@@ -56,7 +56,7 @@ final class CommandRunnerTests: TuistUnitTestCase {
         arguments = ["tuist", "--help"]
 
         versionResolver.resolveStub = { _ in ResolvedVersion.bin(temporaryPath) }
-        system.succeedCommand(binaryPath.pathString, "--help", output: "output")
+        system.succeedCommand([binaryPath.pathString, "--help"], output: "output")
         try subject.run()
     }
 
@@ -66,7 +66,7 @@ final class CommandRunnerTests: TuistUnitTestCase {
         arguments = ["tuist", "--help"]
 
         versionResolver.resolveStub = { _ in ResolvedVersion.bin(temporaryPath) }
-        system.errorCommand(binaryPath.pathString, "--help", error: "error")
+        system.errorCommand([binaryPath.pathString, "--help"], error: "error")
 
         try subject.run()
         XCTAssertTrue(exited == 1)
@@ -86,7 +86,7 @@ final class CommandRunnerTests: TuistUnitTestCase {
 
         var installArgs: [String] = []
         installer.installStub = { version in installArgs.append(version) }
-        system.succeedCommand(binaryPath.pathString, "--help", output: "")
+        system.succeedCommand([binaryPath.pathString, "--help"], output: "")
 
         try subject.run()
 
@@ -125,7 +125,7 @@ final class CommandRunnerTests: TuistUnitTestCase {
         versionResolver.resolveStub = { _ in ResolvedVersion.versionFile(temporaryPath, "3.2.1")
         }
 
-        system.errorCommand(binaryPath.pathString, "--help", error: "error")
+        system.errorCommand([binaryPath.pathString, "--help"], error: "error")
 
         try subject.run()
         XCTAssertTrue(exited == 1)
@@ -143,7 +143,7 @@ final class CommandRunnerTests: TuistUnitTestCase {
             $0 == "3.2.1" ? temporaryPath : AbsolutePath("/invalid")
         }
 
-        system.succeedCommand(binaryPath.pathString, "--help", output: "")
+        system.succeedCommand([binaryPath.pathString, "--help"], output: "")
 
         try subject.run()
     }
@@ -164,7 +164,7 @@ final class CommandRunnerTests: TuistUnitTestCase {
             $0 == "3.2.1" ? temporaryPath : AbsolutePath("/invalid")
         }
 
-        system.succeedCommand(binaryPath.pathString, "--help", output: "")
+        system.succeedCommand([binaryPath.pathString, "--help"], output: "")
 
         try subject.run()
     }
@@ -199,7 +199,7 @@ final class CommandRunnerTests: TuistUnitTestCase {
             $0 == "3.2.1" ? temporaryPath : AbsolutePath("/invalid")
         }
 
-        system.errorCommand(binaryPath.pathString, "--help", error: "error")
+        system.errorCommand([binaryPath.pathString, "--help"], error: "error")
 
         try subject.run()
         XCTAssertTrue(exited == 1)

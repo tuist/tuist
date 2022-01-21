@@ -40,7 +40,7 @@ public class MachineEnvironment: MachineEnvironmentRetrieving {
 
     /// The `swiftVersion` of the machine running Tuist
     public lazy var swiftVersion = try! System.shared // swiftlint:disable:this force_try
-        .capture("/usr/bin/xcrun", "swift", "-version")
+        .capture(["/usr/bin/xcrun", "swift", "-version"])
         .components(separatedBy: "Swift version ").last!
         .components(separatedBy: " ").first!
 

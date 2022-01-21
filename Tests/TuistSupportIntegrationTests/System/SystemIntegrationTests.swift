@@ -1,4 +1,3 @@
-import RxSwift
 import TSCBasic
 import XCTest
 @testable import TuistSupport
@@ -29,25 +28,25 @@ final class SystemIntegrationTests: TuistTestCase {
         XCTAssertThrowsError(try subject.run(["ls", "abcdefghi"]))
     }
 
-    func test_observable() async throws {
+    func test_observable() throws {
         // Given
-        let observable = subject.observable(["echo", "hola"]).mapToString()
+        let publisher = subject.publisher(["echo", "hola"]).mapToString()
 
         // When
-        let elements = try await observable.toArray().value
+        let elements = try publisher.toBlocking()
 
         // Then
         XCTAssertEqual(elements.count, 1)
         XCTAssertTrue(elements.first?.value.spm_chomp() == "hola")
     }
 
-    func test_observable_when_it_errors() async throws {
+    func test_observable_when_it_errors() throws {
         // Given
-        let observable = subject.observable(["/usr/bin/xcrun", "invalid"]).mapToString()
+        let publisher = subject.publisher(["/usr/bin/xcrun", "invalid"]).mapToString()
 
         do {
             // When
-            _ = try await observable.toArray().value
+            _ = try publisher.toBlocking()
             XCTFail("expected command to fail but it did not")
         } catch {
             // Then

@@ -69,15 +69,15 @@ public class GitEnvironment: GitEnvironmenting {
     public func githubCredentials() -> AnyPublisher<GithubCredentials?, Error> {
         System.shared.publisher(
             ["/usr/bin/env", "echo", "url=https://github.com"],
-            pipedToArguments: ["/usr/bin/env", "git", "credential", "fill"]
+            pipeTo: ["/usr/bin/env", "git", "credential", "fill"]
         )
         .mapToString()
         .collectAndMergeOutput()
         .flatMap { (output: String) -> AnyPublisher<GithubCredentials?, Error> in
-            //                            protocol=https
-            //                            host=github.com
-            //                            username=pepibumur
-            //                            password=foo
+            // protocol=https
+            // host=github.com
+            // username=pepibumur
+            // password=foo
             let lines = output.split(separator: "\n")
             let values = lines.reduce(into: [String: String]()) { result, next in
                 let components = next.split(separator: "=")

@@ -60,11 +60,11 @@ final class CodeLinterTests: TuistUnitTestCase {
         ]
         let fakePath = AbsolutePath("/foo/bar")
         binaryLocator.stubbedSwiftLintPathResult = "/swiftlint"
-        system.succeedCommand(
+        system.succeedCommand([
             binaryLocator.stubbedSwiftLintPathResult.pathString,
             "lint",
-            "--use-script-input-files"
-        )
+            "--use-script-input-files",
+        ])
 
         // When
         try await subject.lint(sources: fakeSources, path: fakePath, strict: false)
@@ -79,12 +79,12 @@ final class CodeLinterTests: TuistUnitTestCase {
         ]
         let fakePath = AbsolutePath("/foo/bar")
         binaryLocator.stubbedSwiftLintPathResult = "/swiftlint"
-        system.succeedCommand(
+        system.succeedCommand([
             binaryLocator.stubbedSwiftLintPathResult.pathString,
             "lint",
             "--use-script-input-files",
-            "--strict"
-        )
+            "--strict",
+        ])
 
         // When
         try await subject.lint(sources: fakeSources, path: fakePath, strict: true)
@@ -112,13 +112,13 @@ final class CodeLinterTests: TuistUnitTestCase {
             "SCRIPT_INPUT_FILE_1": fakeSources[1].pathString,
             "SCRIPT_INPUT_FILE_2": fakeSources[2].pathString,
         ]
-        system.succeedCommand(
+        system.succeedCommand([
             binaryLocator.stubbedSwiftLintPathResult.pathString,
             "lint",
             "--use-script-input-files",
             "--config",
-            swiftLintConfigPath.pathString
-        )
+            swiftLintConfigPath.pathString,
+        ])
 
         // When
         try await subject.lint(sources: fakeSources, path: fakePath, strict: false)
@@ -139,13 +139,13 @@ final class CodeLinterTests: TuistUnitTestCase {
         rootDirectoryLocator.locateStub = fakeRoot
         binaryLocator.stubbedSwiftLintPathResult = fakeSwiftLintPath
         fileHandler.stubExists = { $0 == swiftLintConfigPath }
-        system.succeedCommand(
+        system.succeedCommand([
             binaryLocator.stubbedSwiftLintPathResult.pathString,
             "lint",
             "--use-script-input-files",
             "--config",
-            swiftLintConfigPath.pathString
-        )
+            swiftLintConfigPath.pathString,
+        ])
 
         // When
         try await subject.lint(sources: fakeSources, path: fakePath, strict: false)
