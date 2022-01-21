@@ -1,6 +1,5 @@
 import Foundation
 import Queuer
-import RxSwift
 import TuistCore
 import TuistSupport
 
@@ -8,18 +7,16 @@ public protocol AsyncQueuing {
     /// It dispatches the given event.
     /// - Parameter event: Event to be dispatched.
     /// - Parameter didPersistEvent: It's called when the event has been persisted, to make sure it can't get lost
-    func dispatch<T: AsyncQueueEvent>(event: T, didPersistEvent: @escaping () -> Void)
+    func dispatch<T: AsyncQueueEvent>(event: T) throws
 }
 
 public class AsyncQueue: AsyncQueuing {
     // MARK: - Attributes
 
-    private let disposeBag = DisposeBag()
     private let queue: Queuing
     private let ciChecker: CIChecking
     private let persistor: AsyncQueuePersisting
     private var dispatchers: [String: AsyncQueueDispatching] = [:]
-    private let persistedEventsSchedulerType: SchedulerType
 
     public static let sharedInstance = AsyncQueue()
 
@@ -27,13 +24,11 @@ public class AsyncQueue: AsyncQueuing {
 
     init(queue: Queuing = Queuer.shared,
          ciChecker: CIChecking = CIChecker(),
-         persistor: AsyncQueuePersisting = AsyncQueuePersistor(),
-         persistedEventsSchedulerType: SchedulerType = AsyncQueue.schedulerType())
+         persistor: AsyncQueuePersisting = AsyncQueuePersistor())
     {
         self.queue = queue
         self.ciChecker = ciChecker
         self.persistor = persistor
-        self.persistedEventsSchedulerType = persistedEventsSchedulerType
     }
 
     public func register(dispatcher: AsyncQueueDispatching) {
@@ -47,7 +42,7 @@ public class AsyncQueue: AsyncQueuing {
         queue.resume()
     }
 
-    public func dispatch<T: AsyncQueueEvent>(event: T, didPersistEvent: @escaping () -> Void) {
+    public func dispatch<T: AsyncQueueEvent>(event: T) throws {
         guard let dispatcher = dispatchers[event.dispatcherId] else {
             logger.error("Couldn't find dispatcher with id: \(event.dispatcherId)")
             return
@@ -56,17 +51,9 @@ public class AsyncQueue: AsyncQueuing {
         // We persist the event in case the dispatching is halted because Tuist's
         // process exits. In that case we want to retry again the next time there's
         // opportunity for that.
-        let writeCompletable = persistor.write(event: event)
-        _ = writeCompletable.subscribe { _ in
-            // Queue event to send
-            let operation = self.liveDispatchOperation(event: event, dispatcher: dispatcher)
-            self.queue.addOperation(operation)
-            didPersistEvent()
-        }
-    }
-
-    public static func schedulerType() -> SchedulerType {
-        SerialDispatchQueueScheduler(queue: dispatchQueue(), internalSerialQueueName: "tuist-async-queue")
+        try persistor.write(event: event)
+        let operation = liveDispatchOperation(event: event, dispatcher: dispatcher)
+        queue.addOperation(operation)
     }
 
     // MARK: - Private
@@ -76,7 +63,7 @@ public class AsyncQueue: AsyncQueuing {
             logger.debug("Dispatching event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
             do {
                 try dispatcher.dispatch(event: event) {
-                    _ = self.persistor.delete(event: event)
+                    try self.persistor.delete(event: event)
                     operation.success = true
                 }
             } catch {
@@ -85,9 +72,9 @@ public class AsyncQueue: AsyncQueuing {
         }
     }
 
-    private func dispatchPersisted(eventTuple: AsyncQueueEventTuple) {
+    private func dispatchPersisted(eventTuple: AsyncQueueEventTuple) throws {
         guard let dispatcher = dispatchers.first(where: { $0.key == eventTuple.dispatcherId })?.value else {
-            deletePersistedEvent(filename: eventTuple.filename)
+            try deletePersistedEvent(filename: eventTuple.filename)
             logger.error("Couldn't find dispatcher for persisted event with id: \(eventTuple.dispatcherId)")
             return
         }
@@ -103,7 +90,7 @@ public class AsyncQueue: AsyncQueuing {
             do {
                 logger.debug("Dispatching persisted event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
                 try dispatcher.dispatchPersisted(data: event.data) {
-                    self.deletePersistedEvent(filename: event.filename)
+                    try self.deletePersistedEvent(filename: event.filename)
                 }
             } catch {
                 logger.debug("Failed to dispatch persisted event with ID '\(event.id.uuidString)' to '\(dispatcher.identifier)'")
@@ -117,24 +104,17 @@ public class AsyncQueue: AsyncQueuing {
     }
 
     private func loadEvents() {
-        persistor
-            .readAll()
-            .subscribe(on: persistedEventsSchedulerType)
-            .subscribe(onSuccess: { events in
-                events.forEach(self.dispatchPersisted)
-            }, onFailure: { error in
-                logger.debug("Error loading persisted events: \(error)")
-            })
-            .disposed(by: disposeBag)
+        do {
+            let events = try persistor.readAll()
+            for event in events {
+                try dispatchPersisted(eventTuple: event)
+            }
+        } catch {
+            logger.debug("Error loading persisted events: \(error)")
+        }
     }
 
-    private func deletePersistedEvent(filename: String) {
-        persistor.delete(filename: filename).subscribe().disposed(by: disposeBag)
-    }
-
-    // MARK: Private & Static
-
-    private static func dispatchQueue() -> DispatchQueue {
-        DispatchQueue(label: "io.tuist.async-queue", qos: .background)
+    private func deletePersistedEvent(filename: String) throws {
+        try persistor.delete(filename: filename)
     }
 }

@@ -1,5 +1,4 @@
 import Foundation
-import RxSwift
 import TSCBasic
 import TuistCore
 import TuistSupport
@@ -22,15 +21,15 @@ final class AsyncQueuePersistorTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_write() async throws {
+    func test_write() throws {
         // Given
         let event = AnyAsyncQueueEvent(dispatcherId: "dispatcher")
 
         // When
-        _ = try await subject.write(event: event).value
+        try subject.write(event: event)
 
         // Then
-        let got = try await subject.readAll().value
+        let got = try subject.readAll()
         let gotEvent = try XCTUnwrap(got.first)
         XCTAssertEqual(gotEvent.dispatcherId, "dispatcher")
         XCTAssertEqual(gotEvent.id, event.id)
@@ -38,7 +37,7 @@ final class AsyncQueuePersistorTests: TuistUnitTestCase {
         XCTAssertEqual(gotEvent.date, normalizedDate)
     }
 
-    func test_write_whenDirectoryDoesntExist_itCreatesDirectory() async throws {
+    func test_write_whenDirectoryDoesntExist_itCreatesDirectory() throws {
         let temporaryDirectory = try! temporaryPath()
         subject = AsyncQueuePersistor(directory: temporaryDirectory.appending(RelativePath("test/")))
 
@@ -46,10 +45,10 @@ final class AsyncQueuePersistorTests: TuistUnitTestCase {
         let event = AnyAsyncQueueEvent(dispatcherId: "dispatcher")
 
         // When
-        _ = try await subject.write(event: event).value
+        try subject.write(event: event)
 
         // Then
-        let got = try await subject.readAll().value
+        let got = try subject.readAll()
         let gotEvent = try XCTUnwrap(got.first)
         XCTAssertEqual(gotEvent.dispatcherId, "dispatcher")
         XCTAssertEqual(gotEvent.id, event.id)
@@ -57,18 +56,18 @@ final class AsyncQueuePersistorTests: TuistUnitTestCase {
         XCTAssertEqual(gotEvent.date, normalizedDate)
     }
 
-    func test_delete() async throws {
+    func test_delete() throws {
         // Given
         let event = AnyAsyncQueueEvent(dispatcherId: "dispatcher")
-        _ = try await subject.write(event: event).value
-        var persistedEvents = try await subject.readAll().value
+        try subject.write(event: event)
+        var persistedEvents = try subject.readAll()
         XCTAssertEqual(persistedEvents.count, 1)
 
         // When
-        _ = try await subject.delete(event: event).value
+        try subject.delete(event: event)
 
         // Then
-        persistedEvents = try await subject.readAll().value
+        persistedEvents = try subject.readAll()
         XCTAssertEqual(persistedEvents.count, 0)
     }
 }
