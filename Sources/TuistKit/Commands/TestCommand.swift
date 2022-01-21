@@ -61,7 +61,7 @@ struct TestCommand: AsyncParsableCommand {
     
     @Option(
         name: .long,
-        help: "Tests will retry <number> of times until they succeed. For example, if 1 is specified, the test will be retried at most once, hence it will run up to 2 times."
+        help: "Tests will retry <number> of times until success. Example: if 1 is specified, the test will be retried at most once, hence it will run up to 2 times."
     )
     var retryCount: Int = 0
 

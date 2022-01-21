@@ -69,6 +69,6 @@ final class XcodeBuildArgumentTests: TuistUnitTestCase {
         let got = subject.arguments
 
         // Then
-        XCTAssertEqual(got, ["-retry-tests-on-failure", "-test-iterations", "5"])
+        XCTAssertEqual(got, ["-retry-tests-on-failure", "-test-iterations", "6"])
     }
 }
