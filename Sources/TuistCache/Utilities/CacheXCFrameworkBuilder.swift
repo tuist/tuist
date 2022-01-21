@@ -73,7 +73,7 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
                 }
                 frameworkpaths.append(self.frameworkPath(fromArchivePath: deviceArchivePath, productName: productName))
                 let xcframeworkPath = outputDirectory.appending(component: "\(productName).xcframework")
-                try await xcodeBuildController.createXCFramework(frameworks: frameworkpaths, output: xcframeworkPath)
+                try await self.xcodeBuildController.createXCFramework(frameworks: frameworkpaths, output: xcframeworkPath)
                     .printFormattedOutput()
 
                 try FileHandler.shared.move(
