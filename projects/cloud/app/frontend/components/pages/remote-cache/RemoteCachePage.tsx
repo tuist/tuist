@@ -1,4 +1,9 @@
-import React, { useCallback, useContext, useState } from 'react';
+import React, {
+  useCallback,
+  useContext,
+  useEffect,
+  useState,
+} from 'react';
 import {
   Page,
   FormLayout,
@@ -6,52 +11,65 @@ import {
   Card,
   Button,
   Select,
+  Stack,
 } from '@shopify/polaris';
 import RemoteCachePageStore from './RemoteCachePageStore';
 import { observer } from 'mobx-react-lite';
 import { useApolloClient } from '@apollo/client';
 import { HomeStoreContext } from '@/stores/HomeStore';
-import { runInAction } from 'mobx';
+import { autorun, runInAction } from 'mobx';
 
 const RemoteCachePage = observer(() => {
   const client = useApolloClient();
-  const [remoteCachePageStore] = useState(
-    () => new RemoteCachePageStore(client),
-  );
   const { projectStore } = useContext(HomeStoreContext);
+  const [remoteCachePageStore] = useState(
+    () => new RemoteCachePageStore(client, projectStore),
+  );
+
+  useEffect(() => {
+    remoteCachePageStore.load();
+  }, [projectStore.project]);
 
   const handleSelectChange = useCallback(
     (newValue) => {
+      remoteCachePageStore.handleSelectOption(newValue);
+    },
+    [remoteCachePageStore],
+  );
+
+  const handleBucketNameChange = useCallback(
+    (newValue) => {
       runInAction(() => {
-        remoteCachePageStore.selectedOption = newValue;
+        remoteCachePageStore.bucketName = newValue;
       });
     },
     [remoteCachePageStore],
   );
 
-  const handleBucketNameChange = useCallback((newValue) => {
-    runInAction(() => {
-      remoteCachePageStore.bucketName = newValue;
-    });
-  }, []);
+  const handleAccessKeyIdChange = useCallback(
+    (newValue) => {
+      runInAction(() => {
+        remoteCachePageStore.accessKeyId = newValue;
+      });
+    },
+    [remoteCachePageStore],
+  );
 
-  const handleAccessKeyIdChange = useCallback((newValue) => {
-    runInAction(() => {
-      remoteCachePageStore.accessKeyId = newValue;
-    });
-  }, []);
+  const handleSecretAccessKeyChange = useCallback(
+    (newValue) => {
+      runInAction(() => {
+        remoteCachePageStore.secretAccessKey = newValue;
+      });
+    },
+    [remoteCachePageStore],
+  );
 
-  const handleSecretAccessKeyChange = useCallback((newValue) => {
-    runInAction(() => {
-      remoteCachePageStore.secretAccessKey = newValue;
-    });
-  }, []);
+  const handleRemoveSecretAccessKey = useCallback(() => {
+    remoteCachePageStore.removeAccessKey();
+  }, [remoteCachePageStore]);
 
   const handleApplyChangesClicked = useCallback(() => {
-    if (
-      projectStore.project === undefined ||
-      projectStore.project === null
-    ) {
+    if (projectStore.project == undefined) {
       return;
     }
     remoteCachePageStore.applyChangesButtonClicked(
@@ -81,12 +99,22 @@ const RemoteCachePage = observer(() => {
             value={remoteCachePageStore.accessKeyId}
             onChange={handleAccessKeyIdChange}
           />
-          <TextField
-            type="password"
-            label="Secret access key"
-            value={remoteCachePageStore.secretAccessKey}
-            onChange={handleSecretAccessKeyChange}
-          />
+          <Stack alignment="trailing" distribution="fill">
+            <TextField
+              disabled={
+                remoteCachePageStore.isSecretAccessKeyTextFieldDisabled
+              }
+              type="password"
+              label="Secret access key"
+              value={remoteCachePageStore.secretAccessKey}
+              onChange={handleSecretAccessKeyChange}
+            />
+            {remoteCachePageStore.isCreatingBucket === false && (
+              <Button onClick={handleRemoveSecretAccessKey}>
+                Remove access key
+              </Button>
+            )}
+          </Stack>
           <Button
             primary
             disabled={
@@ -94,7 +122,9 @@ const RemoteCachePage = observer(() => {
             }
             onClick={handleApplyChangesClicked}
           >
-            Create bucket
+            {remoteCachePageStore.isCreatingBucket
+              ? 'Create bucket'
+              : 'Edit bucket'}
           </Button>
         </FormLayout>
       </Card>

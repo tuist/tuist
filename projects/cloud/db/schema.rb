@@ -50,8 +50,11 @@ ActiveRecord::Schema.define(version: 2022_01_23_191852) do
     t.datetime "created_at", precision: 6, null: false
     t.datetime "updated_at", precision: 6, null: false
     t.bigint "account_id", null: false
+    t.string "remote_cache_storage_type"
+    t.bigint "remote_cache_storage_id"
     t.index ["account_id"], name: "index_projects_on_account_id"
     t.index ["name", "account_id"], name: "index_projects_on_name_and_account_id", unique: true
+    t.index ["remote_cache_storage_type", "remote_cache_storage_id"], name: "index_projects_on_remote_cache_storage"
     t.index ["token"], name: "index_projects_on_token", unique: true
   end
 
