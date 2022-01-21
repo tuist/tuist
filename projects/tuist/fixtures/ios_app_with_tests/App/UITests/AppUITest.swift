@@ -1,6 +1,7 @@
 // Copyright © 2019 Sky. All rights reserved.
 
 import XCTest
+import App
 
 class AppUITest: XCTestCase {
     override func setUp() {

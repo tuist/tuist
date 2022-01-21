@@ -109,6 +109,8 @@ public final class DependenciesContentHasher: DependenciesContentHashing {
             return try contentHasher.hash("sdk-\(name)-\(status)")
         case .xctest:
             return try contentHasher.hash("xctest")
+        case .auto:
+            return try contentHasher.hash("auto")
         }
     }
 

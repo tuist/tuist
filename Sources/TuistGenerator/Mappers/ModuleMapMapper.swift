@@ -168,7 +168,7 @@ public final class ModuleMapMapper: WorkspaceMapping {
                 }
                 dependentProject = dependentProjectFromPath
                 dependentTarget = dependentTargetFromName
-            case .framework, .xcframework, .library, .package, .sdk, .xctest:
+            case .framework, .xcframework, .library, .package, .sdk, .xctest, .auto:
                 continue
             }
 

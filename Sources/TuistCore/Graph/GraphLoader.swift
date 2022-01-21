@@ -192,6 +192,8 @@ public final class GraphLoader: GraphLoading {
 
         case .xctest:
             return try loadXCTestSDK(platform: fromPlatform)
+        case .auto:
+            throw GraphLoadingError.unexpected(".auto TargetDependency should never be loaded.")
         }
     }
 

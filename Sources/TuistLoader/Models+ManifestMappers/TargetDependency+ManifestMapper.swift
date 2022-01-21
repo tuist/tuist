@@ -59,6 +59,8 @@ extension TuistGraph.TargetDependency {
             return [.xcframework(path: try generatorPaths.resolve(path: path))]
         case .xctest:
             return [.xctest]
+        case .auto:
+            return [.auto]
         case let .external(name):
             guard let dependencies = externalDependencies[name] else {
                 throw TargetDependencyMapperError.invalidExternalDependency(name: name)

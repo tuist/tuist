@@ -21,7 +21,7 @@ let project = Project(
             infoPlist: "Tests.plist",
             sources: "AppCore/Tests/**",
             dependencies: [
-                .target(name: "AppCore"),
+                .auto
             ]
         ),
         Target(
@@ -32,7 +32,7 @@ let project = Project(
             infoPlist: .file(path: .relativeToManifest("Info.plist")),
             sources: .paths([.relativeToManifest("App/Sources/**")]),
             dependencies: [
-                .target(name: "AppCore"),
+                .auto
             ],
             settings: .settings(base: [
                 "CODE_SIGN_IDENTITY": "",
@@ -47,7 +47,7 @@ let project = Project(
             infoPlist: "Tests.plist",
             sources: "App/Tests/**",
             dependencies: [
-                .target(name: "App"),
+                .auto
             ],
             settings: .settings(base: [
                 "CODE_SIGN_IDENTITY": "",
@@ -76,7 +76,7 @@ let project = Project(
             infoPlist: "Tests.plist",
             sources: "MacFramework/Tests/**",
             dependencies: [
-                .target(name: "MacFramework"),
+                .auto
             ],
             settings: .settings(base: [
                 "CODE_SIGN_IDENTITY": "",
@@ -91,7 +91,7 @@ let project = Project(
             infoPlist: "Tests.plist",
             sources: "App/UITests/**",
             dependencies: [
-                .target(name: "App"),
+                .auto
             ]
         ),
         Target(
@@ -102,8 +102,7 @@ let project = Project(
             infoPlist: "Info.plist",
             sources: .paths([.relativeToManifest("App/Sources/**")]),
             dependencies: [
-                /* Target dependencies can be defined here */
-                /* .framework(path: "framework") */
+                .auto
             ],
             settings: .settings(base: [
                 "CODE_SIGN_IDENTITY": "",
@@ -118,7 +117,7 @@ let project = Project(
             infoPlist: "Tests.plist",
             sources: "App/UITests/**",
             dependencies: [
-                .target(name: "App-dash"),
+                .auto
             ]
         ),
     ]

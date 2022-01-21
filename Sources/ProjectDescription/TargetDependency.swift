@@ -13,6 +13,8 @@ public enum SDKStatus: String {
 
 /// Defines the target dependencies supported by Tuist
 public enum TargetDependency: Codable, Equatable {
+    case auto
+
     /// Dependency on another target within the same project
     ///
     /// - Parameters:
@@ -98,6 +100,8 @@ public enum TargetDependency: Codable, Equatable {
             return "xctest"
         case .external:
             return "external"
+        case .auto:
+            return "auto"
         }
     }
 }
@@ -167,6 +171,9 @@ extension TargetDependency {
         case "xctest":
             self = .xctest
 
+        case "auto":
+            self = .auto
+
         case "external":
             self = .external(name: try container.decode(String.self, forKey: .name))
 
@@ -203,6 +210,8 @@ extension TargetDependency {
             break
         case let .external(name: name):
             try container.encode(name, forKey: .name)
+        case .auto:
+            break
         }
     }
 }

@@ -281,6 +281,8 @@ extension TargetDependency {
             return "xcframework"
         case .xctest:
             return "xctest"
+        case .auto:
+            return "auto"
         }
     }
 
@@ -302,6 +304,8 @@ extension TargetDependency {
             return name
         case .xctest:
             return "xctest"
+        case .auto:
+            return "auto"
         }
     }
 }
