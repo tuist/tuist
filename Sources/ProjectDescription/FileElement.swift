@@ -9,11 +9,11 @@ import Foundation
 ///       `"some/pattern/**"` is the equivalent of `FileElement.glob(pattern: "some/pattern/**")`
 public enum FileElement: Codable, Equatable {
     /// A glob pattern of files to include
-    case glob(pattern: Path)
+    case glob(pattern: Path, group: String? = nil)
 
     /// Relative path to a directory to include
     /// as a folder reference
-    case folderReference(path: Path)
+    case folderReference(path: Path, group: String? = nil)
 
     private enum TypeName: String, Codable {
         case glob
@@ -33,18 +33,20 @@ public enum FileElement: Codable, Equatable {
         case type
         case pattern
         case path
+        case group
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         let type = try container.decode(TypeName.self, forKey: .type)
+        let group = try container.decodeIfPresent(String.self, forKey: .group)
         switch type {
         case .glob:
             let pattern = try container.decode(Path.self, forKey: .pattern)
-            self = .glob(pattern: pattern)
+            self = .glob(pattern: pattern, group: group)
         case .folderReference:
             let path = try container.decode(Path.self, forKey: .path)
-            self = .folderReference(path: path)
+            self = .folderReference(path: path, group: group)
         }
     }
 
@@ -52,9 +54,11 @@ public enum FileElement: Codable, Equatable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(typeName, forKey: .type)
         switch self {
-        case let .glob(pattern: pattern):
+        case let .glob(pattern: pattern, group: group):
+            try container.encode(group, forKey: .group)
             try container.encode(pattern, forKey: .pattern)
-        case let .folderReference(path: path):
+        case let .folderReference(path: path, group: group):
+            try container.encode(group, forKey: .group)
             try container.encode(path, forKey: .path)
         }
     }

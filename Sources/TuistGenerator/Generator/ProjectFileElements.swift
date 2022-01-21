@@ -100,10 +100,22 @@ class ProjectFileElements {
         })
 
         // Additional files
+        var createdGroups = [String: ProjectGroup]()
+        
         fileElements.formUnion(project.additionalFiles.map {
-            GroupFileElement(
+            let group: ProjectGroup = $0.group.map { groupName in
+                if let alreadyCreated = createdGroups[groupName] {
+                    return alreadyCreated
+                }
+                else {
+                    let justCreated = ProjectGroup.group(name: customGroup)
+                    createdGroups[customGroup] = justCreated
+                    return justCreated
+                }
+            } ?? project.filesGroup
+            return GroupFileElement(
                 path: $0.path,
-                group: project.filesGroup,
+                group: group,
                 isReference: $0.isReference
             )
         })

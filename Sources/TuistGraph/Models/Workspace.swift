@@ -90,7 +90,7 @@ extension Workspace {
             schemes: schemes,
             generationOptions: generationOptions,
             ideTemplateMacros: ideTemplateMacros,
-            additionalFiles: additionalFiles + files.map { .file(path: $0) },
+            additionalFiles: additionalFiles + files.map { .file(path: $0, group: nil) },
             lastUpgradeCheck: lastUpgradeCheck
         )
     }
