@@ -355,7 +355,7 @@ final class TestServiceTests: TuistUnitTestCase {
             expectedResourceBundlePath
         )
     }
-    
+
     func test_run_passes_retry_count_as_argument() async throws {
         // Given
         buildGraphInspector.testableSchemesStub = { _ in
@@ -371,24 +371,24 @@ final class TestServiceTests: TuistUnitTestCase {
         generator.generateWithGraphStub = { path, _ in
             (path, Graph.test())
         }
-        
+
         var passedArguments: [XcodeBuildArgument] = []
         xcodebuildController.testStub = { _, _, _, _, _, _, arguments in
             passedArguments = arguments
             return [.standardOutput(.init(raw: "success"))]
         }
-        
+
         // When
         try await subject.testRun(
             schemeName: "ProjectSchemeOne",
             path: try temporaryPath(),
             retryCount: 3
         )
-        
+
         // Then
         XCTAssertTrue(passedArguments.contains(XcodeBuildArgument.retryCount(3)))
     }
-    
+
     func test_run_does_not_pass_retry_count_as_argument() async throws {
         // Given
         buildGraphInspector.testableSchemesStub = { _ in
@@ -404,19 +404,19 @@ final class TestServiceTests: TuistUnitTestCase {
         generator.generateWithGraphStub = { path, _ in
             (path, Graph.test())
         }
-        
+
         var passedArguments: [XcodeBuildArgument] = []
         xcodebuildController.testStub = { _, _, _, _, _, _, arguments in
             passedArguments = arguments
             return [.standardOutput(.init(raw: "success"))]
         }
-        
+
         // When
         try await subject.testRun(
             schemeName: "ProjectSchemeOne",
             path: try temporaryPath()
         )
-        
+
         // Then
         XCTAssertTrue(!passedArguments.contains(XcodeBuildArgument.retryCount(3)))
     }

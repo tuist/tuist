@@ -33,7 +33,7 @@ public enum XcodeBuildArgument: Equatable, CustomStringConvertible {
         case let .derivedDataPath(path):
             return ["-derivedDataPath", path.pathString]
         case let .retryCount(count):
-            return ["-retry-tests-on-failure", "-test-iterations", "\(count+1)"]
+            return ["-retry-tests-on-failure", "-test-iterations", "\(count + 1)"]
         case let .xcarg(key, value):
             return ["\(key)=\(value.spm_shellEscaped())"]
         }
@@ -51,7 +51,7 @@ public enum XcodeBuildArgument: Equatable, CustomStringConvertible {
         case let .derivedDataPath(path):
             return "Xcodebuild's derivedDataPath argument: \(path.pathString)"
         case let .retryCount(count):
-            return "Xcodebuild's retry-tests-on-failure argument combined with test-iterations: \(count+1)"
+            return "Xcodebuild's retry-tests-on-failure argument combined with test-iterations: \(count + 1)"
         case let .xcarg(key, value):
             return "Xcodebuild's additional argument: \(key)=\(value)"
         }

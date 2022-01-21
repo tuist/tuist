@@ -213,7 +213,7 @@ final class TestService {
             version: version,
             deviceName: deviceName
         )
-        
+
         let extraTestArguments: [XcodeBuildArgument] = retryCount > 0 ? [.retryCount(retryCount)] : []
 
         try await xcodebuildController.test(

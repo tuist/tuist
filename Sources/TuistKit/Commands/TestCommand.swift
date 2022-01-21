@@ -58,7 +58,7 @@ struct TestCommand: AsyncParsableCommand {
         help: "Path where test result bundle will be saved."
     )
     var resultBundlePath: String?
-    
+
     @Option(
         name: .long,
         help: "Tests will retry <number> of times until success. Example: if 1 is specified, the test will be retried at most once, hence it will run up to 2 times."
