@@ -57,4 +57,4 @@ One of the benefits of using Tuist over other automation tools is that developer
 | `--configuration`      | `-C`  | `The configuration to be used when building the scheme.`            |                   | No       |
 | `--skip-ui-tests`      | n/a   | `When passed, it skips testing UI Tests targets.`                   | False             | No       |
 | `--result-bundle-path` | `-T`  | `Path where test result bundle will be saved`                       |                   | No       |
-| `--retry-count`        | n/a   | `Tests will run <number> of times until they succeed.`              | 0                 | No       |
+| `--retry-count`        | n/a   | `Tests will retry <number> of times until they succeed.`              | 0                 | No       |
