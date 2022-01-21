@@ -21,7 +21,7 @@ extension TuistGraph.Project {
     ) throws -> TuistGraph.Project {
         let name = manifest.name
         let organizationName = manifest.organizationName
-        let options = manifest.options.map { TuistGraph.ProjectOption.from(manifest: $0) }
+        let options = manifest.optionsWithDefaults.map { TuistGraph.ProjectOption.from(manifest: $0) }
         let settings = try manifest.settings.map { try TuistGraph.Settings.from(manifest: $0, generatorPaths: generatorPaths) }
         let targets = try manifest.targets.map {
             try TuistGraph.Target.from(manifest: $0, generatorPaths: generatorPaths, externalDependencies: externalDependencies)
@@ -58,5 +58,23 @@ extension TuistGraph.Project {
             resourceSynthesizers: resourceSynthesizers,
             lastUpgradeCheck: nil
         )
+    }
+}
+
+extension ProjectDescription.Project {
+    var optionsWithDefaults: [ProjectDescription.ProjectOption] {
+        var options = options
+
+        let containsAutomaticSchemesOptions = options.contains {
+            if case .automaticSchemesOptions = $0 {
+                return true
+            } else {
+                return false
+            }
+        }
+        if !containsAutomaticSchemesOptions {
+            options.append(.automaticSchemesOptions(.enabled()))
+        }
+        return options
     }
 }

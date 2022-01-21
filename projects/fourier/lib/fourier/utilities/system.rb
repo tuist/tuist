@@ -12,12 +12,12 @@ module Fourier
       def self.tuist(*args, **kwargs)
         @tuist = "/usr/local/bin/tuist"
 
-        if kwargs[:from_source] || !File.exist?(@tuist)
+        # if kwargs[:from_source] || !File.exist?(@tuist)
           Dir.chdir(Constants::TUIST_DIRECTORY) do
             self.system("swift", "build")
             @tuist = ".build/debug/tuist"
           end
-        end
+        # end
 
         self.system(@tuist, *args)
       end

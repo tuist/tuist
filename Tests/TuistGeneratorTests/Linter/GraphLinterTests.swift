@@ -1234,12 +1234,12 @@ final class GraphLinterTests: TuistUnitTestCase {
         XCTAssertEmpty(got)
     }
 
-    func test_lintCodeCoverage_none() {
+    func test_lintCodeCoverage_disabled() {
         // Given
         let graphTraverser = GraphTraverser(graph: .test())
 
         // When
-        let got = subject.lintCodeCoverageMode(nil, graphTraverser: graphTraverser)
+        let got = subject.lintCodeCoverageMode(.disabled, graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEmpty(got)

@@ -10,7 +10,7 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class CodeCoverageManifestMapperTests: TuistUnitTestCase {
-    private typealias Manifest = ProjectDescription.Config.GenerationOptions.CodeCoverageMode
+    private typealias Manifest = ProjectDescription.Config.GenerationOptions.AutogenerationOptions.CodeCoverageMode
 
     func test_from_returnsTheCorrectValue_whenManifestIsAll() throws {
         // Given
@@ -19,10 +19,10 @@ final class CodeCoverageManifestMapperTests: TuistUnitTestCase {
         let manifest = Manifest.all
 
         // When
-        let got = try TuistGraph.CodeCoverageMode.from(manifest: manifest, generatorPaths: generatorPaths)
+        let got = try AutogenerationOptions.CodeCoverageMode.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
-        XCTAssertEqual(.all, got)
+        XCTAssertEqual(got, .all)
     }
 
     func test_from_returnsTheCorrectValue_whenManifestIsRelevant() throws {
@@ -32,10 +32,10 @@ final class CodeCoverageManifestMapperTests: TuistUnitTestCase {
         let manifest = Manifest.relevant
 
         // When
-        let got = try TuistGraph.CodeCoverageMode.from(manifest: manifest, generatorPaths: generatorPaths)
+        let got = try AutogenerationOptions.CodeCoverageMode.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
-        XCTAssertEqual(.relevant, got)
+        XCTAssertEqual(got, .relevant)
     }
 
     func test_from_returnsTheCorrectValue_whenManifestIsTargets() throws {
@@ -46,7 +46,7 @@ final class CodeCoverageManifestMapperTests: TuistUnitTestCase {
         let manifest = Manifest.targets([targetRef])
 
         // When
-        let got = try TuistGraph.CodeCoverageMode.from(manifest: manifest, generatorPaths: generatorPaths)
+        let got = try AutogenerationOptions.CodeCoverageMode.from(manifest: manifest, generatorPaths: generatorPaths)
 
         // Then
         XCTAssertEqual(
@@ -58,5 +58,18 @@ final class CodeCoverageManifestMapperTests: TuistUnitTestCase {
                 ),
             ])
         )
+    }
+
+    func test_from_returnsTheCorrectValue_whenManifestIsDisabled() throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+        let manifest = Manifest.disabled
+
+        // When
+        let got = try AutogenerationOptions.CodeCoverageMode.from(manifest: manifest, generatorPaths: generatorPaths)
+
+        // Then
+        XCTAssertEqual(got, .disabled)
     }
 }

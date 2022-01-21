@@ -6,7 +6,7 @@ import TuistSupport
 
 public protocol GraphLinting: AnyObject {
     func lint(graphTraverser: GraphTraversing) -> [LintingIssue]
-    func lintCodeCoverageMode(_ mode: CodeCoverageMode?, graphTraverser: GraphTraversing) -> [LintingIssue]
+    func lintCodeCoverageMode(_ mode: AutogenerationOptions.CodeCoverageMode, graphTraverser: GraphTraversing) -> [LintingIssue]
 }
 
 // swiftlint:disable type_body_length
@@ -48,9 +48,12 @@ public class GraphLinter: GraphLinting {
         return issues
     }
 
-    public func lintCodeCoverageMode(_ mode: CodeCoverageMode?, graphTraverser: GraphTraversing) -> [LintingIssue] {
+    public func lintCodeCoverageMode(
+      _ mode: AutogenerationOptions.CodeCoverageMode,
+      graphTraverser: GraphTraversing
+    ) -> [LintingIssue] {
         switch mode {
-        case .none, .all: return []
+        case .all, .disabled: return []
         case .relevant:
             let targets = graphTraverser.workspace.codeCoverageTargets(
                 mode: mode,

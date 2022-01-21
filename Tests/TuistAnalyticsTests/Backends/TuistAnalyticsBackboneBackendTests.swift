@@ -41,6 +41,6 @@ final class TuistAnalyticsBackboneBackendTests: TuistUnitTestCase {
         let commandEvent = CommandEvent.test()
 
         // When
-        try subject.send(commandEvent: commandEvent).toBlocking()
+        _ = try subject.send(commandEvent: commandEvent).toBlocking()
     }
 }

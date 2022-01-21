@@ -23,6 +23,6 @@ public final class MockGitHandler: GitHandling {
 
     public var remoteTaggedVersionsStub: [String]?
     public func remoteTaggedVersions(url _: String) -> [Version] {
-        remoteTaggedVersionsStub?.compactMap { Version(string: $0) } ?? []
+        remoteTaggedVersionsStub?.compactMap { Version($0) } ?? []
     }
 }

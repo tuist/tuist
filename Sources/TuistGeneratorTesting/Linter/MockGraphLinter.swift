@@ -20,7 +20,7 @@ public class MockGraphLinter: GraphLinting {
     }
 
     public func lintCodeCoverageMode(
-        _: CodeCoverageMode?,
+        _: AutogenerationOptions.CodeCoverageMode,
         graphTraverser _: GraphTraversing
     ) -> [LintingIssue] {
         []

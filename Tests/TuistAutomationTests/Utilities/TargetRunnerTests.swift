@@ -148,8 +148,8 @@ final class TargetRunnerTests: TuistUnitTestCase {
         let outputPath = try temporaryPath().appending(component: ".build")
         let appPath = outputPath.appending(component: target.productNameWithExtension)
         let arguments = ["Argument", "--option1", "AnotherArgument", "--option2=true", "-opt3"]
-        let minVersion = Version(string: "14.0")
-        let version = Version(string: "15.0")
+        let minVersion = Version("14.0")
+        let version = Version("15.0")
         let deviceName = "iPhone 11"
         let bundleId = "com.tuist.bundleid"
 
