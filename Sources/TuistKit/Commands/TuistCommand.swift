@@ -66,7 +66,6 @@ public struct TuistCommand: ParsableCommand {
         }
         do {
             try await execute(command)
-            TuistProcess.shared.asyncExit()
         } catch let error as FatalError {
             errorHandler.fatal(error: error)
             _exit(exitCode(for: error).rawValue)
@@ -85,8 +84,7 @@ public struct TuistCommand: ParsableCommand {
         var command = command
         if Environment.shared.isStatsEnabled {
             let trackableCommand = TrackableCommand(command: command)
-            let future = try await trackableCommand.run()
-            TuistProcess.shared.add(futureTask: future)
+            try await trackableCommand.run()
         } else {
             if var asyncCommand = command as? AsyncParsableCommand {
                 try await asyncCommand.runAsync()

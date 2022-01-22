@@ -1,6 +1,5 @@
 import Foundation
 import Queuer
-import RxSwift
 import TuistCore
 import TuistSupport
 import XCTest
@@ -57,8 +56,7 @@ final class AsyncQueueTests: TuistUnitTestCase {
         let asyncQueue = AsyncQueue(
             queue: queue ?? mockQueuer,
             ciChecker: ciChecker ?? mockCIChecker,
-            persistor: persistor ?? mockPersistor,
-            persistedEventsSchedulerType: MainScheduler()
+            persistor: persistor ?? mockPersistor
         )
         asyncQueue.register(dispatcher: mockAsyncQueueDispatcher1)
         asyncQueue.register(dispatcher: mockAsyncQueueDispatcher2)
@@ -66,42 +64,34 @@ final class AsyncQueueTests: TuistUnitTestCase {
     }
 
     func test_dispatch_eventIsPersisted() throws {
-        var didComplete = false
         // Given
         let event = AnyAsyncQueueEvent(dispatcherId: dispatcher1ID)
         subject = makeSubject()
 
         // When
-        subject.dispatch(event: event) {
-            // Then
-            guard let persistedEvent = self.mockPersistor.invokedWriteEvent else {
-                XCTFail("Event not passed to the persistor")
-                return
-            }
-            XCTAssertEqual(event.id, persistedEvent.id)
-            didComplete = true
+        try subject.dispatch(event: event)
+
+        // Then
+        guard let persistedEvent = mockPersistor.invokedWriteEvent else {
+            XCTFail("Event not passed to the persistor")
+            return
         }
-        XCTAssertTrue(didComplete)
+        XCTAssertEqual(event.id, persistedEvent.id)
     }
 
     func test_dispatch_eventIsQueued() throws {
-        var didComplete = false
-
         // Given
         let event = AnyAsyncQueueEvent(dispatcherId: dispatcher1ID)
         subject = makeSubject()
 
         // When
-        subject.dispatch(event: event) {
-            // Then
-            guard let queuedOperation = self.mockQueuer.invokedAddOperationParameterOperation as? ConcurrentOperation else {
-                XCTFail("Operation not added to the queuer")
-                return
-            }
-            XCTAssertEqual(queuedOperation.name, event.id.uuidString)
-            didComplete = true
+        try subject.dispatch(event: event)
+        // Then
+        guard let queuedOperation = mockQueuer.invokedAddOperationParameterOperation as? ConcurrentOperation else {
+            XCTFail("Operation not added to the queuer")
+            return
         }
-        XCTAssertTrue(didComplete)
+        XCTAssertEqual(queuedOperation.name, event.id.uuidString)
     }
 
     func test_dispatch_eventIsPersistedOnDispatcherSuccess() throws {
@@ -113,30 +103,26 @@ final class AsyncQueueTests: TuistUnitTestCase {
             expectation.fulfill()
         }
         // When
-        subject.dispatch(event: event) {
-            self.wait(for: [expectation], timeout: self.timeout)
-            guard let deletedEvent = self.mockPersistor.invokedDeleteEvent else {
-                XCTFail("Event was not deleted by the persistor")
-                return
-            }
-            // Then
-            XCTAssertEqual(event.id, deletedEvent.id)
+        try subject.dispatch(event: event)
+        wait(for: [expectation], timeout: timeout)
+        guard let deletedEvent = mockPersistor.invokedDeleteEvent else {
+            XCTFail("Event was not deleted by the persistor")
+            return
         }
+        // Then
+        XCTAssertEqual(event.id, deletedEvent.id)
     }
 
     func test_dispatch_eventIsPersistedOnCompletion() throws {
         // Given
         let event = AnyAsyncQueueEvent(dispatcherId: dispatcher1ID)
         subject = makeSubject(queue: Queuer.shared)
-        let expectation = XCTestExpectation(description: #function)
 
         // When
-        subject.dispatch(event: event) {
-            // Then
-            XCTAssertEqual(self.mockPersistor.invokedWriteEvent?.id, event.id)
-            expectation.fulfill()
-        }
-        wait(for: [expectation], timeout: timeout)
+        try subject.dispatch(event: event)
+
+        // Then
+        XCTAssertEqual(mockPersistor.invokedWriteEvent?.id, event.id)
     }
 
     func test_dispatch_eventIsDispatchedByTheRightDispatcher() throws {
@@ -148,19 +134,20 @@ final class AsyncQueueTests: TuistUnitTestCase {
             expectation.fulfill()
         }
         // When
-        subject.dispatch(event: event) {
-            self.wait(for: [expectation], timeout: self.timeout)
+        try subject.dispatch(event: event)
 
-            guard let dispatchedEvent = self.mockAsyncQueueDispatcher1.invokedDispatchParameterEvent else {
-                XCTFail("Event was not dispatched")
-                return
-            }
-            // Then
-            XCTAssertEqual(event.id, dispatchedEvent.id)
-            XCTAssertEqual(self.mockAsyncQueueDispatcher1.invokedDispatchCount, 1)
-            XCTAssertEqual(self.mockAsyncQueueDispatcher2.invokedDispatchCount, 0)
-            XCTAssertNil(self.mockAsyncQueueDispatcher2.invokedDispatchParameterEvent)
+        // Then
+        wait(for: [expectation], timeout: timeout)
+
+        guard let dispatchedEvent = mockAsyncQueueDispatcher1.invokedDispatchParameterEvent else {
+            XCTFail("Event was not dispatched")
+            return
         }
+        // Then
+        XCTAssertEqual(event.id, dispatchedEvent.id)
+        XCTAssertEqual(mockAsyncQueueDispatcher1.invokedDispatchCount, 1)
+        XCTAssertEqual(mockAsyncQueueDispatcher2.invokedDispatchCount, 0)
+        XCTAssertNil(mockAsyncQueueDispatcher2.invokedDispatchParameterEvent)
     }
 
     func test_dispatch_queuerTriesThreeTimesToDispatch() throws {
@@ -179,11 +166,11 @@ final class AsyncQueueTests: TuistUnitTestCase {
         }
 
         // When
-        subject.dispatch(event: event) {
-            self.wait(for: [expectation], timeout: self.timeout)
-            // Then
-            XCTAssertEqual(count, 3)
-        }
+        try subject.dispatch(event: event)
+
+        // Then
+        wait(for: [expectation], timeout: timeout)
+        XCTAssertEqual(count, 3)
     }
 
     func test_dispatch_doesNotDeleteEventOnError() throws {
@@ -202,12 +189,12 @@ final class AsyncQueueTests: TuistUnitTestCase {
         }
 
         // When
-        subject.dispatch(event: event) {
-            self.wait(for: [expectation], timeout: self.timeout)
-            // Then
-            XCTAssertEqual(count, 3)
-            XCTAssertEqual(self.mockPersistor.invokedDeleteEventCount, 0)
-        }
+        try subject.dispatch(event: event)
+
+        // Then
+        wait(for: [expectation], timeout: timeout)
+        XCTAssertEqual(count, 3)
+        XCTAssertEqual(mockPersistor.invokedDeleteEventCount, 0)
     }
 
     func test_start_readsPersistedEventsInitialization() throws {
@@ -215,7 +202,7 @@ final class AsyncQueueTests: TuistUnitTestCase {
         let eventTuple1: AsyncQueueEventTuple = makeEventTuple(id: 1)
         let eventTuple2: AsyncQueueEventTuple = makeEventTuple(id: 2)
         let eventTuple3: AsyncQueueEventTuple = makeEventTuple(id: 3)
-        mockPersistor.stubbedReadAllResult = .just([eventTuple1, eventTuple2, eventTuple3])
+        mockPersistor.stubbedReadAllResult = [eventTuple1, eventTuple2, eventTuple3]
 
         // When
         subject = makeSubject()
@@ -247,7 +234,7 @@ final class AsyncQueueTests: TuistUnitTestCase {
     func test_start_persistedEventIsDispatchedByTheRightDispatcher() throws {
         // Given
         let eventTuple1: AsyncQueueEventTuple = makeEventTuple(id: 1)
-        mockPersistor.stubbedReadAllResult = .just([eventTuple1])
+        mockPersistor.stubbedReadAllResult = [eventTuple1]
 
         let expectation = XCTestExpectation(description: #function)
         mockAsyncQueueDispatcher1.invokedDispatchPersistedCallBack = {
@@ -273,7 +260,7 @@ final class AsyncQueueTests: TuistUnitTestCase {
         // Given
         let id: UInt = 1
         let eventTuple1: AsyncQueueEventTuple = makeEventTuple(id: id)
-        mockPersistor.stubbedReadAllResult = .just([eventTuple1])
+        mockPersistor.stubbedReadAllResult = [eventTuple1]
 
         let expectation = XCTestExpectation(description: #function)
         mockAsyncQueueDispatcher1.invokedDispatchPersistedCallBack = {

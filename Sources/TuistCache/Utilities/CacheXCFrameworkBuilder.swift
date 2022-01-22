@@ -73,7 +73,8 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
                 }
                 frameworkpaths.append(self.frameworkPath(fromArchivePath: deviceArchivePath, productName: productName))
                 let xcframeworkPath = outputDirectory.appending(component: "\(productName).xcframework")
-                try await self.buildXCFramework(frameworks: frameworkpaths, output: xcframeworkPath)
+                try await self.xcodeBuildController.createXCFramework(frameworks: frameworkpaths, output: xcframeworkPath)
+                    .printFormattedOutput()
 
                 try FileHandler.shared.move(
                     from: xcframeworkPath,
@@ -84,10 +85,6 @@ public final class CacheXCFrameworkBuilder: CacheArtifactBuilding {
     }
 
     // MARK: - Fileprivate
-
-    fileprivate func buildXCFramework(frameworks: [AbsolutePath], output: AbsolutePath) async throws {
-        try await xcodeBuildController.createXCFramework(frameworks: frameworks, output: output).printFormattedOutput()
-    }
 
     fileprivate func deviceBuild(projectTarget: XcodeBuildTarget,
                                  scheme: String,

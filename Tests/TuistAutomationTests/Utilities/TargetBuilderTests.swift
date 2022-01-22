@@ -1,4 +1,3 @@
-import RxSwift
 import TSCBasic
 import TuistCore
 import TuistGraph
