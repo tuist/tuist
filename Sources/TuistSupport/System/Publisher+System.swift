@@ -66,52 +66,25 @@ extension Publisher where Output == SystemEvent<String>, Failure == Error {
             return collected
         }.eraseToAnyPublisher()
     }
+}
 
-    /// Returns an observable that forwards the system events filtering the standard output ones using the given function.
-    /// - Parameter filter: Function to filter the standard output events.
-    public func filterStandardOutput(_ filter: @escaping (String) -> Bool) -> AnyPublisher<SystemEvent<String>, Error> {
-        self.filter {
-            if case let SystemEvent.standardOutput(output) = $0 {
-                return filter(output)
-            } else {
-                return true
+extension Publisher {
+    public var values: AsyncThrowingStream<Output, Error> {
+        AsyncThrowingStream(Output.self) { continuation in
+            let cancellable = sink { completion in
+                switch completion {
+                case .finished:
+                    continuation.finish()
+                case let .failure(error):
+                    continuation.finish(throwing: error)
+                }
+            } receiveValue: { output in
+                continuation.yield(output)
             }
-        }.eraseToAnyPublisher()
-    }
 
-    /// Returns an observable that forwards all the system except the standard output ones rejected by the given function.
-    /// - Parameter rejector: Function to reject standard output events.
-    public func rejectStandardOutput(_ rejector: @escaping (String) -> Bool) -> AnyPublisher<SystemEvent<String>, Error> {
-        filter {
-            if case let SystemEvent.standardOutput(output) = $0 {
-                return !rejector(output)
-            } else {
-                return true
+            continuation.onTermination = { @Sendable [cancellable] _ in
+                cancellable.cancel()
             }
-        }.eraseToAnyPublisher()
-    }
-
-    /// Returns an observable that forwards the system events filtering the standard error ones using the given function.
-    /// - Parameter filter: Function to filter the standard error events.
-    public func filterStandardError(_ filter: @escaping (String) -> Bool) -> AnyPublisher<SystemEvent<String>, Error> {
-        self.filter {
-            if case let SystemEvent.standardError(error) = $0 {
-                return filter(error)
-            } else {
-                return true
-            }
-        }.eraseToAnyPublisher()
-    }
-
-    /// Returns an observable that forwards all the system except the standard error ones rejected by the given function.
-    /// - Parameter rejector: Function to reject standard error events.
-    public func rejectStandardError(_ rejector: @escaping (String) -> Bool) -> AnyPublisher<SystemEvent<String>, Error> {
-        filter {
-            if case let SystemEvent.standardError(error) = $0 {
-                return !rejector(error)
-            } else {
-                return true
-            }
-        }.eraseToAnyPublisher()
+        }
     }
 }
