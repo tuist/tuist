@@ -229,8 +229,8 @@ public final class XcodeBuildController: XcodeBuildControlling {
     }
 }
 
-private extension AsyncThrowingStream where Element == SystemEvent<Data> {
-    func mapAsXcodeBuildOutput() -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
+extension AsyncThrowingStream where Element == SystemEvent<Data> {
+    fileprivate func mapAsXcodeBuildOutput() -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         var iterator = makeAsyncIterator()
         var subIterator: IndexingIterator<[SystemEvent<XcodeBuildOutput>]>?
         return AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
