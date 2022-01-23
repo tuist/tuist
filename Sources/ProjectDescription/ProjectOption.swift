@@ -35,7 +35,7 @@ extension ProjectOption {
         case enabled(
             targetSchemesGrouping: TargetSchemesGrouping = .byNameSuffix(
                 build: ["Implementation", "Interface", "Mocks", "Testing"],
-                test: ["Tests", "UITests"],
+                test: ["Tests", "IntegrationTests", "UITests", "SnapshotTests"],
                 run: ["App", "Demo"]
             ),
             codeCoverageEnabled: Bool = false,
@@ -168,7 +168,7 @@ extension ProjectOption.AutomaticSchemesOptions {
 // MARK: - TargetSchemesGrouping + Codable
 
 extension TargetSchemesGrouping {
-    private enum Kind: Codable {
+    private enum Kind: String, Codable {
         case singleScheme
         case byNameSuffix
         case notGrouped

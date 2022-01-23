@@ -227,7 +227,7 @@ extension Config.GenerationOptions.AutogenerationOptions {
 // MARK: - CodeCoverrageMode + Codable
 
 extension Config.GenerationOptions.AutogenerationOptions.CodeCoverageMode {
-    private enum Kind: Codable {
+    private enum Kind: String, Codable {
         case all
         case relevant
         case targets
