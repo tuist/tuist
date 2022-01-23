@@ -167,7 +167,7 @@ extension ProjectOption.AutomaticSchemesOptions {
 
 // MARK: - TargetSchemesGrouping + Codable
 
-extension TargetSchemesGrouping {
+extension ProjectOption.AutomaticSchemesOptions.TargetSchemesGrouping {
     private enum Kind: String, Codable {
         case singleScheme
         case byNameSuffix
