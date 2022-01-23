@@ -25,7 +25,7 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(model.name, "MyScript")
-        XCTAssertEqual(model.script, .tool("my_tool", ["arg1", "arg2"]))
+        XCTAssertEqual(model.script, .tool(path: "my_tool", args: ["arg1", "arg2"]))
         XCTAssertEqual(model.order, .pre)
     }
 
@@ -48,7 +48,7 @@ final class TargetScriptManifestMapperTests: TuistUnitTestCase {
 
         // Then
         XCTAssertEqual(model.name, "MyScript")
-        XCTAssertEqual(model.script, .tool("my_tool", ["arg1", "arg2"]))
+        XCTAssertEqual(model.script, .tool(path: "my_tool", args: ["arg1", "arg2"]))
         XCTAssertEqual(model.order, .pre)
         XCTAssertEqual(model.inputPaths, [temporaryPath.appending(RelativePath("$(SRCROOT)/foo/bar/**/*.swift"))])
         XCTAssertEqual(model.inputFileListPaths, [temporaryPath.appending(RelativePath("$(SRCROOT)/foo/bar/**/*.swift"))])

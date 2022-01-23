@@ -937,7 +937,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
                 TargetScript(
                     name: "post",
                     order: .post,
-                    script: .scriptPath(path.appending(component: "script.sh"), args: ["arg"]),
+                    script: .scriptPath(path: path.appending(component: "script.sh"), args: ["arg"]),
                     showEnvVarsInLog: false,
                     basedOnDependencyAnalysis: false,
                     runForInstallBuildsOnly: true
@@ -945,7 +945,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
                 TargetScript(
                     name: "pre",
                     order: .pre,
-                    script: .scriptPath(path.appending(component: "script.sh"), args: ["arg"])
+                    script: .scriptPath(path: path.appending(component: "script.sh"), args: ["arg"])
                 ),
             ]
         )
@@ -1012,7 +1012,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
                 TargetScript(
                     name: "post",
                     order: .post,
-                    script: .scriptPath(path.appending(component: "script.sh"), args: ["arg"]),
+                    script: .scriptPath(path: path.appending(component: "script.sh"), args: ["arg"]),
                     showEnvVarsInLog: false,
                     basedOnDependencyAnalysis: false,
                     runForInstallBuildsOnly: true,
@@ -1021,7 +1021,7 @@ final class BuildPhaseGeneratorTests: TuistUnitTestCase {
                 TargetScript(
                     name: "pre",
                     order: .pre,
-                    script: .scriptPath(path.appending(component: "script.sh"), args: ["arg"]) // leaving default shell
+                    script: .scriptPath(path: path.appending(component: "script.sh"), args: ["arg"]) // leaving default shell
                 ),
             ]
         )

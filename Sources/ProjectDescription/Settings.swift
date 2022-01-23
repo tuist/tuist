@@ -27,32 +27,6 @@ public enum SettingValue: ExpressibleByStringInterpolation, ExpressibleByArrayLi
     public init<T>(_ stringRawRepresentable: T) where T: RawRepresentable, T.RawValue == String {
         self = .init(stringLiteral: stringRawRepresentable.rawValue)
     }
-
-    public init(from decoder: Decoder) throws {
-        guard let singleValueContainer = try? decoder.singleValueContainer() else {
-            preconditionFailure("Unsupported container type")
-        }
-        if let value: String = try? singleValueContainer.decode(String.self) {
-            self = .string(value)
-            return
-        }
-        if let value: [String] = try? singleValueContainer.decode([String].self) {
-            self = .array(value)
-            return
-        }
-
-        fatalError("Unsupported encoded type")
-    }
-
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        switch self {
-        case let .string(value):
-            try container.encode(value)
-        case let .array(value):
-            try container.encode(value)
-        }
-    }
 }
 
 // MARK: - Configuration
@@ -130,50 +104,6 @@ public enum DefaultSettings: Codable, Equatable {
     case recommended(excluding: Set<String> = [])
     case essential(excluding: Set<String> = [])
     case none
-
-    enum CodingKeys: CodingKey {
-        case recommended, essential, none
-    }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let key = container.allKeys.first
-
-        switch key {
-        case .recommended:
-            var nestedContainer = try container.nestedUnkeyedContainer(forKey: .recommended)
-            let excludedKeys = try nestedContainer.decode(Set<String>.self)
-            self = .recommended(excluding: excludedKeys)
-        case .essential:
-            var nestedContainer = try container.nestedUnkeyedContainer(forKey: .essential)
-            let excludedKeys = try nestedContainer.decode(Set<String>.self)
-            self = .essential(excluding: excludedKeys)
-        case .none?:
-            self = .none
-        default:
-            throw DecodingError.dataCorrupted(
-                DecodingError.Context(
-                    codingPath: container.codingPath,
-                    debugDescription: "Unable to decode DefaultSettings. \(String(describing: key)) is an unexpected key. Expected .recommended, .essential or .none."
-                )
-            )
-        }
-    }
-
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-
-        switch self {
-        case let .recommended(excludedKeys):
-            var nestedContainer = container.nestedUnkeyedContainer(forKey: .recommended)
-            try nestedContainer.encode(excludedKeys)
-        case let .essential(excludedKeys):
-            var nestedContainer = container.nestedUnkeyedContainer(forKey: .essential)
-            try nestedContainer.encode(excludedKeys)
-        case .none:
-            try container.encode(true, forKey: .none)
-        }
-    }
 }
 
 extension DefaultSettings {
