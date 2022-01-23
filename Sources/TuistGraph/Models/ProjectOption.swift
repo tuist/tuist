@@ -1,4 +1,5 @@
 import Foundation
+import ProjectDescription
 
 /// Additional options related to the `Project`
 public enum ProjectOption: Codable {
@@ -140,7 +141,7 @@ extension ProjectOption: Hashable {
     }
 }
 
-// MARK: - Options + Codable
+// MARK: - ProjectOption + Codable
 
 extension ProjectOption {
     internal enum CodingKeys: String, CodingKey {

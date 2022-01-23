@@ -1,15 +1,15 @@
-//import Foundation
-//import RxBlocking
-//import RxSwift
-//import TSCBasic
-//import TuistCore
-//import TuistSupport
-//import XCTest
+// import Foundation
+// import RxBlocking
+// import RxSwift
+// import TSCBasic
+// import TuistCore
+// import TuistSupport
+// import XCTest
 //
-//@testable import TuistAutomation
-//@testable import TuistSupportTesting
+// @testable import TuistAutomation
+// @testable import TuistSupportTesting
 //
-//final class SimulatorControllerIntegrationTests: TuistTestCase {
+// final class SimulatorControllerIntegrationTests: TuistTestCase {
 //    var subject: SimulatorController!
 //
 //    override func setUp() {
@@ -73,4 +73,4 @@
 //        // Then
 //        XCTAssertTrue(got.device.isAvailable)
 //    }
-//}
+// }

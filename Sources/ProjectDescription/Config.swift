@@ -99,6 +99,8 @@ public struct Config: Codable, Equatable {
     }
 }
 
+// MARK: - GenerationOptions + Codable
+
 extension Config.GenerationOptions {
     internal enum CodingKeys: String, CodingKey {
         case xcodeProjectName
@@ -178,6 +180,95 @@ extension Config.GenerationOptions {
         case let .lastXcodeUpgradeCheck(version):
             var associatedValues = container.nestedUnkeyedContainer(forKey: .lastXcodeUpgradeCheck)
             try associatedValues.encode(version)
+        }
+    }
+}
+
+// MARK: - AutogenerrationOptions + Codable
+
+extension Config.GenerationOptions.AutogenerationOptions {
+    internal enum CodingKeys: String, CodingKey {
+        case enabled
+        case targetSchemesGrouping
+        case codeCoverageMode
+        case testingOptions
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        let enabled = try container.decode(Bool.self, forKey: .enabled)
+        if enabled {
+            let codeCoverageMode = try container.decode(CodeCoverageMode.self, forKey: .codeCoverageMode)
+            let testingOptions = try container.decode(TestingOptions.self, forKey: .testingOptions)
+            self = .enabled(
+                codeCoverageMode: codeCoverageMode,
+                testingOptions: testingOptions
+            )
+        } else {
+            self = .disabled
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        switch self {
+        case let .enabled(codeCoverageMode, testingOptions):
+            try container.encode(true, forKey: .enabled)
+            try container.encode(codeCoverageMode, forKey: .codeCoverageMode)
+            try container.encode(testingOptions, forKey: .testingOptions)
+        case .disabled:
+            try container.encode(false, forKey: .enabled)
+        }
+    }
+}
+
+// MARK: - CodeCoverrageMode + Codable
+
+extension Config.GenerationOptions.AutogenerationOptions.CodeCoverageMode {
+    private enum Kind: Codable {
+        case all
+        case relevant
+        case targets
+        case disabled
+    }
+
+    internal enum CodingKeys: String, CodingKey {
+        case kind
+        case targets
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        let kind = try container.decode(Kind.self, forKey: .kind)
+        switch kind {
+        case .all:
+            self = .all
+        case .relevant:
+            self = .relevant
+        case .targets:
+            let targets = try container.decode([TargetReference].self, forKey: .targets)
+            self = .targets(targets)
+        case .disabled:
+            self = .disabled
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        switch self {
+        case .all:
+            try container.encode(Kind.all, forKey: .kind)
+        case .relevant:
+            try container.encode(Kind.relevant, forKey: .kind)
+        case let .targets(targets):
+            try container.encode(Kind.targets, forKey: .kind)
+            try container.encode(targets, forKey: .targets)
+        case .disabled:
+            try container.encode(Kind.disabled, forKey: .kind)
         }
     }
 }

@@ -59,7 +59,7 @@ extension ProjectOption {
     }
 }
 
-// MARK: - Options + Codable
+// MARK: - ProjectOption + Codable
 
 extension ProjectOption {
     private enum OptionsCodingKeys: String, CodingKey {
@@ -120,4 +120,108 @@ extension ProjectOption {
             try associatedValues.encodeIfPresent(wrapsLines, forKey: .wrapsLines)
         }
     }
+}
+
+// MARK: - AutomaticSchemesOptions + Codable
+
+extension ProjectOption.AutomaticSchemesOptions {
+    internal enum CodingKeys: String, CodingKey {
+        case enabled
+        case targetSchemesGrouping
+        case codeCoverageEnabled
+        case testingOptions
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        let enabled = try container.decode(Bool.self, forKey: .enabled)
+        if enabled {
+            let targetSchemesGrouping = try container.decode(TargetSchemesGrouping.self, forKey: .targetSchemesGrouping)
+            let codeCoverageEnabled = try container.decode(Bool.self, forKey: .codeCoverageEnabled)
+            let testingOptions = try container.decode(TestingOptions.self, forKey: .testingOptions)
+            self = .enabled(
+                targetSchemesGrouping: targetSchemesGrouping,
+                codeCoverageEnabled: codeCoverageEnabled,
+                testingOptions: testingOptions
+            )
+        } else {
+            self = .disabled
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        switch self {
+        case let .enabled(targetSchemesGrouping, codeCoverageEnabled, testingOptions):
+            try container.encode(true, forKey: .enabled)
+            try container.encode(targetSchemesGrouping, forKey: .targetSchemesGrouping)
+            try container.encode(codeCoverageEnabled, forKey: .codeCoverageEnabled)
+            try container.encode(testingOptions, forKey: .testingOptions)
+        case .disabled:
+            try container.encode(false, forKey: .enabled)
+        }
+    }
+}
+
+// MARK: - TargetSchemesGrouping + Codable
+
+extension TargetSchemesGrouping {
+    private enum Kind: Codable {
+        case singleScheme
+        case byNameSuffix
+        case notGrouped
+    }
+
+    internal enum CodingKeys: String, CodingKey {
+        case kind
+        case buildSuffix
+        case testSuffix
+        case runSuffix
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        let kind = try container.decode(Kind.self, forKey: .kind)
+        switch kind {
+        case .singleScheme:
+            self = .singleScheme
+        case .byNameSuffix:
+            let buildSuffix = try container.decode(Set<String>.self, forKey: .buildSuffix)
+            let testSuffix = try container.decode(Set<String>.self, forKey: .testSuffix)
+            let runSuffix = try container.decode(Set<String>.self, forKey: .runSuffix)
+            self = .byNameSuffix(build: buildSuffix, test: testSuffix, run: runSuffix)
+        case .notGrouped:
+            self = .notGrouped
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+
+        switch self {
+        case .singleScheme:
+            try container.encode(Kind.singleScheme, forKey: .kind)
+        case let .byNameSuffix(buildSuffix, testSuffix, runSuffix):
+            try container.encode(Kind.byNameSuffix, forKey: .kind)
+            try container.encode(buildSuffix, forKey: .buildSuffix)
+            try container.encode(testSuffix, forKey: .testSuffix)
+            try container.encode(runSuffix, forKey: .runSuffix)
+        case .notGrouped:
+            try container.encode(Kind.notGrouped, forKey: .kind)
+        }
+    }
+}
+
+public enum TargetSchemesGrouping: Codable, Equatable {
+    /// Generate a single target for the whole project
+    case singleScheme
+
+    /// Group the targets according to their name suffixes
+    case byNameSuffix(build: Set<String>, test: Set<String>, run: Set<String>)
+
+    /// Do not group targets, create a scheme for each target
+    case notGrouped
 }
