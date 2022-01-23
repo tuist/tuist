@@ -9,6 +9,18 @@ class RemoteCachePageStore {
     makeAutoObservable(this);
   }
 
+  get isApplyChangesButtonDisabled() {
+    return (
+      this.bucketName.length === 0 ||
+      this.accessKeyID.length === 0 ||
+      this.secretAccessKey.length === 0
+    );
+  }
+
+  get isCreatingBucket() {
+    return true;
+  }
+
   applyChangesButtonClicked() {
     // TODO: Apply changes
   }

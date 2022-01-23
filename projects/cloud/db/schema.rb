@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 2021_12_22_143721) do
+ActiveRecord::Schema.define(version: 2022_01_23_191852) do
 
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
@@ -63,6 +63,18 @@ ActiveRecord::Schema.define(version: 2021_12_22_143721) do
     t.datetime "updated_at", precision: 6, null: false
     t.index ["name", "resource_type", "resource_id"], name: "index_roles_on_name_and_resource_type_and_resource_id"
     t.index ["resource_type", "resource_id"], name: "index_roles_on_resource"
+  end
+
+  create_table "s3_buckets", force: :cascade do |t|
+    t.string "bucket_name"
+    t.string "access_key_id"
+    t.string "secret_access_key"
+    t.string "iv"
+    t.string "project_type"
+    t.bigint "project_id"
+    t.datetime "created_at", precision: 6, null: false
+    t.datetime "updated_at", precision: 6, null: false
+    t.index ["project_type", "project_id"], name: "index_s3_buckets_on_project"
   end
 
   create_table "users", force: :cascade do |t|

@@ -45,6 +45,9 @@ const RemoteCachePage = observer(() => {
           />
           <Button
             primary
+            disabled={
+              remoteCachePageStore.isApplyChangesButtonDisabled
+            }
             onClick={remoteCachePageStore.applyChangesButtonClicked}
           >
             Apply changes
