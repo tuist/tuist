@@ -214,14 +214,3 @@ extension TargetSchemesGrouping {
         }
     }
 }
-
-public enum TargetSchemesGrouping: Codable, Equatable {
-    /// Generate a single target for the whole project
-    case singleScheme
-
-    /// Group the targets according to their name suffixes
-    case byNameSuffix(build: Set<String>, test: Set<String>, run: Set<String>)
-
-    /// Do not group targets, create a scheme for each target
-    case notGrouped
-}
