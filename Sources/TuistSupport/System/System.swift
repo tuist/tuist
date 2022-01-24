@@ -195,7 +195,7 @@ public final class System: Systeming {
                     process.signal(9) // SIGKILL
                 }
             }
-        }.subscribe(on: DispatchQueue.global()).eraseToAnyPublisher()
+        }.subscribe(on: DispatchQueue.global(qos: .background)).eraseToAnyPublisher()
     }
 
     public func publisher(_ arguments: [String],
@@ -378,6 +378,6 @@ public final class System: Systeming {
                     processOne.terminate()
                 }
             }
-        }.subscribe(on: DispatchQueue.global()).eraseToAnyPublisher()
+        }.subscribe(on: DispatchQueue.global(qos: .background)).eraseToAnyPublisher()
     }
 }
