@@ -84,7 +84,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
 
         // Arguments
         command.append(contentsOf: arguments.flatMap(\.arguments))
-        
+
         // Retry On Failure
         if retryCount > 0 {
             command.append(contentsOf: XcodeBuildArgument.retryCount(retryCount).arguments)
