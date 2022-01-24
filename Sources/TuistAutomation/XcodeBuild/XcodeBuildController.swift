@@ -245,7 +245,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
             }
             .values
     }
-    
+
     fileprivate func run(command: [String], isVerbose: Bool) -> Observable<SystemEvent<Data>> {
         if isVerbose {
             return System.shared.observable(command)
