@@ -1,18 +1,17 @@
-import Combine
-import CombineExt
 import Foundation
+import RxSwift
 
-extension Publisher where Output == SystemEvent<Data>, Failure == Error {
+extension Observable where Element == SystemEvent<Data> {
     /// Returns another observable where the standard output and error data are mapped
     /// to a string.
-    public func mapToString() -> AnyPublisher<SystemEvent<String>, Error> {
-        map { $0.mapToString() }.eraseToAnyPublisher()
+    public func mapToString() -> Observable<SystemEvent<String>> {
+        map { $0.mapToString() }
     }
 }
 
-extension Publisher where Output == SystemEvent<String>, Failure == Error {
-    public func print() -> AnyPublisher<SystemEvent<String>, Error> {
-        handleEvents(receiveOutput: { event in
+extension Observable where Element == SystemEvent<String> {
+    public func print() -> Observable<SystemEvent<String>> {
+        `do`(onNext: { (event: SystemEvent<String>) in
             switch event {
             case let .standardError(error):
                 logger.error("\(error)")
@@ -20,12 +19,11 @@ extension Publisher where Output == SystemEvent<String>, Failure == Error {
                 logger.info("\(output)")
             }
         })
-        .eraseToAnyPublisher()
     }
 
     /// Returns an observable that prints the standard error.
-    public func printStandardError() -> AnyPublisher<SystemEvent<String>, Error> {
-        handleEvents(receiveOutput: { event in
+    public func printStandardError() -> Observable<SystemEvent<String>> {
+        `do`(onNext: { event in
             switch event {
             case let .standardError(error):
                 if let data = error.data(using: .utf8) {
@@ -35,11 +33,10 @@ extension Publisher where Output == SystemEvent<String>, Failure == Error {
                 return
             }
         })
-        .eraseToAnyPublisher()
     }
 
     /// Returns an observable that collects and merges the standard output and error into a single string.
-    public func collectAndMergeOutput() -> AnyPublisher<String, Error> {
+    public func collectAndMergeOutput() -> Observable<String> {
         reduce("") { collected, event -> String in
             var collected = collected
             switch event {
@@ -49,12 +46,12 @@ extension Publisher where Output == SystemEvent<String>, Failure == Error {
                 collected.append(output)
             }
             return collected
-        }.eraseToAnyPublisher()
+        }
     }
 
     /// It collects the standard output and error into an object that is sent
     /// as a single event when the process completes.
-    public func collectOutput() -> AnyPublisher<SystemCollectedOutput, Error> {
+    public func collectOutput() -> Observable<SystemCollectedOutput> {
         reduce(SystemCollectedOutput()) { collected, event -> SystemCollectedOutput in
             var collected = collected
             switch event {
@@ -64,54 +61,54 @@ extension Publisher where Output == SystemEvent<String>, Failure == Error {
                 collected.standardOutput.append(output)
             }
             return collected
-        }.eraseToAnyPublisher()
+        }
     }
 
     /// Returns an observable that forwards the system events filtering the standard output ones using the given function.
     /// - Parameter filter: Function to filter the standard output events.
-    public func filterStandardOutput(_ filter: @escaping (String) -> Bool) -> AnyPublisher<SystemEvent<String>, Error> {
+    public func filterStandardOutput(_ filter: @escaping (String) -> Bool) -> Observable<SystemEvent<String>> {
         self.filter {
             if case let SystemEvent.standardOutput(output) = $0 {
                 return filter(output)
             } else {
                 return true
             }
-        }.eraseToAnyPublisher()
+        }
     }
 
     /// Returns an observable that forwards all the system except the standard output ones rejected by the given function.
     /// - Parameter rejector: Function to reject standard output events.
-    public func rejectStandardOutput(_ rejector: @escaping (String) -> Bool) -> AnyPublisher<SystemEvent<String>, Error> {
+    public func rejectStandardOutput(_ rejector: @escaping (String) -> Bool) -> Observable<SystemEvent<String>> {
         filter {
             if case let SystemEvent.standardOutput(output) = $0 {
                 return !rejector(output)
             } else {
                 return true
             }
-        }.eraseToAnyPublisher()
+        }
     }
 
     /// Returns an observable that forwards the system events filtering the standard error ones using the given function.
     /// - Parameter filter: Function to filter the standard error events.
-    public func filterStandardError(_ filter: @escaping (String) -> Bool) -> AnyPublisher<SystemEvent<String>, Error> {
+    public func filterStandardError(_ filter: @escaping (String) -> Bool) -> Observable<SystemEvent<String>> {
         self.filter {
             if case let SystemEvent.standardError(error) = $0 {
                 return filter(error)
             } else {
                 return true
             }
-        }.eraseToAnyPublisher()
+        }
     }
 
     /// Returns an observable that forwards all the system except the standard error ones rejected by the given function.
     /// - Parameter rejector: Function to reject standard error events.
-    public func rejectStandardError(_ rejector: @escaping (String) -> Bool) -> AnyPublisher<SystemEvent<String>, Error> {
+    public func rejectStandardError(_ rejector: @escaping (String) -> Bool) -> Observable<SystemEvent<String>> {
         filter {
             if case let SystemEvent.standardError(error) = $0 {
                 return !rejector(error)
             } else {
                 return true
             }
-        }.eraseToAnyPublisher()
+        }
     }
 }

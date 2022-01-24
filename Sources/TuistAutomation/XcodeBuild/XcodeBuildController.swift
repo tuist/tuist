@@ -1,5 +1,5 @@
-import Combine
 import Foundation
+import RxSwift
 import TSCBasic
 import TuistCore
 import TuistSupport
@@ -144,6 +144,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         return run(command: command, isVerbose: environment.isVerbose)
     }
 
+    // swiftlint:disable:next function_body_length
     public func showBuildSettings(
         _ target: XcodeBuildTarget,
         scheme: String,
@@ -160,101 +161,118 @@ public final class XcodeBuildController: XcodeBuildControlling {
         // Target
         command.append(contentsOf: target.xcodebuildArguments)
 
-        let values = System.shared.publisher(command)
+        return try await System.shared.observable(command)
             .mapToString()
             .collectAndMergeOutput()
             // xcodebuild has a bug where xcodebuild -showBuildSettings
             // can sometimes hang indefinitely on projects that don't
             // share any schemes, so automatically bail out if it looks
             // like that's happening.
-            .timeout(.seconds(20), scheduler: DispatchQueue.global())
+            .timeout(DispatchTimeInterval.seconds(20), scheduler: ConcurrentDispatchQueueScheduler(queue: .global()))
             .retry(5)
-            .values
-        var buildSettingsByTargetName = [String: XcodeBuildSettings]()
-        for try await string in values {
-            var currentSettings: [String: String] = [:]
-            var currentTarget: String?
+            .flatMap { string -> Observable<XcodeBuildSettings> in
+                Observable.create { observer -> Disposable in
+                    var currentSettings: [String: String] = [:]
+                    var currentTarget: String?
 
-            let flushTarget = { () -> Void in
-                if let currentTarget = currentTarget {
-                    let buildSettings = XcodeBuildSettings(
-                        currentSettings,
-                        target: currentTarget,
-                        configuration: configuration
-                    )
-                    buildSettingsByTargetName[buildSettings.target] = buildSettings
-                }
+                    let flushTarget = { () -> Void in
+                        if let currentTarget = currentTarget {
+                            let buildSettings = XcodeBuildSettings(
+                                currentSettings,
+                                target: currentTarget,
+                                configuration: configuration
+                            )
+                            observer.onNext(buildSettings)
+                        }
 
-                currentTarget = nil
-                currentSettings = [:]
-            }
+                        currentTarget = nil
+                        currentSettings = [:]
+                    }
 
-            string.enumerateLines { line, _ in
-                if let result = XcodeBuildController.targetSettingsRegex.firstMatch(
-                    in: line,
-                    range: NSRange(line.startIndex..., in: line)
-                ) {
-                    let targetRange = Range(result.range(at: 1), in: line)!
+                    string.enumerateLines { line, _ in
+                        if let result = XcodeBuildController.targetSettingsRegex.firstMatch(
+                            in: line,
+                            range: NSRange(line.startIndex..., in: line)
+                        ) {
+                            let targetRange = Range(result.range(at: 1), in: line)!
+
+                            flushTarget()
+                            currentTarget = String(line[targetRange])
+                            return
+                        }
+
+                        let trimSet = CharacterSet.whitespacesAndNewlines
+                        let components = line
+                            .split(maxSplits: 1) { $0 == "=" }
+                            .map { $0.trimmingCharacters(in: trimSet) }
+
+                        if components.count == 2 {
+                            currentSettings[components[0]] = components[1]
+                        }
+                    }
 
                     flushTarget()
-                    currentTarget = String(line[targetRange])
-                    return
-                }
-
-                let trimSet = CharacterSet.whitespacesAndNewlines
-                let components = line
-                    .split(maxSplits: 1) { $0 == "=" }
-                    .map { $0.trimmingCharacters(in: trimSet) }
-
-                if components.count == 2 {
-                    currentSettings[components[0]] = components[1]
+                    observer.onCompleted()
+                    return Disposables.create()
                 }
             }
-            flushTarget()
-        }
-        return buildSettingsByTargetName
+            .reduce([String: XcodeBuildSettings](), accumulator: { acc, buildSettings -> [String: XcodeBuildSettings] in
+                var acc = acc
+                acc[buildSettings.target] = buildSettings
+                return acc
+            })
+            .asSingle()
+            .value
     }
 
     fileprivate func run(command: [String], isVerbose: Bool) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         if isVerbose {
-            return System.shared.publisher(command).values
-                .mapAsXcodeBuildOutput()
+            return run(command: command)
         } else {
-            return System.shared.publisher(
-                command,
-                // swiftlint:disable:next force_try
-                pipeTo: try! formatter.buildArguments()
-            ).values.mapAsXcodeBuildOutput()
+            // swiftlint:disable:next force_try
+            return run(command: command, pipedToArguments: try! formatter.buildArguments())
         }
     }
-}
 
-extension AsyncThrowingStream where Element == SystemEvent<Data> {
-    fileprivate func mapAsXcodeBuildOutput() -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
-        var iterator = makeAsyncIterator()
-        var subIterator: IndexingIterator<[SystemEvent<XcodeBuildOutput>]>?
-        return AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
-            if let output = subIterator?.next() {
-                return output
-            }
+    fileprivate func run(command: [String]) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
+        System.shared.observable(command)
+            .flatMap { event -> Observable<SystemEvent<XcodeBuildOutput>> in
+                switch event {
+                case let .standardError(errorData):
+                    guard let line = String(data: errorData, encoding: .utf8) else { return Observable.empty() }
+                    let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
+                        SystemEvent.standardError(XcodeBuildOutput(raw: "\(String(line))\n"))
+                    }
+                    return Observable.from(output)
+                case let .standardOutput(outputData):
+                    guard let line = String(data: outputData, encoding: .utf8) else { return Observable.empty() }
+                    let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
+                        SystemEvent.standardOutput(XcodeBuildOutput(raw: "\(String(line))\n"))
+                    }
+                    return Observable.from(output)
+                }
+            }.values
+    }
 
-            guard let event = try await iterator.next() else { return nil }
-            switch event {
-            case let .standardError(errorData):
-                guard let line = String(data: errorData, encoding: .utf8) else { return nil }
-                let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
-                    SystemEvent.standardError(XcodeBuildOutput(raw: "\(String(line))\n"))
+    fileprivate func run(command: [String],
+                         pipedToArguments: [String]) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
+    {
+        System.shared.observable(command, pipedToArguments: pipedToArguments)
+            .flatMap { event -> Observable<SystemEvent<XcodeBuildOutput>> in
+                switch event {
+                case let .standardError(errorData):
+                    guard let line = String(data: errorData, encoding: .utf8) else { return Observable.empty() }
+                    let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
+                        SystemEvent.standardError(XcodeBuildOutput(raw: "\(String(line))\n"))
+                    }
+                    return Observable.from(output)
+                case let .standardOutput(outputData):
+                    guard let line = String(data: outputData, encoding: .utf8) else { return Observable.empty() }
+                    let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
+                        SystemEvent.standardOutput(XcodeBuildOutput(raw: "\(String(line))\n"))
+                    }
+                    return Observable.from(output)
                 }
-                subIterator = output.makeIterator()
-                return subIterator?.next()
-            case let .standardOutput(outputData):
-                guard let line = String(data: outputData, encoding: .utf8) else { return nil }
-                let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
-                    SystemEvent.standardOutput(XcodeBuildOutput(raw: "\(String(line))\n"))
-                }
-                subIterator = output.makeIterator()
-                return subIterator?.next()
-            }
-        }
+            }.values
     }
 }
