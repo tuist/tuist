@@ -59,7 +59,6 @@ const RemoteCachePage = observer(() => {
     );
   }, [remoteCachePageStore, projectStore]);
 
-  /* TODO: Do not let non-admins edit this page */
   return (
     <Page title="Remote Cache">
       <Card title="S3 Bucket setup" sectioned>
@@ -70,7 +69,6 @@ const RemoteCachePage = observer(() => {
             onChange={handleSelectChange}
             value={remoteCachePageStore.selectedOption}
           />
-          {/* In the future, we want to allow more providers like Google cloud here */}
           <TextField
             type="text"
             label="Bucket name"

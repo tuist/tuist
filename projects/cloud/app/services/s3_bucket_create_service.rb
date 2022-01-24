@@ -26,7 +26,7 @@ class S3BucketCreateService < ApplicationService
   end
 
   def call
-    if !S3Bucket.find_by(name: name).nil?
+    if !S3Bucket.find_by(name: name, account_id: account_id).nil?
       raise Error::DuplicatedName.new(name)
     end
     cipher = OpenSSL::Cipher::AES.new(256, :CBC)
