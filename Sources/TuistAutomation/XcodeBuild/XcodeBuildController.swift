@@ -232,28 +232,15 @@ public final class XcodeBuildController: XcodeBuildControlling {
 extension AsyncThrowingStream where Element == SystemEvent<Data> {
     fileprivate func mapAsXcodeBuildOutput() -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         var iterator = makeAsyncIterator()
-        var subIterator: IndexingIterator<[SystemEvent<XcodeBuildOutput>]>?
         return AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
-            if let output = subIterator?.next() {
-                return output
-            }
-
             guard let event = try await iterator.next() else { return nil }
             switch event {
             case let .standardError(errorData):
                 guard let line = String(data: errorData, encoding: .utf8) else { return nil }
-                let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
-                    SystemEvent.standardError(XcodeBuildOutput(raw: "\(String(line))\n"))
-                }
-                subIterator = output.makeIterator()
-                return subIterator?.next()
+                return SystemEvent.standardError(XcodeBuildOutput(raw: "\(String(line))\n"))
             case let .standardOutput(outputData):
                 guard let line = String(data: outputData, encoding: .utf8) else { return nil }
-                let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
-                    SystemEvent.standardOutput(XcodeBuildOutput(raw: "\(String(line))\n"))
-                }
-                subIterator = output.makeIterator()
-                return subIterator?.next()
+                return SystemEvent.standardOutput(XcodeBuildOutput(raw: "\(String(line))\n"))
             }
         }
     }
