@@ -44,20 +44,20 @@ final class InstallerTests: TuistUnitTestCase {
         let downloadPath = temporaryDirectory
             .path
             .appending(component: Constants.bundleName)
-        system.succeedCommand(
+        system.succeedCommand([
             "/usr/bin/curl",
             "-LSs",
             "--output",
             downloadPath.pathString,
-            downloadURL.absoluteString
-        )
-        system.succeedCommand(
+            downloadURL.absoluteString,
+        ])
+        system.succeedCommand([
             "/usr/bin/unzip",
             "-q",
             downloadPath.pathString,
             "-d",
-            temporaryPath.pathString
-        )
+            temporaryPath.pathString,
+        ])
 
         try subject.install(
             version: version,
@@ -86,11 +86,13 @@ final class InstallerTests: TuistUnitTestCase {
             .path
             .appending(component: Constants.bundleName)
         system.errorCommand(
-            "/usr/bin/curl",
-            "-LSs",
-            "--output",
-            downloadPath.pathString,
-            downloadURL.absoluteString,
+            [
+                "/usr/bin/curl",
+                "-LSs",
+                "--output",
+                downloadPath.pathString,
+                downloadURL.absoluteString,
+            ],
             error: "download_error"
         )
 
@@ -111,18 +113,20 @@ final class InstallerTests: TuistUnitTestCase {
         let downloadPath = temporaryDirectory
             .path
             .appending(component: Constants.bundleName)
-        system.succeedCommand(
+        system.succeedCommand([
             "/usr/bin/curl",
             "-LSs",
             "--output",
             downloadPath.pathString,
-            downloadURL.absoluteString
-        )
+            downloadURL.absoluteString,
+        ])
         system.errorCommand(
-            "/usr/bin/unzip",
-            downloadPath.pathString,
-            "-d",
-            temporaryPath.pathString,
+            [
+                "/usr/bin/unzip",
+                downloadPath.pathString,
+                "-d",
+                temporaryPath.pathString,
+            ],
             error: "unzip_error"
         )
 

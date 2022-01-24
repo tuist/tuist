@@ -41,7 +41,7 @@ final class CarthageControllerTests: TuistUnitTestCase {
 
     func test_carthageVersion_carthageNotFound() {
         // Given
-        system.errorCommand("/usr/bin/env", "carthage", "version")
+        system.errorCommand(["/usr/bin/env", "carthage", "version"])
 
         // When / Then
         XCTAssertThrowsSpecific(try subject.carthageVersion(), CarthageControllerError.carthageNotFound)

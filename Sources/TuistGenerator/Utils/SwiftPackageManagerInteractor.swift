@@ -77,7 +77,7 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
 
         arguments.append(contentsOf: ["-workspace", workspacePath.pathString, "-list"])
 
-        let events = System.shared.observable(arguments).mapToString().values
+        let events = System.shared.publisher(arguments).mapToString().values
         for try await event in events {
             switch event {
             case let .standardError(error):
