@@ -12,9 +12,6 @@ class CacheController < ApplicationController
       user = User.find_by!(token: token)
       if user
         sign_in user, store: false
-        true
-      else
-        false
       end
     end
   end

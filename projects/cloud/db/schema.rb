@@ -66,14 +66,17 @@ ActiveRecord::Schema.define(version: 2022_01_23_191852) do
   end
 
   create_table "s3_buckets", force: :cascade do |t|
-    t.string "bucket_name"
-    t.string "access_key_id"
+    t.string "name", null: false
+    t.string "access_key_id", null: false
     t.string "secret_access_key"
     t.string "iv"
     t.string "project_type"
     t.bigint "project_id"
     t.datetime "created_at", precision: 6, null: false
     t.datetime "updated_at", precision: 6, null: false
+    t.bigint "account_id", null: false
+    t.index ["account_id"], name: "index_s3_buckets_on_account_id"
+    t.index ["name", "account_id"], name: "index_s3_buckets_on_name_and_account_id", unique: true
     t.index ["project_type", "project_id"], name: "index_s3_buckets_on_project"
   end
 
@@ -116,5 +119,6 @@ ActiveRecord::Schema.define(version: 2022_01_23_191852) do
   end
 
   add_foreign_key "projects", "accounts"
+  add_foreign_key "s3_buckets", "accounts"
   add_foreign_key "users", "projects", column: "last_visited_project_id"
 end

@@ -1,56 +1,102 @@
-import React, { useState } from 'react';
+import React, { useCallback, useContext, useState } from 'react';
 import {
   Page,
   FormLayout,
   TextField,
   Card,
   Button,
+  Select,
 } from '@shopify/polaris';
 import RemoteCachePageStore from './RemoteCachePageStore';
 import { observer } from 'mobx-react-lite';
+import { useApolloClient } from '@apollo/client';
+import { HomeStoreContext } from '@/stores/HomeStore';
+import { runInAction } from 'mobx';
 
 const RemoteCachePage = observer(() => {
+  const client = useApolloClient();
   const [remoteCachePageStore] = useState(
-    () => new RemoteCachePageStore(),
+    () => new RemoteCachePageStore(client),
   );
+  const { projectStore } = useContext(HomeStoreContext);
+
+  const handleSelectChange = useCallback(
+    (newValue) => {
+      runInAction(() => {
+        remoteCachePageStore.selectedOption = newValue;
+      });
+    },
+    [remoteCachePageStore],
+  );
+
+  const handleBucketNameChange = useCallback((newValue) => {
+    runInAction(() => {
+      remoteCachePageStore.bucketName = newValue;
+    });
+  }, []);
+
+  const handleAccessKeyIdChange = useCallback((newValue) => {
+    runInAction(() => {
+      remoteCachePageStore.accessKeyId = newValue;
+    });
+  }, []);
+
+  const handleSecretAccessKeyChange = useCallback((newValue) => {
+    runInAction(() => {
+      remoteCachePageStore.secretAccessKey = newValue;
+    });
+  }, []);
+
+  const handleApplyChangesClicked = useCallback(() => {
+    if (
+      projectStore.project === undefined ||
+      projectStore.project === null
+    ) {
+      return;
+    }
+    remoteCachePageStore.applyChangesButtonClicked(
+      projectStore.project.account.id,
+    );
+  }, [remoteCachePageStore, projectStore]);
+
+  /* TODO: Do not let non-admins edit this page */
   return (
     <Page title="Remote Cache">
       <Card title="S3 Bucket setup" sectioned>
-        {/* TODO: Do not let non-admins edit this */}
+        <Select
+          label="S3 Bucket"
+          options={remoteCachePageStore.bucketOptions}
+          onChange={handleSelectChange}
+          value={remoteCachePageStore.selectedOption}
+        />
         <FormLayout>
           {/* In the future, we want to allow more providers like Google cloud here */}
           <TextField
             type="text"
             label="Bucket name"
             value={remoteCachePageStore.bucketName}
-            onChange={(newValue) => {
-              remoteCachePageStore.bucketName = newValue;
-            }}
+            onChange={handleBucketNameChange}
           />
           <TextField
             type="text"
             label="Access key ID"
-            value={remoteCachePageStore.accessKeyID}
-            onChange={(newValue) => {
-              remoteCachePageStore.accessKeyID = newValue;
-            }}
+            value={remoteCachePageStore.accessKeyId}
+            onChange={handleAccessKeyIdChange}
           />
           <TextField
             type="password"
             label="Secret acess key"
             value={remoteCachePageStore.secretAccessKey}
-            onChange={(newValue) => {
-              remoteCachePageStore.secretAccessKey = newValue;
-            }}
+            onChange={handleSecretAccessKeyChange}
           />
           <Button
             primary
             disabled={
               remoteCachePageStore.isApplyChangesButtonDisabled
             }
-            onClick={remoteCachePageStore.applyChangesButtonClicked}
+            onClick={handleApplyChangesClicked}
           >
-            Apply changes
+            Create bucket
           </Button>
         </FormLayout>
       </Card>

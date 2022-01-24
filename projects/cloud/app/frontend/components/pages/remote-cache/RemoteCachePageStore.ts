@@ -1,18 +1,32 @@
+import { CreateS3BucketDocument } from '@/graphql/types';
+import ProjectStore from '@/stores/ProjectStore';
+import { ApolloClient } from '@apollo/client';
+import { SelectOption } from '@shopify/polaris';
 import { makeAutoObservable } from 'mobx';
 
 class RemoteCachePageStore {
   bucketName = '';
-  accessKeyID = '';
+  accessKeyId = '';
   secretAccessKey = '';
+  bucketOptions: SelectOption[] = [
+    {
+      label: 'Create new bucket',
+      value: 'new',
+    },
+  ];
+  selectedOption = 'new';
 
-  constructor() {
+  client: ApolloClient<object>;
+
+  constructor(client: ApolloClient<object>) {
+    this.client = client;
     makeAutoObservable(this);
   }
 
   get isApplyChangesButtonDisabled() {
     return (
       this.bucketName.length === 0 ||
-      this.accessKeyID.length === 0 ||
+      this.accessKeyId.length === 0 ||
       this.secretAccessKey.length === 0
     );
   }
@@ -21,8 +35,22 @@ class RemoteCachePageStore {
     return true;
   }
 
-  applyChangesButtonClicked() {
-    // TODO: Apply changes
+  async applyChangesButtonClicked(accountId: string) {
+    if (this.isCreatingBucket) {
+      const { data, errors } = await this.client.mutate({
+        mutation: CreateS3BucketDocument,
+        variables: {
+          input: {
+            name: this.bucketName,
+            accessKeyId: this.accessKeyId,
+            secretAccessKey: this.secretAccessKey,
+            accountId,
+          },
+        },
+      });
+      console.log(data);
+      console.log(errors);
+    }
   }
 }
 

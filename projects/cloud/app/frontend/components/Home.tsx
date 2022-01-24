@@ -41,7 +41,6 @@ import {
 } from '@shopify/polaris-icons';
 import { HomeStore, HomeStoreContext } from '@/stores/HomeStore';
 import { observer } from 'mobx-react-lite';
-import { runInAction } from 'mobx';
 import { useApolloClient } from '@apollo/client';
 
 const Home = observer(() => {
@@ -278,17 +277,15 @@ const Home = observer(() => {
     </Modal>
   );
 
-  const { accountName: organizationName } = useParams();
-
   const client = useApolloClient();
   const [homeStore] = useState(new HomeStore(client));
 
   useEffect(() => {
-    if (!organizationName) {
+    if (!accountName || !projectName) {
       return;
     }
-    homeStore.load(organizationName);
-  }, [organizationName]);
+    homeStore.load(projectName, accountName);
+  }, [accountName, projectName]);
 
   return (
     <HomeStoreContext.Provider value={homeStore}>

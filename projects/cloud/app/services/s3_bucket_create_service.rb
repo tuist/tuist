@@ -1,32 +1,33 @@
 # frozen_string_literal: true
 
 class S3BucketCreateService < ApplicationService
-  attr_reader :bucket_name, :access_key_id, :secret_access_key
+  attr_reader :name, :access_key_id, :secret_access_key, :account_id
 
   module Error
     class DuplicatedName < CloudError
-      attr_reader :bucket_name
+      attr_reader :name
 
-      def initialize(bucket_name)
-        @bucket_name = bucket_name
+      def initialize(name)
+        @name = name
       end
 
       def message
-        "Bucket #{bucket_name} already exists."
+        "Bucket #{name} already exists."
       end
     end
   end
 
-  def initialize(bucket_name:, access_key_id:, secret_access_key:)
+  def initialize(name:, access_key_id:, secret_access_key:, account_id:)
     super()
-    @bucket_name = bucket_name
+    @name = name
     @access_key_id = access_key_id
     @secret_access_key = secret_access_key
+    @account_id = account_id
   end
 
   def call
-    if !S3Bucket.find_by(bucket_name: bucket_name).nil?
-      raise Error::DuplicatedName.new(bucket_name)
+    if !S3Bucket.find_by(name: name).nil?
+      raise Error::DuplicatedName.new(name)
     end
     cipher = OpenSSL::Cipher::AES.new(256, :CBC)
     cipher.encrypt
@@ -34,7 +35,12 @@ class S3BucketCreateService < ApplicationService
     iv = cipher.random_iv
 
     encrypted_secret_access_key = cipher.update(secret_access_key) + cipher.final
-
-    S3Bucket.create!(bucket_name: bucket_name, access_key_id: access_key_id, secret_access_key: Base64.encode64(encrypted_secret_access_key), iv: iv)
+    account = Account.find(account_id)
+    account.s3_buckets.create!(
+      name: name,
+      access_key_id: access_key_id,
+      secret_access_key: Base64.encode64(encrypted_secret_access_key),
+      iv: Base64.encode64(iv)
+    )
   end
 end
