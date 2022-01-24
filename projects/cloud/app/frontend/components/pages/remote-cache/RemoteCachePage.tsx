@@ -63,13 +63,13 @@ const RemoteCachePage = observer(() => {
   return (
     <Page title="Remote Cache">
       <Card title="S3 Bucket setup" sectioned>
-        <Select
-          label="S3 Bucket"
-          options={remoteCachePageStore.bucketOptions}
-          onChange={handleSelectChange}
-          value={remoteCachePageStore.selectedOption}
-        />
         <FormLayout>
+          <Select
+            label="S3 Bucket"
+            options={remoteCachePageStore.bucketOptions}
+            onChange={handleSelectChange}
+            value={remoteCachePageStore.selectedOption}
+          />
           {/* In the future, we want to allow more providers like Google cloud here */}
           <TextField
             type="text"
@@ -85,7 +85,7 @@ const RemoteCachePage = observer(() => {
           />
           <TextField
             type="password"
-            label="Secret acess key"
+            label="Secret access key"
             value={remoteCachePageStore.secretAccessKey}
             onChange={handleSecretAccessKeyChange}
           />

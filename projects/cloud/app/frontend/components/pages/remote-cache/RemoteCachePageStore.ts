@@ -1,5 +1,4 @@
-import { CreateS3BucketDocument } from '@/graphql/types';
-import ProjectStore from '@/stores/ProjectStore';
+import { CreateS3BucketDocument } from '../../../graphql/types';
 import { ApolloClient } from '@apollo/client';
 import { SelectOption } from '@shopify/polaris';
 import { makeAutoObservable } from 'mobx';
@@ -37,7 +36,7 @@ class RemoteCachePageStore {
 
   async applyChangesButtonClicked(accountId: string) {
     if (this.isCreatingBucket) {
-      const { data, errors } = await this.client.mutate({
+      await this.client.mutate({
         mutation: CreateS3BucketDocument,
         variables: {
           input: {
@@ -48,8 +47,6 @@ class RemoteCachePageStore {
           },
         },
       });
-      console.log(data);
-      console.log(errors);
     }
   }
 }

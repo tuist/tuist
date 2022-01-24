@@ -5,6 +5,7 @@ class CacheController < ApplicationController
   before_action :authenticate_user_from_token!
 
   def cache
+    # TODO: Check if a file for a given hash, framework, and project exists
   end
 
   def authenticate_user_from_token!
