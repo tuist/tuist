@@ -122,7 +122,7 @@ final class TestServiceTests: TuistUnitTestCase {
             (path, Graph.test())
         }
         var testedSchemes: [String] = []
-        xcodebuildController.testStub = { _, scheme, _, _, _, _, _ in
+        xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _ in
             testedSchemes.append(scheme)
             return [.standardOutput(.init(raw: "success"))]
         }
@@ -154,7 +154,7 @@ final class TestServiceTests: TuistUnitTestCase {
             (path, Graph.test())
         }
         var testedSchemes: [String] = []
-        xcodebuildController.testStub = { _, scheme, _, _, _, _, _ in
+        xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _ in
             testedSchemes.append(scheme)
             return [.standardOutput(.init(raw: "success"))]
         }
@@ -203,7 +203,7 @@ final class TestServiceTests: TuistUnitTestCase {
             (path, Graph.test())
         }
         var testedSchemes: [String] = []
-        xcodebuildController.testStub = { _, scheme, _, _, _, _, _ in
+        xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _ in
             testedSchemes.append(scheme)
             return [.standardOutput(.init(raw: "success"))]
         }
@@ -242,7 +242,7 @@ final class TestServiceTests: TuistUnitTestCase {
         }
         var testedSchemes: [String] = []
         xcodebuildController.testErrorStub = NSError.test()
-        xcodebuildController.testStub = { _, scheme, _, _, _, _, _ in
+        xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _ in
             testedSchemes.append(scheme)
             return []
         }
@@ -277,7 +277,7 @@ final class TestServiceTests: TuistUnitTestCase {
             (path, Graph.test())
         }
         var testedSchemes: [String] = []
-        xcodebuildController.testStub = { _, scheme, _, _, _, _, _ in
+        xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _ in
             testedSchemes.append(scheme)
             return [.standardOutput(.init(raw: "success"))]
         }
@@ -297,7 +297,7 @@ final class TestServiceTests: TuistUnitTestCase {
         let expectedResourceBundlePath = AbsolutePath("/test")
         var resourceBundlePath: AbsolutePath?
 
-        xcodebuildController.testStub = { _, _, _, _, _, gotResourceBundlePath, _ in
+        xcodebuildController.testStub = { _, _, _, _, _, gotResourceBundlePath, _, _ in
             resourceBundlePath = gotResourceBundlePath
             return []
         }
@@ -328,7 +328,7 @@ final class TestServiceTests: TuistUnitTestCase {
         let expectedResourceBundlePath = AbsolutePath("/test")
         var resourceBundlePath: AbsolutePath?
 
-        xcodebuildController.testStub = { _, _, _, _, _, gotResourceBundlePath, _ in
+        xcodebuildController.testStub = { _, _, _, _, _, gotResourceBundlePath, _, _ in
             resourceBundlePath = gotResourceBundlePath
             return []
         }
@@ -372,9 +372,9 @@ final class TestServiceTests: TuistUnitTestCase {
             (path, Graph.test())
         }
 
-        var passedArguments: [XcodeBuildArgument] = []
-        xcodebuildController.testStub = { _, _, _, _, _, _, arguments in
-            passedArguments = arguments
+        var passedRetryCount = 0
+        xcodebuildController.testStub = { _, _, _, _, _, _, _, retryCount in
+            passedRetryCount = retryCount
             return [.standardOutput(.init(raw: "success"))]
         }
 
@@ -386,10 +386,10 @@ final class TestServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertTrue(passedArguments.contains(XcodeBuildArgument.retryCount(3)))
+        XCTAssertEqual(passedRetryCount, 3)
     }
 
-    func test_run_does_not_pass_retry_count_as_argument() async throws {
+    func test_run_defaults_retry_count_to_zero() async throws {
         // Given
         buildGraphInspector.testableSchemesStub = { _ in
             [
@@ -405,9 +405,9 @@ final class TestServiceTests: TuistUnitTestCase {
             (path, Graph.test())
         }
 
-        var passedArguments: [XcodeBuildArgument] = []
-        xcodebuildController.testStub = { _, _, _, _, _, _, arguments in
-            passedArguments = arguments
+        var passedRetryCount = -1
+        xcodebuildController.testStub = { _, _, _, _, _, _, _, retryCount in
+            passedRetryCount = retryCount
             return [.standardOutput(.init(raw: "success"))]
         }
 
@@ -418,7 +418,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertTrue(!passedArguments.contains(XcodeBuildArgument.retryCount(3)))
+        XCTAssertEqual(passedRetryCount, 0)
     }
 }
 

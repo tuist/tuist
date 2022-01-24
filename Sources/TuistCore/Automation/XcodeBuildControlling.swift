@@ -28,6 +28,7 @@ public protocol XcodeBuildControlling {
     ///   - destination: Destination to run the tests on
     ///   - derivedDataPath: Custom location for derived data. Use `xcodebuild`'s default if `nil`
     ///   - arguments: Extra xcodebuild arguments.
+    ///   - retryCount: Number of times to retry the test on failure
     func test(
         _ target: XcodeBuildTarget,
         scheme: String,
@@ -35,7 +36,8 @@ public protocol XcodeBuildControlling {
         destination: XcodeBuildDestination,
         derivedDataPath: AbsolutePath?,
         resultBundlePath: AbsolutePath?,
-        arguments: [XcodeBuildArgument]
+        arguments: [XcodeBuildArgument],
+        retryCount: Int
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
 
     /// Returns an observable that archives the given project using xcodebuild.

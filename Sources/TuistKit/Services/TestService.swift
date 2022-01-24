@@ -214,8 +214,6 @@ final class TestService {
             deviceName: deviceName
         )
 
-        let extraTestArguments: [XcodeBuildArgument] = retryCount > 0 ? [.retryCount(retryCount)] : []
-
         try await xcodebuildController.test(
             .workspace(graphTraverser.workspace.xcWorkspacePath),
             scheme: scheme.name,
@@ -228,7 +226,8 @@ final class TestService {
                 target: buildableTarget.target,
                 configuration: configuration,
                 skipSigning: false
-            ) + extraTestArguments
+            ),
+            retryCount: retryCount
         )
         .printFormattedOutput()
     }

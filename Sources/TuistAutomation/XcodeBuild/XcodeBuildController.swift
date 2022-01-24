@@ -65,7 +65,8 @@ public final class XcodeBuildController: XcodeBuildControlling {
         destination: XcodeBuildDestination,
         derivedDataPath: AbsolutePath?,
         resultBundlePath: AbsolutePath?,
-        arguments: [XcodeBuildArgument]
+        arguments: [XcodeBuildArgument],
+        retryCount: Int
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
@@ -83,6 +84,11 @@ public final class XcodeBuildController: XcodeBuildControlling {
 
         // Arguments
         command.append(contentsOf: arguments.flatMap(\.arguments))
+        
+        // Retry On Failure
+        if retryCount > 0 {
+            command.append(contentsOf: XcodeBuildArgument.retryCount(retryCount).arguments)
+        }
 
         // Destination
         switch destination {
