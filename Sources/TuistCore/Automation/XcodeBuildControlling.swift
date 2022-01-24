@@ -1,4 +1,5 @@
 import Foundation
+import RxSwift
 import TSCBasic
 import TuistSupport
 
