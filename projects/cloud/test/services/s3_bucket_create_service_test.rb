@@ -27,7 +27,6 @@ class S3BucketCreateServiceTest < ActiveSupport::TestCase
 
   test "creating an S3 bucket fails when another with the same name already exists" do
     # Given
-    user = User.create!(email: "test@cloud.tuist.io", password: Devise.friendly_token.first(16))
     account = Account.create!(owner: Organization.create!, name: "tuist")
     S3BucketCreateService.call(
       name: "bucket",

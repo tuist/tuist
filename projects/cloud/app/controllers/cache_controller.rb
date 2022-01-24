@@ -12,7 +12,7 @@ class CacheController < ApplicationController
     authenticate_or_request_with_http_token do |token, options|
       user = User.find_by!(token: token)
       if user
-        sign_in user, store: false
+        sign_in(user, store: false)
       end
     end
   end
