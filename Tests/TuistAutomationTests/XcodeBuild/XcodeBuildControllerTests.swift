@@ -71,7 +71,8 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             destination: .device("device-id"),
             derivedDataPath: nil,
             resultBundlePath: nil,
-            arguments: []
+            arguments: [],
+            retryCount: 0
         )
 
         let result = try await events.toArray()
@@ -107,7 +108,8 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             destination: .mac,
             derivedDataPath: nil,
             resultBundlePath: nil,
-            arguments: []
+            arguments: [],
+            retryCount: 0
         )
 
         let result = try await events.toArray()
@@ -143,7 +145,8 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             destination: .mac,
             derivedDataPath: derivedDataPath,
             resultBundlePath: nil,
-            arguments: []
+            arguments: [],
+            retryCount: 0
         )
 
         let result = try await events.toArray()
@@ -179,7 +182,8 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             destination: .mac,
             derivedDataPath: nil,
             resultBundlePath: resultBundlePath,
-            arguments: []
+            arguments: [],
+            retryCount: 0
         )
 
         let result = try await events.toArray()

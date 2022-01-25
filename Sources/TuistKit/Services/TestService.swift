@@ -76,7 +76,8 @@ final class TestService {
         deviceName: String?,
         osVersion: String?,
         skipUITests: Bool,
-        resultBundlePath: AbsolutePath?
+        resultBundlePath: AbsolutePath?,
+        retryCount: Int
     ) async throws {
         // Load config
         let manifestLoaderFactory = ManifestLoaderFactory()
@@ -137,7 +138,8 @@ final class TestService {
                     configuration: configuration,
                     version: version,
                     deviceName: deviceName,
-                    resultBundlePath: resultBundlePath
+                    resultBundlePath: resultBundlePath,
+                    retryCount: retryCount
                 )
             }
         } else {
@@ -159,7 +161,8 @@ final class TestService {
                     configuration: configuration,
                     version: version,
                     deviceName: deviceName,
-                    resultBundlePath: resultBundlePath
+                    resultBundlePath: resultBundlePath,
+                    retryCount: retryCount
                 )
             }
         }
@@ -195,7 +198,8 @@ final class TestService {
         configuration: String?,
         version: Version?,
         deviceName: String?,
-        resultBundlePath: AbsolutePath?
+        resultBundlePath: AbsolutePath?,
+        retryCount: Int
     ) async throws {
         logger.log(level: .notice, "Testing scheme \(scheme.name)", metadata: .section)
         guard let buildableTarget = buildGraphInspector.testableTarget(scheme: scheme, graphTraverser: graphTraverser) else {
@@ -222,7 +226,8 @@ final class TestService {
                 target: buildableTarget.target,
                 configuration: configuration,
                 skipSigning: false
-            )
+            ),
+            retryCount: retryCount
         )
         .printFormattedOutput()
     }
