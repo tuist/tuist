@@ -211,7 +211,7 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         let deviceAndRuntime = createSystemStubs(devices: true, runtimes: true)
         let bundleId = "bundleId"
         let udid = deviceAndRuntime.device.udid
-        system.succeedCommand("/usr/bin/xcrun", "simctl", "boot", udid)
+        system.succeedCommand(["/usr/bin/xcrun", "simctl", "boot", udid])
         let openSimAppCommand = ["/usr/bin/open", "-a", "Simulator"]
         system.succeedCommand(openSimAppCommand)
 
@@ -227,8 +227,8 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         let deviceAndRuntime = createSystemStubs(devices: true, runtimes: true)
         let bundleId = "bundleId"
         let udid = deviceAndRuntime.device.udid
-        system.succeedCommand("/usr/bin/xcrun", "simctl", "boot", udid)
-        system.succeedCommand("/usr/bin/open", "-a", "Simulator")
+        system.succeedCommand(["/usr/bin/xcrun", "simctl", "boot", udid])
+        system.succeedCommand(["/usr/bin/open", "-a", "Simulator"])
         let launchAppCommand = ["/usr/bin/xcrun", "simctl", "launch", udid, bundleId]
         system.succeedCommand(launchAppCommand)
 
@@ -245,8 +245,8 @@ final class SimulatorControllerTests: TuistUnitTestCase {
         let bundleId = "bundleId"
         let udid = deviceAndRuntime.device.udid
         let arguments = ["-arg1", "--arg2", "SomeArg"]
-        system.succeedCommand("/usr/bin/xcrun", "simctl", "boot", udid)
-        system.succeedCommand("/usr/bin/open", "-a", "Simulator")
+        system.succeedCommand(["/usr/bin/xcrun", "simctl", "boot", udid])
+        system.succeedCommand(["/usr/bin/open", "-a", "Simulator"])
         let launchAppCommand = ["/usr/bin/xcrun", "simctl", "launch", udid, bundleId] + arguments
         system.succeedCommand(launchAppCommand)
 

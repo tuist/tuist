@@ -25,7 +25,7 @@ final class SecurityControllerTests: TuistUnitTestCase {
         let decodeFilePath = try temporaryPath()
 
         let expectedOutput = "output"
-        system.succeedCommand("/usr/bin/security", "cms", "-D", "-i", decodeFilePath.pathString, output: expectedOutput)
+        system.succeedCommand(["/usr/bin/security", "cms", "-D", "-i", decodeFilePath.pathString], output: expectedOutput)
 
         // When
         let output = try subject.decodeFile(at: decodeFilePath)
@@ -41,17 +41,17 @@ final class SecurityControllerTests: TuistUnitTestCase {
         let certificate = Certificate.test(publicKey: certificatePath, privateKey: privateKeyPath)
         let keychainPath = try temporaryPath()
 
-        system.errorCommand(
+        system.errorCommand([
             "/usr/bin/security",
             "find-certificate",
             certificatePath.pathString,
             "-P",
             "",
             "-k",
-            keychainPath.pathString
-        )
-        system.errorCommand("/usr/bin/security", "find-key", privateKeyPath.pathString, "-P", "", "-k", keychainPath.pathString)
-        system.succeedCommand(
+            keychainPath.pathString,
+        ])
+        system.errorCommand(["/usr/bin/security", "find-key", privateKeyPath.pathString, "-P", "", "-k", keychainPath.pathString])
+        system.succeedCommand([
             "/usr/bin/security",
             "import",
             certificatePath.pathString,
@@ -62,9 +62,9 @@ final class SecurityControllerTests: TuistUnitTestCase {
             "-T",
             "/usr/bin/security",
             "-k",
-            keychainPath.pathString
-        )
-        system.succeedCommand(
+            keychainPath.pathString,
+        ])
+        system.succeedCommand([
             "/usr/bin/security",
             "import",
             privateKeyPath.pathString,
@@ -75,8 +75,8 @@ final class SecurityControllerTests: TuistUnitTestCase {
             "-T",
             "/usr/bin/security",
             "-k",
-            keychainPath.pathString
-        )
+            keychainPath.pathString,
+        ])
 
         // When
         try subject.importCertificate(certificate, keychainPath: keychainPath)
@@ -94,12 +94,14 @@ final class SecurityControllerTests: TuistUnitTestCase {
         let keychainPath = try temporaryPath()
 
         system.succeedCommand(
-            "/usr/bin/security",
-            "find-certificate",
-            "-c",
-            certificate.name,
-            "-a",
-            keychainPath.pathString,
+            [
+                "/usr/bin/security",
+                "find-certificate",
+                "-c",
+                certificate.name,
+                "-a",
+                keychainPath.pathString,
+            ],
             output: "Some output"
         )
 
@@ -117,7 +119,7 @@ final class SecurityControllerTests: TuistUnitTestCase {
         // Given
         let keychainPath = try temporaryPath()
         let password = ""
-        system.succeedCommand("/usr/bin/security", "create-keychain", "-p", password, keychainPath.pathString)
+        system.succeedCommand(["/usr/bin/security", "create-keychain", "-p", password, keychainPath.pathString])
 
         // When
         try subject.createKeychain(at: keychainPath, password: password)
@@ -130,7 +132,7 @@ final class SecurityControllerTests: TuistUnitTestCase {
         // Given
         let keychainPath = try temporaryPath()
         let password = ""
-        system.succeedCommand("/usr/bin/security", "unlock-keychain", "-p", password, keychainPath.pathString)
+        system.succeedCommand(["/usr/bin/security", "unlock-keychain", "-p", password, keychainPath.pathString])
 
         // When
         try subject.unlockKeychain(at: keychainPath, password: password)
@@ -143,7 +145,7 @@ final class SecurityControllerTests: TuistUnitTestCase {
         // Given
         let keychainPath = try temporaryPath()
         let password = ""
-        system.succeedCommand("/usr/bin/security", "lock-keychain", "-p", password, keychainPath.pathString)
+        system.succeedCommand(["/usr/bin/security", "lock-keychain", "-p", password, keychainPath.pathString])
 
         // When
         try subject.lockKeychain(at: keychainPath, password: password)

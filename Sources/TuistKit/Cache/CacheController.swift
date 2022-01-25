@@ -137,7 +137,6 @@ final class CacheController: CacheControlling {
         )
     }
 
-    // swiftlint:disable:next function_body_length
     private func archive(
         _ graph: Graph,
         projectPath: AbsolutePath,

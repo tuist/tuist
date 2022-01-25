@@ -26,9 +26,9 @@ class BuildCopier: BuildCopying {
             let filePath = from.appending(component: file)
             let toPath = to.appending(component: file)
             if !FileHandler.shared.exists(filePath) { return }
-            try System.shared.run("/bin/cp", "-rf", filePath.pathString, toPath.pathString)
+            try System.shared.run(["/bin/cp", "-rf", filePath.pathString, toPath.pathString])
             if file == "tuist" {
-                try System.shared.run("/bin/chmod", "+x", toPath.pathString)
+                try System.shared.run(["/bin/chmod", "+x", toPath.pathString])
             }
         }
     }

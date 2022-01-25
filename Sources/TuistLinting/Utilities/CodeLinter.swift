@@ -36,7 +36,7 @@ public final class CodeLinter: CodeLinting {
         )
         let environment = buildEnvironment(sources: sources)
 
-        let events = System.shared.observable(
+        let events = System.shared.publisher(
             swiftLintArguments,
             verbose: false,
             environment: environment

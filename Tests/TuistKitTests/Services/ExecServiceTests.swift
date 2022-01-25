@@ -196,12 +196,12 @@ final class TaskServiceTests: TuistUnitTestCase {
                 $0.pathString,
             ]
         }
-        system.succeedCommand(
+        system.succeedCommand([
             "load",
             taskPath.pathString,
             "--tuist-task",
-            "{\"option-a\":\"Value\"}"
-        )
+            "{\"option-a\":\"Value\"}",
+        ])
 
         // When / Then
         XCTAssertNoThrow(
@@ -240,12 +240,12 @@ final class TaskServiceTests: TuistUnitTestCase {
                 $0.pathString,
             ]
         }
-        system.succeedCommand(
+        system.succeedCommand([
             "load",
             taskPath.pathString,
             "--tuist-task",
-            "{}"
-        )
+            "{}",
+        ])
 
         // When / Then
         XCTAssertNoThrow(
