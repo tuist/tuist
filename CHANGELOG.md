@@ -22,6 +22,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Fix SPM mapping for `GCC_PREPROCESSOR_DEFINITIONS` definitions [#3995](https://github.com/tuist/tuist/pull/3995) by [@adellibovi](https://github.com/adellibovi)
 - Fix archiving iOS target for Mac Catalyst [#3990](https://github.com/tuist/tuist/pull/3990) by [@orbitekk](https://github.com/orbitekk)
 - Mark libraries depending on XCTest through `ENABLE_TESTING_SEARCH_PATHS` setting as not cacheable [#4012](https://github.com/tuist/tuist/pull/4012) by [@danyf90](https://github.com/danyf90)
+- Fix missing embedded dependencies in App Clip targets [#4033](https://github.com/tuist/tuist/pull/4033) by [@kwridan](https://github.com/kwridan)
 
 ## 2.6.0 - Havana
 
