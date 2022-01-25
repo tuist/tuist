@@ -1,6 +1,5 @@
 import Combine
 import Foundation
-import RxSwift
 import TSCBasic
 import XCTest
 @testable import TuistSupport
@@ -132,46 +131,6 @@ public final class MockSystem: Systeming {
             }
             subscriber.send(completion: .finished)
             return AnyCancellable {}
-        }
-    }
-
-    public func observable(_ arguments: [String]) -> Observable<SystemEvent<Data>> {
-        observable(arguments, verbose: false, environment: env)
-    }
-
-    public func observable(_ arguments: [String], verbose: Bool, environment: [String: String]) -> Observable<SystemEvent<Data>> {
-        Observable.create { observer -> Disposable in
-            let cancellable = self.publisher(arguments, verbose: verbose, environment: environment).sink { completion in
-                switch completion {
-                case .finished:
-                    observer.onCompleted()
-                case let .failure(error):
-                    observer.onError(error)
-                }
-            } receiveValue: { event in
-                observer.onNext(event)
-            }
-            return Disposables.create {
-                cancellable.cancel()
-            }
-        }
-    }
-
-    public func observable(_ arguments: [String], pipeTo secondArguments: [String]) -> Observable<SystemEvent<Data>> {
-        Observable.create { observer -> Disposable in
-            let cancellable = self.publisher(arguments, pipeTo: secondArguments).sink { completion in
-                switch completion {
-                case .finished:
-                    observer.onCompleted()
-                case let .failure(error):
-                    observer.onError(error)
-                }
-            } receiveValue: { event in
-                observer.onNext(event)
-            }
-            return Disposables.create {
-                cancellable.cancel()
-            }
         }
     }
 

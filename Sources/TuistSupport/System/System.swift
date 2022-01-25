@@ -137,20 +137,11 @@ public final class System: Systeming {
     }
 
     public func runAndCollectOutput(_ arguments: [String]) async throws -> SystemCollectedOutput {
-        try await observable(arguments)
+        var values = publisher(arguments)
             .mapToString()
-            .collectOutput()
-            .asSingle().value
-    }
+            .collectOutput().values.makeAsyncIterator()
 
-    public func observable(_ arguments: [String]) -> Observable<SystemEvent<Data>> {
-        observable(arguments, verbose: false, environment: env)
-    }
-
-    public func observable(_ arguments: [String],
-                           pipeTo secondArguments: [String]) -> Observable<SystemEvent<Data>>
-    {
-        observable(arguments, environment: env, pipeTo: secondArguments)
+        return try await values.next()!
     }
 
     public func async(_ arguments: [String]) throws {
@@ -385,20 +376,18 @@ public final class System: Systeming {
                           environment: [String: String]) -> AnyPublisher<SystemEvent<Data>, Error>
     {
         AnyPublisher.create { subscriber -> Cancellable in
-            let disposable = (
-                self
-                    .observable(arguments, verbose: verbose, environment: environment) as Observable<SystemEvent<Data>>
-            )
-            .subscribe { event in
-                switch event {
-                case .completed:
-                    subscriber.send(completion: .finished)
-                case let .error(error):
-                    subscriber.send(completion: .failure(error))
-                case let .next(event):
-                    subscriber.send(event)
+            let disposable = self
+                .observable(arguments, verbose: verbose, environment: environment)
+                .subscribe { event in
+                    switch event {
+                    case .completed:
+                        subscriber.send(completion: .finished)
+                    case let .error(error):
+                        subscriber.send(completion: .failure(error))
+                    case let .next(event):
+                        subscriber.send(event)
+                    }
                 }
-            }
             return AnyCancellable {
                 disposable.dispose()
             }
@@ -409,7 +398,7 @@ public final class System: Systeming {
                           pipeTo secondArguments: [String]) -> AnyPublisher<SystemEvent<Data>, Error>
     {
         AnyPublisher.create { subscriber -> Cancellable in
-            let disposable = (self.observable(arguments, pipeTo: secondArguments) as Observable<SystemEvent<Data>>)
+            let disposable = self.observable(arguments, environment: self.env, pipeTo: secondArguments)
                 .subscribe { event in
                     switch event {
                     case .completed:

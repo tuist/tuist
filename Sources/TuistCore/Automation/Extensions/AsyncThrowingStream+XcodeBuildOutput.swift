@@ -6,9 +6,15 @@ extension AsyncThrowingStream where Element == SystemEvent<XcodeBuildOutput> {
         for try await element in self {
             switch element {
             case let .standardError(error):
-                logger.error("\(error.raw.dropLast())")
+                let lines = error.raw.split(separator: "\n")
+                for line in lines where !line.isEmpty {
+                    logger.error("\(line)")
+                }
             case let .standardOutput(output):
-                logger.notice("\(output.raw.dropLast())")
+                let lines = output.raw.split(separator: "\n")
+                for line in lines where !line.isEmpty {
+                    logger.notice("\(line)")
+                }
             }
         }
     }
