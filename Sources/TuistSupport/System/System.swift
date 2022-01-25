@@ -1,7 +1,6 @@
 import Combine
 import CombineExt
 import Foundation
-import RxSwift
 import TSCBasic
 
 extension ProcessResult {
@@ -256,10 +255,10 @@ public final class System: Systeming {
         try result.throwIfErrored()
     }
 
-    private func observable(_ arguments: [String], verbose: Bool,
-                            environment: [String: String]) -> Observable<SystemEvent<Data>>
+    public func publisher(_ arguments: [String], verbose: Bool,
+                          environment: [String: String]) -> AnyPublisher<SystemEvent<Data>, Error>
     {
-        Observable.create { observer -> Disposable in
+        .create { subscriber in
             let synchronizationQueue = DispatchQueue(label: "io.tuist.support.system")
             var errorData: [UInt8] = []
             let process = Process(
@@ -267,50 +266,51 @@ public final class System: Systeming {
                 environment: environment,
                 outputRedirection: .stream(stdout: { bytes in
                     synchronizationQueue.async {
-                        observer.onNext(.standardOutput(Data(bytes)))
+                        subscriber.send(.standardOutput(Data(bytes)))
                     }
                 }, stderr: { bytes in
                     synchronizationQueue.async {
                         errorData.append(contentsOf: bytes)
-                        observer.onNext(.standardError(Data(bytes)))
+                        subscriber.send(.standardError(Data(bytes)))
                     }
                 }),
                 verbose: verbose,
                 startNewProcessGroup: false
             )
-            do {
-                try process.launch()
-                var result = try process.waitUntilExit()
-                result = ProcessResult(
-                    arguments: result.arguments,
-                    environment: environment,
-                    exitStatus: result.exitStatus,
-                    output: result.output,
-                    stderrOutput: result.stderrOutput.map { _ in errorData }
-                )
-                try result.throwIfErrored()
-                synchronizationQueue.sync {
-                    observer.onCompleted()
-                }
-            } catch {
-                synchronizationQueue.sync {
-                    observer.onError(error)
+            DispatchQueue.global().async {
+                do {
+                    try process.launch()
+                    var result = try process.waitUntilExit()
+                    result = ProcessResult(
+                        arguments: result.arguments,
+                        environment: environment,
+                        exitStatus: result.exitStatus,
+                        output: result.output,
+                        stderrOutput: result.stderrOutput.map { _ in errorData }
+                    )
+                    try result.throwIfErrored()
+                    synchronizationQueue.sync {
+                        subscriber.send(completion: .finished)
+                    }
+                } catch {
+                    synchronizationQueue.sync {
+                        subscriber.send(completion: .failure(error))
+                    }
                 }
             }
-            return Disposables.create {
+            return AnyCancellable {
                 if process.launched {
                     process.signal(9) // SIGKILL
                 }
             }
         }
-        .subscribe(on: ConcurrentDispatchQueueScheduler(queue: DispatchQueue.global()))
     }
 
-    private func observable(_ arguments: [String],
-                            environment: [String: String],
-                            pipeTo secondArguments: [String]) -> Observable<SystemEvent<Data>>
+    private func publisher(_ arguments: [String],
+                           environment: [String: String],
+                           pipeTo secondArguments: [String]) -> AnyPublisher<SystemEvent<Data>, Error>
     {
-        Observable.create { observer -> Disposable in
+        .create { subscriber in
             let synchronizationQueue = DispatchQueue(label: "io.tuist.support.system")
             var errorData: [UInt8] = []
             var processOne = System.process(arguments, environment: environment)
@@ -323,7 +323,9 @@ public final class System: Systeming {
             pipes.stdOut.fileHandleForReading.readabilityHandler = { fileHandle in
                 synchronizationQueue.async {
                     let data: Data = fileHandle.availableData
-                    observer.onNext(.standardOutput(data))
+                    if !data.isEmpty {
+                        subscriber.send(.standardOutput(Data(data)))
+                    }
                 }
             }
 
@@ -331,33 +333,37 @@ public final class System: Systeming {
                 synchronizationQueue.async {
                     let data: Data = fileHandle.availableData
                     errorData.append(contentsOf: data)
-                    observer.onNext(.standardError(data))
+                    if !data.isEmpty {
+                        subscriber.send(.standardError(Data(data)))
+                    }
                 }
             }
 
-            do {
-                try processOne.run()
-                try processTwo.run()
-                processOne.waitUntilExit()
+            DispatchQueue.global().async {
+                do {
+                    try processOne.run()
+                    try processTwo.run()
+                    processOne.waitUntilExit()
 
-                let exitStatus = ProcessResult.ExitStatus.terminated(code: processOne.terminationStatus)
-                let result = ProcessResult(
-                    arguments: arguments,
-                    environment: environment,
-                    exitStatus: exitStatus,
-                    output: .success([]),
-                    stderrOutput: .success(errorData)
-                )
-                try result.throwIfErrored()
-                synchronizationQueue.sync {
-                    observer.onCompleted()
-                }
-            } catch {
-                synchronizationQueue.sync {
-                    observer.onError(error)
+                    let exitStatus = ProcessResult.ExitStatus.terminated(code: processOne.terminationStatus)
+                    let result = ProcessResult(
+                        arguments: arguments,
+                        environment: environment,
+                        exitStatus: exitStatus,
+                        output: .success([]),
+                        stderrOutput: .success(errorData)
+                    )
+                    try result.throwIfErrored()
+                    synchronizationQueue.sync {
+                        subscriber.send(completion: .finished)
+                    }
+                } catch {
+                    synchronizationQueue.sync {
+                        subscriber.send(completion: .failure(error))
+                    }
                 }
             }
-            return Disposables.create {
+            return AnyCancellable {
                 pipes.stdOut.fileHandleForReading.readabilityHandler = nil
                 pipes.stdErr.fileHandleForReading.readabilityHandler = nil
                 if processOne.isRunning {
@@ -365,53 +371,13 @@ public final class System: Systeming {
                 }
             }
         }
-        .subscribe(on: ConcurrentDispatchQueueScheduler(queue: DispatchQueue.global()))
     }
 
     public func publisher(_ arguments: [String]) -> AnyPublisher<SystemEvent<Data>, Error> {
         publisher(arguments, verbose: false, environment: env)
     }
 
-    public func publisher(_ arguments: [String], verbose: Bool,
-                          environment: [String: String]) -> AnyPublisher<SystemEvent<Data>, Error>
-    {
-        AnyPublisher.create { subscriber -> Cancellable in
-            let disposable = self
-                .observable(arguments, verbose: verbose, environment: environment)
-                .subscribe { event in
-                    switch event {
-                    case .completed:
-                        subscriber.send(completion: .finished)
-                    case let .error(error):
-                        subscriber.send(completion: .failure(error))
-                    case let .next(event):
-                        subscriber.send(event)
-                    }
-                }
-            return AnyCancellable {
-                disposable.dispose()
-            }
-        }
-    }
-
-    public func publisher(_ arguments: [String],
-                          pipeTo secondArguments: [String]) -> AnyPublisher<SystemEvent<Data>, Error>
-    {
-        AnyPublisher.create { subscriber -> Cancellable in
-            let disposable = self.observable(arguments, environment: self.env, pipeTo: secondArguments)
-                .subscribe { event in
-                    switch event {
-                    case .completed:
-                        subscriber.send(completion: .finished)
-                    case let .error(error):
-                        subscriber.send(completion: .failure(error))
-                    case let .next(event):
-                        subscriber.send(event)
-                    }
-                }
-            return AnyCancellable {
-                disposable.dispose()
-            }
-        }
+    public func publisher(_ arguments: [String], pipeTo secondArguments: [String]) -> AnyPublisher<SystemEvent<Data>, Error> {
+        publisher(arguments, environment: env, pipeTo: secondArguments)
     }
 }
