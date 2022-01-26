@@ -9,7 +9,6 @@ module Fourier
             dependencies = ["dependencies", "fetch"]
             Utilities::System.tuist(*dependencies)
             Utilities::System.tuist("test")
-            end
           end
         end
       end
