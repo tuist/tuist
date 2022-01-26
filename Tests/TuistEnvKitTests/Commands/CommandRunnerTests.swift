@@ -90,10 +90,6 @@ final class CommandRunnerTests: TuistUnitTestCase {
 
         try subject.run()
 
-        XCTAssertPrinterOutputContains("""
-        Using version 3.2.1 defined at \(temporaryPath.pathString)
-        Version 3.2.1 not found locally. Installing...
-        """)
         XCTAssertEqual(installArgs.count, 1)
         XCTAssertEqual(installArgs.first, "3.2.1")
     }
