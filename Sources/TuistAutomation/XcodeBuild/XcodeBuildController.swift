@@ -65,7 +65,8 @@ public final class XcodeBuildController: XcodeBuildControlling {
         destination: XcodeBuildDestination,
         derivedDataPath: AbsolutePath?,
         resultBundlePath: AbsolutePath?,
-        arguments: [XcodeBuildArgument]
+        arguments: [XcodeBuildArgument],
+        retryCount: Int
     ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
@@ -83,6 +84,11 @@ public final class XcodeBuildController: XcodeBuildControlling {
 
         // Arguments
         command.append(contentsOf: arguments.flatMap(\.arguments))
+
+        // Retry On Failure
+        if retryCount > 0 {
+            command.append(contentsOf: XcodeBuildArgument.retryCount(retryCount).arguments)
+        }
 
         // Destination
         switch destination {
@@ -226,53 +232,32 @@ public final class XcodeBuildController: XcodeBuildControlling {
     }
 
     fileprivate func run(command: [String], isVerbose: Bool) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
+        run(command: command, isVerbose: isVerbose)
+            .flatMap { event -> Observable<SystemEvent<XcodeBuildOutput>> in
+                switch event {
+                case let .standardError(errorData):
+                    guard let line = String(data: errorData, encoding: .utf8) else { return Observable.empty() }
+                    let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
+                        SystemEvent.standardError(XcodeBuildOutput(raw: "\(String(line))\n"))
+                    }
+                    return Observable.from(output)
+                case let .standardOutput(outputData):
+                    guard let line = String(data: outputData, encoding: .utf8) else { return Observable.empty() }
+                    let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
+                        SystemEvent.standardOutput(XcodeBuildOutput(raw: "\(String(line))\n"))
+                    }
+                    return Observable.from(output)
+                }
+            }
+            .values
+    }
+
+    fileprivate func run(command: [String], isVerbose: Bool) -> Observable<SystemEvent<Data>> {
         if isVerbose {
-            return run(command: command)
+            return System.shared.observable(command)
         } else {
             // swiftlint:disable:next force_try
-            return run(command: command, pipedToArguments: try! formatter.buildArguments())
+            return System.shared.observable(command, pipeTo: try! formatter.buildArguments())
         }
-    }
-
-    fileprivate func run(command: [String]) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
-        System.shared.observable(command)
-            .flatMap { event -> Observable<SystemEvent<XcodeBuildOutput>> in
-                switch event {
-                case let .standardError(errorData):
-                    guard let line = String(data: errorData, encoding: .utf8) else { return Observable.empty() }
-                    let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
-                        SystemEvent.standardError(XcodeBuildOutput(raw: "\(String(line))\n"))
-                    }
-                    return Observable.from(output)
-                case let .standardOutput(outputData):
-                    guard let line = String(data: outputData, encoding: .utf8) else { return Observable.empty() }
-                    let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
-                        SystemEvent.standardOutput(XcodeBuildOutput(raw: "\(String(line))\n"))
-                    }
-                    return Observable.from(output)
-                }
-            }.values
-    }
-
-    fileprivate func run(command: [String],
-                         pipedToArguments: [String]) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
-    {
-        System.shared.observable(command, pipedToArguments: pipedToArguments)
-            .flatMap { event -> Observable<SystemEvent<XcodeBuildOutput>> in
-                switch event {
-                case let .standardError(errorData):
-                    guard let line = String(data: errorData, encoding: .utf8) else { return Observable.empty() }
-                    let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
-                        SystemEvent.standardError(XcodeBuildOutput(raw: "\(String(line))\n"))
-                    }
-                    return Observable.from(output)
-                case let .standardOutput(outputData):
-                    guard let line = String(data: outputData, encoding: .utf8) else { return Observable.empty() }
-                    let output = line.split(separator: "\n").map { line -> SystemEvent<XcodeBuildOutput> in
-                        SystemEvent.standardOutput(XcodeBuildOutput(raw: "\(String(line))\n"))
-                    }
-                    return Observable.from(output)
-                }
-            }.values
     }
 }

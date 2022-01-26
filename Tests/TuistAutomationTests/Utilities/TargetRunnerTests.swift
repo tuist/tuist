@@ -85,7 +85,7 @@ final class TargetRunnerTests: TuistUnitTestCase {
         let path = try temporaryPath()
         let workspacePath = path.appending(component: "App.xcworkspace")
         fileHandler.stubExists = { _ in true }
-        system.succeedCommand("/path/to/proj.xcworkspace/Target")
+        system.succeedCommand(["/path/to/proj.xcworkspace/Target"])
 
         let expectation = self.expectation(description: "locates with default configuration")
         xcodeProjectBuildDirectoryLocator.locateStub = { _, _, _configuration in

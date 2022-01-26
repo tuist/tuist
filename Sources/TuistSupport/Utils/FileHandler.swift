@@ -142,15 +142,8 @@ public class FileHandler: FileHandling {
     }
 
     public func inTemporaryDirectory(_ closure: @escaping (AbsolutePath) async throws -> Void) async throws {
-        try withTemporaryDirectory(removeTreeOnDeinit: true) { path in
-            let dispatchGroup = DispatchGroup()
-            dispatchGroup.enter()
-            Task.detached {
-                try await closure(path)
-                dispatchGroup.leave()
-            }
-            dispatchGroup.wait()
-        }
+        let directory = try TemporaryDirectory(removeTreeOnDeinit: true)
+        try await closure(directory.path)
     }
 
     public func inTemporaryDirectory<Result>(removeOnCompletion: Bool,

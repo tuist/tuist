@@ -59,6 +59,12 @@ struct TestCommand: AsyncParsableCommand {
     )
     var resultBundlePath: String?
 
+    @Option(
+        name: .long,
+        help: "Tests will retry <number> of times until success. Example: if 1 is specified, the test will be retried at most once, hence it will run up to 2 times."
+    )
+    var retryCount: Int = 0
+
     func runAsync() async throws {
         let absolutePath: AbsolutePath
 
@@ -81,7 +87,8 @@ struct TestCommand: AsyncParsableCommand {
                     $0,
                     relativeTo: FileHandler.shared.currentPath
                 )
-            }
+            },
+            retryCount: retryCount
         )
     }
 }

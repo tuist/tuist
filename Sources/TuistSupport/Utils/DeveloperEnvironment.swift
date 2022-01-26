@@ -34,11 +34,11 @@ public final class DeveloperEnvironment: DeveloperEnvironmenting {
             return _derivedDataDirectory
         }
         let location: AbsolutePath
-        if let customLocation = try? System.shared.capture(
+        if let customLocation = try? System.shared.capture([
             "/usr/bin/defaults",
             "read",
-            "com.apple.dt.Xcode IDECustomDerivedDataLocation"
-        ) {
+            "com.apple.dt.Xcode IDECustomDerivedDataLocation",
+        ]) {
             location = AbsolutePath(customLocation.chomp())
         } else {
             // Default location
@@ -54,7 +54,7 @@ public final class DeveloperEnvironment: DeveloperEnvironmenting {
             return _architecture
         }
         // swiftlint:disable:next force_try
-        let output = try! System.shared.capture("/usr/bin/uname", "-m").chomp()
+        let output = try! System.shared.capture(["/usr/bin/uname", "-m"]).chomp()
         _architecture = MacArchitecture(rawValue: output)
         return _architecture!
     }

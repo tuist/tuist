@@ -154,30 +154,30 @@ final class SwiftPackageManagerControllerTests: TuistUnitTestCase {
         let buildPath = try temporaryPath()
         let outputPath = try temporaryPath()
 
-        system.succeedCommand(
+        system.succeedCommand([
             "swift", "build",
             "--configuration", "release",
             "--disable-sandbox",
             "--package-path", packagePath.pathString,
             "--product", product,
             "--build-path", buildPath.pathString,
-            "--triple", "arm64-apple-macosx"
-        )
-        system.succeedCommand(
+            "--triple", "arm64-apple-macosx",
+        ])
+        system.succeedCommand([
             "swift", "build",
             "--configuration", "release",
             "--disable-sandbox",
             "--package-path", packagePath.pathString,
             "--product", product,
             "--build-path", buildPath.pathString,
-            "--triple", "x86_64-apple-macosx"
-        )
+            "--triple", "x86_64-apple-macosx",
+        ])
 
-        system.succeedCommand(
+        system.succeedCommand([
             "lipo", "-create", "-output", outputPath.appending(component: product).pathString,
             buildPath.appending(components: "arm64-apple-macosx", "release", product).pathString,
-            buildPath.appending(components: "x86_64-apple-macosx", "release", product).pathString
-        )
+            buildPath.appending(components: "x86_64-apple-macosx", "release", product).pathString,
+        ])
 
         // When
         try subject.buildFatReleaseBinary(

@@ -44,11 +44,11 @@ final class TuistServiceTests: TuistUnitTestCase {
         let pluginReleasePath = path.appending(component: "Plugins")
         try fileHandler.touch(pluginReleasePath.appending(component: "tuist-command-a"))
         try fileHandler.touch(pluginReleasePath.appending(component: "tuist-command-b"))
-        system.succeedCommand(
+        system.succeedCommand([
             pluginReleasePath.appending(component: "tuist-command-b").pathString,
             "--path",
             projectPath.pathString
-        )
+        ])
         var loadConfigPath: AbsolutePath?
         configLoader.loadConfigStub = { configPath in
             loadConfigPath = configPath
@@ -62,7 +62,7 @@ final class TuistServiceTests: TuistUnitTestCase {
                 ),
             ]
         }
-        system.succeedCommand("tuist-command-b")
+        system.succeedCommand(["tuist-command-b"])
 
         // When/Then
         XCTAssertNoThrow(
@@ -78,7 +78,7 @@ final class TuistServiceTests: TuistUnitTestCase {
             whichCommand = invokedWhichCommand
             return ""
         }
-        system.succeedCommand("tuist-my-command", "argument-one")
+        system.succeedCommand(["tuist-my-command", "argument-one"])
 
         // When/Then
         XCTAssertNoThrow(
