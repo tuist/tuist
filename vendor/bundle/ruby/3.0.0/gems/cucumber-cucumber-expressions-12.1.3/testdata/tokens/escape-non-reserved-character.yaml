@@ -1,0 +1,8 @@
+expression: \[
+exception: |-
+  This Cucumber Expression has a problem at column 2:
+
+  \[
+   ^
+  Only the characters '{', '}', '(', ')', '\', '/' and whitespace can be escaped.
+  If you did mean to use an '\' you can use '\\' to escape it

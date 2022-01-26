@@ -1,0 +1,9 @@
+expression: blind/cripple
+expected: |-
+  [
+    {"type": "START_OF_LINE", "start": 0, "end": 0, "text": ""},
+    {"type": "TEXT", "start": 0, "end": 5, "text": "blind"},
+    {"type": "ALTERNATION", "start": 5, "end": 6, "text": "/"},
+    {"type": "TEXT", "start": 6, "end": 13, "text": "cripple"},
+    {"type": "END_OF_LINE", "start": 13, "end": 13, "text": ""}
+  ]

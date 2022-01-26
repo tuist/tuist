@@ -1,0 +1,13 @@
+expression: three blind/cripple mice
+expected: |-
+  [
+    {"type": "START_OF_LINE", "start": 0, "end": 0, "text": ""},
+    {"type": "TEXT", "start": 0, "end": 5, "text": "three"},
+    {"type": "WHITE_SPACE", "start": 5, "end": 6, "text": " "},
+    {"type": "TEXT", "start": 6, "end": 11, "text": "blind"},
+    {"type": "ALTERNATION", "start": 11, "end": 12, "text": "/"},
+    {"type": "TEXT", "start": 12, "end": 19, "text": "cripple"},
+    {"type": "WHITE_SPACE", "start": 19, "end": 20, "text": " "},
+    {"type": "TEXT", "start": 20, "end": 24, "text": "mice"},
+    {"type": "END_OF_LINE", "start": 24, "end": 24, "text": ""}
+  ]

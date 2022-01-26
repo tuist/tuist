@@ -1,0 +1,6 @@
+* xref:index.adoc[Home]
+* xref:installation.adoc[Installation]
+* xref:usage.adoc[Usage]
+* xref:cops.adoc[Cops]
+* Cops Documentation
+** xref:cops_minitest.adoc[Minitest]

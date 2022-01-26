@@ -1,0 +1,5 @@
+expression: |-
+  {int}st/nd/rd/th
+text: 3rd
+expected: |-
+  [3]

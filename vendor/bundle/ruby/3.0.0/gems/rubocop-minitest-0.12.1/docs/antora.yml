@@ -1,0 +1,7 @@
+name: rubocop-minitest
+title: RuboCop Minitest
+# We always provide version without patch here (e.g. 1.1),
+# as patch versions should not appear in the docs.
+version: '0.12'
+nav:
+- modules/ROOT/nav.adoc

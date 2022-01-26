@@ -1,0 +1,13 @@
+current directory: /Users/runner/work/tuist/tuist/vendor/bundle/ruby/3.0.0/gems/json-2.6.1/ext/json
+/Users/runner/hostedtoolcache/Ruby/3.0.3/x64/bin/ruby -I /Users/runner/hostedtoolcache/Ruby/3.0.3/x64/lib/ruby/3.0.0 -r ./siteconf20211210-937-5n8qrl.rb extconf.rb
+creating Makefile
+
+current directory: /Users/runner/work/tuist/tuist/vendor/bundle/ruby/3.0.0/gems/json-2.6.1/ext/json
+make DESTDIR\= clean
+
+current directory: /Users/runner/work/tuist/tuist/vendor/bundle/ruby/3.0.0/gems/json-2.6.1/ext/json
+make DESTDIR\=
+make: Nothing to be done for `all'.
+
+current directory: /Users/runner/work/tuist/tuist/vendor/bundle/ruby/3.0.0/gems/json-2.6.1/ext/json
+make DESTDIR\= install

@@ -1,0 +1,15 @@
+script: 'rake test'
+before_install:
+  - gem install bundler gem uninstall -v '>= 2' -i $(rvm gemdir)@global -ax bundler || true
+  - gem install bundler -v '< 2'
+rvm:
+  - 2
+  - 2.6
+  - 2.5
+  - 2.4
+  - 2.3
+  - 2.2
+  - 2.1
+  - 2.0
+  - 1.9.3
+  - jruby

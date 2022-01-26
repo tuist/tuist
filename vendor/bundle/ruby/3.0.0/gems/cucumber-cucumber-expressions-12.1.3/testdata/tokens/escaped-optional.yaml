@@ -1,0 +1,7 @@
+expression: \(blind\)
+expected: |-
+  [
+    {"type": "START_OF_LINE", "start": 0, "end": 0, "text": ""},
+    {"type": "TEXT", "start": 0, "end": 9, "text": "(blind)"},
+    {"type": "END_OF_LINE", "start": 9, "end": 9, "text": ""}
+  ]

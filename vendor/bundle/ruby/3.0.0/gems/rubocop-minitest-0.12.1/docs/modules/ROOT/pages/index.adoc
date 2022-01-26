@@ -1,0 +1,5 @@
+= RuboCop Minitest
+
+A https://github.com/rubocop/rubocop[RuboCop] extension focused on enforcing Minitest best practices and coding conventions.
+
+It's based on the community-driven https://minitest.rubystyle.guide[Minitest style guide].

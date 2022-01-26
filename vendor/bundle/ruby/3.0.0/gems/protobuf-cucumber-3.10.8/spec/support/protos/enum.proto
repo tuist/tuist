@@ -1,0 +1,37 @@
+syntax = "proto2";
+
+package test;
+import 'protos/resource.proto';
+
+// Test extending another message from an imported file.
+
+enum EnumTestType {
+  ZERO = 0;
+  ONE = 1;
+  TWO = 2;
+}
+
+// Uses aliases
+enum AliasedEnum {
+  option allow_alias = true;
+
+  THREE  = 3;
+  TRES   = 3;
+
+  FOUR   = 4;
+  CUATRO = 4;
+}
+
+message EnumTestMessage {
+  optional EnumTestType non_default_enum = 1;
+  optional EnumTestType default_enum = 2 [default=ONE];
+  repeated EnumTestType repeated_enums = 3;
+
+  optional AliasedEnum alias_non_default_enum = 4;
+  optional AliasedEnum alias_default_enum = 5 [default=CUATRO];
+  repeated AliasedEnum alias_repeated_enums = 6;
+}
+
+extend test.Resource {
+  optional int32 ext_other_file_defined_field = 200;
+}

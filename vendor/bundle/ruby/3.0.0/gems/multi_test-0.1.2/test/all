@@ -1,0 +1,20 @@
+#!/bin/bash
+exit_status=0
+gemfile_dirs=$(ls -d -- test/gemfiles/*)
+echo $gemfile_dirs
+for gemfile_dir in $gemfile_dirs
+do
+  scenarios=$(cat $gemfile_dir/scenarios)
+  echo $scenarios
+  for scenario in $scenarios
+  do
+    ./test/run $gemfile_dir test/scenarios/$scenario
+    if [ $? -ne 0 ]
+    then
+      exit_status=1
+    fi
+  done
+done
+
+exit $exit_status
+

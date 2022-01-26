@@ -1,0 +1,43 @@
+---
+language: ruby
+dist: trusty
+cache: bundler
+script: "bundle exec rake test"
+rvm:
+  - 2.0
+  - 2.1
+  - 2.2
+  - 2.3
+  - 2.4
+  - jruby-19mode # JRuby in 1.9 mode
+  - jruby-head
+
+notifications:
+  email: false
+matrix:
+  allow_failures:
+    - rvm: 1.9
+    - rvm: ruby-head
+    - rvm: rbx-3.81
+    - rvm: jruby-19mode # JRuby in 1.9 mode
+    - rvm: jruby-head
+  fast_finish: true
+  include:
+    - rvm: 1.9
+      before_install:
+        - "gem update --system -N"
+        - "gem update bundler -N"
+    - rvm: 2.5
+      before_install:
+        - gem install bundler
+    - rvm: 2.6
+      before_install:
+        - gem install bundler
+    - rvm: ruby-head
+      before_install:
+          - gem install bundler
+    - rvm: rbx-3.81
+      before_install:
+          - gem install bundler
+
+bundler_args: --without code_quality

@@ -2,7 +2,7 @@
 
 Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
-## Next
+## 2.7.0 - Cancun"
 
 ### Changed
 

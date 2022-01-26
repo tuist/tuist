@@ -1,0 +1,4 @@
+expression: I wait {int} second(s)./second(s)?
+text: I wait 1 second.
+expected: |-
+  [1]

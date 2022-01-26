@@ -1,0 +1,291 @@
+.cucumber-react .cucumber-status--passed {
+  color: #2CB14A;
+}
+.cucumber-react .cucumber-status--skipped {
+  color: #00A0CC;
+}
+.cucumber-react .cucumber-status--pending {
+  color: #FFAD33;
+}
+.cucumber-react .cucumber-status--undefined {
+  color: #FFAD33;
+}
+.cucumber-react .cucumber-status--ambiguous {
+  color: #F4EBFD;
+}
+.cucumber-react .cucumber-status--failed {
+  color: #BB0000;
+}
+.cucumber-react .cucumber-status--unknown {
+  color: #B6BECB;
+}
+.cucumber-react h1, .cucumber-react h2, .cucumber-react h3 {
+  padding: 0;
+  margin: 0;
+}
+.cucumber-react a {
+  color: inherit;
+}
+.cucumber-react .gherkin-document-list {
+  font: 14px "Open Sans", sans-serif;
+  color: #161C24;
+  background: #fff;
+  overflow-x: hidden;
+}
+.cucumber-react .cucumber-title {
+  margin-top: 0.3em;
+  margin-bottom: 0;
+  display: inline-block;
+}
+.cucumber-react .cucumber-title__keyword {
+  font-weight: bold;
+}
+.cucumber-react .cucumber-title__text {
+  font-weight: normal;
+}
+.cucumber-react .cucumber-tags {
+  padding: 0;
+  margin-bottom: 0;
+}
+.cucumber-react .cucumber-tags .cucumber-tag {
+  display: inline;
+  list-style-type: none;
+  padding: 4px 8px 4px 8px;
+  margin-right: 6px;
+  background-color: #FFFFFF;
+  border-radius: 6px;
+}
+.cucumber-react .cucumber-feature__icon {
+  padding-top: 0.35em;
+  padding-right: 0.5em;
+}
+.cucumber-react .cucumber-description,
+.cucumber-react .cucumber-children {
+  margin-left: 1em;
+}
+.cucumber-react .cucumber-feature,
+.cucumber-react .cucumber-rule,
+.cucumber-react .cucumber-scenario,
+.cucumber-react .cucumber-background {
+  margin-bottom: 1em;
+}
+.cucumber-react .cucumber-steps {
+  list-style-type: none;
+  padding-left: 10px;
+}
+.cucumber-react .cucumber-steps .cucumber-step {
+  display: flex;
+}
+.cucumber-react .cucumber-steps .cucumber-step__status {
+  padding-top: 0.2em;
+  padding-right: 0.5em;
+}
+.cucumber-react .cucumber-steps .cucumber-step__content {
+  flex-grow: 1;
+  max-width: calc(100% - 1.5em);
+}
+.cucumber-react .cucumber-steps .cucumber-step__keyword {
+  font-weight: bold;
+}
+.cucumber-react .cucumber-steps .cucumber-step__text {
+  font-weight: normal;
+}
+.cucumber-react .cucumber-steps .cucumber-step__param {
+  font-weight: normal;
+  font-style: italic;
+}
+.cucumber-react .cucumber-table {
+  border-collapse: collapse;
+  margin-top: 0.5em;
+  margin-bottom: 0.5em;
+}
+.cucumber-react .cucumber-table__header-cell {
+  border: 1px solid #4B5662;
+  padding: 0.3em;
+}
+.cucumber-react .cucumber-table__cell {
+  border: 1px solid #4B5662;
+  padding: 0.3em;
+}
+.cucumber-react .cucumber-table__cell__status {
+  padding: 0.5em 3px 3px 3px;
+}
+.cucumber-react .cucumber-table__cell__step {
+  flex-grow: 1;
+}
+.cucumber-react .cucumber-code {
+  padding: 0.25em;
+  background-color: #ebebeb;
+}
+.cucumber-react .cucumber-error {
+  padding: 0.5em;
+  margin: 0;
+  overflow-x: auto;
+}
+.cucumber-react .cucumber-no-documents {
+  font: 14px "Open Sans", sans-serif;
+}
+.cucumber-react .cucumber-attachment__icon {
+  margin-right: 0.5em;
+}
+.cucumber-react .cucumber-attachment__image {
+  max-width: 100%;
+  margin-top: 1em;
+}
+.cucumber-react .cucumber-attachment__text {
+  background-color: #ebebeb;
+  padding: 0.5em;
+  overflow-x: auto;
+}
+.cucumber-react .cucumber-anchor {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-top: 0.3em;
+}
+.cucumber-react .cucumber-anchor__link {
+  opacity: 0;
+  transition: all 0.35s ease-in-out;
+  position: absolute;
+  left: -20px;
+  display: flex;
+  align-items: center;
+}
+.cucumber-react .cucumber-anchor__icon {
+  margin-right: 0.5em;
+}
+.cucumber-react .cucumber-anchor:hover a {
+  opacity: 1;
+  width: max-content;
+  transition: all 0.35s ease-in-out;
+}
+.cucumber-react .cucumber-anchor > * {
+  height: 100%;
+  margin-top: 0px;
+}
+
+.cucumber-report-header {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 1fr;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  font: 11px "Open Sans", sans-serif;
+  margin-bottom: 1em;
+}
+.cucumber-report-header > * {
+  padding: 1em;
+}
+.cucumber-report-header .cucumber-status-filter {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+.cucumber-report-header .cucumber-status-filter table {
+  width: 100%;
+}
+.cucumber-report-header .cucumber-execution-data {
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+.cucumber-report-header .cucumber-search-bar {
+  border-right: 0;
+}
+.cucumber-report-header .cucumber-search-bar form.cucumber-search-bar-search {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 9fr 1fr;
+}
+.cucumber-report-header .cucumber-search-bar form.cucumber-search-bar-search input {
+  padding: 0.4em;
+  border-radius: 0;
+}
+.cucumber-report-header .cucumber-search-bar form.cucumber-search-bar-search button {
+  height: 2.2em;
+  padding-left: 0.6em;
+  padding-right: 0.6em;
+}
+.cucumber-report-header .cucumber-search-bar p.help {
+  font-size: 80%;
+}
+.cucumber-report-header .cucumber-search-bar form.cucumber-search-bar-filter ul {
+  display: inline;
+}
+.cucumber-report-header .cucumber-search-bar form.cucumber-search-bar-filter ul li {
+  list-style-type: none;
+  display: inline-block;
+}
+.cucumber-report-header .cucumber-search-bar form.cucumber-search-bar-filter ul li input {
+  display: inline-block;
+  width: auto;
+  height: 0.6em;
+}
+.cucumber-report-header .cucumber-search-bar form.cucumber-search-bar-filter ul li label {
+  padding-right: 1em;
+}
+
+@media only screen and (min-width: 600px) {
+  .cucumber-report-header {
+    grid-template-columns: 1fr 1fr;
+  }
+  .cucumber-report-header .cucumber-status-filter {
+    border-right: 1px solid rgba(0, 0, 0, 0.1);
+  }
+  .cucumber-report-header .cucumber-search-bar {
+    grid-column: 1/-1;
+  }
+}
+@media only screen and (min-width: 992px) {
+  .cucumber-report-header {
+    grid-template-columns: 1fr 1fr 2fr;
+  }
+  .cucumber-report-header .cucumber-status-filter {
+    border-bottom: 0;
+  }
+  .cucumber-report-header .cucumber-execution-data {
+    border-right: 1px solid rgba(0, 0, 0, 0.1);
+    border-bottom: 0;
+  }
+  .cucumber-report-header .cucumber-search-bar {
+    grid-column: auto;
+  }
+}
+.accordion {
+    border: 1px solid rgba(0, 0, 0, 0.1);
+    border-radius: 2px;
+}
+
+.accordion__item + .accordion__item {
+    border-top: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.accordion__button {
+    background-color: #f4f4f4;
+    color: #444;
+    cursor: pointer;
+    padding: 10px;
+    width: 100%;
+    text-align: left;
+    border: none;
+}
+
+.accordion__button:hover {
+    background-color: #ddd;
+}
+
+.accordion__button:before {
+    display: inline-block;
+    content: '';
+    height: 10px;
+    width: 10px;
+    margin-right: 12px;
+    border-bottom: 2px solid currentColor;
+    border-right: 2px solid currentColor;
+    transform: rotate(-45deg);
+}
+
+.accordion__button[aria-expanded='true']::before,
+.accordion__button[aria-selected='true']::before {
+    transform: rotate(45deg);
+}
+
+.accordion__panel {
+    padding: 20px;
+    animation: fadein 0.35s ease-in;
+}

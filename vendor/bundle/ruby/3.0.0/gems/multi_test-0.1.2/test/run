@@ -1,0 +1,25 @@
+#!/bin/bash
+
+gemfile_dir=$1
+scenario=$2
+gemfile="$gemfile_dir/Gemfile"
+
+echo
+echo "Testing scenario $scenario with $gemfile..."
+export BUNDLE_GEMFILE=$gemfile
+bundle install
+result="$(bundle exec ruby -I lib $scenario)"
+
+status=$?
+if [[ $result != "" ]]; then
+  echo 
+  echo "=> FAIL: Expected empty output but was:"
+  echo "--$result--"
+  exit 1
+fi
+if [[ $status -ne 0 ]]; then
+  echo 
+  echo "=> FAIL: Expected zero exit status"
+  exit 1
+fi
+echo "=> PASS"

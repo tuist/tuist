@@ -1,0 +1,11 @@
+source 'https://rubygems.org'
+
+gemspec :path=>"../"
+
+group :development do
+  if RUBY_VERSION < '1.9'
+    gem "test-unit", "~> 2"
+  else
+    gem "test-unit"
+  end
+end

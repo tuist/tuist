@@ -1,0 +1,4 @@
+expression: mice/rats and rats\/mice
+text: rats and rats/mice
+expected: |-
+  []

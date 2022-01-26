@@ -1,0 +1,97 @@
+inherit_from: .rubocop_todo.yml
+
+AllCops:
+  TargetRubyVersion: 2.1
+
+Layout/AlignParameters:
+  EnforcedStyle: with_fixed_indentation
+
+Layout/CaseIndentation:
+  EnforcedStyle: end
+
+Style/AsciiComments:
+  Enabled: false
+
+Layout/IndentHash:
+  Enabled: false
+
+Style/CollectionMethods:
+  Enabled: true
+  PreferredMethods:
+      inject: 'inject'
+
+Style/Documentation:
+  Enabled: false
+
+Style/BlockDelimiters:
+  Exclude:
+    - spec/**/*_spec.rb
+
+Style/BracesAroundHashParameters:
+  Exclude:
+    - spec/**/*_spec.rb
+
+Style/GuardClause:
+  Enabled: false
+
+Style/IfUnlessModifier:
+  Enabled: false
+
+Layout/SpaceInsideHashLiteralBraces:
+  Enabled: false
+
+Style/Lambda:
+  Enabled: false
+
+Style/RaiseArgs:
+  Enabled: false
+
+Style/SignalException:
+  Enabled: false
+
+Metrics/AbcSize:
+  Max: 20
+
+Metrics/ClassLength:
+  Max: 101
+
+Metrics/ModuleLength:
+  Max: 100
+
+Metrics/LineLength:
+  Enabled: false
+
+Metrics/BlockLength:
+  Exclude:
+    - spec/**/*_spec.rb
+
+Metrics/MethodLength:
+  Max: 15
+
+Style/SingleLineBlockParams:
+  Enabled: false
+
+Lint/EndAlignment:
+  EnforcedStyleAlignWith: variable
+
+Style/FormatString:
+  Enabled: false
+
+Layout/MultilineMethodCallIndentation:
+  EnforcedStyle: indented
+
+Layout/MultilineOperationIndentation:
+  EnforcedStyle: indented
+
+Style/WordArray:
+  Enabled: false
+
+Style/RedundantSelf:
+  Enabled: false
+
+Layout/AlignHash:
+  Enabled: true
+  EnforcedLastArgumentHashStyle: always_ignore
+
+Style/TrivialAccessors:
+  AllowPredicates: true

@@ -1,0 +1,68 @@
+#!/usr/bin/env ruby
+$VERBOSE=nil # Shut up JRuby warnings on Travis
+$LOAD_PATH.unshift(File.join(File.dirname(__FILE__),"../lib"))
+
+require 'optparse'
+require 'json'
+require 'cucumber/messages'
+require 'gherkin'
+require 'gherkin/stream/subprocess_message_stream'
+
+options = {
+  include_source: true,
+  include_gherkin_document: true,
+  include_pickles: true,
+  format: 'protobuf',
+  predictable_ids: false
+}
+
+OptionParser.new do |opts|
+  opts.on("--[no-]source", "Don't print source messages") do |v|
+    options[:include_source] = v
+  end
+  opts.on("--[no-]ast", "Don't print ast messages") do |v|
+    options[:include_gherkin_document] = v
+  end
+  opts.on("--[no-]pickles", "Don't print pickle messages") do |v|
+    options[:include_pickles] = v
+  end
+  opts.on("--format ndjson|protobuf", "Output format") do |v|
+    options[:format] = v
+  end
+  opts.on("--predictable-ids", "Generate incrementing ids rather than UUIDs") do |v|
+    options[:id_generator] = Cucumber::Messages::IdGenerator::Incrementing.new if v
+  end
+end.parse!
+
+def process_messages(messages, options)
+  messages.each do |message|
+    if options[:format] == 'ndjson'
+      message.write_ndjson_to(STDOUT)
+    elsif options[:format] == 'protobuf'
+      message.write_delimited_to(STDOUT)
+    else
+      raise "Unsupported format: #{options[:format]}"
+    end
+  end
+end
+
+gherkin_executable = ENV['GHERKIN_EXECUTABLE']
+if ARGV.empty?
+  # Read protobuf from STDIN
+  messages = Cucumber::Messages::BinaryToMessageEnumerator.new(STDIN)
+elsif gherkin_executable
+  # Read protobuf from STDIN
+  messages = Gherkin::Stream::SubprocessMessageStream.new(
+    gherkin_executable,
+    ARGV,
+    options[:include_source],
+    options[:include_gherkin_document],
+    options[:include_pickles]
+  ).messages
+else
+  messages = Gherkin.from_paths(
+    ARGV,
+    options
+  )
+end
+process_messages(messages, options)

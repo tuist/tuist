@@ -1,0 +1,90 @@
+inherit_from: .rubocop_todo.yml
+
+# This is the configuration used to check the rubocop source code.
+
+require:
+  - rubocop/cop/internal_affairs
+  - rubocop-performance
+  - rubocop-minitest
+
+AllCops:
+  NewCops: enable
+  TargetRubyVersion: 2.5
+  SuggestExtensions: false
+
+InternalAffairs/NodeMatcherDirective:
+  Enabled: false
+
+Naming/PredicateName:
+  # Method define macros for dynamically generated method.
+  MethodDefinitionMacros:
+    - define_method
+    - define_singleton_method
+    - def_node_matcher
+    - def_node_search
+
+Style/FormatStringToken:
+  # Because we parse a lot of source codes from strings. Percent arrays
+  # look like unannotated format string tokens to this cop.
+  Exclude:
+    - test/**/*
+
+Metrics/ClassLength:
+  Exclude:
+    - test/**/*
+
+Layout/EndOfLine:
+  EnforcedStyle: lf
+
+Layout/ClassStructure:
+  Enabled: true
+  Categories:
+    module_inclusion:
+      - include
+      - prepend
+      - extend
+  ExpectedOrder:
+      - module_inclusion
+      - constants
+      - public_class_methods
+      - initializer
+      - instance_methods
+      - protected_methods
+      - private_methods
+
+# Trailing white space is meaningful in code examples
+Layout/TrailingWhitespace:
+  AllowInHeredoc: true
+
+Lint/AmbiguousBlockAssociation:
+  Exclude:
+    - 'test/**/*.rb'
+
+Lint/InterpolationCheck:
+  Exclude:
+    - 'test/**/*.rb'
+
+Lint/UselessAccessModifier:
+  MethodCreatingMethods:
+    - 'def_matcher'
+    - 'def_node_matcher'
+
+Lint/BooleanSymbol:
+  Enabled: false
+
+Metrics/BlockLength:
+  Exclude:
+    - 'Rakefile'
+    - '**/*.rake'
+    - 'test/**/*.rb'
+
+Naming/FileName:
+  Exclude:
+    - lib/rubocop-minitest.rb
+
+Metrics/ModuleLength:
+  Exclude:
+    - 'test/**/*.rb'
+
+Performance/ChainArrayAllocation:
+  Enabled: false

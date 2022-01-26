@@ -1,0 +1,9 @@
+expression: three blind mice
+expected: |-
+  {"type": "EXPRESSION_NODE", "start": 0, "end": 16, "nodes": [
+    {"type": "TEXT_NODE", "start": 0, "end": 5, "token": "three"},
+    {"type": "TEXT_NODE", "start": 5, "end": 6, "token": " "},
+    {"type": "TEXT_NODE", "start": 6, "end": 11, "token": "blind"},
+    {"type": "TEXT_NODE", "start": 11, "end": 12, "token": " "},
+    {"type": "TEXT_NODE", "start": 12, "end": 16, "token": "mice"}
+  ]}

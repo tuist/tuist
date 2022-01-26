@@ -1,0 +1,4 @@
+expression: \({int})
+text: (3)
+expected: |-
+  [3]

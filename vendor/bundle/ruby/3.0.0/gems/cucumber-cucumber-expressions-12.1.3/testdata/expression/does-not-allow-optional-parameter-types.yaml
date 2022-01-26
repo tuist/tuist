@@ -1,0 +1,9 @@
+expression: ({int})
+text: '3'
+exception: |-
+  This Cucumber Expression has a problem at column 2:
+
+  ({int})
+   ^---^
+  An optional may not contain a parameter type.
+  If you did not mean to use an parameter type you can use '\{' to escape the the '{'

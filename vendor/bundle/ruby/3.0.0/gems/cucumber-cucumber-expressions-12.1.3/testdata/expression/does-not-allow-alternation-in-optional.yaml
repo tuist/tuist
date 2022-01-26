@@ -1,0 +1,9 @@
+expression: three( brown/black) mice
+text: three brown/black mice
+exception: |-
+  This Cucumber Expression has a problem at column 13:
+
+  three( brown/black) mice
+              ^
+  An alternation can not be used inside an optional.
+  You can use '\/' to escape the the '/'
