@@ -60,16 +60,4 @@ public struct SimulatorDevice: Decodable, Hashable, CustomStringConvertible {
         self.availabilityError = availabilityError
         self.runtimeIdentifier = runtimeIdentifier
     }
-
-    enum CodingKeys: String, CodingKey {
-        case dataPath
-        case logPath
-        case udid
-        case isAvailable
-        case deviceTypeIdentifier
-        case state
-        case name
-        case availabilityError
-        case runtimeIdentifier
-    }
 }

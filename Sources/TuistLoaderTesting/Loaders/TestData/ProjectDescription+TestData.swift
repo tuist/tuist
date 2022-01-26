@@ -101,7 +101,7 @@ extension TargetScript {
     {
         TargetScript(
             name: name,
-            script: .tool(tool, arguments),
+            script: .tool(path: tool, args: arguments),
             order: order,
             inputPaths: inputPaths,
             inputFileListPaths: inputFileListPaths,

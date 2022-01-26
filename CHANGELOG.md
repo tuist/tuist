@@ -24,8 +24,14 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
   - **Migration:** Use [tuist-plugin-swiftlint](https://github.com/tuist/tuist-plugin-swiftlint) instead. Read more about plugins [here](https://docs.tuist.io/plugins/using-plugins).
 - **Breaking** remove the `tuist lint project` command [#4001](https://github.com/tuist/tuist/pull/4001) by [@laxmorek](https://github.com/laxmorek)
   - **Motivation:** `tuist` manifests/graphs are linted during generation (the `tusit generate` command), no need to keep it separately.
+- **Breaking** minimum Xcode version and macOS version are Xcode 13.0 and macOS 12.0 remove the `tuist lint project` command [#4030](https://github.com/tuist/tuist/pull/4030) by [@adellibovi](https://github.com/adellibovi)
+  - **Motivation:** Old versions usage is less then 5%.
+- **Breaking** `TargetScript.Script` cases `.tool(_ path: String, _ args: [String])` and `.scriptPath(_ path: Path, args: [String])` are now `.tool(path: String, args: [String])` and `.scriptPath(path: Path, args: [String])` [#4030](https://github.com/tuist/tuist/pull/4030) by [@adellibovi](https://github.com/adellibovi)
+  - **Motivation:** It enabled to get rid of custom Codable conformance.
 
 ## Next
+
+## 2.7.0 - Cancun
 
 ### Changed
 
