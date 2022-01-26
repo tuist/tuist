@@ -6,7 +6,6 @@ let dependencies = Dependencies(
             .package(url: "https://github.com/tuist/XcodeProj.git", .upToNextMajor(from: "8.5.0")),
             .package(url: "https://github.com/CombineCommunity/CombineExt.git", .upToNextMajor(from: "1.3.0")),
             .package(url: "https://github.com/apple/swift-tools-support-core.git", .upToNextMinor(from: "0.2.0")),
-            .package(url: "https://github.com/ReactiveX/RxSwift.git", .upToNextMajor(from: "6.5.0")),
             .package(url: "https://github.com/apple/swift-log.git", .upToNextMajor(from: "1.4.2")),
             .package(url: "https://github.com/kishikawakatsumi/KeychainAccess.git", .upToNextMajor(from: "4.2.2")),
             .package(url: "https://github.com/fortmarek/swifter.git", .branch("stable")),
