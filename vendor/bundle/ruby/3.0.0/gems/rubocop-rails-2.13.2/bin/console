@@ -1,0 +1,11 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'bundler/setup'
+require 'irb'
+require 'rubocop'
+require 'rubocop-rails'
+
+ARGV.clear
+
+IRB.start(__FILE__)

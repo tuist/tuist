@@ -1,0 +1,29 @@
+#!/usr/bin/env ruby
+
+require 'optparse'
+require 'cucumber/messages'
+require 'cucumber/html_formatter'
+
+formatter = Cucumber::HTMLFormatter::Formatter.new(STDOUT)
+
+option_parser = OptionParser.new do |opts|
+  opts.on '-f', '--format=ndjson|protobuf', 'Input format'
+
+  opts.on_tail("-h", "--help", "Show this message") do
+    puts opts
+    exit
+  end
+end
+options = {}
+option_parser.parse!(into: options)
+format = options[:format] || 'ndjson'
+message_enumerator = case format
+when 'ndjson'
+  Cucumber::Messages::NdjsonToMessageEnumerator.new(STDIN)
+when 'protobuf'
+  Cucumber::Messages::BinaryToMessageEnumerator.new(STDIN)
+else
+  raise "Unsupported format: '#{format}'"
+end
+
+formatter.process_messages(message_enumerator)

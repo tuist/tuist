@@ -1,0 +1,8 @@
+expression: three ((exceptionally\) strong) mice
+exception: |-
+  This Cucumber Expression has a problem at column 7:
+
+  three ((exceptionally\) strong) mice
+        ^
+  The '(' does not have a matching ')'.
+  If you did not intend to use optional text you can use '\(' to escape the optional text

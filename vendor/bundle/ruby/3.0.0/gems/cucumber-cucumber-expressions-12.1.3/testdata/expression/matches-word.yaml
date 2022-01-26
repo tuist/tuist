@@ -1,0 +1,4 @@
+expression: three {word} mice
+text: three blind mice
+expected: |-
+  ["blind"]

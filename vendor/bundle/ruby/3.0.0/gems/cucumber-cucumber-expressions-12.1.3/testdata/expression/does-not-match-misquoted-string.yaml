@@ -1,0 +1,4 @@
+expression: three {string} mice
+text: three "blind' mice
+expected: |-
+  null

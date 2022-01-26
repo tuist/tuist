@@ -1,0 +1,4 @@
+expression: a/i{int}n/y
+text: a11y
+expected: |-
+  [11]

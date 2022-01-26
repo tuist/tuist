@@ -1,0 +1,4 @@
+expression: three {string} and {string} mice
+text: three "blind" and "crippled" mice
+expected: |-
+  ["blind","crippled"]

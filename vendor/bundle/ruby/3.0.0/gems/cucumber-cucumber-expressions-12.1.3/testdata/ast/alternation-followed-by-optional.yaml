@@ -1,0 +1,17 @@
+expression: three blind\ rat/cat(s)
+expected: |-
+  {"type": "EXPRESSION_NODE", "start": 0, "end": 23, "nodes": [
+    {"type": "TEXT_NODE", "start": 0, "end": 5, "token": "three"},
+    {"type": "TEXT_NODE", "start": 5, "end": 6, "token": " "},
+    {"type": "ALTERNATION_NODE", "start": 6, "end": 23, "nodes": [
+      {"type": "ALTERNATIVE_NODE", "start": 6, "end": 16, "nodes": [
+        {"type": "TEXT_NODE", "start": 6, "end": 16, "token": "blind rat"}
+      ]},
+      {"type": "ALTERNATIVE_NODE", "start": 17, "end": 23, "nodes": [
+        {"type": "TEXT_NODE", "start": 17, "end": 20, "token": "cat"},
+        {"type": "OPTIONAL_NODE", "start": 20, "end": 23, "nodes": [
+          {"type": "TEXT_NODE", "start": 21, "end": 22, "token": "s"}
+        ]}
+      ]}
+    ]}
+  ]}

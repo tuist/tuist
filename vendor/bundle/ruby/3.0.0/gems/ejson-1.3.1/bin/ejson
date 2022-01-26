@@ -1,0 +1,17 @@
+#!/usr/bin/env ruby
+platform = `uname -sm`
+
+dir = case platform
+      when /^Darwin arm64/  ; "darwin-arm64"
+      when /^Darwin/        ; "darwin-amd64"
+      when /^Linux aarch64/ ; "linux-arm64"
+      when /^Linux.*64/     ; "linux-amd64"
+      when /^FreeBSD.*64/   ; "freebsd-amd64"
+      else
+        abort "Ejson is not supported on your platform."
+      end
+
+bindir = File.expand_path("../../build/#{dir}", __FILE__)
+ENV['PATH'] = "#{bindir}:#{ENV['PATH']}"
+ENV['MANPATH'] = File.expand_path("../../man", __FILE__)
+exec "ejson", *ARGV

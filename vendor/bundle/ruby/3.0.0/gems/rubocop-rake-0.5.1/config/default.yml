@@ -1,0 +1,30 @@
+Rake:
+  Enabled: true
+  Include:
+    - 'Rakefile'
+    - '**/*.rake'
+
+Rake/ClassDefinitionInTask:
+  Description: 'Do not define a class or module in rake task, because it will be defined to the top level.'
+  Enabled: true
+  VersionAdded: '0.3.0'
+
+Rake/Desc:
+  Description: 'Describe the task with `desc` method.'
+  Enabled: true
+  VersionAdded: '0.1.0'
+
+Rake/DuplicateNamespace:
+  Description: 'Do not define namespace with the same name'
+  Enabled: true
+  VersionAdded: '0.5.0'
+
+Rake/DuplicateTask:
+  Description: 'Do not define tasks with the same name'
+  Enabled: true
+  VersionAdded: '0.4.0'
+
+Rake/MethodDefinitionInTask:
+  Description: 'Do not define a method in rake task, because it will be defined to the top level.'
+  Enabled: true
+  VersionAdded: '0.2.0'

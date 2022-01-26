@@ -1,0 +1,8 @@
+expression: three blind\ mice/rats(
+exception: |-
+  This Cucumber Expression has a problem at column 23:
+
+  three blind\ mice/rats(
+                        ^
+  The '(' does not have a matching ')'.
+  If you did not intend to use optional text you can use '\(' to escape the optional text

@@ -1,0 +1,3 @@
+expression: ""
+expected: |-
+  {"type": "EXPRESSION_NODE", "start": 0, "end": 0, "nodes": []}

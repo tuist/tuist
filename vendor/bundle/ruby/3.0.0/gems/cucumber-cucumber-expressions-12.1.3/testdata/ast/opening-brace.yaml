@@ -1,0 +1,8 @@
+expression: '{'
+exception: |-
+  This Cucumber Expression has a problem at column 1:
+
+  {
+  ^
+  The '{' does not have a matching '}'.
+  If you did not intend to use a parameter you can use '\{' to escape the a parameter

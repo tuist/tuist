@@ -1,0 +1,5 @@
+#!/usr/bin/env ruby
+
+require 'protobuf/cli'
+::Protobuf::CLI.start(ARGV)
+exit

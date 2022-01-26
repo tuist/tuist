@@ -1,0 +1,35 @@
+# This is the default configuration file.
+
+Packaging/BundlerSetupInTests:
+  Description: >-
+                 Using `bundler/setup` in tests is redundant. Consider
+                 removing it.
+  Enabled: true
+  VersionAdded: '0.4'
+  VersionChanged: '0.5'
+
+Packaging/GemspecGit:
+  Description: >-
+                 Avoid using git to produce lists of files. Downstreams
+                 often need to build your package in an environment
+                 that does not have git (on purpose). Use some pure
+                 Ruby alternative, like `Dir` or `Dir.glob`.
+  Enabled: true
+  VersionAdded: '0.1'
+  VersionChanged: '0.1'
+
+Packaging/RequireHardcodingLib:
+  Description: >-
+                 Avoid using `require` with relative path to lib. Use
+                 `require` with absolute path instead.
+  Enabled: true
+  VersionAdded: '0.4'
+  VersionChanged: '0.5'
+
+Packaging/RequireRelativeHardcodingLib:
+  Description: >-
+                 Avoid using `require_relative` with relative path to
+                 lib. Use `require` with absolute path instead.
+  Enabled: true
+  VersionAdded: '0.2'
+  VersionChanged: '0.5'

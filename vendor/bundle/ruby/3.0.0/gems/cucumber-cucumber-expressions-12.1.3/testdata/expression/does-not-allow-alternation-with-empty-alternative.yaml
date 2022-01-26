@@ -1,0 +1,9 @@
+expression: three brown//black mice
+text: three brown mice
+exception: |-
+  This Cucumber Expression has a problem at column 13:
+
+  three brown//black mice
+              ^
+  Alternative may not be empty.
+  If you did not mean to use an alternative you can use '\/' to escape the the '/'

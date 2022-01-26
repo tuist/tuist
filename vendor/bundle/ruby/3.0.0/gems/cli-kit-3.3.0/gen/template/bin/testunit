@@ -1,0 +1,23 @@
+#!/usr/bin/env ruby
+
+require 'rubygems'
+require 'bundler/setup'
+
+root = File.expand_path('../..', __FILE__)
+TEST_ROOT = root + '/test'
+
+$LOAD_PATH.unshift(TEST_ROOT)
+
+def test_files
+  Dir.glob(TEST_ROOT + "/**/*_test.rb")
+end
+
+if ARGV.empty?
+  test_files.each { |f| require(f) }
+  exit 0
+end
+
+# A list of files is presumed to be specified
+ARGV.each do |a|
+  require a.sub(%r{^test/}, '')
+end

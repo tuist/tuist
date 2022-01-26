@@ -1,0 +1,43 @@
+I have {int} cuke(s)
+I have 22 cukes
+[22]
+---
+I have {int} cuke(s) and some \\[]^$.|?*+
+I have 1 cuke and some \[]^$.|?*+
+[1]
+---
+/I have (\d+) cukes? in my (\w+) now/
+I have 22 cukes in my belly now
+[22,"belly"]
+---
+/I have (-?\d+) cukes? in my (.*) now/
+I have 1 cuke in my belly now
+[1,"belly"]
+---
+/^Something( with an optional argument)?$/
+Something
+[null]
+---
+Привет, {word}!
+Привет, Мир!
+["Мир"]
+---
+/I have (.*) cukes? in my (.*) now/
+I have 22 cukes in my belly now
+["22","belly"]
+---
+I have {} cuke(s) in my {} now
+I have 22 cukes in my belly now
+["22","belly"]
+---
+/^a (pre-commercial transaction |pre buyer fee model )?purchase(?: for \$(\d+))?$/
+a purchase for $33
+[null,33]
+---
+Some ${float} of cukes at {int}° Celsius
+Some $3.50 of cukes at 42° Celsius
+[3.5,42]
+---
+I select the {int}st/nd/rd/th Cucumber
+I select the 3rd Cucumber
+[3]

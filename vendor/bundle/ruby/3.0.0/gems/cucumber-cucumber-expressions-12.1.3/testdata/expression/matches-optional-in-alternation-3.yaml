@@ -1,0 +1,5 @@
+expression: |-
+  {int} rat(s)/mouse/mice
+text: 1 mouse
+expected: |-
+  [1]

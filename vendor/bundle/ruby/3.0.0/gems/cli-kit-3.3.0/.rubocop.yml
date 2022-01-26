@@ -1,0 +1,44 @@
+inherit_from:
+  - http://shopify.github.io/ruby-style-guide/rubocop.yml
+
+AllCops:
+  Exclude: [ 'gen/template/**/*' ]
+  TargetRubyVersion: 2.3
+
+Style/ClassAndModuleChildren:
+  Exclude:
+    - lib/cli/kit/support/test_helper.rb
+
+Style/FrozenStringLiteralComment:
+  Enabled: false
+
+Shopify/RubocopComments:
+  Enabled: false
+
+# This doesn't understand that <<~ doesn't exist in 2.0
+Layout/IndentHeredoc:
+  Enabled: false
+
+# This doesn't take into account retrying from an exception
+Lint/HandleExceptions:
+  Enabled: false
+
+# allow String.new to create mutable strings
+Style/EmptyLiteral:
+  Enabled: false
+
+# allow the use of globals which makes sense in a CLI app like this
+Style/GlobalVars:
+  Enabled: false
+
+# allow using %r{} for regexes
+Style/RegexpLiteral:
+  Enabled: false
+
+# allow readable Dev::Util.begin formatting
+Style/MultilineBlockChain:
+  Enabled: false
+
+# allow using names to be more expressive
+Performance/RedundantBlockCall:
+  Enabled: false

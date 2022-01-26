@@ -1,0 +1,2 @@
+expression: "a/b(c)"
+expected: ^(?:a|b(?:c)?)$

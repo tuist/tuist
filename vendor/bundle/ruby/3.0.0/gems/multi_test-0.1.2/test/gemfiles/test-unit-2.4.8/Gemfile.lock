@@ -1,0 +1,10 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    test-unit (2.4.8)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  test-unit (= 2.4.8)

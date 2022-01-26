@@ -1,0 +1,8 @@
+expression: \
+exception: |-
+  This Cucumber Expression has a problem at column 1:
+
+  \
+  ^
+  The end of line can not be escaped.
+  You can use '\\' to escape the the '\'

@@ -1,0 +1,10 @@
+expression: |-
+  {unknown}
+text: something
+exception: |-
+  This Cucumber Expression has a problem at column 1:
+
+  {unknown}
+  ^-------^
+  Undefined parameter type 'unknown'.
+  Please register a ParameterType for 'unknown'

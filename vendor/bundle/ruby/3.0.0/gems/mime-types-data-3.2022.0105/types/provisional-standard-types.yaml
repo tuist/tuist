@@ -1,0 +1,145 @@
+---
+- !ruby/object:MIME::Type
+  content-type: application/akn+xml
+  encoding: base64
+  xrefs:
+    person:
+    - Chet_Ensign
+  registered: true
+  provisional: true
+- !ruby/object:MIME::Type
+  content-type: application/cert-chain+cbor
+  encoding: base64
+  xrefs:
+    draft:
+    - draft-yasskin-http-origin-signed-responses
+  registered: true
+  provisional: true
+- !ruby/object:MIME::Type
+  content-type: application/city+json
+  encoding: base64
+  xrefs:
+    person:
+    - Hugo_Ledoux
+  registered: true
+  provisional: true
+- !ruby/object:MIME::Type
+  content-type: application/ion
+  encoding: base64
+  xrefs:
+    person:
+    - Jonathan_Hohle
+  registered: true
+  provisional: true
+- !ruby/object:MIME::Type
+  content-type: application/json-nd
+  encoding: base64
+  xrefs:
+    person:
+    - Glen_Kleidon
+  registered: true
+  provisional: true
+- !ruby/object:MIME::Type
+  content-type: application/netcdf
+  encoding: base64
+  xrefs:
+    person:
+    - Ethan_Davis
+  registered: true
+  provisional: true
+- !ruby/object:MIME::Type
+  content-type: application/odm+json
+  encoding: base64
+  xrefs:
+    person:
+    - Sam_Hume
+  registered: true
+  provisional: true
+- !ruby/object:MIME::Type
+  content-type: application/pkix-keyinfo
+  encoding: base64
+  xrefs:
+    draft:
+    - draft-hallambaker-mesh-udf
+  registered: true
+  provisional: true
+- !ruby/object:MIME::Type
+  content-type: application/reports+json
+  encoding: base64
+  xrefs:
+    person:
+    - Douglas_Creager
+  registered: true
+  provisional: true
+- !ruby/object:MIME::Type
+  content-type: application/rif+xml
+  encoding: base64
+  xrefs:
+    person:
+    - Sandro_Hawke
+  registered: true
+  provisional: true
+- !ruby/object:MIME::Type
+  content-type: application/rpki-checklist
+  encoding: base64
+  xrefs:
+    draft:
+    - draft-ietf-sidrops-rpki-rsc-02
+  registered: true
+  provisional: true
+- !ruby/object:MIME::Type
+  content-type: application/signed-exchange
+  encoding: base64
+  xrefs:
+    draft:
+    - draft-yasskin-http-origin-signed-responses
+  registered: true
+  provisional: true
+- !ruby/object:MIME::Type
+  content-type: application/webbundle
+  encoding: base64
+  xrefs:
+    draft:
+    - draft-yasskin-wpack-bundled-exchanges
+  registered: true
+  provisional: true
+- !ruby/object:MIME::Type
+  content-type: application/won
+  encoding: base64
+  xrefs:
+    person:
+    - Roy_T._Fielding
+  registered: true
+  provisional: true
+- !ruby/object:MIME::Type
+  content-type: image/dpx
+  encoding: base64
+  xrefs:
+    person:
+    - Director_of_Standards
+  registered: true
+  provisional: true
+- !ruby/object:MIME::Type
+  content-type: image/j2is
+  encoding: base64
+  xrefs:
+    person:
+    - ISO-IEC_JTC_1-SC_29-WG_1_Convenor
+  registered: true
+  provisional: true
+- !ruby/object:MIME::Type
+  content-type: image/jxl
+  encoding: base64
+  xrefs:
+    person:
+    - Touradj_Ebrahimi
+  registered: true
+  provisional: true
+- !ruby/object:MIME::Type
+  content-type: text/nfo
+  encoding: quoted-printable
+  xrefs:
+    person:
+    - Sean_Leonard
+  registered: true
+  provisional: true

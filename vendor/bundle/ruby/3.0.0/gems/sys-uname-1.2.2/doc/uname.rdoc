@@ -1,0 +1,127 @@
+== Description
+A cross platform Ruby interface for getting operating system information. The
+name comes from the Unix 'uname' command, but this library works on Windows as well.
+
+== Synopsis
+  require 'sys/uname'
+  include Sys
+
+  # Unix
+  puts Uname.nodename  => my_host
+  puts Uname.version   => #1 Fri Oct 24 22:43:28 MDT 2003
+  puts Uname.sysname   => Linux
+  puts Uname.machine   => i686
+  puts Uname.release   => 2.4.22-21mdk
+
+  p Uname.uname        => Show all UnameStruct members
+
+  # Windows
+  u = Uname.uname
+  puts u.caption     => 'Microsoft Windows XP Home Edition
+  puts u.csd_version => 'Service Pack 2'
+
+== Constants
+VERSION
+  The current version number of the sys-uname library. This is a String.
+
+== Class Methods
+Uname.sysname
+  Returns the operating system name, e.g. "SunOS"
+    
+Uname.nodename
+  Returns the nodename. This is usually, but not necessarily, the 
+  same as the system's hostname.
+	
+  You cannot currently set the nodename (root or otherwise). This may
+  be added in a future release.
+
+Uname.machine
+  Returns the machine hardware type, e.g. "i686"
+    
+Uname.version
+  Returns the operating system version. e.g. "5.8".  In the case of MS
+  Windows, it returns the version plus patch information, separated by
+  a hyphen, e.g. "2915-Service Pack 2".
+    
+Uname.release
+  Returns the operating system release, e.g. "2.2.16-3"
+    
+Uname.uname
+  Returns a struct of type UnameStruct that contains sysname, nodename,
+  machine, version, and release. On Solaris, it will also include 
+  architecture and platform. On HP-UX, it will also include id_number.
+    
+  MS Windows - there are many more, and different, fields in the struct.
+  Please see the MSDN documenation on the Win32_OperatingSystem WMI class
+  for a complete explanation of what each of these members mean.
+    
+== Solaris Only
+Uname.architecture
+  Returns the instruction set architecture, e.g. "sparc"
+    
+Uname.platform
+  Returns the platform identifier, e.g. "SUNW,Sun-Blade-100"
+    
+Uname.isa_list
+  Returns a space separated string containing a list of all variant
+  instruction set architectures executable on the current system.
+ 
+  They are listed in order of performance, from best to worst.
+
+Uname.hw_provider
+  Returns the name of the hardware manufacturer.
+
+Uname.hw_serial_number
+  Returns the ASCII representation of the hardware-specific serial number
+  of the machine that executes the function.
+
+Uname.srpc_domain
+  Returns the name of the Secure Remote Procedure Call domain, if any.
+
+Uname.dhcp_cache
+  Returns a hexidecimal encoding, in String form, of the name of the
+  interface configured by boot(1M) followed by the DHCPACK reply from
+  the server.
+    
+== BSD Platforms Only (including OS X)
+Uname.model
+  Returns the model type, e.g. "PowerBook5,1"
+    
+== HP-UX Only
+Uname.id
+  Returns the id number, e.g. 234233587. This is a String, not a Fixnum.
+
+== Notes
+Not all of the information that you might be used to seeing with
+a 'uname -a' is available. This may be added in future releases,
+but since different implementations provide different information
+(via different header files) it will be a bit of a pain.
+
+Windows users - please see the MSDN documentation for the
+Win32_OperatingSystem class for a complete list of what each of the
+UnameStruct members mean.
+
+== Known Bugs
+None that I'm aware of. Please log any bugs on the project page at
+https://github.com/djberg96/sys-uname 
+	
+== Future Plans
+Add additional info for Linux, Solaris, BSD.
+
+== License
+Apache-2.0
+
+== Copyright
+(C) 2002-2020 Daniel J. Berger
+All Rights Reserved
+
+== Warranty
+This package is provided "as is" and without any express or
+implied warranties, including, without limitation, the implied
+warranties of merchantability and fitness for a particular purpose.
+
+== Author
+Daniel Berger
+	
+== See Also
+uname(1) for unix, or WMI for MS Windows.
