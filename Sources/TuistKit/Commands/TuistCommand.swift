@@ -40,7 +40,7 @@ public struct TuistCommand: ParsableCommand {
     )
     var isTuistEnvHelp: Bool = false
 
-    public static func main(_ arguments: [String]? = nil) {
+    public static func main(_ arguments: [String]? = nil) async {
         let errorHandler = ErrorHandler()
         var command: ParsableCommand
         do {
