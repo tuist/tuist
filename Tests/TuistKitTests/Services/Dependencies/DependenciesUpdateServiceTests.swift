@@ -2,6 +2,7 @@ import Foundation
 import TSCBasic
 import TSCUtility
 import TuistCore
+import TuistDependencies
 import TuistGraph
 import TuistGraphTesting
 import XCTest
@@ -14,8 +15,8 @@ import XCTest
 
 final class DependenciesUpdateServiceTests: TuistUnitTestCase {
     private var dependenciesController: MockDependenciesController!
-    private var dependenciesModelLoader: MockDependenciesModelLoader!
     private var configLoader: MockConfigLoader!
+    private var dependenciesService: MockDependenciesService!
 
     private var subject: DependenciesUpdateService!
 
@@ -23,12 +24,12 @@ final class DependenciesUpdateServiceTests: TuistUnitTestCase {
         super.setUp()
 
         dependenciesController = MockDependenciesController()
-        dependenciesModelLoader = MockDependenciesModelLoader()
+        dependenciesService = MockDependenciesService()
         configLoader = MockConfigLoader()
 
         subject = DependenciesUpdateService(
             dependenciesController: dependenciesController,
-            dependenciesModelLoader: dependenciesModelLoader,
+            dependenciesService: dependenciesService,
             configLoading: configLoader
         )
     }
@@ -36,9 +37,8 @@ final class DependenciesUpdateServiceTests: TuistUnitTestCase {
     override func tearDown() {
         subject = nil
 
-        dependenciesController = nil
-        dependenciesModelLoader = nil
         configLoader = nil
+        dependenciesService = nil
 
         super.tearDown()
     }
@@ -62,7 +62,8 @@ final class DependenciesUpdateServiceTests: TuistUnitTestCase {
             ),
             platforms: [.iOS, .macOS]
         )
-        dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
+
+        dependenciesService.loadDependenciesStub = { _, _ in stubbedDependencies }
 
         let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
         configLoader.loadConfigStub = { _ in Config.test(swiftVersion: stubbedSwiftVersion) }
@@ -83,7 +84,7 @@ final class DependenciesUpdateServiceTests: TuistUnitTestCase {
 
         // Then
         XCTAssertTrue(dependenciesController.invokedUpdate)
-        XCTAssertTrue(dependenciesModelLoader.invokedLoadDependencies)
+        XCTAssertTrue(dependenciesService.invokedLoadDependencies)
         XCTAssertTrue(dependenciesController.invokedSave)
 
         XCTAssertFalse(dependenciesController.invokedFetch)

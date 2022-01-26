@@ -7,13 +7,13 @@ import TuistSupport
 
 final class DependenciesFetchService {
     private let dependenciesController: DependenciesControlling
-    private let dependenciesModelLoader: DependenciesModelLoading
+    private let dependenciesModelLoader: DependenciesServicing
     private let configLoading: ConfigLoading
     private let converter: ManifestModelConverting
 
     init(
         dependenciesController: DependenciesControlling = DependenciesController(),
-        dependenciesModelLoader: DependenciesModelLoading = DependenciesModelLoader(),
+        dependenciesModelLoader: DependenciesServicing = DependenciesService(),
         configLoading: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
         converter: ManifestModelConverting = ManifestModelConverter()
     ) {
@@ -27,9 +27,8 @@ final class DependenciesFetchService {
         logger.info("Resolving and fetching dependencies.", metadata: .section)
 
         let path = self.path(path)
-        let dependencies = try dependenciesModelLoader.loadDependencies(at: path)
-
         let config = try configLoading.loadConfig(path: path)
+        let dependencies = try dependenciesModelLoader.loadDependencies(at: path, using: config)
         let swiftVersion = config.swiftVersion
 
         let dependenciesManifest = try dependenciesController.fetch(

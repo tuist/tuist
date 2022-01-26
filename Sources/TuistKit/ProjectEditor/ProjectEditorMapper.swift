@@ -153,27 +153,6 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             defaultSettings: .recommended
         )
 
-        let helpersTarget: Target? = {
-            guard !helpers.isEmpty else { return nil }
-            let editablePluginTargets = editablePluginTargets.map { TargetDependency.target(name: $0) }
-            let helpersTargetSettings = Settings(
-                base: targetBaseSettings(
-                    projectFrameworkPath: projectDescriptionPath,
-                    pluginHelperLibraryPaths: pluginProjectDescriptionHelpersModule.map(\.path),
-                    swiftVersion: swiftVersion
-                ),
-                configurations: Settings.default.configurations,
-                defaultSettings: .recommended
-            )
-            return editorHelperTarget(
-                name: Constants.helpersDirectoryName,
-                filesGroup: manifestsFilesGroup,
-                targetSettings: helpersTargetSettings,
-                sourcePaths: helpers,
-                dependencies: editablePluginTargets
-            )
-        }()
-
         let templatesTarget: Target? = {
             guard !templates.isEmpty else { return nil }
             return editorHelperTarget(
@@ -211,17 +190,8 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             )
         }()
 
-        let dependenciesTarget: Target? = {
-            guard let dependenciesPath = dependenciesPath else { return nil }
-            return editorHelperTarget(
-                name: "Dependencies",
-                filesGroup: manifestsFilesGroup,
-                targetSettings: baseTargetSettings,
-                sourcePaths: [dependenciesPath]
-            )
-        }()
-
-        let manifestTargetSettings = Settings(
+        let editablePluginTargetDependencies = editablePluginTargets.map { TargetDependency.target(name: $0) }
+        let targetWithLinkedPluginsSettings = Settings(
             base: targetBaseSettings(
                 projectFrameworkPath: projectDescriptionPath,
                 pluginHelperLibraryPaths: pluginProjectDescriptionHelpersModule.map(\.path),
@@ -231,15 +201,38 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             defaultSettings: .recommended
         )
 
-        let manifestsTargets = namedManifests(projectManifests).map { name, projectManifestSourcePath -> Target in
-            let helperTargetDependencies = helpersTarget.map { [TargetDependency.target(name: $0.name)] } ?? []
-            let editablePluginTargetDependencies = editablePluginTargets.map { TargetDependency.target(name: $0) }
+        let helpersTarget: Target? = {
+            guard !helpers.isEmpty else { return nil }
             return editorHelperTarget(
+                name: Constants.helpersDirectoryName,
+                filesGroup: manifestsFilesGroup,
+                targetSettings: targetWithLinkedPluginsSettings,
+                sourcePaths: helpers,
+                dependencies: editablePluginTargetDependencies
+            )
+        }()
+
+        let helperTargetDependencies = helpersTarget.map { [TargetDependency.target(name: $0.name)] } ?? []
+        let helperAndPluginDependencies = helperTargetDependencies + editablePluginTargetDependencies
+
+        let dependenciesTarget: Target? = {
+            guard let dependenciesPath = dependenciesPath else { return nil }
+            return editorHelperTarget(
+                name: "Dependencies",
+                filesGroup: manifestsFilesGroup,
+                targetSettings: targetWithLinkedPluginsSettings,
+                sourcePaths: [dependenciesPath],
+                dependencies: helperAndPluginDependencies
+            )
+        }()
+
+        let manifestsTargets = namedManifests(projectManifests).map { name, projectManifestSourcePath -> Target in
+            editorHelperTarget(
                 name: name,
                 filesGroup: manifestsFilesGroup,
-                targetSettings: manifestTargetSettings,
+                targetSettings: targetWithLinkedPluginsSettings,
                 sourcePaths: [projectManifestSourcePath],
-                dependencies: helperTargetDependencies + editablePluginTargetDependencies
+                dependencies: helperAndPluginDependencies
             )
         }
 
