@@ -36,7 +36,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
     public func build(_ target: XcodeBuildTarget,
                       scheme: String,
                       clean: Bool = false,
-                      arguments: [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>>
+                      arguments: [XcodeBuildArgument]) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
     {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
@@ -66,7 +66,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         derivedDataPath: AbsolutePath?,
         resultBundlePath: AbsolutePath?,
         arguments: [XcodeBuildArgument]
-    ) -> Observable<SystemEvent<XcodeBuildOutput>> {
+    ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
         // Action
@@ -109,7 +109,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
                         scheme: String,
                         clean: Bool,
                         archivePath: AbsolutePath,
-                        arguments: [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>>
+                        arguments: [XcodeBuildArgument]) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
     {
         var command = ["/usr/bin/xcrun", "xcodebuild"]
 
@@ -134,7 +134,9 @@ public final class XcodeBuildController: XcodeBuildControlling {
         return run(command: command, isVerbose: environment.isVerbose)
     }
 
-    public func createXCFramework(frameworks: [AbsolutePath], output: AbsolutePath) -> Observable<SystemEvent<XcodeBuildOutput>> {
+    public func createXCFramework(frameworks: [AbsolutePath],
+                                  output: AbsolutePath) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
+    {
         var command = ["/usr/bin/xcrun", "xcodebuild", "-create-xcframework"]
         command.append(contentsOf: frameworks.flatMap { ["-framework", $0.pathString] })
         command.append(contentsOf: ["-output", output.pathString])
@@ -223,7 +225,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
             .value
     }
 
-    fileprivate func run(command: [String], isVerbose: Bool) -> Observable<SystemEvent<XcodeBuildOutput>> {
+    fileprivate func run(command: [String], isVerbose: Bool) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         if isVerbose {
             return run(command: command)
         } else {
@@ -232,7 +234,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         }
     }
 
-    fileprivate func run(command: [String]) -> Observable<SystemEvent<XcodeBuildOutput>> {
+    fileprivate func run(command: [String]) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error> {
         System.shared.observable(command)
             .flatMap { event -> Observable<SystemEvent<XcodeBuildOutput>> in
                 switch event {
@@ -249,10 +251,12 @@ public final class XcodeBuildController: XcodeBuildControlling {
                     }
                     return Observable.from(output)
                 }
-            }
+            }.values
     }
 
-    fileprivate func run(command: [String], pipedToArguments: [String]) -> Observable<SystemEvent<XcodeBuildOutput>> {
+    fileprivate func run(command: [String],
+                         pipedToArguments: [String]) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
+    {
         System.shared.observable(command, pipedToArguments: pipedToArguments)
             .flatMap { event -> Observable<SystemEvent<XcodeBuildOutput>> in
                 switch event {
@@ -269,6 +273,6 @@ public final class XcodeBuildController: XcodeBuildControlling {
                     }
                     return Observable.from(output)
                 }
-            }
+            }.values
     }
 }

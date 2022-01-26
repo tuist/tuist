@@ -124,7 +124,7 @@ final class TestServiceTests: TuistUnitTestCase {
         var testedSchemes: [String] = []
         xcodebuildController.testStub = { _, scheme, _, _, _, _, _ in
             testedSchemes.append(scheme)
-            return .just(.standardOutput(.init(raw: "success")))
+            return [.standardOutput(.init(raw: "success"))]
         }
 
         // When
@@ -156,7 +156,7 @@ final class TestServiceTests: TuistUnitTestCase {
         var testedSchemes: [String] = []
         xcodebuildController.testStub = { _, scheme, _, _, _, _, _ in
             testedSchemes.append(scheme)
-            return .just(.standardOutput(.init(raw: "success")))
+            return [.standardOutput(.init(raw: "success"))]
         }
         try fileHandler.touch(
             testsCacheTemporaryDirectory.path.appending(component: "A")
@@ -205,7 +205,7 @@ final class TestServiceTests: TuistUnitTestCase {
         var testedSchemes: [String] = []
         xcodebuildController.testStub = { _, scheme, _, _, _, _, _ in
             testedSchemes.append(scheme)
-            return .just(.standardOutput(.init(raw: "success")))
+            return [.standardOutput(.init(raw: "success"))]
         }
         try fileHandler.touch(
             testsCacheTemporaryDirectory.path.appending(component: "A")
@@ -241,9 +241,10 @@ final class TestServiceTests: TuistUnitTestCase {
             (path, Graph.test())
         }
         var testedSchemes: [String] = []
+        xcodebuildController.testErrorStub = NSError.test()
         xcodebuildController.testStub = { _, scheme, _, _, _, _, _ in
             testedSchemes.append(scheme)
-            return .error(NSError.test())
+            return []
         }
         try fileHandler.touch(
             testsCacheTemporaryDirectory.path.appending(component: "A")
@@ -278,7 +279,7 @@ final class TestServiceTests: TuistUnitTestCase {
         var testedSchemes: [String] = []
         xcodebuildController.testStub = { _, scheme, _, _, _, _, _ in
             testedSchemes.append(scheme)
-            return .just(.standardOutput(.init(raw: "success")))
+            return [.standardOutput(.init(raw: "success"))]
         }
 
         // When
@@ -298,7 +299,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
         xcodebuildController.testStub = { _, _, _, _, _, gotResourceBundlePath, _ in
             resourceBundlePath = gotResourceBundlePath
-            return .empty()
+            return []
         }
         generator.generateWithGraphStub = { path, _ in
             (path, Graph.test())
@@ -329,7 +330,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
         xcodebuildController.testStub = { _, _, _, _, _, gotResourceBundlePath, _ in
             resourceBundlePath = gotResourceBundlePath
-            return .empty()
+            return []
         }
         generator.generateWithGraphStub = { path, _ in
             (path, Graph.test())

@@ -1,5 +1,4 @@
 import Foundation
-import RxBlocking
 import TSCBasic
 import TuistCore
 import TuistGraph
@@ -24,7 +23,7 @@ public protocol SwiftPackageManagerInteracting {
     /// - Parameters:
     ///   - graph: The graph traverser.
     ///   - workspaceName: The name GraphTraversing the generated workspace (e.g. `MyWorkspace.xcworkspace`)
-    func install(graphTraverser: GraphTraversing, workspaceName: String, config: Config) throws
+    func install(graphTraverser: GraphTraversing, workspaceName: String, config: Config) async throws
 }
 
 public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
@@ -33,8 +32,8 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
         self.fileHandler = fileHandler
     }
 
-    public func install(graphTraverser: GraphTraversing, workspaceName: String, config: Config = .default) throws {
-        try generatePackageDependencyManager(
+    public func install(graphTraverser: GraphTraversing, workspaceName: String, config: Config = .default) async throws {
+        try await generatePackageDependencyManager(
             at: graphTraverser.path,
             workspaceName: workspaceName,
             config: config,
@@ -47,7 +46,7 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
         workspaceName: String,
         config: Config,
         graphTraverser: GraphTraversing
-    ) throws {
+    ) async throws {
         guard !config.generationOptions.contains(.disablePackageVersionLocking),
               graphTraverser.hasRemotePackages
         else {
@@ -78,18 +77,15 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
 
         arguments.append(contentsOf: ["-workspace", workspacePath.pathString, "-list"])
 
-        _ = try System.shared.observable(arguments)
-            .mapToString()
-            .do(onNext: { event in
-                switch event {
-                case let .standardError(error):
-                    logger.error("\(error)")
-                case let .standardOutput(output):
-                    logger.debug("\(output)")
-                }
-            })
-            .toBlocking()
-            .last()
+        let events = System.shared.observable(arguments).mapToString().values
+        for try await event in events {
+            switch event {
+            case let .standardError(error):
+                logger.error("\(error)")
+            case let .standardOutput(output):
+                logger.debug("\(output)")
+            }
+        }
 
         if fileHandler.exists(rootPackageResolvedPath) {
             try fileHandler.delete(rootPackageResolvedPath)

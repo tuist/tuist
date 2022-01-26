@@ -1,6 +1,4 @@
 import Foundation
-import RxBlocking
-import RxSwift
 import TSCBasic
 import struct TSCUtility.Version
 import TuistAutomation
@@ -100,7 +98,7 @@ final class TestService {
             skipUITests: skipUITests
         )
         logger.notice("Generating project for testing", metadata: .section)
-        let graph = try generator.generateWithGraph(
+        let graph = try await generator.generateWithGraph(
             path: path,
             projectOnly: false
         ).1
@@ -212,7 +210,7 @@ final class TestService {
             deviceName: deviceName
         )
 
-        _ = try xcodebuildController.test(
+        try await xcodebuildController.test(
             .workspace(graphTraverser.workspace.xcWorkspacePath),
             scheme: scheme.name,
             clean: clean,
@@ -227,8 +225,6 @@ final class TestService {
             )
         )
         .printFormattedOutput()
-        .toBlocking()
-        .last()
     }
 
     private func findDestination(

@@ -37,7 +37,14 @@ final class GenerateService {
         self.pluginService = pluginService
     }
 
-    func run(path: String?, sources: Set<String>, noOpen: Bool, xcframeworks: Bool, profile: String?, ignoreCache: Bool) throws {
+    func run(
+        path: String?,
+        sources: Set<String>,
+        noOpen: Bool,
+        xcframeworks: Bool,
+        profile: String?,
+        ignoreCache: Bool
+    ) async throws {
         let timer = clock.startTimer()
         let path = self.path(path)
         let config = try configLoader.loadConfig(path: path)
@@ -49,7 +56,7 @@ final class GenerateService {
             cacheProfile: cacheProfile,
             ignoreCache: ignoreCache
         )
-        let workspacePath = try generator.generate(path: path, projectOnly: false)
+        let workspacePath = try await generator.generate(path: path, projectOnly: false)
         if !noOpen {
             try opener.open(path: workspacePath)
         }
