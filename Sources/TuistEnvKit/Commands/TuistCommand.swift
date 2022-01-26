@@ -20,7 +20,7 @@ public struct TuistCommand: ParsableCommand {
         )
     }
 
-    public static func main(_: [String]? = nil) async {
+    public static func main(_: [String]? = nil) {
         let errorHandler = ErrorHandler()
         let processedArguments = processArguments()
 
