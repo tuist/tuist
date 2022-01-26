@@ -45,7 +45,7 @@ final class TargetScriptsContentHasherTests: TuistUnitTestCase {
         TargetScript(
             name: name,
             order: order,
-            script: .tool(tool, arguments),
+            script: .tool(path: tool, args: arguments),
             inputPaths: inputPaths,
             inputFileListPaths: inputFileListPaths,
             outputPaths: outputPaths,

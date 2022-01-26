@@ -2,12 +2,6 @@ import Foundation
 
 /// Cloud represents the configuration to connect to the server.
 public struct Cloud: Codable, Equatable {
-    enum CodingKeys: String, CodingKey {
-        case url
-        case projectId = "project_id"
-        case options
-    }
-
     /// Cloud option.
     public enum Option: String, Codable, Equatable {
         case analytics

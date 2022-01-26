@@ -47,10 +47,6 @@ public struct SourceFileGlob: ExpressibleByStringInterpolation, Codable, Equatab
 }
 
 public struct SourceFilesList: Codable, Equatable {
-    public enum CodingKeys: String, CodingKey {
-        case globs
-    }
-
     /// List glob patterns.
     public let globs: [SourceFileGlob]
 
@@ -72,16 +68,6 @@ public struct SourceFilesList: Codable, Equatable {
     /// - Parameter paths: Source paths.
     public static func paths(_ paths: [Path]) -> SourceFilesList {
         SourceFilesList(globs: paths.map { SourceFileGlob($0) })
-    }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        globs = try container.decode([SourceFileGlob].self)
-    }
-
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        try container.encode(globs)
     }
 }
 

@@ -8,6 +8,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Fix `tuistenv` not running `tuist` commands [#4058](https://github.com/tuist/tuist/pull/4058) by [@luispadron](https://github.com/luispadron)
 
+## 2.7.0 - Cancun
+
 ### Changed
 
 - Use GitHub tags (via `git ls-remote`) to determine the latest Tuist version when installing/updating Tuist [#3985](https://github.com/tuist/tuist/pull/3985) by [@ezraberch](https://github.com/ezraberch)

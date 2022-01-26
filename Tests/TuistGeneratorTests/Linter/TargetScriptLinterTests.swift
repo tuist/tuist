@@ -26,7 +26,7 @@ final class TargetScriptLinterTests: TuistUnitTestCase {
         let action = TargetScript(
             name: "name",
             order: .pre,
-            script: .tool("randomtool")
+            script: .tool(path: "randomtool")
         )
         let got = subject.lint(action)
 
@@ -42,7 +42,7 @@ final class TargetScriptLinterTests: TuistUnitTestCase {
         let action = TargetScript(
             name: "name",
             order: .pre,
-            script: .scriptPath(temporaryPath.appending(component: "invalid.sh"))
+            script: .scriptPath(path: temporaryPath.appending(component: "invalid.sh"))
         )
         let got = subject.lint(action)
 

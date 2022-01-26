@@ -3,7 +3,7 @@ import Foundation
 // MARK: - TargetDependency
 
 /// Dependency status used by `.sdk` target dependencies
-public enum SDKStatus: String {
+public enum SDKStatus: String, Codable {
     /// Required dependency
     case required
 
@@ -98,111 +98,6 @@ public enum TargetDependency: Codable, Equatable {
             return "xctest"
         case .external:
             return "external"
-        }
-    }
-}
-
-// MARK: - SDKStatus (Coding)
-
-extension SDKStatus: Codable {}
-
-// MARK: - TargetDependency (Coding)
-
-extension TargetDependency {
-    public enum CodingError: Error {
-        case unknownType(String)
-    }
-
-    public enum CodingKeys: String, CodingKey {
-        case type
-        case name
-        case target
-        case path
-        case url
-        case productName
-        case versionRequirement = "version_requirement"
-        case publicHeaders = "public_headers"
-        case swiftModuleMap = "swift_module_map"
-        case status
-        case package
-    }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-
-        let type = try container.decode(String.self, forKey: .type)
-
-        switch type {
-        case "target":
-            self = .target(name: try container.decode(String.self, forKey: .name))
-
-        case "project":
-            self = .project(
-                target: try container.decode(String.self, forKey: .target),
-                path: try container.decode(Path.self, forKey: .path)
-            )
-
-        case "framework":
-            self = .framework(path: try container.decode(Path.self, forKey: .path))
-
-        case "xcframework":
-            self = .xcframework(path: try container.decode(Path.self, forKey: .path))
-
-        case "library":
-            self = .library(
-                path: try container.decode(Path.self, forKey: .path),
-                publicHeaders: try container.decode(Path.self, forKey: .publicHeaders),
-                swiftModuleMap: try container.decodeIfPresent(Path.self, forKey: .swiftModuleMap)
-            )
-
-        case "package":
-            let package = try container.decode(String.self, forKey: .package)
-            self = .package(product: package)
-        case "sdk":
-            self = .sdk(
-                name: try container.decode(String.self, forKey: .name),
-                status: try container.decode(SDKStatus.self, forKey: .status)
-            )
-
-        case "xctest":
-            self = .xctest
-
-        case "external":
-            self = .external(name: try container.decode(String.self, forKey: .name))
-
-        default:
-            throw CodingError.unknownType(type)
-        }
-    }
-
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-
-        try container.encode(typeName, forKey: .type)
-
-        switch self {
-        case let .target(name: name):
-            try container.encode(name, forKey: .name)
-        case let .project(target: target, path: path):
-            try container.encode(target, forKey: .target)
-            try container.encode(path, forKey: .path)
-        case let .framework(path: path):
-            try container.encode(path, forKey: .path)
-        case let .library(path: path, publicHeaders: publicHeaders, swiftModuleMap: swiftModuleMap):
-            try container.encode(path, forKey: .path)
-            try container.encode(publicHeaders, forKey: .publicHeaders)
-            try container.encodeIfPresent(swiftModuleMap, forKey: .swiftModuleMap)
-        case let .package(packageType):
-            try container.encode(packageType, forKey: .package)
-        case let .sdk(name, status):
-            try container.encode(name, forKey: .name)
-            try container.encode(status, forKey: .status)
-        case let .xcframework(path):
-            try container.encode(path, forKey: .path)
-        case .xctest:
-            break
-        case let .external(name: name):
-            try container.encode(name, forKey: .name)
         }
     }
 }
