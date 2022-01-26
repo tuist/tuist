@@ -8,8 +8,8 @@ Feature: Tests projects using Tuist test
     Then tuist tests the scheme App-Workspace-iOS from the project
     Then tuist tests the scheme App-Workspace-macOS from the project
     Then tuist tests the scheme App-Workspace-tvOS from the project
-    Then tuist tests the scheme AppTests from the project
-    Then tuist tests the scheme MacFrameworkTests from the project
+    Then tuist tests the scheme App from the project
+    Then tuist tests the scheme MacFramework from the project
     Then tuist tests the scheme App and configuration Debug from the project
 
   Scenario: The project is an application with framework and tests (app_with_framework_and_tests)
