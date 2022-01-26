@@ -58,7 +58,7 @@ public struct TuistCommand: ParsableCommand {
                 executeCommand = { try await execute(command) }
             } else {
                 executeCommand = {
-                    try await executeTask(with: processedArguments)
+                    try executeTask(with: processedArguments)
                 }
             }
         } catch {

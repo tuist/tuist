@@ -47,7 +47,7 @@ final class TuistServiceTests: TuistUnitTestCase {
         system.succeedCommand([
             pluginReleasePath.appending(component: "tuist-command-b").pathString,
             "--path",
-            projectPath.pathString
+            projectPath.pathString,
         ])
         var loadConfigPath: AbsolutePath?
         configLoader.loadConfigStub = { configPath in

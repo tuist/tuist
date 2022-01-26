@@ -18,7 +18,7 @@ Then(/^tuist warms the cache with ([a-zA-Z]+) profile$/) do |cache_profile|
   system(@tuist, "cache", "warm", "--path", @dir, "--profile", cache_profile)
 end
 
-Then(/^([a-zA-Z]+) links the framework ([a-zA-Z]+) from the cache/) do |target_name, framework_name|
+Then(/^([a-zA-Z0-9]+) links the framework ([a-zA-Z0-9]+) from the cache/) do |target_name, framework_name|
   projects = Xcode.projects(@workspace_path)
   target = projects.flat_map(&:targets).detect { |t| t.name == target_name }
   flunk("Target #{target_name} doesn't exist in any of the projects' targets of the workspace") if target.nil?
@@ -37,7 +37,7 @@ Then(/^([a-zA-Z]+) links the framework ([a-zA-Z]+) from the cache/) do |target_n
   end
 end
 
-Then(/^([a-zA-Z]+) copies the bundle ([a-zA-Z]+) from the cache/) do |target_name, bundle_name|
+Then(/^([a-zA-Z0-9]+) copies the bundle ([a-zA-Z0-9]+) from the cache/) do |target_name, bundle_name|
   projects = Xcode.projects(@workspace_path)
   target = projects.flat_map(&:targets).detect { |t| t.name == target_name }
   flunk("Target #{target_name} doesn't exist in any of the projects' targets of the workspace") if target.nil?
@@ -56,7 +56,7 @@ Then(/^([a-zA-Z]+) copies the bundle ([a-zA-Z]+) from the cache/) do |target_nam
   end
 end
 
-Then(/^([a-zA-Z]+) copies the bundle ([a-zA-Z]+) from the build directory/) do |target_name, bundle_name|
+Then(/^([a-zA-Z0-9]+) copies the bundle ([a-zA-Z0-9]+) from the build directory/) do |target_name, bundle_name|
   projects = Xcode.projects(@workspace_path)
   target = projects.flat_map(&:targets).detect { |t| t.name == target_name }
   flunk("Target #{target_name} doesn't exist in any of the projects' targets of the workspace") if target.nil?
@@ -75,7 +75,7 @@ Then(/^([a-zA-Z]+) copies the bundle ([a-zA-Z]+) from the build directory/) do |
   end
 end
 
-Then(/^([a-zA-Z]+) links the xcframework ([a-zA-Z]+)$/) do |target_name, xcframework|
+Then(/^([a-zA-Z0-9]+) links the xcframework ([a-zA-Z0-9]+)$/) do |target_name, xcframework|
   projects = Xcode.projects(@workspace_path)
   target = projects.flat_map(&:targets).detect { |t| t.name == target_name }
   flunk("Target #{target_name} doesn't exist in any of the projects' targets of the workspace") if target.nil?
@@ -88,7 +88,7 @@ Then(/^([a-zA-Z]+) links the xcframework ([a-zA-Z]+)$/) do |target_name, xcframe
   end
 end
 
-Then(/^([a-zA-Z]+) links the framework ([a-zA-Z]+)$/) do |target_name, framework|
+Then(/^([a-zA-Z0-9]+) links the framework ([a-zA-Z0-9]+)$/) do |target_name, framework|
   projects = Xcode.projects(@workspace_path)
   target = projects.flat_map(&:targets).detect { |t| t.name == target_name }
   flunk("Target #{target_name} doesn't exist in any of the projects' targets of the workspace") if target.nil?
@@ -99,7 +99,7 @@ Then(/^([a-zA-Z]+) links the framework ([a-zA-Z]+)$/) do |target_name, framework
   end
 end
 
-Then(/^([a-zA-Z]+) embeds the xcframework ([a-zA-Z]+)$/) do |target_name, xcframework|
+Then(/^([a-zA-Z0-9]+) embeds the xcframework ([a-zA-Z0-9]+)$/) do |target_name, xcframework|
   projects = Xcode.projects(@workspace_path)
   target = projects.flat_map(&:targets).detect { |t| t.name == target_name }
   flunk("Target #{target_name} in any of the projects of the workspace") if target.nil?
@@ -114,7 +114,7 @@ Then(/^([a-zA-Z]+) embeds the xcframework ([a-zA-Z]+)$/) do |target_name, xcfram
   end
 end
 
-Then(/^([a-zA-Z]+) embeds the framework ([a-zA-Z]+)$/) do |target_name, framework|
+Then(/^([a-zA-Z0-9]+) embeds the framework ([a-zA-Z0-9]+)$/) do |target_name, framework|
   projects = Xcode.projects(@workspace_path)
   target = projects.flat_map(&:targets).detect { |t| t.name == target_name }
   flunk("Target #{target_name} in any of the projects of the workspace") if target.nil?
@@ -129,7 +129,7 @@ Then(/^([a-zA-Z]+) embeds the framework ([a-zA-Z]+)$/) do |target_name, framewor
   end
 end
 
-Then(/^([a-zA-Z]+) doesn't embed the xcframework ([a-zA-Z]+)$/) do |target_name, xcframework|
+Then(/^([a-zA-Z0-9]+) doesn't embed the xcframework ([a-zA-Z0-9]+)$/) do |target_name, xcframework|
   projects = Xcode.projects(@workspace_path)
   target = projects.flat_map(&:targets).detect { |t| t.name == target_name }
   flunk("Target #{target_name} in any of the projects of the workspace") if target.nil?
@@ -143,7 +143,7 @@ Then(/^([a-zA-Z]+) doesn't embed the xcframework ([a-zA-Z]+)$/) do |target_name,
   end
 end
 
-Then(/^([a-zA-Z]+) does not embed any xcframeworks$/) do |target_name|
+Then(/^([a-zA-Z0-9]+) does not embed any xcframeworks$/) do |target_name|
   projects = Xcode.projects(@workspace_path)
   target = projects.flat_map(&:targets).detect { |t| t.name == target_name }
   flunk("Target #{target_name} in any of the projects of the workspace") if target.nil?

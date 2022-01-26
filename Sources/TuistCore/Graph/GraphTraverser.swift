@@ -659,6 +659,7 @@ public class GraphTraverser: GraphTraversing {
     func canEmbedProducts(target: Target) -> Bool {
         let validProducts: [Product] = [
             .app,
+            .appClip,
             .unitTests,
             .uiTests,
             .watch2Extension,

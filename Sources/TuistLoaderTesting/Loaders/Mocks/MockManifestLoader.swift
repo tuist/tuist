@@ -76,5 +76,8 @@ public final class MockManifestLoader: ManifestLoading {
         try taskLoadArgumentsStub?(path) ?? []
     }
 
-    public func register(plugins _: Plugins) throws {}
+    public var registerPluginsStub: ((Plugins) throws -> Void)?
+    public func register(plugins: Plugins) throws {
+        try registerPluginsStub?(plugins)
+    }
 }
