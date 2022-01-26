@@ -21,44 +21,6 @@ public struct ResourceSynthesizer: Codable, Equatable {
         /// Default template defined `Tuist/{ProjectName}`, or if not present there, in tuist itself
         /// `resourceName` is used for the name of the resulting `.swift` file
         case defaultTemplate(resourceName: String)
-
-        public enum CodingKeys: String, CodingKey {
-            case type
-            case name
-            case resourceName
-        }
-
-        private enum TypeName: String, Codable {
-            case plugin
-            case defaultTemplate
-        }
-
-        public init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            let type = try container.decode(TypeName.self, forKey: .type)
-            switch type {
-            case .plugin:
-                let name = try container.decode(String.self, forKey: .name)
-                let resourceName = try container.decode(String.self, forKey: .resourceName)
-                self = .plugin(name: name, resourceName: resourceName)
-            case .defaultTemplate:
-                let resourceName = try container.decode(String.self, forKey: .resourceName)
-                self = .defaultTemplate(resourceName: resourceName)
-            }
-        }
-
-        public func encode(to encoder: Encoder) throws {
-            var container = encoder.container(keyedBy: CodingKeys.self)
-            switch self {
-            case let .plugin(name: name, resourceName: resourceName):
-                try container.encode(TypeName.plugin, forKey: .type)
-                try container.encode(name, forKey: .name)
-                try container.encode(resourceName, forKey: .resourceName)
-            case let .defaultTemplate(resourceName: resourceName):
-                try container.encode(TypeName.defaultTemplate, forKey: .type)
-                try container.encode(resourceName, forKey: .resourceName)
-            }
-        }
     }
 
     /// There are multiple parsers you can choose from

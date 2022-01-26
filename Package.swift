@@ -1,4 +1,4 @@
-// swift-tools-version:5.4.0
+// swift-tools-version:5.5.0
 
 import PackageDescription
 
@@ -12,7 +12,7 @@ let combineExtDependency: Target.Dependency = .byName(name: "CombineExt")
 
 let package = Package(
     name: "tuist",
-    platforms: [.macOS(.v10_15)],
+    platforms: [.macOS(.v11)],
     products: [
         .executable(name: "tuist", targets: ["tuist"]),
         .executable(name: "tuistenv", targets: ["tuistenv"]),

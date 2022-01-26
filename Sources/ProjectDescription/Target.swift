@@ -62,28 +62,6 @@ public struct Target: Codable, Equatable {
     /// The additional files to include in the target (won't be included in a build phase)
     public let additionalFiles: [FileElement]
 
-    public enum CodingKeys: String, CodingKey {
-        case name
-        case platform
-        case product
-        case productName = "product_name"
-        case bundleId = "bundle_id"
-        case infoPlist = "info_plist"
-        case entitlements
-        case settings
-        case dependencies
-        case sources
-        case resources
-        case copyFiles
-        case headers
-        case coreDataModels = "core_data_models"
-        case scripts
-        case environment
-        case launchArguments
-        case deploymentTarget
-        case additionalFiles
-    }
-
     /// Initializes the target.
     ///
     /// - Parameters:

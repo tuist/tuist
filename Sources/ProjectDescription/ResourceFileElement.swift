@@ -27,43 +27,6 @@ public enum ResourceFileElement: Codable, Equatable {
             return .folderReference
         }
     }
-
-    public enum CodingKeys: String, CodingKey {
-        case type
-        case pattern
-        case path
-        case excluding
-        case tags
-    }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let type = try container.decode(TypeName.self, forKey: .type)
-        let tags = try container.decodeIfPresent([String].self, forKey: .tags) ?? []
-        switch type {
-        case .glob:
-            let pattern = try container.decode(Path.self, forKey: .pattern)
-            let excluding = try container.decodeIfPresent([Path].self, forKey: .excluding) ?? []
-            self = .glob(pattern: pattern, excluding: excluding, tags: tags)
-        case .folderReference:
-            let path = try container.decode(Path.self, forKey: .path)
-            self = .folderReference(path: path, tags: tags)
-        }
-    }
-
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(typeName, forKey: .type)
-        switch self {
-        case let .glob(pattern, excluding, tags):
-            try container.encode(pattern, forKey: .pattern)
-            try container.encode(excluding, forKey: .excluding)
-            try container.encode(tags, forKey: .tags)
-        case let .folderReference(path, tags):
-            try container.encode(path, forKey: .path)
-            try container.encode(tags, forKey: .tags)
-        }
-    }
 }
 
 extension ResourceFileElement: ExpressibleByStringInterpolation {
