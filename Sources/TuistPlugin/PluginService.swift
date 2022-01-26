@@ -52,7 +52,7 @@ public protocol PluginServicing {
     /// - Returns: The loaded `Plugins` representation.
     func loadPlugins(using config: Config) throws -> Plugins
     /// Fetches all remote plugins defined in a given config.
-    func fetchRemotePlugins(using config: Config) throws
+    func fetchRemotePlugins(using config: Config) async throws
     /// - Returns: Array of `RemotePluginPaths` for each remote plugin.
     func remotePluginPaths(using config: Config) throws -> [RemotePluginPaths]
 }
@@ -98,20 +98,19 @@ public final class PluginService: PluginServicing {
         self.fileClient = fileClient
     }
 
-    public func fetchRemotePlugins(using config: Config) throws {
-        try config.plugins
-            .forEach { pluginLocation in
-                switch pluginLocation {
-                case let .git(url, gitReference):
-                    try fetchRemotePlugin(
-                        url: url,
-                        gitReference: gitReference,
-                        config: config
-                    )
-                case .local:
-                    return
-                }
+    public func fetchRemotePlugins(using config: Config) async throws {
+        for pluginLocation in config.plugins {
+            switch pluginLocation {
+            case let .git(url, gitReference):
+                try await fetchRemotePlugin(
+                    url: url,
+                    gitReference: gitReference,
+                    config: config
+                )
+            case .local:
+                return
             }
+        }
     }
 
     public func remotePluginPaths(using config: Config) throws -> [RemotePluginPaths] {
@@ -200,7 +199,7 @@ public final class PluginService: PluginServicing {
         url: String,
         gitReference: PluginLocation.GitReference,
         config: Config
-    ) throws {
+    ) async throws {
         let pluginCacheDirectory = try pluginCacheDirectory(
             url: url,
             gitId: gitReference.raw,
@@ -215,7 +214,7 @@ public final class PluginService: PluginServicing {
         case .sha:
             break
         case let .tag(tag):
-            try fetchGitPluginRelease(
+            try await fetchGitPluginRelease(
                 pluginCacheDirectory: pluginCacheDirectory,
                 url: url,
                 gitTag: tag
@@ -251,7 +250,7 @@ public final class PluginService: PluginServicing {
         try gitHandler.checkout(id: gitId, in: pluginRepositoryDirectory)
     }
 
-    private func fetchGitPluginRelease(pluginCacheDirectory: AbsolutePath, url: String, gitTag: String) throws {
+    private func fetchGitPluginRelease(pluginCacheDirectory: AbsolutePath, url: String, gitTag: String) async throws {
         let pluginRepositoryDirectory = pluginCacheDirectory.appending(component: PluginServiceConstants.repository)
         // If `Package.swift` exists for the plugin, a Github release should for the given `gitTag` should also exist
         guard FileHandler.shared
@@ -271,12 +270,10 @@ public final class PluginService: PluginServicing {
         else { throw PluginServiceError.invalidURL(url) }
 
         logger.debug("Cloning plugin release from \(url) @ \(gitTag)")
-        try FileHandler.shared.inTemporaryDirectory { _ in
+        try await FileHandler.shared.inTemporaryDirectory { _ in
             // Download the release.
             // Currently, we assume the release path exists.
-            let downloadPath = try fileClient.download(url: releaseURL)
-                .toBlocking()
-                .single()
+            let downloadPath = try await self.fileClient.download(url: releaseURL)
             let downloadZipPath = downloadPath.removingLastComponent().appending(component: "release.zip")
             defer {
                 try? FileHandler.shared.delete(downloadPath)
@@ -288,7 +285,7 @@ public final class PluginService: PluginServicing {
             try FileHandler.shared.move(from: downloadPath, to: downloadZipPath)
 
             // Unzip
-            let fileUnarchiver = try fileArchivingFactory.makeFileUnarchiver(for: downloadZipPath)
+            let fileUnarchiver = try self.fileArchivingFactory.makeFileUnarchiver(for: downloadZipPath)
             let unarchivedContents = try FileHandler.shared.contentsOfDirectory(
                 try fileUnarchiver.unzip()
             )

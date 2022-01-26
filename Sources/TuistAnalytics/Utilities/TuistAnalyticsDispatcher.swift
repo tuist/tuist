@@ -1,5 +1,4 @@
 import Foundation
-import RxSwift
 import TuistAsyncQueue
 import TuistCloud
 import TuistCore
@@ -11,7 +10,6 @@ public struct TuistAnalyticsDispatcher: AsyncQueueDispatching {
     public static let dispatcherId = "TuistAnalytics"
 
     private let backends: [TuistAnalyticsBackend]
-    private let disposeBag = DisposeBag()
 
     public init(
         cloud: Cloud?,
@@ -40,11 +38,10 @@ public struct TuistAnalyticsDispatcher: AsyncQueueDispatching {
     public func dispatch(event: AsyncQueueEvent, completion: @escaping () -> Void) throws {
         guard let commandEvent = event as? CommandEvent else { return }
 
-        Single
-            .zip(try backends.map { try $0.send(commandEvent: commandEvent) })
-            .asObservable()
-            .subscribe(onNext: { _ in completion() })
-            .disposed(by: disposeBag)
+        Task.detached {
+            _ = try await backends.concurrentMap { try? await $0.send(commandEvent: commandEvent) }
+            completion()
+        }
     }
 
     public func dispatchPersisted(data: Data, completion: @escaping () -> Void) throws {

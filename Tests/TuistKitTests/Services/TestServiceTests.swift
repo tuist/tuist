@@ -1,5 +1,4 @@
 import Foundation
-import RxSwift
 import TSCBasic
 import TuistAutomation
 import TuistCore
@@ -64,14 +63,14 @@ final class TestServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_run_uses_project_directory() throws {
+    func test_run_uses_project_directory() async throws {
         // Given
         contentHasher.hashStub = {
             "\($0.replacingOccurrences(of: "/", with: ""))-hash"
         }
 
         // When
-        try? subject.testRun(
+        try? await subject.testRun(
             path: AbsolutePath("/test")
         )
 
@@ -83,7 +82,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_run_generates_project() throws {
+    func test_run_generates_project() async throws {
         // Given
         let path = try temporaryPath()
         var generatedPath: AbsolutePath?
@@ -95,7 +94,7 @@ final class TestServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try? subject.testRun(
+        try? await subject.testRun(
             path: path
         )
 
@@ -104,7 +103,7 @@ final class TestServiceTests: TuistUnitTestCase {
         XCTAssertEqual(projectOnly, false)
     }
 
-    func test_run_tests_for_only_specified_scheme() throws {
+    func test_run_tests_for_only_specified_scheme() async throws {
         // Given
         buildGraphInspector.testableSchemesStub = { _ in
             [
@@ -129,7 +128,7 @@ final class TestServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.testRun(
+        try await subject.testRun(
             schemeName: "TestScheme",
             path: try temporaryPath()
         )
@@ -138,7 +137,7 @@ final class TestServiceTests: TuistUnitTestCase {
         XCTAssertEqual(testedSchemes, ["TestScheme"])
     }
 
-    func test_run_tests_all_project_schemes() throws {
+    func test_run_tests_all_project_schemes() async throws {
         // Given
         buildGraphInspector.testableSchemesStub = { _ in
             [
@@ -167,7 +166,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
 
         // When
-        try subject.testRun(
+        try await subject.testRun(
             path: try temporaryPath()
         )
 
@@ -187,7 +186,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_run_tests_individual_scheme() throws {
+    func test_run_tests_individual_scheme() async throws {
         // Given
         buildGraphInspector.testableSchemesStub = { _ in
             [
@@ -216,7 +215,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
 
         // When
-        try subject.testRun(
+        try await subject.testRun(
             schemeName: "ProjectSchemeOne",
             path: try temporaryPath()
         )
@@ -231,7 +230,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_run_tests_all_project_schemes_when_fails() throws {
+    func test_run_tests_all_project_schemes_when_fails() async throws {
         // Given
         buildGraphInspector.projectSchemesStub = { _ in
             [
@@ -251,12 +250,12 @@ final class TestServiceTests: TuistUnitTestCase {
         )
 
         // When / Then
-        XCTAssertThrowsError(
-            try subject.testRun(
+        do {
+            try await subject.testRun(
                 path: try temporaryPath()
             )
-        )
-
+            XCTFail("Should throw")
+        } catch {}
         XCTAssertEqual(
             testedSchemes,
             [
@@ -268,7 +267,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_run_tests_when_no_project_schemes_present() throws {
+    func test_run_tests_when_no_project_schemes_present() async throws {
         // Given
         buildGraphInspector.projectSchemesStub = { _ in
             []
@@ -283,7 +282,7 @@ final class TestServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.testRun(
+        try await subject.testRun(
             path: try temporaryPath()
         )
 
@@ -292,7 +291,7 @@ final class TestServiceTests: TuistUnitTestCase {
         XCTAssertPrinterOutputContains("There are no tests to run, finishing early")
     }
 
-    func test_run_uses_resource_bundle_path() throws {
+    func test_run_uses_resource_bundle_path() async throws {
         // Given
         let expectedResourceBundlePath = AbsolutePath("/test")
         var resourceBundlePath: AbsolutePath?
@@ -311,7 +310,7 @@ final class TestServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.testRun(
+        try await subject.testRun(
             path: try temporaryPath(),
             resultBundlePath: expectedResourceBundlePath
         )
@@ -323,7 +322,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_run_uses_resource_bundle_path_with_given_scheme() throws {
+    func test_run_uses_resource_bundle_path_with_given_scheme() async throws {
         // Given
         let expectedResourceBundlePath = AbsolutePath("/test")
         var resourceBundlePath: AbsolutePath?
@@ -343,7 +342,7 @@ final class TestServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.testRun(
+        try await subject.testRun(
             schemeName: "ProjectScheme2",
             path: try temporaryPath(),
             resultBundlePath: expectedResourceBundlePath
@@ -369,8 +368,8 @@ extension TestService {
         osVersion: String? = nil,
         skipUiTests: Bool = false,
         resultBundlePath: AbsolutePath? = nil
-    ) throws {
-        try run(
+    ) async throws {
+        try await run(
             schemeName: schemeName,
             clean: clean,
             configuration: configuration,

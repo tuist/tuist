@@ -4,7 +4,7 @@ import TSCBasic
 import TuistSupport
 
 /// Command to cache targets as `.(xc)framework`s and speed up your and your peers' build times.
-struct CacheWarmCommand: ParsableCommand {
+struct CacheWarmCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "warm",
@@ -28,8 +28,8 @@ struct CacheWarmCommand: ParsableCommand {
     )
     var dependenciesOnly: Bool = false
 
-    func run() throws {
-        try CacheWarmService().run(
+    func runAsync() async throws {
+        try await CacheWarmService().run(
             path: options.path,
             profile: options.profile,
             xcframeworks: options.xcframeworks,

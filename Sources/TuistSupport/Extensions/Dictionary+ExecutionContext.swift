@@ -9,6 +9,15 @@ extension Dictionary {
             .map(context: context, transform)
     }
 
+    /// Async concurrent map
+    ///
+    /// - Parameters:
+    ///   - transform: The transformation closure to apply to the dictionary
+    public func concurrentMap<B>(_ transform: @escaping (Key, Value) async throws -> B) async throws -> [B] {
+        try await map { ($0.key, $0.value) }
+            .concurrentMap(transform)
+    }
+
     /// Compact map (with execution context)
     ///
     /// - Parameters:

@@ -64,5 +64,5 @@ public protocol XcodeBuildControlling {
     ///   - configuration: Build configuration.
     func showBuildSettings(_ target: XcodeBuildTarget,
                            scheme: String,
-                           configuration: String) -> Single<[String: XcodeBuildSettings]>
+                           configuration: String) async throws -> [String: XcodeBuildSettings]
 }

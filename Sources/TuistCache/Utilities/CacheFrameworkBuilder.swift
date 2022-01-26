@@ -54,10 +54,10 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
         osVersion: Version?,
         deviceName: String?,
         into outputDirectory: AbsolutePath
-    ) throws {
+    ) async throws {
         let platform = self.platform(scheme: scheme)
 
-        let arguments = try self.arguments(
+        let arguments = try await self.arguments(
             platform: platform,
             configuration: configuration,
             version: osVersion,
@@ -87,42 +87,36 @@ public final class CacheFrameworkBuilder: CacheArtifactBuilding {
     fileprivate func arguments(platform: Platform,
                                configuration: String,
                                version: Version?,
-                               deviceName: String?) throws -> [XcodeBuildArgument]
+                               deviceName: String?) async throws -> [XcodeBuildArgument]
     {
-        try destination(platform: platform, version: version, deviceName: deviceName)
-            .map { (destination: String) -> [XcodeBuildArgument] in
-                [
-                    .sdk(platform == .macOS ? platform.xcodeDeviceSDK : platform.xcodeSimulatorSDK!),
-                    .configuration(configuration),
-                    .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"),
-                    .xcarg("GCC_GENERATE_DEBUGGING_SYMBOLS", "YES"),
-                    .destination(destination),
-                ]
-            }
-            .toBlocking()
-            .single()
+        let destination = try await destination(platform: platform, version: version, deviceName: deviceName)
+        return [
+            .configuration(configuration),
+            .xcarg("DEBUG_INFORMATION_FORMAT", "dwarf-with-dsym"),
+            .xcarg("GCC_GENERATE_DEBUGGING_SYMBOLS", "YES"),
+            .destination(destination),
+        ]
     }
 
     /// https://www.mokacoding.com/blog/xcodebuild-destination-options/
     /// https://www.mokacoding.com/blog/how-to-always-run-latest-simulator-cli/
-    fileprivate func destination(platform: Platform, version: Version?, deviceName: String?) -> Single<String> {
+    fileprivate func destination(platform: Platform, version: Version?, deviceName: String?) async throws -> String {
         var mappedPlatform: Platform!
         switch platform {
         case .iOS: mappedPlatform = .iOS
         case .watchOS: mappedPlatform = .watchOS
         case .tvOS: mappedPlatform = .tvOS
-        case .macOS: return .just("platform=OS X,arch=x86_64")
+        case .macOS: return "platform=macOS,arch=x86_64"
         }
 
-        return simulatorController.findAvailableDevice(
+        let availableDevices = try await simulatorController.findAvailableDevice(
             platform: mappedPlatform,
             version: version,
             minVersion: nil,
             deviceName: deviceName
         )
-        .flatMap { deviceAndRuntime -> Single<String> in
-            .just("id=\(deviceAndRuntime.device.udid)")
-        }
+
+        return "id=\(availableDevices.device.udid)"
     }
 
     fileprivate func xcodebuild(projectTarget: XcodeBuildTarget,

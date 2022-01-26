@@ -193,12 +193,15 @@ final class BuildPhaseGenerator: BuildPhaseGenerating {
         pbxTarget.buildPhases.append(sourcesBuildPhase)
 
         var buildFilesCache = Set<AbsolutePath>()
-        let sortedFiles = files.sorted(by: { $0.path < $1.path })
+        // Ignore DocC Swift tutorial files from `Sources`
+        let sortedFiles = files
+            .filter { !fileElements.isDocCTutorialFile(path: $0.path) }
+            .sorted(by: { $0.path < $1.path })
+
         var pbxBuildFiles = [PBXBuildFile]()
         try sortedFiles.forEach { buildFile in
             let buildFilePath = buildFile.path
             let isLocalized = buildFilePath.pathString.contains(".lproj/")
-
             let element: (element: PBXFileElement, path: AbsolutePath)
             if !isLocalized {
                 guard let fileReference = fileElements.file(path: buildFile.path) else {

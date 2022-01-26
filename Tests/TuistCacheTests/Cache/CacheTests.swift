@@ -1,5 +1,4 @@
 import Foundation
-import RxSwift
 import TuistGraph
 import XCTest
 
@@ -29,7 +28,7 @@ final class CacheTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_exists_when_in_first_cache_does_not_check_second_and_returns_true() {
+    func test_exists_when_in_first_cache_does_not_check_second_and_returns_true() async throws {
         firstCache.existsStub = { name, hash in
             XCTAssertEqual(name, "targetName")
             XCTAssertEqual(hash, "1234")
@@ -39,10 +38,11 @@ final class CacheTests: TuistUnitTestCase {
             XCTFail("Second cache should not be checked if first hits")
             return false
         }
-        XCTAssertTrue(try subject.exists(name: "targetName", hash: "1234").toBlocking().single())
+        let result = try await subject.exists(name: "targetName", hash: "1234")
+        XCTAssertTrue(result)
     }
 
-    func test_exists_when_in_second_cache_checks_both_and_returns_true() {
+    func test_exists_when_in_second_cache_checks_both_and_returns_true() async throws {
         firstCache.existsStub = { name, hash in
             XCTAssertEqual(name, "targetName")
             XCTAssertEqual(hash, "1234")
@@ -53,10 +53,11 @@ final class CacheTests: TuistUnitTestCase {
             XCTAssertEqual(hash, "1234")
             return true
         }
-        XCTAssertTrue(try subject.exists(name: "targetName", hash: "1234").toBlocking().single())
+        let result = try await subject.exists(name: "targetName", hash: "1234")
+        XCTAssertTrue(result)
     }
 
-    func test_exists_when_not_in_cache_checks_both_and_returns_false() {
+    func test_exists_when_not_in_cache_checks_both_and_returns_false() async throws {
         firstCache.existsStub = { name, hash in
             XCTAssertEqual(name, "targetName")
             XCTAssertEqual(hash, "1234")
@@ -67,10 +68,11 @@ final class CacheTests: TuistUnitTestCase {
             XCTAssertEqual(hash, "1234")
             return false
         }
-        XCTAssertFalse(try subject.exists(name: "targetName", hash: "1234").toBlocking().single())
+        let result = try await subject.exists(name: "targetName", hash: "1234")
+        XCTAssertFalse(result)
     }
 
-    func test_fetch_when_in_first_cache_does_not_check_second_and_returns_path() {
+    func test_fetch_when_in_first_cache_does_not_check_second_and_returns_path() async throws {
         firstCache.fetchStub = { name, hash in
             XCTAssertEqual(name, "targetName")
             XCTAssertEqual(hash, "1234")
@@ -80,10 +82,11 @@ final class CacheTests: TuistUnitTestCase {
             XCTFail("Second cache should not be checked if first hits")
             throw TestError("")
         }
-        XCTAssertEqual(try subject.fetch(name: "targetName", hash: "1234").toBlocking().single(), "/Absolute/Path")
+        let result = try await subject.fetch(name: "targetName", hash: "1234")
+        XCTAssertEqual(result, "/Absolute/Path")
     }
 
-    func test_fetch_when_in_second_cache_checks_both_and_returns_path() {
+    func test_fetch_when_in_second_cache_checks_both_and_returns_path() async throws {
         firstCache.fetchStub = { name, hash in
             XCTAssertEqual(name, "targetName")
             XCTAssertEqual(hash, "1234")
@@ -94,10 +97,11 @@ final class CacheTests: TuistUnitTestCase {
             XCTAssertEqual(hash, "1234")
             return "/Absolute/Path"
         }
-        XCTAssertEqual(try subject.fetch(name: "targetName", hash: "1234").toBlocking().single(), "/Absolute/Path")
+        let result = try await subject.fetch(name: "targetName", hash: "1234")
+        XCTAssertEqual(result, "/Absolute/Path")
     }
 
-    func test_fetch_when_not_in_cache_checks_both_and_throws() {
+    func test_fetch_when_not_in_cache_checks_both_and_throws() async {
         firstCache.fetchStub = { name, hash in
             XCTAssertEqual(name, "targetName")
             XCTAssertEqual(hash, "1234")
@@ -108,8 +112,8 @@ final class CacheTests: TuistUnitTestCase {
             XCTAssertEqual(hash, "1234")
             throw TestError("")
         }
-        XCTAssertThrowsSpecific(
-            try subject.fetch(name: "targetName", hash: "1234").toBlocking().single(),
+        await XCTAssertThrowsSpecific(
+            try await subject.fetch(name: "targetName", hash: "1234"),
             TestError("")
         )
     }

@@ -1,5 +1,4 @@
 import Foundation
-import RxSwift
 import TuistSupport
 
 @testable import TuistCore
@@ -52,7 +51,7 @@ public final class MockCloudClient: CloudClienting {
 
     // MARK: Public Interface
 
-    public func request<T, Err: Error>(_ resource: HTTPResource<T, Err>) -> Single<(object: T, response: HTTPURLResponse)> {
+    public func request<T, Err: Error>(_ resource: HTTPResource<T, Err>) async throws -> (object: T, response: HTTPURLResponse) {
         invokedRequest = true
         invokedRequestCount += 1
         invokedRequestParameterList.append(resource)
@@ -60,7 +59,7 @@ public final class MockCloudClient: CloudClienting {
         let urlRequest = resource.request()
         let errorCandidate = stubbedErrorPerURLRequest[urlRequest] ?? stubbedError
         if let error = errorCandidate {
-            return Single.error(error)
+            throw error
         } else {
             let objectCandidate = stubbedObjectPerURLRequest[urlRequest] ?? stubbedObject
             guard let object = objectCandidate as? T
@@ -70,7 +69,7 @@ public final class MockCloudClient: CloudClienting {
                 )
             }
             let responseCandidate = stubbedResponsePerURLRequest[urlRequest] ?? stubbedResponse
-            return Single.just((object, responseCandidate!))
+            return (object, responseCandidate!)
         }
     }
 }

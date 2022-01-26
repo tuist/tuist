@@ -103,6 +103,11 @@ public protocol Systeming {
         redirection: TSCBasic.Process.OutputRedirection
     ) throws
 
+    /// Runs a command in the shell and wraps the standard output.
+    /// - Parameters:
+    ///   - arguments: Command.
+    func runAndCollectOutput(_ arguments: [String]) async throws -> SystemCollectedOutput
+
     /// Runs a command in the shell and wraps the standard output and error in a observable.
     /// - Parameters:
     ///   - arguments: Command.
@@ -468,6 +473,14 @@ public final class System: Systeming {
         observable(arguments, verbose: false)
     }
 
+    public func runAndCollectOutput(_ arguments: [String]) async throws -> SystemCollectedOutput {
+        try await observable(arguments)
+            .mapToString()
+            .collectOutput()
+            .asSingle()
+            .value
+    }
+
     public func observable(_ arguments: [String], verbose: Bool) -> Observable<SystemEvent<Data>> {
         observable(arguments, verbose: verbose, environment: env)
     }
@@ -517,7 +530,7 @@ public final class System: Systeming {
                 }
             }
         }
-        .subscribeOn(ConcurrentDispatchQueueScheduler(queue: DispatchQueue.global()))
+        .subscribe(on: ConcurrentDispatchQueueScheduler(queue: DispatchQueue.global()))
     }
 
     public func observable(_ arguments: [String], pipedToArguments: [String]) -> Observable<SystemEvent<Data>> {
@@ -583,7 +596,7 @@ public final class System: Systeming {
                 }
             }
         }
-        .subscribeOn(ConcurrentDispatchQueueScheduler(queue: DispatchQueue.global()))
+        .subscribe(on: ConcurrentDispatchQueueScheduler(queue: DispatchQueue.global()))
     }
 
     /// Runs a command in the shell asynchronously.

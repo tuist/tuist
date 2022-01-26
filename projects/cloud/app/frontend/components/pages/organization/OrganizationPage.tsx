@@ -9,11 +9,14 @@ import {
   ActionList,
   Popover,
   Button,
+  FormLayout,
+  TextField,
 } from '@shopify/polaris';
 import { useParams } from 'react-router';
 import { Role, Organization as _ } from '@/graphql/types';
 import { observer } from 'mobx-react-lite';
 import { HomeStoreContext } from '@/stores/HomeStore';
+import OrganizationPageStore from './OrganizationPageStore';
 
 interface User {
   id: string;
@@ -78,6 +81,7 @@ const UserItem = ({
   user: User;
   isAdmin: boolean;
 }) => {
+  const { organizationStore } = useContext(HomeStoreContext);
   return (
     <div style={{ padding: '10px 100px 10px 20px' }}>
       <Stack alignment={'center'}>
@@ -95,12 +99,22 @@ const UserItem = ({
             {user.role.charAt(0).toUpperCase() + user.role.slice(1)}
           </TextStyle>
         )}
+        {isAdmin && (
+          <Button
+            destructive={true}
+            onClick={() => {
+              organizationStore.removeMember(user.id);
+            }}
+          >
+            Remove member
+          </Button>
+        )}
       </Stack>
     </div>
   );
 };
 
-const Organization = observer(() => {
+const OrganizationPage = observer(() => {
   const { accountName: organizationName } = useParams();
   const { organizationStore, userStore } =
     useContext(HomeStoreContext);
@@ -110,11 +124,56 @@ const Organization = observer(() => {
         .map((admin) => admin.id)
         .includes(userStore.me.id)) ??
     false;
+  const [organizationPageStore] = useState(
+    () => new OrganizationPageStore(),
+  );
   return (
-    <Page title={organizationName}>
-      <Card title="Users">
+    <Page
+      primaryAction={
+        <Popover
+          active={organizationPageStore.isInvitePopoverActive}
+          activator={
+            <Button
+              primary
+              onClick={() => {
+                organizationPageStore.inviteMemberButtonClicked();
+              }}
+            >
+              Invite member
+            </Button>
+          }
+          onClose={() => {
+            organizationPageStore.invitePopoverClosed();
+          }}
+          sectioned
+        >
+          <FormLayout>
+            <TextField
+              label="Invitee email"
+              value={organizationPageStore.inviteeEmail}
+              onChange={(newValue) => {
+                organizationPageStore.inviteeEmail = newValue;
+              }}
+            ></TextField>
+            <Button
+              primary
+              onClick={() => {
+                organizationStore.inviteMember(
+                  organizationPageStore.inviteeEmail,
+                );
+                organizationPageStore.invitePopoverClosed();
+              }}
+            >
+              Invite member
+            </Button>
+          </FormLayout>
+        </Popover>
+      }
+      title={organizationName}
+    >
+      <Card title="Members">
         <ResourceList
-          resourceName={{ singular: 'user', plural: 'users' }}
+          resourceName={{ singular: 'member', plural: 'members' }}
           items={organizationStore.members}
           renderItem={(item) => {
             return <UserItem user={item} isAdmin={isAdmin} />;
@@ -125,4 +184,4 @@ const Organization = observer(() => {
   );
 });
 
-export default Organization;
+export default OrganizationPage;

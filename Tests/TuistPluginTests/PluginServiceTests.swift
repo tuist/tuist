@@ -112,7 +112,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_fetchRemotePlugins_when_git_sha() throws {
+    func test_fetchRemotePlugins_when_git_sha() async throws {
         // Given
         let pluginGitURL = "https://url/to/repo.git"
         let pluginGitSha = "abc"
@@ -136,7 +136,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.fetchRemotePlugins(using: config)
+        try await subject.fetchRemotePlugins(using: config)
 
         // Then
         XCTAssertEqual(invokedCloneURL, pluginGitURL)
@@ -153,7 +153,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_fetchRemotePlugins_when_git_tag_and_repository_not_cached() throws {
+    func test_fetchRemotePlugins_when_git_tag_and_repository_not_cached() async throws {
         // Given
         let pluginGitURL = "https://url/to/repo.git"
         let pluginGitTag = "1.0.0"
@@ -177,7 +177,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.fetchRemotePlugins(using: config)
+        try await subject.fetchRemotePlugins(using: config)
 
         // Then
         XCTAssertEqual(invokedCloneURL, pluginGitURL)
@@ -194,7 +194,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_fetchRemotePlugins_when_git_tag_and_repository_cached() throws {
+    func test_fetchRemotePlugins_when_git_tag_and_repository_cached() async throws {
         // Given
         let pluginGitURL = "https://url/to/repo.git"
         let pluginGitTag = "1.0.0"
@@ -217,7 +217,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         try fileHandler.touch(commandPath)
 
         // When / Then
-        try subject.fetchRemotePlugins(using: config)
+        try await subject.fetchRemotePlugins(using: config)
     }
 
     func test_loadPlugins_WHEN_localHelpers() throws {

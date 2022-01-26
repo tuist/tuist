@@ -132,8 +132,8 @@
         "repositoryURL": "https://github.com/ReactiveX/RxSwift.git",
         "state": {
           "branch": null,
-          "revision": "254617dd7fae0c45319ba5fbea435bf4d0e15b5d",
-          "version": "5.1.2"
+          "revision": "b4307ba0b6425c0ba4178e138799946c3da594f8",
+          "version": "6.5.0"
         }
       },
       {
@@ -246,11 +246,11 @@
       },
       {
         "package": "Zip",
-        "repositoryURL": "https://github.com/maparoni/Zip.git",
+        "repositoryURL": "https://github.com/marmelroy/Zip.git",
         "state": {
           "branch": null,
-          "revision": "059e7346082d02de16220cd79df7db18ddeba8c3",
-          "version": null
+          "revision": "bd19d974e8a38cc8d3a88c90c8a107386c3b8ccf",
+          "version": "2.1.1"
         }
       }
     ]

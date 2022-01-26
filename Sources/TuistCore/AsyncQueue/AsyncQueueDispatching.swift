@@ -1,5 +1,4 @@
 import Foundation
-import RxSwift
 
 /// Async queue dispatcher.
 public protocol AsyncQueueDispatching {

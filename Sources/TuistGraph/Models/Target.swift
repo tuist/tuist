@@ -4,8 +4,10 @@ import TSCBasic
 public struct Target: Equatable, Hashable, Comparable, Codable {
     // MARK: - Static
 
+    // Note: The `.docc` file type is technically both a valid source extension and folder extension
+    //       in order to compile the documentation archive (including Tutorials, Articles, etc.)
     public static let validSourceExtensions: [String] = [
-        "m", "swift", "mm", "cpp", "cc", "c", "d", "s", "intentdefinition", "xcmappingmodel", "metal", "mlmodel",
+        "m", "swift", "mm", "cpp", "cc", "c", "d", "s", "intentdefinition", "xcmappingmodel", "metal", "mlmodel", "docc",
     ]
     public static let validFolderExtensions: [String] = [
         "framework", "bundle", "app", "xcassets", "appiconset", "scnassets",

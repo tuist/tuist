@@ -4,7 +4,7 @@ import TSCBasic
 import TuistSupport
 
 /// Command that tests a target from the project in the current directory.
-struct TestCommand: ParsableCommand {
+struct TestCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "test",
@@ -59,7 +59,7 @@ struct TestCommand: ParsableCommand {
     )
     var resultBundlePath: String?
 
-    func run() throws {
+    func runAsync() async throws {
         let absolutePath: AbsolutePath
 
         if let path = path {
@@ -68,7 +68,7 @@ struct TestCommand: ParsableCommand {
             absolutePath = FileHandler.shared.currentPath
         }
 
-        try TestService().run(
+        try await TestService().run(
             schemeName: scheme,
             clean: clean,
             configuration: configuration,

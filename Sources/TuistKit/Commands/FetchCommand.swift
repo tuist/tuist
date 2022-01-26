@@ -8,7 +8,7 @@ enum FetchCategory: String, CaseIterable, RawRepresentable, ExpressibleByArgumen
 }
 
 /// A command to fetch any remote content necessary to interact with the project.
-struct FetchCommand: ParsableCommand {
+struct FetchCommand: AsyncParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "fetch",
@@ -32,8 +32,8 @@ struct FetchCommand: ParsableCommand {
     @Argument(help: "Categories to be fetched.")
     var fetchCategories: [FetchCategory] = FetchCategory.allCases
 
-    func run() throws {
-        try FetchService().run(
+    func runAsync() async throws {
+        try await FetchService().run(
             path: path,
             fetchCategories: fetchCategories,
             update: update

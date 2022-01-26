@@ -31,12 +31,12 @@ final class FetchService {
         path: String?,
         fetchCategories: [FetchCategory],
         update: Bool
-    ) throws {
+    ) async throws {
         let path = self.path(path)
-        try fetchCategories.forEach {
-            switch $0 {
+        for fetchCategory in fetchCategories {
+            switch fetchCategory {
             case .plugins:
-                try fetchPlugins(path: path)
+                try await fetchPlugins(path: path)
             case .dependencies:
                 try fetchDependencies(path: path, update: update)
             }
@@ -57,11 +57,11 @@ final class FetchService {
         FileHandler.shared.currentPath
     }
 
-    private func fetchPlugins(path: AbsolutePath) throws {
+    private func fetchPlugins(path: AbsolutePath) async throws {
         logger.info("Resolving and fetching plugins.", metadata: .section)
 
         let config = try configLoader.loadConfig(path: path)
-        try pluginService.fetchRemotePlugins(using: config)
+        try await pluginService.fetchRemotePlugins(using: config)
 
         logger.info("Plugins resolved and fetched successfully.", metadata: .success)
     }
