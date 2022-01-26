@@ -339,7 +339,6 @@ func modulesTargetsAndSchemes() -> [(targets: [Target], scheme: Scheme)] {
         ),
         Target.module(
             name: "TuistSigning",
-            hasIntegrationTests: true,
             dependencies: [
                 .target(name: "TuistCore"),
                 .target(name: "TuistGraph"),
@@ -351,11 +350,6 @@ func modulesTargetsAndSchemes() -> [(targets: [Target], scheme: Scheme)] {
                 .target(name: "TuistGraphTesting"),
             ],
             testingDependencies: [
-                .target(name: "TuistGraphTesting"),
-            ],
-            integrationTestsDependencies: [
-                .target(name: "TuistSupportTesting"),
-                .target(name: "TuistCoreTesting"),
                 .target(name: "TuistGraphTesting"),
             ]
         ),
@@ -420,11 +414,14 @@ func modulesTargetsAndSchemes() -> [(targets: [Target], scheme: Scheme)] {
                 .target(name: "TuistCore"),
                 .target(name: "TuistGraph"),
                 .target(name: "TuistSupport"),
+                .target(name: "TuistLoader"),
+                .target(name: "TuistPlugin"),
             ],
             testDependencies: [
                 .target(name: "TuistCoreTesting"),
                 .target(name: "TuistGraphTesting"),
                 .target(name: "TuistLoaderTesting"),
+                .target(name: "TuistPluginTesting"),
                 .target(name: "TuistSupportTesting"),
             ],
             testingDependencies: [

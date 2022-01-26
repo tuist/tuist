@@ -6,8 +6,7 @@ module Fourier
       desc "tuist", "Lint the Swift code of the Tuist CLI"
       option :fix, desc: "When passed, it fixes the issues", type: :boolean, default: false
       def tuist
-        Services::Lint::Tuist.call(fix: options[:fix])
-        Services::Format::Swift.call(fix: options[:fix])
+        lint_tuist(fix: options[:fix])
       end
 
       desc "tuistbench", "Lint the Swift code of the tuistbench project"
@@ -55,7 +54,7 @@ module Fourier
       option :fix, desc: "When passed, it fixes the issues", type: :boolean, default: false
       def all
         Services::Lint::Lockfiles.call
-        Services::Lint::Tuist.call(fix: options[:fix])
+        lint_tuist(fix: options[:fix])
         Services::Lint::Tuistbench.call(fix: options[:fix])
         Services::Lint::Fixturegen.call(fix: options[:fix])
         Services::Lint::CocoapodsInteractor.call(fix: options[:fix])
@@ -63,6 +62,13 @@ module Fourier
         Services::Lint::Cloud.call(fix: options[:fix])
         Services::Lint::Backbone.call(fix: options[:fix])
       end
+
+      no_commands {
+        def lint_tuist(fix: false)
+          Services::Lint::Tuist.call(fix: fix)
+          Services::Format::Swift.call(fix: fix)
+        end
+      }
     end
   end
 end

@@ -10,7 +10,7 @@ extension TuistGraph.Dependencies {
     /// - Parameters:
     ///   - manifest: Manifest representation of dependencies.
     ///   - generatorPaths: Generator paths.
-    static func from(manifest: ProjectDescription.Dependencies, generatorPaths: GeneratorPaths) throws -> Self {
+    public static func from(manifest: ProjectDescription.Dependencies, generatorPaths: GeneratorPaths) throws -> Self {
         let carthage: TuistGraph.CarthageDependencies? = try {
             guard let carthage = manifest.carthage else {
                 return nil

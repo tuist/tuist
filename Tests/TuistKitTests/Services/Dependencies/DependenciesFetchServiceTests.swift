@@ -14,7 +14,7 @@ import XCTest
 
 final class DependenciesFetchServiceTests: TuistUnitTestCase {
     private var dependenciesController: MockDependenciesController!
-    private var dependenciesModelLoader: MockDependenciesModelLoader!
+    private var dependenciesModelLoader: MockDependenciesService!
     private var configLoader: MockConfigLoader!
 
     private var subject: DependenciesFetchService!
@@ -23,7 +23,7 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
         super.setUp()
 
         dependenciesController = MockDependenciesController()
-        dependenciesModelLoader = MockDependenciesModelLoader()
+        dependenciesModelLoader = MockDependenciesService()
         configLoader = MockConfigLoader()
 
         subject = DependenciesFetchService(
@@ -62,7 +62,7 @@ final class DependenciesFetchServiceTests: TuistUnitTestCase {
             ),
             platforms: [.iOS, .macOS]
         )
-        dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
+        dependenciesModelLoader.loadDependenciesStub = { _, _ in stubbedDependencies }
 
         let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
         configLoader.loadConfigStub = { _ in Config.test(swiftVersion: stubbedSwiftVersion) }

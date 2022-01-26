@@ -483,16 +483,6 @@ let package = Package(
                 "TuistGraphTesting",
             ]
         ),
-        .testTarget(
-            name: "TuistSigningIntegrationTests",
-            dependencies: [
-                "TuistSigning",
-                "TuistSupportTesting",
-                "TuistCoreTesting",
-                "TuistSigningTesting",
-                "TuistGraphTesting",
-            ]
-        ),
         .target(
             name: "TuistDependencies",
             dependencies: [
@@ -500,6 +490,7 @@ let package = Package(
                 "TuistCore",
                 "TuistGraph",
                 "TuistSupport",
+                "TuistPlugin",
             ]
         ),
         .target(
@@ -512,11 +503,13 @@ let package = Package(
         .testTarget(
             name: "TuistDependenciesTests",
             dependencies: [
+                "TuistCoreTesting",
                 "TuistDependencies",
                 "TuistDependenciesTesting",
-                "TuistCoreTesting",
-                "TuistSupportTesting",
                 "TuistGraphTesting",
+                "TuistLoaderTesting",
+                "TuistSupportTesting",
+                "TuistPluginTesting",
             ]
         ),
         .target(
