@@ -4,7 +4,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
-### Fixed
+### 2.7.1
 
 - Fix `tuistenv` not running `tuist` commands [#4061](https://github.com/tuist/tuist/pull/4061) by [@danyf90](https://github.com/danyf90)
 
