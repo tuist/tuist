@@ -17,6 +17,7 @@ module Fourier
             Utilities::System
               .expects(:tuist)
               .with("test")
+
             # When/Then
             Unit.call
           end
