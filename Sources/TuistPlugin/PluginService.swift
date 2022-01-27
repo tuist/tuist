@@ -53,7 +53,7 @@ public protocol PluginServicing {
     func loadPlugins(using config: Config) throws -> Plugins
     /// Fetches all remote plugins defined in a given config.
     /// - Returns: The loaded `Plugins` representation.
-    func fetchRemotePlugins(using config: Config) async throws -> Plugins
+    func fetchRemotePlugins(using config: Config) async throws
     /// - Returns: Array of `RemotePluginPaths` for each remote plugin.
     func remotePluginPaths(using config: Config) throws -> [RemotePluginPaths]
 }
@@ -99,7 +99,7 @@ public final class PluginService: PluginServicing {
         self.fileClient = fileClient
     }
 
-    public func fetchRemotePlugins(using config: Config) async throws -> Plugins {
+    public func fetchRemotePlugins(using config: Config) async throws {
         for pluginLocation in config.plugins {
             switch pluginLocation {
             case let .git(url, gitReference):
@@ -112,7 +112,6 @@ public final class PluginService: PluginServicing {
                 continue
             }
         }
-        return try loadPlugins(using: config)
     }
 
     public func remotePluginPaths(using config: Config) throws -> [RemotePluginPaths] {

@@ -120,7 +120,6 @@ final class FetchServiceTests: TuistUnitTestCase {
         var invokedConfig: Config?
         pluginService.fetchRemotePluginsStub = { config in
             invokedConfig = config
-            return Plugins.test()
         }
 
         // When
@@ -169,9 +168,7 @@ final class FetchServiceTests: TuistUnitTestCase {
             XCTAssertEqual(dependenciesGraph, .none)
             XCTAssertEqual(path, stubbedPath)
         }
-        pluginService.fetchRemotePluginsStub = { _ in
-            Plugins.test()
-        }
+        pluginService.fetchRemotePluginsStub = { _ in }
 
         try fileHandler.touch(
             stubbedPath.appending(
