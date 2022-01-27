@@ -9,7 +9,7 @@ public enum Constants {
     public static let githubSlug = "tuist/tuist"
     public static let communityURL = "https://community.tuist.io"
     public static let backboneURL = URL(string: "https://backbone.tuist.io")!
-    public static let version = "2.7.0"
+    public static let version = "2.7.1"
     public static let bundleName: String = "tuist.zip"
     public static let trueValues: [String] = ["1", "true", "TRUE", "yes", "YES"]
     public static let tuistDirectoryName: String = "Tuist"
@@ -64,7 +64,6 @@ public enum Constants {
     /// But only eg. for acceptance tests and other cases needed internally
     public enum EnvironmentVariables {
         public static let verbose = "TUIST_CONFIG_VERBOSE"
-        public static let silent = "TUIST_CONFIG_SILENT"
         public static let colouredOutput = "TUIST_CONFIG_COLOURED_OUTPUT"
         public static let versionsDirectory = "TUIST_CONFIG_VERSIONS_DIRECTORY"
         public static let forceConfigCacheDirectory = "TUIST_CONFIG_FORCE_CONFIG_CACHE_DIRECTORY"

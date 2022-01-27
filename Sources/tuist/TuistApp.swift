@@ -8,10 +8,8 @@ import TuistSupport
 @main
 enum TuistApp {
     static func main() async throws {
-        if CommandLine.arguments
-            .contains("--verbose") { try? ProcessEnv.setVar(Constants.EnvironmentVariables.verbose, value: "true") }
-        if CommandLine.arguments.contains("--generate-completion-script") {
-            try? ProcessEnv.unsetVar(Constants.EnvironmentVariables.silent)
+        if CommandLine.arguments.contains("--verbose") {
+            try? ProcessEnv.setVar(Constants.EnvironmentVariables.verbose, value: "true")
         }
 
         TuistSupport.LogOutput.bootstrap()

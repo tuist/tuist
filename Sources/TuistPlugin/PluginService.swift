@@ -108,7 +108,7 @@ public final class PluginService: PluginServicing {
                     config: config
                 )
             case .local:
-                return
+                continue
             }
         }
     }

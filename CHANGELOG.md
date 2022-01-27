@@ -31,6 +31,14 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
+### Changed
+
+- **Breaking** the used tuist version and the manifests compilation times are no longer printed at default log level. Use the `--verbose` flag to print them. [#4052](https://github.com/tuist/tuist/pull/4052) by [@danyf90](https://github.com/danyf90)
+
+### 2.7.1
+
+- Fix `tuistenv` not running `tuist` commands [#4061](https://github.com/tuist/tuist/pull/4061) by [@danyf90](https://github.com/danyf90)
+
 ## 2.7.0 - Cancun
 
 ### Changed
@@ -41,8 +49,6 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - Add support for `.docc` file types [#3982](https://github.com/tuist/tuist/pull/3982) by [@Jake Prickett](https://github.com/Jake-Prickett)
 - Add a new test argument `--retry-count <number>` to retry failed tests <number> of times until success [#4021](https://github.com/tuist/tuist/pull/4021) by [@regularberry](https://github.com/regularberry)
-
-- Add support for `.docc` file types [#3982](https://github.com/tuist/tuist/pull/3982) by [@Jake Prickett](https://github.com/Jake-Prickett)
 - Add ability to specify as a command line argument, the Xcode version to use when bundling/releasing tuist and its libraries [#3957](https://github.com/tuist/tuist/pull/3957) by [@hisaac](https://github.com/hisaac)
 - Add automatic mapping of product and settings for known SwiftPackageManager libraries [#3996](https://github.com/tuist/tuist/pull/3996) by [@danyf90](https://github.com/danyf90)
 
