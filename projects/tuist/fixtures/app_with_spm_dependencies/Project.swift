@@ -15,7 +15,6 @@ let project = Project(
                 .external(name: "Alamofire"),
                 .external(name: "Charts"),
                 .external(name: "ComposableArchitecture"),
-                .external(name: "CrashReporter"),
                 .external(name: "FacebookCore"),
                 .external(name: "FirebaseAnalytics"),
                 .external(name: "FirebaseDatabase"),
