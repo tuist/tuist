@@ -43,6 +43,13 @@ public struct TuistCommand: ParsableCommand {
         let executeCommand: () async throws -> Void
         do {
             let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
+
+            // Help
+            if processedArguments.isEmpty || processedArguments.first == "--help" {
+                let error = CleanExit.helpRequest(self)
+                exit(withError: error)
+            }
+
             let isTuistCommand = Self.configuration.subcommands
                 // swiftformat:disable:next preferKeyPath
                 .map { $0._commandName }
