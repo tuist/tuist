@@ -4,7 +4,7 @@ import TuistSupport
 
 @testable import TuistLoader
 
-public class MockDependenciesModelLoader: DependenciesModelLoading {    
+public class MockDependenciesModelLoader: DependenciesModelLoading {
     public init() {}
 
     public var invokedLoadDependencies = false

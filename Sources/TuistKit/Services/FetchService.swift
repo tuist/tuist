@@ -2,10 +2,10 @@ import Foundation
 import TSCBasic
 import TuistCore
 import TuistDependencies
+import TuistGraph
 import TuistLoader
 import TuistPlugin
 import TuistSupport
-import TuistGraph
 
 final class FetchService {
     private let pluginService: PluginServicing
@@ -58,7 +58,7 @@ final class FetchService {
         let plugins = try await pluginService.fetchRemotePlugins(using: config)
 
         logger.info("Plugins resolved and fetched successfully.", metadata: .success)
-        
+
         return plugins
     }
 

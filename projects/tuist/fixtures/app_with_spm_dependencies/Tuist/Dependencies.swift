@@ -8,12 +8,11 @@ let dependencies = Dependencies(
         .package(url: "https://github.com/firebase/firebase-ios-sdk", .upToNextMajor(from: "8.0.0")),
         .package(url: "https://github.com/pointfreeco/swift-composable-architecture", .upToNextMinor(from: "0.22.0")),
     ],
-        targetSettings: [
-            "CrashReporter": [
-                "ALWAYS_SEARCH_USER_PATHS": "NO",
-                "USE_HEADERMAP": "YES",
-            ],
-        ]
-    ),
+    targetSettings: [
+        "CrashReporter": [
+            "ALWAYS_SEARCH_USER_PATHS": "NO",
+            "USE_HEADERMAP": "YES",
+        ],
+    ]
     platforms: [.iOS]
 )

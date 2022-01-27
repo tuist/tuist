@@ -83,8 +83,8 @@ final class FetchServiceTests: TuistUnitTestCase {
             XCTAssertEqual(dependenciesGraph, .none)
             XCTAssertEqual(path, stubbedPath)
         }
-        pluginService.fetchRemotePluginsStub = { config in
-            return Plugins.test()
+        pluginService.fetchRemotePluginsStub = { _ in
+            Plugins.test()
         }
 
         try fileHandler.touch(
@@ -169,8 +169,8 @@ final class FetchServiceTests: TuistUnitTestCase {
             XCTAssertEqual(dependenciesGraph, .none)
             XCTAssertEqual(path, stubbedPath)
         }
-        pluginService.fetchRemotePluginsStub = { config in
-            return Plugins.test()
+        pluginService.fetchRemotePluginsStub = { _ in
+            Plugins.test()
         }
 
         try fileHandler.touch(
