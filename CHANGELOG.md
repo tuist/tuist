@@ -8,7 +8,11 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 - **Breaking** the used tuist version and the manifests compilation times are no longer printed at default log level. Use the `--verbose` flag to print them. [#4052](https://github.com/tuist/tuist/pull/4052) by [@danyf90](https://github.com/danyf90)
 
-### 2.7.1
+## 2.7.2
+
+- Fix download of binary artifacts from the remote cache [#4073](https://github.com/tuist/tuist/pull/4073) by [@adellibovi](https://github.com/adellibovi)
+
+## 2.7.1
 
 - Fix `tuistenv` not running `tuist` commands [#4061](https://github.com/tuist/tuist/pull/4061) by [@danyf90](https://github.com/danyf90)
 

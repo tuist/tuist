@@ -74,12 +74,12 @@ public class FileClient: FileClienting {
     public func download(url: URL) async throws -> AbsolutePath {
         let request = URLRequest(url: url)
         do {
-            let (url, response) = try await session.download(for: request)
+            let (localUrl, response) = try await session.download(for: request)
             guard let response = response as? HTTPURLResponse else {
                 throw FileClientError.invalidResponse(request, nil)
             }
             if successStatusCodeRange.contains(response.statusCode) {
-                return AbsolutePath(url.path)
+                return AbsolutePath(localUrl.path)
             } else {
                 throw FileClientError.invalidResponse(request, nil)
             }
@@ -155,13 +155,19 @@ extension URLSession {
     @available(macOS, deprecated: 12.0, message: "This extension is no longer necessary.")
     public func download(for request: URLRequest, delegate _: URLSessionTaskDelegate? = nil) async throws -> (URL, URLResponse) {
         try await withCheckedThrowingContinuation { continuation in
-            let task = self.downloadTask(with: request) { url, response, error in
+            let task = self.downloadTask(with: request) { url, response, responseError in
                 guard let url = url, let response = response else {
-                    let error = error ?? URLError(.badServerResponse)
+                    let error = responseError ?? URLError(.badServerResponse)
                     return continuation.resume(throwing: error)
                 }
-
-                continuation.resume(returning: (url, response))
+                do {
+                    let storedPath = AbsolutePath(url.path.appending("-Temp"))
+                    // File needs to be moved, otherwise it will deleted when the closure completes
+                    try FileHandler.shared.move(from: AbsolutePath(url.path), to: storedPath)
+                    continuation.resume(returning: (storedPath.url, response))
+                } catch {
+                    continuation.resume(throwing: error)
+                }
             }
             task.resume()
         }

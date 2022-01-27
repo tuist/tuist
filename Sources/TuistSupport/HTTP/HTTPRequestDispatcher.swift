@@ -84,12 +84,14 @@ public final class HTTPRequestDispatcher: HTTPRequestDispatching {
                     throw HTTPRequestDispatcherError.parseError(error)
                 }
             default: // Error
+                let thrownError: Error
                 do {
-                    let error = try resource.parseError(data, response)
-                    throw HTTPRequestDispatcherError.serverSideError(error, response)
+                    let parsedError = try resource.parseError(data, response)
+                    thrownError = HTTPRequestDispatcherError.serverSideError(parsedError, response)
                 } catch {
-                    throw HTTPRequestDispatcherError.parseError(error)
+                  thrownError = HTTPRequestDispatcherError.parseError(error)
                 }
+                throw thrownError
             }
         } catch {
             if error is HTTPRequestDispatcherError {
