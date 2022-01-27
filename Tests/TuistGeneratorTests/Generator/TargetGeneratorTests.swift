@@ -44,12 +44,12 @@ final class TargetGeneratorTests: XCTestCase {
                 TargetScript(
                     name: "pre",
                     order: .pre,
-                    script: .tool("echo", ["pre1", "pre2"])
+                    script: .tool(path: "echo", args: ["pre1", "pre2"])
                 ),
                 TargetScript(
                     name: "post",
                     order: .post,
-                    script: .tool("echo", ["post1", "post2"]),
+                    script: .tool(path: "echo", args: ["post1", "post2"]),
                     inputFileListPaths: ["/tmp/b"],
                     outputFileListPaths: ["/tmp/d"]
                 ),
@@ -156,12 +156,12 @@ final class TargetGeneratorTests: XCTestCase {
                 TargetScript(
                     name: "post",
                     order: .post,
-                    script: .scriptPath(path.appending(component: "script.sh"), args: ["arg"])
+                    script: .scriptPath(path: path.appending(component: "script.sh"), args: ["arg"])
                 ),
                 TargetScript(
                     name: "pre",
                     order: .pre,
-                    script: .scriptPath(path.appending(component: "script.sh"), args: ["arg"])
+                    script: .scriptPath(path: path.appending(component: "script.sh"), args: ["arg"])
                 ),
             ]
         )

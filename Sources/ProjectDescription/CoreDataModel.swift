@@ -8,11 +8,6 @@ public struct CoreDataModel: Codable, Equatable {
     /// Optional Current version (with or without extension)
     public let currentVersion: String?
 
-    public enum CodingKeys: String, CodingKey {
-        case path
-        case currentVersion = "current_version"
-    }
-
     /// Initializes the build file with its attributes.
     ///
     /// - Parameters:

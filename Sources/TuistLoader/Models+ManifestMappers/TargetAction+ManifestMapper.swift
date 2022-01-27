@@ -30,10 +30,10 @@ extension TuistGraph.TargetScript {
 
         case let .scriptPath(path, arguments):
             let scriptPath = try generatorPaths.resolve(path: path)
-            script = .scriptPath(scriptPath, args: arguments)
+            script = .scriptPath(path: scriptPath, args: arguments)
 
         case let .tool(tool, arguments):
-            script = .tool(tool, arguments)
+            script = .tool(path: tool, args: arguments)
         }
 
         return TargetScript(

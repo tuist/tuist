@@ -12,41 +12,6 @@ public enum Package: Equatable, Codable {
         case remote
         case local
     }
-
-    private enum CodingKeys: String, CodingKey {
-        case kind
-        case url
-        case productName
-        case requirement
-        case path
-    }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let kind = try container.decode(Kind.self, forKey: .kind)
-        switch kind {
-        case .remote:
-            let url = try container.decode(String.self, forKey: .url)
-            let requirement = try container.decode(Requirement.self, forKey: .requirement)
-            self = .remote(url: url, requirement: requirement)
-        case .local:
-            let path = try container.decode(Path.self, forKey: .path)
-            self = .local(path: path)
-        }
-    }
-
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        switch self {
-        case let .remote(url, requirement):
-            try container.encode(Kind.remote, forKey: .kind)
-            try container.encode(url, forKey: .url)
-            try container.encode(requirement, forKey: .requirement)
-        case let .local(path):
-            try container.encode(Kind.local, forKey: .kind)
-            try container.encode(path, forKey: .path)
-        }
-    }
 }
 
 extension Package {
@@ -66,67 +31,6 @@ extension Package {
         @available(*, unavailable, message: "use upToNextMinor(from:) instead.")
         static func upToNextMinor(_: Version) {
             fatalError()
-        }
-
-        enum CodingKeys: String, CodingKey {
-            case kind
-            case revision
-            case branch
-            case minimumVersion
-            case maximumVersion
-        }
-
-        public init(from decoder: Decoder) throws {
-            let container = try decoder.container(keyedBy: CodingKeys.self)
-            let kind: String = try container.decode(String.self, forKey: .kind)
-            if kind == "revision" {
-                let revision = try container.decode(String.self, forKey: .revision)
-                self = .revision(revision)
-            } else if kind == "branch" {
-                let branch = try container.decode(String.self, forKey: .branch)
-                self = .branch(branch)
-            } else if kind == "exactVersion" {
-                let version = try container.decode(Version.self, forKey: .minimumVersion)
-                self = .exact(version)
-            } else if kind == "versionRange" {
-                let minimumVersion = try container.decode(Version.self, forKey: .minimumVersion)
-                let maximumVersion = try container.decode(Version.self, forKey: .maximumVersion)
-                self = .range(from: minimumVersion, to: maximumVersion)
-            } else if kind == "upToNextMinor" {
-                let version = try container.decode(Version.self, forKey: .minimumVersion)
-                self = .upToNextMinor(from: version)
-            } else if kind == "upToNextMajor" {
-                let version = try container.decode(Version.self, forKey: .minimumVersion)
-                self = .upToNextMajor(from: version)
-            } else {
-                fatalError("XCRemoteSwiftPackageReference kind '\(kind)' not supported")
-            }
-        }
-
-        public func encode(to encoder: Encoder) throws {
-            var container = encoder.container(keyedBy: CodingKeys.self)
-
-            switch self {
-            case let .upToNextMajor(version):
-                try container.encode("upToNextMajor", forKey: .kind)
-                try container.encode(version, forKey: .minimumVersion)
-            case let .upToNextMinor(version):
-                try container.encode("upToNextMinor", forKey: .kind)
-                try container.encode(version, forKey: .minimumVersion)
-            case let .range(from, to):
-                try container.encode("versionRange", forKey: .kind)
-                try container.encode(from, forKey: .minimumVersion)
-                try container.encode(to, forKey: .maximumVersion)
-            case let .exact(version):
-                try container.encode("exactVersion", forKey: .kind)
-                try container.encode(version, forKey: .minimumVersion)
-            case let .branch(branch):
-                try container.encode("branch", forKey: .kind)
-                try container.encode(branch, forKey: .branch)
-            case let .revision(revision):
-                try container.encode("revision", forKey: .kind)
-                try container.encode(revision, forKey: .revision)
-            }
         }
     }
 }

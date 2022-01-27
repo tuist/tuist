@@ -1,6 +1,6 @@
 /// A struct representing a semver version.
 /// This is taken from SPMUtility and copied here so we do not create a direct dependency for ProjectDescription. Used for specifying version number requirements inside of Project.swift
-public struct Version: Hashable {
+public struct Version: Hashable, Codable {
     /// The major version.
     public let major: Int
 
@@ -133,27 +133,6 @@ extension Version: ExpressibleByStringInterpolation {
         guard let version = Version(string: value) else {
             fatalError("\(value) is not a valid version")
         }
-        self = version
-    }
-}
-
-extension Version: Codable {
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.singleValueContainer()
-        try container.encode(description)
-    }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.singleValueContainer()
-        let string = try container.decode(String.self)
-
-        guard let version = Version(string: string) else {
-            throw DecodingError.dataCorrupted(.init(
-                codingPath: decoder.codingPath,
-                debugDescription: "Invalid version string \(string)"
-            ))
-        }
-
         self = version
     }
 }

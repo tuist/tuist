@@ -8,6 +8,7 @@ module Fourier
           def call
             dependencies = ["dependencies", "fetch"]
             Utilities::System.tuist(*dependencies)
+
             Utilities::System.tuist("build", "--generate")
           end
         end

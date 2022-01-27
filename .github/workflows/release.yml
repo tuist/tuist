@@ -38,7 +38,7 @@ jobs:
       run: |
         sed -i '' -e "s/version = \".*\"/version = \"${{ github.event.inputs.version }}\"/g" Sources/TuistSupport/Constants.swift
         sed -i '' -e "s/## Next/## ${{ github.event.inputs.version }} - ${{ github.event.inputs.title }}\"/g" CHANGELOG.md
-    - name: Fourier releae
+    - name: Fourier release
       run: ./fourier release tuist ${{ github.event.inputs.version }} $(cat .xcode-version) $(cat .xcode-version-libraries)
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v1
@@ -50,5 +50,6 @@ jobs:
     - name: Create pull-request for release changes
       uses: peter-evans/create-pull-request@v3
       with:
+        title: "[Release] Tuist ${{ github.event.inputs.version }} - ${{ github.event.inputs.title }}"
         commit-message: "[Release] Tuist ${{ github.event.inputs.version }} - ${{ github.event.inputs.title }}"
         base: main
