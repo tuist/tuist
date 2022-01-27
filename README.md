@@ -242,6 +242,9 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
     <td align="center"><a href="https://github.com/regularberry"><img src="https://avatars.githubusercontent.com/u/565192?v=4" width="100px;" alt=""/><br /><sub><b>Sean Berry</b></sub></a></td>
     <td align="center"><a href="http://hisaac.net"><img src="https://avatars.githubusercontent.com/u/923876?v=4" width="100px;" alt=""/><br /><sub><b>Isaac Halvorson</b></sub></a></td>
   </tr>
+  <tr>
+    <td align="center"><a href="https://github.com/mohitsaxenaknoldus"><img src="https://avatars.githubusercontent.com/u/76725454?v=4" width="100px;" alt=""/><br /><sub><b>Mohit Saxena</b></sub></a></td>
+  </tr>
 </table>
 
 <!-- markdownlint-restore -->
