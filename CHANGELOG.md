@@ -4,7 +4,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ## Next
 
-- Fix download of remote cache [#4073](https://github.com/tuist/tuist/pull/4073) by [@adellibovi](https://github.com/adellibovi)
+- Fix download of binary artifacts from the remote cache [#4073](https://github.com/tuist/tuist/pull/4073) by [@adellibovi](https://github.com/adellibovi)
 
 ### 2.7.1
 
