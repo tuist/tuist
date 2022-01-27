@@ -12,7 +12,7 @@ module Fourier
       def call
         Utilities::SwiftPackageManager.build_product("ProjectAutomation")
         Utilities::SwiftPackageManager.build_product("ProjectDescription")
-        Utilities::System.tuist(*arguments, from_source: true)
+        Utilities::System.tuist(*arguments)
       end
     end
   end
