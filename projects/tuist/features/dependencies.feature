@@ -14,4 +14,4 @@ Feature: Tuist dependencies.
         Then I copy the fixture app_with_spm_dependencies into the working directory
         Then tuist fetches dependencies
         Then tuist generates the project
-        Then tuist builds the scheme AppTests from the project
+        Then tuist builds the scheme App from the project
