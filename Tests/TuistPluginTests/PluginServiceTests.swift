@@ -136,7 +136,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try await subject.fetchRemotePlugins(using: config)
+        _ = try await subject.fetchRemotePlugins(using: config)
 
         // Then
         XCTAssertEqual(invokedCloneURL, pluginGitURL)
@@ -177,7 +177,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try await subject.fetchRemotePlugins(using: config)
+        _ = try await subject.fetchRemotePlugins(using: config)
 
         // Then
         XCTAssertEqual(invokedCloneURL, pluginGitURL)
@@ -217,7 +217,7 @@ final class PluginServiceTests: TuistUnitTestCase {
         try fileHandler.touch(commandPath)
 
         // When / Then
-        try await subject.fetchRemotePlugins(using: config)
+        _ = try await subject.fetchRemotePlugins(using: config)
     }
 
     func test_loadPlugins_WHEN_localHelpers() throws {

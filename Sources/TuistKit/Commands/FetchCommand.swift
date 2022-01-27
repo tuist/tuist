@@ -29,13 +29,9 @@ struct FetchCommand: AsyncParsableCommand {
     )
     var update: Bool = false
 
-    @Argument(help: "Categories to be fetched.")
-    var fetchCategories: [FetchCategory] = FetchCategory.allCases
-
     func runAsync() async throws {
         try await FetchService().run(
             path: path,
-            fetchCategories: fetchCategories,
             update: update
         )
     }

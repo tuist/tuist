@@ -68,7 +68,7 @@ final class FetchServiceTests: TuistUnitTestCase {
             ),
             platforms: [.iOS, .macOS]
         )
-        dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
+        dependenciesModelLoader.loadDependenciesStub = { _, _ in stubbedDependencies }
 
         let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
         configLoader.loadConfigStub = { _ in Config.test(swiftVersion: stubbedSwiftVersion) }
@@ -83,6 +83,9 @@ final class FetchServiceTests: TuistUnitTestCase {
             XCTAssertEqual(dependenciesGraph, .none)
             XCTAssertEqual(path, stubbedPath)
         }
+        pluginService.fetchRemotePluginsStub = { config in
+            return Plugins.test()
+        }
 
         try fileHandler.touch(
             stubbedPath.appending(
@@ -93,7 +96,6 @@ final class FetchServiceTests: TuistUnitTestCase {
         // When
         try await subject.run(
             path: stubbedPath.pathString,
-            fetchCategories: [.dependencies],
             update: true
         )
 
@@ -118,12 +120,12 @@ final class FetchServiceTests: TuistUnitTestCase {
         var invokedConfig: Config?
         pluginService.fetchRemotePluginsStub = { config in
             invokedConfig = config
+            return Plugins.test()
         }
 
         // When
         try await subject.run(
             path: nil,
-            fetchCategories: [.plugins],
             update: false
         )
 
@@ -152,7 +154,7 @@ final class FetchServiceTests: TuistUnitTestCase {
             ),
             platforms: [.iOS, .macOS]
         )
-        dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
+        dependenciesModelLoader.loadDependenciesStub = { _, _ in stubbedDependencies }
 
         let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
         configLoader.loadConfigStub = { _ in Config.test(swiftVersion: stubbedSwiftVersion) }
@@ -167,6 +169,9 @@ final class FetchServiceTests: TuistUnitTestCase {
             XCTAssertEqual(dependenciesGraph, .none)
             XCTAssertEqual(path, stubbedPath)
         }
+        pluginService.fetchRemotePluginsStub = { config in
+            return Plugins.test()
+        }
 
         try fileHandler.touch(
             stubbedPath.appending(
@@ -177,7 +182,6 @@ final class FetchServiceTests: TuistUnitTestCase {
         // When
         try await subject.run(
             path: stubbedPath.pathString,
-            fetchCategories: [.dependencies],
             update: false
         )
 

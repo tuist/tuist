@@ -34,6 +34,7 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
         // Given
         let temporaryPath = try temporaryPath()
         let localSwiftPackagePath = temporaryPath.appending(component: "LocalPackage")
+        let plugins = Plugins.test()
 
         manifestLoader.loadDependenciesStub = { _ in
             Dependencies(
@@ -52,7 +53,7 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
         }
 
         // When
-        let got = try subject.loadDependencies(at: temporaryPath)
+        let got = try subject.loadDependencies(at: temporaryPath, with: plugins)
 
         // Then
         let expected: TuistGraph.Dependencies = .init(
@@ -76,6 +77,7 @@ final class DependenciesModelLoaderTests: TuistUnitTestCase {
             ),
             platforms: [.iOS, .macOS]
         )
+        XCTAssertEqual(manifestLoader.registerPluginsCount, 1)
         XCTAssertEqual(got, expected)
     }
 }

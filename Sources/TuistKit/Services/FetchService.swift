@@ -5,6 +5,7 @@ import TuistDependencies
 import TuistLoader
 import TuistPlugin
 import TuistSupport
+import TuistGraph
 
 final class FetchService {
     private let pluginService: PluginServicing
@@ -29,18 +30,11 @@ final class FetchService {
 
     func run(
         path: String?,
-        fetchCategories: [FetchCategory],
         update: Bool
     ) async throws {
         let path = self.path(path)
-        for fetchCategory in fetchCategories {
-            switch fetchCategory {
-            case .plugins:
-                try await fetchPlugins(path: path)
-            case .dependencies:
-                try fetchDependencies(path: path, update: update)
-            }
-        }
+
+        try await fetchDependencies(path: path, update: update, with: fetchPlugins(path: path))
     }
 
     // MARK: - Helpers
@@ -57,16 +51,18 @@ final class FetchService {
         FileHandler.shared.currentPath
     }
 
-    private func fetchPlugins(path: AbsolutePath) async throws {
+    private func fetchPlugins(path: AbsolutePath) async throws -> TuistGraph.Plugins {
         logger.info("Resolving and fetching plugins.", metadata: .section)
 
         let config = try configLoader.loadConfig(path: path)
-        try await pluginService.fetchRemotePlugins(using: config)
+        let plugins = try await pluginService.fetchRemotePlugins(using: config)
 
         logger.info("Plugins resolved and fetched successfully.", metadata: .success)
+        
+        return plugins
     }
 
-    private func fetchDependencies(path: AbsolutePath, update: Bool) throws {
+    private func fetchDependencies(path: AbsolutePath, update: Bool, with plugins: TuistGraph.Plugins) throws {
         guard FileHandler.shared.exists(
             path.appending(components: Constants.tuistDirectoryName, Manifest.dependencies.fileName(path))
         ) else {
@@ -79,12 +75,12 @@ final class FetchService {
             logger.info("Resolving and fetching dependencies.", metadata: .section)
         }
 
-        let dependencies = try dependenciesModelLoader.loadDependencies(at: path)
+        let dependencies = try dependenciesModelLoader.loadDependencies(at: path, with: plugins)
 
         let config = try configLoader.loadConfig(path: path)
         let swiftVersion = config.swiftVersion
 
-        let dependenciesManifest: DependenciesGraph
+        let dependenciesManifest: TuistCore.DependenciesGraph
         if update {
             dependenciesManifest = try dependenciesController.update(
                 at: path,

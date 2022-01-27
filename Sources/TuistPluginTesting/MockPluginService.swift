@@ -9,9 +9,9 @@ public final class MockPluginService: PluginServicing {
         loadPluginsStub(config)
     }
 
-    public var fetchRemotePluginsStub: ((Config) throws -> Void)?
-    public func fetchRemotePlugins(using config: Config) throws {
-        try fetchRemotePluginsStub?(config)
+    public var fetchRemotePluginsStub: ((Config) throws -> Plugins)?
+    public func fetchRemotePlugins(using config: Config) throws -> Plugins {
+        try fetchRemotePluginsStub!(config)
     }
 
     public var remotePluginPathsStub: ((Config) throws -> [RemotePluginPaths])?
