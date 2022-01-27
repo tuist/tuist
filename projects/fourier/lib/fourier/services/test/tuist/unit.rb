@@ -10,9 +10,6 @@ module Fourier
             Utilities::System.tuist(*dependencies)
 
             Utilities::System.tuist("test")
-            Dir.chdir(Constants::TUIST_DIRECTORY) do
-              Utilities::System.system("swift", "test")
-            end
           end
         end
       end
