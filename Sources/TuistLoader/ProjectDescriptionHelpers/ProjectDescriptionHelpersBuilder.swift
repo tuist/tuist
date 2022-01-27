@@ -178,7 +178,7 @@ public final class ProjectDescriptionHelpersBuilder: ProjectDescriptionHelpersBu
         try System.shared.runAndPrint(command, verbose: false, environment: Environment.shared.manifestLoadingVariables)
         let duration = timer.stop()
         let time = String(format: "%.3f", duration)
-        logger.notice("Built \(name) in (\(time)s)", metadata: .success)
+        logger.debug("Built \(name) in (\(time)s)", metadata: .success)
 
         return projectDescriptionHelpersModule
     }

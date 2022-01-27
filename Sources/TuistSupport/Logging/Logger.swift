@@ -10,14 +10,8 @@ public struct LoggingConfig {
         case osLog
     }
 
-    public enum LoggerLevel {
-        case `default`
-        case verbose
-        case silent
-    }
-
     public var loggerType: LoggerType
-    public var loggerLevel: LoggerLevel
+    public var verbose: Bool
 }
 
 extension LoggingConfig {
@@ -27,23 +21,13 @@ extension LoggingConfig {
         let osLog = env[Constants.EnvironmentVariables.osLog] != nil
         let detailed = env[Constants.EnvironmentVariables.detailedLog] != nil
         let verbose = env[Constants.EnvironmentVariables.verbose] != nil
-        let silent = env[Constants.EnvironmentVariables.silent] != nil
-
-        let loggerLevel: LoggerLevel
-        if verbose {
-            loggerLevel = .verbose
-        } else if silent {
-            loggerLevel = .silent
-        } else {
-            loggerLevel = .default
-        }
 
         if osLog {
-            return .init(loggerType: .osLog, loggerLevel: loggerLevel)
+            return .init(loggerType: .osLog, verbose: verbose)
         } else if detailed {
-            return .init(loggerType: .detailed, loggerLevel: loggerLevel)
+            return .init(loggerType: .detailed, verbose: verbose)
         } else {
-            return .init(loggerType: .console, loggerLevel: loggerLevel)
+            return .init(loggerType: .console, verbose: verbose)
         }
     }
 }
@@ -52,7 +36,7 @@ public enum LogOutput {
     static var environment = ProcessInfo.processInfo.environment
 
     public static func bootstrap(config: LoggingConfig = .default) {
-        let handler: ConfigurableLevelLogHandler.Type
+        let handler: VerboseLogHandler.Type
 
         switch config.loggerType {
         case .osLog:
@@ -63,51 +47,34 @@ public enum LogOutput {
             handler = StandardLogHandler.self
         }
 
-        switch config.loggerLevel {
-        case .verbose:
+        if config.verbose {
             LoggingSystem.bootstrap(handler.verbose)
-        case .silent:
-            LoggingSystem.bootstrap(handler.silent)
-        case .default:
+        } else {
             LoggingSystem.bootstrap(handler.init)
         }
     }
 }
 
-// A `ConfigurableLevelLogHandler` allows for a LogHandler to be initialised with the
-// `debug` or `error` logLevel.
-protocol ConfigurableLevelLogHandler: LogHandler {
+// A `VerboseLogHandler` allows for a LogHandler to be initialised with the `debug` logLevel.
+protocol VerboseLogHandler: LogHandler {
     static func verbose(label: String) -> LogHandler
-    static func silent(label: String) -> LogHandler
     init(label: String)
 }
 
-extension DetailedLogHandler: ConfigurableLevelLogHandler {
+extension DetailedLogHandler: VerboseLogHandler {
     public static func verbose(label: String) -> LogHandler {
         DetailedLogHandler(label: label, logLevel: .debug)
     }
-
-    public static func silent(label: String) -> LogHandler {
-        DetailedLogHandler(label: label, logLevel: .error)
-    }
 }
 
-extension StandardLogHandler: ConfigurableLevelLogHandler {
+extension StandardLogHandler: VerboseLogHandler {
     public static func verbose(label: String) -> LogHandler {
         StandardLogHandler(label: label, logLevel: .debug)
     }
-
-    public static func silent(label: String) -> LogHandler {
-        StandardLogHandler(label: label, logLevel: .error)
-    }
 }
 
-extension OSLogHandler: ConfigurableLevelLogHandler {
+extension OSLogHandler: VerboseLogHandler {
     public static func verbose(label: String) -> LogHandler {
         OSLogHandler(label: label, logLevel: .debug)
-    }
-
-    public static func silent(label: String) -> LogHandler {
-        OSLogHandler(label: label, logLevel: .error)
     }
 }
