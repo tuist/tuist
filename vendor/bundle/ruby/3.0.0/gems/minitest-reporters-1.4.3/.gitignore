@@ -1,0 +1,28 @@
+coverage
+rdoc
+pkg
+test/tmp
+test/version_tmp
+test/reports
+test/html_reports
+tmp
+pkg
+*.gem
+*.rbc
+lib/bundler/man
+spec/reports
+.config
+InstalledFiles
+.bundle
+
+# YARD artifacts
+.yardoc
+_yardoc
+doc/
+
+# Gem-specific
+Gemfile.lock
+.idea/
+.ruby-version
+vendor
+

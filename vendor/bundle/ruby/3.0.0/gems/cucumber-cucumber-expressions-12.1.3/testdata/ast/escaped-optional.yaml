@@ -1,0 +1,7 @@
+expression: '\(blind)'
+
+expected: |-
+  {"type": "EXPRESSION_NODE", "start": 0, "end": 8, "nodes": [
+    {"type": "TEXT_NODE", "start": 0, "end": 7, "token": "(blind"},
+    {"type": "TEXT_NODE", "start": 7, "end": 8, "token": ")"}
+  ]}

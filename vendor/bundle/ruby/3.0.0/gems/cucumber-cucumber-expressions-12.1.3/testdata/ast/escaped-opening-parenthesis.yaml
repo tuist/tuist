@@ -1,0 +1,5 @@
+expression: '\('
+expected: |-
+  {"type": "EXPRESSION_NODE", "start": 0, "end": 2, "nodes": [
+    {"type": "TEXT_NODE", "start": 0, "end": 2, "token": "("}
+  ]}

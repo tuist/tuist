@@ -1,0 +1,95 @@
+#!/usr/bin/env ruby
+
+$LOAD_PATH.unshift(File.expand_path("../../vendor/deps/cli-ui/lib", __FILE__))
+require 'open3'
+require 'fileutils'
+
+def fmt(tag, msg)
+  # Not really CLI::UI.fmt compatible: no nesting support, for example.
+  # While we could pull in CLI::UI here, it makes it more difficult to
+  # bootstrap a new project and to fix a broken vendor.
+  fmt_msg = msg
+    .gsub(/{{yellow:(.*?)}}/,     "\x1b[33m\\1\x1b[31m")
+    .gsub(/{{green:(.*?)}}/,      "\x1b[32m\\1\x1b[31m")
+    .gsub(/{{blue:(.*?)}}/,       "\x1b[34m\\1\x1b[31m")
+    .gsub(/{{bold_blue:(.*?)}}/,  "\x1b[1;34m\\1\x1b[0;31m")
+    .gsub(/{{bold_green:(.*?)}}/, "\x1b[1;32m\\1\x1b[0;31m")
+  "\x1b[1;31m[#{tag}] \x1b[0;31m#{fmt_msg}\x1b[0m"
+end
+
+def bail(msg)
+  STDERR.puts(fmt("ERROR", msg))
+  exit 1
+end
+
+def warn(msg)
+  STDERR.puts(fmt("WARNING", msg))
+end
+
+def source_path
+  File.expand_path(ENV.fetch('SOURCE_ROOT', File.expand_path('../../..', __FILE__)))
+end
+
+deps = %w(cli-ui cli-kit)
+
+deps.each do |dep|
+  path = File.expand_path(dep, source_path)
+
+  unless Dir.exist?(path)
+    bail(
+      "dependency is not checked out: {{yellow:#{dep}}}.\n" \
+      "  This repo {{bold_blue:(github.com/shopify/#{dep})}} must be cloned at {{bold_blue:#{path}}} for this script to succeed.\n" \
+      "  Currently, SOURCE_ROOT is set to {{bold_blue:#{source_path}}}.\n" \
+      "  Alternatively, you can set {{bold_blue:SOURCE_ROOT}} to a directory containing {{yellow:#{dep}}}.\n" \
+      "  {{bold_blue:SOURCE_ROOT}} defaults to {{bold_blue:../}}."
+    )
+  end
+
+  head_sha = nil
+  dirty = false
+
+  Dir.chdir(path) do
+    _, _, stat = Open3.capture3('git fetch origin master')
+    bail("couldn't git fetch in dependency: {{yellow:#{dep}}}") unless stat.success?
+
+    head_sha, stat = Open3.capture2('git rev-parse HEAD')
+    bail("couldn't determine HEAD: {{yellow:#{dep}}}") unless stat.success?
+    head_sha.chomp!
+
+    fetch_head_sha, stat = Open3.capture2('git rev-parse FETCH_HEAD')
+    bail("couldn't determine FETCH_HEAD: {{yellow:#{dep}}}") unless stat.success?
+    fetch_head_sha.chomp!
+
+    git_status, stat = Open3.capture2('git status --porcelain')
+    bail("couldn't determine git status: {{yellow:#{dep}}}") unless stat.success?
+
+    if head_sha != fetch_head_sha
+      warn(
+        "Copying files from {{yellow:#{path}}} to satisfy dependency {{yellow:#{dep}}}.\n" \
+        "  However, the repo at {{yellow:#{path}}} isn't up to date.\n" \
+        "  The checked-out revision is {{yellow:#{head_sha[0..8]}}}, and "\
+        "{{yellow:origin/master}} is {{yellow:#{fetch_head_sha[0..8]}}}.\n" \
+        "  Unless you know what you're doing, you should {{green:cd}} to that repo and {{green:git pull}}, then run this again."
+      )
+    end
+
+    unless git_status.chomp.empty?
+      dirty = true
+      warn("importing uncommitted changes from dependency: {{yellow:#{dep}}}")
+    end
+  end
+
+  depdir = File.expand_path("../../vendor/deps/#{dep}", __FILE__)
+  FileUtils.rm_rf(depdir)
+  FileUtils.mkdir_p(depdir)
+  dstlib = File.expand_path('lib', depdir)
+  srclib = File.expand_path('lib', path)
+
+  FileUtils.cp_r(srclib, dstlib)
+
+  rev = head_sha
+  rev << " (dirty)" if dirty
+  rev << "\n"
+
+  File.write("#{depdir}/REVISION", rev)
+end

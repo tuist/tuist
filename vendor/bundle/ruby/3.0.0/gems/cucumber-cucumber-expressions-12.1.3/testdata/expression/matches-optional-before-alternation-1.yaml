@@ -1,0 +1,4 @@
+expression: three (brown )mice/rats
+text: three brown mice
+expected: |-
+  []

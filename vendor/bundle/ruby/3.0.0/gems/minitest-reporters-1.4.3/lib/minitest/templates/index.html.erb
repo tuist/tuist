@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title><%= title %></title>
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/css/bootstrap.min.css" rel="stylesheet">
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.4/js/bootstrap.min.js"></script>
+    <script src="http://code.jquery.com/ui/1.10.3/jquery-ui.js"></script>
+</head>
+
+<body>
+<div class="container">
+    <div class="jumbotron">
+        <h3><small>Generated on <%= Time.now.strftime("%b %d, %Y at %H:%M %Z") %></small></h3>
+        <h1>
+            <%= title %></h1>
+        <p>
+            Finished in <%= total_time_to_hms %>, <%= '%.2f tests/s' % (count / total_time) %>, <%= '%.2f assertions/s' % (assertions / total_time) %>
+        </p>
+        <p>
+            <strong>
+            <span class="<%= 'text-info' if (failures == 0 && errors == 0) %>"><%= '%d' % count %> tests</span>,
+            <span class="<%= 'text-info' if (failures == 0 && errors == 0) %>"> <%= '%d' % assertions %> assertions</span>,
+            <span class="<%= 'text-danger' if failures > 0 %>"> <%= '%d' % failures %> failures</span>,
+            <span class="<%= 'text-danger' if errors > 0 %>"> <%= '%d' % errors %> errors</span>,
+            <span class="<%= 'text-warning' if skips > 0 %>"> <%= '%d' % skips %> skips</span>
+            </strong>
+        </p>
+
+        <div class="progress">
+            <div class="progress-bar progress-bar-info" style="width: <%= percent_passes %>%">
+                <%= '%d' % percent_passes %>% passed
+            </div>
+            <div class="progress-bar progress-bar-danger" style="width: <%= percent_errors_failures %>%">
+                <%= '%d' % percent_errors_failures %>% failed
+            </div>
+            <div class="progress-bar progress-bar-warning" style="width: <%= percent_skipps %>%">
+                <%= '%d' % percent_skipps %>% skipped
+            </div>
+        </div>
+
+
+    </div>
+
+    <% suites.each do |suite| %>
+        <div class="panel panel-default">
+            <div class="panel-heading"><strong><%= suite[:name] %></strong>
+                <span class="pull-right">
+                    <span class="<%= 'text-info' if (suite[:fail_count] == 0 && suite[:error_count] == 0) %>"><%= '%d' % suite[:test_count] %> tests</span>,
+                    <span class="<%= 'text-info' if (failures == 0 && errors == 0) %>"> <%= '%d' % suite[:assertion_count] %> assertions</span>,
+                    <span class="<%= 'text-danger' if suite[:fail_count] > 0 %>"> <%= '%d' % suite[:fail_count] %> failures</span>,
+                    <span class="<%= 'text-danger' if suite[:error_count] > 0 %>"> <%= '%d' % suite[:error_count] %> errors</span>,
+                    <span class="<%= 'text-warning' if suite[:skip_count] > 0 %>"> <%= '%d' % suite[:skip_count] %> skips</span>,
+                    <span> finished in <%= '%.4fs' % suite[:time] %></span>
+                </span>
+            </div>
+            <div class="panel-body">
+                <div class="list-group">
+                    <% suite[:tests].each do |test| %>
+                        <div class="list-group-item">
+                            <h5 class="list-group-item-heading">
+                                <% if result(test) == :pass %>
+                                    <span class="glyphicon glyphicon-ok text-info" aria-hidden="true"></span>
+                                <% elsif result(test) == :skip %>
+                                    <span class="glyphicon glyphicon-ban-circle text-warning" aria-hidden="true"></span>
+                                <% else %>
+                                    <span class="glyphicon glyphicon-remove text-danger"  aria-hidden="true"></span>
+                                <% end %>
+                                <%= friendly_name(test) %>
+                                <span class="pull-right">
+                                    Assertions <%= test.assertions %>, time <%= ('%.6fs' % test.time) %>
+                                </span>
+                            </h5>
+                            <% if !test.passed? %>
+                                <pre class="list-group-item-text"><%= "#{location(test.failure)}\n\n#{test.failure.message}" %></pre>
+                            <% end %>
+                        </div>
+                    <% end %>
+                </div>
+            </div>
+        </div>
+    <% end %>
+</div>
+</body>
+</html>

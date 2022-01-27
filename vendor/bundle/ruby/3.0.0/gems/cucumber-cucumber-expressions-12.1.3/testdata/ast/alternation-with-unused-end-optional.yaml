@@ -1,0 +1,15 @@
+expression: three )blind\ mice/rats
+expected: |-
+  {"type": "EXPRESSION_NODE", "start": 0, "end": 23, "nodes": [
+    {"type": "TEXT_NODE", "start": 0, "end": 5, "token": "three"},
+    {"type": "TEXT_NODE", "start": 5, "end": 6, "token": " "},
+    {"type": "ALTERNATION_NODE", "start": 6, "end": 23, "nodes": [
+      {"type": "ALTERNATIVE_NODE", "start": 6, "end": 18, "nodes": [
+        {"type": "TEXT_NODE", "start": 6, "end": 7, "token": ")"},
+        {"type": "TEXT_NODE", "start": 7, "end": 18, "token": "blind mice"}
+      ]},
+      {"type": "ALTERNATIVE_NODE", "start": 19, "end": 23, "nodes": [
+        {"type": "TEXT_NODE", "start": 19, "end": 23, "token": "rats"}
+      ]}
+    ]}
+  ]}

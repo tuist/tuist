@@ -1,0 +1,5 @@
+expression: 'mice\/rats'
+expected: |-
+  {"type": "EXPRESSION_NODE", "start": 0, "end": 10, "nodes": [
+    {"type": "TEXT_NODE", "start": 0, "end": 10, "token": "mice/rats"}
+  ]}

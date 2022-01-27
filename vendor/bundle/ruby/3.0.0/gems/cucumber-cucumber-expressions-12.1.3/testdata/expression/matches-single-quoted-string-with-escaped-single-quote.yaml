@@ -1,0 +1,4 @@
+expression: three {string} mice
+text: three 'bl\'nd' mice
+expected: |-
+  ["bl'nd"]

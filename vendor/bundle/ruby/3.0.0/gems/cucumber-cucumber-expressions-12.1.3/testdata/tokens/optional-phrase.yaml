@@ -1,0 +1,13 @@
+expression: three (blind) mice
+expected: |-
+  [
+    {"type": "START_OF_LINE", "start": 0, "end": 0, "text": ""},
+    {"type": "TEXT", "start": 0, "end": 5, "text": "three"},
+    {"type": "WHITE_SPACE", "start": 5, "end": 6, "text": " "},
+    {"type": "BEGIN_OPTIONAL", "start": 6, "end": 7, "text": "("},
+    {"type": "TEXT", "start": 7, "end": 12, "text": "blind"},
+    {"type": "END_OPTIONAL", "start": 12, "end": 13, "text": ")"},
+    {"type": "WHITE_SPACE", "start": 13, "end": 14, "text": " "},
+    {"type": "TEXT", "start": 14, "end": 18, "text": "mice"},
+    {"type": "END_OF_LINE", "start": 18, "end": 18, "text": ""}
+  ]

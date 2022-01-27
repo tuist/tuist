@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+#
+# Updates the *.gemspec in the current directory to use the latest releases of gems
+#
+set -uf -o pipefail
+IFS=$'\n'
+
+gemspec=$(find . -maxdepth 1 -type f -name "*.gemspec")
+if [ "${gemspec}" = "" ]; then
+  exit 0
+fi
+add_dependency_lines=$(cat ${gemspec} | grep "s.add_[a-z_]*dependency '[^']*'")
+if [ $? -ne 0 ]; then
+  # No add_dependency_lines found - nothing to do
+  exit 0
+fi
+
+set -e
+
+gems=$(echo "${add_dependency_lines}" | tr -s ' ' | cut -d ' ' -f3 | cut -d"'" -f 2)
+while read -r gem; do
+  echo "upgrading ${gem}"
+  if [ "${gem}" = "bundler" ]; then
+    cat "${gemspec}" | sed "s/\(s.add_[a-z_]*dependency\) '${gem}'.*/\1 '${gem}', '>= 1.16.2'/" > ${gemspec}.tmp
+  else
+    gem_line=$(gem list "${gem}" --remote --all --no-prerelease | grep "^${gem}\s")
+    latest_patch_version=$(echo "${gem_line}" | cut -d'(' -f2 | cut -d')' -f1 | cut -d',' -f1 | cut -d' ' -f1)
+    latest_minor_version=$(echo "${latest_patch_version}" | cut -d. -f1,2)
+    cat "${gemspec}" | sed "s/\(s.add_[a-z_]*dependency\) '${gem}'.*/\1 '${gem}', '~> ${latest_minor_version}', '>= ${latest_patch_version}'/" > ${gemspec}.tmp
+  fi
+  mv ${gemspec}.tmp ${gemspec}
+done <<< "${gems}"

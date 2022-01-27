@@ -1,0 +1,157 @@
+
+»!
+map-test.protofoo"ç
+Baz2
+looks_like_map (2.foo.Baz.LooksLikeMapEntry@
+does_not_look_like_map (2 .foo.Baz.DoesNotLookLikeMapEntry3
+LooksLikeMapEntry
+key (	
+value (	:85
+DoesNotLookLikeMapEntry
+key (	
+value (	"™
+Bar0
+sint32_to_baz (2.foo.Bar.Sint32ToBazEntry0
+sint64_to_baz (2.foo.Bar.Sint64ToBazEntry.
+int32_to_baz (2.foo.Bar.Int32ToBazEntry.
+int64_to_baz (2.foo.Bar.Int64ToBazEntry0
+uint32_to_baz (2.foo.Bar.Uint32ToBazEntry0
+uint64_to_baz (2.foo.Bar.Uint64ToBazEntry0
+string_to_baz (2.foo.Bar.StringToBazEntry:
+sint32_to_frobnitz (2.foo.Bar.Sint32ToFrobnitzEntry:
+sint64_to_frobnitz	 (2.foo.Bar.Sint64ToFrobnitzEntry8
+int32_to_frobnitz
+ (2.foo.Bar.Int32ToFrobnitzEntry8
+int64_to_frobnitz (2.foo.Bar.Int64ToFrobnitzEntry:
+uint32_to_frobnitz (2.foo.Bar.Uint32ToFrobnitzEntry:
+uint64_to_frobnitz (2.foo.Bar.Uint64ToFrobnitzEntry:
+string_to_frobnitz (2.foo.Bar.StringToFrobnitzEntry6
+sint32_to_string (2.foo.Bar.Sint32ToStringEntry6
+sint64_to_string (2.foo.Bar.Sint64ToStringEntry4
+int32_to_string (2.foo.Bar.Int32ToStringEntry4
+int64_to_string (2.foo.Bar.Int64ToStringEntry6
+uint32_to_string (2.foo.Bar.Uint32ToStringEntry6
+uint64_to_string (2.foo.Bar.Uint64ToStringEntry6
+string_to_string (2.foo.Bar.StringToStringEntry4
+sint32_to_float (2.foo.Bar.Sint32ToFloatEntry4
+sint64_to_float (2.foo.Bar.Sint64ToFloatEntry2
+int32_to_float (2.foo.Bar.Int32ToFloatEntry2
+int64_to_float (2.foo.Bar.Int64ToFloatEntry4
+uint32_to_float (2.foo.Bar.Uint32ToFloatEntry4
+uint64_to_float (2.foo.Bar.Uint64ToFloatEntry4
+string_to_float (2.foo.Bar.StringToFloatEntry6
+sint32_to_double (2.foo.Bar.Sint32ToDoubleEntry6
+sint64_to_double (2.foo.Bar.Sint64ToDoubleEntry4
+int32_to_double (2.foo.Bar.Int32ToDoubleEntry4
+int64_to_double  (2.foo.Bar.Int64ToDoubleEntry6
+uint32_to_double! (2.foo.Bar.Uint32ToDoubleEntry6
+uint64_to_double" (2.foo.Bar.Uint64ToDoubleEntry6
+string_to_double# (2.foo.Bar.StringToDoubleEntry<
+Sint32ToBazEntry
+key (
+value (2.foo.Baz:8<
+Sint64ToBazEntry
+key (
+value (2.foo.Baz:8;
+Int32ToBazEntry
+key (
+value (2.foo.Baz:8;
+Int64ToBazEntry
+key (
+value (2.foo.Baz:8<
+Uint32ToBazEntry
+key (
+value (2.foo.Baz:8<
+Uint64ToBazEntry
+key (
+value (2.foo.Baz:8<
+StringToBazEntry
+key (	
+value (2.foo.Baz:8F
+Sint32ToFrobnitzEntry
+key (
+value (2.foo.Frobnitz:8F
+Sint64ToFrobnitzEntry
+key (
+value (2.foo.Frobnitz:8E
+Int32ToFrobnitzEntry
+key (
+value (2.foo.Frobnitz:8E
+Int64ToFrobnitzEntry
+key (
+value (2.foo.Frobnitz:8F
+Uint32ToFrobnitzEntry
+key (
+value (2.foo.Frobnitz:8F
+Uint64ToFrobnitzEntry
+key (
+value (2.foo.Frobnitz:8F
+StringToFrobnitzEntry
+key (	
+value (2.foo.Frobnitz:85
+Sint32ToStringEntry
+key (
+value (	:85
+Sint64ToStringEntry
+key (
+value (	:84
+Int32ToStringEntry
+key (
+value (	:84
+Int64ToStringEntry
+key (
+value (	:85
+Uint32ToStringEntry
+key (
+value (	:85
+Uint64ToStringEntry
+key (
+value (	:85
+StringToStringEntry
+key (	
+value (	:84
+Sint32ToFloatEntry
+key (
+value (:84
+Sint64ToFloatEntry
+key (
+value (:83
+Int32ToFloatEntry
+key (
+value (:83
+Int64ToFloatEntry
+key (
+value (:84
+Uint32ToFloatEntry
+key (
+value (:84
+Uint64ToFloatEntry
+key (
+value (:84
+StringToFloatEntry
+key (	
+value (:85
+Sint32ToDoubleEntry
+key (
+value (:85
+Sint64ToDoubleEntry
+key (
+value (:84
+Int32ToDoubleEntry
+key (
+value (:84
+Int64ToDoubleEntry
+key (
+value (:85
+Uint32ToDoubleEntry
+key (
+value (:85
+Uint64ToDoubleEntry
+key (
+value (:85
+StringToDoubleEntry
+key (	
+value (:8*
+Frobnitz
+FROB
+NITZ

@@ -1,0 +1,22 @@
+#!/usr/bin/env ruby
+
+# Before requiring protobuf, ensure that we will not load any
+# server or client code.
+#
+ENV['PB_NO_NETWORKING'] = '1'
+
+$LOAD_PATH << ::File.expand_path("../../lib", __FILE__)
+require 'protobuf'
+require 'protobuf/descriptors'
+require 'protobuf/code_generator'
+
+# Ensure that no encoding conversions are done on STDIN and STDOUT since
+# we are passing binary data back and forth. Otherwise these streams
+# will be mangled on Windows.
+STDIN.binmode
+STDOUT.binmode
+
+request_bytes = STDIN.read
+code_generator = ::Protobuf::CodeGenerator.new(request_bytes)
+code_generator.eval_unknown_extensions!
+STDOUT.print(code_generator.response_bytes)

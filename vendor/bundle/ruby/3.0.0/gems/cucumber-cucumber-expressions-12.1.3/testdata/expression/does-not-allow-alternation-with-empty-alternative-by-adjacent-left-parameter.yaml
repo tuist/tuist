@@ -1,0 +1,10 @@
+expression: |-
+  {int}/x
+text: '3'
+exception: |-
+  This Cucumber Expression has a problem at column 6:
+
+  {int}/x
+       ^
+  Alternative may not be empty.
+  If you did not mean to use an alternative you can use '\/' to escape the the '/'

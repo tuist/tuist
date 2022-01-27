@@ -1,0 +1,15 @@
+expression: three \((very) blind) mice
+expected: |-
+  {"type": "EXPRESSION_NODE", "start": 0, "end": 26, "nodes": [
+    {"type": "TEXT_NODE", "start": 0, "end": 5, "token": "three"},
+    {"type": "TEXT_NODE", "start": 5, "end": 6, "token": " "},
+    {"type": "TEXT_NODE", "start": 6, "end": 8, "token": "("},
+    {"type": "OPTIONAL_NODE", "start": 8, "end": 14, "nodes": [
+      {"type": "TEXT_NODE", "start": 9, "end": 13, "token": "very"}
+    ]},
+    {"type": "TEXT_NODE", "start": 14, "end": 15, "token": " "},
+    {"type": "TEXT_NODE", "start": 15, "end": 20, "token": "blind"},
+    {"type": "TEXT_NODE", "start": 20, "end": 21, "token": ")"},
+    {"type": "TEXT_NODE", "start": 21, "end": 22, "token": " "},
+    {"type": "TEXT_NODE", "start": 22, "end": 26, "token": "mice"}
+  ]}

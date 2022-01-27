@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+
+# Make sure we're in the cli kit directory
+CURR_DIR=$(dirname "$0")
+cd $CURR_DIR
+cd ../
+
+# Clean up
+function finish {
+  cd $CURR_DIR
+  cd ../../
+  rm -rf myapp
+}
+trap finish EXIT
+
+# Generate app and move up a level to be at the same level as cli-kit
+bundle exec ruby exe/cli-kit new myapp
+mv myapp ../
+cd ../myapp
+
+# Test
+bundle install
+bin/testunit
+
+if [[ $DEPS == 'vendor' ]]; then
+  git clone https://github.com/Shopify/cli-ui.git ../cli-ui
+  bin/update-deps
+fi

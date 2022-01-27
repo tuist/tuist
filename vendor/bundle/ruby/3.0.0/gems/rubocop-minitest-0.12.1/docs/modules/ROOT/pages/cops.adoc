@@ -1,0 +1,50 @@
+= Cops
+
+In RuboCop lingo the various checks performed on the code are called cops.
+Each cop is responsible for detecting one particular offense.
+RuboCop Minitest has only one Minitest department.
+
+== Minitest
+
+Minitest cops check for Minitest best practices and coding conventions. Many of the them are
+based on the https://minitest.rubystyle.guide/[Minitest Style Guide].
+
+// START_COP_LIST
+
+=== Department xref:cops_minitest.adoc[Minitest]
+
+* xref:cops_minitest.adoc#minitestassertempty[Minitest/AssertEmpty]
+* xref:cops_minitest.adoc#minitestassertemptyliteral[Minitest/AssertEmptyLiteral]
+* xref:cops_minitest.adoc#minitestassertequal[Minitest/AssertEqual]
+* xref:cops_minitest.adoc#minitestassertindelta[Minitest/AssertInDelta]
+* xref:cops_minitest.adoc#minitestassertincludes[Minitest/AssertIncludes]
+* xref:cops_minitest.adoc#minitestassertinstanceof[Minitest/AssertInstanceOf]
+* xref:cops_minitest.adoc#minitestassertkindof[Minitest/AssertKindOf]
+* xref:cops_minitest.adoc#minitestassertmatch[Minitest/AssertMatch]
+* xref:cops_minitest.adoc#minitestassertnil[Minitest/AssertNil]
+* xref:cops_minitest.adoc#minitestassertoutput[Minitest/AssertOutput]
+* xref:cops_minitest.adoc#minitestassertpathexists[Minitest/AssertPathExists]
+* xref:cops_minitest.adoc#minitestassertrespondto[Minitest/AssertRespondTo]
+* xref:cops_minitest.adoc#minitestassertsilent[Minitest/AssertSilent]
+* xref:cops_minitest.adoc#minitestasserttruthy[Minitest/AssertTruthy]
+* xref:cops_minitest.adoc#minitestassertwithexpectedargument[Minitest/AssertWithExpectedArgument]
+* xref:cops_minitest.adoc#minitestassertioninlifecyclehook[Minitest/AssertionInLifecycleHook]
+* xref:cops_minitest.adoc#minitestglobalexpectations[Minitest/GlobalExpectations]
+* xref:cops_minitest.adoc#minitestliteralasactualargument[Minitest/LiteralAsActualArgument]
+* xref:cops_minitest.adoc#minitestmultipleassertions[Minitest/MultipleAssertions]
+* xref:cops_minitest.adoc#minitestnoassertions[Minitest/NoAssertions]
+* xref:cops_minitest.adoc#minitestrefuteempty[Minitest/RefuteEmpty]
+* xref:cops_minitest.adoc#minitestrefuteequal[Minitest/RefuteEqual]
+* xref:cops_minitest.adoc#minitestrefutefalse[Minitest/RefuteFalse]
+* xref:cops_minitest.adoc#minitestrefuteindelta[Minitest/RefuteInDelta]
+* xref:cops_minitest.adoc#minitestrefuteincludes[Minitest/RefuteIncludes]
+* xref:cops_minitest.adoc#minitestrefuteinstanceof[Minitest/RefuteInstanceOf]
+* xref:cops_minitest.adoc#minitestrefutekindof[Minitest/RefuteKindOf]
+* xref:cops_minitest.adoc#minitestrefutematch[Minitest/RefuteMatch]
+* xref:cops_minitest.adoc#minitestrefutenil[Minitest/RefuteNil]
+* xref:cops_minitest.adoc#minitestrefutepathexists[Minitest/RefutePathExists]
+* xref:cops_minitest.adoc#minitestrefuterespondto[Minitest/RefuteRespondTo]
+* xref:cops_minitest.adoc#minitesttestmethodname[Minitest/TestMethodName]
+* xref:cops_minitest.adoc#minitestunspecifiedexception[Minitest/UnspecifiedException]
+
+// END_COP_LIST

@@ -1,0 +1,14 @@
+sudo: false
+language: ruby
+cache: bundler
+rvm:
+  - 2.3.3
+  - 2.5.0
+os:
+  - linux
+  - osx
+script:
+  - bin/testunit
+  - git clone https://github.com/Shopify/cli-ui.git
+  - DEPS=vendor bin/test_gen
+  - DEPS=bundler bin/test_gen

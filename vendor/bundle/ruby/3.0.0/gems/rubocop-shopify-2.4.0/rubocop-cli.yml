@@ -1,0 +1,47 @@
+inherit_gem:
+  rubocop-shopify:
+    - rubocop.yml
+
+AllCops:
+  # We don't always use bundler to make for a faster boot time.
+  # In this case we vendor a small number of dependencies we absolutely
+  # require. Since they are vendored and 3rd party we do not impose our
+  # styleguide on them but they are still in the repo.
+  Exclude:
+    - 'vendor/**/*'
+
+  # Mac OS Catalina ships with 2.6.3
+  TargetRubyVersion: 2.6
+
+# We disable this at entrypoint.
+# Due to CLI apps being invoked via an entry point,
+# we can exclude this from all files
+Style/FrozenStringLiteralComment:
+  Enabled: false
+
+# This doesn't take into account retrying from an exception. E.g.:
+#   begin
+#     retries ||= 0
+#     do_a_thing
+#   rescue => e
+#     retry if (retries += 1) < 3
+#     handle_error(e)
+#   end
+Lint/SuppressedException:
+  Enabled: false
+
+# Allow the use of globals which occasionally makes sense in a CLI app
+# As we are not multi-threaded and have a single entry point, this makes it easy to,
+# for example, track process environments to restore at the end of invocation
+Style/GlobalVars:
+  Enabled: false
+
+# Allow readable block formatting in some weird cases
+# Particularly in something like:
+#   Dev::Util.begin do
+#     might_raise_if_costly_prep_not_done()
+#   end.retry_after(ExpectedError) do
+#     costly_prep()
+#   end
+Style/MultilineBlockChain:
+  Enabled: false

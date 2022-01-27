@@ -1,0 +1,12 @@
+* CHANGES.rdoc
+* MANIFEST.rdoc
+* README.rdoc
+* Gemfile
+* Rakefile
+* sys-uname.gemspec
+* certs/djberg96_pub.pem
+* doc/uname.rdoc
+* examples/uname_test.rb
+* lib/sys/uname.rb
+* spec/sys_uname_spec.rb
+* spec/sys_platform_spec.rb

@@ -1,0 +1,9 @@
+expression: '//'
+expected: |-
+  {"type": "EXPRESSION_NODE", "start": 0, "end": 2, "nodes": [
+    {"type": "ALTERNATION_NODE", "start": 0, "end": 2, "nodes": [
+      {"type": "ALTERNATIVE_NODE", "start": 0, "end": 0, "nodes": []},
+      {"type": "ALTERNATIVE_NODE", "start": 1, "end": 1, "nodes": []},
+      {"type": "ALTERNATIVE_NODE", "start": 2, "end": 2, "nodes": []}
+    ]}
+  ]}

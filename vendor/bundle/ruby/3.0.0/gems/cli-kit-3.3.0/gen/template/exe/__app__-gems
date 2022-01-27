@@ -1,0 +1,17 @@
+#!/usr/bin/env ruby
+
+Encoding.default_external = Encoding::UTF_8
+Encoding.default_internal = Encoding::UTF_8
+
+unshift_path = ->(path) {
+  p = File.expand_path("../../#{path}", __FILE__)
+  $LOAD_PATH.unshift(p) unless $LOAD_PATH.include?(p)
+}
+unshift_path.call('lib')
+
+require 'bundler/setup'
+require '__app__'
+
+exit(__App__::ErrorHandler.call do
+  __App__::EntryPoint.call(ARGV.dup)
+end)

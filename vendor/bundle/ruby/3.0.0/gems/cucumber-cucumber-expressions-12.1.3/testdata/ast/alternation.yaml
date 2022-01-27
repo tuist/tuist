@@ -1,0 +1,12 @@
+expression: mice/rats
+expected: |-
+  {"type": "EXPRESSION_NODE", "start": 0, "end": 9, "nodes": [
+    {"type": "ALTERNATION_NODE", "start": 0, "end": 9, "nodes": [
+      {"type": "ALTERNATIVE_NODE", "start": 0, "end": 4, "nodes": [
+        {"type": "TEXT_NODE", "start": 0, "end": 4, "token": "mice"}
+      ]},
+      {"type": "ALTERNATIVE_NODE", "start": 5, "end": 9, "nodes": [
+        {"type": "TEXT_NODE", "start": 5, "end": 9, "token": "rats"}
+      ]}
+    ]}
+  ]}

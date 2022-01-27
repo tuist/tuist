@@ -1,0 +1,8 @@
+expression: "(a(b))"
+exception: |-
+  This Cucumber Expression has a problem at column 3:
+
+  (a(b))
+    ^-^
+  An optional may not contain an other optional.
+  If you did not mean to use an optional type you can use '\(' to escape the the '('. For more complicated expressions consider using a regular expression instead.

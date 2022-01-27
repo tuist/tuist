@@ -1,0 +1,19 @@
+current directory: /Users/runner/work/tuist/tuist/vendor/bundle/ruby/3.0.0/gems/byebug-11.1.3/ext/byebug
+/Users/runner/hostedtoolcache/Ruby/3.0.3/x64/bin/ruby -I /Users/runner/hostedtoolcache/Ruby/3.0.3/x64/lib/ruby/3.0.0 -r ./siteconf20211210-937-o21350.rb extconf.rb
+creating Makefile
+
+current directory: /Users/runner/work/tuist/tuist/vendor/bundle/ruby/3.0.0/gems/byebug-11.1.3/ext/byebug
+make DESTDIR\= clean
+
+current directory: /Users/runner/work/tuist/tuist/vendor/bundle/ruby/3.0.0/gems/byebug-11.1.3/ext/byebug
+make DESTDIR\=
+compiling breakpoint.c
+compiling byebug.c
+compiling context.c
+compiling locker.c
+compiling threads.c
+linking shared-object byebug/byebug.bundle
+
+current directory: /Users/runner/work/tuist/tuist/vendor/bundle/ruby/3.0.0/gems/byebug-11.1.3/ext/byebug
+make DESTDIR\= install
+/usr/bin/install -c -m 0755 byebug.bundle ./.gem.20211210-937-xhoigf/byebug
