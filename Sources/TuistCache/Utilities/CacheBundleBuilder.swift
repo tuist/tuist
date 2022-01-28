@@ -1,6 +1,4 @@
 import Foundation
-import RxBlocking
-import RxSwift
 import TSCBasic
 import struct TSCUtility.Version
 import TuistCore
@@ -34,21 +32,22 @@ public final class CacheBundleBuilder: CacheArtifactBuilding {
         osVersion: Version?,
         deviceName: String?,
         into outputDirectory: AbsolutePath
-    ) throws {
-        let platform = self.platform(scheme: scheme)
+    ) async throws {
+        let platform = platform(scheme: scheme)
 
-        let arguments = try self.arguments(
+        let arguments = try await arguments(
             platform: platform,
             configuration: configuration,
             osVersion: osVersion,
             deviceName: deviceName
         )
 
-        try xcodebuild(
-            projectTarget: projectTarget,
+        try await xcodeBuildController.build(
+            projectTarget,
             scheme: scheme.name,
+            clean: false,
             arguments: arguments
-        )
+        ).printFormattedOutput()
 
         let buildDirectory = try xcodeProjectBuildDirectoryLocator.locate(
             platform: platform,
@@ -67,38 +66,19 @@ public final class CacheBundleBuilder: CacheArtifactBuilding {
     fileprivate func arguments(platform: Platform,
                                configuration: String,
                                osVersion: Version?,
-                               deviceName: String?) throws -> [XcodeBuildArgument]
+                               deviceName: String?) async throws -> [XcodeBuildArgument]
     {
-        try simulatorController.destination(
+        let destination = try await simulatorController.destination(
             for: platform,
             version: osVersion,
             deviceName: deviceName
         )
-        .map { (destination: String) -> [XcodeBuildArgument] in
-            [
-                .sdk(platform == .macOS ? platform.xcodeDeviceSDK : platform.xcodeSimulatorSDK!),
-                .configuration(configuration),
-                .destination(destination),
-            ]
-        }
-        .toBlocking()
-        .single()
-    }
 
-    fileprivate func xcodebuild(projectTarget: XcodeBuildTarget,
-                                scheme: String,
-                                arguments: [XcodeBuildArgument]) throws
-    {
-        _ = try xcodeBuildController.build(
-            projectTarget,
-            scheme: scheme,
-            clean: false,
-            arguments: arguments
-        )
-        .printFormattedOutput()
-        .ignoreElements()
-        .toBlocking()
-        .last()
+        return [
+            .sdk(platform == .macOS ? platform.xcodeDeviceSDK : platform.xcodeSimulatorSDK!),
+            .configuration(configuration),
+            .destination(destination),
+        ]
     }
 
     fileprivate func exportBundles(from buildDirectory: AbsolutePath,

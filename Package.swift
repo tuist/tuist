@@ -1,12 +1,8 @@
-// swift-tools-version:5.2.0
+// swift-tools-version:5.5.0
 
 import PackageDescription
 
 let signalsDependency: Target.Dependency = .byName(name: "Signals")
-let rxSwiftDependency: Target.Dependency = .product(name: "RxSwift", package: "RxSwift")
-let rxBlockingDependency: Target.Dependency = .product(name: "RxBlocking", package: "RxSwift")
-let rxRelayDependency: Target.Dependency = .product(name: "RxRelay", package: "RxSwift")
-let rxTestDependency: Target.Dependency = .product(name: "RxTest", package: "RxSwift")
 let swiftToolsSupportDependency: Target.Dependency = .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core")
 let loggingDependency: Target.Dependency = .product(name: "Logging", package: "swift-log")
 let argumentParserDependency: Target.Dependency = .product(name: "ArgumentParser", package: "swift-argument-parser")
@@ -16,7 +12,7 @@ let combineExtDependency: Target.Dependency = .byName(name: "CombineExt")
 
 let package = Package(
     name: "tuist",
-    platforms: [.macOS(.v10_15)],
+    platforms: [.macOS(.v11)],
     products: [
         .executable(name: "tuist", targets: ["tuist"]),
         .executable(name: "tuistenv", targets: ["tuistenv"]),
@@ -52,16 +48,15 @@ let package = Package(
     dependencies: [
         .package(url: "https://github.com/tuist/XcodeProj", .upToNextMajor(from: "8.7.1")),
         .package(name: "Signals", url: "https://github.com/tuist/BlueSignals", .upToNextMajor(from: "1.0.21")),
-        .package(url: "https://github.com/ReactiveX/RxSwift", .upToNextMajor(from: "5.1.1")),
         .package(url: "https://github.com/rnine/Checksum", .upToNextMajor(from: "1.0.2")),
         .package(url: "https://github.com/apple/swift-log", .upToNextMajor(from: "1.4.2")),
         .package(url: "https://github.com/krzyzanowskim/CryptoSwift", .upToNextMajor(from: "1.4.1")),
         .package(url: "https://github.com/stencilproject/Stencil", .upToNextMajor(from: "0.14.0")),
         .package(url: "https://github.com/kishikawakatsumi/KeychainAccess", .upToNextMajor(from: "4.2.2")),
         .package(
-            name: "Swifter",
-            url: "https://github.com/httpswift/swifter",
-            .branch("1e4f51c92d7ca486242d8bf0722b99de2c3531aa")
+          name: "Swifter",
+          url: "https://github.com/httpswift/swifter",
+          .branch("1e4f51c92d7ca486242d8bf0722b99de2c3531aa")
         ),
         .package(url: "https://github.com/apple/swift-tools-support-core", .upToNextMinor(from: "0.2.0")),
         .package(url: "https://github.com/apple/swift-argument-parser", .upToNextMajor(from: "1.0.0")),
@@ -91,8 +86,6 @@ let package = Package(
         .target(
             name: "TuistCore",
             dependencies: [
-                rxSwiftDependency,
-                rxBlockingDependency,
                 swiftToolsSupportDependency,
                 "ProjectDescription",
                 "TuistSupport",
@@ -126,8 +119,6 @@ let package = Package(
                 "ProjectDescription",
                 "ProjectAutomation",
                 signalsDependency,
-                rxSwiftDependency,
-                rxBlockingDependency,
                 "TuistLoader",
                 "TuistScaffold",
                 "TuistSigning",
@@ -150,7 +141,6 @@ let package = Package(
                 "TuistCoreTesting",
                 "ProjectDescription",
                 "ProjectAutomation",
-                rxBlockingDependency,
                 "TuistLoaderTesting",
                 "TuistCacheTesting",
                 "TuistGeneratorTesting",
@@ -174,13 +164,12 @@ let package = Package(
                 "TuistSupportTesting",
                 "ProjectDescription",
                 "ProjectAutomation",
-                rxBlockingDependency,
                 "TuistLoaderTesting",
                 "TuistCloudTesting",
                 "TuistGraphTesting",
             ]
         ),
-        .target(
+        .executableTarget(
             name: "tuist",
             dependencies: [
                 "TuistKit",
@@ -194,8 +183,6 @@ let package = Package(
                 argumentParserDependency,
                 swiftToolsSupportDependency,
                 "TuistSupport",
-                rxSwiftDependency,
-                rxBlockingDependency,
             ]
         ),
         .testTarget(
@@ -205,7 +192,7 @@ let package = Package(
                 "TuistSupportTesting",
             ]
         ),
-        .target(
+        .executableTarget(
             name: "tuistenv",
             dependencies: [
                 "TuistEnvKit",
@@ -233,8 +220,6 @@ let package = Package(
             dependencies: [
                 combineExtDependency,
                 swiftToolsSupportDependency,
-                rxSwiftDependency,
-                rxRelayDependency,
                 loggingDependency,
                 "KeychainAccess",
                 swifterDependency,
@@ -257,7 +242,6 @@ let package = Package(
             dependencies: [
                 "TuistSupport",
                 "TuistSupportTesting",
-                rxBlockingDependency,
             ]
         ),
         .testTarget(
@@ -265,7 +249,6 @@ let package = Package(
             dependencies: [
                 "TuistSupport",
                 "TuistSupportTesting",
-                rxBlockingDependency,
             ]
         ),
         .target(
@@ -276,7 +259,6 @@ let package = Package(
                 "TuistCore",
                 "TuistGraph",
                 "TuistSupport",
-                rxBlockingDependency,
                 "GraphViz",
                 swiftGenKitDependency,
                 "StencilSwiftKit",
@@ -320,7 +302,6 @@ let package = Package(
                 "TuistCore",
                 "TuistGraph",
                 "TuistSupport",
-                rxSwiftDependency,
             ]
         ),
         .testTarget(
@@ -329,7 +310,6 @@ let package = Package(
                 "TuistCache",
                 "TuistSupportTesting",
                 "TuistCoreTesting",
-                rxBlockingDependency,
                 "TuistCacheTesting",
                 "TuistGraphTesting",
             ]
@@ -340,8 +320,6 @@ let package = Package(
                 "TuistCache",
                 swiftToolsSupportDependency,
                 "TuistCore",
-                rxTestDependency,
-                rxSwiftDependency,
                 "TuistSupportTesting",
                 "TuistGraphTesting",
                 "TuistCoreTesting",
@@ -355,7 +333,6 @@ let package = Package(
                 "TuistCore",
                 "TuistGraph",
                 "TuistSupport",
-                rxSwiftDependency,
             ]
         ),
         .testTarget(
@@ -364,7 +341,6 @@ let package = Package(
                 "TuistCloud",
                 "TuistSupportTesting",
                 "TuistCoreTesting",
-                rxBlockingDependency,
                 "TuistGraphTesting",
             ]
         ),
@@ -374,8 +350,6 @@ let package = Package(
                 "TuistCloud",
                 swiftToolsSupportDependency,
                 "TuistCore",
-                rxTestDependency,
-                rxSwiftDependency,
                 "TuistGraphTesting",
             ]
         ),
@@ -384,7 +358,6 @@ let package = Package(
             dependencies: [
                 "TuistCache",
                 "TuistSupportTesting",
-                rxBlockingDependency,
                 "TuistCoreTesting",
                 "TuistGraphTesting",
             ]
@@ -442,7 +415,6 @@ let package = Package(
                 "TuistSupportTesting",
                 "TuistCoreTesting",
                 "TuistGraphTesting",
-                rxBlockingDependency,
             ]
         ),
         .target(
@@ -463,7 +435,6 @@ let package = Package(
                 "TuistAutomation",
                 "TuistSupportTesting",
                 "TuistGraphTesting",
-                rxBlockingDependency,
             ]
         ),
         .target(
@@ -492,16 +463,6 @@ let package = Package(
                 "TuistGraphTesting",
             ]
         ),
-        .testTarget(
-            name: "TuistSigningIntegrationTests",
-            dependencies: [
-                "TuistSigning",
-                "TuistSupportTesting",
-                "TuistCoreTesting",
-                "TuistSigningTesting",
-                "TuistGraphTesting",
-            ]
-        ),
         .target(
             name: "TuistDependencies",
             dependencies: [
@@ -509,6 +470,7 @@ let package = Package(
                 "TuistCore",
                 "TuistGraph",
                 "TuistSupport",
+                "TuistPlugin",
             ]
         ),
         .target(
@@ -521,11 +483,13 @@ let package = Package(
         .testTarget(
             name: "TuistDependenciesTests",
             dependencies: [
+                "TuistCoreTesting",
                 "TuistDependencies",
                 "TuistDependenciesTesting",
-                "TuistCoreTesting",
-                "TuistSupportTesting",
                 "TuistGraphTesting",
+                "TuistLoaderTesting",
+                "TuistSupportTesting",
+                "TuistPluginTesting",
             ]
         ),
         .target(
@@ -591,7 +555,6 @@ let package = Package(
                 "TuistCoreTesting",
                 "TuistAsyncQueueTesting",
                 "TuistGraphTesting",
-                rxBlockingDependency,
             ]
         ),
         .target(
@@ -624,7 +587,6 @@ let package = Package(
                 "TuistSupportTesting",
                 "TuistLoaderTesting",
                 "TuistCoreTesting",
-                rxBlockingDependency,
             ]
         ),
         .testTarget(
@@ -634,7 +596,6 @@ let package = Package(
                 "TuistGraphTesting",
                 "TuistSupportTesting",
                 "ProjectDescription",
-                rxBlockingDependency,
             ]
         ),
         .testTarget(
@@ -698,7 +659,6 @@ let package = Package(
                 "TuistSupportTesting",
                 "TuistScaffoldTesting",
                 "TuistCoreTesting",
-                rxBlockingDependency,
                 swiftToolsSupportDependency,
             ]
         ),

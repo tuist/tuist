@@ -58,9 +58,6 @@ func targets() -> [Target] {
                     .external(name: "Logging"),
                     .external(name: "PathKit"),
                     .external(name: "Queuer"),
-                    .external(name: "RxBlocking"),
-                    .external(name: "RxRelay"),
-                    .external(name: "RxSwift"),
                     .external(name: "Signals"),
                     .external(name: "Stencil"),
                     .external(name: "StencilSwiftKit"),
@@ -359,7 +356,7 @@ func targets() -> [Target] {
             ),
             Target.module(
                 name: "TuistSigning",
-                hasIntegrationTests: true,
+                hasIntegrationTests: false,
                 dependencies: [
                     .target(name: "TuistCore"),
                     .target(name: "TuistGraph"),
@@ -371,11 +368,6 @@ func targets() -> [Target] {
                     .target(name: "TuistGraphTesting"),
                 ],
                 testingDependencies: [
-                    .target(name: "TuistGraphTesting"),
-                ],
-                integrationTestsDependencies: [
-                    .target(name: "TuistSupportTesting"),
-                    .target(name: "TuistCoreTesting"),
                     .target(name: "TuistGraphTesting"),
                 ]
             ),

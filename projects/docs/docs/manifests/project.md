@@ -79,11 +79,11 @@ A `Project.swift` should initialize a variable of type `Project`. It can take an
 
 List of additional options:
 
-| Case                                                                                     | Description                                                                                                                                                                 |
-| ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `.automaticSchemesOptions(AutomaticSchemesOptions)`                                      | Enable or disable automatic generation of target schemes. If enabled, options to configure grouping, code coverage and test targets can be passed in via associated values. |
-| `.disableBundleAccessors`                                                                | To disables generating Bundle accessors.                                                                                                                                    |
-| `.disableSynthesizedResourceAccessors)`                                                  | To disable synthesized resource accessors.                                                                                                                                  |
+| Case                                                                                    | Description                                                                                                                                                                 |
+| --------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `.automaticSchemesOptions(AutomaticSchemesOptions)`                                     | Enable or disable automatic generation of target schemes. If enabled, options to configure grouping, code coverage and test targets can be passed in via associated values. |
+| `.disableBundleAccessors`                                                               | To disables generating Bundle accessors.                                                                                                                                    |
+| `.disableSynthesizedResourceAccessors`                                                  | To disable synthesized resource accessors.                                                                                                                                  |
 | `.textSettings(usesTabs: Bool?, indentWidth: UInt?, tabWidth: UInt?, wrapsLines: Bool?)` | [Text settings](#text-settings) to override user ones for current project.                                                                                                  |
 
 ### TargetSchemesGrouping

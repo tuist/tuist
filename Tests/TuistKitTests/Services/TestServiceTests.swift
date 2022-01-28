@@ -1,5 +1,4 @@
 import Foundation
-import RxSwift
 import TSCBasic
 import TuistAutomation
 import TuistCore
@@ -64,14 +63,14 @@ final class TestServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_run_uses_project_directory() throws {
+    func test_run_uses_project_directory() async throws {
         // Given
         contentHasher.hashStub = {
             "\($0.replacingOccurrences(of: "/", with: ""))-hash"
         }
 
         // When
-        try? subject.testRun(
+        try? await subject.testRun(
             path: AbsolutePath("/test")
         )
 
@@ -83,7 +82,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_run_generates_project() throws {
+    func test_run_generates_project() async throws {
         // Given
         let path = try temporaryPath()
         var generatedPath: AbsolutePath?
@@ -95,7 +94,7 @@ final class TestServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try? subject.testRun(
+        try? await subject.testRun(
             path: path
         )
 
@@ -104,7 +103,7 @@ final class TestServiceTests: TuistUnitTestCase {
         XCTAssertEqual(projectOnly, false)
     }
 
-    func test_run_tests_for_only_specified_scheme() throws {
+    func test_run_tests_for_only_specified_scheme() async throws {
         // Given
         buildGraphInspector.testableSchemesStub = { _ in
             [
@@ -123,13 +122,13 @@ final class TestServiceTests: TuistUnitTestCase {
             (path, Graph.test())
         }
         var testedSchemes: [String] = []
-        xcodebuildController.testStub = { _, scheme, _, _, _, _, _ in
+        xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _ in
             testedSchemes.append(scheme)
-            return .just(.standardOutput(.init(raw: "success")))
+            return [.standardOutput(.init(raw: "success"))]
         }
 
         // When
-        try subject.testRun(
+        try await subject.testRun(
             schemeName: "TestScheme",
             path: try temporaryPath()
         )
@@ -138,7 +137,7 @@ final class TestServiceTests: TuistUnitTestCase {
         XCTAssertEqual(testedSchemes, ["TestScheme"])
     }
 
-    func test_run_tests_all_project_schemes() throws {
+    func test_run_tests_all_project_schemes() async throws {
         // Given
         buildGraphInspector.testableSchemesStub = { _ in
             [
@@ -155,9 +154,9 @@ final class TestServiceTests: TuistUnitTestCase {
             (path, Graph.test())
         }
         var testedSchemes: [String] = []
-        xcodebuildController.testStub = { _, scheme, _, _, _, _, _ in
+        xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _ in
             testedSchemes.append(scheme)
-            return .just(.standardOutput(.init(raw: "success")))
+            return [.standardOutput(.init(raw: "success"))]
         }
         try fileHandler.touch(
             testsCacheTemporaryDirectory.path.appending(component: "A")
@@ -167,7 +166,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
 
         // When
-        try subject.testRun(
+        try await subject.testRun(
             path: try temporaryPath()
         )
 
@@ -187,7 +186,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_run_tests_individual_scheme() throws {
+    func test_run_tests_individual_scheme() async throws {
         // Given
         buildGraphInspector.testableSchemesStub = { _ in
             [
@@ -204,9 +203,9 @@ final class TestServiceTests: TuistUnitTestCase {
             (path, Graph.test())
         }
         var testedSchemes: [String] = []
-        xcodebuildController.testStub = { _, scheme, _, _, _, _, _ in
+        xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _ in
             testedSchemes.append(scheme)
-            return .just(.standardOutput(.init(raw: "success")))
+            return [.standardOutput(.init(raw: "success"))]
         }
         try fileHandler.touch(
             testsCacheTemporaryDirectory.path.appending(component: "A")
@@ -216,7 +215,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
 
         // When
-        try subject.testRun(
+        try await subject.testRun(
             schemeName: "ProjectSchemeOne",
             path: try temporaryPath()
         )
@@ -231,7 +230,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_run_tests_all_project_schemes_when_fails() throws {
+    func test_run_tests_all_project_schemes_when_fails() async throws {
         // Given
         buildGraphInspector.projectSchemesStub = { _ in
             [
@@ -242,21 +241,22 @@ final class TestServiceTests: TuistUnitTestCase {
             (path, Graph.test())
         }
         var testedSchemes: [String] = []
-        xcodebuildController.testStub = { _, scheme, _, _, _, _, _ in
+        xcodebuildController.testErrorStub = NSError.test()
+        xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _ in
             testedSchemes.append(scheme)
-            return .error(NSError.test())
+            return []
         }
         try fileHandler.touch(
             testsCacheTemporaryDirectory.path.appending(component: "A")
         )
 
         // When / Then
-        XCTAssertThrowsError(
-            try subject.testRun(
+        do {
+            try await subject.testRun(
                 path: try temporaryPath()
             )
-        )
-
+            XCTFail("Should throw")
+        } catch {}
         XCTAssertEqual(
             testedSchemes,
             [
@@ -268,7 +268,7 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_run_tests_when_no_project_schemes_present() throws {
+    func test_run_tests_when_no_project_schemes_present() async throws {
         // Given
         buildGraphInspector.projectSchemesStub = { _ in
             []
@@ -277,13 +277,13 @@ final class TestServiceTests: TuistUnitTestCase {
             (path, Graph.test())
         }
         var testedSchemes: [String] = []
-        xcodebuildController.testStub = { _, scheme, _, _, _, _, _ in
+        xcodebuildController.testStub = { _, scheme, _, _, _, _, _, _ in
             testedSchemes.append(scheme)
-            return .just(.standardOutput(.init(raw: "success")))
+            return [.standardOutput(.init(raw: "success"))]
         }
 
         // When
-        try subject.testRun(
+        try await subject.testRun(
             path: try temporaryPath()
         )
 
@@ -292,14 +292,14 @@ final class TestServiceTests: TuistUnitTestCase {
         XCTAssertPrinterOutputContains("There are no tests to run, finishing early")
     }
 
-    func test_run_uses_resource_bundle_path() throws {
+    func test_run_uses_resource_bundle_path() async throws {
         // Given
         let expectedResourceBundlePath = AbsolutePath("/test")
         var resourceBundlePath: AbsolutePath?
 
-        xcodebuildController.testStub = { _, _, _, _, _, gotResourceBundlePath, _ in
+        xcodebuildController.testStub = { _, _, _, _, _, gotResourceBundlePath, _, _ in
             resourceBundlePath = gotResourceBundlePath
-            return .empty()
+            return []
         }
         generator.generateWithGraphStub = { path, _ in
             (path, Graph.test())
@@ -311,7 +311,7 @@ final class TestServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.testRun(
+        try await subject.testRun(
             path: try temporaryPath(),
             resultBundlePath: expectedResourceBundlePath
         )
@@ -323,14 +323,14 @@ final class TestServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_run_uses_resource_bundle_path_with_given_scheme() throws {
+    func test_run_uses_resource_bundle_path_with_given_scheme() async throws {
         // Given
         let expectedResourceBundlePath = AbsolutePath("/test")
         var resourceBundlePath: AbsolutePath?
 
-        xcodebuildController.testStub = { _, _, _, _, _, gotResourceBundlePath, _ in
+        xcodebuildController.testStub = { _, _, _, _, _, gotResourceBundlePath, _, _ in
             resourceBundlePath = gotResourceBundlePath
-            return .empty()
+            return []
         }
         generator.generateWithGraphStub = { path, _ in
             (path, Graph.test())
@@ -343,7 +343,7 @@ final class TestServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.testRun(
+        try await subject.testRun(
             schemeName: "ProjectScheme2",
             path: try temporaryPath(),
             resultBundlePath: expectedResourceBundlePath
@@ -354,6 +354,71 @@ final class TestServiceTests: TuistUnitTestCase {
             resourceBundlePath,
             expectedResourceBundlePath
         )
+    }
+
+    func test_run_passes_retry_count_as_argument() async throws {
+        // Given
+        buildGraphInspector.testableSchemesStub = { _ in
+            [
+                Scheme.test(name: "TestScheme"),
+            ]
+        }
+        buildGraphInspector.projectSchemesStub = { _ in
+            [
+                Scheme.test(name: "ProjectSchemeOne"),
+            ]
+        }
+        generator.generateWithGraphStub = { path, _ in
+            (path, Graph.test())
+        }
+
+        var passedRetryCount = 0
+        xcodebuildController.testStub = { _, _, _, _, _, _, _, retryCount in
+            passedRetryCount = retryCount
+            return [.standardOutput(.init(raw: "success"))]
+        }
+
+        // When
+        try await subject.testRun(
+            schemeName: "ProjectSchemeOne",
+            path: try temporaryPath(),
+            retryCount: 3
+        )
+
+        // Then
+        XCTAssertEqual(passedRetryCount, 3)
+    }
+
+    func test_run_defaults_retry_count_to_zero() async throws {
+        // Given
+        buildGraphInspector.testableSchemesStub = { _ in
+            [
+                Scheme.test(name: "TestScheme"),
+            ]
+        }
+        buildGraphInspector.projectSchemesStub = { _ in
+            [
+                Scheme.test(name: "ProjectSchemeOne"),
+            ]
+        }
+        generator.generateWithGraphStub = { path, _ in
+            (path, Graph.test())
+        }
+
+        var passedRetryCount = -1
+        xcodebuildController.testStub = { _, _, _, _, _, _, _, retryCount in
+            passedRetryCount = retryCount
+            return [.standardOutput(.init(raw: "success"))]
+        }
+
+        // When
+        try await subject.testRun(
+            schemeName: "ProjectSchemeOne",
+            path: try temporaryPath()
+        )
+
+        // Then
+        XCTAssertEqual(passedRetryCount, 0)
     }
 }
 
@@ -368,9 +433,10 @@ extension TestService {
         deviceName: String? = nil,
         osVersion: String? = nil,
         skipUiTests: Bool = false,
-        resultBundlePath: AbsolutePath? = nil
-    ) throws {
-        try run(
+        resultBundlePath: AbsolutePath? = nil,
+        retryCount: Int = 0
+    ) async throws {
+        try await run(
             schemeName: schemeName,
             clean: clean,
             configuration: configuration,
@@ -378,7 +444,8 @@ extension TestService {
             deviceName: deviceName,
             osVersion: osVersion,
             skipUITests: skipUiTests,
-            resultBundlePath: resultBundlePath
+            resultBundlePath: resultBundlePath,
+            retryCount: retryCount
         )
     }
 }

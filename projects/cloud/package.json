@@ -36,12 +36,12 @@
     "vite-plugin-ruby": "^3.0.5"
   },
   "dependencies": {
-    "@apollo/client": "^3.5.6",
+    "@apollo/client": "^3.5.7",
     "@rails/ujs": "^6.1.4",
     "@shopify/polaris": "^6.6.0",
     "apollo-link": "^1.2.14",
     "apollo-link-http": "^1.5.17",
-    "mobx": "^6.3.10",
+    "mobx": "^6.3.12",
     "mobx-react-lite": "^3.2.3",
     "react": "^17.0.2",
     "react-dom": "^17.0.2",

@@ -182,6 +182,28 @@ final class ProjectFileElementsTests: TuistUnitTestCase {
         ])
     }
 
+    func test_addElement_docc() throws {
+        // Given
+        let element = GroupFileElement(
+            path: "/path/myfolder/resources/ImportantDocumentation.docc",
+            group: .group(name: "Project")
+        )
+
+        // When
+        try subject.generate(
+            fileElement: element,
+            groups: groups,
+            pbxproj: pbxproj,
+            sourceRootPath: "/path"
+        )
+
+        // Then
+        let projectGroup = groups.sortedMain.group(named: "Project")
+        XCTAssertEqual(projectGroup?.flattenedChildren, [
+            "myfolder/resources/ImportantDocumentation.docc",
+        ])
+    }
+
     func test_addElement_scnassets() throws {
         // Given
         let element = GroupFileElement(

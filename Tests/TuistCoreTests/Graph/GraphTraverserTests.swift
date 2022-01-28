@@ -101,6 +101,38 @@ final class GraphTraverserTests: TuistUnitTestCase {
         XCTAssertTrue(got)
     }
 
+    func test_dependsOnXCTest_when_settings_enables_search_paths() {
+        // Given
+        let project = Project.test()
+        let frameworkTarget = GraphTarget.test(
+            path: project.path,
+            target: Target.test(
+                name: "Framework",
+                product: .framework,
+                settings: .test(base: [
+                    "ENABLE_TESTING_SEARCH_PATHS": "YES",
+                ])
+            )
+        )
+        let graph = Graph.test(
+            projects: [
+                project.path: project,
+            ],
+            targets: [
+                project.path: [
+                    frameworkTarget.target.name: frameworkTarget.target,
+                ],
+            ]
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let got = subject.dependsOnXCTest(path: project.path, name: "Framework")
+
+        // Then
+        XCTAssertTrue(got)
+    }
+
     func test_target() {
         // Given
         let path = AbsolutePath.root
@@ -2671,12 +2703,14 @@ final class GraphTraverserTests: TuistUnitTestCase {
 
         // Given: Value Graph
         let dependencies: [GraphDependency: Set<GraphDependency>] = [
-            .target(name: target.name, path: project.path): Set(arrayLiteral: .sdk(
-                name: "AppClip.framework",
-                path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/AppClip.framework",
-                status: .required,
-                source: .system
-            )),
+            .target(name: target.name, path: project.path): [
+                .sdk(
+                    name: "AppClip.framework",
+                    path: "/Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS.sdk/System/Library/Frameworks/AppClip.framework",
+                    status: .required,
+                    source: .system
+                ),
+            ],
         ]
         let graph = Graph.test(
             projects: [project.path: project],
@@ -2701,6 +2735,45 @@ final class GraphTraverserTests: TuistUnitTestCase {
                 .sdk(path: path, status: .required, source: .system),
             ]
         )
+    }
+
+    func test_embeddableFrameworks_when_appClipDependsOnDynamicFramework() throws {
+        // Given
+        let appClipTarget = Target.test(name: "AppClip", product: .appClip)
+        let frameworkTarget = Target.test(name: "MyFramework", product: .framework)
+        let project = Project.test(path: "/path/a")
+
+        // Given: Value Graph
+        let dependencies: [GraphDependency: Set<GraphDependency>] = [
+            .target(name: appClipTarget.name, path: project.path): [
+                .target(name: frameworkTarget.name, path: project.path),
+            ],
+        ]
+        let graph = Graph.test(
+            projects: [
+                project.path: project,
+            ],
+            targets: [
+                project.path: [
+                    appClipTarget.name: appClipTarget,
+                    frameworkTarget.name: frameworkTarget,
+                ],
+            ],
+            dependencies: dependencies
+        )
+        let subject = GraphTraverser(graph: graph)
+
+        // When
+        let result = subject.embeddableFrameworks(path: project.path, name: appClipTarget.name).sorted()
+
+        // Then
+        XCTAssertEqual(result, [
+            .product(
+                target: "MyFramework",
+                productName: "MyFramework.framework",
+                platformFilter: .ios
+            ),
+        ])
     }
 
     func test_linkableDependencies_when_dependencyIsAFramework() throws {

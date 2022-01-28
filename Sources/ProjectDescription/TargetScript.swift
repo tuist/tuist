@@ -16,9 +16,9 @@ public struct TargetScript: Codable, Equatable {
     /// - tool: Executes the tool with the given arguments. Tuist will look up the tool on the environment's PATH.
     /// - scriptPath: Executes the file at the path with the given arguments.
     /// - text: Executes the embedded script. This should be a short command.
-    public enum Script: Equatable {
-        case tool(_ path: String, _ args: [String] = [])
-        case scriptPath(_ path: Path, args: [String] = [])
+    public enum Script: Equatable, Codable {
+        case tool(path: String, args: [String])
+        case scriptPath(path: Path, args: [String])
         case embedded(String)
     }
 
@@ -51,22 +51,6 @@ public struct TargetScript: Codable, Equatable {
 
     /// The path to the shell which shall execute this script.
     public let shellPath: String
-
-    public enum CodingKeys: String, CodingKey {
-        case name
-        case tool
-        case path
-        case script
-        case order
-        case arguments
-        case inputPaths
-        case inputFileListPaths
-        case outputPaths
-        case outputFileListPaths
-        case basedOnDependencyAnalysis
-        case runForInstallBuildsOnly = "runOnlyForDeploymentPostprocessing"
-        case shellPath
-    }
 
     /// Initializes the target script with its attributes.
     ///
@@ -104,59 +88,6 @@ public struct TargetScript: Codable, Equatable {
         self.shellPath = shellPath
     }
 
-    // MARK: - Codable
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        name = try container.decode(String.self, forKey: .name)
-        order = try container.decode(Order.self, forKey: .order)
-        inputPaths = try container.decodeIfPresent([Path].self, forKey: .inputPaths) ?? []
-        inputFileListPaths = try container.decodeIfPresent([Path].self, forKey: .inputFileListPaths) ?? []
-        outputPaths = try container.decodeIfPresent([Path].self, forKey: .outputPaths) ?? []
-        outputFileListPaths = try container.decodeIfPresent([Path].self, forKey: .outputFileListPaths) ?? []
-        basedOnDependencyAnalysis = try container.decodeIfPresent(Bool.self, forKey: .basedOnDependencyAnalysis)
-        runForInstallBuildsOnly = try container.decodeIfPresent(Bool.self, forKey: .runForInstallBuildsOnly) ?? false
-        shellPath = try container.decodeIfPresent(String.self, forKey: .shellPath) ?? "/bin/sh"
-
-        let arguments: [String] = try container.decodeIfPresent([String].self, forKey: .arguments) ?? []
-        if let script = try container.decodeIfPresent(String.self, forKey: .script) {
-            self.script = .embedded(script)
-        } else if let path = try container.decodeIfPresent(Path.self, forKey: .path) {
-            script = .scriptPath(path, args: arguments)
-        } else if let tool = try container.decodeIfPresent(String.self, forKey: .tool) {
-            script = .tool(tool, arguments)
-        } else {
-            script = .embedded("echo 'No embedded script, path to a script, or tool was found'")
-        }
-    }
-
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-
-        try container.encode(name, forKey: .name)
-        try container.encode(order, forKey: .order)
-        try container.encode(inputPaths, forKey: .inputPaths)
-        try container.encode(inputFileListPaths, forKey: .inputFileListPaths)
-        try container.encode(outputPaths, forKey: .outputPaths)
-        try container.encode(outputFileListPaths, forKey: .outputFileListPaths)
-        try container.encode(basedOnDependencyAnalysis, forKey: .basedOnDependencyAnalysis)
-        try container.encode(runForInstallBuildsOnly, forKey: .runForInstallBuildsOnly)
-        try container.encode(shellPath, forKey: .shellPath)
-
-        switch script {
-        case let .embedded(script):
-            try container.encode(script, forKey: .script)
-
-        case let .scriptPath(path, args: args):
-            try container.encode(path, forKey: .path)
-            try container.encode(args, forKey: .arguments)
-
-        case let .tool(tool, args):
-            try container.encode(tool, forKey: .tool)
-            try container.encode(args, forKey: .arguments)
-        }
-    }
-
     // MARK: - Path init
 
     /// Returns a target script that gets executed before the sources and resources build phase.
@@ -186,7 +117,7 @@ public struct TargetScript: Codable, Equatable {
     {
         TargetScript(
             name: name,
-            script: .scriptPath(path, args: arguments),
+            script: .scriptPath(path: path, args: arguments),
             order: .pre,
             inputPaths: inputPaths,
             inputFileListPaths: inputFileListPaths,
@@ -225,7 +156,7 @@ public struct TargetScript: Codable, Equatable {
     {
         TargetScript(
             name: name,
-            script: .scriptPath(path, args: arguments),
+            script: .scriptPath(path: path, args: arguments),
             order: .pre,
             inputPaths: inputPaths,
             inputFileListPaths: inputFileListPaths,
@@ -264,7 +195,7 @@ public struct TargetScript: Codable, Equatable {
     {
         TargetScript(
             name: name,
-            script: .scriptPath(path, args: arguments),
+            script: .scriptPath(path: path, args: arguments),
             order: .post,
             inputPaths: inputPaths,
             inputFileListPaths: inputFileListPaths,
@@ -303,7 +234,7 @@ public struct TargetScript: Codable, Equatable {
     {
         TargetScript(
             name: name,
-            script: .scriptPath(path, args: arguments),
+            script: .scriptPath(path: path, args: arguments),
             order: .post,
             inputPaths: inputPaths,
             inputFileListPaths: inputFileListPaths,
@@ -344,7 +275,7 @@ public struct TargetScript: Codable, Equatable {
     {
         TargetScript(
             name: name,
-            script: .tool(tool, arguments),
+            script: .tool(path: tool, args: arguments),
             order: .pre,
             inputPaths: inputPaths,
             inputFileListPaths: inputFileListPaths,
@@ -383,7 +314,7 @@ public struct TargetScript: Codable, Equatable {
     {
         TargetScript(
             name: name,
-            script: .tool(tool, arguments),
+            script: .tool(path: tool, args: arguments),
             order: .pre,
             inputPaths: inputPaths,
             inputFileListPaths: inputFileListPaths,
@@ -422,7 +353,7 @@ public struct TargetScript: Codable, Equatable {
     {
         TargetScript(
             name: name,
-            script: .tool(tool, arguments),
+            script: .tool(path: tool, args: arguments),
             order: .post,
             inputPaths: inputPaths,
             inputFileListPaths: inputFileListPaths,
@@ -461,7 +392,7 @@ public struct TargetScript: Codable, Equatable {
     {
         TargetScript(
             name: name,
-            script: .tool(tool, arguments),
+            script: .tool(path: tool, args: arguments),
             order: .post,
             inputPaths: inputPaths,
             inputFileListPaths: inputFileListPaths,

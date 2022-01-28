@@ -1,5 +1,4 @@
 import Foundation
-import RxSwift
 import TSCBasic
 import TuistCore
 import TuistGraph
@@ -61,52 +60,33 @@ public final class CacheRemoteStorage: CacheStoring {
 
     // MARK: - CacheStoring
 
-    public func exists(name: String, hash: String) -> Single<Bool> {
+    public func exists(name: String, hash: String) async throws -> Bool {
         do {
             let successRange = 200 ..< 300
             let resource = try cloudCacheResourceFactory.existsResource(name: name, hash: hash)
-            return cloudClient.request(resource)
-                .flatMap { _, response in
-                    .just(successRange.contains(response.statusCode))
-                }
-                .catchError { error in
-                    if case let HTTPRequestDispatcherError.serverSideError(_, response) = error, response.statusCode == 404 {
-                        return .just(false)
-                    } else {
-                        throw error
-                    }
-                }
+            let (_, response) = try await cloudClient.request(resource)
+            return successRange.contains(response.statusCode)
         } catch {
-            return Single.error(error)
+            if case let HTTPRequestDispatcherError.serverSideError(_, response) = error, response.statusCode == 404 {
+                return false
+            } else {
+                throw error
+            }
         }
     }
 
-    public func fetch(name: String, hash: String) -> Single<AbsolutePath> {
-        do {
-            let resource = try cloudCacheResourceFactory.fetchResource(name: name, hash: hash)
-            return cloudClient
-                .request(resource)
-                .map(\.object.data.url)
-                .flatMap { (url: URL) in
-                    self.fileClient.download(url: url)
-                        .do(onSubscribed: { logger.info("Downloading cache artifact with hash \(hash).") })
-                }
-                .flatMap { (filePath: AbsolutePath) in
-                    do {
-                        let archiveContentPath = try self.unzip(downloadedArchive: filePath, hash: hash)
-                        return Single.just(archiveContentPath)
-                    } catch {
-                        return Single.error(error)
-                    }
-                }
-        } catch {
-            return Single.error(error)
-        }
+    public func fetch(name: String, hash: String) async throws -> AbsolutePath {
+        let resource = try cloudCacheResourceFactory.fetchResource(name: name, hash: hash)
+        let url = try await cloudClient.request(resource).object.data.url
+
+        logger.info("Downloading cache artifact with hash \(hash).")
+        let filePath = try await fileClient.download(url: url)
+        return try unzip(downloadedArchive: filePath, hash: hash)
     }
 
-    public func store(name: String, hash: String, paths: [AbsolutePath]) -> Completable {
+    public func store(name: String, hash: String, paths: [AbsolutePath]) async throws {
+        let archiver = try fileArchiverFactory.makeFileArchiver(for: paths)
         do {
-            let archiver = try fileArchiverFactory.makeFileArchiver(for: paths)
             let destinationZipPath = try archiver.zip(name: hash)
             let md5 = try FileHandler.shared.urlSafeBase64MD5(path: destinationZipPath)
             let storeResource = try cloudCacheResourceFactory.storeResource(
@@ -115,40 +95,24 @@ public final class CacheRemoteStorage: CacheStoring {
                 contentMD5: md5
             )
 
-            return cloudClient
-                .request(storeResource)
-                .map { responseTuple -> URL in responseTuple.object.data.url }
-                .flatMapCompletable { (url: URL) in
-                    let deleteCompletable = self.deleteZipArchiveCompletable(archiver: archiver)
-                    return self.fileClient.upload(file: destinationZipPath, hash: hash, to: url)
-                        .flatMapCompletable { _ in
-                            self.verify(name: name, hash: hash, contentMD5: md5)
-                        }
-                        .catchError {
-                            deleteCompletable.concat(.error($0))
-                        }
-                }
+            let url = try await cloudClient.request(storeResource).object.data.url
+
+            _ = try await fileClient.upload(file: destinationZipPath, hash: hash, to: url)
+
+            let verifyUploadResource = try cloudCacheResourceFactory.verifyUploadResource(
+                name: name,
+                hash: hash,
+                contentMD5: md5
+            )
+
+            _ = try await cloudClient.request(verifyUploadResource)
         } catch {
-            return Completable.error(error)
+            try archiver.delete()
+            throw error
         }
     }
 
     // MARK: - Private
-
-    private func verify(name: String, hash: String, contentMD5: String) -> Completable {
-        do {
-            let verifyUploadResource = try cloudCacheResourceFactory.verifyUploadResource(
-                name: name,
-                hash: hash,
-                contentMD5: contentMD5
-            )
-
-            return cloudClient
-                .request(verifyUploadResource).asCompletable()
-        } catch {
-            return Completable.error(error)
-        }
-    }
 
     private func artifactPath(in archive: AbsolutePath) -> AbsolutePath? {
         if let xcframeworkPath = FileHandler.shared.glob(archive, glob: "*.xcframework").first {
@@ -177,17 +141,5 @@ public final class CacheRemoteStorage: CacheStoring {
         }
         try FileHandler.shared.move(from: unarchivedDirectory, to: archiveDestination)
         return artifactPath(in: archiveDestination)!
-    }
-
-    private func deleteZipArchiveCompletable(archiver: FileArchiving) -> Completable {
-        Completable.create(subscribe: { observer in
-            do {
-                try archiver.delete()
-                observer(.completed)
-            } catch {
-                observer(.error(error))
-            }
-            return Disposables.create {}
-        })
     }
 }

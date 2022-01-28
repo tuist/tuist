@@ -5,5 +5,6 @@ module Types
     field :id, ID, null: false
     field :name, String, null: false
     field :owner, OwnerType, null: false
+    field :projects, [ProjectType], null: false
   end
 end

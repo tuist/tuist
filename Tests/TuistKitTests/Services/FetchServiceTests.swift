@@ -50,7 +50,7 @@ final class FetchServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_run_when_updating_dependencies() throws {
+    func test_run_when_updating_dependencies() async throws {
         // Given
         let stubbedPath = try temporaryPath()
         let stubbedDependencies = Dependencies(
@@ -68,7 +68,7 @@ final class FetchServiceTests: TuistUnitTestCase {
             ),
             platforms: [.iOS, .macOS]
         )
-        dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
+        dependenciesModelLoader.loadDependenciesStub = { _, _ in stubbedDependencies }
 
         let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
         configLoader.loadConfigStub = { _ in Config.test(swiftVersion: stubbedSwiftVersion) }
@@ -83,6 +83,9 @@ final class FetchServiceTests: TuistUnitTestCase {
             XCTAssertEqual(dependenciesGraph, .none)
             XCTAssertEqual(path, stubbedPath)
         }
+        pluginService.fetchRemotePluginsStub = { _ in
+            Plugins.test()
+        }
 
         try fileHandler.touch(
             stubbedPath.appending(
@@ -91,9 +94,8 @@ final class FetchServiceTests: TuistUnitTestCase {
         )
 
         // When
-        try subject.run(
+        try await subject.run(
             path: stubbedPath.pathString,
-            fetchCategories: [.dependencies],
             update: true
         )
 
@@ -105,7 +107,7 @@ final class FetchServiceTests: TuistUnitTestCase {
         XCTAssertFalse(dependenciesController.invokedFetch)
     }
 
-    func test_run_when_fetching_plugins() throws {
+    func test_run_when_fetching_plugins() async throws {
         // Given
         let config = Config.test(
             plugins: [
@@ -121,9 +123,8 @@ final class FetchServiceTests: TuistUnitTestCase {
         }
 
         // When
-        try subject.run(
+        try await subject.run(
             path: nil,
-            fetchCategories: [.plugins],
             update: false
         )
 
@@ -133,7 +134,7 @@ final class FetchServiceTests: TuistUnitTestCase {
         )
     }
 
-    func test_run_when_fetching_dependencies() throws {
+    func test_run_when_fetching_dependencies() async throws {
         // Given
         let stubbedPath = try temporaryPath()
         let stubbedDependencies = Dependencies(
@@ -152,7 +153,7 @@ final class FetchServiceTests: TuistUnitTestCase {
             ),
             platforms: [.iOS, .macOS]
         )
-        dependenciesModelLoader.loadDependenciesStub = { _ in stubbedDependencies }
+        dependenciesModelLoader.loadDependenciesStub = { _, _ in stubbedDependencies }
 
         let stubbedSwiftVersion = TSCUtility.Version(5, 3, 0)
         configLoader.loadConfigStub = { _ in Config.test(swiftVersion: stubbedSwiftVersion) }
@@ -167,6 +168,7 @@ final class FetchServiceTests: TuistUnitTestCase {
             XCTAssertEqual(dependenciesGraph, .none)
             XCTAssertEqual(path, stubbedPath)
         }
+        pluginService.fetchRemotePluginsStub = { _ in }
 
         try fileHandler.touch(
             stubbedPath.appending(
@@ -175,9 +177,8 @@ final class FetchServiceTests: TuistUnitTestCase {
         )
 
         // When
-        try subject.run(
+        try await subject.run(
             path: stubbedPath.pathString,
-            fetchCategories: [.dependencies],
             update: false
         )
 

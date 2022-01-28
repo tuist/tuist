@@ -1,6 +1,4 @@
 import Foundation
-import RxBlocking
-import RxSwift
 import TSCBasic
 import struct TSCUtility.Version
 import TuistAutomation
@@ -78,8 +76,9 @@ final class TestService {
         deviceName: String?,
         osVersion: String?,
         skipUITests: Bool,
-        resultBundlePath: AbsolutePath?
-    ) throws {
+        resultBundlePath: AbsolutePath?,
+        retryCount: Int
+    ) async throws {
         // Load config
         let manifestLoaderFactory = ManifestLoaderFactory()
         let manifestLoader = manifestLoaderFactory.createManifestLoader()
@@ -100,7 +99,7 @@ final class TestService {
             skipUITests: skipUITests
         )
         logger.notice("Generating project for testing", metadata: .section)
-        let graph = try generator.generateWithGraph(
+        let graph = try await generator.generateWithGraph(
             path: path,
             projectOnly: false
         ).1
@@ -131,15 +130,16 @@ final class TestService {
 
             let testSchemes: [Scheme] = [scheme]
 
-            try testSchemes.forEach { testScheme in
-                try self.testScheme(
+            for testScheme in testSchemes {
+                try await self.testScheme(
                     scheme: testScheme,
                     graphTraverser: graphTraverser,
                     clean: clean,
                     configuration: configuration,
                     version: version,
                     deviceName: deviceName,
-                    resultBundlePath: resultBundlePath
+                    resultBundlePath: resultBundlePath,
+                    retryCount: retryCount
                 )
             }
         } else {
@@ -153,15 +153,16 @@ final class TestService {
                 return
             }
 
-            try testSchemes.forEach {
-                try testScheme(
-                    scheme: $0,
+            for testScheme in testSchemes {
+                try await self.testScheme(
+                    scheme: testScheme,
                     graphTraverser: graphTraverser,
                     clean: clean,
                     configuration: configuration,
                     version: version,
                     deviceName: deviceName,
-                    resultBundlePath: resultBundlePath
+                    resultBundlePath: resultBundlePath,
+                    retryCount: retryCount
                 )
             }
         }
@@ -197,14 +198,15 @@ final class TestService {
         configuration: String?,
         version: Version?,
         deviceName: String?,
-        resultBundlePath: AbsolutePath?
-    ) throws {
+        resultBundlePath: AbsolutePath?,
+        retryCount: Int
+    ) async throws {
         logger.log(level: .notice, "Testing scheme \(scheme.name)", metadata: .section)
         guard let buildableTarget = buildGraphInspector.testableTarget(scheme: scheme, graphTraverser: graphTraverser) else {
             throw TestServiceError.schemeWithoutTestableTargets(scheme: scheme.name)
         }
 
-        let destination = try findDestination(
+        let destination = try await findDestination(
             target: buildableTarget.target,
             scheme: scheme,
             graphTraverser: graphTraverser,
@@ -212,7 +214,7 @@ final class TestService {
             deviceName: deviceName
         )
 
-        _ = try xcodebuildController.test(
+        try await xcodebuildController.test(
             .workspace(graphTraverser.workspace.xcWorkspacePath),
             scheme: scheme.name,
             clean: clean,
@@ -224,11 +226,10 @@ final class TestService {
                 target: buildableTarget.target,
                 configuration: configuration,
                 skipSigning: false
-            )
+            ),
+            retryCount: retryCount
         )
         .printFormattedOutput()
-        .toBlocking()
-        .last()
     }
 
     private func findDestination(
@@ -237,7 +238,7 @@ final class TestService {
         graphTraverser: GraphTraversing,
         version: Version?,
         deviceName: String?
-    ) throws -> XcodeBuildDestination {
+    ) async throws -> XcodeBuildDestination {
         switch target.platform {
         case .iOS, .tvOS, .watchOS:
             let minVersion: Version?
@@ -255,14 +256,12 @@ final class TestService {
                     .sorted()
                     .first
             }
-            let deviceAndRuntime = try simulatorController.findAvailableDevice(
+            let deviceAndRuntime = try await simulatorController.findAvailableDevice(
                 platform: target.platform,
                 version: version,
                 minVersion: minVersion,
                 deviceName: deviceName
             )
-            .toBlocking()
-            .single()
             return .device(deviceAndRuntime.device.udid)
         case .macOS:
             return .mac

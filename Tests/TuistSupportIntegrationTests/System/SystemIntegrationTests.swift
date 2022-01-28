@@ -1,5 +1,3 @@
-import RxBlocking
-import RxSwift
 import TSCBasic
 import XCTest
 @testable import TuistSupport
@@ -32,34 +30,26 @@ final class SystemIntegrationTests: TuistTestCase {
 
     func test_observable() throws {
         // Given
-        let observable = subject.observable(["echo", "hola"]).mapToString()
+        let publisher = subject.publisher(["echo", "hola"]).mapToString()
 
         // When
-        let result = observable.toBlocking().materialize()
+        let elements = try publisher.toBlocking()
 
         // Then
-        switch result {
-        case let .completed(elements):
-            XCTAssertEqual(elements.count, 1)
-            XCTAssertTrue(elements.first?.value.spm_chomp() == "hola")
-        case let .failed(elements, error):
-            XCTAssertEqual(elements.count, 0)
-            XCTFail("Expected command not to fail but failed with error: \(error)")
-        }
+        XCTAssertEqual(elements.count, 1)
+        XCTAssertTrue(elements.first?.value.spm_chomp() == "hola")
     }
 
     func test_observable_when_it_errors() throws {
         // Given
-        let observable = subject.observable(["/usr/bin/xcrun", "invalid"]).mapToString()
+        let publisher = subject.publisher(["/usr/bin/xcrun", "invalid"]).mapToString()
 
-        // When
-        let result = observable.toBlocking().materialize()
-
-        // Then
-        switch result {
-        case .completed:
+        do {
+            // When
+            _ = try publisher.toBlocking()
             XCTFail("expected command to fail but it did not")
-        case let .failed(_, error):
+        } catch {
+            // Then
             XCTAssertTrue(error is TuistSupport.SystemError)
         }
     }

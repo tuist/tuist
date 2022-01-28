@@ -10,8 +10,9 @@ extension DependenciesGraph {
           "externalDependencies" : {
             "RxSwift" : [
               {
-                "kind" : "xcframework",
-                "path" : "/Tuist/Dependencies/Carthage/RxSwift.xcframework"
+                "xcframework" : {
+                  "path" : "/Tuist/Dependencies/Carthage/RxSwift.xcframework"
+                }
               }
             ]
           },

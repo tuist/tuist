@@ -1,4 +1,3 @@
-import RxBlocking
 import TSCBasic
 import TuistCore
 import TuistGraph
@@ -21,7 +20,7 @@ public protocol TargetBuilding {
         clean: Bool,
         configuration: String?,
         buildOutputPath: AbsolutePath?
-    ) throws
+    ) async throws
 }
 
 public enum TargetBuilderError: FatalError {
@@ -69,7 +68,7 @@ public final class TargetBuilder: TargetBuilding {
         clean: Bool,
         configuration: String?,
         buildOutputPath: AbsolutePath?
-    ) throws {
+    ) async throws {
         logger.log(level: .notice, "Building scheme \(schemeName)", metadata: .section)
 
         let buildArguments = buildGraphInspector.buildArguments(
@@ -79,7 +78,7 @@ public final class TargetBuilder: TargetBuilding {
             skipSigning: false
         )
 
-        _ = try xcodeBuildController
+        try await xcodeBuildController
             .build(
                 .workspace(workspacePath),
                 scheme: schemeName,
@@ -87,8 +86,6 @@ public final class TargetBuilder: TargetBuilding {
                 arguments: buildArguments
             )
             .printFormattedOutput()
-            .toBlocking()
-            .last()
 
         if let buildOutputPath = buildOutputPath {
             let configuration = configuration ?? target.project.settings.defaultDebugBuildConfiguration()?

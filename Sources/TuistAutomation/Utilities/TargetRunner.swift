@@ -1,4 +1,3 @@
-import RxBlocking
 import TSCBasic
 import struct TSCUtility.Version
 import TuistCore
@@ -26,7 +25,7 @@ public protocol TargetRunning {
         version: Version?,
         deviceName: String?,
         arguments: [String]
-    ) throws
+    ) async throws
 
     /// Given a target, if it is not supported for running throws an error.
     /// - Parameter target: The target to check if supported.
@@ -80,7 +79,7 @@ public final class TargetRunner: TargetRunning {
         version: Version?,
         deviceName: String?,
         arguments: [String]
-    ) throws {
+    ) async throws {
         try assertCanRunTarget(target.target)
 
         let configuration = configuration ?? target.project.settings.defaultDebugBuildConfiguration()?.name ?? BuildConfiguration
@@ -99,7 +98,7 @@ public final class TargetRunner: TargetRunning {
         case (.macOS, .commandLineTool):
             try runExecutable(runnablePath, arguments: arguments)
         case let (platform, .app):
-            try runApp(
+            try await runApp(
                 target: target,
                 schemeName: schemeName,
                 configuration: configuration,
@@ -143,16 +142,12 @@ public final class TargetRunner: TargetRunning {
         version: Version?,
         deviceName: String?,
         arguments: [String]
-    ) throws {
-        let settings = try xcodeBuildController
+    ) async throws {
+        let settings = try await xcodeBuildController
             .showBuildSettings(.workspace(workspacePath), scheme: schemeName, configuration: configuration)
-            .toBlocking()
-            .single()
         let bundleId = settings[target.target.name]?.productBundleIdentifier ?? target.target.bundleId
-        let simulator = try simulatorController
+        let simulator = try await simulatorController
             .findAvailableDevice(platform: platform, version: version, minVersion: minVersion, deviceName: deviceName)
-            .toBlocking()
-            .single()
 
         logger.debug("Running app \(appPath.pathString) with arguments [\(arguments.joined(separator: ", "))]")
         logger.notice("Running app \(bundleId) on \(simulator.device.name)", metadata: .section)

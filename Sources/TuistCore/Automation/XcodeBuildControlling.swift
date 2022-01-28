@@ -1,5 +1,4 @@
 import Foundation
-import RxSwift
 import TSCBasic
 import TuistSupport
 
@@ -18,7 +17,7 @@ public protocol XcodeBuildControlling {
     func build(_ target: XcodeBuildTarget,
                scheme: String,
                clean: Bool,
-               arguments: [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>>
+               arguments: [XcodeBuildArgument]) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
 
     /// Returns an observable to test the given project using xcodebuild.
     /// - Parameters:
@@ -28,6 +27,7 @@ public protocol XcodeBuildControlling {
     ///   - destination: Destination to run the tests on
     ///   - derivedDataPath: Custom location for derived data. Use `xcodebuild`'s default if `nil`
     ///   - arguments: Extra xcodebuild arguments.
+    ///   - retryCount: Number of times to retry the test on failure
     func test(
         _ target: XcodeBuildTarget,
         scheme: String,
@@ -35,8 +35,9 @@ public protocol XcodeBuildControlling {
         destination: XcodeBuildDestination,
         derivedDataPath: AbsolutePath?,
         resultBundlePath: AbsolutePath?,
-        arguments: [XcodeBuildArgument]
-    ) -> Observable<SystemEvent<XcodeBuildOutput>>
+        arguments: [XcodeBuildArgument],
+        retryCount: Int
+    ) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
 
     /// Returns an observable that archives the given project using xcodebuild.
     /// - Parameters:
@@ -49,13 +50,14 @@ public protocol XcodeBuildControlling {
                  scheme: String,
                  clean: Bool,
                  archivePath: AbsolutePath,
-                 arguments: [XcodeBuildArgument]) -> Observable<SystemEvent<XcodeBuildOutput>>
+                 arguments: [XcodeBuildArgument]) -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
 
     /// Creates an .xcframework combining the list of given frameworks.
     /// - Parameters:
     ///   - frameworks: Frameworks to be combined.
     ///   - output: Path to the output .xcframework.
-    func createXCFramework(frameworks: [AbsolutePath], output: AbsolutePath) -> Observable<SystemEvent<XcodeBuildOutput>>
+    func createXCFramework(frameworks: [AbsolutePath], output: AbsolutePath)
+        -> AsyncThrowingStream<SystemEvent<XcodeBuildOutput>, Error>
 
     /// Gets the build settings of a scheme targets.
     /// - Parameters:
@@ -64,5 +66,5 @@ public protocol XcodeBuildControlling {
     ///   - configuration: Build configuration.
     func showBuildSettings(_ target: XcodeBuildTarget,
                            scheme: String,
-                           configuration: String) -> Single<[String: XcodeBuildSettings]>
+                           configuration: String) async throws -> [String: XcodeBuildSettings]
 }

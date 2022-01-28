@@ -1,5 +1,4 @@
 import Foundation
-import RxBlocking
 import TSCBasic
 import TuistCore
 import TuistSupport
@@ -21,7 +20,7 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_build() throws {
+    func test_build() async throws {
         // Given
         let path = try temporaryPath()
         let xcworkspacePath = path.appending(component: "Project.xcworkspace")
@@ -37,18 +36,12 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
 
         // When
         let events = subject.build(target, scheme: scheme, clean: true, arguments: [])
-            .toBlocking()
-            .materialize()
 
-        switch events {
-        case let .completed(output):
-            XCTAssertEqual(output, [.standardOutput(XcodeBuildOutput(raw: "output\n"))])
-        case .failed:
-            XCTFail("The command was not expected to fail")
-        }
+        let result = try await events.toArray()
+        XCTAssertEqual(result, [.standardOutput(XcodeBuildOutput(raw: "output"))])
     }
 
-    func test_test_when_device() throws {
+    func test_test_when_device() async throws {
         // Given
         let path = try temporaryPath()
         let xcworkspacePath = path.appending(component: "Project.xcworkspace")
@@ -78,20 +71,15 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             destination: .device("device-id"),
             derivedDataPath: nil,
             resultBundlePath: nil,
-            arguments: []
+            arguments: [],
+            retryCount: 0
         )
-        .toBlocking()
-        .materialize()
 
-        switch events {
-        case let .completed(output):
-            XCTAssertEqual(output, [.standardOutput(XcodeBuildOutput(raw: "output\n"))])
-        case .failed:
-            XCTFail("The command was not expected to fail")
-        }
+        let result = try await events.toArray()
+        XCTAssertEqual(result, [.standardOutput(XcodeBuildOutput(raw: "output"))])
     }
 
-    func test_test_when_mac() throws {
+    func test_test_when_mac() async throws {
         // Given
         let path = try temporaryPath()
         let xcworkspacePath = path.appending(component: "Project.xcworkspace")
@@ -120,20 +108,15 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             destination: .mac,
             derivedDataPath: nil,
             resultBundlePath: nil,
-            arguments: []
+            arguments: [],
+            retryCount: 0
         )
-        .toBlocking()
-        .materialize()
 
-        switch events {
-        case let .completed(output):
-            XCTAssertEqual(output, [.standardOutput(XcodeBuildOutput(raw: "output\n"))])
-        case .failed:
-            XCTFail("The command was not expected to fail")
-        }
+        let result = try await events.toArray()
+        XCTAssertEqual(result, [.standardOutput(XcodeBuildOutput(raw: "output"))])
     }
 
-    func test_test_with_derived_data() throws {
+    func test_test_with_derived_data() async throws {
         // Given
         let path = try temporaryPath()
         let xcworkspacePath = path.appending(component: "Project.xcworkspace")
@@ -162,20 +145,15 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             destination: .mac,
             derivedDataPath: derivedDataPath,
             resultBundlePath: nil,
-            arguments: []
+            arguments: [],
+            retryCount: 0
         )
-        .toBlocking()
-        .materialize()
 
-        switch events {
-        case let .completed(output):
-            XCTAssertEqual(output, [.standardOutput(XcodeBuildOutput(raw: "output\n"))])
-        case .failed:
-            XCTFail("The command was not expected to fail")
-        }
+        let result = try await events.toArray()
+        XCTAssertEqual(result, [.standardOutput(XcodeBuildOutput(raw: "output"))])
     }
 
-    func test_test_with_result_bundle_path() throws {
+    func test_test_with_result_bundle_path() async throws {
         // Given
         let path = try temporaryPath()
         let xcworkspacePath = path.appending(component: "Project.xcworkspace")
@@ -204,16 +182,21 @@ final class XcodeBuildControllerTests: TuistUnitTestCase {
             destination: .mac,
             derivedDataPath: nil,
             resultBundlePath: resultBundlePath,
-            arguments: []
+            arguments: [],
+            retryCount: 0
         )
-        .toBlocking()
-        .materialize()
 
-        switch events {
-        case let .completed(output):
-            XCTAssertEqual(output, [.standardOutput(XcodeBuildOutput(raw: "output\n"))])
-        case .failed:
-            XCTFail("The command was not expected to fail")
+        let result = try await events.toArray()
+        XCTAssertEqual(result, [.standardOutput(XcodeBuildOutput(raw: "output"))])
+    }
+}
+
+extension AsyncSequence {
+    func toArray() async throws -> [Element] {
+        var result = [Element]()
+        for try await element in self {
+            result.append(element)
         }
+        return result
     }
 }

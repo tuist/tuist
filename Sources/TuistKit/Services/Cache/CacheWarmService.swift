@@ -19,7 +19,7 @@ final class CacheWarmService {
         pluginService = PluginService()
     }
 
-    func run(path: String?, profile: String?, xcframeworks: Bool, targets: Set<String>, dependenciesOnly: Bool) throws {
+    func run(path: String?, profile: String?, xcframeworks: Bool, targets: Set<String>, dependenciesOnly: Bool) async throws {
         let path = self.path(path)
         let config = try configLoader.loadConfig(path: path)
         let cache = Cache(storageProvider: CacheStorageProvider(config: config))
@@ -32,7 +32,7 @@ final class CacheWarmService {
         }
 
         let profile = try CacheProfileResolver().resolveCacheProfile(named: profile, from: config)
-        try cacheController.cache(
+        try await cacheController.cache(
             config: config,
             path: path,
             cacheProfile: profile,

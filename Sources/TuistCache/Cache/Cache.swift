@@ -1,5 +1,4 @@
 import Foundation
-import RxSwift
 import TSCBasic
 import TuistCore
 
@@ -23,30 +22,31 @@ public final class Cache: CacheStoring {
 
     // MARK: - CacheStoring
 
-    public func exists(name: String, hash: String) -> Single<Bool> {
-        /// It calls exists sequentially until one of the storages returns true.
-        storages.reduce(Single.just(false)) { result, next -> Single<Bool> in
-            result.flatMap { exists in
-                guard !exists else { return result }
-                return next.exists(name: name, hash: hash)
-            }.catchError { _ -> Single<Bool> in
-                next.exists(name: name, hash: hash)
+    public func exists(name: String, hash: String) async throws -> Bool {
+        for storage in storages {
+            if try await storage.exists(name: name, hash: hash) {
+                return true
             }
         }
+        return false
     }
 
-    public func fetch(name: String, hash: String) -> Single<AbsolutePath> {
-        storages
-            .reduce(nil) { result, next -> Single<AbsolutePath> in
-                if let result = result {
-                    return result.catchError { _ in next.fetch(name: name, hash: hash) }
-                } else {
-                    return next.fetch(name: name, hash: hash)
-                }
-            }!
+    public func fetch(name: String, hash: String) async throws -> AbsolutePath {
+        var throwingError: Error = CacheLocalStorageError.compiledArtifactNotFound(hash: hash)
+        for storage in storages {
+            do {
+                return try await storage.fetch(name: name, hash: hash)
+            } catch {
+                throwingError = error
+                continue
+            }
+        }
+        throw throwingError
     }
 
-    public func store(name: String, hash: String, paths: [AbsolutePath]) -> Completable {
-        Completable.zip(storages.map { $0.store(name: name, hash: hash, paths: paths) })
+    public func store(name: String, hash: String, paths: [AbsolutePath]) async throws {
+        _ = try await storages.concurrentMap { storage in
+            try await storage.store(name: name, hash: hash, paths: paths)
+        }
     }
 }

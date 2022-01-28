@@ -2,28 +2,33 @@
 
 Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
-## NextMajor
+## Next
 
 - **Breaking** remove `focus` command and merge its functionality inside `generate`. [#3912](https://github.com/tuist/tuist/pull/3912) by [@danyf90](https://github.com/danyf90):
-  - **Motivation**: The command were sharing a lot of responsibilities, and having a single one provides a cleaner CLI.
-  - **Migration**: Instead of using focus, just use `generate` passing the targets to it. If you want to avoid using caching, you can pass `--no-cache` to `tuist generate`.
+  - **Motivation:**: The command were sharing a lot of responsibilities, and having a single one provides a cleaner CLI.
+  - **Migration:** Instead of using focus, just use `generate` passing the targets to it. If you want to avoid using caching, you can pass `--no-cache` to `tuist generate`.
 - **Breaking** `tuist generate` automatically opens the generated project. [#3912](https://github.com/tuist/tuist/pull/3912) by [@danyf90](https://github.com/danyf90):
-  - **Motivation**: Most of the times you want to open the project after generating it.
-  - **Migration**: If you need to generate the project without openeing it, just pass `--no-open` to `tuist generate`.
+  - **Motivation:**: Most of the times you want to open the project after generating it.
+  - **Migration:** If you need to generate the project without openeing it, just pass `--no-open` to `tuist generate`.
 - **Breaking** remove deprecated initializers for `FileLists`, `Headers`, and `HTTPURLResponse` [#3936](https://github.com/tuist/tuist/pull/3936) by [@danyf90](https://github.com/danyf90)
-  - **Migration**: Use non deprecated initializers
+  - **Migration:** Use non deprecated initializers
 - **Breaking** Tuist plugins 2.0 [#3492](https://github.com/tuist/tuist/pull/3492) by [@fortmarek](https://github.com/fortmarek)
 - **Breaking** add `type` parameter to `TargetDependency.sdk` [#3961](https://github.com/tuist/tuist/pull/3961) by [@danyf90](https://github.com/danyf90)
-  - **Migration**: Add the `type` parameter where defining `sdk` target dependencies and remove both the extension and the `lib` prefix from the name
+  - **Migration:** Add the `type` parameter where defining `sdk` target dependencies and remove both the extension and the `lib` prefix from the name
 - **Breaking** move `disableBundleAccessors` and `disableSynthesizedResourceAccessors` from `Config.swift` to `Project.ProjectOption` [#3963](https://github.com/tuist/tuist/pull/3963) by [@danyf90](https://github.com/danyf90).
   - **Motivation**: Being able to define the option at the project level
   - **Migration**: Move the `disableBundleAccessors` and `disableSynthesizedResourceAccessors` from `Config.swift` to `Project.ProjectOption`
 - **Breaking** replace `SourceFileGlob` initializer with static `.glob` method [#3960](https://github.com/tuist/tuist/pull/3960) by [@danyf90](https://github.com/danyf90)
-  - **Migration**: Use the `.glob` method instead of the initializer
+  - **Migration:** Use the `.glob` method instead of the initializer
 - **Breaking** remove the `tuist lint code` command [#4001](https://github.com/tuist/tuist/pull/4001) by [@laxmorek](https://github.com/laxmorek)
-  - **Migration**: Use [tuist-plugin-swiftlint](https://github.com/tuist/tuist-plugin-swiftlint) instead. Read more about plugins [here](https://docs.tuist.io/plugins/using-plugins).
+  - **Migration:** Use [tuist-plugin-swiftlint](https://github.com/tuist/tuist-plugin-swiftlint) instead. Read more about plugins [here](https://docs.tuist.io/plugins/using-plugins).
 - **Breaking** remove the `tuist lint project` command [#4001](https://github.com/tuist/tuist/pull/4001) by [@laxmorek](https://github.com/laxmorek)
-  - **Motivation**: `tuist` manifests/graphs are linted during generation (the `tusit generate` command), no need to keep it separately.
+  - **Motivation:** `tuist` manifests/graphs are linted during generation (the `tusit generate` command), no need to keep it separately.
+- **Breaking** minimum Xcode version and macOS version are Xcode 13.0 and macOS 12.0 remove the `tuist lint project` command [#4030](https://github.com/tuist/tuist/pull/4030) by [@adellibovi](https://github.com/adellibovi)
+  - **Motivation:** Old versions usage is less then 5%.
+- **Breaking** `TargetScript.Script` cases `.tool(_ path: String, _ args: [String])` and `.scriptPath(_ path: Path, args: [String])` are now `.tool(path: String, args: [String])` and `.scriptPath(path: Path, args: [String])` [#4030](https://github.com/tuist/tuist/pull/4030) by [@adellibovi](https://github.com/adellibovi)
+  - **Motivation:** It enabled to get rid of custom Codable conformance.
+- **Breaking** the used tuist version and the manifests compilation times are no longer printed at default log level. Use the `--verbose` flag to print them. [#4052](https://github.com/tuist/tuist/pull/4052) by [@danyf90](https://github.com/danyf90)
 - **Breaking** Remove `Config.GenerationOptions.disableAutogeneratedSchemes` helper and `Config.GenerationOptions.codeCoverageMode` case
   - **Migration**: Use the `.autogeneratedSchemes(.disabled)` instead
 - **Breaking** change automatic schemes generation to use `ProjectOption.AutomaticSchemesGrouping.byName` grouping
@@ -33,7 +38,15 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
   - **Motivation**: The schemes are referred to the whole workspace, not to a specific project
   - **Migration**: Use the `*-Workspace*` scheme instead
 
-## Next
+## 2.7.2
+
+- Fix download of binary artifacts from the remote cache [#4073](https://github.com/tuist/tuist/pull/4073) by [@adellibovi](https://github.com/adellibovi)
+
+## 2.7.1
+
+- Fix `tuistenv` not running `tuist` commands [#4061](https://github.com/tuist/tuist/pull/4061) by [@danyf90](https://github.com/danyf90)
+
+## 2.7.0 - Cancun
 
 ### Changed
 
@@ -41,13 +54,20 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
 ### Added
 
+- Add support for `.docc` file types [#3982](https://github.com/tuist/tuist/pull/3982) by [@Jake Prickett](https://github.com/Jake-Prickett)
+- Add a new test argument `--retry-count <number>` to retry failed tests <number> of times until success [#4021](https://github.com/tuist/tuist/pull/4021) by [@regularberry](https://github.com/regularberry)
 - Add ability to specify as a command line argument, the Xcode version to use when bundling/releasing tuist and its libraries [#3957](https://github.com/tuist/tuist/pull/3957) by [@hisaac](https://github.com/hisaac)
+- Add automatic mapping of product and settings for known SwiftPackageManager libraries [#3996](https://github.com/tuist/tuist/pull/3996) by [@danyf90](https://github.com/danyf90)
 
 ### Fixed
 
 - Fix issue where test results were not being cached if a scheme was specified in the `tuist test` command [#3952](https://github.com/tuist/tuist/pull/3952) by [@hisaac](https://github.com/hisaac)
 - Fix for target references within workspace scheme pre/post actions [#3954](https://github.com/tuist/tuist/pull/3954) by [@kwridan](https://github.com/kwridan)
 - Fix SPM mapping for `GCC_PREPROCESSOR_DEFINITIONS` definitions [#3995](https://github.com/tuist/tuist/pull/3995) by [@adellibovi](https://github.com/adellibovi)
+- Fix archiving iOS target for Mac Catalyst [#3990](https://github.com/tuist/tuist/pull/3990) by [@orbitekk](https://github.com/orbitekk)
+- Fix mark libraries depending on XCTest through `ENABLE_TESTING_SEARCH_PATHS` setting as not cacheable [#4012](https://github.com/tuist/tuist/pull/4012) by [@danyf90](https://github.com/danyf90)
+- Fix missing embedded dependencies in App Clip targets [#4033](https://github.com/tuist/tuist/pull/4033) by [@kwridan](https://github.com/kwridan)
+- Fix `Dependencies.swift` not able to import plugins [4018](https://github.com/tuist/tuist/pull/4018/) by [@luispadron](https://github.com/luispadron)
 
 ## 2.6.0 - Havana
 

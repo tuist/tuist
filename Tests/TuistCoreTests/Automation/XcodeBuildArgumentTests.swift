@@ -60,4 +60,15 @@ final class XcodeBuildArgumentTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(got, ["key=\'value with spaces\'"])
     }
+
+    func test_arguments_returns_the_right_value_when_retry_count() {
+        // Given
+        let subject = XcodeBuildArgument.retryCount(5)
+
+        // When
+        let got = subject.arguments
+
+        // Then
+        XCTAssertEqual(got, ["-retry-tests-on-failure", "-test-iterations", "6"])
+    }
 }

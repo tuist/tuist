@@ -130,7 +130,9 @@ final class DumpServiceTests: TuistTestCase {
         let expected = """
         {
           "compatibleXcodeVersions": {
-            "kind": "all"
+            "all": {
+
+            }
           },
           "generationOptions": [
 
@@ -274,7 +276,7 @@ final class DumpServiceTests: TuistTestCase {
     private func assertLoadingRaisesWhenManifestNotFound(manifest: DumpableManifest) throws {
         try fileHandler.inTemporaryDirectory { tmpDir in
             var expectedDirectory = tmpDir
-            if manifest == .config {
+            if manifest == .config || manifest == .dependencies {
                 expectedDirectory = expectedDirectory.appending(component: Constants.tuistDirectoryName)
                 if !fileHandler.exists(expectedDirectory) {
                     try fileHandler.createFolder(expectedDirectory)

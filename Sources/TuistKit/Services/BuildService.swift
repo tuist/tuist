@@ -60,14 +60,14 @@ final class BuildService {
         configuration: String?,
         buildOutputPath: AbsolutePath?,
         path: AbsolutePath
-    ) throws {
+    ) async throws {
         let graph: Graph
         let config = try configLoader.loadConfig(path: path)
         let generator = generatorFactory.default(config: config)
         if try (generate || buildGraphInspector.workspacePath(directory: path) == nil) {
-            graph = try generator.generateWithGraph(path: path, projectOnly: false).1
+            graph = try await generator.generateWithGraph(path: path, projectOnly: false).1
         } else {
-            graph = try generator.load(path: path)
+            graph = try await generator.load(path: path)
         }
 
         guard let workspacePath = try buildGraphInspector.workspacePath(directory: path) else {
@@ -91,7 +91,7 @@ final class BuildService {
                 throw TargetBuilderError.schemeWithoutBuildableTargets(scheme: scheme.name)
             }
 
-            try targetBuilder.buildTarget(
+            try await targetBuilder.buildTarget(
                 graphTarget,
                 workspacePath: workspacePath,
                 schemeName: scheme.name,
@@ -103,12 +103,12 @@ final class BuildService {
             var cleaned: Bool = false
             // Build only buildable entry schemes when specific schemes has not been passed
             let buildableEntrySchemes = buildGraphInspector.buildableEntrySchemes(graphTraverser: graphTraverser)
-            try buildableEntrySchemes.forEach { scheme in
+            for scheme in buildableEntrySchemes {
                 guard let graphTarget = buildGraphInspector.buildableTarget(scheme: scheme, graphTraverser: graphTraverser) else {
                     throw TargetBuilderError.schemeWithoutBuildableTargets(scheme: scheme.name)
                 }
 
-                try targetBuilder.buildTarget(
+                try await targetBuilder.buildTarget(
                     graphTarget,
                     workspacePath: workspacePath,
                     schemeName: scheme.name,

@@ -1,6 +1,4 @@
 import Foundation
-import RxBlocking
-import RxSwift
 import TSCBasic
 import TuistCore
 import TuistSupport
@@ -28,11 +26,11 @@ final class AsyncQueuePersistorTests: TuistUnitTestCase {
         let event = AnyAsyncQueueEvent(dispatcherId: "dispatcher")
 
         // When
-        _ = try subject.write(event: event).toBlocking().last()
+        try subject.write(event: event)
 
         // Then
-        let got = try subject.readAll().toBlocking().last()
-        let gotEvent = try XCTUnwrap(got?.first)
+        let got = try subject.readAll()
+        let gotEvent = try XCTUnwrap(got.first)
         XCTAssertEqual(gotEvent.dispatcherId, "dispatcher")
         XCTAssertEqual(gotEvent.id, event.id)
         let normalizedDate = Date(timeIntervalSince1970: Double(Int(Double(event.date.timeIntervalSince1970))))
@@ -47,11 +45,11 @@ final class AsyncQueuePersistorTests: TuistUnitTestCase {
         let event = AnyAsyncQueueEvent(dispatcherId: "dispatcher")
 
         // When
-        _ = try subject.write(event: event).toBlocking().last()
+        try subject.write(event: event)
 
         // Then
-        let got = try subject.readAll().toBlocking().last()
-        let gotEvent = try XCTUnwrap(got?.first)
+        let got = try subject.readAll()
+        let gotEvent = try XCTUnwrap(got.first)
         XCTAssertEqual(gotEvent.dispatcherId, "dispatcher")
         XCTAssertEqual(gotEvent.id, event.id)
         let normalizedDate = Date(timeIntervalSince1970: Double(Int(Double(event.date.timeIntervalSince1970))))
@@ -61,15 +59,15 @@ final class AsyncQueuePersistorTests: TuistUnitTestCase {
     func test_delete() throws {
         // Given
         let event = AnyAsyncQueueEvent(dispatcherId: "dispatcher")
-        _ = try subject.write(event: event).toBlocking().last()
-        var persistedEvents = try subject.readAll().toBlocking().last()
-        XCTAssertEqual(persistedEvents?.count, 1)
+        try subject.write(event: event)
+        var persistedEvents = try subject.readAll()
+        XCTAssertEqual(persistedEvents.count, 1)
 
         // When
-        _ = try subject.delete(event: event).toBlocking().last()
+        try subject.delete(event: event)
 
         // Then
-        persistedEvents = try subject.readAll().toBlocking().last()
-        XCTAssertEqual(persistedEvents?.count, 0)
+        persistedEvents = try subject.readAll()
+        XCTAssertEqual(persistedEvents.count, 0)
     }
 }

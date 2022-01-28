@@ -1,5 +1,4 @@
 import Foundation
-import RxSwift
 import TuistCore
 import TuistSupport
 
@@ -28,15 +27,8 @@ public class CloudClient: CloudClienting {
 
     // MARK: - Public
 
-    public func request<T, E>(_ resource: HTTPResource<T, E>) -> Single<(object: T, response: HTTPURLResponse)> {
-        Single<HTTPResource<T, E>>.create { observer -> Disposable in
-            do {
-                observer(.success(try self.resourceWithHeaders(resource)))
-            } catch {
-                observer(.error(error))
-            }
-            return Disposables.create()
-        }.flatMap(requestDispatcher.dispatch)
+    public func request<T, E>(_ resource: HTTPResource<T, E>) async throws -> (object: T, response: HTTPURLResponse) {
+        try await requestDispatcher.dispatch(resource: resourceWithHeaders(resource))
     }
 
     // MARK: - Fileprivate

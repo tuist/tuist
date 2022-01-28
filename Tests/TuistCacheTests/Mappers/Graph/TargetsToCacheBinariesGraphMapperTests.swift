@@ -1,6 +1,4 @@
 import Foundation
-import RxBlocking
-import RxSwift
 import TuistCore
 import TuistGraph
 import XCTest
@@ -31,8 +29,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             sources: [],
             cacheProfile: .test(),
             cacheOutputType: .framework,
-            cacheGraphMutator: cacheGraphMutator,
-            queue: DispatchQueue.main
+            cacheGraphMutator: cacheGraphMutator
         )
     }
 
@@ -45,7 +42,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_map_when_a_source_is_not_available() throws {
+    func test_map_when_a_source_is_not_available() async throws {
         // Given
         subject = TargetsToCacheBinariesGraphMapper(
             config: config,
@@ -54,8 +51,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             sources: ["B", "C", "D"],
             cacheProfile: .test(),
             cacheOutputType: .framework,
-            cacheGraphMutator: cacheGraphMutator,
-            queue: DispatchQueue.main
+            cacheGraphMutator: cacheGraphMutator
         )
         let projectPath = try temporaryPath()
         let graph = Graph.test(
@@ -71,13 +67,13 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         )
 
         // When / Then
-        XCTAssertThrowsSpecific(
-            try subject.map(graph: graph),
+        await XCTAssertThrowsSpecific(
+            try await subject.map(graph: graph),
             FocusTargetsGraphMapperError.missingTargets(missingTargets: ["C", "D"], availableTargets: ["A", "B"])
         )
     }
 
-    func test_map_when_all_binaries_are_fetched_successfully() throws {
+    func test_map_when_all_binaries_are_fetched_successfully() async throws {
         let path = try temporaryPath()
         let project = Project.test(path: path)
 
@@ -152,7 +148,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         cacheGraphMutator.stubbedMapResult = outputGraph
 
         // When
-        let (got, _) = try subject.map(graph: inputGraph)
+        let (got, _) = try await subject.map(graph: inputGraph)
 
         // Then
         XCTAssertEqual(
@@ -161,7 +157,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         )
     }
 
-    func test_map_when_one_of_the_binaries_fails_cannot_be_fetched() throws {
+    func test_map_when_one_of_the_binaries_fails_cannot_be_fetched() async throws {
         let path = try temporaryPath()
         let project = Project.test(path: path)
 
@@ -236,10 +232,10 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         cacheGraphMutator.stubbedMapResult = outputGraph
 
         // Then
-        XCTAssertThrowsSpecific(try subject.map(graph: inputGraph), error)
+        await XCTAssertThrowsSpecific(try await subject.map(graph: inputGraph), error)
     }
 
-    func test_map_forwards_correct_artifactType_to_hasher() throws {
+    func test_map_forwards_correct_artifactType_to_hasher() async throws {
         // Given
         let path = try temporaryPath()
         let project = Project.test(path: path)
@@ -251,8 +247,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
             sources: [],
             cacheProfile: .test(),
             cacheOutputType: .xcframework,
-            cacheGraphMutator: cacheGraphMutator,
-            queue: DispatchQueue.main
+            cacheGraphMutator: cacheGraphMutator
         )
 
         let cFramework = Target.test(name: "C", platform: .iOS, product: .framework)
@@ -292,7 +287,7 @@ final class TargetsToCacheBinariesGraphMapperTests: TuistUnitTestCase {
         }
 
         // When
-        _ = try subject.map(graph: inputGraph)
+        _ = try await subject.map(graph: inputGraph)
 
         // Then
         XCTAssertEqual(invokedCacheProfile, .test())

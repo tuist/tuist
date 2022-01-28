@@ -97,7 +97,7 @@ public final class CarthageController: CarthageControlling {
             return cached
         }
 
-        guard let output = try? System.shared.capture("/usr/bin/env", "carthage", "version").spm_chomp() else {
+        guard let output = try? System.shared.capture(["/usr/bin/env", "carthage", "version"]).spm_chomp() else {
             throw CarthageControllerError.carthageNotFound
         }
 

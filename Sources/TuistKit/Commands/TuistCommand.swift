@@ -38,9 +38,9 @@ public struct TuistCommand: ParsableCommand {
     )
     var isTuistEnvHelp: Bool = false
 
-    public static func main(_ arguments: [String]? = nil) -> Never {
+    public static func main(_ arguments: [String]? = nil) async {
         let errorHandler = ErrorHandler()
-        let executeCommand: () throws -> Void
+        let executeCommand: () async throws -> Void
         do {
             let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
             let isTuistCommand = Self.configuration.subcommands
@@ -55,7 +55,7 @@ public struct TuistCommand: ParsableCommand {
                     try InitCommand.preprocess(processedArguments)
                 }
                 let command = try parseAsRoot(processedArguments)
-                executeCommand = { try execute(command) }
+                executeCommand = { try await execute(command) }
             } else {
                 executeCommand = {
                     try executeTask(with: processedArguments)
@@ -65,8 +65,7 @@ public struct TuistCommand: ParsableCommand {
             handleParseError(error)
         }
         do {
-            try executeCommand()
-            TuistProcess.shared.asyncExit()
+            try await executeCommand()
         } catch let error as FatalError {
             errorHandler.fatal(error: error)
             _exit(exitCode(for: error).rawValue)
@@ -106,12 +105,18 @@ public struct TuistCommand: ParsableCommand {
         _exit(exitCode)
     }
 
-    private static func execute(_ command: ParsableCommand) throws {
+    private static func execute(_ command: ParsableCommand) async throws {
         var command = command
-        guard Environment.shared.isStatsEnabled else { try command.run(); return }
-        let trackableCommand = TrackableCommand(command: command)
-        let future = try trackableCommand.run()
-        TuistProcess.shared.add(futureTask: future)
+        if Environment.shared.isStatsEnabled {
+            let trackableCommand = TrackableCommand(command: command)
+            try await trackableCommand.run()
+        } else {
+            if var asyncCommand = command as? AsyncParsableCommand {
+                try await asyncCommand.runAsync()
+            } else {
+                try command.run()
+            }
+        }
     }
 
     // MARK: - Helpers

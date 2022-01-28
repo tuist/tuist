@@ -18,8 +18,8 @@ public struct TargetScript: Equatable, Codable {
     /// - scriptPath: Executes the file at the path with the given arguments.
     /// - embedded: Executes the embedded script. This should be a short command.
     public enum Script: Equatable, Codable {
-        case tool(_ path: String, _ args: [String] = [])
-        case scriptPath(_ path: AbsolutePath, args: [String] = [])
+        case tool(path: String, args: [String] = [])
+        case scriptPath(path: AbsolutePath, args: [String] = [])
         case embedded(String)
     }
 
@@ -142,57 +142,5 @@ extension Array where Element == TargetScript {
 
     public var postScripts: [TargetScript] {
         filter { $0.order == .post }
-    }
-}
-
-// MARK: - TargetAction.Script - Codable
-
-extension TargetScript.Script {
-    private enum Kind: String, Codable {
-        case tool
-        case scriptPath
-        case embedded
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case kind
-        case path
-        case absolutePath
-        case args
-    }
-
-    public init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let kind = try container.decode(Kind.self, forKey: .kind)
-        switch kind {
-        case .tool:
-            let path = try container.decode(String.self, forKey: .path)
-            let args = try container.decode([String].self, forKey: .args)
-            self = .tool(path, args)
-        case .scriptPath:
-            let absolutePath = try container.decode(AbsolutePath.self, forKey: .absolutePath)
-            let args = try container.decode([String].self, forKey: .args)
-            self = .scriptPath(absolutePath, args: args)
-        case .embedded:
-            let path = try container.decode(String.self, forKey: .path)
-            self = .embedded(path)
-        }
-    }
-
-    public func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        switch self {
-        case let .tool(path, args):
-            try container.encode(Kind.tool, forKey: .kind)
-            try container.encode(path, forKey: .path)
-            try container.encode(args, forKey: .args)
-        case let .scriptPath(absolutePath, args):
-            try container.encode(Kind.scriptPath, forKey: .kind)
-            try container.encode(absolutePath, forKey: .absolutePath)
-            try container.encode(args, forKey: .args)
-        case let .embedded(path):
-            try container.encode(Kind.embedded, forKey: .kind)
-            try container.encode(path, forKey: .path)
-        }
     }
 }

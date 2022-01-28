@@ -1,5 +1,4 @@
 import Foundation
-import RxBlocking
 import TuistSupport
 
 protocol Updating: AnyObject {

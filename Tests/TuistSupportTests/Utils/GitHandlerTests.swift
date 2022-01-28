@@ -24,7 +24,7 @@ final class GitHandlerTests: TuistUnitTestCase {
         system.stubs["git -C \(path.pathString) clone \(url)"] = (stderror: nil, stdout: nil, exitstatus: 0)
 
         XCTAssertNoThrow(try subject.clone(url: url, into: path))
-        XCTAssertTrue(system.called("git", "-C", path.pathString, "clone", url))
+        XCTAssertTrue(system.called(["git", "-C", path.pathString, "clone", url]))
     }
 
     func test_cloneTo() throws {
@@ -33,7 +33,7 @@ final class GitHandlerTests: TuistUnitTestCase {
         system.stubs["git clone \(url)"] = (stderror: nil, stdout: nil, exitstatus: 0)
 
         XCTAssertNoThrow(try subject.clone(url: url))
-        XCTAssertTrue(system.called("git", "clone", url))
+        XCTAssertTrue(system.called(["git", "clone", url]))
     }
 
     func test_cloneTo_WITH_path() throws {
@@ -43,7 +43,7 @@ final class GitHandlerTests: TuistUnitTestCase {
         system.stubs["git clone \(url) \(path.pathString)"] = (stderror: nil, stdout: nil, exitstatus: 0)
 
         XCTAssertNoThrow(try subject.clone(url: url, to: path))
-        XCTAssertTrue(system.called("git", "clone", url, path.pathString))
+        XCTAssertTrue(system.called(["git", "clone", url, path.pathString]))
     }
 
     func test_checkout() throws {
@@ -71,15 +71,15 @@ final class GitHandlerTests: TuistUnitTestCase {
         system.stubs[expectedCommand] = (stderror: nil, stdout: nil, exitstatus: 0)
 
         XCTAssertNoThrow(try subject.checkout(id: id, in: path))
-        XCTAssertTrue(system.called(
+        XCTAssertTrue(system.called([
             "git",
             "--git-dir",
             path.appending(component: ".git").pathString,
             "--work-tree",
             path.pathString,
             "checkout",
-            id
-        ))
+            id,
+        ]))
     }
 
     func test_parsed_versions() throws {

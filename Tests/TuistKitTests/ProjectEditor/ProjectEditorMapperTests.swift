@@ -25,7 +25,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_edit_when_there_are_helpers_and_setup_and_config_and_dependencies() throws {
+    func test_edit_when_there_are_helpers_and_setup_and_config_and_dependencies_and_tasks_and_plugins() throws {
         // Given
         let sourceRootPath = try temporaryPath()
         let projectManifestPaths = [sourceRootPath].map { $0.appending(component: "Project.swift") }
@@ -37,6 +37,10 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         let tuistPath = AbsolutePath("/usr/bin/foo/bar/tuist")
         let projectName = "Manifests"
         let projectsGroup = ProjectGroup.group(name: projectName)
+        let pluginPaths = [
+            sourceRootPath.appending(component: "PluginTwo"),
+            sourceRootPath.appending(component: "PluginThree"),
+        ].map { EditablePluginManifest(name: $0.basename, path: $0) }
 
         // When
         let graph = try subject.map(
@@ -47,14 +51,14 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
             configPath: configPath,
             dependenciesPath: dependenciesPath,
             projectManifests: projectManifestPaths,
-            editablePluginManifests: [],
+            editablePluginManifests: pluginPaths,
             pluginProjectDescriptionHelpersModule: [],
             helpers: helperPaths,
             templates: templates,
             projectDescriptionSearchPath: projectDescriptionPath
         )
 
-        let project = try XCTUnwrap(graph.projects.values.first)
+        let project = try XCTUnwrap(graph.projects.values.first(where: { $0.name == projectName }))
 
         let targets = graph.targets.values.lazy
             .flatMap(\.values)
@@ -63,8 +67,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         // Then
         XCTAssertEqual(graph.name, "TestManifests")
 
-        XCTAssertEqual(targets.count, 5)
-        XCTAssertEqual(project.targets.sorted { $0.name < $1.name }, targets)
+        XCTAssertEqual(targets.count, 7)
 
         // Generated Manifests target
         let manifestsTarget = try XCTUnwrap(project.targets.first(where: { $0.name == sourceRootPath.basename + projectName }))
@@ -78,7 +81,11 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(manifestsTarget.sources.map(\.path), projectManifestPaths)
         XCTAssertEqual(manifestsTarget.filesGroup, projectsGroup)
-        XCTAssertEqual(manifestsTarget.dependencies, [.target(name: "ProjectDescriptionHelpers")])
+        XCTAssertEqual(Set(manifestsTarget.dependencies), Set([
+            .target(name: "ProjectDescriptionHelpers"),
+            .target(name: "PluginTwo"),
+            .target(name: "PluginThree"),
+        ]))
 
         // Generated Helpers target
         let helpersTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "ProjectDescriptionHelpers" }))
@@ -93,7 +100,11 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(helpersTarget.sources.map(\.path), helperPaths)
         XCTAssertEqual(helpersTarget.filesGroup, projectsGroup)
-        XCTAssertEmpty(helpersTarget.dependencies)
+        XCTAssertEqual(Set(manifestsTarget.dependencies), Set([
+            .target(name: "ProjectDescriptionHelpers"),
+            .target(name: "PluginTwo"),
+            .target(name: "PluginThree"),
+        ]))
 
         // Generated Templates target
         let templatesTarget = try XCTUnwrap(project.targets.last(where: { $0.name == "Templates" }))
@@ -138,7 +149,11 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         )
         XCTAssertEqual(dependenciesTarget.sources.map(\.path), [dependenciesPath])
         XCTAssertEqual(dependenciesTarget.filesGroup, projectsGroup)
-        XCTAssertEmpty(dependenciesTarget.dependencies)
+        XCTAssertEqual(Set(dependenciesTarget.dependencies), Set([
+            .target(name: "ProjectDescriptionHelpers"),
+            .target(name: "PluginTwo"),
+            .target(name: "PluginThree"),
+        ]))
 
         // Generated Project
         XCTAssertEqual(project.path, sourceRootPath.appending(component: projectName))
@@ -159,7 +174,7 @@ final class ProjectEditorMapperTests: TuistUnitTestCase {
         XCTAssertEqual(scheme.name, projectName)
 
         let buildAction = try XCTUnwrap(scheme.buildAction)
-        XCTAssertEqual(buildAction.targets.lazy.map(\.name).sorted(), targets.map(\.name))
+        XCTAssertEqual(buildAction.targets.lazy.map(\.name).sorted(), project.targets.map(\.name).sorted())
 
         let runAction = try XCTUnwrap(scheme.runAction)
         XCTAssertEqual(runAction.filePath, tuistPath)

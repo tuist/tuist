@@ -1,7 +1,5 @@
 import Foundation
 import ProjectDescription
-import RxBlocking
-import RxSwift
 import TSCBasic
 import TuistCore
 import TuistGraph
@@ -160,15 +158,8 @@ public class ManifestLoader: ManifestLoading {
     }
 
     public func loadDependencies(at path: AbsolutePath) throws -> ProjectDescription.Dependencies {
-        let dependencyPath = path.appending(components: Constants.tuistDirectoryName, Manifest.dependencies.fileName(path))
-        guard FileHandler.shared.exists(dependencyPath) else {
-            throw ManifestLoaderError.manifestNotFound(.dependencies, path)
-        }
-
-        let dependenciesData = try loadDataForManifest(.dependencies, at: dependencyPath)
-        let decoder = JSONDecoder()
-
-        return try decoder.decode(Dependencies.self, from: dependenciesData)
+        let dependencyPath = path.appending(components: Constants.tuistDirectoryName)
+        return try loadManifest(.dependencies, at: dependencyPath)
     }
 
     public func loadPlugin(at path: AbsolutePath) throws -> ProjectDescription.Plugin {
@@ -219,18 +210,14 @@ public class ManifestLoader: ManifestLoading {
             at: path
         ) + ["--tuist-dump"]
 
-        let result = System.shared
-            .observable(arguments, verbose: false, environment: environment.manifestLoadingVariables)
-            .toBlocking()
-            .materialize()
+        do {
+            let string = try System.shared.capture(arguments, verbose: false, environment: environment.manifestLoadingVariables)
 
-        switch result {
-        case let .completed(elements):
-            let output = elements.filter(\.isStandardOutput).map(\.value).reduce(into: Data()) { $0.append($1) }
-            guard let string = String(data: output, encoding: .utf8) else { return output }
-
-            guard let startTokenRange = string.range(of: ManifestLoader.startManifestToken) else { return output }
-            guard let endTokenRange = string.range(of: ManifestLoader.endManifestToken) else { return output }
+            guard let startTokenRange = string.range(of: ManifestLoader.startManifestToken),
+                  let endTokenRange = string.range(of: ManifestLoader.endManifestToken)
+            else {
+                return string.data(using: .utf8)!
+            }
 
             let preManifestLogs = String(string[string.startIndex ..< startTokenRange.lowerBound]).chomp()
             let postManifestLogs = String(string[endTokenRange.upperBound ..< string.endIndex]).chomp()
@@ -240,7 +227,7 @@ public class ManifestLoader: ManifestLoading {
 
             let manifest = string[startTokenRange.upperBound ..< endTokenRange.lowerBound]
             return manifest.data(using: .utf8)!
-        case let .failed(_, error):
+        } catch {
             logUnexpectedImportErrorIfNeeded(in: path, error: error, manifest: manifest)
             logPluginHelperBuildErrorIfNeeded(in: path, error: error, manifest: manifest)
             throw error

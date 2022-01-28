@@ -231,7 +231,6 @@ final class ConfigGenerator: ConfigGenerating {
             settings["CODE_SIGN_ENTITLEMENTS"] = .string("$(SRCROOT)/\(entitlements.relative(to: sourceRootPath).pathString)")
         }
         settings["SDKROOT"] = .string(target.platform.xcodeSdkRoot)
-        settings["SUPPORTED_PLATFORMS"] = .string(target.platform.xcodeSupportedPlatforms)
 
         if target.product == .staticFramework {
             settings["MACH_O_TYPE"] = "staticlib"

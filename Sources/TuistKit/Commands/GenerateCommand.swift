@@ -1,7 +1,7 @@
 import ArgumentParser
 import Foundation
 
-struct GenerateCommand: ParsableCommand, HasTrackableParameters {
+struct GenerateCommand: AsyncParsableCommand, HasTrackableParameters {
     static var analyticsDelegate: TrackableParametersDelegate?
 
     static var configuration: CommandConfiguration {
@@ -50,7 +50,7 @@ struct GenerateCommand: ParsableCommand, HasTrackableParameters {
     )
     var ignoreCache: Bool = false
 
-    func run() throws {
+    func runAsync() async throws {
         GenerateCommand.analyticsDelegate?.willRun(withParameters: [
             "no_open": String(noOpen),
             "xcframeworks": String(xcframeworks),
@@ -58,7 +58,7 @@ struct GenerateCommand: ParsableCommand, HasTrackableParameters {
             "n_targets": String(sources.count),
         ])
 
-        try GenerateService().run(
+        try await GenerateService().run(
             path: path,
             sources: Set(sources),
             noOpen: noOpen,

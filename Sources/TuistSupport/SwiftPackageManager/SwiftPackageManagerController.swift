@@ -114,11 +114,11 @@ public final class SwiftPackageManagerController: SwiftPackageManagerControlling
             try FileHandler.shared.createFolder(outputPath)
         }
 
-        try System.shared.run(
+        try System.shared.run([
             "lipo", "-create", "-output", outputPath.appending(component: product).pathString,
             buildPath.appending(components: arm64Target, "release", product).pathString,
-            buildPath.appending(components: x64Target, "release", product).pathString
-        )
+            buildPath.appending(components: x64Target, "release", product).pathString,
+        ])
     }
 
     // MARK: - Helpers

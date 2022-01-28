@@ -3,6 +3,10 @@ base_urls: &base_urls
 default: &default
   urls:
     <<: *base_urls
+  smpt_settings:
+    authentication: plain
+    address: smtp.mailgun.org
+    port: 587
   blocklisted_slug_keywords:
     - new
     - project

@@ -460,6 +460,9 @@ public class GraphTraverser: GraphTraversing {
         if target.target.product.testsBundle {
             return true
         }
+        if target.target.settings?.base["ENABLE_TESTING_SEARCH_PATHS"] == "YES" {
+            return true
+        }
         guard let directDependencies = dependencies[.target(name: name, path: path)] else {
             return false
         }
@@ -656,6 +659,7 @@ public class GraphTraverser: GraphTraversing {
     func canEmbedProducts(target: Target) -> Bool {
         let validProducts: [Product] = [
             .app,
+            .appClip,
             .unitTests,
             .uiTests,
             .watch2Extension,
