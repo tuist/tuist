@@ -34,6 +34,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Changed
 
 - **Breaking** the used tuist version and the manifests compilation times are no longer printed at default log level. Use the `--verbose` flag to print them. [#4052](https://github.com/tuist/tuist/pull/4052) by [@danyf90](https://github.com/danyf90)
+- Add more detailed messaging for errors during manifest loading [#4076](https://github.com/tuist/tuist/pull/4076) by [@luispadron](https://github.com/luispadron)
 
 ## 2.7.2
 
