@@ -22,9 +22,7 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
         pluginProjectDescriptionHelpersModule: [ProjectDescriptionHelpersModule],
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
-        tasks: [AbsolutePath],
-        projectDescriptionPath: AbsolutePath,
-        projectAutomationPath: AbsolutePath
+        projectDescriptionPath: AbsolutePath
     )] = []
 
     func map(
@@ -39,9 +37,7 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
         pluginProjectDescriptionHelpersModule: [ProjectDescriptionHelpersModule],
         helpers: [AbsolutePath],
         templates: [AbsolutePath],
-        tasks: [AbsolutePath],
-        projectDescriptionSearchPath: AbsolutePath,
-        projectAutomationSearchPath: AbsolutePath
+        projectDescriptionSearchPath: AbsolutePath
     ) throws -> Graph {
         mapArgs.append((
             name: name,
@@ -55,9 +51,7 @@ final class MockProjectEditorMapper: ProjectEditorMapping {
             pluginProjectDescriptionHelpersModule: pluginProjectDescriptionHelpersModule,
             helpers: helpers,
             templates: templates,
-            tasks: tasks,
-            projectDescriptionPath: projectDescriptionSearchPath,
-            projectAutomationPath: projectAutomationSearchPath
+            projectDescriptionPath: projectDescriptionSearchPath
         ))
 
         if let mapStub = mapStub { return mapStub }

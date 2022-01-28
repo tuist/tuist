@@ -1,7 +1,7 @@
 # file options
 
 --symlinks ignore
---exclude Tests/XCTestManifests.swift,projects/tuist/features,projects/tuist/fixtures/app_with_framework_where_framework_failing_swiftlint
+--exclude Tests/XCTestManifests.swift,projects/tuist/features
 
 # format options
 

@@ -17,9 +17,7 @@ Scenario: The project is an iOS application with frameworks and tests (ios_app_w
     Then I should be able to build for iOS the scheme Framework2
     Then I should be able to test for iOS the scheme Framework2Tests
     Then I should be able to build for iOS the scheme Framework3
-    Then I should be able to test for iOS the scheme Framework3Tests
     Then I should be able to build for iOS the scheme Framework4
-    Then I should be able to test for iOS the scheme Framework4Tests
 
 Scenario: The project is an iOS application that has resources (ios_app_with_custom_scheme)
     Given that tuist is available

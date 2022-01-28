@@ -2,6 +2,11 @@ import Foundation
 
 /// The location to a directory containing a `Plugin` manifest.
 public enum PluginLocation: Hashable, Equatable {
+    public enum GitReference: Hashable, Equatable {
+        case sha(String)
+        case tag(String)
+    }
+
     /// An absolute path `String` to a directory a `Plugin` manifest.
     ///
     /// Example:
@@ -10,21 +15,14 @@ public enum PluginLocation: Hashable, Equatable {
     /// ```
     case local(path: String)
 
-    /// A `URL` to a `git` repository pointing at a `tag`.
+    /// A `URL` to a `git` repository pointing at a `GitReference` - either sha or tag.
     ///
-    /// Example:
+    /// Examples:
     /// ```
-    /// .gitWithTag(url: "https://git/helpers.git", tag: "1.0.0")
+    /// .git(url: "https://git/helpers.git", gitReference: .tag("1.0.0"))
+    /// .git(url: "https://git/helpers.git", gitReference: .sha("1.0.0"))
     /// ```
-    case gitWithTag(url: String, tag: String)
-
-    /// A `URL` to a `git` repository pointing at a commit `sha`.
-    ///
-    /// Example:
-    /// ```
-    /// .gitWithHash(url: "https://git/helpers.git", sha: "d06b4b3d")
-    /// ```
-    case gitWithSha(url: String, sha: String)
+    case git(url: String, gitReference: GitReference)
 }
 
 // MARK: - description
@@ -34,9 +32,9 @@ extension PluginLocation: CustomStringConvertible {
         switch self {
         case let .local(path):
             return "local path: \(path)"
-        case let .gitWithTag(url, tag):
+        case let .git(url, .tag(tag)):
             return "git url: \(url), tag: \(tag)"
-        case let .gitWithSha(url, sha):
+        case let .git(url, .sha(sha)):
             return "git url: \(url), sha: \(sha)"
         }
     }

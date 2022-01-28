@@ -28,7 +28,7 @@ module Fourier
     desc "github", "Utilities to manage the repository and the organization on GitHub"
     subcommand "github", Commands::GitHub
 
-    desc "generate", "Generate the Xcode project to work on Tuist"
+    desc "generate", "Generate the Xcode project to work on Tuist, focusing on the target TARGET"
     subcommand "generate", Commands::Generate
 
     desc "edit", "Edit Tuist's project manifest in Xcode"
@@ -45,11 +45,6 @@ module Fourier
 
     desc "encrypt", "Encrypt content in the repository"
     subcommand "encrypt", Commands::Encrypt
-
-    desc "focus TARGETS", "Generate Tuist's project focusing on the target TARGET"
-    def focus(*targets)
-      Services::Focus.call(targets: targets)
-    end
 
     desc "tuist", "Runs Tuist"
     def tuist(*arguments)

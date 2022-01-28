@@ -225,6 +225,14 @@ public final class System: Systeming {
         return (stdOut, stdErr)
     }
 
+    public func chmod(
+        _ mode: FileMode,
+        path: AbsolutePath,
+        options: Set<FileMode.Option>
+    ) throws {
+        try localFileSystem.chmod(mode, path: path, options: options)
+    }
+
     private func runAndPrint(_ arguments: [String],
                              verbose: Bool,
                              environment: [String: String],

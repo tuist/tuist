@@ -89,7 +89,7 @@ public final class HTTPRequestDispatcher: HTTPRequestDispatching {
                     let parsedError = try resource.parseError(data, response)
                     thrownError = HTTPRequestDispatcherError.serverSideError(parsedError, response)
                 } catch {
-                  thrownError = HTTPRequestDispatcherError.parseError(error)
+                    thrownError = HTTPRequestDispatcherError.parseError(error)
                 }
                 throw thrownError
             }

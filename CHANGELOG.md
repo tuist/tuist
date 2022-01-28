@@ -2,6 +2,33 @@
 
 Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 
+## NextMajor
+
+- **Breaking** remove `focus` command and merge its functionality inside `generate`. [#3912](https://github.com/tuist/tuist/pull/3912) by [@danyf90](https://github.com/danyf90):
+  - **Motivation:**: The command were sharing a lot of responsibilities, and having a single one provides a cleaner CLI.
+  - **Migration:** Instead of using focus, just use `generate` passing the targets to it. If you want to avoid using caching, you can pass `--no-cache` to `tuist generate`.
+- **Breaking** `tuist generate` automatically opens the generated project. [#3912](https://github.com/tuist/tuist/pull/3912) by [@danyf90](https://github.com/danyf90):
+  - **Motivation:**: Most of the times you want to open the project after generating it.
+  - **Migration:** If you need to generate the project without openeing it, just pass `--no-open` to `tuist generate`.
+- **Breaking** remove deprecated initializers for `FileLists`, `Headers`, and `HTTPURLResponse` [#3936](https://github.com/tuist/tuist/pull/3936) by [@danyf90](https://github.com/danyf90)
+  - **Migration:** Use non deprecated initializers
+- **Breaking** Tuist plugins 2.0 [#3492](https://github.com/tuist/tuist/pull/3492) by [@fortmarek](https://github.com/fortmarek)
+- **Breaking** add `type` parameter to `TargetDependency.sdk` [#3961](https://github.com/tuist/tuist/pull/3961) by [@danyf90](https://github.com/danyf90)
+  - **Migration:** Add the `type` parameter where defining `sdk` target dependencies and remove both the extension and the `lib` prefix from the name
+- **Breaking** move `disableBundleAccessors` and `disableSynthesizedResourceAccessors` from `Config.swift` to `Project.ProjectOption` [#3963](https://github.com/tuist/tuist/pull/3963) by [@danyf90](https://github.com/danyf90).
+  - **Motivation:** being able to define the option at the project level
+  - **Migration:** move the `disableBundleAccessors` and `disableSynthesizedResourceAccessors` from `Config.swift` to `Project.ProjectOption`
+- **Breaking** replace `SourceFileGlob` initializer with static `.glob` method [#3960](https://github.com/tuist/tuist/pull/3960) by [@danyf90](https://github.com/danyf90)
+  - **Migration:** Use the `.glob` method instead of the initializer
+- **Breaking** remove the `tuist lint code` command [#4001](https://github.com/tuist/tuist/pull/4001) by [@laxmorek](https://github.com/laxmorek)
+  - **Migration:** Use [tuist-plugin-swiftlint](https://github.com/tuist/tuist-plugin-swiftlint) instead. Read more about plugins [here](https://docs.tuist.io/plugins/using-plugins).
+- **Breaking** remove the `tuist lint project` command [#4001](https://github.com/tuist/tuist/pull/4001) by [@laxmorek](https://github.com/laxmorek)
+  - **Motivation:** `tuist` manifests/graphs are linted during generation (the `tusit generate` command), no need to keep it separately.
+- **Breaking** minimum Xcode version and macOS version are Xcode 13.0 and macOS 12.0 remove the `tuist lint project` command [#4030](https://github.com/tuist/tuist/pull/4030) by [@adellibovi](https://github.com/adellibovi)
+  - **Motivation:** Old versions usage is less then 5%.
+- **Breaking** `TargetScript.Script` cases `.tool(_ path: String, _ args: [String])` and `.scriptPath(_ path: Path, args: [String])` are now `.tool(path: String, args: [String])` and `.scriptPath(path: Path, args: [String])` [#4030](https://github.com/tuist/tuist/pull/4030) by [@adellibovi](https://github.com/adellibovi)
+  - **Motivation:** It enabled to get rid of custom Codable conformance.
+
 ## Next
 
 ### Changed
@@ -44,7 +71,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 ### Changed
 
 - Remove duplicate bundle identifier lint warning [#3914](https://github.com/tuist/tuist/pull/3914) by [@danyf90](https://github.com/danyf90)
-- Update version requirement for `swift-argument-parser` package from `.upToNextMajor(from: "0.4.3")` to `.upToNextMajor(from: "1.0.0")` [#3949](https://github.com/tuist/tuist/pull/3949) by [@laxmorek](https://github.com/laxmorek)
+- Update version requirement for `swift-argument-parser` package from `.upToNextMajor(from: "0.4.3")` to `.upToNextMajor(from: "1.0.0")` [#3949](https://github.com/tuist/tuist/pull/3949) by [@laxmorek](https://github.com/laxmorek) 
 
 ### Added
 

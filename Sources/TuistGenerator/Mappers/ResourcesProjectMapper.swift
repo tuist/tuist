@@ -9,6 +9,9 @@ public class ResourcesProjectMapper: ProjectMapping {
     public init() {}
 
     public func map(project: Project) throws -> (Project, [SideEffectDescriptor]) {
+        guard !project.options.disableBundleAccessors else {
+            return (project, [])
+        }
         var sideEffects: [SideEffectDescriptor] = []
         var targets: [Target] = []
 

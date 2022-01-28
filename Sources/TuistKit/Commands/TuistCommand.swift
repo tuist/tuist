@@ -14,17 +14,15 @@ public struct TuistCommand: ParsableCommand {
                 BuildCommand.self,
                 CacheCommand.self,
                 CleanCommand.self,
-                DependenciesCommand.self,
                 DumpCommand.self,
                 EditCommand.self,
-                ExecCommand.self,
-                FocusCommand.self,
+                FetchCommand.self,
                 GenerateCommand.self,
                 GraphCommand.self,
                 InitCommand.self,
                 CloudCommand.self,
-                LintCommand.self,
                 MigrationCommand.self,
+                PluginCommand.self,
                 RunCommand.self,
                 ScaffoldCommand.self,
                 SigningCommand.self,
@@ -42,30 +40,32 @@ public struct TuistCommand: ParsableCommand {
 
     public static func main(_ arguments: [String]? = nil) async {
         let errorHandler = ErrorHandler()
-        var command: ParsableCommand
+        let executeCommand: () async throws -> Void
         do {
             let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
-            if processedArguments.first == ScaffoldCommand.configuration.commandName {
-                try ScaffoldCommand.preprocess(processedArguments)
-            }
-            if processedArguments.first == InitCommand.configuration.commandName {
-                try InitCommand.preprocess(processedArguments)
-            }
-            if processedArguments.first == ExecCommand.configuration.commandName {
-                try ExecCommand.preprocess(processedArguments)
-            }
-            command = try parseAsRoot(processedArguments)
-        } catch {
-            let exitCode = exitCode(for: error).rawValue
-            if exitCode == 0 {
-                logger.info("\(fullMessage(for: error))")
+            let isTuistCommand = Self.configuration.subcommands
+                // swiftformat:disable:next preferKeyPath
+                .map { $0._commandName }
+                .contains(processedArguments.first ?? "")
+            if isTuistCommand {
+                if processedArguments.first == ScaffoldCommand.configuration.commandName {
+                    try ScaffoldCommand.preprocess(processedArguments)
+                }
+                if processedArguments.first == InitCommand.configuration.commandName {
+                    try InitCommand.preprocess(processedArguments)
+                }
+                let command = try parseAsRoot(processedArguments)
+                executeCommand = { try await execute(command) }
             } else {
-                logger.error("\(fullMessage(for: error))")
+                executeCommand = {
+                    try executeTask(with: processedArguments)
+                }
             }
-            _exit(exitCode)
+        } catch {
+            handleParseError(error)
         }
         do {
-            try await execute(command)
+            try await executeCommand()
         } catch let error as FatalError {
             errorHandler.fatal(error: error)
             _exit(exitCode(for: error).rawValue)
@@ -78,6 +78,31 @@ public struct TuistCommand: ParsableCommand {
                 _exit(exitCode(for: error).rawValue)
             }
         }
+    }
+
+    private static func executeTask(with processedArguments: [String]) throws {
+        do {
+            try TuistService().run(
+                arguments: processedArguments,
+                tuistBinaryPath: processArguments()!.first!
+            )
+        } catch TuistServiceError.taskUnavailable {
+            do {
+                _ = try parseAsRoot(processedArguments)
+            } catch {
+                handleParseError(error)
+            }
+        }
+    }
+
+    private static func handleParseError(_ error: Error) -> Never {
+        let exitCode = exitCode(for: error).rawValue
+        if exitCode == 0 {
+            logger.info("\(fullMessage(for: error))")
+        } else {
+            logger.error("\(fullMessage(for: error))")
+        }
+        _exit(exitCode)
     }
 
     private static func execute(_ command: ParsableCommand) async throws {

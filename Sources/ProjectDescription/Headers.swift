@@ -52,24 +52,6 @@ public struct Headers: Codable, Equatable {
         self.exclusionRule = exclusionRule
     }
 
-    /// - deprecated: use `headers(public:private:project:exclusionRule:)` to create Headers instance.
-    @available(
-        *,
-        deprecated,
-        message: "Use `headers(public:private:project:exclusionRule:)` to create Headers instance."
-    )
-    public init(public: FileList? = nil,
-                private: FileList? = nil,
-                project: FileList? = nil)
-    {
-        self = .init(
-            public: `public`,
-            private: `private`,
-            project: project,
-            exclusionRule: .projectExcludesPrivateAndPublic
-        )
-    }
-
     public static func headers(public: FileList? = nil,
                                private: FileList? = nil,
                                project: FileList? = nil,

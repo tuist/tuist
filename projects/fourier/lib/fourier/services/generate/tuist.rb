@@ -4,18 +4,23 @@ module Fourier
   module Services
     module Generate
       class Tuist < Base
-        attr_reader :open
+        attr_reader :no_open
+        attr_reader :targets
 
-        def initialize(open: false)
-          @open = open
+        def initialize(no_open: false, targets: [])
+          @no_open = no_open
+          @targets = targets
         end
 
         def call
-          dependencies = ["dependencies", "fetch"]
-          Utilities::System.tuist(*dependencies)
+          fetch = ["fetch"]
+          Utilities::System.tuist(*fetch)
 
-          generate = ["generate"]
-          generate << "--open" if open
+          cache_warm = ["cache", "warm", "--dependencies-only"] + targets
+          Utilities::System.tuist(*cache_warm)
+
+          generate = ["generate"] + targets
+          generate << "--no-open" if no_open
           Utilities::System.tuist(*generate)
         end
       end

@@ -19,7 +19,7 @@ struct CacheWarmCommand: AsyncParsableCommand {
     @Argument(help: """
     A list of targets to cache. \
     Those and their dependant targets will be cached. \
-    If no target is specified, the project defined targets and their dependencies will be  cached.
+    If no target is specified, all the project targets (excluding the external ones) and their dependencies will be cached.
     """)
     var targets: [String] = []
 

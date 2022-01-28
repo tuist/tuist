@@ -80,7 +80,7 @@ extension Target {
                     product: product,
                     dependencies: testingDependencies + [
                         .target(name: name),
-                        .sdk(name: "XCTest.framework", status: .optional),
+                        .sdk(name: "XCTest", type: .framework, status: .optional),
                     ]
                 )
             )

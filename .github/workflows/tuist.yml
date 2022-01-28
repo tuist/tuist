@@ -36,19 +36,20 @@ jobs:
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache@v2
-        name: 'Cache SPM dependencies'
+        name: 'Cache Tuist .build folder'
         with:
           path: .build
-          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}
+          key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}
           restore-keys: |
-            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-
+            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}
+            ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ env.RUBY_VERSION }}
       - uses: actions/cache@v2
         with:
           path: vendor/bundle
-          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('Gemfile.lock projects/*/Gemfile.lock') }}
+          key: ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-${{ hashFiles('Gemfile.lock') }}
           restore-keys: |
             ${{ runner.os }}-${{ env.RUBY_VERSION }}-gems-
       - name: Bundle install
@@ -64,7 +65,7 @@ jobs:
     steps:
       - uses: actions/checkout@v1
       - uses: actions/cache@v2
-        name: 'Cache Tuist Build'
+        name: 'Cache Tuist .build folder'
         with:
           path: .build
           key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}
@@ -79,8 +80,6 @@ jobs:
         run: swift build -c release --product tuistenv
       - name: Build ProjectDescription for release
         run: swift build -c release --product ProjectDescription
-      - name: Build ProjectAutomation for release
-        run: swift build -c release --product ProjectAutomation
 
   acceptance_tests:
     name: ${{ matrix.feature }} acceptance tests with Xcode
@@ -105,8 +104,6 @@ jobs:
             'generate-8',
             'graph',
             'init',
-            'lint-code',
-            'lint-project',
             'list-targets',
             'plugins',
             'precompiled',
@@ -114,16 +111,19 @@ jobs:
             'scaffold',
             'tasks',
             'test',
+            'plugin',
           ]
     env:
       TUIST_CONFIG_GITHUB_API_TOKEN: ${{ secrets.GH_TOKEN }}
     needs: release_build
     steps:
       - uses: actions/checkout@v1
+        with:
+          submodules: recursive
       - name: Select Xcode
         run: sudo xcode-select -switch /Applications/Xcode_$(cat .xcode-version).app
       - uses: actions/cache@v2
-        name: 'Cache Tuist Build'
+        name: 'Cache Tuist .build folder'
         with:
           path: .build
           key: ${{ runner.os }}-${{ hashFiles('.xcode-version') }}-spm-${{ hashFiles('Package.resolved') }}-git-${{ github.sha }}

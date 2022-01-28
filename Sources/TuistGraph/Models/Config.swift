@@ -11,7 +11,6 @@ public struct Config: Equatable, Hashable {
         case organizationName(String)
         case developmentRegion(String)
         case autogenerationOptions(AutogenerationOptions)
-        case disableSynthesizedResourceAccessors
         case disableShowEnvironmentVarsInScriptPhases
         case enableCodeCoverage(CodeCoverageMode)
         case templateMacros(IDETemplateMacros)
@@ -19,8 +18,6 @@ public struct Config: Equatable, Hashable {
         /// Disables locking Swift packages. This can speed up generation but does increase risk if packages are not locked
         /// in their declarations.
         case disablePackageVersionLocking
-        /// Disables generating Bundle accessors.
-        case disableBundleAccessors
         /// Allows to suppress warnings in Xcode about updates to recommended settings.
         case lastUpgradeCheck(Version)
     }

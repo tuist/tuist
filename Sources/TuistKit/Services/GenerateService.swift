@@ -1,48 +1,63 @@
+import Foundation
 import TSCBasic
 import TuistCache
 import TuistCore
 import TuistGenerator
+import TuistGraph
 import TuistLoader
+import TuistPlugin
 import TuistSupport
 
 final class GenerateService {
-    // MARK: - Attributes
-
     private let opener: Opening
     private let clock: Clock
     private let timeTakenLoggerFormatter: TimeTakenLoggerFormatting
     private let generatorFactory: GeneratorFactorying
     private let configLoader: ConfigLoading
+    private let manifestLoader: ManifestLoading
+    private let pluginService: PluginServicing
 
-    // MARK: - Init
-
-    init(clock: Clock = WallClock(),
-         timeTakenLoggerFormatter: TimeTakenLoggerFormatting = TimeTakenLoggerFormatter(),
-         opener: Opening = Opener(),
-         generatorFactory: GeneratorFactorying = GeneratorFactory(),
-         configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()))
-    {
+    init(
+        clock: Clock = WallClock(),
+        timeTakenLoggerFormatter: TimeTakenLoggerFormatting = TimeTakenLoggerFormatter(),
+        configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
+        manifestLoader: ManifestLoading = ManifestLoader(),
+        opener: Opening = Opener(),
+        generatorFactory: GeneratorFactorying = GeneratorFactory(),
+        pluginService: PluginServicing = PluginService()
+    ) {
         self.clock = clock
         self.timeTakenLoggerFormatter = timeTakenLoggerFormatter
+        self.configLoader = configLoader
+        self.manifestLoader = manifestLoader
         self.opener = opener
         self.generatorFactory = generatorFactory
-        self.configLoader = configLoader
+        self.pluginService = pluginService
     }
 
-    func run(path: String?,
-             projectOnly: Bool,
-             open: Bool) async throws
-    {
+    func run(
+        path: String?,
+        sources: Set<String>,
+        noOpen: Bool,
+        xcframeworks: Bool,
+        profile: String?,
+        ignoreCache: Bool
+    ) async throws {
         let timer = clock.startTimer()
         let path = self.path(path)
         let config = try configLoader.loadConfig(path: path)
-        let generator = generatorFactory.default(config: config)
-
-        let generatedProjectPath = try await generator.generate(path: path, projectOnly: projectOnly)
-        if open {
-            try opener.open(path: generatedProjectPath, wait: false)
+        let cacheProfile = try CacheProfileResolver().resolveCacheProfile(named: profile, from: config)
+        let generator = generatorFactory.focus(
+            config: config,
+            sources: sources.isEmpty ? try projectTargets(at: path, config: config) : sources,
+            xcframeworks: xcframeworks,
+            cacheProfile: cacheProfile,
+            ignoreCache: ignoreCache
+        )
+        let workspacePath = try await generator.generate(path: path, projectOnly: false)
+        if !noOpen {
+            try opener.open(path: workspacePath)
         }
-
         logger.notice("Project generated.", metadata: .success)
         logger.notice(timeTakenLoggerFormatter.timeTakenMessage(for: timer))
     }
@@ -55,5 +70,27 @@ final class GenerateService {
         } else {
             return FileHandler.shared.currentPath
         }
+    }
+
+    private func projectTargets(at path: AbsolutePath, config: Config) throws -> Set<String> {
+        let plugins = try pluginService.loadPlugins(using: config)
+        try manifestLoader.register(plugins: plugins)
+        let manifests = manifestLoader.manifests(at: path)
+
+        let projects: [AbsolutePath]
+        if manifests.contains(.workspace) {
+            let workspace = try manifestLoader.loadWorkspace(at: path)
+            projects = workspace.projects.flatMap { project in
+                FileHandler.shared.glob(path, glob: project.pathString).filter {
+                    FileHandler.shared.isFolder($0) && manifestLoader.manifests(at: $0).contains(.project)
+                }
+            }
+        } else if manifests.contains(.project) {
+            projects = [path]
+        } else {
+            throw ManifestLoaderError.manifestNotFound(path)
+        }
+
+        return try Set(projects.flatMap { try manifestLoader.loadProject(at: $0).targets.map(\.name) })
     }
 }

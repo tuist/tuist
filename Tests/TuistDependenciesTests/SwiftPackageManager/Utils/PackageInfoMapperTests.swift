@@ -618,7 +618,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                         "Target1",
                         basePath: basePath,
                         customSources: .init(globs: [
-                            .init(
+                            .glob(
                                 Path(basePath.appending(RelativePath("Package/Path/Sources/Target1/**")).pathString),
                                 excluding: [
                                     Path(
@@ -1807,7 +1807,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", basePath: basePath, dependencies: [.sdk(name: "Framework.framework", status: .required)]),
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        dependencies: [.sdk(name: "Framework", type: .framework, status: .required)]
+                    ),
                 ]
             )
         )
@@ -1846,7 +1850,11 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             .test(
                 name: "Package",
                 targets: [
-                    .test("Target1", basePath: basePath, dependencies: [.sdk(name: "libLibrary.tbd", status: .required)]),
+                    .test(
+                        "Target1",
+                        basePath: basePath,
+                        dependencies: [.sdk(name: "Library", type: .library, status: .required)]
+                    ),
                 ]
             )
         )

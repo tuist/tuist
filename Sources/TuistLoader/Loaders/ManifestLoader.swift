@@ -82,10 +82,6 @@ public protocol ManifestLoading {
     ///     -  path: Path to the directory that contains Dependencies.swift
     func loadDependencies(at path: AbsolutePath) throws -> ProjectDescription.Dependencies
 
-    /// Returns arguments for loading `Tasks.swift`
-    /// You can append this list to insert your own custom flag
-    func taskLoadArguments(at path: AbsolutePath) throws -> [String]
-
     /// Loads the Plugin.swift in the given directory.
     /// - Parameter path: Path to the directory that contains Plugin.swift
     func loadPlugin(at path: AbsolutePath) throws -> ProjectDescription.Plugin
@@ -164,10 +160,6 @@ public class ManifestLoader: ManifestLoading {
     public func loadDependencies(at path: AbsolutePath) throws -> ProjectDescription.Dependencies {
         let dependencyPath = path.appending(components: Constants.tuistDirectoryName)
         return try loadManifest(.dependencies, at: dependencyPath)
-    }
-
-    public func taskLoadArguments(at path: AbsolutePath) throws -> [String] {
-        try buildArguments(.task, at: path)
     }
 
     public func loadPlugin(at path: AbsolutePath) throws -> ProjectDescription.Plugin {
@@ -251,8 +243,6 @@ public class ManifestLoader: ManifestLoading {
         let searchPaths = ProjectDescriptionSearchPaths.paths(for: projectDescriptionPath)
         let frameworkName: String
         switch manifest {
-        case .task:
-            frameworkName = "ProjectAutomation"
         case .config,
              .plugin,
              .dependencies,
@@ -277,9 +267,7 @@ public class ManifestLoader: ManifestLoading {
 
         let projectDescriptionHelperArguments: [String] = try {
             switch manifest {
-            case .config,
-                 .plugin,
-                 .task:
+            case .config, .plugin:
                 return []
             case .dependencies,
                  .project,

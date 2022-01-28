@@ -4,6 +4,6 @@ Feature: Generate a new project using Tuist with a plugin.
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture app_with_plugins into the working directory
-    Then tuist fetches dependencies
+    Then tuist does fetch
     Then tuist generates the project
     Then I should be able to build for iOS the scheme TuistPluginTest

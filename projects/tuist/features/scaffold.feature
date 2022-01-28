@@ -4,6 +4,7 @@ Feature: Scaffold a project using Tuist
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture ios_app_with_templates into the working directory
+    Then tuist does fetch
     Then tuist scaffolds a custom template named TemplateProject
     Then content of a file named custom.swift in a directory TemplateProject should be equal to // this is test TemplateProject content
     Then content of a file named generated.swift in a directory TemplateProject should be equal to:
@@ -40,6 +41,7 @@ Feature: Scaffold a project using Tuist
     Given that tuist is available
     And I have a working directory
     Then I copy the fixture app_with_plugins into the working directory
+    Then tuist does fetch
     # Local template plugin
     Then tuist scaffolds a custom template named PluginTemplate
     Then content of a file named custom.swift in a directory PluginTemplate should be equal to // this is test PluginTemplate content

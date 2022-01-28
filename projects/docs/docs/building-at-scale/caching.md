@@ -28,7 +28,7 @@ To warm the cache of only specific targets and their dependencies, you can run:
 tuist cache warm FrameworkA FrameworkB
 ```
 
-One the cache is warmed, you can use the [focus](commands/focus.md) command to generate a project replacing direct and transitive dependencies with artifacts from the cache.
+One the cache is warmed, you can use the [generate](commands/generate.md) command to generate a project replacing direct and transitive dependencies with artifacts from the cache.
 
 #### Arguments
 

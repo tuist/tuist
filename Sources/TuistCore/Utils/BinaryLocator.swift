@@ -3,14 +3,11 @@ import TSCBasic
 import TuistSupport
 
 enum BinaryLocatorError: FatalError, Equatable {
-    case swiftLintNotFound
     case xcbeautifyNotFound
     case cocoapodsInteractorNotFound
 
     var description: String {
         switch self {
-        case .swiftLintNotFound:
-            return "Couldn't find the swift-lint binary."
         case .xcbeautifyNotFound:
             return "Couldn't find the xcbeautify binary."
         case .cocoapodsInteractorNotFound:
@@ -20,8 +17,7 @@ enum BinaryLocatorError: FatalError, Equatable {
 
     var type: ErrorType {
         switch self {
-        case .swiftLintNotFound,
-             .xcbeautifyNotFound,
+        case .xcbeautifyNotFound,
              .cocoapodsInteractorNotFound:
             return .bug
         }
@@ -30,9 +26,6 @@ enum BinaryLocatorError: FatalError, Equatable {
 
 /// Protocol that defines the interface to locate the tuist binary in the environment.
 public protocol BinaryLocating {
-    /// Returns the path to the swift-lint binary.
-    func swiftLintPath() throws -> AbsolutePath
-
     /// Returns the path to the xcbeautify binary.
     func xcbeautifyPath() throws -> AbsolutePath
 
@@ -72,24 +65,15 @@ public final class BinaryLocator: BinaryLocating {
                 .removingLastComponent()
                 .appending(RelativePath("projects/cocoapods-interactor/bin/cocoapods-interactor"))
         #else
-            let path = AbsolutePath(Bundle(for: BinaryLocator.self).bundleURL.path)
-                .appending(RelativePath("cocoapods-interactor/bin/cocoapods-interactor"))
+            let path = AbsolutePath(
+                Bundle(for: BinaryLocator.self).bundleURL.path
+            )
+            .appending(RelativePath("cocoapods-interactor/bin/cocoapods-interactor"))
         #endif
         guard FileHandler.shared.exists(path) else {
             throw BinaryLocatorError.cocoapodsInteractorNotFound
         }
         return path
-    }
-
-    public func swiftLintPath() throws -> AbsolutePath {
-        let candidates = try binariesPaths().map { path in
-            path.appending(components: Constants.Vendor.swiftLint, Constants.Vendor.swiftLint)
-        }
-
-        guard let existingPath = candidates.first(where: FileHandler.shared.exists) else {
-            throw BinaryLocatorError.swiftLintNotFound
-        }
-        return existingPath
     }
 
     public func xcbeautifyPath() throws -> AbsolutePath {

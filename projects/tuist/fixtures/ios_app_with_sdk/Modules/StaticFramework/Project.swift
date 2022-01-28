@@ -10,9 +10,9 @@ let project = Project(
             bundleId: "io.tuist.StaticFramework",
             infoPlist: "Support/Info.plist",
             sources: ["Sources/**"],
-            headers: Headers(public: "Sources/**/*.h"),
+            headers: .headers(public: "Sources/**/*.h"),
             dependencies: [
-                .sdk(name: "libc++.tbd"),
+                .sdk(name: "c++", type: .library),
             ]
         ),
         Target(

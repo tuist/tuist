@@ -29,7 +29,7 @@ let template = Template(
         nameAttribute,
         .optional("platform", default: "ios"),
     ],
-    files: [
+    items: [
         .string(
             path: "Project.swift",
             contents: "My template contents of name \(nameAttribute)"

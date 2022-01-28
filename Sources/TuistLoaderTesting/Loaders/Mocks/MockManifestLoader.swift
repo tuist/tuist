@@ -76,8 +76,10 @@ public final class MockManifestLoader: ManifestLoading {
         try taskLoadArgumentsStub?(path) ?? []
     }
 
+    public var registerPluginsCount: UInt = 0
     public var registerPluginsStub: ((Plugins) throws -> Void)?
     public func register(plugins: Plugins) throws {
+        registerPluginsCount += 1
         try registerPluginsStub?(plugins)
     }
 }

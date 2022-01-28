@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import TSCBasic
 
 public protocol Systeming {
     /// System environment.
@@ -88,4 +89,22 @@ public protocol Systeming {
     /// - Returns: The output of running 'which' with the given tool name.
     /// - Throws: An error if which exits unsuccessfully.
     func which(_ name: String) throws -> String
+
+    /// Changes permissions for a given file at `path`
+    /// - Parameters:
+    ///     - mode: Defines user file mode.
+    ///     - path: Path of file for which the permissions should be changed.
+    ///     - options: Options for changing permissions.
+    func chmod(_ mode: FileMode, path: AbsolutePath, options: Set<FileMode.Option>) throws
+}
+
+extension Systeming {
+    public func commandExists(_ name: String) -> Bool {
+        do {
+            _ = try which(name)
+            return true
+        } catch {
+            return false
+        }
+    }
 }

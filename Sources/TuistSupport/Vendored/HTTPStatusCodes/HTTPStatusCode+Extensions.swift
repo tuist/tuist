@@ -112,20 +112,6 @@ extension HTTPURLResponse {
     }
 }
 
-extension HTTPURLResponse {
-    /// - deprecated: Renamed to `init(url:statusCode:httpVersion:headerFields)` to correct Swift 3 naming convention.
-    @available(
-        *,
-        deprecated,
-        renamed: "init(url:statusCode:httpVersion:headerFields:)",
-        message: "Renamed to correct Swift 3 naming convention"
-    )
-    @nonobjc
-    public convenience init?(url: URL, statusCode: HTTPStatusCode, HTTPVersion: String?, headerFields: [String: String]?) {
-        self.init(url: url, statusCode: statusCode, httpVersion: HTTPVersion, headerFields: headerFields)
-    }
-}
-
 // MARK: - Remove cases
 
 /// Declared here for a cleaner API with no `!` types.
