@@ -54,9 +54,9 @@ let package = Package(
         .package(url: "https://github.com/stencilproject/Stencil", .upToNextMajor(from: "0.14.0")),
         .package(url: "https://github.com/kishikawakatsumi/KeychainAccess", .upToNextMajor(from: "4.2.2")),
         .package(
-          name: "Swifter",
-          url: "https://github.com/httpswift/swifter",
-          .branch("1e4f51c92d7ca486242d8bf0722b99de2c3531aa")
+            name: "Swifter",
+            url: "https://github.com/httpswift/swifter",
+            .branch("1e4f51c92d7ca486242d8bf0722b99de2c3531aa")
         ),
         .package(url: "https://github.com/apple/swift-tools-support-core", .upToNextMinor(from: "0.2.0")),
         .package(url: "https://github.com/apple/swift-argument-parser", .upToNextMajor(from: "1.0.0")),

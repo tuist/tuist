@@ -15,7 +15,7 @@ protocol WorkspaceSettingsDescriptorGenerating {
 
 final class WorkspaceSettingsDescriptorGenerator: WorkspaceSettingsDescriptorGenerating {
     func generateWorkspaceSettings(workspace: Workspace) -> WorkspaceSettingsDescriptor? {
-        return workspace.automaticXcodeSchemes
+        workspace.automaticXcodeSchemes
             .map {
                 switch $0 {
                 case .enabled:

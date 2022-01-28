@@ -63,7 +63,7 @@ extension TuistGraph.Config.GenerationOption {
     ///   - generatorPaths: Generator paths.
     static func from(
         manifest: ProjectDescription.Config.GenerationOptions,
-        generatorPaths: GeneratorPaths
+        generatorPaths _: GeneratorPaths
     ) throws -> Self {
         switch manifest {
         case let .xcodeProjectName(templateString):
