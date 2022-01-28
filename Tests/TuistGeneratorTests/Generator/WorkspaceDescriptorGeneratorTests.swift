@@ -130,7 +130,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         let workspace = Workspace.test(
             xcWorkspacePath: temporaryPath.appending(component: "Test.xcworkspace"),
             projects: [],
-            generationOptions: .options(automaticXcodeSchemes: .disabled)
+            generationOptions: [.automaticXcodeSchemes(.disabled)]
         )
 
         let graph = Graph.test(workspace: workspace)
@@ -150,7 +150,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         let workspace = Workspace.test(
             xcWorkspacePath: temporaryPath.appending(component: "Test.xcworkspace"),
             projects: [],
-            generationOptions: .options(automaticXcodeSchemes: .enabled)
+            generationOptions: [.automaticXcodeSchemes(.enabled)]
         )
 
         let graph = Graph.test(workspace: workspace)
@@ -170,7 +170,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         let workspace = Workspace.test(
             xcWorkspacePath: temporaryPath.appending(component: "Test.xcworkspace"),
             projects: [],
-            generationOptions: .options(automaticXcodeSchemes: .default)
+            generationOptions: []
         )
 
         let graph = Graph.test(workspace: workspace)
@@ -180,7 +180,7 @@ final class WorkspaceDescriptorGeneratorTests: TuistUnitTestCase {
         let result = try subject.generate(graphTraverser: graphTraverser)
 
         // Then
-        XCTAssertEqual(result.workspaceSettingsDescriptor, WorkspaceSettingsDescriptor(automaticXcodeSchemes: nil))
+        XCTAssertNil(result.workspaceSettingsDescriptor)
     }
 
     // MARK: - Helpers

@@ -37,7 +37,7 @@ final class WorkspaceSettingsDescriptorGeneratorTests: TuistUnitTestCase {
 
     func test_generate_withGenerationOptions() {
         // Given
-        let workspace = Workspace.test(generationOptions: .options(automaticXcodeSchemes: .disabled))
+        let workspace = Workspace.test(generationOptions: [.automaticXcodeSchemes(.disabled)])
 
         // When
         let result = subject.generateWorkspaceSettings(workspace: workspace)
