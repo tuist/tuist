@@ -5,6 +5,7 @@
 struct SwiftPackageManagerWorkspaceState: Decodable, Equatable {
     /// The products declared in the manifest.
     let object: Object
+    let version: Int
 
     struct Object: Decodable, Equatable {
         /// The list of SPM dependencies
