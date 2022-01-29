@@ -52,7 +52,7 @@ If you need to use the app on a real device, remember to pass the `--xcframework
 
 ### External dependencies and cache
 
-In general, you are not interested in the source code of your [external dependencies](dependencies.md). To import them as binary you will usually:
+In general, you are not interested in the source code of your [external dependencies](guides/dependencies.md). To import them as binary you will usually:
 
 1. fetch the dependencies
 
