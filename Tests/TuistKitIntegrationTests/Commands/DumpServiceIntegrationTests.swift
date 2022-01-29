@@ -92,6 +92,9 @@ final class DumpServiceTests: TuistTestCase {
           "additionalFiles": [
 
           ],
+          "generationOptions": [
+
+          ],
           "name": "tuist",
           "projects": [
 
