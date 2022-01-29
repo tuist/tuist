@@ -232,10 +232,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         )
         let scheme = Scheme(name: projectName, shared: true, buildAction: buildAction, runAction: runAction)
         let projectSettings = Settings(
-            base: [
-                "ONLY_ACTIVE_ARCH": "YES",
-                "EXCLUDED_ARCHS": .string(excludedArchs()),
-            ],
+            base: [:],
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         )
@@ -318,10 +315,7 @@ final class ProjectEditorMapper: ProjectEditorMapping {
         let allSchemes = schemes + [allPluginsScheme]
 
         let projectSettings = Settings(
-            base: [
-                "ONLY_ACTIVE_ARCH": "YES",
-                "EXCLUDED_ARCHS": .string(excludedArchs()),
-            ],
+            base: [:],
             configurations: Settings.default.configurations,
             defaultSettings: .recommended
         )
@@ -432,15 +426,5 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             "SWIFT_INCLUDE_PATHS": .array(includePaths),
             "SWIFT_VERSION": .string(swiftVersion),
         ]
-    }
-
-    private func excludedArchs() -> String {
-        let architecture = DeveloperEnvironment.shared.architecture
-        switch architecture {
-        case .arm64:
-            return MacArchitecture.x8664.rawValue
-        case .x8664:
-            return MacArchitecture.arm64.rawValue
-        }
     }
 }

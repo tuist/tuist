@@ -168,6 +168,8 @@ public final class SimulatorController: SimulatorControlling {
         try System.shared.run(["/usr/bin/xcrun", "simctl", "launch", device.udid, bundleId] + arguments)
     }
 
+    /// https://www.mokacoding.com/blog/xcodebuild-destination-options/
+    /// https://www.mokacoding.com/blog/how-to-always-run-latest-simulator-cli/
     public func destination(
         for targetPlatform: Platform,
         version: Version?,
@@ -178,7 +180,7 @@ public final class SimulatorController: SimulatorControlling {
         case .iOS: platform = .iOS
         case .watchOS: platform = .watchOS
         case .tvOS: platform = .tvOS
-        case .macOS: return "platform=OS X,arch=x86_64"
+        case .macOS: return "generic/platform=macOS,name=Any Mac"
         }
 
         let deviceAndRuntime = try await findAvailableDevice(

@@ -95,7 +95,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
         case let .device(udid):
             command.append(contentsOf: ["-destination", "id=\(udid)"])
         case .mac:
-            break
+            command.append(contentsOf: ["-destination", "generic/platform=macOS,name=Any Mac"])
         }
 
         // Derived data path
