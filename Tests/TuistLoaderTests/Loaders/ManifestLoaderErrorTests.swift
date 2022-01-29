@@ -24,11 +24,19 @@ final class ManifestLoaderErrorTests: TuistUnitTestCase {
             ManifestLoaderError.manifestNotFound(nil, AbsolutePath("/test/")).description,
             "Manifest not found at path /test"
         )
+        XCTAssertEqual(
+            ManifestLoaderError.manifestLoadingFailed(path: AbsolutePath("/test/"), context: "Context").description,
+            """
+            Unable to load manifest at \("/test".bold())
+            Context
+            """
+        )
     }
 
     func test_type() {
         XCTAssertEqual(ManifestLoaderError.projectDescriptionNotFound(AbsolutePath("/test")).type, .bug)
         XCTAssertEqual(ManifestLoaderError.unexpectedOutput(AbsolutePath("/test/")).type, .bug)
         XCTAssertEqual(ManifestLoaderError.manifestNotFound(.project, AbsolutePath("/test/")).type, .abort)
+        XCTAssertEqual(ManifestLoaderError.manifestLoadingFailed(path: AbsolutePath("/test/"), context: "Context").type, .abort)
     }
 }

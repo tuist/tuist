@@ -170,4 +170,27 @@ final class ManifestLoaderTests: TuistTestCase {
         XCTAssertTrue(got.contains(.workspace))
         XCTAssertTrue(got.contains(.config))
     }
+
+    func test_manifestLoadError() throws {
+        // Given
+        let fileHandler = FileHandler()
+        let temporaryPath = try temporaryPath()
+        try fileHandler.touch(temporaryPath.appending(component: "Config.swift"))
+
+        // When
+        XCTAssertThrowsError(
+            try subject.loadConfig(at: temporaryPath)
+        ) { error in
+            XCTAssertEqual(
+                error as? ManifestLoaderError,
+                .manifestLoadingFailed(
+                    path: temporaryPath.appending(component: "Config.swift"),
+                    context: """
+                    The encoded data for the manifest is corrupted.
+                    The given data was not valid JSON.
+                    """
+                )
+            )
+        }
+    }
 }
