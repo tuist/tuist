@@ -28,7 +28,7 @@ To warm the cache of only specific targets and their dependencies, you can run:
 tuist cache warm FrameworkA FrameworkB
 ```
 
-To warm the cache of only of targets not defined in your project or workspace (for example, external dependencies), you can run:
+To warm the cache of only targets not defined in your project or workspace (for example, external dependencies), you can run:
 
 ```bash
 tuist cache warm --dependencies-only
@@ -36,37 +36,37 @@ tuist cache warm --dependencies-only
 
 ### Using cached artifacts
 
-One the cache is warmed, you can use the [generate](commands/generate.md) command to generate a project replacing external dependencies with artifacts from the cache:
+Once the cache is warmed, you can use the [generate](commands/generate.md) command to generate a project, replacing external dependencies with artifacts from the cache:
 
 ```bash
 tuist generate
 ```
 
-Or you can specify the list of targets you are interested on, so that also your other targets are replaced with binary artifacts
+Or you can specify the list of targets you are interested in, so that all other targets are replaced with binary artifacts
 
 ```bash
-tuist FrameworkA FrameworkB
+tuist generate FrameworkA FrameworkB
 ```
 
 If you need to use the app on a real device, remember to pass the `--xcframeworks` argument to both `tuist cache warm` and `tuist generate`.
 
 ### External dependencies and cache
 
-In general, you are not interested in the source code of your [external dependencies](guides/dependencies.md). To import them as binary you will usually:
+In general, developers do not need to view the source code of their [external dependencies](guides/dependencies.md). To import them as binaries:
 
-1. fetch the dependencies
+1. Fetch the dependencies
 
 ```bash
 tuist fetch
 ```
 
-2. build their cache if needed
+2. Build their cache if needed
 
 ```bash
 tuist cache warm --dependencies-only
 ```
 
-3. generate the project, using binary artifacts for external dependencies
+3. Generate the project, using binary artifacts for external dependencies
 
 ```bash
 tuist generate

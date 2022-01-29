@@ -5,8 +5,8 @@ description: "Learn how to use Tuist's cache command to generate binary artifact
 ---
 
 Target caching is one of Tuist's distictive features.
-It creates a binary artifact of your targets, which can later be used in your project if your generation is focused on other targets.
-For more details of the overall caching workflow, you can read the [caching]](/building-at-scale/caching/) documentation.
+Caching creates binary artifacts of your targets, which can later be used in your project if your generation is focused on other targets.
+For more details on the caching workflow, please refer to the [caching]](/building-at-scale/caching/) documentation.
 
 ### Warm
 
@@ -22,8 +22,8 @@ You can even select a subset of targets to be cached, by passing them as command
 tuist cache warm TargetA TargetB
 ```
 
-The cached artifacts are stored in Tuist cache at `~/.tuist/Cache/BuildCache/<target-hash>`.
-If a target is already present in cache, it will not be built again by the command.
+The cached artifacts are stored in the Tuist cache at `~/.tuist/Cache/BuildCache/<target-hash>`.
+If a target is already present in the cache, it will not be built again by the command.
 
 ### Arguments
 
