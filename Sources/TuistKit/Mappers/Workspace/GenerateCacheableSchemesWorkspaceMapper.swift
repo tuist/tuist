@@ -34,12 +34,19 @@ final class GenerateCacheableSchemesWorkspaceMapper: WorkspaceMapping {
             .projects
             .flatMap { project in project.targets.map { (project, $0) } }
             .filter { $0.1.platform == platform }
+
+        let allInternalTargets = projectsWithTargets
+            .filter { !$0.0.path.pathString.contains("\(Constants.tuistDirectoryName)/\(Constants.DependenciesDirectory.name)") }
+            .map(\.1.name)
+        let includedTargets = includedTargets.isEmpty ? Set(allInternalTargets) : includedTargets
+
+        let filteredProjectsWithTargets = projectsWithTargets
             .filter { _, target in includedTargets.contains(target.name) }
 
-        let bundleTargets = projectsWithTargets
+        let bundleTargets = filteredProjectsWithTargets
             .filter { $0.1.product == .bundle }
 
-        let binariesTargets = projectsWithTargets
+        let binariesTargets = filteredProjectsWithTargets
             .filter(\.1.product.isFramework)
 
         let bundleTargetReferences = bundleTargets

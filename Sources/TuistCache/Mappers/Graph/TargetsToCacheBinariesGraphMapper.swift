@@ -89,6 +89,10 @@ public final class TargetsToCacheBinariesGraphMapper: GraphMapping {
         let availableTargets = Set(
             graphTraverser.allTargets().map(\.target.name)
         )
+        let allInternalTargets = Set(
+            graphTraverser.allInternalTargets().map(\.target.name)
+        )
+        let sources = sources.isEmpty ? Set(allInternalTargets) : sources
         let missingTargets = sources.subtracting(availableTargets)
         guard
             missingTargets.isEmpty
