@@ -74,14 +74,14 @@ final class MockGeneratorFactory: GeneratorFactorying {
     var invokedCacheCount = 0
     var invokedCacheParameters: (
         config: Config,
-        includedTargets: Set<String>?,
+        includedTargets: Set<String>,
         focusedTargets: Set<String>?,
         xcframeworks: Bool,
         cacheProfile: Cache.Profile
     )?
     var invokedCacheParametersList = [(
         config: Config,
-        includedTargets: Set<String>?,
+        includedTargets: Set<String>,
         focusedTargets: Set<String>?,
         xcframeworks: Bool,
         cacheProfile: Cache.Profile
@@ -90,7 +90,7 @@ final class MockGeneratorFactory: GeneratorFactorying {
 
     func cache(
         config: Config,
-        includedTargets: Set<String>?,
+        includedTargets: Set<String>,
         focusedTargets: Set<String>?,
         xcframeworks: Bool,
         cacheProfile: Cache.Profile

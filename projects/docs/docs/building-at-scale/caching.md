@@ -16,28 +16,61 @@ we do caching at the module level. That means developers can use Xcode and its b
 ### Warming the cache
 
 Warming the cache is the process of building, hashing, and storing cacheable targets in the cache.
-We recommend setting up a continuous integration pipeline that runs on every master commit and executes the following command:
+We recommend setting up a continuous integration pipeline that runs on every main branch commit and executes the [cache](commands/cache.md) command:
 
-```
+```bash
 tuist cache warm
 ```
 
-To warm the cache of only specific targets and their dependencies, you can run:
+To warm the cache with only specific targets and their dependencies, you can run:
 
-```
+```bash
 tuist cache warm FrameworkA FrameworkB
 ```
 
-One the cache is warmed, you can use the [generate](commands/generate.md) command to generate a project replacing direct and transitive dependencies with artifacts from the cache.
+To warm the cache with only targets not defined in your project or workspace (for example, external dependencies), you can run:
 
-#### Arguments
+```bash
+tuist cache warm --dependencies-only
+```
 
-| Argument         | Short | Description                                                                                                                    | Default                                         | Required |
-| ---------------- | ----- | ------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------- | -------- |
-| `--path`         | `-p`  | The path to the directory that contains the manifest file.                                                                     | Current directory                               | No       |
-| `--xcframeworks` | `-x`  | Cache the targets as .xcframeworks. It requires targets to be enabled for library distribution.                                | False                                           | No       |
-| `--profile`      | `-P`  | The name of the profile to be used when warming up the cache.                                                                  |                                                 | No       |
-|  No argument     |       | A list of targets to cache. Those and their dependent targets will be cached. If empty, every cacheable target will be cached. | Empty list, which means project defined targets | No       |
+### Using cached artifacts
+
+Once the cache is warmed, you can use the [generate](commands/generate.md) command to generate a project, replacing external dependencies with artifacts from the cache:
+
+```bash
+tuist generate
+```
+
+Or you can specify the list of targets you are interested in, so that all other targets are replaced with binary artifacts
+
+```bash
+tuist generate FrameworkA FrameworkB
+```
+
+If you need to use the app on a real device, remember to pass the `--xcframeworks` argument to both `tuist cache warm` and `tuist generate`.
+
+### External dependencies and cache
+
+In general, developers do not need to view the source code of their [external dependencies](guides/dependencies.md). To import them as binaries:
+
+1. Fetch the dependencies
+
+```bash
+tuist fetch
+```
+
+2. Build their cache if needed
+
+```bash
+tuist cache warm --dependencies-only
+```
+
+3. Generate the project, using binary artifacts for external dependencies
+
+```bash
+tuist generate
+```
 
 #### Caching profile
 
@@ -82,4 +115,4 @@ tuist cache print-hashes
 
 ### Unsupported configurations
 
-- **Dynamic Swift Packages and packages with modulemaps:** Due to the approach that Xcode follows for integrating Swift packages, Tuist doesn't have enough details about the SPM dependency graph, and can't ensure the generated project is valid. If you try, you'll likely get `module not found` errors.
+- **Dynamic Swift Packages and packages with modulemaps if not imported via Dependencies.swift:** Due to the approach that Xcode follows for integrating Swift packages, Tuist doesn't have enough details about the SPM dependency graph, and can't ensure the generated project is valid. If you try, you'll likely get `module not found` errors.
