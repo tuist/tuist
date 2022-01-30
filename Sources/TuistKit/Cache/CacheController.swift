@@ -86,7 +86,7 @@ final class CacheController: CacheControlling {
         let xcframeworks = artifactBuilder.cacheOutputType == .xcframework
         let generator = generatorFactory.cache(
             config: config,
-            includedTargets: includedTargets.isEmpty ? nil : Set(includedTargets),
+            includedTargets: includedTargets,
             focusedTargets: nil,
             xcframeworks: xcframeworks,
             cacheProfile: cacheProfile
