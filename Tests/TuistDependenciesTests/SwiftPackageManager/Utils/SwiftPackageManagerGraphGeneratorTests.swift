@@ -80,6 +80,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
             [
               {
                 "packageRef": {
+                  "identity" : "alamofire",
                   "kind": "remote",
                   "name": "Alamofire",
                   "path": "https://github.com/Alamofire/Alamofire"
@@ -102,6 +103,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
             [
               {
                 "packageRef": {
+                  "identity" : "alamofire",
                   "kind": "remoteSourceControl",
                   "name": "Alamofire",
                   "path": "https://github.com/Alamofire/Alamofire"
@@ -131,6 +133,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
             [
               {
                 "packageRef": {
+                  "identity" : "googleappmeasurement",
                   "kind": "remote",
                   "name": "GoogleAppMeasurement",
                   "path": "https://github.com/google/GoogleAppMeasurement"
@@ -139,6 +142,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
               },
               {
                 "packageRef": {
+                  "identity" : "googleutilities",
                   "kind": "remote",
                   "name": "GoogleUtilities",
                   "path": "https://github.com/google/GoogleUtilities"
@@ -147,12 +151,35 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
               },
               {
                 "packageRef": {
+                  "identity" : "nanopb",
                   "kind": "remote",
                   "name": "nanopb",
                   "path": "https://github.com/nanopb/nanopb"
                 },
                 "subpath": "nanopb"
               }
+            ]
+            """,
+            workspaceArtifactsJSON: """
+            [
+              {
+                "packageRef" : {
+                  "identity" : "googleappmeasurement",
+                  "kind" : "remote",
+                  "path" : "https://github.com/google/GoogleAppMeasurement",
+                  "name" : "GoogleAppMeasurement"
+                },
+                "path" : "\(spmFolder.pathString)/artifacts/GoogleAppMeasurement/GoogleAppMeasurement.xcframework"
+              },
+              {
+                "packageRef" : {
+                  "identity" : "googleappmeasurement",
+                  "kind" : "remote",
+                  "path" : "https://github.com/google/GoogleAppMeasurement",
+                  "name" : "GoogleAppMeasurement"
+                },
+                "path" : "\(spmFolder.pathString)/artifacts/GoogleAppMeasurement/GoogleAppMeasurementWithoutAdIdSupport.xcframework"
+              },
             ]
             """,
             loadPackageInfoStub: { packagePath in
@@ -191,6 +218,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
             [
               {
                 "packageRef": {
+                  "identity" : "test",
                   "kind": "local",
                   "name": "test",
                   "path": "\(testPath.pathString)"
@@ -199,6 +227,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
               },
               {
                 "packageRef": {
+                  "identity" : "a-dependency",
                   "kind": "remote",
                   "name": "a-dependency"
                 },
@@ -206,6 +235,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
               },
               {
                 "packageRef": {
+                  "identity" : "another-dependency",
                   "kind": "remote",
                   "name": "another-dependency"
                 },
@@ -244,6 +274,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
             [
               {
                 "packageRef": {
+                  "identity" : "test",
                   "kind": "local",
                   "name": "test",
                   "location": "\(testPath.pathString)"
@@ -252,6 +283,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
               },
               {
                 "packageRef": {
+                  "identity" : "a-dependency",
                   "kind": "remote",
                   "name": "a-dependency"
                 },
@@ -259,6 +291,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
               },
               {
                 "packageRef": {
+                  "identity" : "another-dependency",
                   "kind": "remote",
                   "name": "another-dependency"
                 },
@@ -297,6 +330,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
             [
               {
                 "packageRef": {
+                  "identity" : "test",
                   "kind": "fileSystem",
                   "name": "test",
                   "location": "\(testPath.pathString)"
@@ -305,6 +339,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
               },
               {
                 "packageRef": {
+                  "identity" : "a-dependency",
                   "kind": "remoteSourceControl",
                   "name": "a-dependency"
                 },
@@ -312,6 +347,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
               },
               {
                 "packageRef": {
+                  "identity": "another-dependency",
                   "kind": "remoteSourceControl",
                   "name": "another-dependency"
                 },
@@ -350,6 +386,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
             [
               {
                 "packageRef": {
+                  "identity" : "test",
                   "kind": "localSourceControl",
                   "name": "test",
                   "location": "\(testPath.pathString)"
@@ -358,6 +395,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
               },
               {
                 "packageRef": {
+                  "identity" : "a-dependency",
                   "kind": "remoteSourceControl",
                   "name": "a-dependency"
                 },
@@ -365,6 +403,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
               },
               {
                 "packageRef": {
+                  "identity": "another-dependency",
                   "kind": "remoteSourceControl",
                   "name": "another-dependency"
                 },
@@ -393,6 +432,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
 
     private func checkGenerated(
         workspaceDependenciesJSON: String,
+        workspaceArtifactsJSON: String = "[]",
         loadPackageInfoStub: @escaping (AbsolutePath) -> PackageInfo,
         dependenciesGraph: TuistCore.DependenciesGraph
     ) throws {
@@ -402,7 +442,8 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
             return """
             {
               "object": {
-                "dependencies": \(workspaceDependenciesJSON)
+                "dependencies": \(workspaceDependenciesJSON),
+                "artifacts": \(workspaceArtifactsJSON)
               }
             }
             """.data(using: .utf8)!

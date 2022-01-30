@@ -89,7 +89,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             ],
             productToPackage: [:],
             packageToFolder: ["Package": "/Package"],
-            artifactsFolder: .init("/Artifacts/"),
+            packageToArtifactPaths: ["Package": [.init("/artifacts/Package/Target_1.xcframework")]],
             platforms: [.iOS]
         )
 
@@ -111,7 +111,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             preprocessInfo.productToExternalDependencies,
             [
                 "Product1": [
-                    .xcframework(path: "/Artifacts/Package/Target_1.xcframework"),
+                    .xcframework(path: "/artifacts/Package/Target_1.xcframework"),
                     .project(target: "Target_2", path: "/Package"),
                 ],
             ]
@@ -400,7 +400,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 "Package": "/Package",
                 "com.example.dep-1": "/com.example.dep-1",
             ],
-            artifactsFolder: .init("/Artifacts/"),
+            packageToArtifactPaths: [:],
             platforms: [.iOS]
         )
 
@@ -2454,13 +2454,21 @@ extension PackageInfoMapping {
         let packageToFolder: [String: AbsolutePath] = packageInfos.keys.reduce(into: [:]) { result, packageName in
             result[packageName] = basePath.appending(component: packageName)
         }
+        let packageToArtifactPaths: [String: [AbsolutePath]] = packageInfos.reduce(into: [:]) { result, element in
+            let (packageName, packageInfo) = element
+            result[packageName] = packageInfo.targets.compactMap { target -> AbsolutePath? in
+                guard target.type == .binary, target.path == nil else {
+                    return nil
+                }
+                return basePath.appending(RelativePath("artifacts/\(packageName)/\(target.name).xcframework"))
+            }
+        }
 
-        let artifactsFolder = basePath.appending(component: "artifacts")
         let preprocessInfo = try preprocess(
             packageInfos: packageInfos,
             productToPackage: productToPackage,
             packageToFolder: packageToFolder,
-            artifactsFolder: artifactsFolder,
+            packageToArtifactPaths: packageToArtifactPaths,
             platforms: platforms
         )
 
