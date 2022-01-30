@@ -45,9 +45,8 @@ public struct TuistCommand: ParsableCommand {
             let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
 
             // Help
-            if processedArguments.isEmpty || processedArguments.first == "--help" {
-                let error = CleanExit.helpRequest(self)
-                exit(withError: error)
+            if processedArguments.isEmpty || ["help", "-help", "--help"].contains(processedArguments.first) {
+                exit(withError: CleanExit.helpRequest(self))
             }
 
             let isTuistCommand = Self.configuration.subcommands
