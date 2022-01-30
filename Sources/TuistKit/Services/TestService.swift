@@ -100,8 +100,7 @@ final class TestService {
         )
         logger.notice("Generating project for testing", metadata: .section)
         let graph = try await generator.generateWithGraph(
-            path: path,
-            projectOnly: false
+            path: path
         ).1
         let graphTraverser = GraphTraverser(graph: graph)
         let version = osVersion?.version()

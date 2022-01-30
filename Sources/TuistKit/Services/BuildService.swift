@@ -65,7 +65,7 @@ final class BuildService {
         let config = try configLoader.loadConfig(path: path)
         let generator = generatorFactory.default(config: config)
         if try (generate || buildGraphInspector.workspacePath(directory: path) == nil) {
-            graph = try await generator.generateWithGraph(path: path, projectOnly: false).1
+            graph = try await generator.generateWithGraph(path: path).1
         } else {
             graph = try await generator.load(path: path)
         }

@@ -83,11 +83,14 @@ class GeneratorFactory: GeneratorFactorying {
             cacheOutputType: xcframeworks ? .xcframework : .framework
         )
         let workspaceMappers = workspaceMapperFactory.default(config: config)
+        let manifestLoader = ManifestLoaderFactory().createManifestLoader()
         return Generator(
-            projectMapper: SequentialProjectMapper(mappers: projectMappers),
-            graphMapper: SequentialGraphMapper(graphMappers),
-            workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
-            manifestLoaderFactory: ManifestLoaderFactory()
+            manifestLoader: manifestLoader,
+            manifestGraphLoader: ManifestGraphLoader(
+                manifestLoader: manifestLoader,
+                workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
+                graphMapper: SequentialGraphMapper(graphMappers)
+            )
         )
     }
 
@@ -112,11 +115,14 @@ class GeneratorFactory: GeneratorFactorying {
             config: config,
             workspaceDirectory: FileHandler.shared.resolveSymlinks(automationPath)
         )
+        let manifestLoader = ManifestLoaderFactory().createManifestLoader()
         return Generator(
-            projectMapper: SequentialProjectMapper(mappers: projectMappers),
-            graphMapper: SequentialGraphMapper(graphMappers),
-            workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
-            manifestLoaderFactory: ManifestLoaderFactory()
+            manifestLoader: manifestLoader,
+            manifestGraphLoader: ManifestGraphLoader(
+                manifestLoader: manifestLoader,
+                workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
+                graphMapper: SequentialGraphMapper(graphMappers)
+            )
         )
     }
 
@@ -147,11 +153,14 @@ class GeneratorFactory: GeneratorFactorying {
         }
 
         let workspaceMappers = workspaceMapperFactory.cache(config: config, includedTargets: includedTargets)
+        let manifestLoader = ManifestLoaderFactory().createManifestLoader()
         return Generator(
-            projectMapper: SequentialProjectMapper(mappers: projectMappers),
-            graphMapper: SequentialGraphMapper(graphMappers),
-            workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
-            manifestLoaderFactory: ManifestLoaderFactory()
+            manifestLoader: manifestLoader,
+            manifestGraphLoader: ManifestGraphLoader(
+                manifestLoader: manifestLoader,
+                workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
+                graphMapper: SequentialGraphMapper(graphMappers)
+            )
         )
     }
 
@@ -165,11 +174,14 @@ class GeneratorFactory: GeneratorFactorying {
         let graphMapperFactory = GraphMapperFactory(contentHasher: contentHasher)
         let graphMappers = graphMapperFactory.default()
         let workspaceMappers = workspaceMapperFactory.default(config: config)
+        let manifestLoader = ManifestLoaderFactory().createManifestLoader()
         return Generator(
-            projectMapper: SequentialProjectMapper(mappers: projectMappers),
-            graphMapper: SequentialGraphMapper(graphMappers),
-            workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
-            manifestLoaderFactory: ManifestLoaderFactory()
+            manifestLoader: manifestLoader,
+            manifestGraphLoader: ManifestGraphLoader(
+                manifestLoader: manifestLoader,
+                workspaceMapper: SequentialWorkspaceMapper(mappers: workspaceMappers),
+                graphMapper: SequentialGraphMapper(graphMappers)
+            )
         )
     }
 }

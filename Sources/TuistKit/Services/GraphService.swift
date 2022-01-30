@@ -17,7 +17,11 @@ final class GraphService {
     convenience init() {
         let manifestLoader = ManifestLoaderFactory()
             .createManifestLoader()
-        let manifestGraphLoader = ManifestGraphLoader(manifestLoader: manifestLoader)
+        let manifestGraphLoader = ManifestGraphLoader(
+            manifestLoader: manifestLoader,
+            workspaceMapper: SequentialWorkspaceMapper(mappers: []),
+            graphMapper: SequentialGraphMapper([])
+        )
         let graphVizMapper = GraphToGraphVizMapper()
         self.init(
             graphVizGenerator: graphVizMapper,
@@ -39,9 +43,9 @@ final class GraphService {
              skipExternalDependencies: Bool,
              targetsToFilter: [String],
              path: AbsolutePath,
-             outputPath: AbsolutePath) throws
+             outputPath: AbsolutePath) async throws
     {
-        let graph = try manifestGraphLoader.loadGraph(at: path)
+        let (graph, _) = try await manifestGraphLoader.load(path: path)
 
         let filePath = outputPath.appending(component: "graph.\(format.rawValue)")
         if FileHandler.shared.exists(filePath) {

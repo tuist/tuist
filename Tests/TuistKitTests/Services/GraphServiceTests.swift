@@ -37,7 +37,7 @@ final class GraphServiceTests: TuistUnitTestCase {
         super.tearDown()
     }
 
-    func test_run_whenDot() throws {
+    func test_run_whenDot() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let graphPath = temporaryPath.appending(component: "graph.dot")
@@ -48,7 +48,7 @@ final class GraphServiceTests: TuistUnitTestCase {
         graphVizMapper.stubMap = Graph()
 
         // When
-        try subject.run(
+        try await subject.run(
             format: .dot,
             layoutAlgorithm: .dot,
             skipTestTargets: false,
@@ -67,7 +67,7 @@ final class GraphServiceTests: TuistUnitTestCase {
         """)
     }
 
-    func test_run_whenJson() throws {
+    func test_run_whenJson() async throws {
         // Given
         let temporaryPath = try temporaryPath()
         let graphPath = temporaryPath.appending(component: "graph.json")
@@ -77,7 +77,7 @@ final class GraphServiceTests: TuistUnitTestCase {
         try FileHandler.shared.touch(projectManifestPath)
 
         // When
-        try subject.run(
+        try await subject.run(
             format: .json,
             layoutAlgorithm: .dot,
             skipTestTargets: false,

@@ -19,20 +19,27 @@ import TuistSupport
 protocol ManifestGraphLoading {
     /// Loads a Workspace or Project Graph at a given path based on manifest availability
     /// - Note: This will search for a Workspace manifest first, then fallback to searching for a Project manifest
-    func loadGraph(at path: AbsolutePath) throws -> Graph
+    func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor])
 }
 
 final class ManifestGraphLoader: ManifestGraphLoading {
     private let configLoader: ConfigLoading
     private let manifestLoader: ManifestLoading
-    private let recursiveManifestLoader: RecursiveManifestLoader
+    private let recursiveManifestLoader: RecursiveManifestLoading
     private let converter: ManifestModelConverting
     private let graphLoader: GraphLoading
     private let pluginsService: PluginServicing
     private let dependenciesGraphController: DependenciesGraphControlling
     private let graphLoaderLinter: CircularDependencyLinting
+    private let manifestLinter: ManifestLinting
+    private let workspaceMapper: WorkspaceMapping
+    private let graphMapper: GraphMapping
 
-    convenience init(manifestLoader: ManifestLoading) {
+    convenience init(
+        manifestLoader: ManifestLoading,
+        workspaceMapper: WorkspaceMapping,
+        graphMapper: GraphMapping
+    ) {
         self.init(
             configLoader: ConfigLoader(manifestLoader: manifestLoader),
             manifestLoader: manifestLoader,
@@ -43,7 +50,10 @@ final class ManifestGraphLoader: ManifestGraphLoading {
             graphLoader: GraphLoader(),
             pluginsService: PluginService(manifestLoader: manifestLoader),
             dependenciesGraphController: DependenciesGraphController(),
-            graphLoaderLinter: CircularDependencyLinter()
+            graphLoaderLinter: CircularDependencyLinter(),
+            manifestLinter: ManifestLinter(),
+            workspaceMapper: workspaceMapper,
+            graphMapper: graphMapper
         )
     }
 
@@ -55,7 +65,10 @@ final class ManifestGraphLoader: ManifestGraphLoading {
         graphLoader: GraphLoading,
         pluginsService: PluginServicing,
         dependenciesGraphController: DependenciesGraphControlling,
-        graphLoaderLinter: CircularDependencyLinting
+        graphLoaderLinter: CircularDependencyLinting,
+        manifestLinter: ManifestLinting,
+        workspaceMapper: WorkspaceMapping,
+        graphMapper: GraphMapping
     ) {
         self.configLoader = configLoader
         self.manifestLoader = manifestLoader
@@ -65,56 +78,64 @@ final class ManifestGraphLoader: ManifestGraphLoading {
         self.pluginsService = pluginsService
         self.dependenciesGraphController = dependenciesGraphController
         self.graphLoaderLinter = graphLoaderLinter
+        self.manifestLinter = manifestLinter
+        self.workspaceMapper = workspaceMapper
+        self.graphMapper = graphMapper
     }
 
-    func loadGraph(at path: AbsolutePath) throws -> Graph {
+    func load(path: AbsolutePath) async throws -> (Graph, [SideEffectDescriptor]) {
         let manifests = manifestLoader.manifests(at: path)
-        if manifests.contains(.workspace) {
-            return try loadWorkspaceGraph(at: path)
-        } else if manifests.contains(.project) {
-            return try loadProjectGraph(at: path).1
-        } else {
+        guard manifests.contains(.workspace) || manifests.contains(.project) else {
             throw ManifestLoaderError.manifestNotFound(path)
         }
-    }
 
-    @discardableResult
-    func loadPlugins(at path: AbsolutePath) throws -> Plugins {
-        let config = try configLoader.loadConfig(path: path)
-        let plugins = try pluginsService.loadPlugins(using: config)
-        try manifestLoader.register(plugins: plugins)
-        return plugins
-    }
-
-    // MARK: - Private
-
-    private func loadProjectGraph(at path: AbsolutePath) throws -> (TuistGraph.Project, Graph) {
+        // Load Plugins
         let plugins = try loadPlugins(at: path)
+
+        // Load DependenciesGraph
         let dependenciesGraph = try dependenciesGraphController.load(at: path)
-        let manifests = try recursiveManifestLoader.loadProject(at: path)
-        let models = try convert(
-            projects: manifests.projects,
+
+        let allManifests = try recursiveManifestLoader.loadWorkspace(at: path)
+        let (workspaceModels, manifestProjects) = (
+            try converter.convert(manifest: allManifests.workspace, path: allManifests.path),
+            allManifests.projects
+        )
+
+        // Lint Manifests
+        try manifestProjects.flatMap {
+            manifestLinter.lint(project: $0.value)
+        }.printAndThrowIfNeeded()
+
+        // Convert to models
+        let projectsModels = try convert(
+            projects: manifestProjects,
             plugins: plugins,
             externalDependencies: dependenciesGraph.externalDependencies
         ) +
             dependenciesGraph.externalProjects.values
-        try graphLoaderLinter.lintProject(at: path, projects: models)
-        return try graphLoader.loadProject(at: path, projects: models)
-    }
 
-    private func loadWorkspaceGraph(at path: AbsolutePath) throws -> Graph {
-        let plugins = try loadPlugins(at: path)
-        let dependenciesGraph = try dependenciesGraphController.load(at: path)
-        let manifests = try recursiveManifestLoader.loadWorkspace(at: path)
-        let workspace = try converter.convert(manifest: manifests.workspace, path: manifests.path)
-        let models = try convert(
-            projects: manifests.projects,
-            plugins: plugins,
-            externalDependencies: dependenciesGraph.externalDependencies
-        ) +
-            dependenciesGraph.externalProjects.values
-        try graphLoaderLinter.lintWorkspace(workspace: workspace, projects: models)
-        return try graphLoader.loadWorkspace(workspace: workspace, projects: models)
+        // Check circular dependencies
+        try graphLoaderLinter.lintWorkspace(workspace: workspaceModels, projects: projectsModels)
+
+        // Apply any registered model mappers
+        let (updatedModels, modelMapperSideEffects) = try workspaceMapper.map(
+            workspace: .init(workspace: workspaceModels, projects: projectsModels)
+        )
+
+        // Load graph
+        let graphLoader = GraphLoader()
+        let graph = try graphLoader.loadWorkspace(
+            workspace: updatedModels.workspace,
+            projects: updatedModels.projects
+        )
+
+        // Apply graph mappers
+        let (mappedGraph, graphMapperSideEffects) = try await graphMapper.map(graph: graph)
+
+        return (
+            mappedGraph,
+            modelMapperSideEffects + graphMapperSideEffects
+        )
     }
 
     private func convert(
@@ -132,5 +153,13 @@ final class ManifestGraphLoader: ManifestGraphLoading {
                 externalDependencies: externalDependencies
             )
         }
+    }
+
+    @discardableResult
+    func loadPlugins(at path: AbsolutePath) throws -> Plugins {
+        let config = try configLoader.loadConfig(path: path)
+        let plugins = try pluginsService.loadPlugins(using: config)
+        try manifestLoader.register(plugins: plugins)
+        return plugins
     }
 }
