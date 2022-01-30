@@ -15,16 +15,12 @@ public final class FocusTargetsGraphMappers: GraphMapping {
     public func map(graph: Graph) throws -> (Graph, [SideEffectDescriptor]) {
         let graphTraverser = GraphTraverser(graph: graph)
         var graph = graph
-        let filteredTargets: Set<GraphTarget>
-        if !includedTargets.isEmpty {
-            let userSpecifiedSourceTargets = graphTraverser.allTargets().filter { includedTargets.contains($0.target.name) }
-            filteredTargets = Set(try topologicalSort(
-                Array(userSpecifiedSourceTargets),
-                successors: { Array(graphTraverser.directTargetDependencies(path: $0.path, name: $0.target.name)) }
-            ))
-        } else {
-            filteredTargets = graphTraverser.allInternalTargets()
-        }
+        let includedTargets = includedTargets.isEmpty ? Set(graphTraverser.allInternalTargets().map { $0.target.name }) : includedTargets
+        let userSpecifiedSourceTargets = graphTraverser.allTargets().filter { includedTargets.contains($0.target.name) }
+        let filteredTargets = Set(try topologicalSort(
+            Array(userSpecifiedSourceTargets),
+            successors: { Array(graphTraverser.directTargetDependencies(path: $0.path, name: $0.target.name)) }
+        ))
 
         graphTraverser.allTargets().forEach { graphTarget in
             if !filteredTargets.contains(graphTarget) {
