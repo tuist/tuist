@@ -16,19 +16,19 @@ we do caching at the module level. That means developers can use Xcode and its b
 ### Warming the cache
 
 Warming the cache is the process of building, hashing, and storing cacheable targets in the cache.
-We recommend setting up a continuous integration pipeline that runs on every master commit and executes the [cache](commands/cache.md) command:
+We recommend setting up a continuous integration pipeline that runs on every main branch commit and executes the [cache](commands/cache.md) command:
 
 ```bash
 tuist cache warm
 ```
 
-To warm the cache of only specific targets and their dependencies, you can run:
+To warm the cache with only specific targets and their dependencies, you can run:
 
 ```bash
 tuist cache warm FrameworkA FrameworkB
 ```
 
-To warm the cache of only targets not defined in your project or workspace (for example, external dependencies), you can run:
+To warm the cache with only targets not defined in your project or workspace (for example, external dependencies), you can run:
 
 ```bash
 tuist cache warm --dependencies-only

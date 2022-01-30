@@ -6,7 +6,7 @@ description: "Learn how to use Tuist's cache command to generate binary artifact
 
 Target caching is one of Tuist's distictive features.
 Caching creates binary artifacts of your targets, which can later be used in your project if your generation is focused on other targets.
-For more details on the caching workflow, please refer to the [caching]](/building-at-scale/caching/) documentation.
+For more details on the caching workflow, please refer to the [caching]](building-at-scale/caching.md) documentation.
 
 ### Warm
 
@@ -32,7 +32,7 @@ If a target is already present in the cache, it will not be built again by the c
 | `--path`              | `-p`  | The path to the directory that contains the definition of the project.                                                         | Current directory                               | No       |
 | `--profile`           | `-P`  | The name of the profile to be used when warming up the cache.                                                                  |                                                 | No       |
 | `--xcframeworks`      | `-x`  | When passed it builds xcframeworks (simulator and device) instead of frameworks (only simulator).                              | False                                           | No       |
-| `--dependencies-only` | `N/A` | If passed, the command doesn't cache the targets passed in the `--targets` argument, but only their dependencies.              | False                                           | No       |
+| `--dependencies-only` | `N/A` | If passed, the command caches only the dependencies of the list of targets passed to the cache command.              | False                                           | No       |
 | No argument           |       | A list of targets to cache. Those and their dependent targets will be cached. If empty, every cacheable target will be cached. | Empty list, which means project defined targets | No       |
 
 ### Print hashes
