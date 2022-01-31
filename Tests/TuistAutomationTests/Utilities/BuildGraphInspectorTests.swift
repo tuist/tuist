@@ -438,7 +438,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.projectSchemes(graphTraverser: graphTraverser)
+        let got = subject.workspaceSchemes(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEqual(
@@ -464,7 +464,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.projectSchemes(graphTraverser: graphTraverser)
+        let got = subject.workspaceSchemes(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEqual(
