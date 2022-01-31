@@ -28,6 +28,9 @@ struct SwiftPackageManagerWorkspaceState: Decodable, Equatable {
 
         /// The absolute path to the artifact (in local file system)
         let path: String
+
+        /// Name of the target to which this artifact belongs
+        let targetName: String
     }
 
     struct PackageRef: Decodable, Equatable {

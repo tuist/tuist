@@ -80,7 +80,7 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
 
         let workspaceState = try JSONDecoder()
             .decode(SwiftPackageManagerWorkspaceState.self, from: try FileHandler.shared.readFile(workspacePath))
-        let packageInfos: [(name: String, folder: AbsolutePath, artifactPaths: [AbsolutePath], info: PackageInfo)]
+        let packageInfos: [(name: String, folder: AbsolutePath, targetToArtifactPaths: [String: AbsolutePath], info: PackageInfo)]
         packageInfos = try workspaceState.object.dependencies.map(context: .concurrent) { dependency in
             let name = dependency.packageRef.name
             let packageFolder: AbsolutePath
@@ -98,14 +98,16 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             }
 
             let packageInfo = try swiftPackageManagerController.loadPackageInfo(at: packageFolder)
-            let artifactPaths = workspaceState.object.artifacts.filter { artifact in
-                artifact.packageRef.identity == dependency.packageRef.identity
-            }.map { AbsolutePath($0.path) }
+            let targetToArtifactPaths = workspaceState.object.artifacts
+                .filter { $0.packageRef.identity == dependency.packageRef.identity }
+                .reduce(into: [:]) { result, artifact in
+                    result[artifact.targetName] = AbsolutePath(artifact.path)
+                }
 
             return (
                 name: name,
                 folder: packageFolder,
-                artifactPaths: artifactPaths,
+                targetToArtifactPaths: targetToArtifactPaths,
                 info: packageInfo
             )
         }
@@ -117,13 +119,15 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         let packageToProject = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.folder) })
         let packageInfoDictionary = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.info) })
         let packageToFolder = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.folder) })
-        let packageToArtifactPaths = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.artifactPaths) })
+        let packageToTargetsToArtifactPaths = Dictionary(uniqueKeysWithValues: packageInfos.map {
+            ($0.name, $0.targetToArtifactPaths)
+        })
 
         let preprocessInfo = try packageInfoMapper.preprocess(
             packageInfos: packageInfoDictionary,
             productToPackage: productToPackage,
             packageToFolder: packageToFolder,
-            packageToArtifactPaths: packageToArtifactPaths,
+            packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths,
             platforms: platforms
         )
 

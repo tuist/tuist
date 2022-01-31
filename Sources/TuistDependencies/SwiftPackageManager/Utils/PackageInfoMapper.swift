@@ -90,14 +90,14 @@ public protocol PackageInfoMapping {
     ///   - packageInfos: All available `PackageInfo`s
     ///   - productToPackage: Mapping from a product to its package
     ///   - packageToFolder: Mapping from a package name to its local folder
-    ///   - packageToArtifactPaths: Mapping from a package name its artifacts' paths
+    ///   - packageToTargetsToArtifactPaths: Mapping from a package name its targets' names to artifacts' paths
     ///   - platforms: The configured platforms
     /// - Returns: Mapped project
     func preprocess(
         packageInfos: [String: PackageInfo],
         productToPackage: [String: String],
         packageToFolder: [String: AbsolutePath],
-        packageToArtifactPaths: [String: [AbsolutePath]],
+        packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]],
         platforms: Set<TuistGraph.Platform>
     ) throws -> PackageInfoMapper.PreprocessInfo
 
@@ -157,14 +157,14 @@ public final class PackageInfoMapper: PackageInfoMapping {
     ///   - packageInfos: All available `PackageInfo`s
     ///   - productToPackage: Mapping from a product to its package
     ///   - packageToFolder: Mapping from a package name to its local folder
-    ///   - packageToArtifacts: Mapping from a package name its artifacts' paths
+    ///   - packageToTargetsToArtifactPaths: Mapping from a package name its targets' names to artifacts' paths
     ///   - platforms: The configured platforms
     /// - Returns: Mapped project
     public func preprocess( // swiftlint:disable:this function_body_length
         packageInfos: [String: PackageInfo],
         productToPackage: [String: String],
         packageToFolder: [String: AbsolutePath],
-        packageToArtifactPaths: [String: [AbsolutePath]],
+        packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]],
         platforms: Set<TuistGraph.Platform>
     ) throws -> PreprocessInfo {
         let targetDependencyToFramework: [String: Path] = try packageInfos.reduce(into: [:]) { result, packageInfo in
@@ -176,10 +176,9 @@ public final class PackageInfoMapper: PackageInfoMapping {
                 } else {
                     // remote binaries are checked out by SPM in artifacts/<Package.name>/<Target>.xcframework
                     // or in artifacts/<Package.identity>/<Target>.xcframework when using SPM 5.6 and later
-                    guard let artifactPath = packageToArtifactPaths[packageInfo.key]?
-                        .first(where: { $0.components.last == "\(target.name).xcframework" }) else {
-                            throw PackageInfoMapperError.missingBinaryArtifact(package: packageInfo.key, target: target.name)
-                        }
+                    guard let artifactPath = packageToTargetsToArtifactPaths[packageInfo.key]?[target.name] else {
+                        throw PackageInfoMapperError.missingBinaryArtifact(package: packageInfo.key, target: target.name)
+                    }
                     result[target.name] = Path(artifactPath.pathString)
                 }
             }

@@ -89,7 +89,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             ],
             productToPackage: [:],
             packageToFolder: ["Package": "/Package"],
-            packageToArtifactPaths: ["Package": [.init("/artifacts/Package/Target_1.xcframework")]],
+            packageToTargetsToArtifactPaths: ["Package": ["Target_1": .init("/artifacts/Package/Target_1.xcframework")]],
             platforms: [.iOS]
         )
 
@@ -400,7 +400,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 "Package": "/Package",
                 "com.example.dep-1": "/com.example.dep-1",
             ],
-            packageToArtifactPaths: [:],
+            packageToTargetsToArtifactPaths: [:],
             platforms: [.iOS]
         )
 
@@ -2454,21 +2454,25 @@ extension PackageInfoMapping {
         let packageToFolder: [String: AbsolutePath] = packageInfos.keys.reduce(into: [:]) { result, packageName in
             result[packageName] = basePath.appending(component: packageName)
         }
-        let packageToArtifactPaths: [String: [AbsolutePath]] = packageInfos.reduce(into: [:]) { result, element in
-            let (packageName, packageInfo) = element
-            result[packageName] = packageInfo.targets.compactMap { target -> AbsolutePath? in
-                guard target.type == .binary, target.path == nil else {
-                    return nil
-                }
-                return basePath.appending(RelativePath("artifacts/\(packageName)/\(target.name).xcframework"))
+        let packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]] = packageInfos
+            .reduce(into: [:]) { packagesResult, element in
+                let (packageName, packageInfo) = element
+                packagesResult[packageName] = packageInfo.targets
+                    .reduce(into: [String: AbsolutePath]()) { targetsResult, target in
+                        guard target.type == .binary, target.path == nil else {
+                            return
+                        }
+                        targetsResult[target.name] = basePath.appending(
+                            RelativePath("artifacts/\(packageName)/\(target.name).xcframework")
+                        )
+                    }
             }
-        }
 
         let preprocessInfo = try preprocess(
             packageInfos: packageInfos,
             productToPackage: productToPackage,
             packageToFolder: packageToFolder,
-            packageToArtifactPaths: packageToArtifactPaths,
+            packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths,
             platforms: platforms
         )
 

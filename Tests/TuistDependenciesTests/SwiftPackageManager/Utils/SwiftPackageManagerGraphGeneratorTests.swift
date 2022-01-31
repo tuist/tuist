@@ -169,7 +169,8 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
                   "path" : "https://github.com/google/GoogleAppMeasurement",
                   "name" : "GoogleAppMeasurement"
                 },
-                "path" : "\(spmFolder.pathString)/artifacts/GoogleAppMeasurement/GoogleAppMeasurement.xcframework"
+                "path" : "\(spmFolder.pathString)/artifacts/GoogleAppMeasurement/GoogleAppMeasurement.xcframework",
+                "targetName" : "GoogleAppMeasurement"
               },
               {
                 "packageRef" : {
@@ -178,7 +179,8 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
                   "path" : "https://github.com/google/GoogleAppMeasurement",
                   "name" : "GoogleAppMeasurement"
                 },
-                "path" : "\(spmFolder.pathString)/artifacts/GoogleAppMeasurement/GoogleAppMeasurementWithoutAdIdSupport.xcframework"
+                "path" : "\(spmFolder.pathString)/artifacts/GoogleAppMeasurement/GoogleAppMeasurementWithoutAdIdSupport.xcframework",
+                "targetName" : "GoogleAppMeasurementWithoutAdIdSupport"
               },
             ]
             """,
