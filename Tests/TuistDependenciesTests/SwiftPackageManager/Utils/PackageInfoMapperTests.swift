@@ -21,7 +21,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             stdout: "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform\n",
             exitstatus: 0
         )
-        // swiftlint:disable line_length
+        // swiftformat:disable wrap
         system
             .stubs[
                 "/usr/bin/xcrun vtool -show-build /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest"
@@ -60,7 +60,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 """,
                 exitstatus: 0
             )
-        // swiftlint:enable line_length
+        // swiftformat:enable wrap
         subject = PackageInfoMapper()
     }
 
@@ -1101,7 +1101,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
             stdout: "/Applications/Xcode.app/Contents/Developer/Platforms/AppleTVOS.platform\n",
             exitstatus: 0
         )
-        // swiftlint:disable line_length
+        // swiftformat:disable wrap
         system
             .stubs[
                 "/usr/bin/xcrun vtool -show-build /Applications/Xcode.app/Contents/Developer/Platforms/AppleTVOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest"
@@ -1128,7 +1128,7 @@ final class PackageInfoMapperTests: TuistUnitTestCase {
                 """,
                 exitstatus: 0
             )
-        // swiftlint:enable line_length
+        // swiftformat:enable wrap
         let basePath = try temporaryPath()
         let sourcesPath = basePath.appending(RelativePath("Package/Path/Sources/Target1"))
         try fileHandler.createFolder(sourcesPath)

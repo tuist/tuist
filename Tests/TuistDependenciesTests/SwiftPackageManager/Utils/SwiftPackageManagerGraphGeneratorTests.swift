@@ -25,7 +25,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
             stdout: "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform\n",
             exitstatus: 0
         )
-        // swiftlint:disable line_length
+        // swiftformat:disable wrap
         system
             .stubs[
                 "/usr/bin/xcrun vtool -show-build /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest"
@@ -64,7 +64,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
                 """,
                 exitstatus: 0
             )
-        // swiftlint:enable line_length
+        // swiftformat:enable wrap
 
         subject = SwiftPackageManagerGraphGenerator(swiftPackageManagerController: swiftPackageManagerController)
     }
