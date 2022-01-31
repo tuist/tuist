@@ -183,7 +183,7 @@ GEM
       signet (>= 0.16, < 2.a)
     highline (2.0.3)
     httpclient (2.8.3)
-    i18n (1.8.11)
+    i18n (1.9.1)
       concurrent-ruby (~> 1.0)
     json (2.6.1)
     jwt (2.3.0)
@@ -321,7 +321,7 @@ GEM
       colored2 (~> 3.1)
       nanaimo (~> 0.3.0)
       rexml (~> 3.2.4)
-    zeitwerk (2.5.3)
+    zeitwerk (2.5.4)
 
 PLATFORMS
   ruby
