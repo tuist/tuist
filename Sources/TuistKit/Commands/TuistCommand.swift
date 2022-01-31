@@ -41,35 +41,33 @@ public struct TuistCommand: ParsableCommand {
     public static func main(_ arguments: [String]? = nil) async {
         let errorHandler = ErrorHandler()
         let executeCommand: () async throws -> Void
+        let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
+        var parsedError: Error?
         do {
-            let processedArguments = Array(processArguments(arguments)?.dropFirst() ?? [])
-            let isTuistCommand = Self.configuration.subcommands
-                // swiftformat:disable:next preferKeyPath
-                .map { $0._commandName }
-                .contains(processedArguments.first ?? "")
-            if isTuistCommand {
-                if processedArguments.first == ScaffoldCommand.configuration.commandName {
-                    try ScaffoldCommand.preprocess(processedArguments)
-                }
-                if processedArguments.first == InitCommand.configuration.commandName {
-                    try InitCommand.preprocess(processedArguments)
-                }
-                let command = try parseAsRoot(processedArguments)
-                executeCommand = { try await execute(command) }
-            } else {
-                executeCommand = {
-                    try executeTask(with: processedArguments)
-                }
+            if processedArguments.first == ScaffoldCommand.configuration.commandName {
+                try ScaffoldCommand.preprocess(processedArguments)
             }
+            if processedArguments.first == InitCommand.configuration.commandName {
+                try InitCommand.preprocess(processedArguments)
+            }
+            let command = try parseAsRoot()
+            executeCommand = { try await execute(command) }
         } catch {
-            handleParseError(error)
+            parsedError = error
+            executeCommand = {
+                try executeTask(with: processedArguments)
+            }
         }
+        
         do {
             try await executeCommand()
         } catch let error as FatalError {
             errorHandler.fatal(error: error)
             _exit(exitCode(for: error).rawValue)
         } catch {
+            if let parsedError = parsedError {
+                handleParseError(parsedError)
+            }
             // Exit cleanly
             if exitCode(for: error).rawValue == 0 {
                 exit(withError: error)
@@ -81,18 +79,10 @@ public struct TuistCommand: ParsableCommand {
     }
 
     private static func executeTask(with processedArguments: [String]) throws {
-        do {
-            try TuistService().run(
-                arguments: processedArguments,
-                tuistBinaryPath: processArguments()!.first!
-            )
-        } catch TuistServiceError.taskUnavailable {
-            do {
-                _ = try parseAsRoot(processedArguments)
-            } catch {
-                handleParseError(error)
-            }
-        }
+        try TuistService().run(
+            arguments: processedArguments,
+            tuistBinaryPath: processArguments()!.first!
+        )
     }
 
     private static func handleParseError(_ error: Error) -> Never {
