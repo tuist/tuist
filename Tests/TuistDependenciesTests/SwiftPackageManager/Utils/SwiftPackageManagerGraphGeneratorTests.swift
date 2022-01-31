@@ -128,6 +128,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
         try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/GoogleUtilities/Sources/GULMethodSwizzler"))
         try fileHandler.createFolder(AbsolutePath("\(spmFolder.pathString)/checkouts/GoogleUtilities/Sources/GULNetwork"))
 
+        // swiftformat:disable wrap
         try checkGenerated(
             workspaceDependenciesJSON: """
             [
@@ -207,6 +208,7 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
                 ))
                 .merging(with: DependenciesGraph.nanopb(spmFolder: spmFolder))
         )
+        // swiftformat:enable wrap
     }
 
     func test_generate_test_local_path() throws {
