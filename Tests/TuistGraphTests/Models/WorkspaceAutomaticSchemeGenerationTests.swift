@@ -7,7 +7,7 @@ import XCTest
 final class WorkspaceAutomaticSchemeGenerationTests: TuistUnitTestCase {
     func test_codable() {
         // Given
-        let subject = Workspace.GenerationOptions.AutomaticSchemeMode.default
+        let subject = Workspace.GenerationOptions.AutomaticXcodeSchemes.default
 
         // Then
         XCTAssertCodable(subject)
@@ -15,7 +15,7 @@ final class WorkspaceAutomaticSchemeGenerationTests: TuistUnitTestCase {
 
     func test_value_whenDefault() {
         // Given
-        let subject = Workspace.GenerationOptions.AutomaticSchemeMode.default
+        let subject = Workspace.GenerationOptions.AutomaticXcodeSchemes.default
 
         // When
         let actual = subject.value
@@ -26,7 +26,7 @@ final class WorkspaceAutomaticSchemeGenerationTests: TuistUnitTestCase {
 
     func test_value_whenDisabled() {
         // Given
-        let subject = Workspace.GenerationOptions.AutomaticSchemeMode.disabled
+        let subject = Workspace.GenerationOptions.AutomaticXcodeSchemes.disabled
 
         // When
         let actual = subject.value
@@ -37,7 +37,7 @@ final class WorkspaceAutomaticSchemeGenerationTests: TuistUnitTestCase {
 
     func test_value_whenEnabled() {
         // Given
-        let subject = Workspace.GenerationOptions.AutomaticSchemeMode.enabled
+        let subject = Workspace.GenerationOptions.AutomaticXcodeSchemes.enabled
 
         // When
         let actual = subject.value
