@@ -8,13 +8,13 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
-    func test_map_when_included_targets_is_nil_no_targets_are_pruned() throws {
+    func test_map_when_included_targets_is_empty_no_targets_are_pruned() throws {
         // Given
         let targetNames = ["foo", "bar", "baz"].shuffled()
         let aTarget = Target.test(name: targetNames[0])
         let bTarget = Target.test(name: targetNames[1])
         let cTarget = Target.test(name: targetNames[2])
-        let subject = FocusTargetsGraphMappers(includedTargets: nil)
+        let subject = FocusTargetsGraphMappers(includedTargets: Set())
         let path = try temporaryPath()
         let project = Project.test(path: path)
         let graph = Graph.test(
@@ -43,47 +43,6 @@ final class FocusTargetsGraphMappersTests: TuistUnitTestCase {
         // Then
         XCTAssertEmpty(gotSideEffects)
         XCTAssertEmpty(pruningTargets.map(\.name))
-    }
-
-    func test_map_when_included_targets_is_empty_all_targets_are_pruned() throws {
-        // Given
-        let targetNames = ["foo", "bar", "baz"].shuffled()
-        let aTarget = Target.test(name: targetNames[0])
-        let bTarget = Target.test(name: targetNames[1])
-        let cTarget = Target.test(name: targetNames[2])
-        let subject = FocusTargetsGraphMappers(includedTargets: [])
-        let path = try temporaryPath()
-        let project = Project.test(path: path)
-        let graph = Graph.test(
-            projects: [project.path: project],
-            targets: [
-                path: [
-                    aTarget.name: aTarget,
-                    bTarget.name: bTarget,
-                    cTarget.name: cTarget,
-                ],
-            ],
-            dependencies: [
-                .target(name: bTarget.name, path: path): [
-                    .target(name: aTarget.name, path: path),
-                ],
-                .target(name: cTarget.name, path: path): [
-                    .target(name: bTarget.name, path: path),
-                ],
-            ]
-        )
-
-        // When
-        let (gotGraph, gotSideEffects) = try subject.map(graph: graph)
-
-        let expectingTargets = graph.targets[path]!.values
-        let pruningTargets = gotGraph.targets[path]?.values.filter(\.prune) ?? []
-        // Then
-        XCTAssertEmpty(gotSideEffects)
-        XCTAssertEqual(
-            pruningTargets.map(\.name).sorted(),
-            expectingTargets.map(\.name).sorted()
-        )
     }
 
     func test_map_when_included_targets_is_target_with_no_dependency_all_other_targets_are_pruned() throws {

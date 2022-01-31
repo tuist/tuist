@@ -9,6 +9,9 @@ struct SwiftPackageManagerWorkspaceState: Decodable, Equatable {
     struct Object: Decodable, Equatable {
         /// The list of SPM dependencies
         let dependencies: [Dependency]
+
+        /// The list of SPM artifacts
+        let artifacts: [Artifact]
     }
 
     struct Dependency: Decodable, Equatable {
@@ -19,7 +22,20 @@ struct SwiftPackageManagerWorkspaceState: Decodable, Equatable {
         let subpath: String
     }
 
+    struct Artifact: Decodable, Equatable {
+        /// The package reference of the artifact
+        let packageRef: PackageRef
+
+        /// The absolute path to the artifact (in local file system)
+        let path: String
+
+        /// Name of the target to which this artifact belongs
+        let targetName: String
+    }
+
     struct PackageRef: Decodable, Equatable {
+        /// Identity of the dependency
+        let identity: String
         /// The name of the dependency
         let name: String
         /// The king of the dependency (either local or remote)

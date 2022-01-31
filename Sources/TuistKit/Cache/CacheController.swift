@@ -86,7 +86,7 @@ final class CacheController: CacheControlling {
         let xcframeworks = artifactBuilder.cacheOutputType == .xcframework
         let generator = generatorFactory.cache(
             config: config,
-            includedTargets: includedTargets.isEmpty ? nil : Set(includedTargets),
+            includedTargets: includedTargets,
             focusedTargets: nil,
             xcframeworks: xcframeworks,
             cacheProfile: cacheProfile
@@ -215,6 +215,9 @@ final class CacheController: CacheControlling {
         includedTargets: Set<String>,
         dependenciesOnly: Bool
     ) async throws -> [(GraphTarget, String)] {
+        let graphTraverser = GraphTraverser(graph: graph)
+        let includedTargets = includedTargets
+            .isEmpty ? Set(graphTraverser.allInternalTargets().map(\.target.name)) : includedTargets
         // When `dependenciesOnly` is true, there is no need to compute `includedTargets` hashes
         let excludedTargets = dependenciesOnly ? includedTargets : []
         let hashesByCacheableTarget = try cacheGraphContentHasher.contentHashes(
@@ -223,8 +226,6 @@ final class CacheController: CacheControlling {
             cacheOutputType: cacheOutputType,
             excludedTargets: excludedTargets
         )
-
-        let graphTraverser = GraphTraverser(graph: graph)
 
         let graph = try topologicalSort(
             Array(graphTraverser.allTargets()),

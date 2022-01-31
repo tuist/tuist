@@ -49,7 +49,7 @@ protocol GeneratorFactorying {
     /// - Returns: A Generator instance.
     func cache(
         config: Config,
-        includedTargets: Set<String>?,
+        includedTargets: Set<String>,
         focusedTargets: Set<String>?,
         xcframeworks: Bool,
         cacheProfile: TuistGraph.Cache.Profile
@@ -122,7 +122,7 @@ class GeneratorFactory: GeneratorFactorying {
 
     func cache(
         config: Config,
-        includedTargets: Set<String>?,
+        includedTargets: Set<String>,
         focusedTargets: Set<String>?,
         xcframeworks: Bool,
         cacheProfile: TuistGraph.Cache.Profile
@@ -146,7 +146,7 @@ class GeneratorFactory: GeneratorFactorying {
             graphMappers = graphMapperFactory.cache(includedTargets: includedTargets)
         }
 
-        let workspaceMappers = workspaceMapperFactory.cache(config: config, includedTargets: includedTargets ?? [])
+        let workspaceMappers = workspaceMapperFactory.cache(config: config, includedTargets: includedTargets)
         return Generator(
             projectMapper: SequentialProjectMapper(mappers: projectMappers),
             graphMapper: SequentialGraphMapper(graphMappers),

@@ -83,6 +83,11 @@ exports.onCreateNode = ({ node, getNode, actions }) => {
     isPermanent: true,
   })
   createRedirect({
+    fromPath: '/commands/cache',
+    toPath: 'https://docs.tuist.io/commands/cache',
+    isPermanent: true,
+  })
+  createRedirect({
     fromPath: '/commands/clean',
     toPath: 'https://docs.tuist.io/commands/clean',
     isPermanent: true,

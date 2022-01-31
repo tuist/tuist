@@ -44,6 +44,12 @@ public class GraphTraverser: GraphTraversing {
         })
     }
 
+    public func allInternalTargets() -> Set<GraphTarget> {
+        allTargets()
+            .filter { !$0.path.pathString.contains("\(Constants.tuistDirectoryName)/\(Constants.DependenciesDirectory.name)")
+            }
+    }
+
     public func rootProjects() -> Set<Project> {
         Set(graph.workspace.projects.compactMap {
             projects[$0]
