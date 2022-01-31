@@ -75,20 +75,19 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         targetSettings: [String: TuistGraph.SettingsDictionary],
         swiftToolsVersion: TSCUtility.Version?
     ) throws -> TuistCore.DependenciesGraph {
-        let artifactsFolder = path.appending(component: "artifacts")
         let checkoutsFolder = path.appending(component: "checkouts")
         let workspacePath = path.appending(component: "workspace-state.json")
 
         let workspaceState = try JSONDecoder()
             .decode(SwiftPackageManagerWorkspaceState.self, from: try FileHandler.shared.readFile(workspacePath))
-        let packageInfos: [(name: String, folder: AbsolutePath, info: PackageInfo)]
+        let packageInfos: [(name: String, folder: AbsolutePath, targetToArtifactPaths: [String: AbsolutePath], info: PackageInfo)]
         packageInfos = try workspaceState.object.dependencies.map(context: .concurrent) { dependency in
             let name = dependency.packageRef.name
             let packageFolder: AbsolutePath
             switch dependency.packageRef.kind {
-            case "remote":
+            case "remote", "remoteSourceControl":
                 packageFolder = checkoutsFolder.appending(component: dependency.subpath)
-            case "local":
+            case "local", "fileSystem", "localSourceControl":
                 // Depending on the swift version, the information is available either in `path` or in `location`
                 guard let path = dependency.packageRef.path ?? dependency.packageRef.location else {
                     throw SwiftPackageManagerGraphGeneratorError.missingPathInLocalSwiftPackage(name)
@@ -99,9 +98,16 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
             }
 
             let packageInfo = try swiftPackageManagerController.loadPackageInfo(at: packageFolder)
+            let targetToArtifactPaths = workspaceState.object.artifacts
+                .filter { $0.packageRef.identity == dependency.packageRef.identity }
+                .reduce(into: [:]) { result, artifact in
+                    result[artifact.targetName] = AbsolutePath(artifact.path)
+                }
+
             return (
                 name: name,
                 folder: packageFolder,
+                targetToArtifactPaths: targetToArtifactPaths,
                 info: packageInfo
             )
         }
@@ -113,12 +119,15 @@ public final class SwiftPackageManagerGraphGenerator: SwiftPackageManagerGraphGe
         let packageToProject = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.folder) })
         let packageInfoDictionary = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.info) })
         let packageToFolder = Dictionary(uniqueKeysWithValues: packageInfos.map { ($0.name, $0.folder) })
+        let packageToTargetsToArtifactPaths = Dictionary(uniqueKeysWithValues: packageInfos.map {
+            ($0.name, $0.targetToArtifactPaths)
+        })
 
         let preprocessInfo = try packageInfoMapper.preprocess(
             packageInfos: packageInfoDictionary,
             productToPackage: productToPackage,
             packageToFolder: packageToFolder,
-            artifactsFolder: artifactsFolder,
+            packageToTargetsToArtifactPaths: packageToTargetsToArtifactPaths,
             platforms: platforms
         )
 
