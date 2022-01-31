@@ -66,7 +66,7 @@ public struct Config: Equatable, Hashable {
         }.first
     }
 
-    public var autogenerationTestingOptions: AutogenerationOptions.TestingOptions? {
+    public var autogenerationTestingOptions: TestingOptions? {
         let autogenerationOptions = generationOptions.compactMap { option -> AutogenerationOptions? in
             switch option {
             case let .autogenerationOptions(options): return options
