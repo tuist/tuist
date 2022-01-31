@@ -40,12 +40,15 @@ enum PackageInfoMapperError: FatalError, Equatable {
         PackageInfo.Target.TargetBuildSettingDescription.SettingName
     )
 
+    /// Thrown when a binary target defined in a package doesn't have a corresponding artifact
+    case missingBinaryArtifact(package: String, target: String)
+
     /// Error type.
     var type: ErrorType {
         switch self {
         case .noSupportedPlatforms, .unknownByNameDependency, .unknownPlatform, .unknownProductDependency, .unknownProductTarget:
             return .abort
-        case .minDeploymentTargetParsingFailed, .defaultPathNotFound, .unsupportedSetting:
+        case .minDeploymentTargetParsingFailed, .defaultPathNotFound, .unsupportedSetting, .missingBinaryArtifact:
             return .bug
         }
     }
@@ -72,6 +75,8 @@ enum PackageInfoMapperError: FatalError, Equatable {
             return "The target \(target) of product \(product) cannot be found in package \(package)."
         case let .unsupportedSetting(tool, setting):
             return "The \(tool) and \(setting) pair is not a supported setting."
+        case let .missingBinaryArtifact(package, target):
+            return "The artifact for binary target \(target) of package \(package) cannot be found."
         }
     }
 }
@@ -85,14 +90,14 @@ public protocol PackageInfoMapping {
     ///   - packageInfos: All available `PackageInfo`s
     ///   - productToPackage: Mapping from a product to its package
     ///   - packageToFolder: Mapping from a package name to its local folder
-    ///   - artifactsFolder: The folders containing downloaded SwiftPackageManager artifacts
+    ///   - packageToTargetsToArtifactPaths: Mapping from a package name its targets' names to artifacts' paths
     ///   - platforms: The configured platforms
     /// - Returns: Mapped project
     func preprocess(
         packageInfos: [String: PackageInfo],
         productToPackage: [String: String],
         packageToFolder: [String: AbsolutePath],
-        artifactsFolder: AbsolutePath,
+        packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]],
         platforms: Set<TuistGraph.Platform>
     ) throws -> PackageInfoMapper.PreprocessInfo
 
@@ -152,29 +157,29 @@ public final class PackageInfoMapper: PackageInfoMapping {
     ///   - packageInfos: All available `PackageInfo`s
     ///   - productToPackage: Mapping from a product to its package
     ///   - packageToFolder: Mapping from a package name to its local folder
-    ///   - artifactsFolder: The folders containing downloaded SwiftPackageManager artifacts
+    ///   - packageToTargetsToArtifactPaths: Mapping from a package name its targets' names to artifacts' paths
     ///   - platforms: The configured platforms
     /// - Returns: Mapped project
     public func preprocess( // swiftlint:disable:this function_body_length
         packageInfos: [String: PackageInfo],
         productToPackage: [String: String],
         packageToFolder: [String: AbsolutePath],
-        artifactsFolder: AbsolutePath,
+        packageToTargetsToArtifactPaths: [String: [String: AbsolutePath]],
         platforms: Set<TuistGraph.Platform>
     ) throws -> PreprocessInfo {
-        let targetDependencyToFramework: [String: Path] = packageInfos.reduce(into: [:]) { result, packageInfo in
-            let artifactsFolderForPackage = artifactsFolder.appending(component: packageInfo.key)
-            packageInfo.value.targets.forEach { target in
+        let targetDependencyToFramework: [String: Path] = try packageInfos.reduce(into: [:]) { result, packageInfo in
+            try packageInfo.value.targets.forEach { target in
                 guard target.type == .binary else { return }
                 if let path = target.path {
                     // local binary
                     result[target.name] = Path(packageToFolder[packageInfo.key]!.appending(RelativePath(path)).pathString)
                 } else {
-                    // remote binaries are checked out by SPM in artifacts/<Package>/<Target>.xcframework
-                    result[target.name] = Path(
-                        artifactsFolderForPackage.appending(component: "\(target.name).xcframework")
-                            .pathString
-                    )
+                    // remote binaries are checked out by SPM in artifacts/<Package.name>/<Target>.xcframework
+                    // or in artifacts/<Package.identity>/<Target>.xcframework when using SPM 5.6 and later
+                    guard let artifactPath = packageToTargetsToArtifactPaths[packageInfo.key]?[target.name] else {
+                        throw PackageInfoMapperError.missingBinaryArtifact(package: packageInfo.key, target: target.name)
+                    }
+                    result[target.name] = Path(artifactPath.pathString)
                 }
             }
         }
