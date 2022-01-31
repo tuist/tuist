@@ -430,8 +430,8 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
                 name: "WorkspaceName",
                 schemes: [
                     .test(name: "WorkspaceName"),
-                    .test(name: "WorkspaceName-Project-iOS"),
-                    .test(name: "WorkspaceName-Project-macOS"),
+                    .test(name: "WorkspaceName-Workspace-iOS"),
+                    .test(name: "WorkspaceName-Workspace-macOS"),
                 ]
             )
         )
@@ -444,8 +444,8 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         XCTAssertEqual(
             got,
             [
-                .test(name: "WorkspaceName-Project-iOS"),
-                .test(name: "WorkspaceName-Project-macOS"),
+                .test(name: "WorkspaceName-Workspace-iOS"),
+                .test(name: "WorkspaceName-Workspace-macOS"),
             ]
         )
     }
@@ -457,7 +457,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
                 name: "WorkspaceName",
                 schemes: [
                     .test(name: "WorkspaceName"),
-                    .test(name: "WorkspaceName-Project"),
+                    .test(name: "WorkspaceName-Workspace"),
                 ]
             )
         )
@@ -470,7 +470,7 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
         XCTAssertEqual(
             got,
             [
-                .test(name: "WorkspaceName-Project"),
+                .test(name: "WorkspaceName-Workspace"),
             ]
         )
     }

@@ -107,7 +107,7 @@ final class TestServiceTests: TuistUnitTestCase {
         // Given
         buildGraphInspector.testableSchemesStub = { _ in
             [
-                Scheme.test(name: "App-Project"),
+                Scheme.test(name: "App-Workspace"),
                 Scheme.test(name: "TestScheme"),
             ]
         }
