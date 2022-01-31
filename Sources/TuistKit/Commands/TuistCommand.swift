@@ -58,7 +58,7 @@ public struct TuistCommand: ParsableCommand {
                 try executeTask(with: processedArguments)
             }
         }
-        
+
         do {
             try await executeCommand()
         } catch let error as FatalError {
