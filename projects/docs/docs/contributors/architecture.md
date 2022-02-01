@@ -52,7 +52,3 @@ logger.pretty("") // Use `pretty` to print a string with formatted interpolation
 ```
 
 The `logger.pretty` takes a `PrintableString` as an input. Printable strings support interpolating formatted strings. For instance, if we want to tell users they need to run a command, we can do the following:
-
-```swift
-logger.pretty("Please run the folling command to setup the environment: \(.command("tuist up"))")
-```
