@@ -80,8 +80,8 @@ public final class MockBuildGraphInspector: BuildGraphInspecting {
         runnableSchemesStub?(graphTraverser) ?? []
     }
 
-    public var projectSchemesStub: ((GraphTraversing) -> [Scheme])?
-    public func projectSchemes(graphTraverser: GraphTraversing) -> [Scheme] {
-        projectSchemesStub?(graphTraverser) ?? []
+    public var workspaceSchemesStub: ((GraphTraversing) -> [Scheme])?
+    public func workspaceSchemes(graphTraverser: GraphTraversing) -> [Scheme] {
+        workspaceSchemesStub?(graphTraverser) ?? []
     }
 }

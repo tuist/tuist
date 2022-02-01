@@ -430,22 +430,22 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
                 name: "WorkspaceName",
                 schemes: [
                     .test(name: "WorkspaceName"),
-                    .test(name: "WorkspaceName-Project-iOS"),
-                    .test(name: "WorkspaceName-Project-macOS"),
+                    .test(name: "WorkspaceName-Workspace-iOS"),
+                    .test(name: "WorkspaceName-Workspace-macOS"),
                 ]
             )
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.projectSchemes(graphTraverser: graphTraverser)
+        let got = subject.workspaceSchemes(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEqual(
             got,
             [
-                .test(name: "WorkspaceName-Project-iOS"),
-                .test(name: "WorkspaceName-Project-macOS"),
+                .test(name: "WorkspaceName-Workspace-iOS"),
+                .test(name: "WorkspaceName-Workspace-macOS"),
             ]
         )
     }
@@ -457,20 +457,20 @@ final class BuildGraphInspectorTests: TuistUnitTestCase {
                 name: "WorkspaceName",
                 schemes: [
                     .test(name: "WorkspaceName"),
-                    .test(name: "WorkspaceName-Project"),
+                    .test(name: "WorkspaceName-Workspace"),
                 ]
             )
         )
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.projectSchemes(graphTraverser: graphTraverser)
+        let got = subject.workspaceSchemes(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEqual(
             got,
             [
-                .test(name: "WorkspaceName-Project"),
+                .test(name: "WorkspaceName-Workspace"),
             ]
         )
     }

@@ -14,7 +14,7 @@ Feature: Build projects using Tuist build
     Then tuist builds the project
     Then tuist builds the scheme App from the project
     Then tuist builds the scheme AppCustomScheme from the project
-    Then tuist builds the scheme App-Project from the project
+    Then tuist builds the scheme App-Workspace from the project
 
   Scenario: The project is an application with tests (app_with_tests)
     Given that tuist is available
@@ -22,9 +22,9 @@ Feature: Build projects using Tuist build
     Then I copy the fixture app_with_tests into the working directory
     Then tuist builds the project
     Then tuist builds the scheme App from the project
-    Then tuist builds the scheme App-Project-iOS from the project
-    Then tuist builds the scheme App-Project-macOS from the project
-    Then tuist builds the scheme App-Project-tvOS from the project
+    Then tuist builds the scheme App-Workspace-iOS from the project
+    Then tuist builds the scheme App-Workspace-macOS from the project
+    Then tuist builds the scheme App-Workspace-tvOS from the project
 
   Scenario: The project is an iOS application with custom configuration (ios_app_with_custom_configuration) and tuist builds configurations to custom directory
     Given that tuist is available
