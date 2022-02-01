@@ -73,7 +73,7 @@ final class EnvInstallerTests: TuistUnitTestCase {
 
         XCTAssertPrinterOutputContains("""
         Downloading TuistEnv version 3.2.1
-        Installing...
+        Installing…
         TuistEnv Version \(version) installed
         """)
     }
@@ -122,7 +122,7 @@ final class EnvInstallerTests: TuistUnitTestCase {
 
         XCTAssertPrinterOutputContains("""
         Downloading TuistEnv version 3.2.1
-        Installing...
+        Installing…
         TuistEnv Version \(version) installed
         """)
     }

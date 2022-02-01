@@ -66,7 +66,7 @@ final class InstallerTests: TuistUnitTestCase {
 
         XCTAssertPrinterOutputContains("""
         Downloading version 3.2.1
-        Installing...
+        Installing…
         Version \(version) installed
         """)
     }

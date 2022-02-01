@@ -35,19 +35,17 @@ final class Updater: Updating {
         }
 
         if let highestLocalVersion = versionsController.semverVersions().sorted().last {
-            if highestRemoteVersion <= highestLocalVersion {
+            guard highestRemoteVersion > highestLocalVersion else {
                 logger.notice("There are no updates available")
-            } else {
-                logger.notice("Installing new version available \(highestRemoteVersion)")
-                try installer.install(version: highestRemoteVersion.description)
-                logger.info("Updating tuistenv", metadata: .section)
-                try envInstaller.install(version: highestRemoteVersion.description)
+                return
             }
+            logger.notice("Installing new version available \(highestRemoteVersion)")
         } else {
             logger.notice("No local versions available. Installing the latest version \(highestRemoteVersion)")
-            try installer.install(version: highestRemoteVersion.description)
-            logger.info("Updating tuistenv", metadata: .section)
-            try envInstaller.install(version: highestRemoteVersion.description)
         }
+
+        try installer.install(version: highestRemoteVersion.description)
+        logger.info("Updating tuistenv", metadata: .section)
+        try envInstaller.install(version: highestRemoteVersion.description)
     }
 }
