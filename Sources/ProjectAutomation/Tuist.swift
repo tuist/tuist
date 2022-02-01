@@ -52,13 +52,15 @@ public enum Tuist {
             if let path = path {
                 arguments += ["--path", path]
             }
+            var environment: [String: String] = [:]
+            if let forceConfigCacheDirectory = ProcessInfo.processInfo.environment[
+                "TUIST_CONFIG_FORCE_CONFIG_CACHE_DIRECTORY"
+            ] {
+                environment["TUIST_CONFIG_FORCE_CONFIG_CACHE_DIRECTORY"] = forceConfigCacheDirectory
+            }
             try run(
                 arguments,
-                environment: [
-                    "TUIST_CONFIG_FORCE_CONFIG_CACHE_DIRECTORY": ProcessInfo.processInfo.environment[
-                        "TUIST_CONFIG_FORCE_CONFIG_CACHE_DIRECTORY"
-                    ] ?? "",
-                ]
+                environment: environment
             )
             let graphData = try Data(contentsOf: graphPath.asURL)
             return try JSONDecoder().decode(Graph.self, from: graphData)
