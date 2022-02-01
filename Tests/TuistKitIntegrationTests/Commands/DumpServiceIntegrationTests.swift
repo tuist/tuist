@@ -97,6 +97,7 @@ final class DumpServiceTests: TuistTestCase {
               "enabled": {
                 "codeCoverageMode": {
                   "disabled": {
+
                   }
                 },
                 "testingOptions": 0
