@@ -5,22 +5,8 @@ import TuistLoader
 import TuistPlugin
 import TuistSupport
 
-enum TuistServiceError: FatalError {
+enum TuistServiceError: Error {
     case taskUnavailable
-
-    var type: ErrorType {
-        switch self {
-        case .taskUnavailable:
-            return .abortSilent
-        }
-    }
-
-    var description: String {
-        switch self {
-        case .taskUnavailable:
-            return "Task was not found in the environment"
-        }
-    }
 }
 
 final class TuistService: NSObject {
