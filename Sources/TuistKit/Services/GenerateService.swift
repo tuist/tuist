@@ -54,7 +54,7 @@ final class GenerateService {
             cacheProfile: cacheProfile,
             ignoreCache: ignoreCache
         )
-        let workspacePath = try await generator.generate(path: path, projectOnly: false)
+        let workspacePath = try await generator.generate(path: path)
         if !noOpen {
             try opener.open(path: workspacePath)
         }
