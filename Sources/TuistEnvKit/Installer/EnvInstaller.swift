@@ -57,9 +57,10 @@ final class EnvInstaller: EnvInstalling {
 
     // MARK: - Init
 
-    init(buildCopier: BuildCopying = BuildCopier(),
-         versionsController: VersionsControlling = VersionsController())
-    {
+    init(
+        buildCopier: BuildCopying = BuildCopier(),
+        versionsController: VersionsControlling = VersionsController()
+    ) {
         self.buildCopier = buildCopier
         self.versionsController = versionsController
     }
@@ -80,10 +81,11 @@ final class EnvInstaller: EnvInstalling {
         )
     }
 
-    func installFromBundle(bundleURL: URL,
-                           version: String,
-                           temporaryDirectory: AbsolutePath) throws
-    {
+    func installFromBundle(
+        bundleURL: URL,
+        version: String,
+        temporaryDirectory: AbsolutePath
+    ) throws {
         let installationPath = try System.shared.which("tuist")
 
         // Download bundle
@@ -92,7 +94,7 @@ final class EnvInstaller: EnvInstalling {
         try System.shared.run(["/usr/bin/curl", "-LSs", "--output", downloadPath.pathString, bundleURL.absoluteString])
 
         // Unzip
-        logger.notice("Installing...")
+        logger.notice("Installing…")
         try System.shared.run(["/usr/bin/unzip", "-q", downloadPath.pathString, "tuistenv", "-d", temporaryDirectory.pathString])
 
         // Copy
