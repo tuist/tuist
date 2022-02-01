@@ -11,25 +11,25 @@ final class MockGenerator: Generating {
         case stubNotImplemented
     }
 
-    var generateCalls: [(path: AbsolutePath, projectOnly: Bool)] = []
-    var generateStub: ((AbsolutePath, Bool) throws -> AbsolutePath)?
-    func generate(path: AbsolutePath, projectOnly: Bool) throws -> AbsolutePath {
+    var generateCalls: [AbsolutePath] = []
+    var generateStub: ((AbsolutePath) throws -> AbsolutePath)?
+    func generate(path: AbsolutePath) throws -> AbsolutePath {
         guard let generateStub = generateStub else {
             throw MockError.stubNotImplemented
         }
 
-        generateCalls.append((path, projectOnly))
-        return try generateStub(path, projectOnly)
+        generateCalls.append(path)
+        return try generateStub(path)
     }
 
-    var generateWithGraphCalls: [(path: AbsolutePath, projectOnly: Bool)] = []
-    var generateWithGraphStub: ((AbsolutePath, Bool) throws -> (AbsolutePath, Graph))?
-    func generateWithGraph(path: AbsolutePath, projectOnly: Bool) throws -> (AbsolutePath, Graph) {
+    var generateWithGraphCalls: [AbsolutePath] = []
+    var generateWithGraphStub: ((AbsolutePath) throws -> (AbsolutePath, Graph))?
+    func generateWithGraph(path: AbsolutePath) throws -> (AbsolutePath, Graph) {
         guard let generateWithGraphStub = generateWithGraphStub else {
             throw MockError.stubNotImplemented
         }
-        generateWithGraphCalls.append((path, projectOnly))
-        return try generateWithGraphStub(path, projectOnly)
+        generateWithGraphCalls.append(path)
+        return try generateWithGraphStub(path)
     }
 
     var invokedGenerateProjectWorkspace = false

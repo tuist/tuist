@@ -91,7 +91,7 @@ final class CacheController: CacheControlling {
             xcframeworks: xcframeworks,
             cacheProfile: cacheProfile
         )
-        let (_, graph) = try await generator.generateWithGraph(path: path, projectOnly: false)
+        let (_, graph) = try await generator.generateWithGraph(path: path)
 
         // Lint
         cacheGraphLinter.lint(graph: graph)
@@ -125,7 +125,7 @@ final class CacheController: CacheControlling {
                 xcframeworks: xcframeworks,
                 cacheProfile: cacheProfile
             )
-            .generateWithGraph(path: path, projectOnly: false)
+            .generateWithGraph(path: path)
 
         logger.notice("Building cacheable targets")
 

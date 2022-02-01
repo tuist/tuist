@@ -1,5 +1,6 @@
 import Foundation
 import TSCBasic
+import TuistCore
 import TuistGraph
 import TuistLoader
 import TuistSupport
@@ -14,8 +15,12 @@ final class ManifestGraphLoaderIntegrationTests: TuistTestCase {
     override func setUpWithError() throws {
         try super.setUpWithError()
         let manifestLoader = ManifestLoader()
+        let workspaceMapper = SequentialWorkspaceMapper(mappers: [])
+        let graphMapper = SequentialGraphMapper([])
         subject = ManifestGraphLoader(
-            manifestLoader: manifestLoader
+            manifestLoader: manifestLoader,
+            workspaceMapper: workspaceMapper,
+            graphMapper: graphMapper
         )
     }
 
@@ -26,12 +31,12 @@ final class ManifestGraphLoaderIntegrationTests: TuistTestCase {
 
     // MARK: - Tests
 
-    func test_load_workspace() throws {
+    func test_load_workspace() async throws {
         // Given
         let path = try temporaryFixture("WorkspaceWithPlugins")
 
         // When
-        let result = try subject.loadGraph(at: path)
+        let (result, _) = try await subject.load(path: path)
 
         // Then
         XCTAssertEqual(result.workspace.name, "Workspace")
@@ -42,13 +47,13 @@ final class ManifestGraphLoaderIntegrationTests: TuistTestCase {
         ])
     }
 
-    func test_load_project() throws {
+    func test_load_project() async throws {
         // Given
         let path = try temporaryFixture("WorkspaceWithPlugins")
             .appending(component: "App")
 
         // When
-        let result = try subject.loadGraph(at: path)
+        let (result, _) = try await subject.load(path: path)
 
         // Then
         XCTAssertEqual(result.workspace.name, "App")

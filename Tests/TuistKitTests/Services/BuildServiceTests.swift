@@ -75,9 +75,8 @@ final class BuildServiceTests: TuistUnitTestCase {
         let buildArguments: [XcodeBuildArgument] = [.sdk("iphoneos")]
         let skipSigning = false
 
-        generator.generateWithGraphStub = { _path, _projectOnly in
+        generator.generateWithGraphStub = { _path in
             XCTAssertEqual(_path, path)
-            XCTAssertFalse(_projectOnly)
             return (path, graph)
         }
         buildGraphInspector.buildableSchemesStub = { _ in

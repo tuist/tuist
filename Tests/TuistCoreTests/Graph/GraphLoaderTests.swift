@@ -117,10 +117,11 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let projectA = Project.test(path: "/A", name: "A", targets: [])
         let projectB = Project.test(path: "/B", name: "B", targets: [])
         let subject = makeSubject()
+        let workspace = Workspace.test(path: "/", name: "Workspace", projects: ["/A"])
 
         // When
-        let (loadedProject, graph) = try subject.loadProject(
-            at: "/A",
+        let graph = try subject.loadWorkspace(
+            workspace: workspace,
             projects: [
                 projectA,
                 projectB,
@@ -128,7 +129,6 @@ final class GraphLoaderTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(loadedProject, projectA)
         XCTAssertEqual(graph.projects, [
             "/A": projectA,
         ])
@@ -143,10 +143,11 @@ final class GraphLoaderTests: TuistUnitTestCase {
         let projectA = Project.test(path: "/A", name: "A", targets: [targetA])
         let projectB = Project.test(path: "/B", name: "B", targets: [targetB])
         let subject = makeSubject()
+        let workspace = Workspace.test(path: "/", name: "Workspace", projects: ["/A"])
 
         // When
-        let (loadedProject, graph) = try subject.loadProject(
-            at: "/A",
+        let graph = try subject.loadWorkspace(
+            workspace: workspace,
             projects: [
                 projectA,
                 projectB,
@@ -154,7 +155,6 @@ final class GraphLoaderTests: TuistUnitTestCase {
         )
 
         // Then
-        XCTAssertEqual(loadedProject, projectA)
         XCTAssertEqual(graph.projects, [
             "/A": projectA,
             "/B": projectB,

@@ -74,8 +74,7 @@ final class RunServiceTests: TuistUnitTestCase {
     func test_run_generates_when_generateIsTrue() async throws {
         // Given
         let expectation = self.expectation(description: "generates when required")
-        generator.generateWithGraphStub = { _, _projectOnly in
-            XCTAssertFalse(_projectOnly)
+        generator.generateWithGraphStub = { _ in
             expectation.fulfill()
             return (AbsolutePath("/path/to/project.xcworkspace"), .test())
         }
@@ -91,9 +90,8 @@ final class RunServiceTests: TuistUnitTestCase {
         // Given
         let workspacePath = try temporaryPath().appending(component: "App.xcworkspace")
         let expectation = self.expectation(description: "generates when required")
-        generator.generateWithGraphStub = { _, _projectOnly in
+        generator.generateWithGraphStub = { _ in
             // Then
-            XCTAssertFalse(_projectOnly)
             self.buildGraphInspector.workspacePathStub = { _ in workspacePath }
             expectation.fulfill()
             return (workspacePath, .test())
@@ -122,7 +120,7 @@ final class RunServiceTests: TuistUnitTestCase {
             XCTAssertEqual(_configuration, configuration)
             expectation.fulfill()
         }
-        generator.generateWithGraphStub = { _, _ in (workspacePath, .test()) }
+        generator.generateWithGraphStub = { _ in (workspacePath, .test()) }
         targetRunner.assertCanRunTargetStub = { _ in }
         buildGraphInspector.workspacePathStub = { _ in workspacePath }
         buildGraphInspector.runnableSchemesStub = { _ in [.test(name: schemeName)] }
@@ -159,7 +157,7 @@ final class RunServiceTests: TuistUnitTestCase {
                 XCTAssertEqual(_arguments, arguments)
                 expectation.fulfill()
             }
-        generator.generateWithGraphStub = { _, _ in (workspacePath, .test()) }
+        generator.generateWithGraphStub = { _ in (workspacePath, .test()) }
         targetRunner.assertCanRunTargetStub = { _ in }
         buildGraphInspector.workspacePathStub = { _ in workspacePath }
         buildGraphInspector.runnableSchemesStub = { _ in [.test(name: schemeName)] }
@@ -181,7 +179,7 @@ final class RunServiceTests: TuistUnitTestCase {
         let workspacePath = try temporaryPath().appending(component: "App.xcworkspace")
         let expectation = self.expectation(description: "does not run target builder")
         expectation.isInverted = true
-        generator.generateWithGraphStub = { _, _ in (workspacePath, .test()) }
+        generator.generateWithGraphStub = { _ in (workspacePath, .test()) }
         buildGraphInspector.workspacePathStub = { _ in workspacePath }
         buildGraphInspector.runnableSchemesStub = { _ in [.test()] }
         buildGraphInspector.runnableTargetStub = { _, _ in .test() }

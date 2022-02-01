@@ -7,7 +7,7 @@ import TuistLoader
 import TuistSupport
 
 /// Command that generates and exports a dot graph from the workspace or project in the current directory.
-struct GraphCommand: ParsableCommand, HasTrackableParameters {
+struct GraphCommand: AsyncParsableCommand, HasTrackableParameters {
     static var analyticsDelegate: TrackableParametersDelegate?
 
     static var configuration: CommandConfiguration {
@@ -57,14 +57,14 @@ struct GraphCommand: ParsableCommand, HasTrackableParameters {
     )
     var outputPath: String?
 
-    func run() throws {
+    func runAsync() async throws {
         GraphCommand.analyticsDelegate?.willRun(withParameters: [
             "format": format.rawValue,
             "algorithm": layoutAlgorithm.rawValue,
             "skip_external_dependencies": String(skipExternalDependencies),
             "skip_test_targets": String(skipExternalDependencies),
         ])
-        try GraphService().run(
+        try await GraphService().run(
             format: format,
             layoutAlgorithm: layoutAlgorithm,
             skipTestTargets: skipTestTargets,
