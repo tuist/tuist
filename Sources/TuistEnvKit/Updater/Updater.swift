@@ -10,29 +10,25 @@ final class Updater: Updating {
 
     let versionsController: VersionsControlling
     let installer: Installing
-    let envUpdater: EnvUpdating
+    let envInstaller: EnvInstalling
     let versionProvider: VersionProviding
 
     // MARK: - Init
 
     init(versionsController: VersionsControlling = VersionsController(),
          installer: Installing = Installer(),
-         envUpdater: EnvUpdating = EnvUpdater(),
+         envInstaller: EnvInstalling = EnvInstaller(),
          versionProvider: VersionProviding = VersionProvider())
     {
         self.versionsController = versionsController
         self.installer = installer
-        self.envUpdater = envUpdater
+        self.envInstaller = envInstaller
         self.versionProvider = versionProvider
     }
 
     // MARK: - Internal
 
     func update() throws {
-        defer {
-            logger.info("Updating tuistenv", metadata: .section)
-            try? self.envUpdater.update()
-        }
         guard let highestRemoteVersion = try versionProvider.latestVersion() else {
             logger.warning("No remote versions found")
             return
@@ -44,10 +40,14 @@ final class Updater: Updating {
             } else {
                 logger.notice("Installing new version available \(highestRemoteVersion)")
                 try installer.install(version: highestRemoteVersion.description)
+                logger.info("Updating tuistenv", metadata: .section)
+                try envInstaller.install(version: highestRemoteVersion.description)
             }
         } else {
             logger.notice("No local versions available. Installing the latest version \(highestRemoteVersion)")
             try installer.install(version: highestRemoteVersion.description)
+            logger.info("Updating tuistenv", metadata: .section)
+            try envInstaller.install(version: highestRemoteVersion.description)
         }
     }
 }
