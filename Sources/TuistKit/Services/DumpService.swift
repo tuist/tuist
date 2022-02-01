@@ -20,7 +20,11 @@ final class DumpService {
             projectPath = AbsolutePath.current
         }
 
-        let manifestGraphLoader = ManifestGraphLoader(manifestLoader: manifestLoader)
+        let manifestGraphLoader = ManifestGraphLoader(
+            manifestLoader: manifestLoader,
+            workspaceMapper: SequentialWorkspaceMapper(mappers: []),
+            graphMapper: SequentialGraphMapper([])
+        )
         try manifestGraphLoader.loadPlugins(at: projectPath)
 
         let encoded: Encodable

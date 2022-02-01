@@ -6,7 +6,6 @@ import TuistGraph
 
 public protocol CircularDependencyLinting {
     func lintWorkspace(workspace: Workspace, projects: [Project]) throws
-    func lintProject(at path: AbsolutePath, projects: [Project]) throws
 }
 
 // MARK: - CircularDependencyLinter
@@ -24,12 +23,6 @@ public class CircularDependencyLinter: CircularDependencyLinting {
                 cycleDetector: cycleDetector
             )
         }
-    }
-
-    public func lintProject(at path: AbsolutePath, projects: [Project]) throws {
-        let cache = GraphLoader.Cache(projects: projects)
-        let cycleDetector = GraphCircularDetector()
-        try lintProject(path: path, cache: cache, cycleDetector: cycleDetector)
     }
 
     // MARK: - Private
