@@ -27,6 +27,7 @@ public enum ProjectOption: Codable, Equatable {
 }
 
 // MARK: - AutomaticSchemesOptions
+
 extension ProjectOption {
     /// The automatic schemes options
     public enum AutomaticSchemesOptions: Codable, Equatable {
