@@ -76,6 +76,7 @@ extension Array where Element == ProjectOption {
             return []
         }
     }
+
     public var disableBundleAccessors: Bool {
         contains(.disableBundleAccessors)
     }
