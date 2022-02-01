@@ -107,7 +107,7 @@ final class TestService {
         let version = osVersion?.version()
 
         let testableSchemes = buildGraphInspector.testableSchemes(graphTraverser: graphTraverser) +
-            buildGraphInspector.projectSchemes(graphTraverser: graphTraverser)
+            buildGraphInspector.workspaceSchemes(graphTraverser: graphTraverser)
         logger.log(
             level: .debug,
             "Found the following testable schemes: \(Set(testableSchemes.map(\.name)).joined(separator: ", "))"
@@ -143,7 +143,7 @@ final class TestService {
                 )
             }
         } else {
-            let testSchemes: [Scheme] = buildGraphInspector.projectSchemes(graphTraverser: graphTraverser)
+            let testSchemes: [Scheme] = buildGraphInspector.workspaceSchemes(graphTraverser: graphTraverser)
                 .filter {
                     $0.testAction.map { !$0.targets.isEmpty } ?? false
                 }

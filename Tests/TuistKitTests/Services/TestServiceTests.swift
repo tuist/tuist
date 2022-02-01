@@ -107,7 +107,7 @@ final class TestServiceTests: TuistUnitTestCase {
         // Given
         buildGraphInspector.testableSchemesStub = { _ in
             [
-                Scheme.test(name: "App-Project"),
+                Scheme.test(name: "App-Workspace"),
                 Scheme.test(name: "TestScheme"),
             ]
         }
@@ -144,7 +144,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 Scheme.test(name: "TestScheme"),
             ]
         }
-        buildGraphInspector.projectSchemesStub = { _ in
+        buildGraphInspector.workspaceSchemesStub = { _ in
             [
                 Scheme.test(name: "ProjectSchemeOne"),
                 Scheme.test(name: "ProjectSchemeTwo"),
@@ -193,7 +193,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 Scheme.test(name: "TestScheme"),
             ]
         }
-        buildGraphInspector.projectSchemesStub = { _ in
+        buildGraphInspector.workspaceSchemesStub = { _ in
             [
                 Scheme.test(name: "ProjectSchemeOne"),
                 Scheme.test(name: "ProjectSchemeTwo"),
@@ -232,7 +232,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_tests_all_project_schemes_when_fails() async throws {
         // Given
-        buildGraphInspector.projectSchemesStub = { _ in
+        buildGraphInspector.workspaceSchemesStub = { _ in
             [
                 Scheme.test(name: "ProjectScheme"),
             ]
@@ -270,7 +270,7 @@ final class TestServiceTests: TuistUnitTestCase {
 
     func test_run_tests_when_no_project_schemes_present() async throws {
         // Given
-        buildGraphInspector.projectSchemesStub = { _ in
+        buildGraphInspector.workspaceSchemesStub = { _ in
             []
         }
         generator.generateWithGraphStub = { path, _ in
@@ -304,7 +304,7 @@ final class TestServiceTests: TuistUnitTestCase {
         generator.generateWithGraphStub = { path, _ in
             (path, Graph.test())
         }
-        buildGraphInspector.projectSchemesStub = { _ in
+        buildGraphInspector.workspaceSchemesStub = { _ in
             [
                 Scheme.test(name: "ProjectScheme"),
             ]
@@ -335,7 +335,7 @@ final class TestServiceTests: TuistUnitTestCase {
         generator.generateWithGraphStub = { path, _ in
             (path, Graph.test())
         }
-        buildGraphInspector.projectSchemesStub = { _ in
+        buildGraphInspector.workspaceSchemesStub = { _ in
             [
                 Scheme.test(name: "ProjectScheme"),
                 Scheme.test(name: "ProjectScheme2"),
@@ -363,7 +363,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 Scheme.test(name: "TestScheme"),
             ]
         }
-        buildGraphInspector.projectSchemesStub = { _ in
+        buildGraphInspector.workspaceSchemesStub = { _ in
             [
                 Scheme.test(name: "ProjectSchemeOne"),
             ]
@@ -396,7 +396,7 @@ final class TestServiceTests: TuistUnitTestCase {
                 Scheme.test(name: "TestScheme"),
             ]
         }
-        buildGraphInspector.projectSchemesStub = { _ in
+        buildGraphInspector.workspaceSchemesStub = { _ in
             [
                 Scheme.test(name: "ProjectSchemeOne"),
             ]
