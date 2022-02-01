@@ -39,7 +39,6 @@ public struct Workspace: Codable, Equatable {
             case enabled(codeCoverageMode: CodeCoverageMode = .disabled, testingOptions: TestingOptions = [])
         }
 
-
         /// Tuist generates a WorkspaceSettings.xcsettings file, setting the related key to the associated value.
         public let automaticXcodeSchemes: AutomaticXcodeSchemes
 
