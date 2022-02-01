@@ -5,6 +5,7 @@ import TuistGraph
 import TuistGraphTesting
 import XCTest
 
+@testable import TuistCoreTesting
 @testable import TuistGenerator
 @testable import TuistSupport
 @testable import TuistSupportTesting
@@ -12,10 +13,12 @@ import XCTest
 final class ResourcesProjectMapperTests: TuistUnitTestCase {
     var project: Project!
     var subject: ResourcesProjectMapper!
+    var contentHasher: MockContentHasher!
 
     override func setUp() {
         super.setUp()
-        subject = ResourcesProjectMapper()
+        contentHasher = MockContentHasher()
+        subject = ResourcesProjectMapper(contentHasher: contentHasher)
     }
 
     override func tearDown() {
@@ -57,6 +60,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotTarget.resources.count, 0)
         XCTAssertEqual(gotTarget.sources.count, 1)
         XCTAssertEqual(gotTarget.sources.first?.path, expectedPath)
+        XCTAssertNotNil(gotTarget.sources.first?.contentHash)
         XCTAssertEqual(gotTarget.dependencies.count, 1)
         XCTAssertEqual(gotTarget.dependencies.first, TargetDependency.target(name: "\(target.name)Resources"))
 
@@ -119,6 +123,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotTarget.resources.count, 0)
         XCTAssertEqual(gotTarget.sources.count, 1)
         XCTAssertEqual(gotTarget.sources.first?.path, expectedPath)
+        XCTAssertNotNil(gotTarget.sources.first?.contentHash)
         XCTAssertEqual(gotTarget.dependencies.count, 1)
         XCTAssertEqual(gotTarget.dependencies.first, TargetDependency.target(name: "\(target.name)Resources"))
 
@@ -165,6 +170,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotTarget.resources, resources)
         XCTAssertEqual(gotTarget.sources.count, 1)
         XCTAssertEqual(gotTarget.sources.first?.path, expectedPath)
+        XCTAssertNotNil(gotTarget.sources.first?.contentHash)
         XCTAssertEqual(gotTarget.dependencies.count, 0)
     }
 
@@ -202,6 +208,7 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         XCTAssertEqual(gotTarget.coreDataModels, coreDataModels)
         XCTAssertEqual(gotTarget.sources.count, 1)
         XCTAssertEqual(gotTarget.sources.first?.path, expectedPath)
+        XCTAssertNotNil(gotTarget.sources.first?.contentHash)
         XCTAssertEqual(gotTarget.dependencies.count, 0)
     }
 

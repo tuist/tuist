@@ -72,7 +72,7 @@ final class ProjectMapperFactory: ProjectMapperFactorying {
         }
 
         // Support for resources in libraries
-        mappers.append(ResourcesProjectMapper())
+        mappers.append(ResourcesProjectMapper(contentHasher: ContentHasher()))
 
         // Auto-generation of schemes
         // This mapper should follow the ResourcesProjectMapper in order to create schemes for bundles and cache them.
