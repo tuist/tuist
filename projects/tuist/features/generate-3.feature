@@ -11,11 +11,11 @@ Scenario: The project is an iOS application with frameworks and tests (ios_app_w
     Then the product 'App.app' with destination 'Debug-iphonesimulator' does not contain resource 'Frameworks/Framework3.framework/Framework3'
     Then the product 'App.app' with destination 'Debug-iphonesimulator' does not contain resource 'Frameworks/Framework4.framework/Framework4'
     Then the product 'App.app' with destination 'Debug-iphonesimulator' does not contain headers
-    Then I should be able to test for iOS the scheme AppTests
+    Then I should be able to test for iOS the scheme App
     Then I should be able to build for iOS the scheme Framework1
-    Then I should be able to test for iOS the scheme Framework1Tests
+    Then I should be able to test for iOS the scheme Framework1
     Then I should be able to build for iOS the scheme Framework2
-    Then I should be able to test for iOS the scheme Framework2Tests
+    Then I should be able to test for iOS the scheme Framework2
     Then I should be able to build for iOS the scheme Framework3
     Then I should be able to build for iOS the scheme Framework4
 
@@ -27,11 +27,11 @@ Scenario: The project is an iOS application that has resources (ios_app_with_cus
     Then I should be able to build for iOS the scheme App-Debug
     Then I should be able to build for iOS the scheme App-Release
     Then I should be able to build for iOS the scheme App-Local
-    Then I should be able to test for iOS the scheme AppTests
+    Then I should be able to test for iOS the scheme App
     Then I should be able to build for iOS the scheme Framework1
-    Then I should be able to test for iOS the scheme Framework1Tests
+    Then I should be able to test for iOS the scheme Framework1
     Then I should be able to build for iOS the scheme Framework2
-    Then I should be able to test for iOS the scheme Framework2Tests
+    Then I should be able to test for iOS the scheme Framework2
     Then I should be able to build for iOS the scheme Workspace-App
     Then I should be able to test for iOS the scheme Workspace-App
     Then I should be able to test for iOS the scheme Workspace-App-With-TestPlans
@@ -44,7 +44,7 @@ Scenario: The project is an iOS application with local Swift package (ios_app_wi
   Then I copy the fixture ios_app_with_local_swift_package into the working directory
   Then tuist generates the project
   Then I should be able to build for iOS the scheme App
-  Then I should be able to test for iOS the scheme AppTests
+  Then I should be able to test for iOS the scheme App
   Then I should be able to build for iOS the scheme LibraryA
   Then I should be able to build for iOS the scheme LibraryB
 
