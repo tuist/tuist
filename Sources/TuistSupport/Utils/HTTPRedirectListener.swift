@@ -1,7 +1,6 @@
 import Foundation
 import Swifter
 import TSCBasic
-import TuistSupport
 
 public protocol HTTPRedirectListening: Any {
     /// Starts an HTTP server at the given port and blocks the process until a request is sent to the given path.

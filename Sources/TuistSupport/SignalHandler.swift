@@ -1,10 +1,3 @@
-//
-//  File.swift
-//  
-//
-//  Created by Daniele Formichelli on 01/02/22.
-//
-
 import Foundation
 
 public typealias SigActionHandler = @convention(c)(Int32) -> Void

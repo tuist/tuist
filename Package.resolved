@@ -183,10 +183,10 @@
       },
       {
         "package": "Swifter",
-        "repositoryURL": "https://github.com/fortmarek/swifter.git",
+        "repositoryURL": "https://github.com/httpswift/swifter.git",
         "state": {
-          "branch": "stable",
-          "revision": "2e99c49c8575e6d18eb606c6142402f004cead79",
+          "branch": null,
+          "revision": "1e4f51c92d7ca486242d8bf0722b99de2c3531aa",
           "version": null
         }
       },
