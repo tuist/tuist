@@ -84,7 +84,7 @@ final class FetchServiceTests: TuistUnitTestCase {
             XCTAssertEqual(path, stubbedPath)
         }
         pluginService.fetchRemotePluginsStub = { _ in
-            Plugins.test()
+            _ = Plugins.test()
         }
 
         try fileHandler.touch(

@@ -1,5 +1,4 @@
 import Foundation
-import Signals
 import TSCBasic
 import TuistGenerator
 import TuistGraph
@@ -30,6 +29,7 @@ final class EditService {
     private let opener: Opening
     private let configLoader: ConfigLoading
     private let pluginService: PluginServicing
+    private let signalHandler: SignalHandling
 
     private static var temporaryDirectory: AbsolutePath?
 
@@ -37,12 +37,14 @@ final class EditService {
         projectEditor: ProjectEditing = ProjectEditor(),
         opener: Opening = Opener(),
         configLoader: ConfigLoading = ConfigLoader(manifestLoader: ManifestLoader()),
-        pluginService: PluginServicing = PluginService()
+        pluginService: PluginServicing = PluginService(),
+        signalHandler: SignalHandling = SignalHandler()
     ) {
         self.projectEditor = projectEditor
         self.opener = opener
         self.configLoader = configLoader
         self.pluginService = pluginService
+        self.signalHandler = signalHandler
     }
 
     func run(
@@ -56,9 +58,8 @@ final class EditService {
             try withTemporaryDirectory(removeTreeOnDeinit: true) { generationDirectory in
                 EditService.temporaryDirectory = generationDirectory
 
-                Signals.trap(signals: [.int, .abrt]) { _ in
-                    // swiftlint:disable:next force_try
-                    try! EditService.temporaryDirectory.map(FileHandler.shared.delete)
+                signalHandler.trap { _ in
+                    try? EditService.temporaryDirectory.map(FileHandler.shared.delete)
                     exit(0)
                 }
 

@@ -9,7 +9,6 @@ let dependencies = Dependencies(
             .package(url: "https://github.com/apple/swift-log.git", .upToNextMajor(from: "1.4.2")),
             .package(url: "https://github.com/kishikawakatsumi/KeychainAccess.git", .upToNextMajor(from: "4.2.2")),
             .package(url: "https://github.com/fortmarek/swifter.git", .branch("stable")),
-            .package(url: "https://github.com/tuist/BlueSignals.git", .upToNextMajor(from: "1.0.21")),
             .package(url: "https://github.com/marmelroy/Zip.git", .upToNextMajor(from: "2.1.1")),
             .package(url: "https://github.com/rnine/Checksum.git", .upToNextMajor(from: "1.0.2")),
             .package(url: "https://github.com/stencilproject/Stencil.git", .upToNextMajor(from: "0.14.1")),

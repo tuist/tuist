@@ -2,7 +2,6 @@
 
 import PackageDescription
 
-let signalsDependency: Target.Dependency = .byName(name: "Signals")
 let swiftToolsSupportDependency: Target.Dependency = .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core")
 let loggingDependency: Target.Dependency = .product(name: "Logging", package: "swift-log")
 let argumentParserDependency: Target.Dependency = .product(name: "ArgumentParser", package: "swift-argument-parser")
@@ -47,7 +46,6 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/tuist/XcodeProj.git", .upToNextMajor(from: "8.7.1")),
-        .package(name: "Signals", url: "https://github.com/tuist/BlueSignals.git", .upToNextMajor(from: "1.0.21")),
         .package(url: "https://github.com/rnine/Checksum.git", .upToNextMajor(from: "1.0.2")),
         .package(url: "https://github.com/apple/swift-log.git", .upToNextMajor(from: "1.4.2")),
         .package(url: "https://github.com/krzyzanowskim/CryptoSwift.git", .upToNextMajor(from: "1.4.1")),
@@ -114,7 +112,6 @@ let package = Package(
                 "TuistAutomation",
                 "ProjectDescription",
                 "ProjectAutomation",
-                signalsDependency,
                 "TuistLoader",
                 "TuistScaffold",
                 "TuistSigning",
@@ -219,7 +216,6 @@ let package = Package(
                 loggingDependency,
                 "KeychainAccess",
                 swifterDependency,
-                signalsDependency,
                 "Zip",
                 "Checksum",
                 "ProjectDescription",

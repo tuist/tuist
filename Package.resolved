@@ -11,15 +11,6 @@
         }
       },
       {
-        "package": "Signals",
-        "repositoryURL": "https://github.com/tuist/BlueSignals.git",
-        "state": {
-          "branch": null,
-          "revision": "1f6c49e186c8a4eeef87ba14f2f97b8646559d13",
-          "version": "1.0.200"
-        }
-      },
-      {
         "package": "Checksum",
         "repositoryURL": "https://github.com/rnine/Checksum.git",
         "state": {
