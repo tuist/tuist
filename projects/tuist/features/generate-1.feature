@@ -40,7 +40,7 @@ Feature: Generate a new project using Tuist (suite 1)
     Then I should be able to test for iOS the scheme App
     Then I should be able to build for iOS the scheme Framework1-iOS
     Then I should be able to build for macOS the scheme Framework1-macOS
-    Then I should be able to test for iOS the scheme Framework1
+    Then I should be able to test for iOS the scheme Framework1Tests
 
   Scenario: The project is a directory without valid manifest file (invalid_workspace_manifest_name)
     Given that tuist is available
