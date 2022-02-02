@@ -7,7 +7,6 @@ struct LocalCommand: ParsableCommand {
     static var configuration: CommandConfiguration {
         CommandConfiguration(
             commandName: "local",
-            // swiftformat:disable:next wrap
             abstract: "Creates a .tuist-version file to pin the tuist version that should be used in the current directory. If the version is not specified, it prints the local versions"
         )
     }

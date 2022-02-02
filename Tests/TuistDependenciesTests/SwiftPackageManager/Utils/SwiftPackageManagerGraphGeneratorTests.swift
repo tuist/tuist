@@ -25,7 +25,6 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
             stdout: "/Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform\n",
             exitstatus: 0
         )
-        // swiftformat:disable wrap
         system
             .stubs[
                 "/usr/bin/xcrun vtool -show-build /Applications/Xcode.app/Contents/Developer/Platforms/iPhoneOS.platform/Developer/Library/Frameworks/XCTest.framework/XCTest"
@@ -64,7 +63,6 @@ class SwiftPackageManagerGraphGeneratorTests: TuistUnitTestCase {
                 """,
                 exitstatus: 0
             )
-        // swiftformat:enable wrap
 
         subject = SwiftPackageManagerGraphGenerator(swiftPackageManagerController: swiftPackageManagerController)
     }

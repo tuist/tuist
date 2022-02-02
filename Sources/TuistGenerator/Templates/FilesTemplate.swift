@@ -1,4 +1,3 @@
-// swiftformat:disable wrap
 extension SynthesizedResourceInterfaceTemplates {
     static let filesTemplate = """
     // swiftlint:disable all
