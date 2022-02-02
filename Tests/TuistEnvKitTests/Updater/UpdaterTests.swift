@@ -8,7 +8,7 @@ import XCTest
 final class UpdaterTests: TuistUnitTestCase {
     var versionsController: MockVersionsController!
     var installer: MockInstaller!
-    var envUpdater: MockEnvUpdater!
+    var envInstaller: MockEnvInstaller!
     var versionProvider: MockVersionProvider!
     var subject: Updater!
 
@@ -17,12 +17,12 @@ final class UpdaterTests: TuistUnitTestCase {
 
         versionsController = try! MockVersionsController()
         installer = MockInstaller()
-        envUpdater = MockEnvUpdater()
+        envInstaller = MockEnvInstaller()
         versionProvider = MockVersionProvider()
         subject = Updater(
             versionsController: versionsController,
             installer: installer,
-            envUpdater: envUpdater,
+            envInstaller: envInstaller,
             versionProvider: versionProvider
         )
     }
@@ -30,7 +30,7 @@ final class UpdaterTests: TuistUnitTestCase {
     override func tearDown() {
         versionsController = nil
         installer = nil
-        envUpdater = nil
+        envInstaller = nil
         subject = nil
         versionProvider = nil
         super.tearDown()
@@ -43,7 +43,6 @@ final class UpdaterTests: TuistUnitTestCase {
         try subject.update()
 
         XCTAssertPrinterOutputContains("There are no updates available")
-        XCTAssertEqual(envUpdater.updateCallCount, 1)
     }
 
     func test_update_when_there_are_updates() throws {
@@ -51,13 +50,12 @@ final class UpdaterTests: TuistUnitTestCase {
         versionProvider.stubbedLatestVersionResult = Version("3.2.1")
         var installArgs: [String] = []
         installer.installStub = { version in installArgs.append(version) }
+        envInstaller.installStub = { version in installArgs.append(version) }
 
         try subject.update()
 
         XCTAssertPrinterOutputContains("Installing new version available 3.2.1")
-        XCTAssertEqual(installArgs.count, 1)
-        XCTAssertEqual(installArgs.first, "3.2.1")
-        XCTAssertEqual(envUpdater.updateCallCount, 1)
+        XCTAssertEqual(installArgs, ["3.2.1", "3.2.1"])
     }
 
     func test_update_when_no_local_versions_available() throws {
@@ -66,12 +64,11 @@ final class UpdaterTests: TuistUnitTestCase {
 
         var installArgs: [String] = []
         installer.installStub = { version in installArgs.append(version) }
+        envInstaller.installStub = { version in installArgs.append(version) }
 
         try subject.update()
 
         XCTAssertPrinterOutputContains("No local versions available. Installing the latest version 3.2.1")
-        XCTAssertEqual(installArgs.count, 1)
-        XCTAssertEqual(installArgs.first, "3.2.1")
-        XCTAssertEqual(envUpdater.updateCallCount, 1)
+        XCTAssertEqual(installArgs, ["3.2.1", "3.2.1"])
     }
 }

@@ -42,7 +42,11 @@ public final class MockSystem: Systeming {
             throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data())
         }
         if stub.exitstatus != 0 {
-            throw TuistSupport.SystemError.terminated(command: arguments.first!, code: 1, standardError: Data())
+            throw TuistSupport.SystemError.terminated(
+                command: arguments.first!,
+                code: 1,
+                standardError: Data((stub.stderror ?? "").utf8)
+            )
         }
         calls.append(arguments.joined(separator: " "))
         return stub.stdout ?? ""
