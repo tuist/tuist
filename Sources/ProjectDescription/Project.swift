@@ -28,7 +28,7 @@ public struct Project: Codable, Equatable {
     public init(
         name: String,
         organizationName: String? = nil,
-        options: Options = .init(),
+        options: Options = .options(),
         packages: [Package] = [],
         settings: Settings? = nil,
         targets: [Target] = [],

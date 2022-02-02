@@ -50,7 +50,7 @@ extension TuistCore.DependenciesGraph {
             externalProjects: [
                 packageFolder: .init(
                     name: "test",
-                    options: .init(
+                    options: .options(
                         automaticSchemesOptions: .enabled(
                             targetSchemesGrouping: .singleScheme,
                             codeCoverageEnabled: false,
@@ -58,7 +58,7 @@ extension TuistCore.DependenciesGraph {
                         ),
                         disableBundleAccessors: false,
                         disableSynthesizedResourceAccessors: false,
-                        textSettings: .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                        textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                     ),
                     settings: .settings(base: [
                         "GCC_C_LANGUAGE_STANDARD": "c99",
@@ -146,7 +146,7 @@ extension TuistCore.DependenciesGraph {
             externalProjects: [
                 packageFolder: .init(
                     name: "a-dependency",
-                    options: .init(
+                    options: .options(
                         automaticSchemesOptions: .enabled(
                             targetSchemesGrouping: .singleScheme,
                             codeCoverageEnabled: false,
@@ -154,7 +154,7 @@ extension TuistCore.DependenciesGraph {
                         ),
                         disableBundleAccessors: false,
                         disableSynthesizedResourceAccessors: false,
-                        textSettings: .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                        textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                     ),
                     targets: [
                         .init(
@@ -202,8 +202,7 @@ extension TuistCore.DependenciesGraph {
             externalProjects: [
                 packageFolder: .init(
                     name: "another-dependency",
-
-                    options: .init(
+                    options: .options(
                         automaticSchemesOptions: .enabled(
                             targetSchemesGrouping: .singleScheme,
                             codeCoverageEnabled: false,
@@ -211,7 +210,7 @@ extension TuistCore.DependenciesGraph {
                         ),
                         disableBundleAccessors: false,
                         disableSynthesizedResourceAccessors: false,
-                        textSettings: .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                        textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                     ),
                     targets: [
                         .init(
@@ -244,7 +243,7 @@ extension TuistCore.DependenciesGraph {
             externalProjects: [
                 packageFolder: .init(
                     name: "Alamofire",
-                    options: .init(
+                    options: .options(
                         automaticSchemesOptions: .enabled(
                             targetSchemesGrouping: .singleScheme,
                             codeCoverageEnabled: false,
@@ -252,7 +251,7 @@ extension TuistCore.DependenciesGraph {
                         ),
                         disableBundleAccessors: false,
                         disableSynthesizedResourceAccessors: false,
-                        textSettings: .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                        textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                     ),
                     settings: .settings(base: ["SWIFT_VERSION": "5.0.0"]),
                     targets: [
@@ -295,7 +294,7 @@ extension TuistCore.DependenciesGraph {
             externalProjects: [
                 packageFolder: .init(
                     name: "GoogleAppMeasurement",
-                    options: .init(
+                    options: .options(
                         automaticSchemesOptions: .enabled(
                             targetSchemesGrouping: .singleScheme,
                             codeCoverageEnabled: false,
@@ -303,7 +302,7 @@ extension TuistCore.DependenciesGraph {
                         ),
                         disableBundleAccessors: false,
                         disableSynthesizedResourceAccessors: false,
-                        textSettings: .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                        textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                     ),
                     settings: .settings(base: [
                         "GCC_C_LANGUAGE_STANDARD": "c99",
@@ -404,7 +403,7 @@ extension TuistCore.DependenciesGraph {
             externalProjects: [
                 packageFolder: .init(
                     name: "GoogleUtilities",
-                    options: .init(
+                    options: .options(
                         automaticSchemesOptions: .enabled(
                             targetSchemesGrouping: .singleScheme,
                             codeCoverageEnabled: false,
@@ -412,7 +411,7 @@ extension TuistCore.DependenciesGraph {
                         ),
                         disableBundleAccessors: false,
                         disableSynthesizedResourceAccessors: false,
-                        textSettings: .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                        textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                     ),
                     targets: [
                         .init(
@@ -479,7 +478,7 @@ extension TuistCore.DependenciesGraph {
             externalProjects: [
                 packageFolder: .init(
                     name: "nanopb",
-                    options: .init(
+                    options: .options(
                         automaticSchemesOptions: .enabled(
                             targetSchemesGrouping: .singleScheme,
                             codeCoverageEnabled: false,
@@ -487,7 +486,7 @@ extension TuistCore.DependenciesGraph {
                         ),
                         disableBundleAccessors: false,
                         disableSynthesizedResourceAccessors: false,
-                        textSettings: .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                        textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
                     ),
                     targets: [
                         .init(

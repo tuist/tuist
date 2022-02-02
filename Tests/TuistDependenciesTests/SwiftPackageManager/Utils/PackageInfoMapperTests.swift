@@ -2537,7 +2537,7 @@ extension ProjectDescription.Project {
     ) -> Self {
         .init(
             name: name,
-            options: .init(
+            options: .options(
                 automaticSchemesOptions: .enabled(
                     targetSchemesGrouping: .singleScheme,
                     codeCoverageEnabled: false,
@@ -2545,7 +2545,7 @@ extension ProjectDescription.Project {
                 ),
                 disableBundleAccessors: false,
                 disableSynthesizedResourceAccessors: false,
-                textSettings: .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
             ),
             settings: settings,
             targets: targets,

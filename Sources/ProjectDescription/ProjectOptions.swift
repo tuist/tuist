@@ -15,16 +15,18 @@ extension Project {
       /// Text settings to override user ones for current project
       public let textSettings: TextSettings
 
-      public init(
+      public static func options(
           automaticSchemesOptions: AutomaticSchemesOptions = .enabled(),
           disableBundleAccessors: Bool = false,
           disableSynthesizedResourceAccessors: Bool = false,
-          textSettings: TextSettings = .init()
-      ) {
-          self.automaticSchemesOptions = automaticSchemesOptions
-          self.disableBundleAccessors = disableBundleAccessors
-          self.disableSynthesizedResourceAccessors = disableSynthesizedResourceAccessors
-          self.textSettings = textSettings
+          textSettings: TextSettings = .textSettings()
+      ) -> Self {
+          self.init(
+            automaticSchemesOptions: automaticSchemesOptions,
+            disableBundleAccessors: disableBundleAccessors,
+            disableSynthesizedResourceAccessors: disableSynthesizedResourceAccessors,
+            textSettings: textSettings
+        )
       }
   }
 }
@@ -75,16 +77,13 @@ extension Project.Options {
         /// Whether lines should be wrapped or not
         public let wrapsLines: Bool?
 
-        public init(
+        public static func textSettings(
             usesTabs: Bool? = nil,
             indentWidth: UInt? = nil,
             tabWidth: UInt? = nil,
             wrapsLines: Bool? = nil
-        ) {
-            self.usesTabs = usesTabs
-            self.indentWidth = indentWidth
-            self.tabWidth = tabWidth
-            self.wrapsLines = wrapsLines
+        ) -> Self {
+            self.init(usesTabs: usesTabs, indentWidth: indentWidth, tabWidth: tabWidth, wrapsLines: wrapsLines)
         }
     }
 }
