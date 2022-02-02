@@ -27,19 +27,6 @@ enum PrecompiledMetadataProviderError: FatalError, Equatable {
             return .abort
         }
     }
-
-    // MARK: - Equatable
-
-    static func == (lhs: PrecompiledMetadataProviderError, rhs: PrecompiledMetadataProviderError) -> Bool {
-        switch (lhs, rhs) {
-        case let (.architecturesNotFound(lhsPath), .architecturesNotFound(rhsPath)):
-            return lhsPath == rhsPath
-        case let (.metadataNotFound(lhsPath), .metadataNotFound(rhsPath)):
-            return lhsPath == rhsPath
-        default:
-            return false
-        }
-    }
 }
 
 public protocol PrecompiledMetadataProviding {

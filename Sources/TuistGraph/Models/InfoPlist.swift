@@ -26,25 +26,6 @@ public enum InfoPlist: Equatable, Codable {
                 return double
             }
         }
-
-        public static func == (lhs: Value, rhs: Value) -> Bool {
-            switch (lhs, rhs) {
-            case let (.string(lhsValue), .string(rhsValue)):
-                return lhsValue == rhsValue
-            case let (.integer(lhsValue), .integer(rhsValue)):
-                return lhsValue == rhsValue
-            case let (.real(lhsValue), .real(rhsValue)):
-                return lhsValue == rhsValue
-            case let (.boolean(lhsValue), .boolean(rhsValue)):
-                return lhsValue == rhsValue
-            case let (.dictionary(lhsValue), .dictionary(rhsValue)):
-                return lhsValue == rhsValue
-            case let (.array(lhsValue), .array(rhsValue)):
-                return lhsValue == rhsValue
-            default:
-                return false
-            }
-        }
     }
 
     // Path to a user defined info.plist file (already exists on disk).

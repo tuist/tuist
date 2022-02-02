@@ -23,17 +23,6 @@ enum InstalledVersion: CustomStringConvertible, Equatable {
         case let .semver(value): return value.description
         }
     }
-
-    static func == (lhs: InstalledVersion, rhs: InstalledVersion) -> Bool {
-        switch (lhs, rhs) {
-        case let (.semver(lhsVersion), .semver(rhsVersion)):
-            return lhsVersion == rhsVersion
-        case let (.reference(lhsRef), .reference(rhsRef)):
-            return lhsRef == rhsRef
-        default:
-            return false
-        }
-    }
 }
 
 class VersionsController: VersionsControlling {

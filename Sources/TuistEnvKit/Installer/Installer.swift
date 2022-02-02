@@ -35,17 +35,6 @@ enum InstallerError: FatalError, Equatable {
             return "Found \(local) Swift version but expected \(expected)"
         }
     }
-
-    static func == (lhs: InstallerError, rhs: InstallerError) -> Bool {
-        switch (lhs, rhs) {
-        case let (.versionNotFound(lhsVersion), .versionNotFound(rhsVersion)):
-            return lhsVersion == rhsVersion
-        case let (.incompatibleSwiftVersion(lhsLocal, lhsExpected), .incompatibleSwiftVersion(rhsLocal, rhsExpected)):
-            return lhsLocal == rhsLocal && lhsExpected == rhsExpected
-        default:
-            return false
-        }
-    }
 }
 
 /// Class that manages the installation of Tuist versions.

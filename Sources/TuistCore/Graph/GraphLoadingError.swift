@@ -10,25 +10,6 @@ enum GraphLoadingError: FatalError, Equatable {
     case circularDependency([GraphCircularDetectorNode])
     case unexpected(String)
 
-    static func == (lhs: GraphLoadingError, rhs: GraphLoadingError) -> Bool {
-        switch (lhs, rhs) {
-        case let (.missingFile(lhsPath), .missingFile(rhsPath)):
-            return lhsPath == rhsPath
-        case let (.targetNotFound(lhsName, lhsPath), .targetNotFound(rhsName, rhsPath)):
-            return lhsPath == rhsPath && lhsName == rhsName
-        case let (.missingProject(lhsPath), .missingProject(rhsPath)):
-            return lhsPath == rhsPath
-        case let (.manifestNotFound(lhsPath), .manifestNotFound(rhsPath)):
-            return lhsPath == rhsPath
-        case let (.unexpected(lhsMessage), .unexpected(rhsMessage)):
-            return lhsMessage == rhsMessage
-        case let (.circularDependency(lhsNodes), .circularDependency(rhsNodes)):
-            return Set(lhsNodes) == Set(rhsNodes)
-        default:
-            return false
-        }
-    }
-
     var type: ErrorType {
         .abort
     }
