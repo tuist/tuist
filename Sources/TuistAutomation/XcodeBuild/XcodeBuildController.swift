@@ -177,7 +177,7 @@ public final class XcodeBuildController: XcodeBuildControlling {
             // can sometimes hang indefinitely on projects that don't
             // share any schemes, so automatically bail out if it looks
             // like that's happening.
-            .timeout(.seconds(20), scheduler: DispatchQueue.global(), customError: { ShowBuildSettingsError.timeout })
+            .timeout(.seconds(20), scheduler: DispatchQueue.main, customError: { ShowBuildSettingsError.timeout })
             .retry(5)
             .values
         var buildSettingsByTargetName = [String: XcodeBuildSettings]()
