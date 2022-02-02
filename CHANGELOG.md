@@ -30,6 +30,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - **Breaking** change automatic schemes generation to use `ProjectOption.AutomaticSchemesGrouping.byName` grouping
   - **Motivation**: Generated schemes now groups targets together better, reducing the number of generated schemes
   - **Migration**: If the new default don't fit your needs, manually generate your schemes or try another `ProjectOption.AutomaticSchemesGrouping` option
+- **Breaking** refactor `Project.options` to be a `struct` instead of an `enum` [#4104](https://github.com/tuist/tuist/pull/4104) by [@danyf90](https://github.com/danyf90)
+  - **Motivation**: A struct better represents the semantic of the type
 - Add support for configuring code coverage and testing options at the project level [#4090](https://github.com/tuist/tuist/pull/4090) by [@danyf90](https://github.com/danyf90)
 - Add more detailed messaging for errors during manifest loading [#4076](https://github.com/tuist/tuist/pull/4076) by [@luispadron](https://github.com/luispadron)
 
