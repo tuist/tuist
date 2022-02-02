@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema.define(version: 2021_12_22_143721) do
+ActiveRecord::Schema.define(version: 2022_01_23_191852) do
 
   # These are extensions that must be enabled in order to support this database
   enable_extension "plpgsql"
@@ -65,9 +65,25 @@ ActiveRecord::Schema.define(version: 2021_12_22_143721) do
     t.index ["resource_type", "resource_id"], name: "index_roles_on_resource"
   end
 
+  create_table "s3_buckets", force: :cascade do |t|
+    t.string "name", null: false
+    t.string "access_key_id", null: false
+    t.string "secret_access_key"
+    t.string "iv"
+    t.string "project_type"
+    t.bigint "project_id"
+    t.datetime "created_at", precision: 6, null: false
+    t.datetime "updated_at", precision: 6, null: false
+    t.bigint "account_id", null: false
+    t.index ["account_id"], name: "index_s3_buckets_on_account_id"
+    t.index ["name", "account_id"], name: "index_s3_buckets_on_name_and_account_id", unique: true
+    t.index ["project_type", "project_id"], name: "index_s3_buckets_on_project"
+  end
+
   create_table "users", force: :cascade do |t|
     t.string "email", default: "", null: false
     t.string "encrypted_password", default: "", null: false
+    t.string "token", limit: 100, null: false
     t.string "reset_password_token"
     t.datetime "reset_password_sent_at"
     t.datetime "remember_created_at"
@@ -89,6 +105,7 @@ ActiveRecord::Schema.define(version: 2021_12_22_143721) do
     t.index ["email"], name: "index_users_on_email", unique: true
     t.index ["last_visited_project_id"], name: "index_users_on_last_visited_project_id"
     t.index ["reset_password_token"], name: "index_users_on_reset_password_token", unique: true
+    t.index ["token"], name: "index_users_on_token", unique: true
   end
 
   create_table "users_roles", id: false, force: :cascade do |t|
@@ -102,5 +119,6 @@ ActiveRecord::Schema.define(version: 2021_12_22_143721) do
   end
 
   add_foreign_key "projects", "accounts"
+  add_foreign_key "s3_buckets", "accounts"
   add_foreign_key "users", "projects", column: "last_visited_project_id"
 end
