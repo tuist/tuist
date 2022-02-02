@@ -15,8 +15,8 @@ protocol WorkspaceSettingsDescriptorGenerating {
 
 final class WorkspaceSettingsDescriptorGenerator: WorkspaceSettingsDescriptorGenerating {
     func generateWorkspaceSettings(workspace: Workspace) -> WorkspaceSettingsDescriptor? {
-        workspace.generationOptions.flatMap {
-            WorkspaceSettingsDescriptor(automaticXcodeSchemes: $0.automaticXcodeSchemes.value)
+        workspace.generationOptions.automaticXcodeSchemes.value.flatMap {
+            WorkspaceSettingsDescriptor(automaticXcodeSchemes: $0)
         }
     }
 }
