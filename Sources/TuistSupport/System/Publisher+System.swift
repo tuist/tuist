@@ -1,5 +1,4 @@
 import Combine
-import CombineExt
 import Foundation
 
 extension Publisher where Output == SystemEvent<Data>, Failure == Error {

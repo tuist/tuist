@@ -105,7 +105,6 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
     }
 
     // swiftlint:disable function_body_length
-    // swiftlint:disable line_length
     fileprivate func baseScript() -> String {
         """
         #!/bin/sh
@@ -252,7 +251,6 @@ final class EmbedScriptGenerator: EmbedScriptGenerating {
     }
 
     // swiftlint:enable function_body_length
-    // swiftlint:enable line_length
 }
 
 extension RelativePath {

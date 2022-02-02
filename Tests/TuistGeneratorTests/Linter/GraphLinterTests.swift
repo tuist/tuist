@@ -1239,7 +1239,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: .test())
 
         // When
-        let got = subject.lintCodeCoverageMode(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEmpty(got)
@@ -1259,7 +1259,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         )
 
         // When
-        let got = subject.lintCodeCoverageMode(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEmpty(got)
@@ -1304,7 +1304,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.lintCodeCoverageMode(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEmpty(got)
@@ -1322,7 +1322,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         ))
 
         // When
-        let got = subject.lintCodeCoverageMode(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEqual(
@@ -1367,7 +1367,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.lintCodeCoverageMode(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEmpty(got)
@@ -1385,7 +1385,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         ))
 
         // When
-        let got = subject.lintCodeCoverageMode(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEqual(
@@ -1430,7 +1430,7 @@ final class GraphLinterTests: TuistUnitTestCase {
         let graphTraverser = GraphTraverser(graph: graph)
 
         // When
-        let got = subject.lintCodeCoverageMode(graphTraverser: graphTraverser)
+        let got = subject.lint(graphTraverser: graphTraverser)
 
         // Then
         XCTAssertEqual(

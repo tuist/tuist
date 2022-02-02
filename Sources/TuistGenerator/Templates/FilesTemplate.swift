@@ -1,4 +1,3 @@
-// swiftlint:disable line_length
 extension SynthesizedResourceInterfaceTemplates {
     static let filesTemplate = """
     // swiftlint:disable all

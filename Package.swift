@@ -2,7 +2,6 @@
 
 import PackageDescription
 
-let signalsDependency: Target.Dependency = .byName(name: "Signals")
 let swiftToolsSupportDependency: Target.Dependency = .product(name: "SwiftToolsSupport-auto", package: "swift-tools-support-core")
 let loggingDependency: Target.Dependency = .product(name: "Logging", package: "swift-log")
 let argumentParserDependency: Target.Dependency = .product(name: "ArgumentParser", package: "swift-argument-parser")
@@ -47,13 +46,16 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/tuist/XcodeProj.git", .upToNextMajor(from: "8.7.1")),
-        .package(name: "Signals", url: "https://github.com/tuist/BlueSignals.git", .upToNextMajor(from: "1.0.21")),
         .package(url: "https://github.com/rnine/Checksum.git", .upToNextMajor(from: "1.0.2")),
         .package(url: "https://github.com/apple/swift-log.git", .upToNextMajor(from: "1.4.2")),
         .package(url: "https://github.com/krzyzanowskim/CryptoSwift.git", .upToNextMajor(from: "1.4.1")),
         .package(url: "https://github.com/stencilproject/Stencil.git", .upToNextMajor(from: "0.14.0")),
         .package(url: "https://github.com/kishikawakatsumi/KeychainAccess.git", .upToNextMajor(from: "4.2.2")),
-        .package(name: "Swifter", url: "https://github.com/fortmarek/swifter.git", .branch("stable")),
+        .package(
+            name: "Swifter",
+            url: "https://github.com/httpswift/swifter.git",
+            .revision("1e4f51c92d7ca486242d8bf0722b99de2c3531aa")
+        ),
         .package(url: "https://github.com/apple/swift-tools-support-core.git", .upToNextMinor(from: "0.2.0")),
         .package(url: "https://github.com/apple/swift-argument-parser.git", .upToNextMajor(from: "1.0.0")),
         .package(url: "https://github.com/marmelroy/Zip.git", .upToNextMajor(from: "2.1.1")),
@@ -114,7 +116,6 @@ let package = Package(
                 "TuistAutomation",
                 "ProjectDescription",
                 "ProjectAutomation",
-                signalsDependency,
                 "TuistLoader",
                 "TuistScaffold",
                 "TuistSigning",
@@ -219,7 +220,6 @@ let package = Package(
                 loggingDependency,
                 "KeychainAccess",
                 swifterDependency,
-                signalsDependency,
                 "Zip",
                 "Checksum",
                 "ProjectDescription",
