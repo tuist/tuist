@@ -24,6 +24,7 @@ extension Project.Options {
         )
     }
 }
+
 extension Project.Options.TextSettings {
     public static func test(
         usesTabs: Bool? = true,

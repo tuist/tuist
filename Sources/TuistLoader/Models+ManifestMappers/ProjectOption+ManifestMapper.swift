@@ -6,7 +6,7 @@ extension TuistGraph.Project.Options {
     /// - Parameters:
     ///   - manifest: Manifest representation of project options.
     static func from(manifest: ProjectDescription.Project.Options) -> Self {
-        return .init(
+        .init(
             automaticSchemesOptions: .from(manifest: manifest.automaticSchemesOptions),
             disableBundleAccessors: manifest.disableBundleAccessors,
             disableSynthesizedResourceAccessors: manifest.disableSynthesizedResourceAccessors,

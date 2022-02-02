@@ -1,34 +1,34 @@
 import Foundation
 
 extension Project {
-  /// Additional options related to the `Project`
-  public struct Options: Codable, Equatable {
-      /// Defines how to generate automatic schemes
-      public let automaticSchemesOptions: AutomaticSchemesOptions
+    /// Additional options related to the `Project`
+    public struct Options: Codable, Equatable {
+        /// Defines how to generate automatic schemes
+        public let automaticSchemesOptions: AutomaticSchemesOptions
 
-      /// Disables generating Bundle accessors.
-      public let disableBundleAccessors: Bool
+        /// Disables generating Bundle accessors.
+        public let disableBundleAccessors: Bool
 
-      /// Disable the synthesized resource accessors generation
-      public let disableSynthesizedResourceAccessors: Bool
+        /// Disable the synthesized resource accessors generation
+        public let disableSynthesizedResourceAccessors: Bool
 
-      /// Text settings to override user ones for current project
-      public let textSettings: TextSettings
+        /// Text settings to override user ones for current project
+        public let textSettings: TextSettings
 
-      public static func options(
-          automaticSchemesOptions: AutomaticSchemesOptions = .enabled(),
-          disableBundleAccessors: Bool = false,
-          disableSynthesizedResourceAccessors: Bool = false,
-          textSettings: TextSettings = .textSettings()
-      ) -> Self {
-          self.init(
-            automaticSchemesOptions: automaticSchemesOptions,
-            disableBundleAccessors: disableBundleAccessors,
-            disableSynthesizedResourceAccessors: disableSynthesizedResourceAccessors,
-            textSettings: textSettings
-        )
-      }
-  }
+        public static func options(
+            automaticSchemesOptions: AutomaticSchemesOptions = .enabled(),
+            disableBundleAccessors: Bool = false,
+            disableSynthesizedResourceAccessors: Bool = false,
+            textSettings: TextSettings = .textSettings()
+        ) -> Self {
+            self.init(
+                automaticSchemesOptions: automaticSchemesOptions,
+                disableBundleAccessors: disableBundleAccessors,
+                disableSynthesizedResourceAccessors: disableSynthesizedResourceAccessors,
+                textSettings: textSettings
+            )
+        }
+    }
 }
 
 // MARK: - AutomaticSchemesOptions
