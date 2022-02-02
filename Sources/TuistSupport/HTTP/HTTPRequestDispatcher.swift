@@ -1,5 +1,4 @@
 import Combine
-import CombineExt
 import Foundation
 
 public enum HTTPRequestDispatcherError: LocalizedError, FatalError {

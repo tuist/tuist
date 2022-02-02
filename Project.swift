@@ -58,7 +58,6 @@ func targets() -> [Target] {
                     .external(name: "Logging"),
                     .external(name: "PathKit"),
                     .external(name: "Queuer"),
-                    .external(name: "Signals"),
                     .external(name: "Stencil"),
                     .external(name: "StencilSwiftKit"),
                     .external(name: "Swifter"),

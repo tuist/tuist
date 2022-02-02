@@ -1,5 +1,4 @@
 import Foundation
-import Signals
 import Swifter
 import TSCBasic
 
@@ -37,8 +36,12 @@ public enum HTTPRedirectListenerError: FatalError {
 private var runningSemaphore: DispatchSemaphore!
 
 public final class HTTPRedirectListener: HTTPRedirectListening {
+    private let signalHandler: SignalHandling
+
     /// Default initializer.
-    public init() {}
+    public init(signalHandler: SignalHandling = SignalHandler()) {
+        self.signalHandler = signalHandler
+    }
 
     // MARK: - HTTPRedirectListening
 
@@ -62,8 +65,8 @@ public final class HTTPRedirectListener: HTTPRedirectListening {
             return HttpResponse.ok(.html(self.html(logoURL: logoURL, redirectMessage: redirectMessage)))
         }
 
-        // If the user sends an interruption signal by pressing CTRL+C, we stop the server.
-        Signals.trap(signals: [.int, .abrt]) { _ in runningSemaphore.signal() }
+        // Stop the server if the user sends an interruption signal by pressing CTRL+C
+        signalHandler.trap { _ in runningSemaphore.signal() }
 
         do {
             logger.pretty("Press \(.keystroke("CTRL + C")) once to cancel the process.")

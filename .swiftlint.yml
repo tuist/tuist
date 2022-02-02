@@ -7,11 +7,7 @@ disabled_rules:
   - todo
   - function_parameter_count
   - opening_brace
-line_length:
-  ignores_interpolated_strings: true
-  ignores_comments: true
-  warning: 150
-  error: 170
+  - line_length
 identifier_name:
   min_length:
     error: 1
