@@ -53,7 +53,7 @@ public struct Configuration: Equatable, Codable {
     }
 }
 
-public enum DefaultSettings: Codable {
+public enum DefaultSettings: Codable, Equatable {
     case recommended(excluding: Set<String> = [])
     case essential(excluding: Set<String> = [])
     case none
