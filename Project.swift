@@ -457,7 +457,7 @@ func targets() -> [Target] {
 let project = Project(
     name: "Tuist",
     options: .options(
-        textSettings: .textSettings(usesTabs: false, indentWidth: 4, tabWidth: 4),
+        textSettings: .textSettings(usesTabs: false, indentWidth: 4, tabWidth: 4)
     ),
     settings: .settings(
         configurations: [
