@@ -50,13 +50,16 @@ extension TuistCore.DependenciesGraph {
             externalProjects: [
                 packageFolder: .init(
                     name: "test",
-                    options: [
-                        .automaticSchemesOptions(.enabled(
+                    options: .init(
+                        automaticSchemesOptions: .enabled(
                             targetSchemesGrouping: .singleScheme,
                             codeCoverageEnabled: false,
                             testingOptions: []
-                        )),
-                    ],
+                        ),
+                        disableBundleAccessors: false,
+                        disableSynthesizedResourceAccessors: false,
+                        textSettings: .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                    ),
                     settings: .settings(base: [
                         "GCC_C_LANGUAGE_STANDARD": "c99",
                     ]),
@@ -143,13 +146,16 @@ extension TuistCore.DependenciesGraph {
             externalProjects: [
                 packageFolder: .init(
                     name: "a-dependency",
-                    options: [
-                        .automaticSchemesOptions(.enabled(
+                    options: .init(
+                        automaticSchemesOptions: .enabled(
                             targetSchemesGrouping: .singleScheme,
                             codeCoverageEnabled: false,
                             testingOptions: []
-                        )),
-                    ],
+                        ),
+                        disableBundleAccessors: false,
+                        disableSynthesizedResourceAccessors: false,
+                        textSettings: .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                    ),
                     targets: [
                         .init(
                             name: "ALibrary",
@@ -196,13 +202,17 @@ extension TuistCore.DependenciesGraph {
             externalProjects: [
                 packageFolder: .init(
                     name: "another-dependency",
-                    options: [
-                        .automaticSchemesOptions(.enabled(
+
+                    options: .init(
+                        automaticSchemesOptions: .enabled(
                             targetSchemesGrouping: .singleScheme,
                             codeCoverageEnabled: false,
                             testingOptions: []
-                        )),
-                    ],
+                        ),
+                        disableBundleAccessors: false,
+                        disableSynthesizedResourceAccessors: false,
+                        textSettings: .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                    ),
                     targets: [
                         .init(
                             name: "AnotherLibrary",
@@ -234,13 +244,16 @@ extension TuistCore.DependenciesGraph {
             externalProjects: [
                 packageFolder: .init(
                     name: "Alamofire",
-                    options: [
-                        .automaticSchemesOptions(.enabled(
+                    options: .init(
+                        automaticSchemesOptions: .enabled(
                             targetSchemesGrouping: .singleScheme,
                             codeCoverageEnabled: false,
                             testingOptions: []
-                        )),
-                    ],
+                        ),
+                        disableBundleAccessors: false,
+                        disableSynthesizedResourceAccessors: false,
+                        textSettings: .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                    ),
                     settings: .settings(base: ["SWIFT_VERSION": "5.0.0"]),
                     targets: [
                         .init(
@@ -282,13 +295,16 @@ extension TuistCore.DependenciesGraph {
             externalProjects: [
                 packageFolder: .init(
                     name: "GoogleAppMeasurement",
-                    options: [
-                        .automaticSchemesOptions(.enabled(
+                    options: .init(
+                        automaticSchemesOptions: .enabled(
                             targetSchemesGrouping: .singleScheme,
                             codeCoverageEnabled: false,
                             testingOptions: []
-                        )),
-                    ],
+                        ),
+                        disableBundleAccessors: false,
+                        disableSynthesizedResourceAccessors: false,
+                        textSettings: .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                    ),
                     settings: .settings(base: [
                         "GCC_C_LANGUAGE_STANDARD": "c99",
                         "CLANG_CXX_LANGUAGE_STANDARD": "gnu++14",
@@ -388,13 +404,16 @@ extension TuistCore.DependenciesGraph {
             externalProjects: [
                 packageFolder: .init(
                     name: "GoogleUtilities",
-                    options: [
-                        .automaticSchemesOptions(.enabled(
+                    options: .init(
+                        automaticSchemesOptions: .enabled(
                             targetSchemesGrouping: .singleScheme,
                             codeCoverageEnabled: false,
                             testingOptions: []
-                        )),
-                    ],
+                        ),
+                        disableBundleAccessors: false,
+                        disableSynthesizedResourceAccessors: false,
+                        textSettings: .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                    ),
                     targets: [
                         .init(
                             name: "GULAppDelegateSwizzler",
@@ -460,13 +479,16 @@ extension TuistCore.DependenciesGraph {
             externalProjects: [
                 packageFolder: .init(
                     name: "nanopb",
-                    options: [
-                        .automaticSchemesOptions(.enabled(
+                    options: .init(
+                        automaticSchemesOptions: .enabled(
                             targetSchemesGrouping: .singleScheme,
                             codeCoverageEnabled: false,
                             testingOptions: []
-                        )),
-                    ],
+                        ),
+                        disableBundleAccessors: false,
+                        disableSynthesizedResourceAccessors: false,
+                        textSettings: .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+                    ),
                     targets: [
                         .init(
                             name: "nanopb",

@@ -69,27 +69,4 @@ final class ProjectLinterTests: XCTestCase {
         // Then
         XCTAssertTrue(got.isEmpty)
     }
-
-    func test_lint_duplicated_options() {
-        // Given
-        let project = Project.test(
-            options: [
-                .textSettings(.test(indentWidth: 0, tabWidth: 0)),
-                .textSettings(.test(indentWidth: 1, tabWidth: 1)),
-            ]
-        )
-
-        // When
-        let got = subject.lint(project)
-
-        // Then
-        XCTAssertTrue(
-            got.contains(
-                LintingIssue(
-                    reason: "Options \"textSettings\" from project at \(project.path.pathString) have duplicates.",
-                    severity: .error
-                )
-            )
-        )
-    }
 }

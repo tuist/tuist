@@ -28,7 +28,7 @@ final class ProjectGroupsTests: XCTestCase {
             name: "Project",
             organizationName: nil,
             developmentRegion: nil,
-            options: [],
+            options: .test(),
             settings: .default,
             filesGroup: .group(name: "Project"),
             targets: [
@@ -174,8 +174,8 @@ final class ProjectGroupsTests: XCTestCase {
 
     func test_generate_with_text_settings() {
         // Given
-        let textSettings = TextSettings.test()
-        let project = Project.test(options: [.textSettings(textSettings)])
+        let textSettings = Project.Options.TextSettings.test()
+        let project = Project.test(options: .test(textSettings: textSettings))
 
         // When
         let main = ProjectGroups.generate(
@@ -192,7 +192,8 @@ final class ProjectGroupsTests: XCTestCase {
 
     func test_generate_without_text_settings() {
         // Given
-        let project = Project.test(options: [])
+        let textSettings = Project.Options.TextSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+        let project = Project.test(options: .test(textSettings: textSettings))
 
         // When
         let main = ProjectGroups.generate(

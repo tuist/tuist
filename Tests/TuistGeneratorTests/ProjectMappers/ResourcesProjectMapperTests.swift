@@ -78,7 +78,12 @@ final class ResourcesProjectMapperTests: TuistUnitTestCase {
         // Given
         let resources: [ResourceFileElement] = [.file(path: "/image.png")]
         let target = Target.test(product: .staticLibrary, resources: resources)
-        project = Project.test(options: [.disableBundleAccessors], targets: [target])
+        project = Project.test(
+            options: .test(
+                disableBundleAccessors: true
+            ),
+            targets: [target]
+        )
 
         // Got
         let (gotProject, gotSideEffects) = try subject.map(project: project)

@@ -247,7 +247,12 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             name: projectName,
             organizationName: nil,
             developmentRegion: nil,
-            options: [],
+            options: .init(
+                automaticSchemesOptions: .disabled,
+                disableBundleAccessors: true,
+                disableSynthesizedResourceAccessors: true,
+                textSettings: .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+            ),
             settings: projectSettings,
             filesGroup: manifestsFilesGroup,
             targets: targets,
@@ -333,7 +338,12 @@ final class ProjectEditorMapper: ProjectEditorMapping {
             name: projectName,
             organizationName: nil,
             developmentRegion: nil,
-            options: [],
+            options: .init(
+                automaticSchemesOptions: .disabled,
+                disableBundleAccessors: true,
+                disableSynthesizedResourceAccessors: true,
+                textSettings: .init(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+            ),
             settings: projectSettings,
             filesGroup: pluginsFilesGroup,
             targets: pluginTargets,
