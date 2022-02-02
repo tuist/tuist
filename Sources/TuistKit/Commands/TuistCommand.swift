@@ -50,7 +50,7 @@ public struct TuistCommand: ParsableCommand {
             if processedArguments.first == InitCommand.configuration.commandName {
                 try InitCommand.preprocess(processedArguments)
             }
-            let command = try parseAsRoot()
+            let command = try parseAsRoot(processedArguments)
             executeCommand = { try await execute(command) }
         } catch {
             parsedError = error
