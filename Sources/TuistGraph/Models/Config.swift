@@ -10,9 +10,7 @@ public struct Config: Equatable, Hashable {
         case xcodeProjectName(String)
         case organizationName(String)
         case developmentRegion(String)
-        case autogenerationOptions(AutogenerationOptions)
         case disableShowEnvironmentVarsInScriptPhases
-        case enableCodeCoverage(CodeCoverageMode)
         case templateMacros(IDETemplateMacros)
         case resolveDependenciesWithSystemScm
         /// Disables locking Swift packages. This can speed up generation but does increase risk if packages are not locked
@@ -55,34 +53,6 @@ public struct Config: Equatable, Hashable {
             generationOptions: [],
             path: nil
         )
-    }
-
-    public var codeCoverageMode: CodeCoverageMode? {
-        generationOptions.compactMap { option -> CodeCoverageMode? in
-            switch option {
-            case let .enableCodeCoverage(mode): return mode
-            default: return nil
-            }
-        }.first
-    }
-
-    public var autogenerationTestingOptions: TestingOptions? {
-        let autogenerationOptions = generationOptions.compactMap { option -> AutogenerationOptions? in
-            switch option {
-            case let .autogenerationOptions(options): return options
-            default: return nil
-            }
-        }.first
-
-        switch autogenerationOptions {
-        case let .enabled(options):
-            return options
-        case .disabled:
-            return nil
-        case nil:
-            // no value provided is equivalent to .enabled([])
-            return []
-        }
     }
 
     /// Initializes the tuist cofiguration.
