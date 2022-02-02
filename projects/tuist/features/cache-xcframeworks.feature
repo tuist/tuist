@@ -10,7 +10,7 @@ Feature: Focuses projects with pre-compiled cached xcframeworks
     Then MyApp embeds the xcframework MyAppKit
     Then MyApp embeds the xcframework MyAppUI
     Then I should be able to build for iOS the scheme MyApp
-    Then I should be able to test for iOS the scheme MyAppTests
+    Then I should be able to test for iOS the scheme MyApp
 
 Scenario: The project is an application (ios_workspace_with_microfeature_architecture)
     Given that tuist is available 
@@ -23,7 +23,7 @@ Scenario: The project is an application (ios_workspace_with_microfeature_archite
     Then App embeds the xcframework FeatureContracts
     Then App embeds the xcframework UIComponents
     Then I should be able to build for iOS the scheme App
-    Then I should be able to test for iOS the scheme AppTests
+    Then I should be able to test for iOS the scheme App
 
 Scenario: The project is an application and a target is modified after being cached (ios_workspace_with_microfeature_architecture)
     Given that tuist is available 
@@ -39,7 +39,7 @@ Scenario: The project is an application and a target is modified after being cac
     Then App doesn't embed the xcframework FrameworkA
     Then App embeds the xcframework UIComponents
     Then I should be able to build for iOS the scheme App
-    Then I should be able to test for iOS the scheme AppTests
+    Then I should be able to test for iOS the scheme App
 
 Scenario: The project is an application and a target is generated as sources (ios_workspace_with_microfeature_architecture)
     Given that tuist is available 
@@ -54,4 +54,4 @@ Scenario: The project is an application and a target is generated as sources (io
     Then App doesn't embed the xcframework FrameworkA
     Then App embeds the xcframework UIComponents
     Then I should be able to build for iOS the scheme App
-    Then I should be able to test for iOS the scheme AppTests
+    Then I should be able to test for iOS the scheme App
