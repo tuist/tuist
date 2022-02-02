@@ -8,25 +8,6 @@ public enum InfoPlist: Codable, Equatable {
         case boolean(Bool)
         case dictionary([String: Value])
         case array([Value])
-
-        public static func == (lhs: Value, rhs: Value) -> Bool {
-            switch (lhs, rhs) {
-            case let (.string(lhsValue), .string(rhsValue)):
-                return lhsValue == rhsValue
-            case let (.integer(lhsValue), .integer(rhsValue)):
-                return lhsValue == rhsValue
-            case let (.real(lhsValue), .real(rhsValue)):
-                return lhsValue == rhsValue
-            case let (.boolean(lhsValue), .boolean(rhsValue)):
-                return lhsValue == rhsValue
-            case let (.dictionary(lhsValue), .dictionary(rhsValue)):
-                return lhsValue == rhsValue
-            case let (.array(lhsValue), .array(rhsValue)):
-                return lhsValue == rhsValue
-            default:
-                return false
-            }
-        }
     }
 
     /// Use an existing Info.plist file.
@@ -57,21 +38,6 @@ public enum InfoPlist: Codable, Equatable {
             return path
         default:
             return nil
-        }
-    }
-
-    // MARK: - Equatable
-
-    public static func == (lhs: InfoPlist, rhs: InfoPlist) -> Bool {
-        switch (lhs, rhs) {
-        case let (.file(lhsPath), .file(rhsPath)):
-            return lhsPath == rhsPath
-        case let (.dictionary(lhsDictionary), .dictionary(rhsDictionary)):
-            return lhsDictionary == rhsDictionary
-        case let (.extendingDefault(lhsDictionary), .extendingDefault(rhsDictionary)):
-            return lhsDictionary == rhsDictionary
-        default:
-            return false
         }
     }
 }

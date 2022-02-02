@@ -28,19 +28,6 @@ enum LinkGeneratorError: FatalError, Equatable {
             return .bug
         }
     }
-
-    static func == (lhs: LinkGeneratorError, rhs: LinkGeneratorError) -> Bool {
-        switch (lhs, rhs) {
-        case let (.missingProduct(lhsName), .missingProduct(rhsName)):
-            return lhsName == rhsName
-        case let (.missingReference(lhsPath), .missingReference(rhsPath)):
-            return lhsPath == rhsPath
-        case let (.missingConfigurationList(lhsName), .missingConfigurationList(rhsName)):
-            return lhsName == rhsName
-        default:
-            return false
-        }
-    }
 }
 
 protocol LinkGenerating: AnyObject {

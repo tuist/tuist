@@ -53,7 +53,7 @@ public struct Configuration: Equatable, Codable {
     }
 }
 
-public enum DefaultSettings: Codable {
+public enum DefaultSettings: Codable, Equatable {
     case recommended(excluding: Set<String> = [])
     case essential(excluding: Set<String> = [])
     case none
@@ -83,10 +83,11 @@ public struct Settings: Equatable, Codable {
 
     // MARK: - Init
 
-    public init(base: SettingsDictionary = [:],
-                configurations: [BuildConfiguration: Configuration?],
-                defaultSettings: DefaultSettings = .recommended)
-    {
+    public init(
+        base: SettingsDictionary = [:],
+        configurations: [BuildConfiguration: Configuration?],
+        defaultSettings: DefaultSettings = .recommended
+    ) {
         self.base = base
         self.configurations = configurations
         self.defaultSettings = defaultSettings
@@ -98,12 +99,6 @@ public struct Settings: Equatable, Codable {
             configurations: configurations,
             defaultSettings: defaultSettings
         )
-    }
-
-    // MARK: - Equatable
-
-    public static func == (lhs: Settings, rhs: Settings) -> Bool {
-        lhs.base == rhs.base && lhs.configurations == rhs.configurations
     }
 }
 

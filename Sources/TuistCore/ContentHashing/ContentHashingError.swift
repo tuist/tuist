@@ -26,19 +26,4 @@ public enum ContentHashingError: FatalError, Equatable {
             return "Couldn't get the hash of a data object."
         }
     }
-
-    public static func == (lhs: ContentHashingError, rhs: ContentHashingError) -> Bool {
-        switch (lhs, rhs) {
-        case let (.failedToReadFile(lhsPath), .failedToReadFile(rhsPath)):
-            return lhsPath == rhsPath
-        case let (.fileHashingFailed(lhsPath), .fileHashingFailed(rhsPath)):
-            return lhsPath == rhsPath
-        case let (.stringHashingFailed(lhsPath), .stringHashingFailed(rhsPath)):
-            return lhsPath == rhsPath
-        case (.dataHashingFailed, .dataHashingFailed):
-            return true
-        default:
-            return false
-        }
-    }
 }

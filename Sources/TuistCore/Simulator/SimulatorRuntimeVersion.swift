@@ -47,14 +47,6 @@ public struct SimulatorRuntimeVersion: CustomStringConvertible, Hashable, Expres
         return version
     }
 
-    // MARK: - Equatable
-
-    public static func == (lhs: SimulatorRuntimeVersion, rhs: SimulatorRuntimeVersion) -> Bool {
-        lhs.major == rhs.major &&
-            lhs.minor == rhs.minor &&
-            lhs.patch == rhs.patch
-    }
-
     // MARK: - Comparable
 
     public static func < (lhs: SimulatorRuntimeVersion, rhs: SimulatorRuntimeVersion) -> Bool {

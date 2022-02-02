@@ -23,13 +23,6 @@ enum ResourceLocatingError: FatalError {
             return .bug
         }
     }
-
-    static func == (lhs: ResourceLocatingError, rhs: ResourceLocatingError) -> Bool {
-        switch (lhs, rhs) {
-        case let (.notFound(lhsPath), .notFound(rhsPath)):
-            return lhsPath == rhsPath
-        }
-    }
 }
 
 public final class ResourceLocator: ResourceLocating {
