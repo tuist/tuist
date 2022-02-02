@@ -162,6 +162,7 @@ class RemoteCachePageStore {
         this.projectStore.project.remoteCacheStorage = s3Bucket;
         this.s3Buckets.push(s3Bucket);
       });
+    } else {
     }
   }
 }
