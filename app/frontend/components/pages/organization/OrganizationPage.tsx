@@ -154,7 +154,7 @@ const OrganizationPage = observer(() => {
               onChange={(newValue) => {
                 organizationPageStore.inviteeEmail = newValue;
               }}
-            ></TextField>
+            />
             <Button
               primary
               onClick={() => {

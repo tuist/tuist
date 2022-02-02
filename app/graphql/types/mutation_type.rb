@@ -27,5 +27,10 @@ module Types
       null: false,
       description: "Accept invitation based on a token",
       mutation: Mutations::AcceptInvitation
+    field :create_s3_bucket,
+      S3BucketType,
+      null: false,
+      description: "Create new S3 bucket",
+      mutation: Mutations::CreateS3Bucket
   end
 end
