@@ -11,58 +11,6 @@ import XCTest
 final class CircularDependencyLinterTests: TuistUnitTestCase {
     // MARK: - Dependency Cycle
 
-    func test_loadProject_localDependencyCycle() throws {
-        // Given
-        let targetA = Target.test(name: "A", dependencies: [.target(name: "B")])
-        let targetB = Target.test(name: "B", dependencies: [.target(name: "C")])
-        let targetC = Target.test(name: "C", dependencies: [.target(name: "A")])
-        let project = Project.test(path: "/A", name: "A", targets: [targetA, targetB, targetC])
-        let subject = CircularDependencyLinter()
-
-        // When / Then
-        XCTAssertThrowsSpecific(
-            try subject.lintProject(
-                at: "/A",
-                projects: [
-                    project,
-                ]
-            ),
-            GraphLoadingError.circularDependency([
-                .init(path: "/A", name: "A"),
-                .init(path: "/A", name: "B"),
-                .init(path: "/A", name: "C"),
-            ])
-        )
-    }
-
-    func test_loadProject_differentProjectDependencyCycle() throws {
-        // Given
-        let targetA = Target.test(name: "A", dependencies: [.project(target: "B", path: "/B")])
-        let targetB = Target.test(name: "B", dependencies: [.project(target: "C", path: "/C")])
-        let targetC = Target.test(name: "C", dependencies: [.project(target: "A", path: "/A")])
-        let projectA = Project.test(path: "/A", name: "A", targets: [targetA])
-        let projectB = Project.test(path: "/B", name: "B", targets: [targetB])
-        let projectC = Project.test(path: "/C", name: "C", targets: [targetC])
-        let subject = CircularDependencyLinter()
-
-        // When / Then
-        XCTAssertThrowsSpecific(
-            try subject.lintProject(
-                at: "/A",
-                projects: [
-                    projectA,
-                    projectB,
-                    projectC,
-                ]
-            ),
-            GraphLoadingError.circularDependency([
-                .init(path: "/A", name: "A"),
-                .init(path: "/B", name: "B"),
-                .init(path: "/C", name: "C"),
-            ])
-        )
-    }
-
     func test_loadWorkspace_differentProjectDependencyCycle() throws {
         // Given
         let targetA = Target.test(name: "A", dependencies: [.project(target: "B", path: "/B")])
@@ -89,31 +37,6 @@ final class CircularDependencyLinterTests: TuistUnitTestCase {
                 .init(path: "/B", name: "B"),
                 .init(path: "/C", name: "C"),
             ])
-        )
-    }
-
-    func test_loadProject_crossProjectsReferenceWithNoDependencyCycle() throws {
-        // Given
-        let targetA1 = Target.test(name: "A1", dependencies: [.project(target: "B1", path: "/B")])
-        let targetA2 = Target.test(name: "A2", dependencies: [.project(target: "B2", path: "/B")])
-        let targetB1 = Target.test(name: "B1", dependencies: [.project(target: "C", path: "/C")])
-        let targetB2 = Target.test(name: "B2", dependencies: [])
-        let targetC = Target.test(name: "C", dependencies: [.project(target: "A2", path: "/A")])
-        let projectA = Project.test(path: "/A", name: "A", targets: [targetA1, targetA2])
-        let projectB = Project.test(path: "/B", name: "B", targets: [targetB1, targetB2])
-        let projectC = Project.test(path: "/C", name: "C", targets: [targetC])
-        let subject = CircularDependencyLinter()
-
-        // When / Then
-        XCTAssertNoThrow(
-            try subject.lintProject(
-                at: "/A",
-                projects: [
-                    projectA,
-                    projectB,
-                    projectC,
-                ]
-            )
         )
     }
 

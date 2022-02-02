@@ -84,7 +84,7 @@ final class RunService {
         let generator = generatorFactory.default(config: config)
         if try (generate || buildGraphInspector.workspacePath(directory: runPath) == nil) {
             logger.notice("Generating project for running", metadata: .section)
-            graph = try await generator.generateWithGraph(path: runPath, projectOnly: false).1
+            graph = try await generator.generateWithGraph(path: runPath).1
         } else {
             graph = try await generator.load(path: runPath)
         }
