@@ -1,6 +1,6 @@
 import Foundation
 
-public typealias SigActionHandler = @convention(c)(Int32) -> Void
+public typealias SigActionHandler = @convention(c) (Int32) -> Void
 
 /// Signal handling
 public protocol SignalHandling {
@@ -13,8 +13,8 @@ public struct SignalHandler: SignalHandling {
     public init() {}
 
     public func trap(_ action: @escaping SigActionHandler) {
-        self.trap(signal: SIGINT, action: action)
-        self.trap(signal: SIGABRT, action: action)
+        trap(signal: SIGINT, action: action)
+        trap(signal: SIGABRT, action: action)
     }
 
     private func trap(signal: Int32, action: @escaping SigActionHandler) {
