@@ -1,7 +1,5 @@
 import ProjectDescription
 
 let config = Config(
-    generationOptions: [
-        .disableShowEnvironmentVarsInScriptPhases,
-    ]
+    generationOptions: .options(disableShowEnvironmentVarsInScriptPhases: true)
 )

@@ -1,7 +1,5 @@
 import ProjectDescription
 
 let config = Config(
-    generationOptions: [
-        .organizationName("Tuist"),
-    ]
+    generationOptions: .options(organizationName: "Tuist")
 )

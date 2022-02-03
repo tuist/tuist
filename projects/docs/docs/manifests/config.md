@@ -28,11 +28,11 @@ import ProjectDescription
 let config = Config(
     compatibleXcodeVersions: ["10.3"],
     swiftVersion: "5.4.0",
-    generationOptions: [
-        .xcodeProjectName("SomePrefix-\(.projectName)-SomeSuffix"),
-        .organizationName("Tuist"),
-        .developmentRegion("de")
-    ]
+    generationOptions: .options(
+        xcodeProjectName: "SomePrefix-\(.projectName)-SomeSuffix",
+        organizationName: "Tuist",
+        developmentRegion: "de"
+    )
 )
 ```
 

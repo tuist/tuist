@@ -150,7 +150,7 @@ final class DumpServiceTests: TuistTestCase {
             cache: nil,
             swiftVersion: nil,
             plugins: [],
-            generationOptions: []
+            generationOptions: .options()
         )
         """
         try fileHandler.createFolder(tmpDir.appending(component: "Tuist"))

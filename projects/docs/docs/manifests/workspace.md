@@ -41,9 +41,9 @@ let workspace = Workspace(
         "Documentation/**",
         .folderReference(path: "Website")
     ],
-    generationOptions: [
-        .automaticSchemaGeneration(.disabled)
-    ]
+    generationOptions: .options(
+        automaticSchemaGeneration: .disabled
+    )
 )
 ```
 
