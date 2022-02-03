@@ -115,3 +115,52 @@ extension Project.Options {
         }
     }
 }
+
+// Make TargetSchemesGrouping encoding predictable for testing
+
+extension Project.Options.AutomaticSchemesOptions.TargetSchemesGrouping {
+    private enum Kind: Codable {
+        case singleScheme
+        case byNameSuffix
+        case notGrouped
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case kind
+        case build
+        case test
+        case run
+    }
+
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let kind = try container.decode(Kind.self, forKey: .kind)
+        switch kind {
+        case .singleScheme:
+            self = .singleScheme
+        case .byNameSuffix:
+            let build = try container.decode(Set<String>.self, forKey: .build)
+            let test = try container.decode(Set<String>.self, forKey: .test)
+            let run = try container.decode(Set<String>.self, forKey: .run)
+            self = .byNameSuffix(build: build, test: test, run: run)
+        case .notGrouped:
+            self = .notGrouped
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        switch self {
+        case .singleScheme:
+            try container.encode(Kind.singleScheme, forKey: .kind)
+        case let .byNameSuffix(build, test, run):
+            try container.encode(Kind.byNameSuffix, forKey: .kind)
+            try container.encode(build.sorted(), forKey: .build)
+            try container.encode(test.sorted(), forKey: .test)
+            try container.encode(run.sorted(), forKey: .run)
+        case .notGrouped:
+            try container.encode(Kind.notGrouped, forKey: .kind)
+        }
+    }
+}

@@ -45,9 +45,39 @@ final class DumpServiceTests: TuistTestCase {
 
           ],
           "name": "tuist",
-          "options": [
+          "options": {
+            "automaticSchemesOptions": {
+              "enabled": {
+                "codeCoverageEnabled": false,
+                "targetSchemesGrouping": {
+                  "byNameSuffix": {
+                    "build": [
+                      "Implementation",
+                      "Interface",
+                      "Mocks",
+                      "Testing"
+                    ],
+                    "run": [
+                      "App"
+                      "Demo"
+                    ],
+                    "test": [
+                      "IntegrationTests",
+                      "SnapshotTests",
+                      "Tests",
+                      "UITests"
+                    ]
+                  }
+                },
+                "testingOptions": 0
+              }
+            },
+            "disableBundleAccessors": false,
+            "disableSynthesizedResourceAccessors": false,
+            "textSettings": {
 
-          ],
+            }
+          },
           "organizationName": "tuist",
           "packages": [
 
