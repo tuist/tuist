@@ -123,7 +123,7 @@ final class DumpServiceTests: TuistTestCase {
                 "testingOptions": 0
               }
             },
-            "automaticXcodeSchemes": "default"
+            "enableAutomaticXcodeSchemes": false
           },
           "name": "tuist",
           "projects": [
