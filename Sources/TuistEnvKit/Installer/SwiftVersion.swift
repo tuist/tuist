@@ -30,10 +30,4 @@ struct SwiftVersion: Comparable, Equatable, CustomStringConvertible {
     static func < (lhs: SwiftVersion, rhs: SwiftVersion) -> Bool {
         lhs.major < rhs.major || lhs.minor < rhs.minor || lhs.patch < lhs.patch
     }
-
-    // MARK: - Equatable
-
-    static func == (lhs: SwiftVersion, rhs: SwiftVersion) -> Bool {
-        lhs.major == rhs.major && lhs.minor == rhs.minor && lhs.patch == rhs.patch
-    }
 }

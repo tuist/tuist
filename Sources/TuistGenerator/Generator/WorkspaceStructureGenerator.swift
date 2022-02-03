@@ -177,9 +177,7 @@ extension DirectoryStructure {
             nodes.debugDescription
         }
 
-        static func == (lhs: DirectoryStructure.Graph,
-                        rhs: DirectoryStructure.Graph) -> Bool
-        {
+        static func == (lhs: DirectoryStructure.Graph, rhs: DirectoryStructure.Graph) -> Bool {
             lhs.nodes == rhs.nodes
         }
     }

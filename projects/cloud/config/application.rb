@@ -17,6 +17,7 @@ module TuistCloud
     # Autoloading
     config.autoload_once_paths << "#{root}/app/lib/defaults"
     config.autoload_once_paths << "#{root}/app/lib/secrets"
+    Rails.autoloaders.main.ignore("#{root}/app/frontend")
 
     # URLs
     Rails.application.routes.default_url_options[:host] = config.defaults[:urls][:app]

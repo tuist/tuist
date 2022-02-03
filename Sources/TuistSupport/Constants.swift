@@ -11,6 +11,7 @@ public enum Constants {
     public static let backboneURL = URL(string: "https://backbone.tuist.io")!
     public static let version = "2.7.2"
     public static let bundleName: String = "tuist.zip"
+    public static let envBundleName: String = "tuistenv.zip"
     public static let trueValues: [String] = ["1", "true", "TRUE", "yes", "YES"]
     public static let tuistDirectoryName: String = "Tuist"
 

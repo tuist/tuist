@@ -1,10 +1,5 @@
 import OrganizationStore from '../stores/OrganizationStore';
 import { Role } from '../graphql/types';
-import {
-  ApolloClient,
-  InMemoryCache,
-  NormalizedCacheObject,
-} from '@apollo/client';
 
 jest.mock('@apollo/client');
 

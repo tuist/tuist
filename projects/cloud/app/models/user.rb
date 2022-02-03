@@ -13,6 +13,11 @@ class User < ApplicationRecord
   # Callbacks
   before_validation :create_account, if: -> (user) { user.account.nil? }
 
+  include TokenAuthenticatable
+
+  # Token authenticatable
+  autogenerates_token :token
+
   # Devise
   devise :database_authenticatable, :registerable,
     :recoverable, :rememberable, :validatable,

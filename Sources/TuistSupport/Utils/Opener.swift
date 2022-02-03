@@ -17,13 +17,6 @@ enum OpeningError: FatalError, Equatable {
             return "Couldn't open file at path \(path.pathString)"
         }
     }
-
-    static func == (lhs: OpeningError, rhs: OpeningError) -> Bool {
-        switch (lhs, rhs) {
-        case let (.notFound(lhsPath), .notFound(rhsPath)):
-            return lhsPath == rhsPath
-        }
-    }
 }
 
 public protocol Opening: AnyObject {

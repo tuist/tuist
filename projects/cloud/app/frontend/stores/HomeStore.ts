@@ -1,23 +1,29 @@
 import { makeAutoObservable } from 'mobx';
 import OrganizationStore from './OrganizationStore';
 import UserStore from './UserStore';
+import ProjectStore from './ProjectStore';
 import { createContext } from 'react';
 import { ApolloClient } from '@apollo/client';
 
 export class HomeStore {
   userStore: UserStore;
   organizationStore: OrganizationStore;
+  projectStore: ProjectStore;
   client: ApolloClient<object>;
 
   constructor(client: ApolloClient<object>) {
     makeAutoObservable(this);
     this.userStore = new UserStore(client);
     this.organizationStore = new OrganizationStore(client);
+    this.projectStore = new ProjectStore(client);
   }
 
-  async load(organizationName: string) {
+  async load(projectName: string, accountName: string) {
     await this.userStore.load();
-    await this.organizationStore.load(organizationName);
+    if (this.userStore.me.account.name !== accountName) {
+      await this.organizationStore.load(accountName);
+    }
+    await this.projectStore.load(projectName, accountName);
   }
 }
 

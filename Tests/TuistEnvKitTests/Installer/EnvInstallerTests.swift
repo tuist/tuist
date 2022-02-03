@@ -5,10 +5,10 @@ import XCTest
 @testable import TuistEnvKit
 @testable import TuistSupportTesting
 
-final class InstallerTests: TuistUnitTestCase {
+final class EnvInstallerTests: TuistUnitTestCase {
     var buildCopier: MockBuildCopier!
     var versionsController: MockVersionsController!
-    var subject: Installer!
+    var subject: EnvInstaller!
     var tmpDir: TemporaryDirectory!
 
     override func setUp() {
@@ -16,7 +16,7 @@ final class InstallerTests: TuistUnitTestCase {
         buildCopier = MockBuildCopier()
         versionsController = try! MockVersionsController()
         tmpDir = try! TemporaryDirectory(removeTreeOnDeinit: true)
-        subject = Installer(
+        subject = EnvInstaller(
             buildCopier: buildCopier,
             versionsController: versionsController
         )
@@ -35,7 +35,7 @@ final class InstallerTests: TuistUnitTestCase {
         let temporaryPath = try temporaryPath()
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let downloadURL = URL(string: "https://github.com/tuist/tuist/releases/download/3.2.1/tuist.zip")!
+        let downloadURL = URL(string: "https://github.com/tuist/tuist/releases/download/3.2.1/tuistenv.zip")!
 
         versionsController.installStub = { _, closure in
             try closure(temporaryPath)
@@ -43,7 +43,8 @@ final class InstallerTests: TuistUnitTestCase {
 
         let downloadPath = temporaryDirectory
             .path
-            .appending(component: Constants.bundleName)
+            .appending(component: Constants.envBundleName)
+        system.whichStub = { _ in "/path/to/tuist" }
         system.succeedCommand([
             "/usr/bin/curl",
             "-LSs",
@@ -55,8 +56,14 @@ final class InstallerTests: TuistUnitTestCase {
             "/usr/bin/unzip",
             "-q",
             downloadPath.pathString,
+            "tuistenv",
             "-d",
-            temporaryPath.pathString,
+            temporaryDirectory.path.pathString,
+        ])
+        system.succeedCommand([
+            "cp",
+            temporaryDirectory.path.appending(component: "tuistenv").pathString,
+            "/path/to/tuist",
         ])
 
         try subject.install(
@@ -65,9 +72,58 @@ final class InstallerTests: TuistUnitTestCase {
         )
 
         XCTAssertPrinterOutputContains("""
-        Downloading version 3.2.1
+        Downloading TuistEnv version 3.2.1
         Installing…
-        Version \(version) installed
+        TuistEnv Version \(version) installed
+        """)
+    }
+
+    func test_install_when_cp_fails() throws {
+        let version = "3.2.1"
+        let temporaryPath = try temporaryPath()
+        stubLocalAndRemoveSwiftVersions()
+        let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
+        let downloadURL = URL(string: "https://github.com/tuist/tuist/releases/download/3.2.1/tuistenv.zip")!
+
+        versionsController.installStub = { _, closure in
+            try closure(temporaryPath)
+        }
+
+        let downloadPath = temporaryDirectory
+            .path
+            .appending(component: Constants.envBundleName)
+        system.whichStub = { _ in "/path/to/tuist" }
+        system.succeedCommand([
+            "/usr/bin/curl",
+            "-LSs",
+            "--output",
+            downloadPath.pathString,
+            downloadURL.absoluteString,
+        ])
+        system.succeedCommand([
+            "/usr/bin/unzip",
+            "-q",
+            downloadPath.pathString,
+            "tuistenv",
+            "-d",
+            temporaryDirectory.path.pathString,
+        ])
+        system.succeedCommand([
+            "sudo",
+            "cp",
+            temporaryDirectory.path.appending(component: "tuistenv").pathString,
+            "/path/to/tuist",
+        ])
+
+        try subject.install(
+            version: version,
+            temporaryDirectory: temporaryDirectory.path
+        )
+
+        XCTAssertPrinterOutputContains("""
+        Downloading TuistEnv version 3.2.1
+        Installing…
+        TuistEnv Version \(version) installed
         """)
     }
 
@@ -76,7 +132,7 @@ final class InstallerTests: TuistUnitTestCase {
         let version = "3.2.1"
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let downloadURL = URL(string: "https://github.com/tuist/tuist/releases/download/3.2.1/tuist.zip")!
+        let downloadURL = URL(string: "https://github.com/tuist/tuist/releases/download/3.2.1/tuistenv.zip")!
 
         versionsController.installStub = { _, closure in
             try closure(temporaryPath)
@@ -84,7 +140,8 @@ final class InstallerTests: TuistUnitTestCase {
 
         let downloadPath = temporaryDirectory
             .path
-            .appending(component: Constants.bundleName)
+            .appending(component: Constants.envBundleName)
+        system.whichStub = { _ in "/path/to/tuist" }
         system.errorCommand(
             [
                 "/usr/bin/curl",
@@ -96,7 +153,12 @@ final class InstallerTests: TuistUnitTestCase {
             error: "download_error"
         )
 
-        XCTAssertThrowsError(try subject.install(version: version, temporaryDirectory: temporaryDirectory.path))
+        let expectedError = TuistSupport.SystemError.terminated(
+            command: "/usr/bin/curl",
+            code: 1,
+            standardError: Data("download_error".utf8)
+        )
+        XCTAssertThrowsSpecific(try subject.install(version: version, temporaryDirectory: temporaryDirectory.path), expectedError)
     }
 
     func test_install_when_bundled_release_when_unzip_fails() throws {
@@ -104,7 +166,7 @@ final class InstallerTests: TuistUnitTestCase {
         let version = "3.2.1"
         stubLocalAndRemoveSwiftVersions()
         let temporaryDirectory = try TemporaryDirectory(removeTreeOnDeinit: true)
-        let downloadURL = URL(string: "https://github.com/tuist/tuist/releases/download/3.2.1/tuist.zip")!
+        let downloadURL = URL(string: "https://github.com/tuist/tuist/releases/download/3.2.1/tuistenv.zip")!
 
         versionsController.installStub = { _, closure in
             try closure(temporaryPath)
@@ -112,7 +174,8 @@ final class InstallerTests: TuistUnitTestCase {
 
         let downloadPath = temporaryDirectory
             .path
-            .appending(component: Constants.bundleName)
+            .appending(component: Constants.envBundleName)
+        system.whichStub = { _ in "/path/to/tuist" }
         system.succeedCommand([
             "/usr/bin/curl",
             "-LSs",
@@ -123,14 +186,21 @@ final class InstallerTests: TuistUnitTestCase {
         system.errorCommand(
             [
                 "/usr/bin/unzip",
+                "-q",
                 downloadPath.pathString,
+                "tuistenv",
                 "-d",
-                temporaryPath.pathString,
+                temporaryDirectory.path.pathString,
             ],
             error: "unzip_error"
         )
 
-        XCTAssertThrowsError(try subject.install(version: version, temporaryDirectory: temporaryDirectory.path))
+        let expectedError = TuistSupport.SystemError.terminated(
+            command: "/usr/bin/unzip",
+            code: 1,
+            standardError: Data("unzip_error".utf8)
+        )
+        XCTAssertThrowsSpecific(try subject.install(version: version, temporaryDirectory: temporaryDirectory.path), expectedError)
     }
 
     // MARK: - Fileprivate
