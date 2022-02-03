@@ -51,7 +51,7 @@ extension Target {
         testDependencies: [TargetDependency] = [],
         testingDependencies: [TargetDependency] = [],
         integrationTestsDependencies: [TargetDependency] = []
-    ) -> (targets: [Target], scheme: Scheme) {
+    ) -> [Target] {
         var targets: [Target] = [
             .target(
                 name: name,
@@ -99,13 +99,6 @@ extension Target {
             )
         }
 
-        let allTargets = targets + testTargets
-        let scheme = Scheme(
-            name: name,
-            buildAction: .buildAction(targets: allTargets.map { .init(stringLiteral: $0.name) }),
-            testAction: .targets(testTargets.map { .init(stringLiteral: $0.name) })
-        )
-
-        return (targets: allTargets, scheme: scheme)
+        return targets + testTargets
     }
 }

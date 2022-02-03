@@ -9,9 +9,11 @@ extension TuistGraph.ProjectOption {
         switch manifest {
         case let .automaticSchemesOptions(options):
             switch options {
-            case let .enabled(codeCoverageEnabled, testingOptions):
+            case let .enabled(targetSchemesGrouping, codeCoverageEnabled, testingOptions):
                 return .automaticSchemesOptions(.enabled(
-                    codeCoverageEnabled: codeCoverageEnabled, testingOptions: .from(manifest: testingOptions)
+                    targetSchemesGrouping: .from(manifest: targetSchemesGrouping),
+                    codeCoverageEnabled: codeCoverageEnabled,
+                    testingOptions: .from(manifest: testingOptions)
                 ))
             case .disabled:
                 return .automaticSchemesOptions(.disabled)
@@ -29,6 +31,21 @@ extension TuistGraph.ProjectOption {
                     wrapsLines: wrapsLines
                 )
             )
+        }
+    }
+}
+
+extension TuistGraph.ProjectOption.AutomaticSchemesOptions.TargetSchemesGrouping {
+    static func from(
+        manifest: ProjectDescription.ProjectOption.AutomaticSchemesOptions.TargetSchemesGrouping
+    ) -> Self {
+        switch manifest {
+        case .singleScheme:
+            return .singleScheme
+        case let .byNameSuffix(build, test, run):
+            return .byNameSuffix(build: build, test: test, run: run)
+        case .notGrouped:
+            return .notGrouped
         }
     }
 }
