@@ -20,24 +20,10 @@ public final class ProjectDevelopmentRegionMapper: ProjectMapping {
         var project = project
 
         // Xcode project development region
-        if let developmentRegion = developmentRegionOverride() {
+        if let developmentRegion = config.generationOptions.developmentRegion {
             project.developmentRegion = developmentRegion
         }
 
         return (project, [])
-    }
-
-    // MARK: - Private
-
-    /// - Returns: The development region that should be used for the project.
-    private func developmentRegionOverride() -> String? {
-        config.generationOptions.compactMap { item -> String? in
-            switch item {
-            case let .developmentRegion(developmentRegion):
-                return developmentRegion
-            default:
-                return nil
-            }
-        }.first
     }
 }

@@ -20,51 +20,20 @@ public class ProjectNameAndOrganizationMapper: ProjectMapping {
         var project = project
 
         // Xcode project file name
-        if let xcodeFileName = xcodeFileNameOverride(for: project) {
+        if var xcodeFileName = config.generationOptions.xcodeProjectName {
+            let projectNameTemplate = TemplateString.Token.projectName.rawValue
+            xcodeFileName = xcodeFileName.replacingOccurrences(
+                of: projectNameTemplate,
+                with: project.name
+            )
             project.xcodeProjPath = project.xcodeProjPath.parentDirectory.appending(component: "\(xcodeFileName).xcodeproj")
         }
 
         // Xcode project organization name
-        if let organizationName = organizationNameOverride() {
+        if let organizationName = config.generationOptions.organizationName {
             project.organizationName = organizationName
         }
 
         return (project, [])
-    }
-
-    // MARK: - Private
-
-    /// It returns the name that should be used for the given project.
-    /// - Parameter project: Project representation.
-    /// - Returns: The name to be used.
-    private func xcodeFileNameOverride(for project: TuistGraph.Project) -> String? {
-        var xcodeFileName = config.generationOptions.compactMap { item -> String? in
-            switch item {
-            case let .xcodeProjectName(projectName):
-                return projectName.description
-            default:
-                return nil
-            }
-        }.first
-
-        let projectNameTemplate = TemplateString.Token.projectName.rawValue
-        xcodeFileName = xcodeFileName?.replacingOccurrences(
-            of: projectNameTemplate,
-            with: project.name
-        )
-
-        return xcodeFileName
-    }
-
-    /// - Returns: The organization name that should be used for the project.
-    private func organizationNameOverride() -> String? {
-        config.generationOptions.compactMap { item -> String? in
-            switch item {
-            case let .organizationName(name):
-                return name
-            default:
-                return nil
-            }
-        }.first
     }
 }

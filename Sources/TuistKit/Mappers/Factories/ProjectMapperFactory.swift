@@ -59,7 +59,7 @@ final class ProjectMapperFactory: ProjectMapperFactorying {
         )
 
         // Logfile noise suppression
-        if config.generationOptions.contains(.disableShowEnvironmentVarsInScriptPhases) {
+        if config.generationOptions.disableShowEnvironmentVarsInScriptPhases {
             mappers.append(
                 TargetProjectMapper(mapper: TargetActionEnvironmentMapper(false))
             )

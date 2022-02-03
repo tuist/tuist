@@ -26,7 +26,7 @@ final class ProjectMapperFactoryTests: TuistUnitTestCase {
 
     func test_default_when_synthesizing_of_resource_interfaces_is_disabled() {
         // Given
-        let config = Config.test(generationOptions: [])
+        let config = Config.default
 
         // When
         let got = subject.default(config: config)
@@ -38,9 +38,7 @@ final class ProjectMapperFactoryTests: TuistUnitTestCase {
 
     func test_default_when_showing_env_variables_in_scripts_is_disabled() {
         // Given
-        let config = Config.test(generationOptions: [
-            .disableShowEnvironmentVarsInScriptPhases,
-        ])
+        let config = Config.test(generationOptions: .test(disableShowEnvironmentVarsInScriptPhases: true))
 
         // When
         let got = subject.default(config: config)
@@ -52,8 +50,7 @@ final class ProjectMapperFactoryTests: TuistUnitTestCase {
 
     func test_default_when_showing_env_variables_in_scripts_is_enabled() {
         // Given
-        let config = Config.test(generationOptions: [
-        ])
+        let config = Config.default
 
         // When
         let got = subject.default(config: config)
@@ -65,8 +62,7 @@ final class ProjectMapperFactoryTests: TuistUnitTestCase {
 
     func test_default_when_bundle_accessors_are_enabled() {
         // Given
-        let config = Config.test(generationOptions: [
-        ])
+        let config = Config.default
 
         // When
         let got = subject.default(config: config)
@@ -79,8 +75,7 @@ final class ProjectMapperFactoryTests: TuistUnitTestCase {
 
     func test_default_contains_the_generate_info_plist_mapper() {
         // Given
-        let config = Config.test(generationOptions: [
-        ])
+        let config = Config.default
 
         // When
         let got = subject.default(config: config)
@@ -91,8 +86,7 @@ final class ProjectMapperFactoryTests: TuistUnitTestCase {
 
     func test_default_contains_the_project_name_and_organization_mapper() {
         // Given
-        let config = Config.test(generationOptions: [
-        ])
+        let config = Config.default
 
         // When
         let got = subject.default(config: config)
@@ -103,8 +97,7 @@ final class ProjectMapperFactoryTests: TuistUnitTestCase {
 
     func test_default_contains_the_project_development_region_mapper() {
         // Given
-        let config = Config.test(generationOptions: [
-        ])
+        let config = Config.default
 
         // When
         let got = subject.default(config: config)
@@ -115,8 +108,7 @@ final class ProjectMapperFactoryTests: TuistUnitTestCase {
 
     func test_default_contains_the_ide_template_macros_mapper() {
         // Given
-        let config = Config.test(generationOptions: [
-        ])
+        let config = Config.default
 
         // When
         let got = subject.default(config: config)
@@ -127,8 +119,7 @@ final class ProjectMapperFactoryTests: TuistUnitTestCase {
 
     func test_default_contains_the_signing_mapper() {
         // Given
-        let config = Config.test(generationOptions: [
-        ])
+        let config = Config.default
 
         // When
         let got = subject.default(config: config)
@@ -139,8 +130,7 @@ final class ProjectMapperFactoryTests: TuistUnitTestCase {
 
     func test_automation_contains_the_source_root_path_project_mapper() {
         // Given
-        let config = Config.test(generationOptions: [
-        ])
+        let config = Config.default
 
         // When
         let got = subject.automation(config: config, skipUITests: true)
@@ -151,8 +141,7 @@ final class ProjectMapperFactoryTests: TuistUnitTestCase {
 
     func test_automation_contains_the_skip_ui_tests_mapper_when_skip_ui_tests_is_true() {
         // Given
-        let config = Config.test(generationOptions: [
-        ])
+        let config = Config.default
 
         // When
         let got = subject.automation(config: config, skipUITests: true)
@@ -163,8 +152,7 @@ final class ProjectMapperFactoryTests: TuistUnitTestCase {
 
     func test_automation_doesnt_contain_the_skip_ui_tests_mapper_when_skip_ui_tests_is_false() {
         // Given
-        let config = Config.test(generationOptions: [
-        ])
+        let config = Config.default
 
         // When
         let got = subject.automation(config: config, skipUITests: false)

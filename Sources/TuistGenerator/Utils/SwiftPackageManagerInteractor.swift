@@ -47,7 +47,7 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
         config: Config,
         graphTraverser: GraphTraversing
     ) async throws {
-        guard !config.generationOptions.contains(.disablePackageVersionLocking),
+        guard !config.generationOptions.disablePackageVersionLocking,
               graphTraverser.hasRemotePackages
         else {
             return
@@ -71,7 +71,7 @@ public class SwiftPackageManagerInteractor: SwiftPackageManagerInteracting {
         var arguments = ["xcodebuild", "-resolvePackageDependencies"]
 
         // This allows using the system-defined git credentials instead of using Xcode's accounts permissions
-        if config.generationOptions.contains(.resolveDependenciesWithSystemScm) {
+        if config.generationOptions.resolveDependenciesWithSystemScm {
             arguments.append(contentsOf: ["-scmProvider", "system"])
         }
 

@@ -72,7 +72,7 @@ final class WorkspaceMapperFactory: WorkspaceMapperFactorying {
             ModuleMapMapper()
         )
 
-        if let lastUpgradeVersion = lastUpgradeCheckOverride(config: config) {
+        if let lastUpgradeVersion = config.generationOptions.lastXcodeUpgradeCheck {
             mappers.append(
                 LastUpgradeVersionWorkspaceMapper(
                     lastUpgradeVersion: lastUpgradeVersion
@@ -81,18 +81,5 @@ final class WorkspaceMapperFactory: WorkspaceMapperFactorying {
         }
 
         return mappers
-    }
-
-    // MARK: - Fileprivate
-
-    fileprivate func lastUpgradeCheckOverride(config: Config) -> Version? {
-        config.generationOptions.compactMap { item -> Version? in
-            switch item {
-            case let .lastUpgradeCheck(version):
-                return version
-            default:
-                return nil
-            }
-        }.first
     }
 }

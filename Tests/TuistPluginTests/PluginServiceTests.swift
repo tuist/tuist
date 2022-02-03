@@ -429,7 +429,7 @@ final class PluginServiceTests: TuistUnitTestCase {
             cache: nil,
             swiftVersion: nil,
             plugins: plugins,
-            generationOptions: [],
+            generationOptions: .test(),
             path: nil
         )
     }

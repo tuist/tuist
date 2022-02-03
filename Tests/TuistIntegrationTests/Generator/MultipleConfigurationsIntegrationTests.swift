@@ -1,6 +1,7 @@
 import TSCBasic
 import TuistCore
 import TuistGraph
+import TuistGraphTesting
 import TuistLoaderTesting
 import XcodeProj
 import XCTest
@@ -377,7 +378,7 @@ final class MultipleConfigurationsIntegrationTests: TuistUnitTestCase {
             cache: .default,
             swiftVersion: nil,
             plugins: [],
-            generationOptions: [],
+            generationOptions: .test(),
             path: nil
         )
     }
