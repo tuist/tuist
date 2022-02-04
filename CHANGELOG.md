@@ -41,7 +41,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
   - **Motivation:**: The command were sharing a lot of responsibilities, and having a single one provides a cleaner CLI.
   - **Migration:** Instead of using focus, just use `generate` passing the targets to it. If you want to avoid using caching, you can pass `--no-cache` to `tuist generate`.
 - **Breaking** remove the `tuist lint code` command [#4001](https://github.com/tuist/tuist/pull/4001) by [@laxmorek](https://github.com/laxmorek)
-  - **Migration:** Use [tuist-plugin-swiftlint](https://github.com/tuist/tuist-plugin-swiftlint) instead. Read more about plugins [here](https://docs.tuist.io/plugins/using-plugins).
+  - **Migration:** Use the [swiftlint plugin](https://github.com/tuist/tuist-plugin-swiftlint) instead. Read more about plugins [here](https://docs.tuist.io/plugins/using-plugins).
 - **Breaking** remove the `tuist lint project` command [#4001](https://github.com/tuist/tuist/pull/4001) by [@laxmorek](https://github.com/laxmorek)
   - **Motivation:** `tuist` manifests/graphs are linted during generation (the `tusit generate` command), no need to keep it separately.
 - **Breaking** remove deprecated initializers for `FileLists`, `Headers`, and `HTTPURLResponse` [#3936](https://github.com/tuist/tuist/pull/3936) by [@danyf90](https://github.com/danyf90)
