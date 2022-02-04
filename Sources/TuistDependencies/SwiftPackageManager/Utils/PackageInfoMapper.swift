@@ -355,12 +355,14 @@ public final class PackageInfoMapper: PackageInfoMapping {
 
         return ProjectDescription.Project(
             name: name,
-            options: [
+            options: .options(
                 // Use `.singleScheme` to reduce number of generated schemes
-                .automaticSchemesOptions(.enabled(
+                automaticSchemesOptions: .enabled(
                     targetSchemesGrouping: .singleScheme
-                )),
-            ],
+                ),
+                disableBundleAccessors: false,
+                disableSynthesizedResourceAccessors: false
+            ),
             settings: packageInfo.projectSettings(swiftToolsVersion: swiftToolsVersion),
             targets: targets,
             resourceSynthesizers: []

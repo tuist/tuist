@@ -37,7 +37,6 @@ class ProjectLinter: ProjectLinting {
         issues.append(contentsOf: settingsLinter.lint(project: project))
         issues.append(contentsOf: schemeLinter.lint(project: project))
         issues.append(contentsOf: lintPackages(project: project))
-        issues.append(contentsOf: lintOptions(project: project))
         return issues
     }
 
@@ -63,30 +62,6 @@ class ProjectLinter: ProjectLinting {
         if !duplicatedTargets.isEmpty {
             let issue = LintingIssue(
                 reason: "Targets \(duplicatedTargets.joined(separator: ", ")) from project at \(project.path.pathString) have duplicates.",
-                severity: .error
-            )
-            issues.append(issue)
-        }
-        return issues
-    }
-
-    private func lintOptions(project: Project) -> [LintingIssue] {
-        var issues: [LintingIssue] = []
-        issues.append(contentsOf: lintNotDuplicatedOptions(project: project))
-        return issues
-    }
-
-    private func lintNotDuplicatedOptions(project: Project) -> [LintingIssue] {
-        var issues: [LintingIssue] = []
-        let duplicatedOptions = project.options
-            .reduce(into: [ProjectOption: Int]()) { $0[$1, default: 0] += 1 }
-            .filter { $0.value > 1 }
-            .keys
-        if !duplicatedOptions.isEmpty {
-            let optionsNames = duplicatedOptions.map(\.name)
-
-            let issue = LintingIssue(
-                reason: "Options \"\(optionsNames.joined(separator: ", "))\" from project at \(project.path.pathString) have duplicates.",
                 severity: .error
             )
             issues.append(issue)

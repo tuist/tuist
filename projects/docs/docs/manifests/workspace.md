@@ -53,35 +53,23 @@ Although `Workspace.swift` file can reside in any directory (including a project
 
 A `Workspace.swift` should initialize a variable of type `Workspace`. It can take any name, although we recommend to stick to `workspace`. A workspace accepts the following attributes:
 
-| Property             | Description                                                                                                       | Type                                                            | Required | Default |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | -------- | ------- |
-| `name`               | Name of the workspace. It’s used to determine the name of the generated Xcode workspace.                          | `String`                                                        | Yes      |         |
-| `projects`           | List of paths (or glob patterns) to projects to generate and include within the generated Xcode workspace.        | [`[Path]`](manifests/project.md#path)                             | Yes      |         |
-| `schemes`            | List of custom schemes to include in the workspace                                                                | [`[Scheme]`](manifests/project.md#scheme)                         | No       |         |
-| `fileHeaderTemplate` | Lets you define custom file header template macro for built-in Xcode file templates.                              | [`FileHeaderTemplate`](manifests/project.md#file-header-template) | No       |         |
-| `additionalFiles`    | List of files to include in the workspace - these won't be included in any of the projects or their build phases. | [`[FileElement]`](manifests/project.md#fileelement)               | No       | `[]`    |
-| `generationOptions`  | Options to configure the generation of the Xcode workspace.                                                       | [`Workspace.GenerationOptions`](#generationoptions)             | No       | `nil`   |
+| Property             | Description                                                                                                       | Type                                                              | Required | Default   |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | -------- | --------- |
+| `name`               | Name of the workspace. It’s used to determine the name of the generated Xcode workspace.                          | `String`                                                          | Yes      |           |
+| `projects`           | List of paths (or glob patterns) to projects to generate and include within the generated Xcode workspace.        | [`[Path]`](manifests/project.md#path)                             | Yes      |           |
+| `schemes`            | List of custom schemes to include in the workspace                                                                | [`[Scheme]`](manifests/project.md#scheme)                         | No       |           |
+| `fileHeaderTemplate` | Lets you define custom file header template macro for built-in Xcode file templates.                              | [`FileHeaderTemplate`](manifests/project.md#file-header-template) | No       |           |
+| `additionalFiles`    | List of files to include in the workspace - these won't be included in any of the projects or their build phases. | [`[FileElement]`](manifests/project.md#fileelement)               | No       | `[]`      |
+| `generationOptions`  | Options to configure the generation of the Xcode workspace.                                                       | [`Workspace.GenerationOptions`](#generationoptions)               | No       | See below |
 
 ## GenerationOptions
 
 Generation options allow customizing the generation of the Xcode workspace.
 
-| Property                                                | Description                                                                                                                                                               | Type                                                              | Required | Default                                                     |
-| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- | -------- | ----------------------------------------------------------- |
-| `automaticXcodeSchemes`                                 | Enable or disable automatic generation of schemes _by Xcode_.                                                                                                             | [`AutomaticSchemeMode`](#automaticschememode)                     | No       | `.default`                                                  |
-| `.autogeneratedWorkspaceSchemes(AutogenerationOptions)` | Enable or disable automatic generation of `*-Workspace*` schemes. If enabled, options to configure code coverage and test targets can be passed in via associated values. | [`AutogeneratedWorkspaceSchemes`](#autogeneratedworkspaceschemes) | No       | `.enabled(codeCoverageMode: .disabled, testingOptions: [])` |
-
-## AutomaticSchemeMode
-
-Options for controlling the automatic schemes created by Xcode.
-
-| Case        | Description                                                      |
-| ----------- | ---------------------------------------------------------------- |
-| `.default`  | Will respect Xcode defaults for this setting (typically enabled) |
-| `.disabled` | Will explicitly disable the automatic Xcode schemes              |
-| `.enabled`  | Will explicitly enable the automatic Xcode schemes               |
-
-_Tuist maps those values to the corresponding `IDEWorkspaceSharedSettings_AutocreateContextsIfNeeded` values within the `WorkspaceSettings.xcsettings` file._
+| Property                                                | Description                                                                                                                                                              | Type                                                              | Required | Default                                                     |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------- | -------- | ----------------------------------------------------------- |
+| `disableAutomaticXcodeSchemes`                          | Enable or disable automatic generation of schemes _by Xcode_.                                                                                                            | [`AutomaticSchemeMode`](#automaticschememode)                     | No       | `false`                                                     |
+| `autogeneratedWorkspaceSchemes(AutogenerationOptions)` | Enable or disable automatic generation of `*-Workspace*` schemes. If enabled, options to configure code coverage and test targets can be passed in via associated values. | [`AutogeneratedWorkspaceSchemes`](#autogeneratedworkspaceschemes) | No       | `.enabled(codeCoverageMode: .disabled, testingOptions: [])` |
 
 ### CodeCoverageMode
 
@@ -92,10 +80,11 @@ Allows you to define what targets will be enabled for code coverage data gatheri
 | `.all`                        | Gather code coverage data for all targets in workspace.                                          |
 | `.relevant`                   | Enable code coverage for targets that have enabled code coverage in any of schemes in workspace. |
 | `.targets([TargetReference])` | Gather code coverage for specified target references.                                            |
+| `.none`                       | Do not gather code coverage data.                                                                |
 
 ### TestingOptions
 
-Allows you to define which testing options are applied on autogenerated schemes. An empty list of options will default to `false` for both options.
+Allows you to define which set of testing options are applied on autogenerated schemes.
 
 | Option                     | Description                                       |
 | -------------------------- | ------------------------------------------------- |

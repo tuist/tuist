@@ -1,4 +1,5 @@
 import TSCBasic
+import TuistSupport
 
 /// A directed acyclic graph (DAG) that Tuist uses to represent the dependency tree.
 public struct DependenciesGraph: Equatable, Codable {

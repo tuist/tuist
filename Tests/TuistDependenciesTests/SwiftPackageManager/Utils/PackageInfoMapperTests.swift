@@ -2537,13 +2537,16 @@ extension ProjectDescription.Project {
     ) -> Self {
         .init(
             name: name,
-            options: [
-                .automaticSchemesOptions(.enabled(
+            options: .options(
+                automaticSchemesOptions: .enabled(
                     targetSchemesGrouping: .singleScheme,
                     codeCoverageEnabled: false,
                     testingOptions: []
-                )),
-            ],
+                ),
+                disableBundleAccessors: false,
+                disableSynthesizedResourceAccessors: false,
+                textSettings: .textSettings(usesTabs: nil, indentWidth: nil, tabWidth: nil, wrapsLines: nil)
+            ),
             settings: settings,
             targets: targets,
             resourceSynthesizers: []

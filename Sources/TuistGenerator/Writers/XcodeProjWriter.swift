@@ -134,6 +134,10 @@ public final class XcodeProjWriter: XcodeProjWriting {
     ) throws {
         let settingsPath = WorkspaceSettingsDescriptor.xcsettingsFilePath(relativeToWorkspace: xccontainerPath)
 
+        let parentFolder = settingsPath.removingLastComponent()
+        if !FileHandler.shared.exists(parentFolder) {
+            try FileHandler.shared.createFolder(parentFolder)
+        }
         try workspaceSettingsDescriptor.settings
             .write(path: settingsPath.path, override: true)
     }
