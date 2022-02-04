@@ -45,8 +45,6 @@ Scenario: The project is an iOS application with local Swift package (ios_app_wi
   Then tuist generates the project
   Then I should be able to build for iOS the scheme App
   Then I should be able to test for iOS the scheme App
-  Then I should be able to build for iOS the scheme LibraryA
-  Then I should be able to build for iOS the scheme LibraryB
 
 Scenario: The project is an iOS application with multiple configurations (ios_app_with_multi_configs)
     Given that tuist is available
