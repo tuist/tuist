@@ -39,15 +39,34 @@ final class DumpServiceTests: TuistTestCase {
             encoding: .utf8
         )
         try subject.run(path: tmpDir.pathString, manifest: .project)
-        let expected = """
+        let expectedStart = """
         {
           "additionalFiles": [
 
           ],
           "name": "tuist",
-          "options": [
+          "options": {
+            "automaticSchemesOptions": {
+              "enabled": {
+                "codeCoverageEnabled": false,
+                "targetSchemesGrouping": {
+                  "byNameSuffix": {
+                    "build": [
+        """
+        // middle part is ignored as order of suffixes is not predictable
+        let expectedEnd = """
+                    ]
+                  }
+                },
+                "testingOptions": 0
+              }
+            },
+            "disableBundleAccessors": false,
+            "disableSynthesizedResourceAccessors": false,
+            "textSettings": {
 
-          ],
+            }
+          },
           "organizationName": "tuist",
           "packages": [
 
@@ -65,7 +84,8 @@ final class DumpServiceTests: TuistTestCase {
 
         """
 
-        XCTAssertPrinterOutputContains(expected)
+        XCTAssertPrinterOutputContains(expectedStart)
+        XCTAssertPrinterOutputContains(expectedEnd)
     }
 
     func test_prints_the_manifest_when_workspace_manifest() throws {
@@ -103,7 +123,7 @@ final class DumpServiceTests: TuistTestCase {
                 "testingOptions": 0
               }
             },
-            "automaticXcodeSchemes": "default"
+            "enableAutomaticXcodeSchemes": false
           },
           "name": "tuist",
           "projects": [

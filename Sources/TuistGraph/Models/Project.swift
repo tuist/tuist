@@ -24,7 +24,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
     public var developmentRegion: String?
 
     /// Additional project options.
-    public var options: [ProjectOption]
+    public var options: Options
 
     /// Project targets.
     public var targets: [Target]
@@ -77,7 +77,7 @@ public struct Project: Hashable, Equatable, CustomStringConvertible, CustomDebug
         name: String,
         organizationName: String?,
         developmentRegion: String?,
-        options: [ProjectOption],
+        options: Options,
         settings: Settings,
         filesGroup: ProjectGroup,
         targets: [Target],

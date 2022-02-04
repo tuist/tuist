@@ -30,6 +30,8 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - **Breaking** change automatic schemes generation to use `ProjectOption.AutomaticSchemesGrouping.byName` grouping
   - **Motivation**: Generated schemes now groups targets together better, reducing the number of generated schemes
   - **Migration**: If the new default don't fit your needs, manually generate your schemes or try another `ProjectOption.AutomaticSchemesGrouping` option
+- **Breaking** refactor `Project.options` to be a `struct` instead of an `enum` [#4104](https://github.com/tuist/tuist/pull/4104) by [@danyf90](https://github.com/danyf90)
+  - **Motivation**: A struct better represents the semantic of the type
 - Add support for configuring code coverage and testing options at the project level [#4090](https://github.com/tuist/tuist/pull/4090) by [@danyf90](https://github.com/danyf90)
 - Add more detailed messaging for errors during manifest loading [#4076](https://github.com/tuist/tuist/pull/4076) by [@luispadron](https://github.com/luispadron)
 
@@ -39,7 +41,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
   - **Motivation:**: The command were sharing a lot of responsibilities, and having a single one provides a cleaner CLI.
   - **Migration:** Instead of using focus, just use `generate` passing the targets to it. If you want to avoid using caching, you can pass `--no-cache` to `tuist generate`.
 - **Breaking** remove the `tuist lint code` command [#4001](https://github.com/tuist/tuist/pull/4001) by [@laxmorek](https://github.com/laxmorek)
-  - **Migration:** Use [tuist-plugin-swiftlint](https://github.com/tuist/tuist-plugin-swiftlint) instead. Read more about plugins [here](https://docs.tuist.io/plugins/using-plugins).
+  - **Migration:** Use the [swiftlint plugin](https://github.com/tuist/tuist-plugin-swiftlint) instead. Read more about plugins [here](https://docs.tuist.io/plugins/using-plugins).
 - **Breaking** remove the `tuist lint project` command [#4001](https://github.com/tuist/tuist/pull/4001) by [@laxmorek](https://github.com/laxmorek)
   - **Motivation:** `tuist` manifests/graphs are linted during generation (the `tusit generate` command), no need to keep it separately.
 - **Breaking** remove deprecated initializers for `FileLists`, `Headers`, and `HTTPURLResponse` [#3936](https://github.com/tuist/tuist/pull/3936) by [@danyf90](https://github.com/danyf90)
