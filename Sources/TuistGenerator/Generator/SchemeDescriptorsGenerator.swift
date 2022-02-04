@@ -865,3 +865,23 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
         }
     }
 }
+
+extension TestAction {
+    fileprivate static func empty(defaultBuildConfiguraiton: String) -> Self {
+        .init(
+            targets: [],
+            arguments: nil,
+            configurationName: "",
+            attachDebugger: true,
+            coverage: false,
+            codeCoverageTargets: [],
+            expandVariableFromTarget: nil,
+            preActions: [],
+            postActions: [],
+            diagnosticsOptions: [],
+            language: nil,
+            region: nil,
+            testPlans: []
+        )
+    }
+}
