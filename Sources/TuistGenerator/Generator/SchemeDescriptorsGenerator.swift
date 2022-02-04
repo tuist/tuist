@@ -266,7 +266,8 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                           rootPath: AbsolutePath,
                           generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.TestAction?
     {
-        guard let testAction = scheme.testAction else { return nil }
+        // Use empty action if nil, otherwise Xcode will create it anyway
+        let testAction = scheme.testAction ?? .empty
 
         var testables: [XCScheme.TestableReference] = []
         var preActions: [XCScheme.ExecutionAction] = []
@@ -867,7 +868,7 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 }
 
 extension TestAction {
-    fileprivate static func empty(defaultBuildConfiguraiton: String) -> Self {
+    fileprivate static var empty: Self {
         .init(
             targets: [],
             arguments: nil,
