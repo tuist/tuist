@@ -25,19 +25,9 @@ public enum Tuist {
         }
     }
 
-    /// Returns graph at the current path.
-    public static func graph() throws -> Graph {
-        try graph(at: nil)
-    }
-
-    /// Returns graph at the given path.
-    public static func graph(at path: String) throws -> Graph {
-        try graph(at: path as String?)
-    }
-
-    // MARK: - Helpers
-
-    private static func graph(at path: String?) throws -> Graph {
+    /// Loads and returns the graph at the given path.
+    /// - parameter path: the path which graph should be loaded. If nil, the current path is used.
+    public static func graph(at path: String? = nil) throws -> Graph {
         // If a task is executed via `tuist`, it gets passed the binary path as a last argument.
         // Otherwise, fallback to go
         let tuistBinaryPath = ProcessInfo.processInfo.environment["TUIST_CONFIG_BINARY_PATH"] ?? "tuist"
