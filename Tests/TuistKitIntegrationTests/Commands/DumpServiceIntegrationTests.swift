@@ -167,9 +167,11 @@ final class DumpServiceTests: TuistTestCase {
 
             }
           },
-          "generationOptions": [
-
-          ],
+          "generationOptions": {
+            "disableShowEnvironmentVarsInScriptPhases": false
+            "resolveDependenciesWithSystemScm": false,
+            "disablePackageVersionLocking": Bool
+          },
           "plugins": [
 
           ]
