@@ -34,6 +34,7 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
   - **Motivation**: A struct better represents the semantic of the type
 - Add support for configuring code coverage and testing options at the project level [#4090](https://github.com/tuist/tuist/pull/4090) by [@danyf90](https://github.com/danyf90)
 - Add more detailed messaging for errors during manifest loading [#4076](https://github.com/tuist/tuist/pull/4076) by [@luispadron](https://github.com/luispadron)
+- Deprecate legacy SPM support via Project.packages [#4112](https://github.com/tuist/tuist/pull/4112) by [@danyf90](https://github.com/danyf90)
 
 ### Removed
 
