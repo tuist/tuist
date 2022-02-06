@@ -128,6 +128,10 @@ Text settings to override user ones. Would use Xcode defined settings if pass `n
 
 ### Package
 
+:::warning Deprecated
+This feature is deprecated. You should use `Dependencies.swift` instead.
+:::
+
 You can add Swift Packages very similarly to how you add dependencies in a `Package.swift`:
 
 For remote:

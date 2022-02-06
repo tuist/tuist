@@ -10,27 +10,6 @@ import XCTest
 @testable import TuistSupportTesting
 
 final class DependencyManifestMapperTests: TuistUnitTestCase {
-    func test_from_when_localPackage() throws {
-        // Given
-        let dependency = ProjectDescription.TargetDependency.package(product: "library")
-        let generatorPaths = GeneratorPaths(manifestDirectory: AbsolutePath("/"))
-
-        // When
-        let got = try TuistGraph.TargetDependency.from(
-            manifest: dependency,
-            generatorPaths: generatorPaths,
-            externalDependencies: [:]
-        )
-
-        // Then
-        XCTAssertEqual(got.count, 1)
-        guard case let .package(product) = got[0] else {
-            XCTFail("Dependency should be package")
-            return
-        }
-        XCTAssertEqual(product, "library")
-    }
-
     func test_from_when_external_xcframework() throws {
         // Given
         let dependency = ProjectDescription.TargetDependency.external(name: "library")

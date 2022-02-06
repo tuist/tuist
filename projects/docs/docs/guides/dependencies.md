@@ -94,11 +94,16 @@ You can read more about the different locations of frameworks on [this issue](ht
 
 ### SPM dependencies
 
+:::warning Deprecated
+This feature is deprecated. You should use `Dependencies.swift` and `.external(name:)` dependencies instead.
+:::
+
 Targets can add Swift package products as dependencies:
 
 ```swift
 .package(product: "LibraryA")
 ```
+
 ### XCFramework dependencies
 
 ```swift

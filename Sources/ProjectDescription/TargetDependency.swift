@@ -54,6 +54,7 @@ public enum TargetDependency: Codable, Equatable {
     /// - Parameters:
     ///   - product: The name of the output product. ${PRODUCT_NAME} inside Xcode.
     ///              e.g. RxSwift
+    @available(*, deprecated, message: "Use `Dependencies.swift` and `.external(name:)` instead")
     case package(product: String)
 
     /// Dependency on system library or framework
