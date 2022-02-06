@@ -105,18 +105,20 @@ class TargetLinter: TargetLinting {
     private func lintCopiedFiles(target: Target) -> [LintingIssue] {
         var issues: [LintingIssue] = []
 
-        let files = target.resources.map(\.path)
-        let entitlements = files.filter { $0.pathString.contains(".entitlements") }
-
-        if let targetInfoPlistPath = target.infoPlist?.path, files.contains(targetInfoPlistPath) {
-            let reason = "Info.plist at path \(targetInfoPlistPath) being copied into the target \(target.name) product."
-            issues.append(LintingIssue(reason: reason, severity: .warning))
+        let infoPlists = target.settings?.configurations.infoPlists().compactMap(\.path)
+        for file in target.resources {
+            if file.path.pathString.hasSuffix(".entitlements") {
+                let reason =
+                    "Entitlements file at path \(file.path.pathString) being copied into the target \(target.name) product."
+                issues.append(LintingIssue(reason: reason, severity: .warning))
+            } else if file.path == target.infoPlist?.path
+                || infoPlists?.contains(file.path) == true
+            {
+                let reason =
+                    "Info.plist at path \(file.path.pathString) being copied into the target \(target.name) product."
+                issues.append(LintingIssue(reason: reason, severity: .warning))
+            }
         }
-
-        issues.append(contentsOf: entitlements.map {
-            let reason = "Entitlements file at path \($0.pathString) being copied into the target \(target.name) product."
-            return LintingIssue(reason: reason, severity: .warning)
-        })
 
         issues.append(contentsOf: lintInfoplistExists(target: target))
         issues.append(contentsOf: lintEntitlementsExist(target: target))
@@ -150,15 +152,17 @@ class TargetLinter: TargetLinting {
     }
 
     private func lintInfoplistExists(target: Target) -> [LintingIssue] {
-        var issues: [LintingIssue] = []
-        if let infoPlist = target.infoPlist,
-           case let InfoPlist.file(path: path) = infoPlist,
-           !FileHandler.shared.exists(path)
-        {
-            issues
-                .append(LintingIssue(reason: "Info.plist file not found at path \(infoPlist.path!.pathString)", severity: .error))
-        }
-        return issues
+        var infoPlists = target.settings?.configurations.infoPlists() ?? []
+        target.infoPlist.map { infoPlists.append($0) }
+        return infoPlists
+            .compactMap {
+                guard case let InfoPlist.file(path: path) = $0 else {
+                    return nil
+                }
+                return path
+            }
+            .filter { !FileHandler.shared.exists($0) }
+            .map { LintingIssue(reason: "Info.plist file not found at path \($0.pathString)", severity: .error) }
     }
 
     private func lintEntitlementsExist(target: Target) -> [LintingIssue] {
