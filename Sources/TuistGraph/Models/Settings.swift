@@ -32,12 +32,14 @@ public struct Configuration: Equatable, Codable {
     // MARK: - Attributes
 
     public let settings: SettingsDictionary
+    public let infoPlist: InfoPlist?
     public let xcconfig: AbsolutePath?
 
     // MARK: - Init
 
-    public init(settings: SettingsDictionary = [:], xcconfig: AbsolutePath? = nil) {
+    public init(settings: SettingsDictionary = [:], infoPlist: InfoPlist? = nil, xcconfig: AbsolutePath? = nil) {
         self.settings = settings
+        self.infoPlist = infoPlist
         self.xcconfig = xcconfig
     }
 
@@ -48,6 +50,7 @@ public struct Configuration: Equatable, Codable {
     public func with(settings: SettingsDictionary) -> Configuration {
         Configuration(
             settings: settings,
+            infoPlist: infoPlist,
             xcconfig: xcconfig
         )
     }
@@ -135,6 +138,12 @@ extension Dictionary where Key == BuildConfiguration, Value == Configuration? {
         sortedByBuildConfigurationName()
             .map(\.value)
             .compactMap { $0?.xcconfig }
+    }
+
+    public func infoPlists() -> [InfoPlist] {
+        sortedByBuildConfigurationName()
+            .map(\.value)
+            .compactMap(\.?.infoPlist)
     }
 }
 

@@ -166,7 +166,8 @@ final class ConfigGenerator: ConfigGenerating {
             target: target,
             graphTraverser: graphTraverser,
             project: project,
-            sourceRootPath: sourceRootPath
+            sourceRootPath: sourceRootPath,
+            configuration: configuration
         )
 
         settingsHelper.extend(buildSettings: &settings, with: target.settings?.base ?? [:])
@@ -191,13 +192,15 @@ final class ConfigGenerator: ConfigGenerating {
                                      target: Target,
                                      graphTraverser: GraphTraversing,
                                      project: Project,
-                                     sourceRootPath: AbsolutePath)
+                                     sourceRootPath: AbsolutePath,
+                                     configuration: Configuration?)
     {
         settings.merge(
             generalTargetDerivedSettings(
                 target: target,
                 sourceRootPath: sourceRootPath,
-                project: project
+                project: project,
+                configuration: configuration
             )
         ) { $1 }
         settings
@@ -212,14 +215,15 @@ final class ConfigGenerator: ConfigGenerating {
     private func generalTargetDerivedSettings(
         target: Target,
         sourceRootPath: AbsolutePath,
-        project: Project
+        project: Project,
+        configuration: Configuration?
     ) -> SettingsDictionary {
         var settings: SettingsDictionary = [:]
         settings["PRODUCT_BUNDLE_IDENTIFIER"] = .string(target.bundleId)
 
         // Info.plist
-        if let infoPlist = target.infoPlist, let path = infoPlist.path {
-            let relativePath = path.relative(to: sourceRootPath).pathString
+        if let infoPlistPath = configuration?.infoPlist?.path ?? target.infoPlist?.path {
+            let relativePath = infoPlistPath.relative(to: sourceRootPath).pathString
             if project.xcodeProjPath.parentDirectory == sourceRootPath {
                 settings["INFOPLIST_FILE"] = .string(relativePath)
             } else {

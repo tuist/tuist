@@ -161,6 +161,10 @@ class ProjectFileElements {
             files.insert(configFilePath)
         }
 
+        target.settings?.configurations.infoPlists().compactMap(\.path).forEach { infoPlistPath in
+            files.insert(infoPlistPath)
+        }
+
         // Additional files
         files.formUnion(target.additionalFiles.map(\.path))
 

@@ -15,7 +15,8 @@ extension TuistGraph.Configuration {
     {
         guard let manifest = manifest else { return nil }
         let settings = manifest.settings.mapValues(TuistGraph.SettingValue.from)
+        let infoPlist = try manifest.infoPlist.map { try TuistGraph.InfoPlist.from(manifest: $0, generatorPaths: generatorPaths) }
         let xcconfig = try manifest.xcconfig.flatMap { try generatorPaths.resolve(path: $0) }
-        return Configuration(settings: settings, xcconfig: xcconfig)
+        return Configuration(settings: settings, infoPlist: infoPlist, xcconfig: xcconfig)
     }
 }

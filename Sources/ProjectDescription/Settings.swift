@@ -46,12 +46,14 @@ public struct Configuration: Equatable, Codable {
     public let name: ConfigurationName
     public let variant: Variant
     public let settings: SettingsDictionary
+    public let infoPlist: InfoPlist?
     public let xcconfig: Path?
 
-    init(name: ConfigurationName, variant: Variant, settings: SettingsDictionary, xcconfig: Path?) {
+    init(name: ConfigurationName, variant: Variant, settings: SettingsDictionary, infoPlist: InfoPlist?, xcconfig: Path?) {
         self.name = name
         self.variant = variant
         self.settings = settings
+        self.infoPlist = infoPlist
         self.xcconfig = xcconfig
     }
 
@@ -63,12 +65,13 @@ public struct Configuration: Equatable, Codable {
     ///   - xcconfig: The xcconfig file to associate with this configuration
     /// - Returns: A debug `CustomConfiguration`
     public static func debug(name: ConfigurationName, settings: SettingsDictionary = [:],
-                             xcconfig: Path? = nil) -> Configuration
+                             infoPlist: InfoPlist? = nil, xcconfig: Path? = nil) -> Configuration
     {
         Configuration(
             name: name,
             variant: .debug,
             settings: settings,
+            infoPlist: infoPlist,
             xcconfig: xcconfig
         )
     }
@@ -81,12 +84,13 @@ public struct Configuration: Equatable, Codable {
     ///   - xcconfig: The xcconfig file to associate with this configuration
     /// - Returns: A release `CustomConfiguration`
     public static func release(name: ConfigurationName, settings: SettingsDictionary = [:],
-                               xcconfig: Path? = nil) -> Configuration
+                               infoPlist: InfoPlist? = nil, xcconfig: Path? = nil) -> Configuration
     {
         Configuration(
             name: name,
             variant: .release,
             settings: settings,
+            infoPlist: infoPlist,
             xcconfig: xcconfig
         )
     }
