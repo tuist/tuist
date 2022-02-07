@@ -2,6 +2,6 @@
 
 class ProjectPolicy < ApplicationPolicy
   def show?
-    AccountPolicy.new(user, record.account)
+    AccountPolicy.new(user, record.account).show?
   end
 end
