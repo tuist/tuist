@@ -54,6 +54,10 @@ Please, check out guidelines: https://keepachangelog.com/en/1.0.0/
 - Fix clean `tuist test` for project with resources [#4091](https://github.com/tuist/tuist/pull/4091) by [@adellibovi](https://github.com/adellibovi)
 - Fix `tuist graph --skip-external-dependencies` for `Dependencies.swift` dependencies [#4115](https://github.com/tuist/tuist/pull/4115) by [@danyf90](https://github.com/danyf90)
 
+### Added
+
+- Add support for `umbrellaHeader` parameter to `Headers` to get list of public headers automatically. Also added new static functions in `Headers` for most popular cases with umbrella header [#3884](https://github.com/tuist/tuist/pull/3884) by [@pavel-trafimuk](https://github.com/pavel-trafimuk)
+
 ## 2.7.2
 
 - Fix download of binary artifacts from the remote cache [#4073](https://github.com/tuist/tuist/pull/4073) by [@adellibovi](https://github.com/adellibovi)
