@@ -38,7 +38,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try TuistGraph.Headers.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try TuistGraph.Headers.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            productName: "ModuleA"
+        )
 
         // Then
         XCTAssertEqual(model.public, [
@@ -85,7 +89,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try TuistGraph.Headers.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try TuistGraph.Headers.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            productName: "ModuleA"
+        )
 
         // Then
         XCTAssertEqual(model.public, [
@@ -124,7 +132,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try TuistGraph.Headers.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try TuistGraph.Headers.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            productName: "ModuleA"
+        )
 
         // Then
         XCTAssertEqual(model.public, [
@@ -165,7 +177,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try TuistGraph.Headers.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try TuistGraph.Headers.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            productName: "ModuleA"
+        )
 
         // Then
         XCTAssertEqual(model.public, [
@@ -205,7 +221,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try TuistGraph.Headers.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try TuistGraph.Headers.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            productName: "ModuleA"
+        )
 
         // Then
         XCTAssertEqual(model.public, [
@@ -245,7 +265,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try TuistGraph.Headers.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try TuistGraph.Headers.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            productName: "ModuleA"
+        )
 
         // Then
         XCTAssertEqual(model.public, [
@@ -298,7 +322,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try TuistGraph.Headers.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try TuistGraph.Headers.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            productName: "ModuleA"
+        )
 
         // Then
         XCTAssertEqual(model.public, [
@@ -347,7 +375,11 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
         )
 
         // When
-        let model = try TuistGraph.Headers.from(manifest: manifest, generatorPaths: generatorPaths)
+        let model = try TuistGraph.Headers.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            productName: "ModuleA"
+        )
 
         // Then
         XCTAssertEqual(model.public, [
@@ -364,5 +396,207 @@ final class HeadersManifestMapperTests: TuistUnitTestCase {
             "Sources/group/A1+Project.h",
             "Sources/group/A2+Protected.h",
         ].sorted().map { temporaryPath.appending(RelativePath($0)) })
+    }
+
+    func test_load_from_umbrella() throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+
+        let umbrellaContent = """
+        #import <Foundation/Foundation.h>
+
+        //! Project version number for TuistTestModule.
+        FOUNDATION_EXPORT double TuistTestModuleVersionNumber;
+
+        //! Project version string for TuistTestModule.
+        FOUNDATION_EXPORT const unsigned char TuistTestModuleVersionString[];
+
+        // In this header, you should import all the public headers of your framework using statements like #import <TuistTestModule/PublicHeader.h>
+
+        #import <TuistTestModule/A1.h>
+        #import <TuistTestModule/A2.h>
+        #import "A3.h" // to test modules with legacy format
+        #import <TuistTestModule/A2+Protected.h> // to test modules, where some protected files became public
+        #import <UIKit/A4+Private.h> // to test incorrect module
+        """
+        let umbrellaPath = temporaryPath.appending(RelativePath("Sources/Umbrella.h"))
+
+        try createFiles([
+            "Sources/group/A1.h",
+            "Sources/group/A2.h",
+            "Sources/group/A3.h",
+            "Sources/group/A1+Project.h",
+            "Sources/group/A2+Protected.h",
+            "Sources/group/A4+Private.h",
+        ])
+        try createVersionFile(content: umbrellaContent, in: umbrellaPath)
+
+        let manifest = ProjectDescription.Headers.allHeaders(
+            from: "Sources/**",
+            umbrella: "Sources/Umbrella.h"
+        )
+
+        // When
+        let model = try TuistGraph.Headers.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            productName: "TuistTestModule"
+        )
+
+        // Then
+        XCTAssertEqual(model.public.sorted(), [
+            "Sources/Umbrella.h",
+            "Sources/group/A1.h",
+            "Sources/group/A2.h",
+            "Sources/group/A3.h",
+            "Sources/group/A2+Protected.h",
+        ].sorted().map { temporaryPath.appending(RelativePath($0)) })
+
+        XCTAssertEqual(model.private, [
+        ].map { temporaryPath.appending(RelativePath($0)) })
+
+        XCTAssertEqual(model.project.sorted(), [
+            "Sources/group/A1+Project.h",
+            "Sources/group/A4+Private.h",
+        ].sorted().map { temporaryPath.appending(RelativePath($0)) })
+    }
+
+    func test_load_from_umbrella_withExcluding() throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+
+        let umbrellaContent = """
+        #import <Foundation/Foundation.h>
+
+        //! Project version number for TuistTestModule.
+        FOUNDATION_EXPORT double TuistTestModuleVersionNumber;
+
+        //! Project version string for TuistTestModule.
+        FOUNDATION_EXPORT const unsigned char TuistTestModuleVersionString[];
+
+        // In this header, you should import all the public headers of your framework using statements like #import <TuistTestModule/PublicHeader.h>
+
+        #import <TuistTestModule/A1.h>
+        #import <TuistTestModule/A2.h>
+        #import "A3.h" // to test modules with legacy format
+        """
+        let umbrellaPath = temporaryPath.appending(RelativePath("Sources/Umbrella.h"))
+
+        try createFiles([
+            "Sources/group/A1.h",
+            "Sources/group/A2.h",
+            "Sources/group/A3.h",
+            "Sources/group/A1+Mock.h",
+            "Sources/group/A2+Protected.h",
+            "Sources/group/A4+Private.h",
+        ])
+        try createVersionFile(content: umbrellaContent, in: umbrellaPath)
+
+        let manifest = ProjectDescription.Headers.allHeaders(
+            from: .list([.glob(
+                "Sources/group/**",
+                excluding: [
+                    "Sources/**/*+Mock.h",
+                ]
+            )]),
+            umbrella: "Sources/Umbrella.h",
+            private: "Sources/**/*+Private.h"
+        )
+
+        // When
+        let model = try TuistGraph.Headers.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            productName: "TuistTestModule"
+        )
+
+        // Then
+        XCTAssertEqual(model.public.sorted(), [
+            "Sources/Umbrella.h", // should be added anyway
+            "Sources/group/A1.h",
+            "Sources/group/A2.h",
+            "Sources/group/A3.h",
+        ].sorted().map { temporaryPath.appending(RelativePath($0)) })
+
+        XCTAssertEqual(model.private, [
+            "Sources/group/A4+Private.h",
+        ].map { temporaryPath.appending(RelativePath($0)) })
+
+        XCTAssertEqual(model.project.sorted(), [
+            "Sources/group/A2+Protected.h",
+        ].sorted().map { temporaryPath.appending(RelativePath($0)) })
+    }
+
+    func test_load_from_umbrella_withExcluding_withOutProject() throws {
+        // Given
+        let temporaryPath = try temporaryPath()
+        let generatorPaths = GeneratorPaths(manifestDirectory: temporaryPath)
+
+        let umbrellaContent = """
+        #import <Foundation/Foundation.h>
+
+        //! Project version number for TuistTestModule.
+        FOUNDATION_EXPORT double TuistTestModuleVersionNumber;
+
+        //! Project version string for TuistTestModule.
+        FOUNDATION_EXPORT const unsigned char TuistTestModuleVersionString[];
+
+        // In this header, you should import all the public headers of your framework using statements like #import <TuistTestModule/PublicHeader.h>
+
+        #import <TuistTestModule/A1.h>
+        #import <TuistTestModule/A2.h>
+        #import "A3.h" // to test modules with legacy format
+        """
+        let umbrellaPath = temporaryPath.appending(RelativePath("Sources/Umbrella.h"))
+
+        try createFiles([
+            "Sources/group/A1.h",
+            "Sources/group/A2.h",
+            "Sources/group/A3.h",
+            "Sources/group/A1+Mock.h",
+            "Sources/group/A2+Protected.h",
+            "Sources/group/A4+Private.h",
+        ])
+        try createVersionFile(content: umbrellaContent, in: umbrellaPath)
+
+        let manifest = ProjectDescription.Headers.onlyHeaders(
+            from: .list([.glob(
+                "Sources/group/**",
+                excluding: [
+                    "Sources/**/*+Mock.h",
+                ]
+            )]),
+            umbrella: "Sources/Umbrella.h",
+            private: "Sources/**/*+Private.h"
+        )
+
+        // When
+        let model = try TuistGraph.Headers.from(
+            manifest: manifest,
+            generatorPaths: generatorPaths,
+            productName: "TuistTestModule"
+        )
+
+        // Then
+        XCTAssertEqual(model.public.sorted(), [
+            "Sources/Umbrella.h", // should be added anyway
+            "Sources/group/A1.h",
+            "Sources/group/A2.h",
+            "Sources/group/A3.h",
+        ].sorted().map { temporaryPath.appending(RelativePath($0)) })
+
+        XCTAssertEqual(model.private, [
+            "Sources/group/A4+Private.h",
+        ].map { temporaryPath.appending(RelativePath($0)) })
+
+        XCTAssertEqual(model.project.sorted(), [
+        ].sorted().map { temporaryPath.appending(RelativePath($0)) })
+    }
+
+    private func createVersionFile(content: String, in path: AbsolutePath) throws {
+        let data = try XCTUnwrap(content.data(using: .utf8))
+        try data.write(to: path.url, options: .atomic)
     }
 }

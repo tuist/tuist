@@ -260,9 +260,48 @@ It represents the target headers:
 | Property           | Description                                                                           | Type                                                     | Required | Default |
 | ------------------ | ---------------------------------------------------------------------------------------- | ----------------------------------------------------- | -------- | ------- |
 | `public`           | Relative glob pattern that points to the public headers.                                 | [`FileList`](#file-list)                              | No       |         |
+| `umbrellaHeader`   | Path to an umbrella header, which will be used to get list of public headers             | [`Path`](#path)                                       | No       |         |
 | `private`          | Relative glob pattern that points to the private headers.                                | [`FileList`](#file-list)                              | No       |         |
 | `project`          | Relative glob pattern that points to the project headers.                                | [`FileList`](#file-list)                              | No       |         |
 | `exclusionRule`    | Rule, which determines how to resolve found duplicates in public/private/project scopes  | [`AutomaticExclusionRule`](#automatic-exclusion-rule) | No       | `.none` |
+
+The following example shows creating Header by using umbrealla header as source of truth for public headers, all others will be with `project` visibility:
+
+```swift
+.allHeaders(from: "Classes/**", umbrella: "MyModuleName.h")
+```
+
+The following example shows creating Header by using umbrealla header as source of truth for public headers, specific list of private headers and all others will be with `project` visibility:
+
+```swift
+.allHeaders(from: "Classes/**", umbrella: "MyModuleName.h", private: "Sources/**/*+Private.h")
+```
+
+The following example shows creating Header by using umbrealla header as source of truth for public headers, specific list of private headers and all others will be with skipped:
+
+```swift
+.onlyHeaders(from: "Classes/**", umbrella: "MyModuleName.h", private: "Sources/**/*+Private.h")
+```
+
+Don't forget, that you can add exceptions for the each list, e.g. to remove unit-tests headers
+
+```swift
+.allHeaders(
+    from: .list([.glob("Sources/group/**", excluding: ["Sources/**/*+Mock.h"])]),
+    umbrella: "Sources/Umbrella.h",
+    private: "Sources/**/*+Private.h"
+    )
+```
+
+The following example shows classic way with manual declaring list for each kind of vibisility
+
+```swift
+.headers(
+    public: "Sources/public/**",
+    private: "Sources/private/**",
+    project: "Sources/project/**"
+)
+```
 
 ### File List
 
