@@ -109,6 +109,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         let core = GraphViz.Node("Core")
         let coreTests = GraphViz.Node("CoreTests")
         let watchOS = GraphViz.Node("Tuist watchOS")
+        let externalDependency = GraphViz.Node("External dependency")
 
         graph.append(contentsOf: [tuist, core])
         if !onlyiOS {
@@ -122,13 +123,14 @@ final class GraphToGraphVizMapperTests: XCTestCase {
         if includeExternalDependencies {
             graph.append(
                 contentsOf: [
-                    coreData, rxSwift, xcodeProj,
+                    coreData, rxSwift, xcodeProj, externalDependency,
                 ]
             )
             graph.append(contentsOf: [
                 GraphViz.Edge(from: core, to: xcodeProj),
                 GraphViz.Edge(from: core, to: rxSwift),
                 GraphViz.Edge(from: core, to: coreData),
+                GraphViz.Edge(from: core, to: externalDependency),
             ])
         }
 
@@ -161,6 +163,10 @@ final class GraphToGraphVizMapperTests: XCTestCase {
                 product: .unitTests
             )
         )
+        let externalDependency = GraphDependency.target(
+            name: "External dependency",
+            path: project.path.appending(components: "Tuist", "Dependencies")
+        )
         let iOSApp = GraphTarget.test(target: Target.test(name: "Tuist iOS"))
         let watchApp = GraphTarget.test(target: Target.test(name: "Tuist watchOS"))
 
@@ -184,6 +190,7 @@ final class GraphToGraphVizMapperTests: XCTestCase {
                     framework,
                     library,
                     sdk,
+                    externalDependency,
                 ],
                 .target(name: coreTests.target.name, path: coreTests.path): [coreDependency],
                 .target(name: iOSApp.target.name, path: iOSApp.path): [coreDependency],
