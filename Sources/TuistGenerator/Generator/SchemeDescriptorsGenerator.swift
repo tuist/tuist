@@ -267,7 +267,9 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
                           generatedProjects: [AbsolutePath: GeneratedProject]) throws -> XCScheme.TestAction?
     {
         // Use empty action if nil, otherwise Xcode will create it anyway
-        let testAction = scheme.testAction ?? .empty
+        let testAction = scheme.testAction ?? .empty(
+            withConfigurationName: scheme.runAction?.configurationName ?? BuildConfiguration.debug.name
+        )
 
         var testables: [XCScheme.TestableReference] = []
         var preActions: [XCScheme.ExecutionAction] = []
@@ -868,11 +870,11 @@ final class SchemeDescriptorsGenerator: SchemeDescriptorsGenerating {
 }
 
 extension TestAction {
-    fileprivate static var empty: Self {
+    fileprivate static func empty(withConfigurationName configurationName: String) -> Self {
         .init(
             targets: [],
             arguments: nil,
-            configurationName: "",
+            configurationName: configurationName,
             attachDebugger: true,
             coverage: false,
             codeCoverageTargets: [],
@@ -882,7 +884,7 @@ extension TestAction {
             diagnosticsOptions: [],
             language: nil,
             region: nil,
-            testPlans: []
+            testPlans: nil
         )
     }
 }
