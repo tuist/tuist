@@ -18,6 +18,12 @@ If you want to pass multiple environment variables just separate them with a spa
 TUIST_APP_NAME=MyApp TUIST_APP_LOCALE=pl tuist generate
 ```
 
+Tuist also supports reading from .env files located inside of the Tuist/ directory by default. Simply Create a .env file inside of the Tuist directory and add your environment varables one per line. For example:
+```bash
+TUIST_APP_NAME=MyApp
+TUIST_APP_LOCALE=pl
+```
+
 Variables can be accessed using the `Environment` type. Any variables following the convention `TUIST_XXX` defined in the environment or passed to Tuist when running commands will be accessible using the `Environment` type.
 The following example shows how we access the `TUIST_APP_NAME` variable:
 
